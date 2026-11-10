@@ -1,0 +1,170 @@
+// HIGHLIGHT over an external relation. Mirrors highlight.csv-spec's FROM books cases against books_ds, same
+// shapes and same highlighted values, so the two are directly comparable. A dataset has no mapping, so its string
+// columns are keyword and HIGHLIGHT analyzes them with standard, the analyzer the books index maps for its text
+// fields. Full-text filters run over a TO_TEXT copy, because MATCH on a keyword column matches the whole value.
+//
+// books collides with its ES|QL index twin, so the dataset is named books_ds. books has bracket-MV author cells,
+// which only the native-MV readers (Parquet, ORC, NDJSON) decode, so the CSV/TSV suites do not read this file.
+
+highlightOnExternalField
+required_capability: highlight_v6
+required_capability: dataset_in_from_command
+dataset: books_ds: "{{books}}"
+
+FROM books_ds
+| WHERE book_no IN ("2714", "7350")
+| HIGHLIGHT "return" ON title
+| KEEP book_no, highlight_title
+| SORT book_no
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+7350            | <em>Return</em> of the Shadow
+;
+
+
+// Sorting on the generated column runs HIGHLIGHT before the TopN, on whichever node reads the split.
+highlightOnExternalFieldBeforeSort
+required_capability: highlight_v6
+required_capability: dataset_in_from_command
+dataset: books_ds: "{{books}}"
+
+FROM books_ds
+| WHERE book_no IN ("2714", "7350")
+| HIGHLIGHT "return" ON title
+| SORT highlight_title
+| LIMIT 1000
+| KEEP book_no, highlight_title
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+7350            | <em>Return</em> of the Shadow
+;
+
+
+highlightOnExternalMultiValuedField
+required_capability: highlight_v6
+required_capability: dataset_in_from_command
+dataset: books_ds: "{{books}}"
+
+FROM books_ds
+| WHERE book_no == "7350"
+| HIGHLIGHT "tolkien" ON author WITH { "pre_tags": ["<b>"], "post_tags": ["</b>"] }
+| KEEP highlight_author
+;
+
+highlight_author:keyword
+[John Ronald Reuel <b>Tolkien</b>, Christopher <b>Tolkien</b>]
+;
+
+
+highlightMatchQueryOnExternalField
+required_capability: highlight_v6
+required_capability: match_function
+required_capability: dataset_in_from_command
+dataset: books_ds: "{{books}}"
+
+FROM books_ds
+| WHERE book_no IN ("2714", "7350")
+| HIGHLIGHT MATCH(title, "return") ON title
+| KEEP book_no, highlight_title
+| SORT book_no
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+7350            | <em>Return</em> of the Shadow
+;
+
+
+// The query and the ON field are both derived from the runtime MATCH.
+highlightImplicitQueryFromRuntimeMatchOnExternal
+required_capability: highlight_implicit_query_and_fields
+required_capability: fn_match_runtime_filter
+required_capability: dataset_in_from_command
+dataset: books_ds: "{{books}}"
+
+FROM books_ds
+| EVAL t = TO_TEXT(title)
+| WHERE MATCH(t, "Return")
+| HIGHLIGHT
+| KEEP book_no, highlight_t
+| SORT book_no
+;
+
+book_no:keyword | highlight_t:keyword
+2714            | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+7350            | <em>Return</em> of the Shadow
+;
+
+
+highlightOnStarOverExternal
+required_capability: highlight_implicit_query_and_fields
+required_capability: dataset_in_from_command
+dataset: books_ds: "{{books}}"
+
+FROM books_ds
+| WHERE book_no == "8875"
+| HIGHLIGHT "Tolkien" ON *
+| KEEP highlight_author, highlight_title, highlight_description
+;
+
+highlight_author:keyword           | highlight_title:keyword | highlight_description:keyword
+John Ronald Reuel <em>Tolkien</em> | null                    | null
+;
+
+
+// Without ON a string query falls back to every string column of the dataset's resolved schema.
+highlightNoOnOverExternalFallsBackToAllFields
+required_capability: highlight_implicit_query_and_fields
+required_capability: dataset_in_from_command
+dataset: books_ds: "{{books}}"
+
+FROM books_ds
+| HIGHLIGHT "Tolkien"
+| KEEP book_no, highlight_author
+| WHERE book_no == "8875"
+;
+
+book_no:keyword | highlight_author:keyword
+8875            | John Ronald Reuel <em>Tolkien</em>
+;
+
+
+highlightStatsValuesOverExternal
+required_capability: highlight_v6
+required_capability: dataset_in_from_command
+dataset: books_ds: "{{books}}"
+
+FROM books_ds
+| WHERE book_no == "2714"
+| STATS t = VALUES(title) BY book_no
+| HIGHLIGHT "return king" ON t
+| KEEP book_no, highlight_t
+;
+
+book_no:keyword | highlight_t:keyword
+2714            | <em>Return</em> of the <em>King</em> Being the Third Part of The Lord of the Rings
+;
+
+
+highlightInsideForkBranchOverExternal
+required_capability: highlight_v6
+required_capability: fork_v9
+required_capability: dataset_in_from_command
+dataset: books_ds: "{{books}}"
+
+FROM books_ds
+| WHERE book_no == "2714"
+| FORK (HIGHLIGHT "return" ON title | KEEP book_no, highlight_title)
+       (HIGHLIGHT "king" ON title | KEEP book_no, highlight_title)
+| KEEP _fork, book_no, highlight_title
+| SORT _fork
+;
+
+_fork:keyword | book_no:keyword | highlight_title:keyword
+fork1         | 2714            | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+fork2         | 2714            | Return of the <em>King</em> Being the Third Part of The Lord of the Rings
+;

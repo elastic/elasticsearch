@@ -59,6 +59,11 @@ public final class ConstantBytesRefVector extends AbstractVector implements Byte
     }
 
     @Override
+    public long estimateTotalValueBytes() {
+        return (long) getPositionCount() * value.length;
+    }
+
+    @Override
     public int valueMaxByteSize() {
         return getPositionCount() == 0 ? 0 : value.length;
     }

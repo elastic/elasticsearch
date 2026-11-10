@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -217,7 +218,7 @@ public class MoveAllocationCommand implements AllocationCommand {
             }
             // When executing an explicit move command from an operator, we use the same recovery as if we had a canRemain = NO decision
             // (which is the highest of the relocation priorities).
-            ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO;
+            RecoveryPriority recoveryPriority = RecoveryPriority.RELOCATION_CAN_REMAIN_NO;
             allocation.routingNodes()
                 .relocateShard(
                     shardRouting,

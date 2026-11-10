@@ -18,6 +18,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.GroupedReleasables;
 import org.elasticsearch.escf.EscfColumn;
@@ -46,7 +47,6 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.StringStoredFieldFieldLoader;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -54,7 +54,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -105,7 +104,7 @@ public class PatternTextFieldMapper extends FieldMapper {
 
         private final IndexSettings indexSettings;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
-        private final Parameter<String> indexOptions = patternTextIndexOptions(m -> ((PatternTextFieldMapper) m).indexOptions);
+        private final Parameter<String> indexOptions = patternTextIndexOptions();
         private final Parameter<NamedAnalyzer> analyzer;
         private final Parameter<Boolean> disableTemplating;
         private final IndexVersion indexCreatedVersion;
@@ -130,7 +129,7 @@ public class PatternTextFieldMapper extends FieldMapper {
         ) {
             super(name, indexCreatedVersion, isWithinMultiField);
             this.indexSettings = indexSettings;
-            this.analyzer = analyzerParam(name, m -> ((PatternTextFieldMapper) m).analyzer);
+            this.analyzer = analyzerParam(name);
             this.disableTemplating = disableTemplatingParameter(indexSettings);
             this.indexCreatedVersion = indexCreatedVersion;
             this.useBinaryDocValuesForRawText = useBinaryDocValuesForRawText;
@@ -166,8 +165,8 @@ public class PatternTextFieldMapper extends FieldMapper {
             return indexOptions == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS ? Defaults.FIELD_TYPE_POSITIONS : Defaults.FIELD_TYPE_DOCS;
         }
 
-        private static Parameter<String> patternTextIndexOptions(Function<FieldMapper, String> initializer) {
-            return Parameter.stringParam("index_options", false, initializer, "docs").addValidator(v -> {
+        private static Parameter<String> patternTextIndexOptions() {
+            return Parameter.stringParam("index_options", false, "docs").addValidator(v -> {
                 switch (v) {
                     case "positions":
                     case "docs":
@@ -180,7 +179,7 @@ public class PatternTextFieldMapper extends FieldMapper {
             });
         }
 
-        private static Parameter<NamedAnalyzer> analyzerParam(String name, Function<FieldMapper, NamedAnalyzer> initializer) {
+        private static Parameter<NamedAnalyzer> analyzerParam(String name) {
             return new Parameter<>("analyzer", false, () -> DelimiterAnalyzer.INSTANCE, (n, c, o) -> {
                 String analyzerName = o.toString();
                 switch (analyzerName) {
@@ -193,7 +192,7 @@ public class PatternTextFieldMapper extends FieldMapper {
                             "unsupported analyzer [" + analyzerName + "] for field [" + name + "], supported analyzers are [standard, log]"
                         );
                 }
-            }, initializer, (b, n, v) -> b.field(n, v.name()), NamedAnalyzer::name);
+            }, (b, n, v) -> b.field(n, v.name()), NamedAnalyzer::name);
         }
 
         /**
@@ -205,12 +204,7 @@ public class PatternTextFieldMapper extends FieldMapper {
          */
         private static Parameter<Boolean> disableTemplatingParameter(IndexSettings indexSettings) {
             boolean forceDisable = DISABLE_TEMPLATING_SETTING.get(indexSettings.getSettings());
-            return Parameter.boolParam(
-                "disable_templating",
-                false,
-                m -> ((PatternTextFieldMapper) m).fieldType().disableTemplating(),
-                forceDisable
-            ).addValidator(value -> {
+            return Parameter.boolParam("disable_templating", false, forceDisable).addValidator(value -> {
                 if (value == false && forceDisable) {
                     throw new MapperParsingException(
                         "value [false] for mapping parameter [disable_templating] contradicts value [true] for index setting ["
@@ -243,10 +237,7 @@ public class PatternTextFieldMapper extends FieldMapper {
 
     public static final TypeParser PARSER = new TypeParser(Builder::new);
 
-    private final IndexVersion indexCreatedVersion;
     private final NamedAnalyzer analyzer;
-    private final IndexSettings indexSettings;
-    private final String indexOptions;
     private final FieldType fieldType;
     private final KeywordFieldMapper templateIdMapper;
     private final FieldType templateIdFieldType;
@@ -265,10 +256,7 @@ public class PatternTextFieldMapper extends FieldMapper {
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
         this.fieldType = fieldType;
-        this.indexCreatedVersion = builder.indexCreatedVersion();
         this.analyzer = builder.analyzer.get();
-        this.indexSettings = builder.indexSettings;
-        this.indexOptions = builder.indexOptions.getValue();
         this.templateIdMapper = templateIdMapper;
         this.templateIdFieldType = templateIdMapper.luceneFieldType();
         this.useBinaryDocValueArgs = builder.useBinaryDocValuesForArgsColumn();
@@ -278,12 +266,6 @@ public class PatternTextFieldMapper extends FieldMapper {
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Map.of(mappedFieldType.name(), analyzer);
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexSettings, fieldType().isWithinMultiField(), useBinaryDocValuesForRawText)
-            .init(this);
     }
 
     @Override
@@ -406,11 +388,13 @@ public class PatternTextFieldMapper extends FieldMapper {
             // the analyzed column can share the column data directly. A builder is allocated lazily
             // only when the source is UNION/other kind.
             final EscfColumnBuilder analyzedBuilder = source.leafValueKind() != EscfColumnKind.STRING
-                ? pending.add(newStringBuilder())
+                ? pending.add(newStringBuilder(ctx.recycler()))
                 : null;
 
             // Never written when templating is disabled, so do not allocate it in that case.
-            final EscfColumnBuilder templateIdBuilder = fieldType().disableTemplating() ? null : pending.add(newStringBuilder());
+            final EscfColumnBuilder templateIdBuilder = fieldType().disableTemplating()
+                ? null
+                : pending.add(newStringBuilder(ctx.recycler()));
             // These are allocated when first needed (TEMPLATED path) to avoid waste for
             // disable_templating=true or all-LENGTH_EXCEEDED batches.
             EscfColumnBuilder templateBuilder = null;
@@ -457,7 +441,7 @@ public class PatternTextFieldMapper extends FieldMapper {
 
                 if (fieldType().disableTemplating()) {
                     // Templating disabled: emit the analyzed value and the full raw text only.
-                    rawTextBuilder = lazyBuilder(rawTextBuilder, pending);
+                    rawTextBuilder = lazyBuilder(rawTextBuilder, pending, ctx.recycler());
                     rawTextBuilder.setString(currentDoc, v);
                     continue;
                 }
@@ -469,18 +453,18 @@ public class PatternTextFieldMapper extends FieldMapper {
 
                 if (result == PatternTextUtf8Splitter.Result.LENGTH_EXCEEDED) {
                     // Value exceeds the length limit: store the full original value as raw text.
-                    rawTextBuilder = lazyBuilder(rawTextBuilder, pending);
+                    rawTextBuilder = lazyBuilder(rawTextBuilder, pending, ctx.recycler());
                     rawTextBuilder.setString(currentDoc, v);
                 } else {
                     // TEMPLATED: emit template, args_info, and (if present) args.
-                    templateBuilder = lazyBuilder(templateBuilder, pending);
+                    templateBuilder = lazyBuilder(templateBuilder, pending, ctx.recycler());
                     templateBuilder.setString(currentDoc, splitter.template());
 
-                    argsInfoBuilder = lazyBuilder(argsInfoBuilder, pending);
+                    argsInfoBuilder = lazyBuilder(argsInfoBuilder, pending, ctx.recycler());
                     argsInfoBuilder.setString(currentDoc, splitter.argsInfo());
 
                     if (splitter.argCount() > 0) {
-                        argsBuilder = lazyBuilder(argsBuilder, pending);
+                        argsBuilder = lazyBuilder(argsBuilder, pending, ctx.recycler());
                         argsBuilder.setString(currentDoc, splitter.joinedArgs());
                     }
                 }
@@ -530,14 +514,14 @@ public class PatternTextFieldMapper extends FieldMapper {
         ctx.addColumn(LuceneBinaryColumn.of(data, fieldName, fieldType), data);
     }
 
-    private static EscfColumnBuilder newStringBuilder() {
-        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private static EscfColumnBuilder newStringBuilder(Recycler<BytesRef> recycler) {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, recycler);
         b.lockScalar(EscfColumnKind.STRING);
         return b;
     }
 
-    private static EscfColumnBuilder lazyBuilder(EscfColumnBuilder existing, GroupedReleasables pending) {
-        return existing != null ? existing : pending.add(newStringBuilder());
+    private static EscfColumnBuilder lazyBuilder(EscfColumnBuilder existing, GroupedReleasables pending, Recycler<BytesRef> recycler) {
+        return existing != null ? existing : pending.add(newStringBuilder(recycler));
     }
 
     @Override

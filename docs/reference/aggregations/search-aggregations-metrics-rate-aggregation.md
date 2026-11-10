@@ -13,6 +13,10 @@ A `rate` metrics aggregation can be used only inside a `date_histogram` or `comp
 For `composite` aggregations, there must be exactly one `date_histogram` source for the `rate` aggregation to be supported.
 ::::
 
+::::{warning}
+Using the `rate` aggregation on counter fields inside a [`time_series` aggregation](/reference/aggregations/search-aggregations-bucket-time-series-aggregation.md) is deprecated and will be removed in a future version, because the `time_series` aggregation is deprecated. Each search request that uses it returns a deprecation warning. Use the [{{esql}} `TS` command](/reference/query-languages/esql/commands/ts.md) instead.
+::::
+
 
 ## Syntax [_syntax_5]
 

@@ -187,6 +187,17 @@ public class ViewResolver {
         return projectResolver.getProjectMetadata(clusterService.state());
     }
 
+    /**
+     * The view-scoped settings of a view body, resolved over the cluster defaults so that an operator's default applies
+     * inside views as it does in queries.
+     */
+    private ViewQuerySettings viewQuerySettings(EsqlStatement statement) {
+        if (clusterService == null) {
+            return ViewQuerySettings.from(statement, Settings.EMPTY, Settings.EMPTY);
+        }
+        return ViewQuerySettings.from(statement, clusterService.state().metadata().settings(), clusterService.getSettings());
+    }
+
     // TODO: Remove this function entirely if we no longer need to do micro-benchmarks on views enabled/disabled
     protected boolean viewsFeatureEnabled() {
         return true;
@@ -225,6 +236,7 @@ public class ViewResolver {
             parser,
             boundaryPreservation,
             DEFAULT_MAX_PLAN_NODES_COUNT,
+            PlanSize.CLUSTER_SETTING_SOURCE,
             listener
         );
     }
@@ -262,6 +274,7 @@ public class ViewResolver {
         BiFunction<String, String, EsqlStatement> parser,
         ViewBoundaryPreservation boundaryPreservation,
         int maxPlanNodesCount,
+        String maxPlanNodesSource,
         ActionListener<ViewResolutionResult> listener
     ) {
         Map<String, String> viewQueries = new HashMap<>();
@@ -274,7 +287,7 @@ public class ViewResolver {
         // provided by the ActionListener plumbing, the same way the viewQueries map threaded through these callbacks is.
         Holder<Boolean> hasInSubquery = new Holder<>(false);
         // Running total of plan nodes: starts with the unexpanded query and grows with every view body expanded into it.
-        PlanSize planSize = new PlanSize(PlanSize.countNodes(plan), maxPlanNodesCount);
+        PlanSize planSize = new PlanSize(plan, maxPlanNodesCount, maxPlanNodesSource);
         // Views a body's wildcards would have matched had an enclosing scope's wildcards_match_views reached it, keyed by where it
         // stopped.
         Map<WildcardsStop, StoppedMatches> stoppedWildcardMatches = new LinkedHashMap<>();
@@ -838,12 +851,12 @@ public class ViewResolver {
                         MetadataAttribute.requestsRelationColumn(unresolvedRelation.metadataFields())
                             || boundaryPreservation.keepsPassThroughIdentity()
                     );
-                    planSize.add(PlanSize.countNodes(body));
+                    planSize.add(body);
                     // The view's own SET statements govern its body — the caller's never do. The SET's scope ends at
                     // the view boundary: a caller's setting must not change which sources a stored view definition
                     // resolves to (a wildcard inside the body could otherwise expand to views or datasets its author
                     // never referenced, and a materialized view would have baked its source list in). A definition
-                    // without SETs resolves its body at the registry defaults: wildcards match nothing but indices.
+                    // without SETs resolves its body at the cluster defaults, like a query without SETs.
                     ViewQuerySettings bodySettings = viewSettings.getOrDefault(view.name(), ViewQuerySettings.DEFAULTS);
                     replaceViews(
                         body,
@@ -1498,7 +1511,7 @@ public class ViewResolver {
         // Parse the view query with the view name, which causes all Source objects
         // to be tagged with the view name during parsing
         EsqlStatement statement = parser.apply(view.query(), view.name());
-        ViewQuerySettings settings = ViewQuerySettings.from(statement);
+        ViewQuerySettings settings = viewQuerySettings(statement);
         viewSettings.put(view.name(), settings);
         // A view whose own SETs must stop at ITS boundary (a body-scoped unmapped_fields or dataset-wildcard
         // setting) keeps its identity like a caller-side setting would make it: the analyzer and the dataset

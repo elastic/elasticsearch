@@ -89,7 +89,7 @@ public class EnrichPolicyRunner {
 
     private static final Logger logger = LogManager.getLogger(EnrichPolicyRunner.class);
 
-    static final String ENRICH_POLICY_NAME_FIELD_NAME = "enrich_policy_name";
+    static final String ENRICH_POLICY_NAME_FIELD_NAME = EnrichPolicy.ENRICH_POLICY_NAME_FIELD_NAME;
     static final String ENRICH_POLICY_TYPE_FIELD_NAME = "enrich_policy_type";
     static final String ENRICH_MATCH_FIELD_NAME = "enrich_match_field";
     static final String ENRICH_README_FIELD_NAME = "enrich_readme";

@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondit
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.OptimalShardCountCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -31,9 +32,11 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
@@ -67,6 +70,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class IndexMetadataTests extends ESTestCase {
+
+    private static final Settings STATELESS_NODE = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
 
     private static final TransportVersion ESQL_FAILURE_FROM_REMOTE = TransportVersion.fromName("esql_failure_from_remote");
 
@@ -926,25 +931,83 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     public void testSequenceNumbersDisabledDefaultsToFalse() {
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .settings(indexSettings(1, 0).put("index.version.created", IndexVersion.current().id()))
-            .build();
-        assertFalse(metadata.sequenceNumbersDisabled());
+        Settings.Builder settings = indexSettings(1, 0).put("index.version.created", IndexVersion.current().id());
+        // The result is cached per instance, so each node type needs its own IndexMetadata.
+        IndexMetadata statefulMetadata = IndexMetadata.builder("test").settings(settings).build();
+        IndexMetadata statelessMetadata = IndexMetadata.builder("test").settings(settings).build();
+        assertFalse(statefulMetadata.sequenceNumbersDisabled(Settings.EMPTY));
+        assertFalse(statelessMetadata.sequenceNumbersDisabled(STATELESS_NODE));
     }
 
-    public void testSequenceNumbersDisabled() {
+    public void testSequenceNumbersDisabledExplicitSetting() {
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
             IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT,
             IndexVersion.current()
         );
         var disabled = randomBoolean();
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .settings(
-                indexSettings(1, 0).put("index.version.created", indexVersion.id())
-                    .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), disabled)
-            )
-            .build();
-        assertThat(metadata.sequenceNumbersDisabled(), is(disabled));
+        Settings.Builder settings = indexSettings(1, 0).put("index.version.created", indexVersion.id())
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), disabled);
+        // The result is cached per instance, so each node type needs its own IndexMetadata.
+        IndexMetadata statefulMetadata = IndexMetadata.builder("test").settings(settings).build();
+        IndexMetadata statelessMetadata = IndexMetadata.builder("test").settings(settings).build();
+        assertThat(statefulMetadata.sequenceNumbersDisabled(Settings.EMPTY), is(disabled));
+        assertThat(statelessMetadata.sequenceNumbersDisabled(STATELESS_NODE), is(disabled));
+    }
+
+    public void testSequenceNumbersDisabledDefaultDependsOnNodeSettings() {
+        for (IndexMode columnarMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            for (IndexVersion version : List.of(
+                IndexVersions.UPGRADE_TO_LUCENE_10_5_1,
+                IndexVersions.UPGRADE_TO_LUCENE_10_5_2_BACKPORT_9_5
+            )) {
+                Settings.Builder settings = indexSettings(1, 0).put("index.version.created", version.id())
+                    .put(IndexSettings.MODE.getKey(), columnarMode.getName());
+                IndexMetadata statefulMetadata = IndexMetadata.builder("test").settings(settings).build();
+                IndexMetadata statelessMetadata = IndexMetadata.builder("test").settings(settings).build();
+                assertThat(columnarMode + " " + version + " stateful", statefulMetadata.sequenceNumbersDisabled(Settings.EMPTY), is(true));
+                assertThat(
+                    columnarMode + " " + version + " stateless",
+                    statelessMetadata.sequenceNumbersDisabled(STATELESS_NODE),
+                    is(false)
+                );
+                assertThat(
+                    columnarMode + " " + version + " stateful cached",
+                    statefulMetadata.sequenceNumbersDisabled(Settings.EMPTY),
+                    is(true)
+                );
+                assertThat(
+                    columnarMode + " " + version + " stateless cached",
+                    statelessMetadata.sequenceNumbersDisabled(STATELESS_NODE),
+                    is(false)
+                );
+            }
+        }
+    }
+
+    public void testSequenceNumbersDisabledMatchesIndexSettings() {
+        for (int i = 0; i < 100; i++) {
+            IndexVersion version = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+            IndexMode mode = randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB, IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+            Settings.Builder settings = indexSettings(1, 0).put("index.version.created", version.id())
+                .put(IndexSettings.MODE.getKey(), mode.getName());
+            if (randomBoolean()) {
+                // an explicit value of true is only valid together with doc values only sequence numbers
+                boolean explicit = randomBoolean();
+                settings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), explicit);
+                if (explicit) {
+                    settings.put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY);
+                }
+            }
+            IndexMetadata metadata = IndexMetadata.builder("test").settings(settings).build();
+            Settings nodeSettings = randomBoolean() ? Settings.EMPTY : STATELESS_NODE;
+            for (int j = 0; j < 2; j++) {
+                assertThat(
+                    "mode [" + mode + "], version [" + version + "], node settings " + nodeSettings,
+                    metadata.sequenceNumbersDisabled(nodeSettings),
+                    is(new IndexSettings(metadata, nodeSettings).sequenceNumbersDisabled())
+                );
+            }
+        }
     }
 
 }

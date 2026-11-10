@@ -151,32 +151,36 @@ public class MultiBucketCollectorTests extends ESTestCase {
     public void testCollectionTerminatedExceptionHandling() throws IOException {
         final int iters = atLeast(3);
         for (int iter = 0; iter < iters; ++iter) {
-            Directory dir = newDirectory();
-            RandomIndexWriter w = new RandomIndexWriter(random(), dir);
-            final int numDocs = randomIntBetween(100, 1000);
-            final Document doc = new Document();
-            for (int i = 0; i < numDocs; ++i) {
-                w.addDocument(doc);
+            try (Directory dir = newDirectory()) {
+                RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+                final int numDocs = randomIntBetween(100, 1000);
+                final Document doc = new Document();
+                for (int i = 0; i < numDocs; ++i) {
+                    w.addDocument(doc);
+                }
+                try (IndexReader reader = w.getReader()) {
+                    w.close();
+                    Map<TotalHitCountBucketCollector, Integer> expectedCounts = new HashMap<>();
+                    List<BucketCollector> collectors = new ArrayList<>();
+                    final int numCollectors = randomIntBetween(1, 5);
+                    for (int i = 0; i < numCollectors; ++i) {
+                        final int terminateAfter = random().nextInt(numDocs + 10);
+                        final int expectedCount = Math.min(terminateAfter, numDocs);
+                        TotalHitCountBucketCollector collector = new TotalHitCountBucketCollector();
+                        expectedCounts.put(collector, expectedCount);
+                        collectors.add(new TerminateAfterBucketCollector(collector, terminateAfter));
+                    }
+                    // Sequential: terminate-after counts are global on one wrapper (min(T, N)).
+                    IndexSearcher searcher = newSearcher(reader, true, true, false);
+                    searcher.search(
+                        Queries.ALL_DOCS_INSTANCE,
+                        singleThreadedCollectorManager(MultiBucketCollector.wrap(true, collectors).asCollector())
+                    );
+                    for (Map.Entry<TotalHitCountBucketCollector, Integer> expectedCount : expectedCounts.entrySet()) {
+                        assertEquals(expectedCount.getValue().intValue(), expectedCount.getKey().getTotalHits());
+                    }
+                }
             }
-            final IndexReader reader = w.getReader();
-            w.close();
-            final IndexSearcher searcher = newSearcher(reader);
-            Map<TotalHitCountBucketCollector, Integer> expectedCounts = new HashMap<>();
-            List<BucketCollector> collectors = new ArrayList<>();
-            final int numCollectors = randomIntBetween(1, 5);
-            for (int i = 0; i < numCollectors; ++i) {
-                final int terminateAfter = random().nextInt(numDocs + 10);
-                final int expectedCount = terminateAfter > numDocs ? numDocs : terminateAfter;
-                TotalHitCountBucketCollector collector = new TotalHitCountBucketCollector();
-                expectedCounts.put(collector, expectedCount);
-                collectors.add(new TerminateAfterBucketCollector(collector, terminateAfter));
-            }
-            searcher.search(Queries.ALL_DOCS_INSTANCE, MultiBucketCollector.wrap(true, collectors).asCollector());
-            for (Map.Entry<TotalHitCountBucketCollector, Integer> expectedCount : expectedCounts.entrySet()) {
-                assertEquals(expectedCount.getValue().intValue(), expectedCount.getKey().getTotalHits());
-            }
-            reader.close();
-            dir.close();
         }
     }
 

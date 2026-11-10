@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162647
+summary: Fix shard ref leaks in `DocVector` and TopN
+type: enhancement

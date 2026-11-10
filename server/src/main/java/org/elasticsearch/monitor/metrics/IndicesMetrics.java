@@ -82,7 +82,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
         SystemIndices systemIndices
     ) {
         final IndexMode[] availableModes = IndexMode.availableModes();
-        final int metricsPerIndexMode = 13;
+        final int metricsPerIndexMode = 14;
         final int sharedMetrics = 4;
         final int totalMetrics = (availableModes.length * metricsPerIndexMode) + sharedMetrics;
         List<AutoCloseable> metrics = new ArrayList<>(totalMetrics);
@@ -193,6 +193,14 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                     "current indexing failures due to version conflict of " + name + " indices",
                     "unit",
                     diffGauge(() -> cache.getOrRefresh().get(indexMode).indexing.getIndexFailedDueToVersionConflictCount())
+                )
+            );
+            metrics.add(
+                registry.registerLongAsyncGauge(
+                    "es.indices." + name + ".indexing.failure.too_many_docs.total",
+                    "current indexing failures due to the shard reaching the maximum number of documents of " + name + " indices",
+                    "unit",
+                    diffGauge(() -> cache.getOrRefresh().get(indexMode).indexing.getIndexFailedDueToTooManyDocsCount())
                 )
             );
         }

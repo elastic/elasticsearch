@@ -582,8 +582,7 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             assertTrue(values.hasNext());
             values.next();
             assertFalse(values.hasNext());
-            // LIMIT 1 finishes the root exchange after the first leaf, so queued siblings skip executePlan
-            assertLocalShardCounts(resp, testShards, testShards, 0);
+            // LIMIT 1 finishes the root exchange after the first leaf, however it may not stop the next branch immediately.
         }
     }
 

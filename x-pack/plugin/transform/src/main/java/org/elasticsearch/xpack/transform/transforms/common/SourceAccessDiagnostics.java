@@ -94,6 +94,15 @@ final class SourceAccessDiagnostics {
         return null;
     }
 
+    /**
+     * Whether a shard failure is reported as a permissions problem.
+     *
+     * <p>Known limitation: this is decided by the 403 and 401 status alone, so it also reports failures that are not permissions
+     * problems. A {@code ClusterBlockException} for a closed, read-only or write-blocked index is a 403 and is reported as a permissions
+     * problem. A {@code ShardRestoringException}, for a shard that is being restored from a snapshot, is also a 403 and is handled the
+     * same way, so that validation of a restoring source behaves like it does for a blocked index. The message is misleading in both
+     * cases, because the source is unavailable and the user's permissions are not the problem.
+     */
     private static boolean isSecurityFailure(ShardSearchFailure failure) {
         if (failure.getCause() instanceof ElasticsearchSecurityException) {
             return true;

@@ -18,14 +18,14 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogDocMergePolicy;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
@@ -33,6 +33,7 @@ import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.StringColumnReader;
+import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.test.ESTestCase;
 
@@ -42,9 +43,15 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.IntFunction;
 
+import static org.elasticsearch.columnar.ColumnarStringQueryTestUtils.found;
+import static org.elasticsearch.columnar.ColumnarStringQueryTestUtils.indexOneSegment;
+import static org.elasticsearch.columnar.ColumnarStringQueryTestUtils.oneSlotEach;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
+import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodecForField;
 import static org.elasticsearch.columnar.ColumnarTestUtils.stringPayload;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 /**
  * The term and prefix queries driven through a real {@link IndexSearcher} over a ColumNAR-coded index, so
@@ -450,6 +457,202 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
         }
     }
 
+    public void testHidingTheColumnKeepsEverySegmentsOwnValues() throws IOException {
+        final String[] segmentTerms = { "alpha", "bravo", "charlie" };
+        try (Directory dir = newDirectory()) {
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+                .setMergePolicy(NoMergePolicy.INSTANCE);
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                for (String term : segmentTerms) {
+                    for (int d = 0; d < 100; d++) {
+                        final Document doc = new Document();
+                        doc.add(new Field(FIELD, stringPayload(term), columnarBinaryFieldType()));
+                        writer.addDocument(doc);
+                    }
+                    writer.flush();
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertEquals("one segment a term", segmentTerms.length, reader.leaves().size());
+                final IndexSearcher searcher = new IndexSearcher(ColumnarTestUtils.hideTheColumn(reader));
+                for (int segment = 0; segment < segmentTerms.length; segment++) {
+                    final List<Integer> expected = new ArrayList<>();
+                    for (int d = 0; d < 100; d++) {
+                        expected.add(segment * 100 + d);
+                    }
+                    final Query query = ColumnarStringTermQuery.term(
+                        FIELD,
+                        new BytesRef(segmentTerms[segment]),
+                        false,
+                        ScanBudget.UNLIMITED
+                    );
+                    assertEquals("term in segment " + segment, expected, found(searcher, query));
+                }
+            }
+        }
+    }
+
+    public void testTheHiddenReaderDisablesCachingAndKeepsHidingAfterAReopen() throws IOException {
+        try (Directory dir = newDirectory()) {
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+                .setMergePolicy(NoMergePolicy.INSTANCE);
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                addStringDocument(writer, "alpha");
+                writer.commit();
+                try (
+                    DirectoryReader reader = DirectoryReader.open(writer);
+                    DirectoryReader hidden = ColumnarTestUtils.hideTheColumn(reader)
+                ) {
+                    assertNull(hidden.getReaderCacheHelper());
+                    for (final LeafReaderContext leaf : hidden.leaves()) {
+                        assertNull(leaf.reader().getCoreCacheHelper());
+                        assertNull(leaf.reader().getReaderCacheHelper());
+                    }
+                    addStringDocument(writer, "bravo");
+                    writer.commit();
+                    try (DirectoryReader reopened = DirectoryReader.openIfChanged(hidden)) {
+                        assertNotNull(reopened);
+                        assertEquals(2, reopened.leaves().size());
+                        assertNull(reopened.getReaderCacheHelper());
+                        for (final LeafReaderContext leaf : reopened.leaves()) {
+                            assertNull(leaf.reader().getCoreCacheHelper());
+                            final BinaryDocValues values = leaf.reader().getBinaryDocValues(FIELD);
+                            assertNotNull(values);
+                            assertThat(values, not(instanceOf(StringColumnSource.class)));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static void addStringDocument(final IndexWriter writer, final String value) throws IOException {
+        final Document doc = new Document();
+        doc.add(new Field(FIELD, stringPayload(value), columnarBinaryFieldType()));
+        writer.addDocument(doc);
+    }
+
+    public void testASegmentWithoutTheFieldBeforeASegmentWithIt() throws IOException {
+        final int perSegment = between(20, 60);
+        try (Directory dir = newDirectory()) {
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+                .setMergePolicy(NoMergePolicy.INSTANCE);
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                for (int d = 0; d < perSegment; d++) {
+                    final Document doc = new Document();
+                    doc.add(new Field("other", stringPayload("v" + d), columnarBinaryFieldType()));
+                    writer.addDocument(doc);
+                }
+                writer.flush();
+                for (int d = 0; d < perSegment; d++) {
+                    addStringDocument(writer, "alpha");
+                }
+                writer.flush();
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir); DirectoryReader hidden = ColumnarTestUtils.hideTheColumn(reader)) {
+                assertEquals(2, reader.leaves().size());
+                final List<Integer> expected = new ArrayList<>();
+                for (int d = perSegment; d < 2 * perSegment; d++) {
+                    expected.add(d);
+                }
+                final BytesRef alpha = new BytesRef("alpha");
+                for (final DirectoryReader searched : List.of(reader, hidden)) {
+                    final IndexSearcher searcher = new IndexSearcher(searched);
+                    assertEquals(expected, found(searcher, ColumnarStringTermQuery.term(FIELD, alpha, false, ScanBudget.UNLIMITED)));
+                    assertEquals(expected, found(searcher, ColumnarStringTermQuery.prefix(FIELD, alpha, false, ScanBudget.UNLIMITED)));
+                    assertEquals(expected, found(searcher, ColumnarStringTermQuery.contains(FIELD, alpha, false, ScanBudget.UNLIMITED)));
+                }
+            }
+        }
+    }
+
+    public void testAFieldWithoutBinaryDocValuesIsNotScanned() throws IOException {
+        final ScanBudget refusing = searcher -> { throw new AssertionError("a field without binary doc values has nothing to budget"); };
+        try (Directory dir = newDirectory()) {
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodecForField("unrelated", ColumnarFieldType.STRING))
+                .setMergePolicy(new LogDocMergePolicy());
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                for (int d = 0; d < 100; d++) {
+                    final Document doc = new Document();
+                    doc.add(new NumericDocValuesField(FIELD, d));
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final IndexSearcher searcher = new IndexSearcher(reader);
+                final BytesRef probe = new BytesRef("alpha");
+                assertEquals(List.of(), found(searcher, ColumnarStringTermQuery.term(FIELD, probe, false, refusing)));
+                assertEquals(List.of(), found(searcher, ColumnarStringTermQuery.prefix(FIELD, probe, false, refusing)));
+                assertEquals(List.of(), found(searcher, ColumnarStringTermQuery.contains(FIELD, probe, false, refusing)));
+            }
+        }
+    }
+
+    public void testAColumnWithoutValuesMatchesNothing() throws IOException {
+        final List<String> values = values(200, d -> TERMS[d % TERMS.length]);
+        try (Directory dir = newDirectory()) {
+            indexOneSegment(dir, columnarCodec(ColumnarFieldType.STRING), FIELD, oneSlotEach(values));
+            try (DirectoryReader reader = DirectoryReader.open(dir); DirectoryReader dropped = ColumnarTestUtils.dropTheColumn(reader)) {
+                ColumnarTestUtils.assertBinaryFieldWithoutValues(dropped, FIELD);
+                final IndexSearcher searcher = new IndexSearcher(dropped);
+                final BytesRef probe = new BytesRef("alpha");
+                assertEquals("term", List.of(), found(searcher, ColumnarStringTermQuery.term(FIELD, probe, false, ScanBudget.UNLIMITED)));
+                assertEquals(
+                    "prefix",
+                    List.of(),
+                    found(searcher, ColumnarStringTermQuery.prefix(FIELD, probe, false, ScanBudget.UNLIMITED))
+                );
+                assertEquals(
+                    "contains",
+                    List.of(),
+                    found(searcher, ColumnarStringTermQuery.contains(FIELD, probe, false, ScanBudget.UNLIMITED))
+                );
+            }
+        }
+    }
+
+    public void testNullSlotsNeverMatchThroughAnOverlaidColumn() throws IOException {
+        final BytesRef[][] docs = {
+            { null },
+            { new BytesRef("") },
+            { new BytesRef("alpha"), null },
+            null,
+            { null, null },
+            { null, new BytesRef("alpha") },
+            { null, new BytesRef("") },
+            { new BytesRef("miss"), null, new BytesRef("alpha") },
+            {} };
+        try (Directory dir = newDirectory()) {
+            indexOneSegment(dir, columnarCodec(ColumnarFieldType.STRING), FIELD, docs);
+            try (DirectoryReader reader = DirectoryReader.open(dir); DirectoryReader hidden = ColumnarTestUtils.hideTheColumn(reader)) {
+                assertThat(hidden.leaves().get(0).reader().getBinaryDocValues(FIELD), not(instanceOf(StringColumnSource.class)));
+                final IndexSearcher searcher = new IndexSearcher(hidden);
+                final BytesRef empty = new BytesRef("");
+                assertEquals(
+                    "the empty term",
+                    List.of(1, 6),
+                    found(searcher, ColumnarStringTermQuery.term(FIELD, empty, false, ScanBudget.UNLIMITED))
+                );
+                assertEquals(
+                    "the empty prefix",
+                    List.of(1, 2, 5, 6, 7),
+                    found(searcher, ColumnarStringTermQuery.prefix(FIELD, empty, false, ScanBudget.UNLIMITED))
+                );
+                assertEquals(
+                    "the empty substring",
+                    List.of(1, 2, 5, 6, 7),
+                    found(searcher, ColumnarStringTermQuery.contains(FIELD, empty, false, ScanBudget.UNLIMITED))
+                );
+                assertEquals(
+                    "a term beside a null slot",
+                    List.of(2, 5, 7),
+                    found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef("alpha"), false, ScanBudget.UNLIMITED))
+                );
+            }
+        }
+    }
+
     private interface Value {
         String at(int doc);
     }
@@ -538,13 +741,4 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
         return docs;
     }
 
-    private static List<Integer> found(IndexSearcher searcher, Query query) throws IOException {
-        final TopDocs hits = searcher.search(query, Integer.MAX_VALUE);
-        final List<Integer> docs = new ArrayList<>();
-        for (ScoreDoc hit : hits.scoreDocs) {
-            docs.add(hit.doc);
-        }
-        docs.sort(Integer::compareTo);
-        return docs;
-    }
 }

@@ -111,6 +111,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -126,6 +128,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
      * {@link RefCounted}.
      */
     public abstract static class ShardContext implements org.elasticsearch.compute.lucene.ShardContext, Releasable {
+        private final AtomicInteger unfinishedSlices = new AtomicInteger();
         private final AbstractRefCounted refCounted = new AbstractRefCounted() {
             @Override
             protected void closeInternal() {
@@ -151,6 +154,19 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public boolean hasReferences() {
             return refCounted.hasReferences();
+        }
+
+        @Override
+        public void addUnfinishedSlices(int delta) {
+            unfinishedSlices.addAndGet(delta);
+        }
+
+        /**
+         * Whether a slice of this shard is not read yet. The supplier does not keep this context reachable.
+         */
+        public BooleanSupplier hasUnfinishedSlices() {
+            AtomicInteger unfinished = unfinishedSlices;
+            return () -> unfinished.get() > 0;
         }
 
         /**
@@ -552,7 +568,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 estimatedPerRowSortSize,
                 scoring,
                 directoryBytesRead,
-                singleValueQueryWarnings
+                singleValueQueryWarnings,
+                context.sortBound()
             );
         } else if (esQueryExec.indexMode().isTsdb()) {
             luceneFactory = new TimeSeriesSourceOperator.Factory(
@@ -607,12 +624,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     ) {
         List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = new ArrayList<>(attributes.size());
         Set<String> nullsFilteredFields = new HashSet<>();
-        planForNullsFilter.forEachDown(EsQueryExec.class, queryExec -> {
-            QueryBuilder q = queryExec.queryBuilderAndTags().get(0).query();
-            if (q != null) {
-                nullsFilteredFields.addAll(nullsFilteredFieldsAfterSourceQuery(q));
-            }
-        });
+        planForNullsFilter.forEachDown(
+            EsQueryExec.class,
+            queryExec -> nullsFilteredFields.addAll(nullsFilteredFieldsAfterSourceQueries(queryExec.queryBuilderAndTags()))
+        );
         UnmappedFields.Walk unmappedFieldsWalk = unmappedFieldsWalk(attributes);
         for (Attribute attr : attributes) {
             DataType dataType = attr.dataType();
@@ -663,12 +678,38 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             EsMinCompetitiveQueries minCompetitiveQueries = new EsMinCompetitiveQueries(
                 pilot.supplier(),
                 pilot.sortFieldName(),
+                pilot.sortFieldType(),
                 executionContext
             );
             Query q = minCompetitiveQueries.buildMinCompetitiveQuery(page);
             return q.rewrite(executionContext.searcher());
         };
         return new MinCompetitiveQuery.Factory(pilot.supplier(), buildMinCompetitiveQuery);
+    }
+
+    /**
+     * Returns the set of fields that are guaranteed to be dense after every query of an {@link EsQueryExec}.
+     *
+     * <p>An {@link EsQueryExec} can run several queries over the same shard, each one tagging the documents it matches
+     * (for example {@code ROUND_TO} pushdown). The source operator emits the documents of all of them, so a field is only
+     * dense if it is dense after <em>each</em> query. A single slice such as {@code exists(f)} says nothing about a sibling
+     * slice like {@code must_not(exists(f))}, which matches exactly the documents that have no value for {@code f}.
+     */
+    static Set<String> nullsFilteredFieldsAfterSourceQueries(List<EsQueryExec.QueryBuilderAndTags> queries) {
+        Set<String> denseInAll = null;
+        for (EsQueryExec.QueryBuilderAndTags queryAndTags : queries) {
+            // A missing query matches every document, so no field is known to be dense.
+            Set<String> dense = queryAndTags.query() == null ? Set.of() : nullsFilteredFieldsAfterSourceQuery(queryAndTags.query());
+            if (denseInAll == null) {
+                denseInAll = new HashSet<>(dense);
+            } else {
+                denseInAll.retainAll(dense);
+            }
+            if (denseInAll.isEmpty()) {
+                break;
+            }
+        }
+        return denseInAll == null ? Set.of() : denseInAll;
     }
 
     /**

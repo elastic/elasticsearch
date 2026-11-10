@@ -1574,3 +1574,161 @@ warning:Line 2:12: NULL in the IN list of [emp_no IN (1, NULL)] never matches, a
 emp_no:integer|x:boolean
 1             |true
 ;
+
+# https://github.com/elastic/elasticsearch/issues/162639
+foldNullArgumentWithCaseSibling
+required_capability: fix_fold_null_arguments
+
+ROW n = null, k = CASE(true, 2, 3)
+| EVAL b = n * k
+;
+
+n:null|k:integer|b:integer
+null  |2        |null
+;
+
+foldNullArgumentWithCaseSiblingAfterStats
+required_capability: fix_fold_null_arguments
+
+FROM employees
+| STATS m = VALUES(null) BY gender
+| EVAL k = CASE(true, 2, 3)
+| EVAL b = m * k
+| SORT b, gender
+| LIMIT 1
+;
+
+m:null|gender:keyword|k:integer|b:integer
+null  |F             |2        |null
+;
+
+foldNullTypedArgumentFromCoalesce
+required_capability: fix_fold_null_arguments
+
+ROW n = COALESCE(null)
+| EVAL s = TO_STRING(n), r = SQRT(n)
+;
+
+n:null|s:keyword|r:double
+null  |null     |null
+;
+
+foldTypedNullColumnArgument
+required_capability: fix_fold_null_arguments
+
+ROW u = null::keyword
+| EVAL x = DATE_DIFF(u, TO_DATETIME("2024-01-01"), TO_DATETIME("2024-01-02"))
+;
+
+u:keyword|x:integer
+null     |null
+;
+
+foldTypedNullColumnArgumentInGrouping
+required_capability: fix_fold_null_arguments
+
+ROW v = 5, p = null::integer
+| STATS c = COUNT(*) BY b = BUCKET(v, p)
+;
+
+c:long|b:double
+1     |null
+;
+
+foldCaseWithoutMatchArgument
+required_capability: fix_fold_null_arguments
+
+ROW x = SPLIT("a,b", CASE(false, ","))
+;
+
+x:keyword
+null
+;
+
+foldCastCaseWithoutMatchArgument
+required_capability: fix_fold_null_arguments
+
+ROW x = ST_GEOHASH(TO_GEOPOINT("POINT(1 2)"), CASE(false, 1)::integer)
+;
+
+x:geohash
+null
+;
+
+foldDivisionByZeroArgument
+required_capability: fix_fold_null_arguments
+
+ROW x = MV_SLICE([1, 2, 3], 1/0, 2)
+;
+
+warning:Line 1:29: evaluation of [1/0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:29: java.lang.ArithmeticException: / by zero
+
+x:integer
+null
+;
+
+foldTypedNullFormatArgument
+required_capability: fix_fold_null_arguments
+
+ROW f = null::keyword
+| EVAL s = DATE_FORMAT(f, TO_DATETIME("2024-01-01"))
+;
+
+f:keyword|s:keyword
+null     |null
+;
+
+foldCaseWithoutMatchArgumentWithOptions
+required_capability: fix_fold_null_arguments
+
+ROW x = DATE_PARSE(CASE(false, "yyyy-MM-dd"), "2024-01-01", {"locale": "en-US"})
+;
+
+x:datetime
+null
+;
+
+foldNullArgumentsInManyFunctions
+required_capability: fix_fold_null_arguments
+
+ROW n = COALESCE(null), nk = null::keyword, ni = null::integer, nd = null::double, d = TO_DATETIME("2024-01-01")
+| EVAL
+    mul = n * 2,
+    div = n / 2::unsigned_long,
+    mod = n % 2::unsigned_long,
+    neg = -n,
+    to_string = TO_STRING(n),
+    to_integer = TO_INTEGER(n),
+    to_ip = TO_IP(n),
+    sqrt = SQRT(n),
+    round = ROUND(n, 1),
+    copy_sign = COPY_SIGN(n, 1),
+    scalb = SCALB(1.0, n),
+    greatest = GREATEST(n),
+    mv_median = MV_MEDIAN(n),
+    mv_mad = MV_MEDIAN_ABSOLUTE_DEVIATION(n),
+    mv_percentile = MV_PERCENTILE(n, 50),
+    extract_null = DATE_EXTRACT("year", n),
+    diff_null = DATE_DIFF("day", n, d),
+    v_cosine = V_COSINE(TO_DENSE_VECTOR([1.0, 2.0]), n),
+    st_x = ST_X(n),
+    format_null = DATE_FORMAT(n, d),
+    parse_null = DATE_PARSE(n, "2024"),
+    st_geohash = ST_GEOHASH(TO_GEOPOINT("POINT(1 2)"), ni),
+    diff_unit = DATE_DIFF(nk, d, d),
+    extract_part = DATE_EXTRACT(nk, d),
+    parse_format = DATE_PARSE(nk, "2024-01-01"),
+    split = SPLIT("a,b", nk),
+    hash = HASH(nk, "a"),
+    mv_sort = MV_SORT([1, 2], nk),
+    repeat = REPEAT("a", ni),
+    mv_slice = MV_SLICE([1, 2, 3], ni, 2),
+    st_buffer = ST_BUFFER(TO_GEOPOINT("POINT(1 2)"), nd),
+    format_format = DATE_FORMAT(nk, d)
+| DROP n, nk, ni, nd, d
+;
+
+mul:integer|div:unsigned_long|mod:unsigned_long|neg:null|to_string:keyword|to_integer:integer|to_ip:ip|sqrt:double|round:null|copy_sign:null|scalb:double|greatest:null|mv_median:null|mv_mad:null|mv_percentile:null|extract_null:long|diff_null:integer|v_cosine:double|st_x:double|format_null:keyword|parse_null:date|st_geohash:geohash|diff_unit:integer|extract_part:long|parse_format:date|split:keyword|hash:keyword|mv_sort:integer|repeat:keyword|mv_slice:integer|st_buffer:geo_shape|format_format:keyword
+null       |null             |null             |null    |null             |null              |null     |null       |null      |null          |null        |null         |null          |null      |null              |null             |null             |null            |null        |null               |null          |null                |null             |null             |null              |null         |null        |null           |null          |null            |null               |null
+;

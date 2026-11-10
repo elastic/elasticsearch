@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -27,6 +28,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperatorTests;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
@@ -37,6 +39,8 @@ import org.elasticsearch.compute.test.FakeCpuClock;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -48,8 +52,10 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -60,10 +66,12 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -115,6 +123,117 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.profile().tookNanos(), equalTo(waitTime + sumRunningTime));
         assertThat(driver.profile().driverNanos(), equalTo(sumRunningTime));
         assertThat(driver.profile().iterations(), equalTo((long) inPages.size()));
+    }
+
+    /**
+     * The running time of a driver whose source reads no shard is charged to its load target, once, however often its status
+     * is updated.
+     */
+    public void testChargesItsRunningTimeToItsLoadTarget() {
+        DriverContext driverContext = driverContext();
+        List<Page> inPages = randomList(1, 100, DriverTests::randomPage);
+        long startNanos = randomLong();
+        long tickTime = randomLongBetween(1, 10000);
+        Driver driver = createDriver(
+            randomNonNegativeLong(),
+            startNanos,
+            driverContext,
+            new CannedSourceOperator(inPages.iterator()),
+            new ArrayList<>(),
+            TimeValue.timeValueNanos(randomLongBetween(1, tickTime * 10))
+        );
+        AtomicLong charged = new AtomicLong();
+        driver.loadTarget((nanos, finishNanos) -> charged.addAndGet(nanos));
+
+        driver.run(TimeValue.timeValueSeconds(Long.MAX_VALUE), Integer.MAX_VALUE, new NowSupplier(startNanos, 0, tickTime));
+
+        assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
+        assertThat(driver.status().driverNanos(), greaterThan(0L));
+        assertThat(charged.get(), equalTo(driver.status().driverNanos()));
+    }
+
+    /**
+     * The time of a driver is charged once: to the shard its source reads until the source closes, then to its load target.
+     */
+    public void testChargesItsTimeOnceWhenItsSourceClosesFirst() {
+        var shard = new LuceneSourceOperatorTests.MockShardContext((IndexReader) null, 0);
+        SourceOperator source = new CannedSourceOperator(randomList(1, 100, DriverTests::randomPage).iterator()) {
+            @Override
+            protected List<ShardLoad> shardLoadDelta(long now) {
+                return List.of(new ShardLoad(shard, 0, 1));
+            }
+        };
+        long startNanos = randomLong();
+        long tickTime = randomLongBetween(1, 10000);
+        Driver driver = new Driver(
+            "unset",
+            "test",
+            "test",
+            "test",
+            randomNonNegativeLong(),
+            startNanos,
+            driverContext(),
+            () -> "unset",
+            source,
+            // keeps the pages until the source finished, so the driver runs on after the source closed
+            List.of(new HoldUntilFinishedOperator()),
+            new TestResultPageSinkOperator(page -> {}),
+            TimeValue.timeValueNanos(randomLongBetween(1, tickTime * 10)),
+            () -> {}
+        );
+        AtomicLong charged = new AtomicLong();
+        driver.loadTarget((nanos, finishNanos) -> charged.addAndGet(nanos));
+
+        driver.run(TimeValue.timeValueSeconds(Long.MAX_VALUE), Integer.MAX_VALUE, new NowSupplier(startNanos, 0, tickTime));
+
+        assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
+        long shardNanos = shard.stats().totalSearchLoadNanos();
+        assertThat(shardNanos, greaterThan(0L));
+        assertThat(charged.get(), greaterThan(0L));
+        assertThat(shardNanos + charged.get(), equalTo(driver.status().driverNanos()));
+    }
+
+    /**
+     * Returns the pages it receives only once its input finished.
+     */
+    private static class HoldUntilFinishedOperator implements Operator {
+        private final Deque<Page> pages = new ArrayDeque<>();
+        private boolean inputFinished;
+
+        @Override
+        public boolean needsInput() {
+            return inputFinished == false;
+        }
+
+        @Override
+        public void addInput(Page page) {
+            pages.add(page);
+        }
+
+        @Override
+        public void finish() {
+            inputFinished = true;
+        }
+
+        @Override
+        public boolean isFinished() {
+            return inputFinished && pages.isEmpty();
+        }
+
+        @Override
+        public boolean canProduceMoreDataWithoutExtraInput() {
+            return inputFinished && pages.isEmpty() == false;
+        }
+
+        @Override
+        public Page getOutput() {
+            return inputFinished ? pages.poll() : null;
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(pages.stream().map(page -> (Releasable) page::releaseBlocks).toList());
+        }
     }
 
     /**

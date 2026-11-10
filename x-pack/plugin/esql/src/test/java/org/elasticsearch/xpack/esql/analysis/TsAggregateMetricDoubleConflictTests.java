@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ImplicitUnionCastKibanaDefinitionTests;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.ImplicitUnionCastKibanaDefinitionTests.Conversion;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -76,41 +75,30 @@ public class TsAggregateMetricDoubleConflictTests extends AnalyzerTestCase {
     }
 
     /**
-     * Kibana type-checks each published function as if the field were {@code convertsTo}, so over every
-     * {@code aggregate_metric_double}/numeric conflict the function must resolve, and return the same type as it does
-     * over a plain {@code convertsTo} field.
+     * Kibana type-checks each published function as if every original type were converted to the mapped type, so over
+     * every {@code aggregate_metric_double}/numeric conflict the function must resolve, and return the same type as it
+     * does over a plain field of that converted type.
      */
     public void testPublishedConversionsMatchAnalyzer() {
-        Map<String, Conversion> byFunction = ImplicitUnionCastKibanaDefinitionTests.implicitConversions()
-            .get(AGGREGATE_METRIC_DOUBLE.esNameIfPossible());
         for (IndexMode mode : new IndexMode[] { IndexMode.STANDARD, IndexMode.TIME_SERIES }) {
             for (DataType numeric : DataType.values()) {
                 if (numeric.isNumeric() == false) {
                     continue;
                 }
-                for (Map.Entry<String, Conversion> function : byFunction.entrySet()) {
+                for (Map.Entry<String, Map<String, DataType>> function : ImplicitUnionCastKibanaDefinitionTests.implicitConversions()
+                    .entrySet()) {
+                    DataType convertsAmd = function.getValue().get(AGGREGATE_METRIC_DOUBLE.esNameIfPossible());
+                    DataType convertsNumeric = function.getValue().get(numeric.esNameIfPossible());
+                    assertThat(convertsAmd, equalTo(convertsNumeric));
                     String query = query(mode, function.getKey());
                     String context = query + " over [" + numeric.typeName() + ", aggregate_metric_double]";
                     LogicalPlan conflicted = index(typeConflict(numeric), mode).query(query);
                     assertTrue("expected " + context + " to resolve", conflicted.resolved());
-                    assertThat(context, conflicted.output().getFirst().dataType(), equalTo(function.getValue().returnType()));
-                    LogicalPlan converted = index(plainField(function.getValue().convertsTo()), mode).query(query);
-                    assertThat(
-                        query + " over [" + function.getValue().convertsTo().typeName() + "]",
-                        converted.output().getFirst().dataType(),
-                        equalTo(function.getValue().returnType())
-                    );
+                    LogicalPlan converted = index(plainField(convertsAmd), mode).query(query);
+                    assertThat(context, conflicted.output().getFirst().dataType(), equalTo(converted.output().getFirst().dataType()));
                 }
             }
         }
-    }
-
-    private static String query(IndexMode mode, String function) {
-        String source = mode == IndexMode.TIME_SERIES ? "TS idx" : "FROM idx";
-        String operator = COMPARISONS.get(function);
-        return operator == null
-            ? source + " | STATS r = " + function + "(metric) | LIMIT 10"
-            : source + " | EVAL r = metric " + operator + " 0 | KEEP r | LIMIT 10";
     }
 
     public void testDiscoveryLeavesRoleConflictWithoutHint() throws IOException {
@@ -122,6 +110,14 @@ public class TsAggregateMetricDoubleConflictTests extends AnalyzerTestCase {
     public void testStatsOverRoleConflictFails() {
         var e = expectThrows(VerificationException.class, () -> roleConflictedTsdb().query("TS idx | STATS AVG(host)"));
         assertThat(e.getMessage(), containsString("[host]"));
+    }
+
+    private static String query(IndexMode mode, String function) {
+        String source = mode == IndexMode.TIME_SERIES ? "TS idx" : "FROM idx";
+        String operator = COMPARISONS.get(function);
+        return operator == null
+            ? source + " | STATS r = " + function + "(metric) | LIMIT 10"
+            : source + " | EVAL r = metric " + operator + " 0 | KEEP r | LIMIT 10";
     }
 
     private TestAnalyzer typeConflictedTsdb() {

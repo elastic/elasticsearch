@@ -21,19 +21,17 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.hamcrest.Matchers.hasEntry;
 
 /**
  * Generates the Kibana definition file describing the implicit union casts applied by the
  * {@code ImplicitCastAggregateMetricDoubles} analyzer rule: when a field is mapped as {@code aggregate_metric_double}
  * in some indices and as a numeric in the others (the shape raw-versus-downsampled indices produce), each listed
- * function or operator reads the field converted to {@code convertsTo} and returns {@code returnType}, so the query
- * runs even though field discovery reports the column as {@code unsupported}. Kibana uses this file to type-check
- * those functions against the converted type instead of rejecting the field.
+ * function or operator reads every original type converted as in its type map, so the query runs even though field
+ * discovery reports the column as {@code unsupported}. Kibana uses this file to type-check those functions against
+ * the converted types instead of rejecting the field.
  * <p>
  * Run with:
  * <pre>
@@ -42,19 +40,21 @@ import static org.hamcrest.Matchers.hasEntry;
  */
 public class ImplicitUnionCastKibanaDefinitionTests extends ESTestCase {
 
-    public record Conversion(DataType convertsTo, DataType returnType) {}
-
     /**
-     * The conversions the {@code ImplicitCastAggregateMetricDoubles} rule applies, by the field type that triggers them
-     * and then by function or operator. Each one is checked against the analyzer in {@code TsAggregateMetricDoubleConflictTests}.
+     * The conversions the {@code ImplicitCastAggregateMetricDoubles} rule applies, by function or operator and then by
+     * original field type. A conflicted field is accepted under a function when every original type is a key in that
+     * function's map and one of them is {@code aggregate_metric_double}. Each entry is checked against the analyzer in
+     * {@code TsAggregateMetricDoubleConflictTests}.
      */
-    public static Map<String, Map<String, Conversion>> implicitConversions() {
-        Map<String, Conversion> byFunction = new TreeMap<>();
-        byFunction.put("avg", new Conversion(DOUBLE, DOUBLE));
-        byFunction.put("count", new Conversion(INTEGER, LONG));
-        byFunction.put("max", new Conversion(DOUBLE, DOUBLE));
-        byFunction.put("min", new Conversion(DOUBLE, DOUBLE));
-        byFunction.put("sum", new Conversion(DOUBLE, DOUBLE));
+    public static Map<String, Map<String, DataType>> implicitConversions() {
+        Map<String, DataType> toDouble = legConversions(DOUBLE);
+        Map<String, DataType> toInteger = legConversions(INTEGER);
+        Map<String, Map<String, DataType>> byFunction = new TreeMap<>();
+        byFunction.put("avg", toDouble);
+        byFunction.put("count", toInteger);
+        byFunction.put("max", toDouble);
+        byFunction.put("min", toDouble);
+        byFunction.put("sum", toDouble);
         for (String comparison : List.of(
             "equals",
             "not_equals",
@@ -63,17 +63,30 @@ public class ImplicitUnionCastKibanaDefinitionTests extends ESTestCase {
             "less_than",
             "less_than_or_equal"
         )) {
-            byFunction.put(comparison, new Conversion(DOUBLE, BOOLEAN));
+            byFunction.put(comparison, toDouble);
         }
-        return Map.of(AGGREGATE_METRIC_DOUBLE.esNameIfPossible(), byFunction);
+        return byFunction;
+    }
+
+    private static Map<String, DataType> legConversions(DataType converted) {
+        Map<String, DataType> legs = new TreeMap<>();
+        legs.put(AGGREGATE_METRIC_DOUBLE.esNameIfPossible(), converted);
+        for (DataType dataType : DataType.values()) {
+            if (dataType.isNumeric()) {
+                legs.put(dataType.esNameIfPossible(), converted);
+            }
+        }
+        return legs;
     }
 
     public void testImplicitConversions() {
-        Map<String, Conversion> byFunction = implicitConversions().get(AGGREGATE_METRIC_DOUBLE.esNameIfPossible());
+        Map<String, Map<String, DataType>> byFunction = implicitConversions();
         // the conversions from the issue: a downsampled field averages as double, and count sums the value counts
-        assertThat(byFunction, hasEntry("avg", new Conversion(DOUBLE, DOUBLE)));
-        assertThat(byFunction, hasEntry("count", new Conversion(INTEGER, LONG)));
-        assertThat(byFunction, hasEntry("greater_than", new Conversion(DOUBLE, BOOLEAN)));
+        assertThat(byFunction.get("avg"), hasEntry("aggregate_metric_double", DOUBLE));
+        assertThat(byFunction.get("avg"), hasEntry("double", DOUBLE));
+        assertThat(byFunction.get("count"), hasEntry("aggregate_metric_double", INTEGER));
+        assertThat(byFunction.get("count"), hasEntry("long", INTEGER));
+        assertThat(byFunction.get("greater_than"), hasEntry("integer", DOUBLE));
     }
 
     public void testGenerateKibanaDefinition() throws Exception {
@@ -84,14 +97,11 @@ public class ImplicitUnionCastKibanaDefinitionTests extends ESTestCase {
                 "This is generated by ESQL's ImplicitUnionCastKibanaDefinitionTests. "
                     + "Do not edit it. See docs/reference/query-languages/esql/README.md for how to regenerate it."
             );
-            builder.startObject("types");
-            for (Map.Entry<String, Map<String, Conversion>> type : new TreeMap<>(implicitConversions()).entrySet()) {
-                builder.startObject(type.getKey());
-                for (Map.Entry<String, Conversion> function : type.getValue().entrySet()) {
-                    builder.startObject(function.getKey());
-                    builder.field("convertsTo", function.getValue().convertsTo().esNameIfPossible());
-                    builder.field("returnType", function.getValue().returnType().esNameIfPossible());
-                    builder.endObject();
+            builder.startObject("functions");
+            for (Map.Entry<String, Map<String, DataType>> function : implicitConversions().entrySet()) {
+                builder.startObject(function.getKey());
+                for (Map.Entry<String, DataType> type : function.getValue().entrySet()) {
+                    builder.field(type.getKey(), type.getValue().esNameIfPossible());
                 }
                 builder.endObject();
             }

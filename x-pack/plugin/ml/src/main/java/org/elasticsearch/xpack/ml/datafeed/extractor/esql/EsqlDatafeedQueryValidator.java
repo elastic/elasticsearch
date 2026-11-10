@@ -367,7 +367,11 @@ public class EsqlDatafeedQueryValidator {
     ) {
         String limitZeroQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(esqlQuery, LIMIT_ZERO);
 
-        ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> listener.onResponse(null), e -> {
+        ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
+            try (response) {
+                listener.onResponse(null);
+            }
+        }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof NoMatchingProjectException) {
                 if (isNoProjectAfterRouting(cause)) {

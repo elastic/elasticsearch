@@ -1,0 +1,63 @@
+{
+  "index_patterns": [
+    ".context-engine-session-memory*"
+  ],
+  "data_stream": {
+    "allow_custom_routing": false
+  },
+  "template": {
+    "lifecycle": {
+      "data_retention": "90d"
+    },
+    "settings": {
+      "index.auto_expand_replicas": "0-1",
+      "index.hidden": true,
+      "index.sort.field": "@timestamp",
+      "index.sort.order": "desc"
+    },
+    "mappings": {
+      "_meta": {
+        "version": "${kibana.context.engine.version}",
+        "managed_index_mappings_version": ${kibana.context.engine.session.memory.managed.index.version}
+      },
+      "dynamic": "strict",
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "id": {
+          "type": "keyword"
+        },
+        "space": {
+          "type": "keyword"
+        },
+        "ai_index_id": {
+          "type": "keyword"
+        },
+        "session_id": {
+          "type": "keyword"
+        },
+        "user_id": {
+          "type": "keyword"
+        },
+        "content": {
+          "type": "text",
+          "fields": {
+            "semantic_text": {
+              "type": "semantic_text"
+            }
+          }
+        },
+        "attributes": {
+          "type": "flattened"
+        },
+        "deleted_at": {
+          "type": "date"
+        }
+      }
+    }
+  },
+  "composed_of": [],
+  "priority": 500,
+  "version": 1
+}

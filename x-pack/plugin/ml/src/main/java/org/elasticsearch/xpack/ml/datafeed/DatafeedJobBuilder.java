@@ -19,6 +19,7 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
+import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -259,6 +260,15 @@ public class DatafeedJobBuilder {
         );
         final boolean isEsqlDatafeed = datafeedConfig.getEsqlQuery() != null;
         final boolean esqlQueryAggregates = isEsqlDatafeed && EsqlDataExtractor.hasAggregation(datafeedConfig.getEsqlQuery());
+        String emittedTimeField = job.getDataDescription() == null ? null : job.getDataDescription().getTimeField();
+        // Cross-project wrapping does not change query, time fields, or grouping interval, so this matches the provider fingerprint.
+        String esqlCheckpointFingerprint = isEsqlDatafeed
+            ? EsqlDatafeedSourceCheckpoint.computeFingerprint(effectiveDatafeedConfig, emittedTimeField)
+            : null;
+        Long esqlSourceEndMs = null;
+        if (isEsqlDatafeed && context.esqlSourceCheckpoint() != null) {
+            esqlSourceEndMs = context.esqlSourceCheckpoint().getSourceEndMs();
+        }
         DatafeedJob datafeedJob = new DatafeedJob(
             datafeedConfig.getId(),
             effectiveDatafeedConfig.getProjectRouting(),
@@ -284,9 +294,9 @@ public class DatafeedJobBuilder {
             isEsqlDatafeed,
             isEsqlDatafeed ? effectiveDatafeedConfig.getGroupingInterval().millis() : 0L,
             esqlQueryAggregates,
-            null,
-            null,
-            null
+            esqlCheckpointFingerprint,
+            esqlSourceEndMs,
+            isEsqlDatafeed ? jobResultsPersister::persistEsqlDatafeedSourceCheckpoint : null
         );
         listener.onResponse(datafeedJob);
     }

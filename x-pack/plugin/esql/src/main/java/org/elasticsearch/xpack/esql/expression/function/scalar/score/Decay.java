@@ -713,27 +713,30 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
 
     private static double decayDateLinear(long origin, long scale, long offset, double decay, long value) {
         double scaling = scale / (1.0 - decay);
-        long distance = temporalDistance(value, origin, offset);
+        double distance = temporalDistance(value, origin, offset);
         return Math.max(0.0, (scaling - distance) / scaling);
     }
 
     private static double decayDateExp(long origin, long scale, long offset, double decay, long value) {
         double scaling = Math.log(decay) / scale;
-        long distance = temporalDistance(value, origin, offset);
+        double distance = temporalDistance(value, origin, offset);
         return Math.exp(scaling * distance);
     }
 
     private static double decayDateGauss(long origin, long scale, long offset, double decay, long value) {
         double scaling = 0.5 * Math.pow(scale, 2.0) / Math.log(decay);
-        long distance = temporalDistance(value, origin, offset);
+        double distance = temporalDistance(value, origin, offset);
         return Math.exp(0.5 * Math.pow(distance, 2.0) / scaling);
     }
 
-    private static long temporalDistance(long value, long origin, long offset) {
+    private static double temporalDistance(long value, long origin, long offset) {
         // as java.lang.Math#abs(long) is a forbidden API, have to use this comparison instead
         long diff = (value >= origin) ? (value - origin) : (origin - value);
-        // a negative diff means the subtraction overflowed: the dates are more than Long.MAX_VALUE apart
-        return Math.max(0, (diff < 0 ? Long.MAX_VALUE : diff) - offset);
+        if (diff >= 0) {
+            return Math.max(0, diff - offset);
+        }
+        // the subtraction overflowed, so diff holds the exact distance as an unsigned long above Long.MAX_VALUE
+        return NumericUtils.unsignedLongToDouble(NumericUtils.asLongUnsigned(diff)) - offset;
     }
 
     private double numericScale(Object folded) {

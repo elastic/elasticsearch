@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastExponentialHistogramByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastTDigestByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.LastBooleanByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastBytesRefByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastDoubleByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastFloatByTimestampAggregatorFunctionSupplier;
@@ -60,7 +61,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(LastOverTime.class)
         .ternary(LastOverTime::new)
-        .capabilities("flattened")
+        .capabilities("flattened", "boolean")
         .name("last_over_time");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .withinSeries(LastOverTime::new)
@@ -83,6 +84,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction
             "_tsid",
             "exponential_histogram",
             "tdigest",
+            "boolean",
             "date",
             "date_nanos",
             "flattened",
@@ -109,6 +111,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction
                 "_tsid",
                 "exponential_histogram",
                 "tdigest",
+                "boolean",
                 "date",
                 "date_nanos",
                 "flattened",
@@ -170,6 +173,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction
                 || dt == DataType.TSID_DATA_TYPE
                 || dt == DataType.EXPONENTIAL_HISTOGRAM
                 || dt == DataType.TDIGEST
+                || dt == DataType.BOOLEAN
                 || dt == DataType.DATETIME
                 || dt == DataType.DATE_NANOS
                 || dt == DataType.FLATTENED
@@ -178,6 +182,15 @@ public class LastOverTime extends TimeSeriesAggregateFunction
                 || dt == DataType.IP,
             sourceText(),
             DEFAULT,
+            "_tsid",
+            "boolean",
+            "date",
+            "date_nanos",
+            "exponential_histogram",
+            "flattened",
+            "ip",
+            "string",
+            "tdigest",
             "numeric except unsigned_long"
         ).and(
             isType(timestamp, dt -> dt == DataType.DATETIME || dt == DataType.DATE_NANOS, sourceText(), SECOND, "date_nanos or datetime")
@@ -194,6 +207,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction
             case INTEGER, COUNTER_INTEGER -> new LastIntByTimestampAggregatorFunctionSupplier();
             case DOUBLE, COUNTER_DOUBLE -> new LastDoubleByTimestampAggregatorFunctionSupplier();
             case FLOAT -> new LastFloatByTimestampAggregatorFunctionSupplier();
+            case BOOLEAN -> new LastBooleanByTimestampAggregatorFunctionSupplier();
             case FLATTENED, TSID_DATA_TYPE, IP, KEYWORD, TEXT -> new LastBytesRefByTimestampAggregatorFunctionSupplier();
             case EXPONENTIAL_HISTOGRAM -> new AllLastExponentialHistogramByLongAggregatorFunctionSupplier();
             case TDIGEST -> new AllLastTDigestByLongAggregatorFunctionSupplier();

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstExponentialHistogramByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstTDigestByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstBooleanByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FirstBytesRefByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FirstDoubleByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FirstFloatByTimestampAggregatorFunctionSupplier;
@@ -60,7 +61,7 @@ public class FirstOverTime extends TimeSeriesAggregateFunction
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(FirstOverTime.class)
         .ternary(FirstOverTime::new)
-        .capabilities("flattened")
+        .capabilities("flattened", "boolean")
         .name("first_over_time");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .withinSeries(FirstOverTime::new)
@@ -82,6 +83,7 @@ public class FirstOverTime extends TimeSeriesAggregateFunction
             "double",
             "exponential_histogram",
             "tdigest",
+            "boolean",
             "date",
             "date_nanos",
             "flattened",
@@ -107,6 +109,7 @@ public class FirstOverTime extends TimeSeriesAggregateFunction
                 "double",
                 "exponential_histogram",
                 "tdigest",
+                "boolean",
                 "date",
                 "date_nanos",
                 "flattened",
@@ -168,6 +171,7 @@ public class FirstOverTime extends TimeSeriesAggregateFunction
                 || dt == DataType.AGGREGATE_METRIC_DOUBLE
                 || dt == DataType.EXPONENTIAL_HISTOGRAM
                 || dt == DataType.TDIGEST
+                || dt == DataType.BOOLEAN
                 || dt == DataType.DATETIME
                 || dt == DataType.DATE_NANOS
                 || dt == DataType.FLATTENED
@@ -176,6 +180,15 @@ public class FirstOverTime extends TimeSeriesAggregateFunction
                 || dt == DataType.TEXT,
             sourceText(),
             DEFAULT,
+            "aggregate_metric_double",
+            "boolean",
+            "date",
+            "date_nanos",
+            "exponential_histogram",
+            "flattened",
+            "ip",
+            "string",
+            "tdigest",
             "numeric except unsigned_long"
         ).and(
             isType(timestamp, dt -> dt == DataType.DATETIME || dt == DataType.DATE_NANOS, sourceText(), SECOND, "date_nanos or datetime")
@@ -192,6 +205,7 @@ public class FirstOverTime extends TimeSeriesAggregateFunction
             case INTEGER, COUNTER_INTEGER -> new FirstIntByTimestampAggregatorFunctionSupplier();
             case DOUBLE, COUNTER_DOUBLE -> new FirstDoubleByTimestampAggregatorFunctionSupplier();
             case FLOAT -> new FirstFloatByTimestampAggregatorFunctionSupplier();
+            case BOOLEAN -> new FirstBooleanByTimestampAggregatorFunctionSupplier();
             case EXPONENTIAL_HISTOGRAM -> new AllFirstExponentialHistogramByLongAggregatorFunctionSupplier();
             case TDIGEST -> new AllFirstTDigestByLongAggregatorFunctionSupplier();
             case FLATTENED, KEYWORD, TEXT, IP -> new FirstBytesRefByTimestampAggregatorFunctionSupplier();

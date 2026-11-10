@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.dataframe;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -25,6 +26,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -61,6 +63,7 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -254,6 +257,49 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         } finally {
             hits.decRef();
         }
+    }
+
+    public void testPersistProgress_GivenStatsHolderWasNeverSet() {
+        // A task that is assigned to a node while it is in the FAILED state is not initialized with a stats holder, but it can still
+        // be canceled (for example by a force stop), which persists the progress before completing the task. As there is no progress
+        // to persist, this must just run the runnable, and it is not an error.
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        when(client.threadPool()).thenReturn(threadPool);
+
+        ClusterService clusterService = mock(ClusterService.class);
+        PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
+
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        when(searchResponse.getHits()).thenReturn(SearchHits.EMPTY_WITH_TOTAL_HITS);
+        doAnswer(withResponse(searchResponse)).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
+
+        Runnable runnable = mock(Runnable.class);
+
+        DataFrameAnalyticsTask task = new DataFrameAnalyticsTask(
+            123,
+            "type",
+            "action",
+            null,
+            Map.of(),
+            client,
+            mock(DataFrameAnalyticsManager.class),
+            mock(DataFrameAnalyticsAuditor.class),
+            new StartDataFrameAnalyticsAction.TaskParams("task_id", MlConfigVersion.CURRENT, false),
+            mock(XPackLicenseState.class)
+        );
+        task.init(persistentTasksService, mock(TaskManager.class), "task-id", 42);
+        // simulate a FAILED state and don't call task.setStatsHolder()
+
+        MockLog.assertThatLogger(
+            () -> task.persistProgress(client, "task_id", runnable),
+            DataFrameAnalyticsTask.class,
+            new MockLog.UnseenEventExpectation("no error", DataFrameAnalyticsTask.class.getCanonicalName(), Level.ERROR, "*")
+        );
+
+        verify(runnable).run();
+        verify(client, never()).execute(eq(TransportIndexAction.TYPE), any(), any());
     }
 
     public void testSetFailed() throws IOException {

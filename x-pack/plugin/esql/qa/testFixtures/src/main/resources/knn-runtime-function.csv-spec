@@ -115,9 +115,10 @@ id:integer
 4
 ;
 
-// KNN on a runtime field performs exact brute-force search and doesn't use k. The value provided should be ignore.
+// KNN on a runtime field performs exact brute-force search and doesn't use k. The value provided should be ignored.
 knnIgnoreK
 required_capability: knn_runtime_field
+required_capability: fn_knn_k_option_without_limit
 
 FROM knn_hex_vectors
 | EVAL dv = to_dense_vector(emb_hex)

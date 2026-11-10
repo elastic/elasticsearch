@@ -95,6 +95,10 @@ public class VectorScorerInt8BulkOperationBenchmark {
     private MemorySegment resultsSeg;
     // Java-side results array, returned from benchmarks to prevent dead-code elimination.
     private float[] scores;
+    // Heap dataset, query and scores for the heap-API bulk case, matching the all-heap maxSim call shape.
+    private byte[] heapDataset;
+    private byte[] heapQuery;
+    private float[] heapScores;
 
     // although this is not a directory-based BulkBenchmark, we can still use some bits in the VectorData impl
     static final class VectorData extends VectorScorerBulkBenchmark.VectorData {
@@ -145,6 +149,13 @@ public class VectorScorerInt8BulkOperationBenchmark {
         addressesSeg = arena.allocate((long) bulkSize * Long.BYTES);
         resultsSeg = arena.allocate((long) bulkSize * Float.BYTES);
         scores = new float[bulkSize];
+
+        heapDataset = new byte[numVectors * dims];
+        for (int v = 0; v < numVectors; v++) {
+            System.arraycopy(vectorData.vectors[v], 0, heapDataset, v * dims, dims);
+        }
+        heapQuery = vectorData.vectors[vectorData.targetOrd];
+        heapScores = new float[numVectorsToScore];
 
     }
 
@@ -216,6 +227,22 @@ public class VectorScorerInt8BulkOperationBenchmark {
         }
         MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
         return scores;
+    }
+
+    /**
+     * Heap-API BULK: contiguous heap dataset with heap query and scores, all operands on the heap
+     * like the maxSim path. Only the dot-product kernel has a heap API.
+     */
+    @Benchmark
+    public float[] scoreBulkHeap() {
+        if (function != VectorSimilarityType.DOT_PRODUCT) {
+            throw new UnsupportedOperationException(function.toString());
+        }
+        for (int i = 0; i < numVectorsToScore; i += bulkSize) {
+            int count = Math.min(bulkSize, numVectorsToScore - i);
+            VEC_LIBRARY.dotProductI8Bulk(heapDataset, i * dims, heapQuery, dims, count, heapScores, i);
+        }
+        return heapScores;
     }
 
     /** BULK_SPARSE: scattered access driven by a pre-resolved address array. */

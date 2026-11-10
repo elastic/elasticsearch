@@ -419,6 +419,7 @@ public class StatelessPlugin extends Plugin
     private final StatelessIndexSettingProvider statelessIndexSettingProvider;
     private final boolean hollowShardsEnabled;
     private final StatelessThreadPools.ThreadPoolConfig threadPoolConfig;
+    private final Settings connectionPoolSettings;
 
     private final SetOnce<CodecProviderFactory> codecProviderFactory = new SetOnce<>();
     private final SetOnce<SearchShardSizeCollectorProvider> searchShardSizeCollectorProvider = new SetOnce<>();
@@ -494,6 +495,7 @@ public class StatelessPlugin extends Plugin
         statelessIndexSettingProvider = new StatelessIndexSettingProvider();
         hollowShardsEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(settings);
         threadPoolConfig = getThreadPoolConfig(settings, hasIndexRole);
+        connectionPoolSettings = ObjectStoreService.connectionPoolSettings(settings, threadPoolConfig);
     }
 
     @Override
@@ -665,6 +667,7 @@ public class StatelessPlugin extends Plugin
         }
         settings.put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false);
         settings.put(PostRecoveryMerger.POST_RECOVERY_MERGER_DELAY.getKey(), TimeValue.timeValueMinutes(5));
+        settings.put(connectionPoolSettings);
 
         return settings.build();
     }

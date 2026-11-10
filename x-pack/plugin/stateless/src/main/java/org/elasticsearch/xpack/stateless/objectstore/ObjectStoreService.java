@@ -525,8 +525,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     /// Returns a set of settings that are needed to configure connection pools of object store client used.
     /// Note this assumes that `stateless.object_store.client` is available.
     public static Settings connectionPoolSettings(Settings settings, StatelessThreadPools.ThreadPoolConfig threadPoolConfig) {
-        // We simply set the settings for all cloud providers, settings for the provider we are not using will be noop.
-        // GCP doesn't support configuration connection pool size yet.
+        ObjectStoreType type = TYPE_SETTING.get(settings);
+        if (type != ObjectStoreType.S3 && type != ObjectStoreType.AZURE) {
+            return Settings.EMPTY;
+        }
+
         String client = CLIENT_SETTING.get(settings);
 
         // Add a 10% buffer to account for possible miscalculations.
@@ -535,10 +538,15 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         int objectStoreAccessConcurrency = threadPoolConfig.expectedBlobStoreConcurrency() + threadPoolConfig.expectedBlobStoreConcurrency()
             / 10;
 
-        return Settings.builder()
-            .put(S3_CLIENT_SETTING_PREFIX + "." + client + "." + MAX_CONNECTIONS_SETTING_KEY, objectStoreAccessConcurrency)
-            .put(AZURE_CLIENT_SETTING_PREFIX + "." + client + "." + MAX_CONNECTIONS_SETTING_KEY, objectStoreAccessConcurrency)
-            .build();
+        if (type == ObjectStoreType.S3) {
+            return Settings.builder()
+                .put(S3_CLIENT_SETTING_PREFIX + "." + client + "." + MAX_CONNECTIONS_SETTING_KEY, objectStoreAccessConcurrency)
+                .build();
+        } else {
+            return Settings.builder()
+                .put(AZURE_CLIENT_SETTING_PREFIX + "." + client + "." + MAX_CONNECTIONS_SETTING_KEY, objectStoreAccessConcurrency)
+                .build();
+        }
     }
 
     @Override

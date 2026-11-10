@@ -128,6 +128,7 @@ import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.O
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType.AZURE;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType.FS;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType.GCS;
+import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType.MOCK;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType.S3;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -1722,14 +1723,47 @@ public class ObjectStoreServiceTests extends ESTestCase {
     }
 
     public void testConnectionPoolSettings() {
-        var settings = Settings.builder().put(ObjectStoreService.CLIENT_SETTING.getKey(), "my_client").build();
         var config = new StatelessThreadPools.ThreadPoolConfig(10, 0, 10, 0, 10, 0, 10, 0, 10, 0, 10, 10, 0, 10, 0, 10);
         // This is what the `config` above should produce plus buffer added inside `connectionPoolSettings`.
         int expected = 6 * 10 + 6;
 
-        var newSettings = ObjectStoreService.connectionPoolSettings(settings, config);
-        assertEquals(Integer.toString(expected), newSettings.get("azure.client.my_client.max_connections"));
-        assertEquals(Integer.toString(expected), newSettings.get("s3.client.my_client.max_connections"));
+        var s3Settings = Settings.builder()
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), S3)
+            .put(ObjectStoreService.CLIENT_SETTING.getKey(), "my_client")
+            .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket")
+            .build();
+        var s3ConnectionPoolsSettings = ObjectStoreService.connectionPoolSettings(s3Settings, config);
+        assertEquals(Integer.toString(expected), s3ConnectionPoolsSettings.get("s3.client.my_client.max_connections"));
+
+        var azureSettings = Settings.builder()
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), AZURE)
+            .put(ObjectStoreService.CLIENT_SETTING.getKey(), "my_client")
+            .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket")
+            .build();
+        var azureConnectionPoolsSettings = ObjectStoreService.connectionPoolSettings(azureSettings, config);
+        assertEquals(Integer.toString(expected), azureConnectionPoolsSettings.get("azure.client.my_client.max_connections"));
+
+        var gcsSettings = Settings.builder()
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), GCS)
+            .put(ObjectStoreService.CLIENT_SETTING.getKey(), "my_client")
+            .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket")
+            .build();
+        var gcsConnectionPoolsSettings = ObjectStoreService.connectionPoolSettings(gcsSettings, config);
+        assertTrue(gcsConnectionPoolsSettings.isEmpty());
+
+        var fsSettings = Settings.builder()
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), FS)
+            .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket")
+            .build();
+        var fsConnectionPoolsSettings = ObjectStoreService.connectionPoolSettings(fsSettings, config);
+        assertTrue(fsConnectionPoolsSettings.isEmpty());
+
+        var mockSettings = Settings.builder()
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), MOCK)
+            .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket")
+            .build();
+        var mockConnectionPoolsSettings = ObjectStoreService.connectionPoolSettings(mockSettings, config);
+        assertTrue(mockConnectionPoolsSettings.isEmpty());
     }
 
     private void assertProjectObjectStoreNotFound(ObjectStoreService objectStoreService, ProjectId projectId) {

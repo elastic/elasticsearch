@@ -216,3 +216,131 @@ emp_no:integer | first_name:keyword | last_name:keyword
 10021          | Ramzi              | Erde
 10022          | Shahaf             | Famili
 ;
+
+# https://github.com/elastic/elasticsearch/issues/162639
+foldNullArgumentWithCaseSibling
+required_capability: fix_fold_null_arguments
+
+ROW n = null, k = CASE(true, 2, 3)
+| EVAL b = n * k
+;
+
+n:null|k:integer|b:integer
+null  |2        |null
+;
+
+foldNullTypedArgumentFromCoalesce
+required_capability: fix_fold_null_arguments
+
+ROW n = COALESCE(null)
+| EVAL s = TO_STRING(n), r = SQRT(n)
+;
+
+n:null|s:keyword|r:double
+null  |null     |null
+;
+
+foldTypedNullColumnArgument
+required_capability: fix_fold_null_arguments
+
+ROW u = null::keyword
+| EVAL x = DATE_DIFF(u, TO_DATETIME("2024-01-01"), TO_DATETIME("2024-01-02"))
+;
+
+u:keyword|x:integer
+null     |null
+;
+
+foldTypedNullColumnArgumentInGrouping
+required_capability: fix_fold_null_arguments
+
+ROW v = 5, p = null::integer
+| STATS c = COUNT(*) BY b = BUCKET(v, p)
+;
+
+c:long|b:double
+1     |null
+;
+
+foldCaseWithoutMatchArgument
+required_capability: fix_fold_null_arguments
+
+ROW x = SPLIT("a,b", CASE(false, ","))
+;
+
+x:keyword
+null
+;
+
+foldCastCaseWithoutMatchArgument
+required_capability: fix_fold_null_arguments
+
+ROW x = ST_GEOHASH(TO_GEOPOINT("POINT(1 2)"), CASE(false, 1)::integer)
+;
+
+x:long
+null
+;
+
+foldDivisionByZeroArgument
+required_capability: fix_fold_null_arguments
+
+ROW x = MV_SLICE([1, 2, 3], 1/0, 2)
+;
+
+warning:Line 1:29: evaluation of [1/0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:29: java.lang.ArithmeticException: / by zero
+
+x:integer
+null
+;
+
+foldTypedNullFormatArgument
+required_capability: fix_fold_null_arguments
+
+ROW f = null::keyword
+| EVAL s = DATE_FORMAT(f, TO_DATETIME("2024-01-01"))
+;
+
+f:keyword|s:keyword
+null     |null
+;
+
+foldNullArgumentsInManyFunctions
+required_capability: fix_fold_null_arguments
+
+ROW n = COALESCE(null), nk = null::keyword, ni = null::integer, nd = null::double, d = TO_DATETIME("2024-01-01")
+| EVAL
+    mul = n * 2,
+    neg = -n,
+    to_string = TO_STRING(n),
+    to_integer = TO_INTEGER(n),
+    to_ip = TO_IP(n),
+    sqrt = SQRT(n),
+    round = ROUND(n, 1),
+    scalb = SCALB(1.0, n),
+    greatest = GREATEST(n),
+    mv_median = MV_MEDIAN(n),
+    mv_mad = MV_MEDIAN_ABSOLUTE_DEVIATION(n),
+    mv_percentile = MV_PERCENTILE(n, 50),
+    extract_null = DATE_EXTRACT("year", n),
+    diff_null = DATE_DIFF("day", n, d),
+    st_x = ST_X(n),
+    format_null = DATE_FORMAT(n, d),
+    parse_null = DATE_PARSE(n, "2024"),
+    st_geohash = ST_GEOHASH(TO_GEOPOINT("POINT(1 2)"), ni),
+    diff_unit = DATE_DIFF(nk, d, d),
+    extract_part = DATE_EXTRACT(nk, d),
+    parse_format = DATE_PARSE(nk, "2024-01-01"),
+    split = SPLIT("a,b", nk),
+    hash = HASH(nk, "a"),
+    mv_sort = MV_SORT([1, 2], nk),
+    repeat = REPEAT("a", ni),
+    mv_slice = MV_SLICE([1, 2, 3], ni, 2),
+    format_format = DATE_FORMAT(nk, d)
+| DROP n, nk, ni, nd, d
+;
+
+mul:integer|neg:null|to_string:keyword|to_integer:integer|to_ip:ip|sqrt:double|round:null|scalb:double|greatest:null|mv_median:null|mv_mad:null|mv_percentile:null|extract_null:long|diff_null:integer|st_x:double|format_null:keyword|parse_null:date|st_geohash:long|diff_unit:integer|extract_part:long|parse_format:date|split:keyword|hash:keyword|mv_sort:integer|repeat:keyword|mv_slice:integer|format_format:keyword
+null       |null    |null             |null              |null     |null       |null      |null        |null         |null          |null      |null              |null             |null             |null        |null               |null          |null                |null             |null             |null              |null         |null        |null           |null          |null            |null
+;

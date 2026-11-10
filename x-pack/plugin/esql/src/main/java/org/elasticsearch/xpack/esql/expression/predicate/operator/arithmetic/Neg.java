@@ -90,7 +90,7 @@ public class Neg extends UnaryScalarFunction implements AnyNullIsNull {
     }
 
     @Override
-    public final Object fold(FoldContext ctx) {
+    public final Object doFold(Source source, FoldContext ctx) {
         DataType dataType = field().dataType();
         // For date periods and time durations, we need to treat folding differently. These types are unrepresentable, so there is no
         // evaluator for them - but the default folding requires an evaluator.
@@ -114,7 +114,7 @@ public class Neg extends UnaryScalarFunction implements AnyNullIsNull {
                 throw ExceptionUtils.math(source(), e);
             }
         }
-        return super.fold(ctx);
+        return super.doFold(source, ctx);
     }
 
     @Override

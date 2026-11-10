@@ -884,11 +884,14 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat(supplier.getDocValuesFormatForField("size"), instanceOf(ColumNARDocValuesFormat.class));
         assertThat(supplier.getDocValuesFormatForField("requests"), instanceOf(ColumNARDocValuesFormat.class));
         assertThat(supplier.getDocValuesFormatForField("terms"), instanceOf(ColumNARDocValuesFormat.class));
+        // The index sort field too: ColumnarNumericSortField sorts the index by its column.
+        assertThat(supplier.getDocValuesFormatForField("sorted"), instanceOf(ColumNARDocValuesFormat.class));
         assertEquals(ColumnarFieldType.LONG, supplier.columnarFields().fieldType(fieldInfo("size")));
         assertEquals(ColumnarFieldType.LONG, supplier.columnarFields().fieldType(fieldInfo("terms")));
+        assertEquals(ColumnarFieldType.LONG, supplier.columnarFields().fieldType(fieldInfo("sorted")));
         assertEquals(ColumnarFieldType.STRING, supplier.columnarFields().fieldType(fieldInfo("category")));
         // The .offsets companion that places a ColumNAR long's nulls is ordinary sorted doc values.
-        for (String field : List.of("sorted", "count", "score", FieldArrayContext.offsetsFieldName("size"))) {
+        for (String field : List.of("count", "score", FieldArrayContext.offsetsFieldName("size"))) {
             assertFalse(field, supplier.getDocValuesFormatForField(field) instanceof ColumNARDocValuesFormat);
             assertNull(field, supplier.columnarFields().numericTypeOf(field));
         }

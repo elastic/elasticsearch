@@ -461,18 +461,14 @@ public class NumberFieldMapper extends FieldMapper {
 
         /**
          * How the field's doc values are laid out on disk. {@code long} fields of an index that opts into the ColumNAR
-         * numeric codec are written with it, except for an index sort field, which Lucene's index sort reads as
-         * {@code SORTED_NUMERIC}.
+         * numeric codec are written with it.
          */
         // TODO: store the other numeric types with ColumNAR too.
-        // TODO: sort an index by a ColumNAR numeric field, as keyword fields can be.
-        private DocValuesDiskFormat diskFormat(String fullName) {
+        private DocValuesDiskFormat diskFormat() {
             if (docValuesParameters.getValue().enabled() == false) {
                 return DocValuesDiskFormat.NONE;
             }
-            if (type == NumberType.LONG
-                && ColumnarDocValuesFormatSelector.useColumnarNumericCodec(indexSettings)
-                && indexSettings.getIndexSortConfig().hasSortOnField(fullName) == false) {
+            if (type == NumberType.LONG && ColumnarDocValuesFormatSelector.useColumnarNumericCodec(indexSettings)) {
                 return DocValuesDiskFormat.COLUMNAR;
             }
             return DocValuesDiskFormat.SORTED_NUMERIC;
@@ -486,7 +482,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             hasScript = script.get() != null;
             onScriptError = onScriptErrorParam.getValue();
-            this.diskFormat = diskFormat(context.buildFullName(leafName()));
+            this.diskFormat = diskFormat();
             this.offsetsFieldName = getOffsetsFieldName(
                 context,
                 indexSettings.sourceKeepMode(),

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -34,11 +35,13 @@ import org.apache.lucene.search.comparators.LongComparator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.RoaringDocIdSet;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.fielddata.plain.ColumnarNumericSortField;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.lucene.queries.SearchAfterSortedDocQuery;
@@ -252,6 +255,14 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
 
     /** Return true if the provided field may have multiple values per document in the leaf **/
     private static boolean isMaybeMultivalued(LeafReaderContext context, SortField sortField) throws IOException {
+        if (sortField instanceof ColumnarNumericSortField) {
+            // A numeric sort field, but its doc values are a ColumNAR column rather than SORTED_NUMERIC.
+            BinaryDocValues values = context.reader().getBinaryDocValues(sortField.getField());
+            if (values instanceof ColumnarNumericBinaryDocValues columnar) {
+                return columnar.isSingleValued() == false;
+            }
+            return values != null;
+        }
         SortField.Type type = IndexSortConfig.getSortFieldType(sortField);
         return switch (type) {
             case STRING -> {

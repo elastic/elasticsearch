@@ -17,9 +17,10 @@ import java.util.function.Supplier;
  * Implementations decide what to do with the context in {@link #accept}: for example turn it into a message and write it,
  * or skip it. Any message type is private to the implementation.
  * <p>
- * Sinks run synchronously on the thread that completes the action, before the response is passed on. They must be fast,
- * must copy anything they keep from the context (the response may be released once the call returns). Any exception they
- * throw is swallowed by the {@link QueryInterceptor} so that it can never fail the action or starve the other sinks.
+ * Sinks run on the capture worker when the interceptor uses a {@link QueryCaptureService}, otherwise on the thread
+ * completing the action. They must copy anything they keep from the context: its response is borrowed only for the
+ * duration of the call. Any exception they throw is swallowed by the {@link QueryInterceptor} so that it can never fail the action
+ * or starve the other sinks.
  *
  * @param <C> the query context type this sink handles
  */
@@ -44,7 +45,7 @@ public abstract class QuerySink<C extends QueryCaptureContext> {
     public abstract boolean isEnabled();
 
     /**
-     * Called once when the action completes, successfully or not, if the sink is enabled.
+     * Called for a completed action, successfully or not, if the sink is enabled.
      */
     public abstract void accept(C context);
 

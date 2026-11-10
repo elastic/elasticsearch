@@ -79,6 +79,9 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
     }
 
     private static int getExpectedThreadPoolSize(Settings settings, String name, int size) {
+        if (name.equals(Names.QUERY_CAPTURE)) {
+            return 1;
+        }
         if (name.equals(ThreadPool.Names.WRITE)
             || name.equals(Names.SYSTEM_WRITE)
             || name.equals(Names.SYSTEM_CRITICAL_WRITE)

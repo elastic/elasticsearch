@@ -63,6 +63,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
+import org.elasticsearch.common.logging.activity.QueryCaptureService;
 import org.elasticsearch.common.logging.activity.QueryInterceptor;
 import org.elasticsearch.common.logging.activity.QueryLogger;
 import org.elasticsearch.common.logging.activity.QuerySinkRegistry;
@@ -203,6 +204,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final TimeValue forceConnectTimeoutSecs;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final QueryInterceptor<SearchCaptureContext> queryInterceptor;
+    private final QueryCaptureService queryCaptureService;
 
     @Inject
     public TransportSearchAction(
@@ -279,6 +281,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             indexNameExpressionResolver.getSystemNamePredicate()
         );
         this.queryInterceptor = querySinkRegistry.createInterceptor(queryLogger);
+        this.queryCaptureService = new QueryCaptureService(threadPool);
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -433,7 +436,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         queryInterceptor.wrapAndRun(
             listener,
             searchCaptureContextBuilder,
-            l -> executeRequest((SearchTask) task, searchRequest, l, AsyncSearchActionProvider::new, true)
+            l -> executeRequest((SearchTask) task, searchRequest, l, AsyncSearchActionProvider::new, true),
+            queryCaptureService
         );
     }
 

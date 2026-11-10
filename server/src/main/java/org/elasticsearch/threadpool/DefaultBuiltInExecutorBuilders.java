@@ -113,6 +113,10 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
             )
         );
         result.put(
+            ThreadPool.Names.QUERY_CAPTURE,
+            new FixedExecutorBuilder(settings, ThreadPool.Names.QUERY_CAPTURE, 1, 200, EsExecutors.TaskTrackingConfig.DEFAULT)
+        );
+        result.put(
             ThreadPool.Names.AUTO_COMPLETE,
             new FixedExecutorBuilder(
                 settings,

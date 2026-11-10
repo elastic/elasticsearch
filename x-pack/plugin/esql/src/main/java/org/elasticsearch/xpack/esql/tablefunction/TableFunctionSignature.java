@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.tablefunction;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * The arguments a {@link TableFunction} accepts: how many, what each is called, what kind each is, and which may be
@@ -25,22 +27,26 @@ import java.util.List;
  */
 public record TableFunctionSignature(List<Argument> arguments) {
 
-    /** What one argument is called, what kind it is, and whether it may be omitted. */
-    public record Argument(String name, Kind kind, boolean required) {}
+    /**
+     * What one argument is called, which shapes it accepts, and whether it may be omitted. A set rather than one
+     * kind because a position may legitimately take either — a definition whose only interesting field may be
+     * written on its own — and because which shapes a position takes is independent of where that position is.
+     */
+    public record Argument(String name, Set<Kind> kinds, boolean required) {
+        public Argument {
+            kinds = Set.copyOf(kinds);
+            if (kinds.isEmpty()) {
+                throw new IllegalStateException("argument [" + name + "] accepts no shape at all");
+            }
+        }
+    }
 
-    /** The kinds the grammar admits, matching {@link TableFunctionArgument}'s two shapes plus the choice of them. */
+    /** The shapes the grammar admits, matching {@link TableFunctionArgument}'s own. */
     public enum Kind {
         /** A bare or quoted name. */
         NAME("a name"),
         /** A {@code {...}} of named values. */
-        NAMED_VALUES("a {...}"),
-        /**
-         * Either shape, for an argument where one of them is shorthand for the other — a definition whose only
-         * interesting field may be written on its own. Not a way around declaring a shape: a function accepting
-         * this still writes no shape-checking code, because the two spellings denote the same argument and it
-         * normalizes them before reading anything.
-         */
-        NAME_OR_NAMED_VALUES("a name or a {...}");
+        NAMED_VALUES("a {...}");
 
         private final String describedAs;
 
@@ -60,27 +66,22 @@ public record TableFunctionSignature(List<Argument> arguments) {
 
     /** A required argument written as a bare or quoted name. */
     public static Argument name(String name) {
-        return new Argument(name, Kind.NAME, true);
+        return new Argument(name, Set.of(Kind.NAME), true);
     }
 
-    /**
-     * A required {@code {...}} payload. No function on this branch declares one: the facility carries the kind
-     * because the grammar admits the map and the builder folds it, and the first function to take one — a dataset
-     * definition written where it is read — is a separate change. Stated so this is neither read as machinery with
-     * a caller it does not have, nor cut as having no purpose.
-     */
+    /** A required {@code {...}} payload, in any position. */
     public static Argument namedValues(String name) {
-        return new Argument(name, Kind.NAMED_VALUES, true);
+        return new Argument(name, Set.of(Kind.NAMED_VALUES), true);
     }
 
-    /** A required argument written either way; see {@link Kind#NAME_OR_NAMED_VALUES}. */
-    public static Argument nameOrNamedValues(String name) {
-        return new Argument(name, Kind.NAME_OR_NAMED_VALUES, true);
+    /** A required argument the caller may write in any of the given shapes. */
+    public static Argument either(String name, Kind... kinds) {
+        return new Argument(name, Set.of(kinds), true);
     }
 
     /** The same argument, allowed to be left out. Every argument after an optional one must also be optional. */
     public static Argument optional(Argument argument) {
-        return new Argument(argument.name(), argument.kind(), false);
+        return new Argument(argument.name(), argument.kinds(), false);
     }
 
     public TableFunctionSignature {
@@ -96,19 +97,6 @@ public record TableFunctionSignature(List<Argument> arguments) {
                 throw new IllegalStateException("required argument [" + argument.name() + "] follows an optional one");
             }
             seenOptional |= argument.required() == false;
-            // The grammar admits a map only as the last argument and only after at least one name, so any other
-            // position is syntax no query can write: `tableFunctionArgument (COMMA tableFunctionArgument)*
-            // (COMMA mapExpression)?`. Without this a function would simply be unreachable, with nothing said.
-            if (argument.kind() == Kind.NAMED_VALUES) {
-                if (i != arguments.size() - 1) {
-                    throw new IllegalStateException("argument [" + argument.name() + "] takes " + Kind.NAMED_VALUES + " and is not last");
-                }
-                if (i == 0) {
-                    throw new IllegalStateException(
-                        "argument [" + argument.name() + "] takes " + Kind.NAMED_VALUES + " and is the only one"
-                    );
-                }
-            }
         }
     }
 
@@ -142,15 +130,18 @@ public record TableFunctionSignature(List<Argument> arguments) {
         for (int i = 0; i < found; i++) {
             Argument expected = arguments.get(i);
             TableFunctionArgument actual = call.arguments().get(i);
-            boolean matches = switch (expected.kind()) {
-                case NAME -> actual instanceof TableFunctionArgument.Name;
-                case NAMED_VALUES -> actual instanceof TableFunctionArgument.NamedValues;
-                case NAME_OR_NAMED_VALUES -> actual instanceof TableFunctionArgument.Name
-                    || actual instanceof TableFunctionArgument.NamedValues;
-            };
-            if (matches == false) {
-                throw new ParsingException(actual.source(), "[{}] expects {} for [{}]", call.name(), expected.kind(), expected.name());
+            if (expected.kinds().contains(kindOf(actual)) == false) {
+                throw new ParsingException(actual.source(), "[{}] expects {} for [{}]", call.name(), describe(expected), expected.name());
             }
         }
+    }
+
+    private static Kind kindOf(TableFunctionArgument argument) {
+        return argument instanceof TableFunctionArgument.NamedValues ? Kind.NAMED_VALUES : Kind.NAME;
+    }
+
+    /** The shapes one argument takes, as a diagnostic spells them. */
+    private static String describe(Argument argument) {
+        return argument.kinds().stream().map(Kind::toString).sorted().collect(Collectors.joining(" or "));
     }
 }

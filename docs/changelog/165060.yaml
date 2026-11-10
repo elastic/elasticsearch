@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 165060
-summary: Refuse one resource read through two differing dataset configurations
-type: bug

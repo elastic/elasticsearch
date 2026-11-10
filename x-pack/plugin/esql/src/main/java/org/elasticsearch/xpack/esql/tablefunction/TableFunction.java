@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.tablefunction;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 
@@ -31,8 +32,6 @@ import java.util.List;
  * <p>
  * One instance per function, held by {@link TableFunctionRegistry} and identical on every node. A source list may
  * mix functions with patterns and subqueries, so a function describes one leaf and never assumes it is alone.
- * Prefer extending a base class — {@link CoordinatorRowsFunction} for rows the coordinator produces — because the
- * bases own the parts that must not vary between functions.
  */
 public interface TableFunction {
 
@@ -59,9 +58,9 @@ public interface TableFunction {
     /**
      * Completes {@code listener} with the {@link LeafPlan} this invocation denotes.
      * <p>
-     * Asynchronous because some functions cannot answer without I/O; one needing none completes inline, and the
-     * base classes do that for it. Called after the shape has been checked and {@link #validate} has passed for
-     * every call in the query, not just this one.
+     * Asynchronous because some functions cannot answer without I/O; one needing none completes inline. Called
+     * after the shape has been checked and {@link #validate} has passed for every call in the query, not just
+     * this one.
      *
      * @param metadataFields the names from the user's {@code METADATA} clause, threaded to every leaf in the source
      *                       list. A leaf that binds its own metadata consumes them; one that does not may ignore
@@ -70,7 +69,7 @@ public interface TableFunction {
     void toRelation(
         TableFunctionInvocation call,
         List<NamedExpression> metadataFields,
-        TableFunctionContext context,
+        ProjectMetadata projectMetadata,
         ActionListener<LeafPlan> listener
     );
 }

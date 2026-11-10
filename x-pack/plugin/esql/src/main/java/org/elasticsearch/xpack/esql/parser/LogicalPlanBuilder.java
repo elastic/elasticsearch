@@ -436,9 +436,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 } else {
                     // Named rather than trailing: a fourth alternative added to indexPatternOrSubquery would
                     // otherwise be filed here as a table function with a null context, and fail somewhere further
-                    // down. The class names the alternative that was added; the user's own text is not in it,
-                    // because nothing in this builder puts a source list's text into a message.
-                    throw new IllegalStateException("unhandled source list entry [" + c.getClass().getSimpleName() + "]");
+                    throw new IllegalStateException("unhandled source list entry in indexPatternOrSubquery");
                 }
             });
         }
@@ -518,20 +516,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      */
     private TableFunctionInvocation tableFunctionInvocation(EsqlBaseParser.TableFunctionContext ctx) {
         Source source = source(ctx);
-        String name = ctx.name.getText();
-        // One flat list with the map appended last: the grammar keeps the map a separate trailing alternative, and
-        // this folds it in. Why, on TableFunctionArgument.
-        List<TableFunctionArgument> arguments = new ArrayList<>(ctx.tableFunctionArgument().size() + 1);
+        // The '(' is part of the name token, which is how the lexer tells a call from an index pattern.
+        String text = ctx.name.getText();
+        String name = text.substring(0, text.length() - 1);
+        List<TableFunctionArgument> arguments = new ArrayList<>(ctx.tableFunctionArgument().size());
         for (EsqlBaseParser.TableFunctionArgumentContext argumentCtx : ctx.tableFunctionArgument()) {
-            arguments.add(new TableFunctionArgument.Name(source(argumentCtx), tableFunctionArgumentName(argumentCtx)));
-        }
-        if (ctx.mapExpression() != null) {
-            arguments.add(
-                new TableFunctionArgument.NamedValues(
-                    source(ctx.mapExpression()),
-                    foldNamedValues(name, visitMapExpression(ctx.mapExpression()), "")
-                )
-            );
+            arguments.add(tableFunctionArgument(name, argumentCtx));
         }
         // Not resolved against the registry here, as a scalar function is not: ExpressionBuilder leaves an
         // UnresolvedFunction for the analyzer to bind. TableFunctionResolver resolves this one, and raises the
@@ -541,11 +531,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     /** The name one positional argument denotes: a bare or backquoted identifier, or a quoted string. */
-    private String tableFunctionArgumentName(EsqlBaseParser.TableFunctionArgumentContext ctx) {
-        if (ctx.identifier() != null) {
-            return visitIdentifier(ctx.identifier());
+    private TableFunctionArgument tableFunctionArgument(String function, EsqlBaseParser.TableFunctionArgumentContext ctx) {
+        Source source = source(ctx);
+        if (ctx.mapExpression() != null) {
+            return new TableFunctionArgument.NamedValues(source, foldNamedValues(function, visitMapExpression(ctx.mapExpression()), ""));
         }
-        return BytesRefs.toString(visitString(ctx.string()).value());
+        if (ctx.identifier() != null) {
+            return new TableFunctionArgument.Name(source, visitIdentifier(ctx.identifier()));
+        }
+        return new TableFunctionArgument.Name(source, BytesRefs.toString(visitString(ctx.string()).value()));
     }
 
     /**

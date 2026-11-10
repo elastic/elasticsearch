@@ -53,13 +53,12 @@ UNQUOTED_SOURCE
 FROM_UNQUOTED_SOURCE : UNQUOTED_SOURCE -> type(UNQUOTED_SOURCE);
 FROM_QUOTED_SOURCE : QUOTED_STRING -> type(QUOTED_STRING);
 
-// The '(' is matched and then rewound so it is re-lexed in TABLE_FUNCTION_MODE: nothing else separates
-// a function name from an index pattern, and a lexer rule cannot look at the token it emitted last.
-// The predicate sits after the '(' per #160805 -- on the left it would poison FROM_MODE's DFA start
-// state, and omitting it changed what a release build says about `from te()st`.
+// The '(' is part of the token: nothing else separates a function name from an index pattern, and a lexer rule
+// cannot look at the token it emitted last. Pushes EXPRESSION_MODE twice, as Expression.g4's own LP does, so the
+// matching ')' -- RP in EXPRESSION_MODE, which pops twice -- leaves the lexer back in FROM_MODE and the rest of
+// the source list goes on lexing as source patterns. The predicate sits after the matched text per #160805.
 DEV_TABLE_FUNCTION_NAME
-    : LETTER UNQUOTED_ID_BODY* '(' {this.isDevVersion()}? { this.rewindToTokenStart(this.getText().length() - 1); }
-      -> pushMode(TABLE_FUNCTION_MODE)
+    : LETTER UNQUOTED_ID_BODY* '(' {this.isDevVersion()}? -> pushMode(EXPRESSION_MODE), pushMode(EXPRESSION_MODE)
     ;
 
 FROM_LINE_COMMENT
@@ -73,16 +72,3 @@ FROM_MULTILINE_COMMENT
 FROM_WS
     : WS -> channel(HIDDEN)
     ;
-
-// Entered from DEV_TABLE_FUNCTION_NAME, positioned on the '(' that rule peeked at and gave back. The mode
-// exists to give that one character a different meaning than it has in FROM_MODE, where FROM_LP opens a
-// subquery; it needs no whitespace or comment rules because the rule that pushed it only fires when '('
-// is the very next character.
-mode TABLE_FUNCTION_MODE;
-
-// Pushes EXPRESSION_MODE ONCE, where EXPRESSION_MODE's own LP pushes it twice. That asymmetry is what
-// closes the stack: the matching ')' is lexed in EXPRESSION_MODE, whose RP pops twice, which unwinds
-// both EXPRESSION_MODE and this mode and leaves the lexer back in FROM_MODE -- so the rest of the
-// source list ( `, bar*`, METADATA, '|' ) goes on lexing as source patterns. Same pairing as
-// FROM_LP's single push against FROM_RP's double pop for subqueries.
-TABLE_FUNCTION_LP : LP -> type(LP), pushMode(EXPRESSION_MODE);

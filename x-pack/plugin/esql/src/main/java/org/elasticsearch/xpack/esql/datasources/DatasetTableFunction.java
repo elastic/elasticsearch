@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.action.EsqlAuthorizeDatasourceAction;
 import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
@@ -22,7 +23,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunction;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionArgument;
-import org.elasticsearch.xpack.esql.tablefunction.TableFunctionContext;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionInvocation;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionSignature;
 
@@ -76,7 +76,7 @@ public final class DatasetTableFunction implements TableFunction {
     public TableFunctionSignature signature() {
         return TableFunctionSignature.of(
             TableFunctionSignature.name("data source"),
-            TableFunctionSignature.nameOrNamedValues("definition")
+            TableFunctionSignature.either("definition", TableFunctionSignature.Kind.NAME, TableFunctionSignature.Kind.NAMED_VALUES)
         );
     }
 
@@ -97,7 +97,7 @@ public final class DatasetTableFunction implements TableFunction {
     public void toRelation(
         TableFunctionInvocation call,
         List<NamedExpression> metadataFields,
-        TableFunctionContext context,
+        ProjectMetadata projectMetadata,
         ActionListener<LeafPlan> listener
     ) {
         DatasetReference.Inline inline = new DatasetReference.Inline(call.name(0), definitionOf(call));
@@ -106,7 +106,7 @@ public final class DatasetTableFunction implements TableFunction {
         ActionListener<ActionResponse.Empty> authorized = new ThreadedActionListener<>(
             client.threadPool().executor(ThreadPool.Names.SEARCH),
             true,
-            PlanningCpuTracker.inheritMeteredCpu(listener.map(ignored -> bind(call, metadataFields, context, inline)))
+            PlanningCpuTracker.inheritMeteredCpu(listener.map(ignored -> bind(call, metadataFields, projectMetadata, inline)))
         );
         client.execute(
             EsqlAuthorizeDatasourceAction.TYPE,
@@ -118,10 +118,10 @@ public final class DatasetTableFunction implements TableFunction {
     private LeafPlan bind(
         TableFunctionInvocation call,
         List<NamedExpression> metadataFields,
-        TableFunctionContext context,
+        ProjectMetadata projectMetadata,
         DatasetReference.Inline inline
     ) {
-        DatasetDefinitionValidator.BoundDataset bound = definitionValidator.validateInline(context.projectMetadata(), inline);
+        DatasetDefinitionValidator.BoundDataset bound = definitionValidator.validateInline(projectMetadata, inline);
         return new UnresolvedExternalRelation(
             call.source(),
             Literal.keyword(call.source(), bound.dataset().resource()),

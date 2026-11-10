@@ -170,6 +170,7 @@ import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunction;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionResolver;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
 import org.elasticsearch.xpack.esql.view.MlAnomaliesView;
@@ -545,6 +546,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             listingService
         );
 
+        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
+        capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
+
         services.ipLocationService()
             .addDatabaseAvailabilityListener(
                 (projectId, databaseFile) -> logger.trace(
@@ -634,19 +639,17 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 c.onQueryCompleted(metrics);
             }
         };
-        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         DatasetService datasetService = new DatasetService(
             services.clusterService(),
             crudValidators,
             dataSourceModule.externalSourceMetrics()
         );
-        // Built from already-constructed functions: a table function declares its own dependencies by being
-        // constructed with them, which is what keeps the facility from carrying any one function's.
-        TableFunctionRegistry tableFunctionRegistry = new TableFunctionRegistry(
-            tableFunctions(services.client(), datasetService.definitionValidator())
+        // Here rather than beside the function registry above, because DATASET needs the one definition validator
+        // and that is built from the plugins' validators, which are not collected until crudValidators above.
+        TableFunctionResolver tableFunctionResolver = new TableFunctionResolver(
+            new TableFunctionRegistry(tableFunctions(services.client(), datasetService.definitionValidator())),
+            services.threadPool().executor(ThreadPool.Names.SEARCH)
         );
-        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
-        capabilities.set(EsqlCapabilities.capabilities(functionRegistry, tableFunctionRegistry, false));
 
         ViewService viewService = new ViewService(services.clusterService(), parser, (statement, viewName, listener) -> {
             var request = PreparedEsqlQueryRequest.analyzeOnly(statement, "view [" + viewName + "]");
@@ -683,7 +686,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 maxDiscoveredFiles::get,
                 maxGlobExpansion::get,
                 maxListedObjects::get,
-                tableFunctionRegistry
+                tableFunctionResolver
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),

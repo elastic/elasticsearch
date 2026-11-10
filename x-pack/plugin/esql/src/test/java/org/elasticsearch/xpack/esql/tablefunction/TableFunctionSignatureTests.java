@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.tablefunction.TableFunctionSignature.either;
 import static org.elasticsearch.xpack.esql.tablefunction.TableFunctionSignature.name;
-import static org.elasticsearch.xpack.esql.tablefunction.TableFunctionSignature.nameOrNamedValues;
 import static org.elasticsearch.xpack.esql.tablefunction.TableFunctionSignature.namedValues;
 import static org.elasticsearch.xpack.esql.tablefunction.TableFunctionSignature.optional;
 import static org.hamcrest.Matchers.containsString;
@@ -73,14 +73,17 @@ public class TableFunctionSignatureTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[thing] expects a name for [data source]"));
     }
 
-    /** An argument where one shape is shorthand for the other: both spellings pass, and nothing else does. */
+    /** An argument where one shape is shorthand for the other: both spellings pass, and the arity still binds. */
     public void testEitherShapeIsAcceptedWhereBothAreDeclared() {
-        TableFunctionSignature either = TableFunctionSignature.of(name("data source"), nameOrNamedValues("definition"));
+        TableFunctionSignature signature = TableFunctionSignature.of(
+            name("data source"),
+            either("definition", TableFunctionSignature.Kind.NAME, TableFunctionSignature.Kind.NAMED_VALUES)
+        );
 
-        either.check(call(aName(), aName()));
-        either.check(call(aName(), aMap()));
+        signature.check(call(aName(), aName()));
+        signature.check(call(aName(), aMap()));
 
-        ParsingException e = expectThrows(ParsingException.class, () -> either.check(call(aName())));
+        ParsingException e = expectThrows(ParsingException.class, () -> signature.check(call(aName())));
         assertThat(e.getMessage(), containsString("[thing] takes [data source, definition], found [1]"));
     }
 
@@ -106,19 +109,4 @@ public class TableFunctionSignatureTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("required argument [second] follows an optional one"));
     }
 
-    public void testAMapArgumentMustBeLast() {
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> TableFunctionSignature.of(TableFunctionSignature.namedValues("options"), TableFunctionSignature.name("after"))
-        );
-        assertThat(e.getMessage(), containsString("argument [options] takes a {...} and is not last"));
-    }
-
-    public void testAMapArgumentCannotBeTheOnlyOne() {
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> TableFunctionSignature.of(TableFunctionSignature.namedValues("options"))
-        );
-        assertThat(e.getMessage(), containsString("argument [options] takes a {...} and is the only one"));
-    }
 }

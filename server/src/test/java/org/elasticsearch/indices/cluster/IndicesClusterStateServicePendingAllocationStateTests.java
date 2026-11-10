@@ -35,6 +35,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.GatewayService;
@@ -70,6 +71,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.SHARD_LOCK_RETRY_INTERVAL_SETTING;
+import static org.elasticsearch.indices.cluster.IndicesClusterStateService.SHARD_LOCK_RETRY_TIMEOUT_SETTING;
 import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
@@ -82,6 +84,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -157,6 +160,32 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         failRecoveryViaListener(ABORT);
 
         assertFalse(indicesClusterStateService.pendingAllocationStates.containsKey(allocationKey(shardRouting)));
+        verify(shardStateAction, never()).localShardFailed(any(), anyString(), any(), any(), any());
+    }
+
+    public void testAbortIgnoredWhenTicketSuperseded() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        RecoveryListener supersededListener = indicesService.lastRecoveryListener;
+        assertNotNull(supersededListener);
+        MockIndexShard supersededShard = indicesService.getShardOrNull(shardRouting.shardId());
+        assertNotNull(supersededShard);
+        RecoveryState supersededRecoveryState = supersededShard.recoveryState();
+
+        // A primary term bump for this same allocation (e.g. a batched cluster-state application
+        // that goes straight from initializing(term1) to initializing(term2)) evicts the old ticket
+        // via updatePendingAllocationTracker and claims a new one for the recreated allocation.
+        applyState(stateWithPrimaryTermBumped(shardRouting));
+        final var newTicket = currentInFlight(shardRouting);
+
+        // The superseded attempt's own recovery listener aborts late. It must be a no-op: the new
+        // ticket survives untouched, and master is never notified (ABORT's whole point).
+        supersededListener.onRecoveryFailure(
+            supersededRecoveryState,
+            new RecoveryFailedException(supersededRecoveryState, "simulated", new Exception("simulated")),
+            ABORT
+        );
+
+        assertSame(newTicket, indicesClusterStateService.pendingAllocationStates.get(allocationKey(shardRouting)));
         verify(shardStateAction, never()).localShardFailed(any(), anyString(), any(), any(), any());
     }
 
@@ -310,6 +339,27 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         applyState(stateWithShardRouting(newAllocation));
 
         assertFalse(isFailureReported(shardRouting));
+    }
+
+    public void testFailureReportedResentWhileMasterHasNotProcessed() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        indicesClusterStateService.handleRecoveryFailure(
+            shardRouting,
+            FAIL_SEND,
+            primaryTerm(shardRouting),
+            new Exception("already failed to master"),
+            currentInFlight(shardRouting)
+        );
+        assertTrue(isFailureReported(shardRouting));
+        verify(shardStateAction, times(1)).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
+
+        // Same allocation, same primary term -- nothing here tells this node master has actually
+        // processed the failure, so evictOrResendFailure's resend branch should fire again rather
+        // than silently going quiet.
+        applyState(stateWithShardRouting(shardRouting));
+
+        assertTrue(isFailureReported(shardRouting));
+        verify(shardStateAction, times(2)).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
     }
 
     public void testInFlightTicketResetWhenPrimaryTermBumpedDuringLockWait() throws Exception {
@@ -634,10 +684,45 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
     }
 
+    public void testLockWaitGivesUpAfterTimeout() {
+        // A zero timeout means the very first retry iteration already exceeds it.
+        // Control time with DeterministicTaskQueue.
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        indicesClusterStateService.close();
+        indicesClusterStateService = createService(TimeValue.ZERO, deterministicTaskQueue.getThreadPool());
+        indicesClusterStateService.start();
+
+        ClusterState initial = ClusterStateCreationUtils.state(randomIndexName(), true, ShardRoutingState.INITIALIZING);
+        ShardRouting shardRouting = initial.getRoutingNodes().node(initial.nodes().getLocalNodeId()).iterator().next();
+        indicesService.failNextCreateShard = new ShardLockObtainFailedException(shardRouting.shardId(), "test lock held");
+
+        applyState(initial);
+        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
+        assertTrue(pendingApplierTasks.isEmpty());
+
+        // Runs the scheduled retry, advancing the virtual clock to its scheduled time in the process.
+        deterministicTaskQueue.runAllTasksInTimeOrder();
+        assertFalse(pendingApplierTasks.isEmpty());
+
+        final var lockRetry = pendingApplierTasks.remove();
+        lockRetry.consumer().accept(state);
+        lockRetry.listener().onResponse(null);
+
+        assertTrue(isFailureReported(shardRouting));
+        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
+    }
+
     // --- helpers ---
 
     private IndicesClusterStateService createService() {
-        Settings settings = Settings.builder().put(SHARD_LOCK_RETRY_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(1)).build();
+        return createService(SHARD_LOCK_RETRY_TIMEOUT_SETTING.getDefault(Settings.EMPTY), threadPool);
+    }
+
+    private IndicesClusterStateService createService(TimeValue shardLockRetryTimeout, ThreadPool threadPoolToUse) {
+        Settings settings = Settings.builder()
+            .put(SHARD_LOCK_RETRY_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(1))
+            .put(SHARD_LOCK_RETRY_TIMEOUT_SETTING.getKey(), shardLockRetryTimeout)
+            .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
@@ -649,7 +734,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
             settings,
             indicesService,
             clusterService,
-            threadPool,
+            threadPoolToUse,
             null,
             shardStateAction,
             null,

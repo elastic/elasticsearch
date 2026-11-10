@@ -77,10 +77,13 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
@@ -1093,6 +1096,170 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     String syntheticSource = syntheticSource(mapper, indexReader, doc.docs().size() - 1);
                     assertEquals("""
                         {"arr":[{}],"fieldA":"testA","fieldB":"testB","obj":{"fieldC":"testC"}}""", syntheticSource);
+                }
+            }
+        }
+    }
+
+    /**
+     * A field-level-security role that filters out an array field must also hide that field's {@code .offsets} companion. Otherwise
+     * synthetic source reconstruction reads the hidden field's offsets (which point at now-absent values) and emits an array of nulls.
+     */
+    public void testFilteredArrayFieldOffsetsAreHidden() throws Exception {
+        IndexVersion indexVersion = IndexVersion.current();
+        Settings mapperSettings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.mapping.synthetic_source_keep", "arrays")
+            .build();
+        var indexSettings = createIndexSettings(indexVersion, mapperSettings);
+        var format = IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings);
+
+        DocumentMapper mapper = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+            b.startObject("keep").field("type", "long").endObject();
+            b.startObject("excluded").field("type", "long").endObject();
+        })).documentMapper();
+
+        var filter = new CharacterRunAutomaton(
+            FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "excluded" })
+        );
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.array("keep", 3, 1, 2);
+                b.array("excluded", 30, 10, 20);
+            }));
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            iw.addDocuments(doc.docs());
+            iw.close();
+            try (
+                DirectoryReader indexReader = FieldSubsetReader.wrap(
+                    wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                    filter,
+                    format,
+                    (fieldName) -> mapper.mappers().getFieldType(fieldName) != null
+                )
+            ) {
+                assertEquals("{\"keep\":[3,1,2]}", syntheticSource(mapper, indexReader, doc.docs().size() - 1));
+            }
+        }
+    }
+
+    /**
+     * An array that holds only nulls writes the field's {@code .offsets} companion but nothing under the field itself, so a segment made
+     * only of such documents has the companion without its parent. The companion must still follow the parent's FLS decision.
+     */
+    public void testOffsetsWithoutTheirFieldInTheSegment() throws Exception {
+        String type = randomFrom("keyword", "long", "ip", "boolean");
+        Settings settings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.mapping.synthetic_source_keep", "arrays")
+            .build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+            b.startObject("keep").field("type", type).endObject();
+            b.startObject("secret").field("type", type).endObject();
+        })).documentMapper();
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startArray("keep").nullValue().endArray();
+            b.startArray("secret").nullValue().nullValue().endArray();
+        }));
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                doc.updateSeqID(0, 0);
+                doc.version().setLongValue(0);
+                iw.addDocuments(doc.docs());
+            }
+            var deny = new CharacterRunAutomaton(
+                FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "secret" })
+            );
+            var grant = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "keep" }, null));
+            for (CharacterRunAutomaton filter : List.of(deny, grant)) {
+                try (
+                    DirectoryReader reader = FieldSubsetReader.wrap(
+                        wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                        filter,
+                        mapper.mapping().ignoredSourceFormat(),
+                        fieldName -> mapper.mappers().getFieldType(fieldName) != null
+                    )
+                ) {
+                    assertEquals("{\"keep\":[null]}", syntheticSource(mapper, reader, doc.docs().size() - 1));
+                }
+            }
+        }
+    }
+
+    /**
+     * A {@code .counts} companion must follow its parent's FLS decision even in a segment that has the companion without its parent.
+     */
+    public void testCountsWithoutTheirFieldInTheSegment() throws Exception {
+        String counts = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(null))) {
+                Document doc = new Document();
+                doc.add(new NumericDocValuesField("keep" + counts, 1));
+                doc.add(new NumericDocValuesField("secret" + counts, 2));
+                iw.addDocument(doc);
+
+                var deny = new CharacterRunAutomaton(
+                    FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "secret" })
+                );
+                var grant = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "keep" }, null));
+                for (CharacterRunAutomaton filter : List.of(deny, grant)) {
+                    try (
+                        DirectoryReader ir = FieldSubsetReader.wrap(
+                            wrapInMockESDirectoryReader(DirectoryReader.open(iw)),
+                            filter,
+                            IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+                            fieldName -> fieldName.equals("keep") || fieldName.equals("secret")
+                        )
+                    ) {
+                        LeafReader leaf = ir.leaves().get(0).reader();
+                        assertNotNull(leaf.getNumericDocValues("keep" + counts));
+                        assertNull(leaf.getNumericDocValues("secret" + counts));
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Each stored-value fallback companion ({@code ._original}, {@code ._ignore_malformed}) is written as binary doc values with a
+     * sibling {@code .counts} field. When the parent survives an exact FLS grant, the binary blob and its {@code .counts} must stay
+     * visible together, and when the parent is filtered out both must be hidden.
+     */
+    public void testFilteredCompanionCountsFollowParent() throws Exception {
+        String counts = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        for (String suffix : List.of(
+            TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX,
+            IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX
+        )) {
+            try (Directory dir = newDirectory()) {
+                try (IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(null))) {
+                    Document doc = new Document();
+                    String kept = randomAlphaOfLength(5);
+                    String dropped = randomAlphaOfLength(6);
+                    doc.add(new BinaryDocValuesField(kept + suffix, new BytesRef("v")));
+                    doc.add(new NumericDocValuesField(kept + suffix + counts, 2));
+                    doc.add(new BinaryDocValuesField(dropped + suffix, new BytesRef("v")));
+                    doc.add(new NumericDocValuesField(dropped + suffix + counts, 2));
+                    iw.addDocument(doc);
+
+                    var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { kept }, null));
+                    try (
+                        DirectoryReader ir = FieldSubsetReader.wrap(
+                            wrapInMockESDirectoryReader(DirectoryReader.open(iw)),
+                            filter,
+                            IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+                            (fieldName) -> false
+                        )
+                    ) {
+                        LeafReader leaf = ir.leaves().get(0).reader();
+                        assertNotNull(leaf.getBinaryDocValues(kept + suffix));
+                        assertNotNull(leaf.getNumericDocValues(kept + suffix + counts));
+                        assertNull(leaf.getBinaryDocValues(dropped + suffix));
+                        assertNull(leaf.getNumericDocValues(dropped + suffix + counts));
+                    }
                 }
             }
         }

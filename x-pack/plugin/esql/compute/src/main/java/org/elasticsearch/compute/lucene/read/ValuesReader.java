@@ -74,13 +74,25 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
      */
     record SegmentRun(int count, int firstDoc, int lastDoc) {
         /**
+         * Minimum number of documents for which it is more efficient to use a
+         * sequential stored field reader when reading stored fields.
+         * <p>
+         *     The sequential stored field reader decompresses a whole block of docs
+         *     at a time so for very short lists it won't be faster to use it. We use
+         *     {@code 10} documents as the boundary for "very short" because it's what
+         *     search does, not because we've done extensive testing on the number.
+         * </p>
+         */
+        static final int SEQUENTIAL_BOUNDARY = 10;
+
+        /**
          * Whether a sequential stored fields reader loads the run faster than a random access one. It decompresses each
          * block once for all the documents of the run in it, which pays off when the run is long enough and its documents
          * sit close enough. {@code storedFieldsSequentialProportion} is the least share of the documents between the first
          * and the last that the run must hold.
          */
         boolean readsStoredFieldsSequentially(double storedFieldsSequentialProportion) {
-            if (count < ValuesFromSingleReader.SEQUENTIAL_BOUNDARY) {
+            if (count < SEQUENTIAL_BOUNDARY) {
                 return false;
             }
             long range = (long) lastDoc - firstDoc;

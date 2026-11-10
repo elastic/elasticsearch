@@ -1761,13 +1761,13 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     public void testSequentialStoredFieldsTooSmall() throws IOException {
-        testSequentialStoredFields(false, between(1, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY - 1));
+        testSequentialStoredFields(false, between(1, ValuesReader.SegmentRun.SEQUENTIAL_BOUNDARY - 1));
     }
 
     public void testSequentialStoredFieldsBigEnough() throws IOException {
         testSequentialStoredFields(
             true,
-            between(ValuesFromSingleReader.SEQUENTIAL_BOUNDARY, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY * 2)
+            between(ValuesReader.SegmentRun.SEQUENTIAL_BOUNDARY, ValuesReader.SegmentRun.SEQUENTIAL_BOUNDARY * 2)
         );
     }
 
@@ -1777,7 +1777,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
      */
     public void testADenseSegmentOfAPageOfManySegmentsReadsStoredFieldsSequentially() throws IOException {
         int segments = between(2, 5);
-        int segmentSize = between(ValuesFromSingleReader.SEQUENTIAL_BOUNDARY, 40);
+        int segmentSize = between(ValuesReader.SegmentRun.SEQUENTIAL_BOUNDARY, 40);
         var runner = new TestDriverRunner().builder(driverContext());
         Page page = pageOfManySegments(runner.context(), segments, segmentSize);
         // the doc sequence reader reads in the order of the page, where the documents of a shuffled segment form no run
@@ -1799,7 +1799,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         var runner = new TestDriverRunner().builder(driverContext());
         Page page;
         if (randomBoolean()) {
-            page = pageOfManySegments(runner.context(), segments, between(2, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY - 1));
+            page = pageOfManySegments(runner.context(), segments, between(2, ValuesReader.SegmentRun.SEQUENTIAL_BOUNDARY - 1));
         } else {
             // every tenth document of a segment is enough documents, but they sit too far apart
             Page everyDocument = pageOfManySegments(runner.context(), segments, between(10, 20) * 10);
@@ -1831,11 +1831,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     /**
      * A tiny jumbo size makes the doc sequence reader split the ascending run of each segment of a page into loads of one
      * document. Each load builds its own stored fields reader and chooses it from the documents left in the run:
-     * sequential while at least {@link ValuesFromSingleReader#SEQUENTIAL_BOUNDARY} remain, at random for the tail.
+     * sequential while at least {@link ValuesReader.SegmentRun#SEQUENTIAL_BOUNDARY} remain, at random for the tail.
      */
     public void testSplitLoadsOfALongRunChooseStoredFieldsReaderFromTheRemainingDocuments() throws IOException {
         int segments = between(2, 4);
-        int segmentSize = between(ValuesFromSingleReader.SEQUENTIAL_BOUNDARY, 40);
+        int segmentSize = between(ValuesReader.SegmentRun.SEQUENTIAL_BOUNDARY, 40);
         var runner = new TestDriverRunner().builder(driverContext());
         Page page = pageOfManySegments(runner.context(), segments, segmentSize);
         int positions = page.getPositionCount();
@@ -1844,11 +1844,40 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         ValuesSourceReaderOperatorStatus status = loadStoredText(runner, page, ByteSizeValue.ofBytes(1), 0);
 
         assertThat("every load reads one document", status.pagesEmitted(), equalTo(positions));
-        int tail = ValuesFromSingleReader.SEQUENTIAL_BOUNDARY - 1;
+        int tail = ValuesReader.SegmentRun.SEQUENTIAL_BOUNDARY - 1;
         assertMap(
             storedFieldsReaders(status),
             matchesMap().entry(storedTextFields(true), segments * (segmentSize - tail)).entry(storedTextFields(false), segments * tail)
         );
+    }
+
+    /**
+     * The doc sequence reader reads in the order of the page, so a page that moves back within a segment starts a new run
+     * there. Each half of a segment is a dense run of its own and reads its stored fields sequentially.
+     */
+    public void testAMoveBackWithinASegmentStartsANewRun() throws IOException {
+        int segments = between(2, 4);
+        int half = between(ValuesReader.SegmentRun.SEQUENTIAL_BOUNDARY, 20);
+        var runner = new TestDriverRunner().builder(driverContext());
+        Page everyDocument = pageOfManySegments(runner.context(), segments, 2 * half);
+        // each segment's second half, then its first half
+        int[] positions = new int[everyDocument.getPositionCount()];
+        int p = 0;
+        for (int segment = 0; segment < segments; segment++) {
+            int segmentStart = segment * 2 * half;
+            for (int doc = half; doc < 2 * half; doc++) {
+                positions[p++] = segmentStart + doc;
+            }
+            for (int doc = 0; doc < half; doc++) {
+                positions[p++] = segmentStart + doc;
+            }
+        }
+        Page page = rowsInOrder(everyDocument, positions);
+
+        // a threshold of 0 sends every page of many segments to the doc sequence reader
+        ValuesSourceReaderOperatorStatus status = loadStoredText(runner, page, ByteSizeValue.ofGb(1), 0);
+
+        assertMap(storedFieldsReaders(status), matchesMap().entry(storedTextFields(true), 2 * segments));
     }
 
     /**
@@ -1868,15 +1897,21 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
      * @param keep the segment of a row, and the position of its document in its segment
      */
     private static Page keep(Page source, BiPredicate<Integer, Integer> keep) {
-        try {
-            DocVector docs = source.<DocBlock>getBlock(0).asVector();
-            List<Integer> kept = new ArrayList<>();
-            for (int p = 0; p < source.getPositionCount(); p++) {
-                if (keep.test(docs.segments().getInt(p), docs.docs().getInt(p))) {
-                    kept.add(p);
-                }
+        DocVector docs = source.<DocBlock>getBlock(0).asVector();
+        List<Integer> kept = new ArrayList<>();
+        for (int p = 0; p < source.getPositionCount(); p++) {
+            if (keep.test(docs.segments().getInt(p), docs.docs().getInt(p))) {
+                kept.add(p);
             }
-            int[] positions = kept.stream().mapToInt(Integer::intValue).toArray();
+        }
+        return rowsInOrder(source, kept.stream().mapToInt(Integer::intValue).toArray());
+    }
+
+    /**
+     * The rows of {@code source} at {@code positions}, in that order. Releases {@code source}.
+     */
+    private static Page rowsInOrder(Page source, int[] positions) {
+        try {
             Block[] blocks = new Block[source.getBlockCount()];
             for (int b = 0; b < blocks.length; b++) {
                 blocks[b] = source.getBlock(b).filter(false, positions);
@@ -2020,7 +2055,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     private void testSourceLoadProfileCounters(ValuesSourceReaderOperator.FieldInfo fieldInfo) throws IOException {
         initMapping();
-        int docCount = between(ValuesFromSingleReader.SEQUENTIAL_BOUNDARY, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY * 2);
+        int docCount = between(ValuesReader.SegmentRun.SEQUENTIAL_BOUNDARY, ValuesReader.SegmentRun.SEQUENTIAL_BOUNDARY * 2);
         var runner = new TestDriverRunner().builder(driverContext());
         List<Page> source = CannedSourceOperator.collectPages(simpleInput(runner.context(), docCount, docCount, docCount));
         assertThat(source, hasSize(1));

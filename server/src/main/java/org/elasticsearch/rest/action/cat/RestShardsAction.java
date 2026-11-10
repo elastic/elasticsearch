@@ -110,6 +110,15 @@ public class RestShardsAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(final RestRequest request) {
+        return getTableWithHeader(request.getRestApiVersion());
+    }
+
+    /**
+     * The header this action would write, without a {@link RestRequest} to read it from: the API version is the
+     * only thing the request decides here. Exposed so a caller that is not a REST handler — ES|QL's {@code CAT}
+     * table function — reports the same columns as {@code _cat/shards} rather than a second list of its own.
+     */
+    public static Table getTableWithHeader(final RestApiVersion restApiVersion) {
         Table table = new Table();
         table.startHeaders()
             .addCell("index", "default:true;alias:i,idx;desc:index name")
@@ -123,7 +132,7 @@ public class RestShardsAction extends AbstractCatAction {
             .addCell("id", "default:false;desc:unique id of node where it lives")
             .addCell("node", "default:true;alias:n;desc:name of node where it lives");
 
-        if (request.getRestApiVersion() == RestApiVersion.V_8) {
+        if (restApiVersion == RestApiVersion.V_8) {
             table.addCell("sync_id", "alias:sync_id;default:false;desc:sync id");
         }
 
@@ -283,7 +292,16 @@ public class RestShardsAction extends AbstractCatAction {
 
     // package private for testing
     Table buildTable(RestRequest request, ClusterStateResponse state, IndicesStatsResponse stats) {
-        Table table = getTableWithHeader(request);
+        return buildTable(request.getRestApiVersion(), state, stats);
+    }
+
+    /**
+     * The table this action would write, from the two responses it already has. Exposed for the same reason as
+     * {@link #getTableWithHeader(RestApiVersion)}: a caller outside the REST layer gets these rows rather than a
+     * reimplementation of them.
+     */
+    public static Table buildTable(RestApiVersion restApiVersion, ClusterStateResponse state, IndicesStatsResponse stats) {
+        Table table = getTableWithHeader(restApiVersion);
         for (ShardRouting shard : state.getState().routingTable().allShardsIterator()) {
             ShardStats shardStats = stats.asMap().get(shard);
             CommonStats commonStats = null;
@@ -332,7 +350,7 @@ public class RestShardsAction extends AbstractCatAction {
                 table.addCell(null);
             }
 
-            if (request.getRestApiVersion() == RestApiVersion.V_8) {
+            if (restApiVersion == RestApiVersion.V_8) {
                 table.addCell(null);
             }
 

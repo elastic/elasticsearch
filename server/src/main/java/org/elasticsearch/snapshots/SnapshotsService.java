@@ -1183,17 +1183,17 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 return currentState;
             }
             final SnapshotDeletionsInProgress newDeletions = filterDeletions(updatedDeletions);
-            // May move a WAITING delete to STARTED now that the removed delete no longer blocks it. `readyDeletions()` checks all
+            // May move a WAITING delete to STARTED now that the removed delete no longer blocks it. `startReadyDeletions()` checks all
             // repositories in the target project for ready-to-start deletions, but in fact can only change the state of the repository of
             // deleteEntry since any other ready-to-start deletion would have been moved to `STARTED` when it became ready.
-            return SnapshotsServiceUtils.readyDeletions(
+            return SnapshotsServiceUtils.startReadyDeletions(
                 SnapshotsServiceUtils.updateWithSnapshots(
                     currentState,
                     updatedSnapshotsInProgress(currentState, newDeletions),
                     newDeletions
                 ),
                 deleteEntry.projectId()
-            ).v1();
+            );
         }
 
         @Override
@@ -2893,10 +2893,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         final var repositoryData = getSafeRepositoryData(projectId, repository, lastKnownRepositoryData, clusterState);
 
         // Check for `STARTED` delete operations _before_ `complete()` snapshots. It is possible for a repository to have both: a delete
-        // operation moves to `STARTED` only if there are no snapshots in progress in that repository, but once the delete operation is
-        // running another snapshot creation may be enqueued for that repository and may then become `complete()` without interacting with
-        // the repository (e.g. because all its shards failed). The existence of the `STARTED` delete operation means that we should not
-        // start any finalization operations yet.
+        // operation moves to `STARTED` only if there are no snapshots in progress in that repository (or if an earlier delete operation
+        // just finished), but once the delete operations are running another snapshot creation may be enqueued for that repository and may
+        // then become `complete()` without interacting with the repository (e.g. because all its shards failed). The existence of the
+        // `STARTED` delete operation means that we should not start any finalization operations yet.
+        //
+        // Note that in this context "snapshots in progress" excludes initializing clones. An uninitialized clone does not block deletions.
 
         for (var entry : SnapshotDeletionsInProgress.get(clusterState).getEntries()) {
             if (entry.state() == SnapshotDeletionsInProgress.State.STARTED

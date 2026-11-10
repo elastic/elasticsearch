@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.tablefunction;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 
@@ -70,7 +71,7 @@ public interface TableFunction {
     void toRelation(
         TableFunctionInvocation call,
         List<NamedExpression> metadataFields,
-        TableFunctionContext context,
+        ProjectMetadata projectMetadata,
         ActionListener<LeafPlan> listener
     );
 }

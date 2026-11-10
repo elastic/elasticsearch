@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.tablefunction;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -36,7 +37,7 @@ public class TableFunctionRegistryTests extends ESTestCase {
         public void toRelation(
             TableFunctionInvocation call,
             List<NamedExpression> metadataFields,
-            TableFunctionContext context,
+            ProjectMetadata projectMetadata,
             ActionListener<LeafPlan> listener
         ) {
             throw new AssertionError("the registry must not bind a call");

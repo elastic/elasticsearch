@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.tablefunction;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
@@ -33,7 +34,7 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
      */
     protected abstract void write(
         TableFunctionInvocation call,
-        TableFunctionContext context,
+        ProjectMetadata projectMetadata,
         TableRows rows,
         ActionListener<Void> listener
     );
@@ -50,7 +51,7 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
     public final void toRelation(
         TableFunctionInvocation call,
         List<NamedExpression> metadataFields,
-        TableFunctionContext context,
+        ProjectMetadata projectMetadata,
         ActionListener<LeafPlan> listener
     ) {
         TableRows rows = new TableRows(name(), PlannerUtils.NON_BREAKING_BLOCK_FACTORY);
@@ -68,6 +69,6 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
             listener.onFailure(failure);
         });
         // ActionListener.run so a function that throws rather than completing still releases what it wrote.
-        ActionListener.run(written, l -> write(call, context, rows, l));
+        ActionListener.run(written, l -> write(call, projectMetadata, rows, l));
     }
 }

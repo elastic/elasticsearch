@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.tablefunction;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
@@ -72,7 +73,7 @@ public class TableFunctionResolverTests extends ESTestCase {
         }
 
         @Override
-        protected void write(TableFunctionInvocation call, TableFunctionContext context, TableRows rows, ActionListener<Void> listener) {
+        protected void write(TableFunctionInvocation call, ProjectMetadata projectMetadata, TableRows rows, ActionListener<Void> listener) {
             bindings.incrementAndGet();
             long upto = Long.parseLong(call.name(0));
             computed(listener, out -> {
@@ -327,7 +328,7 @@ public class TableFunctionResolverTests extends ESTestCase {
         }
 
         @Override
-        protected void write(TableFunctionInvocation call, TableFunctionContext context, TableRows rows, ActionListener<Void> listener) {
+        protected void write(TableFunctionInvocation call, ProjectMetadata projectMetadata, TableRows rows, ActionListener<Void> listener) {
             this.rows.set(rows);
             this.listener.set(listener);
             asked.countDown();
@@ -362,7 +363,7 @@ public class TableFunctionResolverTests extends ESTestCase {
         }
 
         @Override
-        protected void write(TableFunctionInvocation call, TableFunctionContext context, TableRows rows, ActionListener<Void> listener) {
+        protected void write(TableFunctionInvocation call, ProjectMetadata projectMetadata, TableRows rows, ActionListener<Void> listener) {
             seen = call.namedValues(1);
             computed(listener, out -> out.longs("n"), rows);
         }
@@ -382,7 +383,7 @@ public class TableFunctionResolverTests extends ESTestCase {
         }
 
         @Override
-        protected void write(TableFunctionInvocation call, TableFunctionContext context, TableRows rows, ActionListener<Void> listener) {
+        protected void write(TableFunctionInvocation call, ProjectMetadata projectMetadata, TableRows rows, ActionListener<Void> listener) {
             throw new IllegalStateException("cannot say what my columns are");
         }
     }

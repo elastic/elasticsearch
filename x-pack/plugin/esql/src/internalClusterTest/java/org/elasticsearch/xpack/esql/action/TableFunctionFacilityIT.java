@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.tablefunction.CoordinatorRowsFunction;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunction;
-import org.elasticsearch.xpack.esql.tablefunction.TableFunctionContext;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionInvocation;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionSignature;
 import org.elasticsearch.xpack.esql.tablefunction.TableRows;
@@ -71,7 +71,7 @@ public class TableFunctionFacilityIT extends AbstractEsqlIntegTestCase {
         }
 
         @Override
-        protected void write(TableFunctionInvocation call, TableFunctionContext context, TableRows rows, ActionListener<Void> listener) {
+        protected void write(TableFunctionInvocation call, ProjectMetadata projectMetadata, TableRows rows, ActionListener<Void> listener) {
             computed(listener, out -> {
                 TableRows.Keyword letter = out.keyword("letter");
                 for (char c : call.name(0).toCharArray()) {

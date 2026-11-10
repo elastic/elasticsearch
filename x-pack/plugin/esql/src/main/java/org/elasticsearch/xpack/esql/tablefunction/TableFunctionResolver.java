@@ -90,7 +90,6 @@ public class TableFunctionResolver {
         // instance, installing the same attribute ids twice in one plan. Synchronized because the binds below run
         // concurrently.
         Map<UnresolvedTableFunctionRelation, LeafPlan> bound = Collections.synchronizedMap(new IdentityHashMap<>(leaves.size()));
-        TableFunctionContext context = new TableFunctionContext(projectMetadata);
         // Forked here and not on the early return above: a query naming no function never leaves the caller's
         // thread, so it pays nothing for this.
         //
@@ -114,7 +113,7 @@ public class TableFunctionResolver {
                 // never answer its own listener. A function is not required to be no-throw, so the facility carries
                 // the cost of one that is not.
                 ActionListener<LeafPlan> bind = refs.acquire(relation -> bound.put(leaf, relation));
-                ActionListener.run(bind, l -> function.toRelation(leaf.call(), leaf.metadataFields(), context, l));
+                ActionListener.run(bind, l -> function.toRelation(leaf.call(), leaf.metadataFields(), projectMetadata, l));
             }
         }
     }

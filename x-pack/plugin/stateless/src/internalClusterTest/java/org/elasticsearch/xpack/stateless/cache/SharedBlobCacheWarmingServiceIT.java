@@ -1497,6 +1497,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             // the shard is started, so any warming or read by its recovery has happened by now
             assertBccHeaderPrewarms.run();
             assertEquals(0L, BlobStoreCacheDirectory.unwrapDirectory(shard.store().directory()).totalBytesReadFromObjectStore());
+            // we did not send a prewarm message because shard was hollowable
+            assertPrewarmWaitOutcome(indexNodeA, PrewarmWaitOutcome.NOT_SENT);
         } else {
             assertBusy(assertBccHeaderPrewarms);
         }

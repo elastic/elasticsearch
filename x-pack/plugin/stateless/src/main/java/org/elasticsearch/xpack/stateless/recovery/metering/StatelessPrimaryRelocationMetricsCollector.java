@@ -47,7 +47,9 @@ public class StatelessPrimaryRelocationMetricsCollector {
         /** the timeout expired on the source before the target replied */
         TIMED_OUT("timed_out"),
         /** the target replied with a failure */
-        FAILED("failed");
+        FAILED("failed"),
+        /** no prewarm was sent to the target */
+        NOT_SENT("not_sent");
 
         private final String attributeValue;
 

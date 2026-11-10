@@ -99,7 +99,8 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         Setting.Property.NodeScope
     );
 
-    /// how long the source waits for the prewarm to finish before acquiring permits
+    /// how long the source waits for the prewarm to finish before acquiring permits; value of 0 still sends the prewarm but does not
+    /// wait for it (recorded as timed out)
     public static final Setting<TimeValue> PREWARM_WAIT_TIMEOUT_SETTING = Setting.timeSetting(
         "stateless.cluster.primary_relocation.prewarm_wait_timeout",
         TimeValue.timeValueSeconds(5),
@@ -264,12 +265,13 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         );
     }
 
-    /// @param listener is completed once the target has finished prewarming, or immediately in case of failure or no prewarm is sent
+    /// @param listener is completed with `true` once the target has finished prewarming and with `false` if the prewarm is not sent,
+    ///                 or with a failure if sending the prewarm or the prewarm itself failed
     private void initiatePrewarm(
         Client parentClient,
         StatelessPrimaryRelocationAction.Request request,
         IndexShard indexShard,
-        ActionListener<Void> listener
+        ActionListener<Boolean> listener
     ) {
         try {
             final ShardId shardId = request.shardId();
@@ -277,7 +279,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             final BatchedCompoundCommit latestBcc = statelessCommitService.getLatestUploadedBcc(shardId);
             if (latestBcc == null) {
                 logger.trace("{} no uploaded BCC found, skipping initiate prewarm", shardId);
-                listener.onResponse(null);
+                listener.onResponse(false);
                 return;
             }
 
@@ -288,7 +290,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             // hollow commit metadata is transferred in the handoff.
             final boolean hollowCommitMetadataTransferred = engine instanceof HollowIndexEngine && transferHollowCommitMetadata;
             if (hollowCommitMetadataTransferred || hollowShardsService.isHollowableIndexShard(indexShard)) {
-                listener.onResponse(null);
+                listener.onResponse(false);
                 return;
             }
 
@@ -302,7 +304,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                         hasRecentIdLookup
                     )
                 ),
-                listener.map(ignored -> null)
+                listener.map(ignored -> true)
             );
         } catch (Exception e) {
             listener.onFailure(e);
@@ -371,13 +373,16 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             // send the "prewarm" after the "preflush" so the prewarmed shard on the target is closer to the one we flush,
             // and hence handoff completes sooner, and we hold the permits for less time
             final long beforePrewarm = threadPool.rawRelativeTimeInMillis();
-            final var prewarmStep = new SubscribableListener<Void>();
+            final var prewarmStep = new SubscribableListener<Boolean>();
             prewarmStep.addTimeout(prewarmWaitTimeout, threadPool, recoveryExecutor);
             initiatePrewarm(parentClient, request, indexShard, prewarmStep);
             // prewarming is best-effort, in case of failures we continue
-            prewarmStep.addListener(ActionListener.wrap(ignored -> {
+            prewarmStep.addListener(ActionListener.wrap(prewarmSent -> {
                 relocationMetricsCollectorProvider.get()
-                    .recordRelocationSourcePrewarmWait(threadPool.rawRelativeTimeInMillis() - beforePrewarm, PrewarmWaitOutcome.COMPLETED);
+                    .recordRelocationSourcePrewarmWait(
+                        threadPool.rawRelativeTimeInMillis() - beforePrewarm,
+                        prewarmSent ? PrewarmWaitOutcome.COMPLETED : PrewarmWaitOutcome.NOT_SENT
+                    );
                 l.onResponse(initialFlushDuration);
             }, e -> {
                 logger.debug(format("%s ignoring prewarm failure or timeout", request.shardId()), e);

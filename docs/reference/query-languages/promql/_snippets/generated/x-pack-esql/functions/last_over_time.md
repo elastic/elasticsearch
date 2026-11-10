@@ -22,6 +22,8 @@
 last_over_time(http_requests_total[1h])
 ```
 
-**Differences from Prometheus**
+:::{note}
+**Differences from {{prom}}**
 
 Accepts additional {{es}} field types (for example `keyword`, `ip`, and `date`) and returns counter inputs unchanged rather than rejecting or converting them.
+:::

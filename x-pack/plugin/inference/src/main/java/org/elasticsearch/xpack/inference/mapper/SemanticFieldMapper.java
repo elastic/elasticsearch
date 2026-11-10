@@ -221,6 +221,20 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             return this;
         }
 
+        /**
+         * Set model configuration inferred from a document.
+         *
+         * @throws IllegalArgumentException if the settings conflict with those already set
+         */
+        public void inferModelSettings(EndpointClusterState value) {
+            if (modelSettings.isSet()) {
+                Conflicts conflicts = new Conflicts(leafName());
+                canMergeModelSettings(modelSettings.getValue(), value, conflicts);
+                conflicts.check();
+            }
+            setModelSettings(value);
+        }
+
         public Builder setChunkingSettings(ChunkingSettings value) {
             this.chunkingSettings.setValue(value);
             return this;
@@ -542,8 +556,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
             final String fullName = context.buildFullName(leafName());
             if (context.isInNestedContext()) {
-                // If we ever support inference fields in nested contexts, RootScopedQueryBuilder usage (and intercepted query rewriting in
-                // general) will have to be adjusted accordingly.
+                // If we ever support inference fields in nested contexts, intercepted query rewriting will have to be adjusted accordingly.
                 throw new IllegalArgumentException(contentType() + " field [" + fullName + "] cannot be nested");
             }
 
@@ -927,15 +940,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             try {
                 conflicts.check();
             } catch (Exception exc) {
-                throw new DocumentParsingException(
-                    xContentLocation,
-                    "Incompatible model settings for field ["
-                        + fullPath()
-                        + "]. Check that the "
-                        + INFERENCE_ID_FIELD
-                        + " is not using different model settings",
-                    exc
-                );
+                throw incompatibleModelSettings(xContentLocation, exc);
             }
             mapper = this;
         }
@@ -1007,25 +1012,40 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
     }
 
+    private DocumentParsingException incompatibleModelSettings(XContentLocation location, Exception cause) {
+        return new DocumentParsingException(
+            location,
+            "Incompatible model settings for field ["
+                + fullPath()
+                + "]. Check that the "
+                + INFERENCE_ID_FIELD
+                + " is not using different model settings",
+            cause
+        );
+    }
+
     protected SemanticFieldMapper addDynamicUpdate(DocumentParserContext context, SemanticTextField field) {
-        Builder builder = getMergeBuilder();
         context.path().remove();
         try {
-            builder.setModelSettings(field.inference().modelSettings()).setInferenceId(field.inference().inferenceId());
+            Builder update;
+            try {
+                update = (Builder) context.updateMapping(
+                    fullPath(),
+                    builder -> ((Builder) builder).setInferenceId(field.inference().inferenceId())
+                        .inferModelSettings(field.inference().modelSettings())
+                );
+            } catch (IllegalArgumentException exc) {
+                throw incompatibleModelSettings(context.parser().getTokenLocation(), exc);
+            }
             if (context.mappingLookup().isMultiField(fullPath())) {
-                // The field is part of a multi-field, so the parent field must also be updated accordingly.
                 var fieldName = context.path().remove();
                 try {
-                    var parentMapper = ((FieldMapper) context.mappingLookup().getMapper(context.mappingLookup().parentField(fullPath())))
-                        .getMergeBuilder();
-                    String parentFullPath = context.mappingLookup().parentField(fullPath());
-                    context.addDynamicMapper(parentMapper.addMultiField(builder), parentFullPath);
-                    return builder.build(context.createDynamicMapperBuilderContext());
+                    return update.build(context.createDynamicMapperBuilderContext());
                 } finally {
                     context.path().add(fieldName);
                 }
             } else {
-                return (SemanticFieldMapper) context.getDynamicMapper(builder);
+                return update.build(context.createDynamicMapperBuilderContext());
             }
         } finally {
             context.path().add(leafName());

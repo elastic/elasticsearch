@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Mul
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.GraphExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -66,6 +67,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Coordinator-side visited-set BFS for a research snapshot of {@link GraphExpand}.
@@ -148,7 +150,6 @@ public final class GraphExpandDriver {
      */
     private Leg nextLeg;
     /** Index into {@link #targetFields} for the field leg currently in flight. */
-    private int nextFieldIndex;
     /** Outbound rows buffered while the inbound leg of {@code direction: both} runs. */
     private List<List<Object>> pendingOutRows;
     /** Set when the walk had no frontier to start from and an empty hop result is in flight. */
@@ -157,7 +158,6 @@ public final class GraphExpandDriver {
      * Rows from completed TO-field legs of the current hop, waiting for remaining
      * fields before SORT / caps. {@code null} when no multi-field buffering is active.
      */
-    private List<List<Object>> pendingFieldRows;
 
     /**
      * Sorted hop rows waiting for an {@code UNTIL} {@link Filter} subplan, or
@@ -203,7 +203,6 @@ public final class GraphExpandDriver {
         this.nodeReachedIdx = indexOf(resultAttributes, "node_reached");
         this.hopIdx = indexOf(resultAttributes, "hop");
         this.nextLeg = initialLeg();
-        this.nextFieldIndex = 0;
         this.until = graphExpand.until();
         this.untilSubqueryDone = until == null || untilContainsInSubquery(until) == false;
         this.excluded = excludedNodes(graphExpand, nodeType);
@@ -365,12 +364,29 @@ public final class GraphExpandDriver {
             finished = true;
             return null;
         }
-        Attribute targetField = currentTargetFields().get(nextFieldIndex);
-        LogicalPlan hopPlan = buildHopPlan(nextHop, frontier, nextLeg, targetField);
+        // One subplan per leg. With several TO fields the per-field plans become the branches
+        // of a FORK, which the compute service runs concurrently (up to branch_parallel_degree)
+        // and concatenates, so a hop's latency is that of its slowest field, not the sum.
+        List<Attribute> fields = currentTargetFields();
+        LogicalPlan hopPlan;
+        if (fields.size() == 1) {
+            hopPlan = buildHopPlan(nextHop, frontier, nextLeg, fields.get(0));
+        } else {
+            List<LogicalPlan> branches = new ArrayList<>(fields.size());
+            for (Attribute field : fields) {
+                LogicalPlan branch = buildHopPlan(nextHop, frontier, nextLeg, field);
+                branch.setOptimized();
+                branches.add(branch);
+            }
+            hopPlan = new Fork(graphExpand.source(), branches, resultAttributes);
+        }
         hopPlan.setOptimized();
-        // One log line per subplan, like the workflow hop step: each hop runs one subplan per
-        // TO field and per leg, so a `both` walk over four fields issues eight per hop.
-        inFlightHop = "hop " + nextHop + " " + nextLeg.name().toLowerCase(Locale.ROOT) + " " + targetField.name();
+        inFlightHop = "hop "
+            + nextHop
+            + " "
+            + nextLeg.name().toLowerCase(Locale.ROOT)
+            + " "
+            + fields.stream().map(Attribute::name).collect(Collectors.joining(","));
         inFlightHopStartedNanos = System.nanoTime();
         hopSubPlans++;
         LOGGER.info("GRAPH EXPAND {}: {} frontier values, subplan:\n{}", inFlightHop, frontier.size(), hopPlan);
@@ -416,20 +432,10 @@ public final class GraphExpandDriver {
             nextLeg = initialLeg();
         }
 
-        // Multi-field TO: concatenate field legs in written order, then SORT/caps once.
+        // Multi-field TO: FORK does not promise branch order, so put the fields back in written
+        // order (rows within a field keep theirs) before SORT/caps run once over the hop.
         if (multiField) {
-            if (pendingFieldRows == null) {
-                pendingFieldRows = new ArrayList<>();
-            }
-            pendingFieldRows.addAll(rows);
-            nextFieldIndex++;
-            if (nextFieldIndex < currentTargetFields().size()) {
-                nextLeg = initialLeg();
-                return mainPlan;
-            }
-            rows = pendingFieldRows;
-            pendingFieldRows = null;
-            nextFieldIndex = 0;
+            orderByField(rows);
         }
 
         // SORT → hub_degree → caps → UNTIL → admission — UNTIL is not a post-filter after all hops.
@@ -445,6 +451,23 @@ public final class GraphExpandDriver {
             return mainPlan;
         }
         return admitAndAdvance(mainPlan, rows, false);
+    }
+
+    /** Stable sort of a multi-field hop's rows by their {@code relation} field's position in TO. */
+    private void orderByField(List<List<Object>> rows) {
+        int relationIdx = indexOf(resultAttributes, "relation");
+        if (relationIdx < 0) {
+            return;
+        }
+        Map<String, Integer> position = new HashMap<>();
+        for (int i = 0; i < targetFields.size(); i++) {
+            position.put(targetFields.get(i).name(), i);
+        }
+        rows.sort(Comparator.comparingInt(row -> {
+            Object relation = row.get(relationIdx);
+            Integer index = relation == null ? null : position.get(BytesRefs.toString(relation));
+            return index == null ? Integer.MAX_VALUE : index;
+        }));
     }
 
     /**
@@ -519,7 +542,6 @@ public final class GraphExpandDriver {
         List<Object> newlyAdmitted = admitRows(rows);
         nextHop++;
         frontier = newlyAdmitted;
-        nextFieldIndex = 0;
         nextLeg = initialLeg();
         if (untilMatched || frontier.isEmpty() || nextHop > maxHops) {
             finished = true;
@@ -738,9 +760,7 @@ public final class GraphExpandDriver {
             Expression droppedValue = new Literal(source, null, DataType.INTEGER);
             if (degreeAttr != null) {
                 // The guard counted the pointers: a count past hub_degree is the refused degree.
-                Expression degree = graphExpand.aggregates() != null
-                    ? attributeByName(hopChild.output(), HUB_DEGREE_COLUMN)
-                    : degreeAttr;
+                Expression degree = graphExpand.aggregates() != null ? attributeByName(hopChild.output(), HUB_DEGREE_COLUMN) : degreeAttr;
                 droppedValue = new Case(
                     source,
                     new GreaterThan(source, degree, new Literal(source, hubDegree, DataType.INTEGER)),

@@ -8029,10 +8029,13 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: match_operator_colon
 
+// Rank each branch by @timestamp. The matching keyword values are identical and the loader assigns no _id,
+// so a _score sort follows shard-local BM25 and picks a different rank-1 row on a multi-shard index.
+// RRF keeps that rank. This case checks that FUSE drops _unmapped_fields.
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data METADATA _id, _index, _score
-| FORK ( WHERE message:"Connection error?" | SORT _score DESC, @timestamp | LIMIT 10)
-       ( WHERE message:"Connected to 10.1.0.3!" | SORT _score DESC, @timestamp | LIMIT 10)
+| FORK ( WHERE message:"Connection error?" | SORT @timestamp | LIMIT 10)
+       ( WHERE message:"Connected to 10.1.0.3!" | SORT @timestamp | LIMIT 10)
 | FUSE
 | EVAL _score = ROUND(_score, 4)
 | DROP _id, _index

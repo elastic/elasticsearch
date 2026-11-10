@@ -233,9 +233,11 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
      *     {@code TSID_DATA_TYPE}: internal types with no public ES field mapping.</li>
      *     <li>{@code DATE_PERIOD}, {@code TIME_DURATION}: ES|QL-only types (no {@code esType}).</li>
      *     <li>{@code GEOHASH}, {@code GEOTILE}, {@code GEOHEX}: aggregation result types, not directly mappable as fields.</li>
+     *     <li>{@code UNION}: produced by union-type resolution over fields that disagree, never an ES mapping type.</li>
      * </ul>
      */
     private static final Set<DataType> NOT_MAPPABLE_VIA_REST = Set.of(
+        DataType.UNION,
         DataType.UNSUPPORTED,
         DataType.NULL,
         DataType.OBJECT,

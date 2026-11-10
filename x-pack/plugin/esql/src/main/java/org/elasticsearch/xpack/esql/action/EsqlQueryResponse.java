@@ -28,7 +28,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -370,18 +369,16 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     }
 
     public Iterator<Iterator<Object>> values() {
-        List<DataType> dataTypes = columns.stream().map(ColumnInfoImpl::type).toList();
-        return ResponseValueUtils.pagesToValues(dataTypes, pages, zoneId);
+        return ResponseValueUtils.pagesToValues(columns, pages, zoneId);
     }
 
     public Iterable<Iterable<Object>> rows() {
-        List<DataType> dataTypes = columns.stream().map(ColumnInfoImpl::type).toList();
-        return ResponseValueUtils.valuesForRowsInPages(dataTypes, pages, zoneId);
+        return ResponseValueUtils.valuesForRowsInPages(columns, pages, zoneId);
     }
 
     public Iterator<Object> column(int columnIndex) {
         if (columnIndex < 0 || columnIndex >= columns.size()) throw new IllegalArgumentException();
-        return ResponseValueUtils.valuesForColumn(columnIndex, columns.get(columnIndex).type(), pages, zoneId);
+        return ResponseValueUtils.valuesForColumn(columnIndex, columns.get(columnIndex), pages, zoneId);
     }
 
     /**

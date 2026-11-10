@@ -10,12 +10,16 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -23,7 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class MvExpand extends UnaryPlan implements TelemetryAware, SortAgnostic, DocPreserving {
+public class MvExpand extends UnaryPlan implements TelemetryAware, SortAgnostic, DocPreserving, PostAnalysisVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "MvExpand", MvExpand::new);
 
     private final NamedExpression target;
@@ -124,4 +128,37 @@ public class MvExpand extends UnaryPlan implements TelemetryAware, SortAgnostic,
         MvExpand other = ((MvExpand) obj);
         return Objects.equals(target, other.target) && Objects.equals(expanded, other.expanded);
     }
+
+    /**
+     * A union column cannot be expanded, for two reasons that both still hold now that a reference carries its own
+     * leg list.
+     * <p>
+     * The block cannot do it: {@code MvExpandOperator} expands by calling {@code Block#expand}, and
+     * {@code UnionArrayBlock#expand} throws for a block that may have multi-valued fields - which is the only input
+     * {@code MV_EXPAND} exists for, so the command's whole purpose is the unimplemented case.
+     * </p>
+     * <p>
+     * And the plan cannot either: {@code Analyzer.resolveMvExpand} mints {@code expanded} during resolution with a
+     * fresh {@code NameId}, so it is not an alias and {@code UnionTypesCleanup.refreshUnionReferences} - which keys on
+     * alias ids - never reaches it. It would keep the {@code UNSUPPORTED} the conflict had at resolution while the
+     * target became a union. Measured before either refusal existed, the column came back as five nulls, which is the
+     * one outcome worse than an error because nothing says the answer is wrong.
+     * </p>
+     */
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        if (target().dataType() == DataType.UNION) {
+            failures.add(
+                Failure.fail(
+                    target(),
+                    "Column [{}] holds more than one type, so it cannot be expanded. Select one type first "
+                        + "[TYPED({}, \"<type>\")], or cast it [{}::<type>]",
+                    target().name(),
+                    target().name(),
+                    target().name()
+                )
+            );
+        }
+    }
+
 }

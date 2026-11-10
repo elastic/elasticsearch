@@ -1421,7 +1421,8 @@ public final class EsqlTestUtils {
             case HISTOGRAM -> randomHistogram();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
             case EXPONENTIAL_HISTOGRAM -> EsqlTestUtils.randomExponentialHistogram();
-            case UNSUPPORTED, OBJECT, PARTIAL_AGG, DOC_DATA_TYPE -> throw new IllegalArgumentException(
+            // A union has no single literal value by construction; its values carry the type their source gave them.
+            case UNSUPPORTED, OBJECT, PARTIAL_AGG, DOC_DATA_TYPE, UNION -> throw new IllegalArgumentException(
                 "can't make random values for [" + type.typeName() + "]"
             );
             case TDIGEST -> EsqlTestUtils.randomTDigest();

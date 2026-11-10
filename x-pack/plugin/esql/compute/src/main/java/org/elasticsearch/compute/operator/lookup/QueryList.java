@@ -186,6 +186,7 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
             case TDIGEST -> throw new IllegalArgumentException("can't read values from [tdigest] block");
             case LONG_RANGE -> throw new IllegalArgumentException("can't read values from [long range] block");
             case DOUBLE_RANGE -> throw new IllegalArgumentException("can't read values from [double range] block");
+            case UNION -> throw new IllegalArgumentException("can't read values from [union] block");
             case UNKNOWN -> (block, offset) -> { throw new IllegalArgumentException("can't read values from [" + block + "]"); };
         };
     }

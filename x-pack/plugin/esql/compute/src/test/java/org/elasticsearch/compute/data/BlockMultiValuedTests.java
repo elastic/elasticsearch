@@ -53,7 +53,8 @@ public class BlockMultiValuedTests extends ESTestCase {
                 || e == ElementType.TDIGEST
                 || e == ElementType.AGGREGATE_METRIC_DOUBLE
                 || e == ElementType.LONG_RANGE
-                || e == ElementType.DOUBLE_RANGE) {
+                || e == ElementType.DOUBLE_RANGE
+                || e == ElementType.UNION) {
                 continue;
             }
             for (boolean nullAllowed : new boolean[] { false, true }) {

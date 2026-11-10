@@ -51,6 +51,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOG
 import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNION;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.Filter.checkFilterConditionDataType;
 
@@ -258,6 +259,24 @@ public class Aggregate extends UnaryPlan
     }
 
     static void checkUnsupportedGroupingType(Expression e, Failures failures) {
+        if (e.dataType() == UNION) {
+            // Grouping a union on the pair of leg and value is well defined and deliberately deferred, so this refusal
+            // is about scope rather than semantics; UNION-TYPES-SPEC.md records what it would do. Without it the query
+            // passes analysis and fails in BlockHash instead, which tells the user nothing.
+            String text = e.sourceText();
+            failures.add(
+                fail(
+                    e,
+                    "cannot group by [{}]: it holds more than one type. Group by its type [TYPEOF({})], "
+                        + "or reduce it to one type with [TYPED({}, \"<type>\")] or [{}::<type>]",
+                    text,
+                    text,
+                    text,
+                    text
+                )
+            );
+            return;
+        }
         if ((e instanceof FieldAttribute f && f.dataType().isCounter())
             || e.dataType() == AGGREGATE_METRIC_DOUBLE
             || e.dataType() == DATE_PERIOD

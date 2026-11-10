@@ -131,9 +131,10 @@ public final class Alias extends NamedExpression {
     public Attribute toAttribute() {
         if (lazyAttribute == null) {
             lazyAttribute = resolved()
-                // the values analyzer carries across the aliasing boundary just like the data type: covers
-                // EVAL t = TO_TEXT(...) (child is the TO_TEXT) as well as RENAME t AS u and EVAL u = t (child is an
-                // already-carrying reference)
+                // the values analyzer and the union's leg types both carry across the aliasing boundary just like the
+                // data type: covers EVAL t = TO_TEXT(...) (child is the TO_TEXT) as well as RENAME t AS u and
+                // EVAL u = t (child is an already-carrying reference). Without the legs the reference would hold
+                // DataType.UNION and nothing able to read it, which its constructor refuses outright.
                 ? new ReferenceAttribute(
                     source(),
                     null,
@@ -142,7 +143,8 @@ public final class Alias extends NamedExpression {
                     nullable(),
                     id(),
                     synthetic(),
-                    AnalyzedTextExpression.valuesAnalyzerOf(child)
+                    AnalyzedTextExpression.valuesAnalyzerOf(child),
+                    UnionTypedExpression.legTypesOf(child)
                 )
                 : new UnresolvedAttribute(source(), name());
         }

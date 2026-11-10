@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -64,6 +65,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.RelationClass;
+import org.elasticsearch.xpack.esql.core.expression.UnionTypedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
@@ -83,6 +85,7 @@ import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
+import org.elasticsearch.xpack.esql.core.type.UnionEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnmappedEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
@@ -142,6 +145,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.Typed;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
@@ -228,6 +232,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunc
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -4195,6 +4200,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // post-analysis verifier rejects it on a single-typed field.
                     return new UnresolvedAttribute(fa.source(), fa.name(), ToText.analyzerOnMappedFieldMessage(fa.name()));
                 }
+                if (convert instanceof Typed typed && typed.typeResolved().unresolved()) {
+                    // Nothing below consults the convert's own type resolution, so a bad type name would otherwise
+                    // become a union field typed UNSUPPORTED and the failure would name the field rather than the call.
+                    return new UnresolvedAttribute(fa.source(), fa.name(), typed.typeResolved().message());
+                }
                 // The field has an unresolved type conflict (TypeConflictedField), so we attempt to create UnionTypeEsField with
                 // index-specific conversions
                 Map<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
@@ -4492,6 +4502,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * Finally, if {@code client_ip} is present in 2 indices, once with type {@code ip} and once with type {@code keyword},
      * using {@code EVAL x = to_ip(client_ip)} will create a single attribute @{code $$client_ip$converted_to$ip}.
      * This should not spill into the query output, so we drop such attributes at the end.
+     * <p>
+     * Under {@link QueryPragmas#UNION_TYPED_FIELDS} a conflict the engine can carry becomes a {@link UnionEsField} instead, which
+     * is readable rather than an error.
+     * </p>
      */
     private static class UnionTypesCleanup extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
@@ -4509,19 +4523,87 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // If not, we apply checkUnresolved to the field attributes of the original plan, resulting in unsupported attributes
             // This removes attributes such as converted types if they are aliased, but retains them otherwise, while also guaranteeing that
             // unsupported / unresolved fields can be explicitly retained
-            return cleanPlan.transformUp(
+            // A union may only be built when every node in the cluster can read the type. DataType.writeTo throws for a type
+            // the remote node does not understand, and its own comment calls that a bug in planning rather than a user error,
+            // so the decision belongs here. Asking the type for its own supported version keeps this from drifting away from
+            // the version it declares. Where the cluster is too old the conflict is erased exactly as it is without the
+            // pragma, so an older cluster loses the capability and changes no answer.
+            boolean unionTypedFields = context.configuration().pragmas().unionTypedFields()
+                && DataType.UNION.supportedVersion().supportedOn(context.minimumVersion(), Build.current().isSnapshot());
+            LogicalPlan cleaned = cleanPlan.transformUp(
                 LogicalPlan.class,
-                p -> p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::cleanTypeConflicts)
+                p -> p.transformExpressionsOnly(FieldAttribute.class, fa -> cleanTypeConflicts(fa, unionTypedFields))
             );
+            return unionTypedFields ? refreshUnionReferences(cleaned) : cleaned;
         }
 
-        private static Attribute cleanTypeConflicts(FieldAttribute fa) {
+        /**
+         * Retypes every reference to an alias that has just become a union. The conflict becomes a {@link UnionEsField}
+         * here, at the end of analysis, but the references that name an aliased copy of it - what {@code RENAME u AS d}
+         * produces, and what {@code EVAL d = u} would if an {@code EVAL} could return one - were minted during
+         * resolution, when the conflict was still typed
+         * {@code UNSUPPORTED}. Nothing else revisits them: {@link Alias#toAttribute} is consulted anew because the
+         * transform above rebuilt the alias, but a {@code ReferenceAttribute} sitting in a projection or an argument
+         * list above it is its own node and keeps whatever type it was built with. Left alone it is a column whose
+         * plan says one thing and whose block says another, which is how a rename used to fail the plan-consistency
+         * check and then throw in the renderer.
+         * <p>
+         * One round per link of a rename chain: an alias only learns it wraps a union once the reference it wraps has
+         * itself been retyped, so {@code RENAME u AS d | RENAME d AS e} needs two. A round that adds no alias ends it,
+         * and the map is bounded by the plan's aliases, so it terminates.
+         * </p>
+         */
+        private static LogicalPlan refreshUnionReferences(LogicalPlan plan) {
+            Map<NameId, Attribute> unionAliases = new HashMap<>();
+            LogicalPlan current = plan;
+            while (true) {
+                int known = unionAliases.size();
+                // Asking the child for its legs and never for its type, which is load-bearing twice over - both
+                // shapes below were measured as server errors before this read the legs instead.
+                //
+                // An unresolved child never gets asked anything: UnresolvedAttribute#dataType throws
+                // UnresolvedException, which is a QlServerException, and the analyzer deliberately leaves such a
+                // child in place for the verifier to report. EVAL x = nope and RENAME nope AS x both do that, and
+                // both have to come back as "Unknown column [nope]" rather than as a 500.
+                //
+                // And an expression that is typed UNION without being a union attribute has no legs to carry, so
+                // toAttribute() would refuse to build the reference at all. COALESCE and CASE take their type from
+                // their first argument with no representability test, so once the transform above has swapped the
+                // conflict for a UnionEsField they are typed UNION with nothing to say what a tag indexes. That is
+                // a union this pass cannot make renderable and must not try to: Eval refuses both in
+                // postAnalysisVerification, with a message about the query rather than about an invariant.
+                current.forEachExpressionDown(Alias.class, alias -> {
+                    if (UnionTypedExpression.legTypesOf(alias.child()) != null) {
+                        unionAliases.put(alias.id(), alias.toAttribute());
+                    }
+                });
+                if (unionAliases.size() == known) {
+                    return current;
+                }
+                // Each replacement keeps the source of the reference it replaces. The alias's own source is the
+                // RENAME clause, so without this every later failure anchored on the retyped attribute - a grouping
+                // refusal, MV_EXPAND, an enrich key - would point at a rename the user wrote correctly instead of at
+                // where the column was used.
+                current = current.transformExpressionsDown(
+                    ReferenceAttribute.class,
+                    ra -> unionAliases.containsKey(ra.id()) ? unionAliases.get(ra.id()).withLocation(ra.source()) : ra
+                );
+            }
+        }
+
+        private static Attribute cleanTypeConflicts(FieldAttribute fa, boolean unionTypedFields) {
             EsField field = fa.field();
             FieldAttribute shipped;
             if (field instanceof PotentiallyUnmappedSingleTypeEsField punk) {
                 // Falls back to its single mapped type; that mapped field may still carry a nested conflict to neutralize.
                 shipped = fallbackToMappedType(fa, punk);
-            } else if (field instanceof TypeConflictedField) {
+            } else if (field instanceof TypeConflictedField tcf) {
+                List<DataType> legTypes = tcf.unionLegTypes();
+                if (unionTypedFields && UnionEsField.canUnion(legTypes)) {
+                    // Readable as a union of its types instead of erased. Its properties are dropped along with the conflict: a
+                    // union is a leaf, and a sub-field of one is not addressable.
+                    return fa.withField(new UnionEsField(tcf.getName(), legTypes));
+                }
                 // A top-level conflict is representable as an UnsupportedAttribute; its properties never ship.
                 return fa.flagTypeConflicts();
             } else {

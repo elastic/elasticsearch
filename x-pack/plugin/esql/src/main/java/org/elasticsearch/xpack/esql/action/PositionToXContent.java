@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.data.TDigestBlock;
+import org.elasticsearch.compute.data.UnionBlock;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -31,9 +32,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
@@ -295,6 +298,50 @@ public abstract class PositionToXContent {
                     return builder.value(TimeSeriesIdFieldMapper.encodeTsid(bytesRef));
                 }
             };
+            case UNION -> {
+                List<DataType> legTypes = ResponseValueUtils.unionLegTypes(columnInfo);
+                UnionBlock union = (UnionBlock) block;
+                if (union.legCount() == 0) {
+                    /*
+                     * A union column that is null across a whole page arrives as a ConstantNullBlock, which has no
+                     * legs to read. Every position is null, so the outer positionToXContent writes the null and
+                     * this is never reached; it exists so the arm does not reach for a leg that is not there.
+                     */
+                    yield new PositionToXContent(block) {
+                        @Override
+                        protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                            throws IOException {
+                            return builder.nullValue();
+                        }
+                    };
+                }
+                ResponseValueUtils.checkUnionLegCount(columnInfo, union, legTypes.size());
+                /*
+                 * One writer per leg, over that leg's own sub-block, so each value is written as the type its leg
+                 * declares. The leg's writer sees the leg block and the same value index, since a leg holds its
+                 * value at the union's own index.
+                 */
+                PositionToXContent[] legWriters = new PositionToXContent[legTypes.size()];
+                for (int leg = 0; leg < legTypes.size(); leg++) {
+                    legWriters[leg] = positionToXContent(
+                        new ColumnInfoImpl(columnInfo.name(), legTypes.get(leg), null),
+                        union.legBlock(leg),
+                        zoneId,
+                        scratch
+                    );
+                }
+                yield new PositionToXContent(block) {
+                    @Override
+                    protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                        throws IOException {
+                        int leg = union.tag(valueIndex);
+                        if (leg == UnionBlock.NO_TAG) {
+                            return builder.nullValue();
+                        }
+                        return legWriters[leg].valueToXContent(builder, params, valueIndex);
+                    }
+                };
+            }
             case DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, SHORT, BYTE, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT, PARTIAL_AGG ->
                 throw new IllegalArgumentException("can't convert values of type [" + columnInfo.type() + "]");
         };

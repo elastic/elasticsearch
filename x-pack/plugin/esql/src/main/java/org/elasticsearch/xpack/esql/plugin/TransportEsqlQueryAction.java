@@ -67,7 +67,6 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
-import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
@@ -91,8 +90,6 @@ import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -641,17 +638,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         for (String warning : result.completionInfo().warnings()) {
             HeaderWarning.addWarning(warning);
         }
-        List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
-            List<String> originalTypes;
-            if (c instanceof UnsupportedAttribute ua) {
-                // Sort the original types so they are easier to test against and prettier.
-                originalTypes = new ArrayList<>(ua.originalTypes());
-                Collections.sort(originalTypes);
-            } else {
-                originalTypes = null;
-            }
-            return new ColumnInfoImpl(c.name(), c.dataType(), originalTypes, result.attributeMetadata(c.id()));
-        }).toList();
+        List<ColumnInfoImpl> columns = result.schema()
+            .stream()
+            .map(c -> ColumnInfoImpl.forAttribute(c, result.attributeMetadata(c.id())))
+            .toList();
         EsqlQueryResponse.Profile profile = profileEnabled
             ? new EsqlQueryResponse.Profile(
                 result.completionInfo().driverProfiles(),

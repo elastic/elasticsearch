@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.compute.data.UnionBlock;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -62,9 +63,9 @@ public final class ResponseValueUtils {
      * Returns an iterator of iterators over the values in the given pages. There is one iterator
      * for each block.
      */
-    public static Iterator<Iterator<Object>> pagesToValues(List<DataType> dataTypes, List<Page> pages, ZoneId zoneId) {
+    public static Iterator<Iterator<Object>> pagesToValues(List<ColumnInfoImpl> columns, List<Page> pages, ZoneId zoneId) {
         BytesRef scratch = new BytesRef();
-        var valueExtractors = valueExtractorsFor(dataTypes, zoneId);
+        var valueExtractors = valueExtractorsFor(columns, zoneId);
         return Iterators.flatMap(
             pages.iterator(),
             page -> Iterators.forRange(
@@ -76,9 +77,9 @@ public final class ResponseValueUtils {
     }
 
     /** Returns an iterable of iterables over the values in the given pages. There is one iterables for each row. */
-    static Iterable<Iterable<Object>> valuesForRowsInPages(List<DataType> dataTypes, List<Page> pages, ZoneId zoneId) {
+    static Iterable<Iterable<Object>> valuesForRowsInPages(List<ColumnInfoImpl> columns, List<Page> pages, ZoneId zoneId) {
         BytesRef scratch = new BytesRef();
-        var valueExtractors = valueExtractorsFor(dataTypes, zoneId);
+        var valueExtractors = valueExtractorsFor(columns, zoneId);
         return () -> Iterators.flatMap(pages.iterator(), page -> valuesForRowsInPage(valueExtractors, page, scratch));
     }
 
@@ -97,9 +98,9 @@ public final class ResponseValueUtils {
     }
 
     /**  Returns an iterator of values for the given column. */
-    static Iterator<Object> valuesForColumn(int columnIndex, DataType dataType, List<Page> pages, ZoneId zoneId) {
+    static Iterator<Object> valuesForColumn(int columnIndex, ColumnInfoImpl column, List<Page> pages, ZoneId zoneId) {
         BytesRef scratch = new BytesRef();
-        var valueExtractor = valueExtractorFor(dataType, zoneId);
+        var valueExtractor = valueExtractorFor(column, zoneId);
         return Iterators.flatMap(
             pages.iterator(),
             page -> Iterators.forRange(
@@ -132,14 +133,89 @@ public final class ResponseValueUtils {
         Object extract(Block block, int offset, BytesRef scratch);
     }
 
-    private static BlockValueExtractor[] valueExtractorsFor(List<DataType> dataTypes, ZoneId zoneId) {
-        var valueExtractors = new BlockValueExtractor[dataTypes.size()];
-        for (int i = 0; i < dataTypes.size(); i++) {
-            valueExtractors[i] = valueExtractorFor(dataTypes.get(i), zoneId);
+    private static BlockValueExtractor[] valueExtractorsFor(List<ColumnInfoImpl> columns, ZoneId zoneId) {
+        var valueExtractors = new BlockValueExtractor[columns.size()];
+        for (int i = 0; i < columns.size(); i++) {
+            valueExtractors[i] = valueExtractorFor(columns.get(i), zoneId);
         }
         return valueExtractors;
     }
 
+    /**
+     * An extractor for one response column.
+     */
+    public static BlockValueExtractor valueExtractorFor(ColumnInfoImpl column, ZoneId zoneId) {
+        if (column.type() == DataType.UNION) {
+            return unionValueExtractor(column, zoneId);
+        }
+        return valueExtractorFor(column.type(), zoneId);
+    }
+
+    /**
+     * One extractor per leg, so each value renders as the type its own leg declares: a date leg formats as a
+     * date even though it is stored as a long. The leg types are paired with the block's legs by position, and
+     * nothing can check that the order agrees, so {@link #checkUnionLegCount} catches only a disagreement in
+     * how many there are. Whoever produces the column owns the order.
+     */
+    private static BlockValueExtractor unionValueExtractor(ColumnInfoImpl column, ZoneId zoneId) {
+        List<DataType> legTypes = unionLegTypes(column);
+        BlockValueExtractor[] legExtractors = new BlockValueExtractor[legTypes.size()];
+        for (int leg = 0; leg < legTypes.size(); leg++) {
+            legExtractors[leg] = valueExtractorFor(legTypes.get(leg), zoneId);
+        }
+        return (block, offset, scratch) -> {
+            UnionBlock union = (UnionBlock) block;
+            int leg = union.tag(offset);
+            if (leg == UnionBlock.NO_TAG) {
+                return null;
+            }
+            checkUnionLegCount(column, union, legTypes.size());
+            return legExtractors[leg].extract(union.legBlock(leg), offset, scratch);
+        };
+    }
+
+    /**
+     * The leg types a union column declares, as data types. Refuses a column that declares none, and a name
+     * that is not a type.
+     */
+    static List<DataType> unionLegTypes(ColumnInfoImpl column) {
+        List<String> names = column.originalTypes();
+        if (names == null || names.isEmpty()) {
+            throw new EsqlIllegalArgumentException("rendering a union needs its leg types");
+        }
+        List<DataType> legTypes = new ArrayList<>(names.size());
+        for (String name : names) {
+            DataType legType = DataType.fromTypeName(name);
+            if (legType == null) {
+                throw new EsqlIllegalArgumentException("union column [" + column.name() + "] declares an unknown leg type [" + name + "]");
+            }
+            legTypes.add(legType);
+        }
+        return legTypes;
+    }
+
+    /**
+     * A block whose leg count disagrees with the declared leg types cannot be rendered, and saying so beats an
+     * index out of bounds from pairing them.
+     */
+    static void checkUnionLegCount(ColumnInfoImpl column, UnionBlock union, int declaredLegCount) {
+        if (union.legCount() != declaredLegCount) {
+            throw new EsqlIllegalArgumentException(
+                "union column ["
+                    + column.name()
+                    + "] has "
+                    + union.legCount()
+                    + " legs but "
+                    + declaredLegCount
+                    + " leg types were declared"
+            );
+        }
+    }
+
+    /**
+     * An extractor for a type on its own. A union needs the leg types only its column carries, so it is refused
+     * here; use {@link #valueExtractorFor(ColumnInfoImpl, ZoneId)}.
+     */
     public static BlockValueExtractor valueExtractorFor(DataType dataType, ZoneId zoneId) {
         return switch (dataType) {
             case UNSIGNED_LONG -> (block, offset, scratch) -> unsignedLongAsNumber(((LongBlock) block).getLong(offset));
@@ -211,6 +287,7 @@ public final class ResponseValueUtils {
             case DENSE_VECTOR -> (block, offset, scratch) -> ((FloatBlock) block).getFloat(offset);
             case FLATTENED -> (block, offset, scratch) -> ((BytesRefBlock) block).getBytesRef(offset, scratch).utf8ToString();
             case NULL, UNSUPPORTED -> (block, offset, scratch) -> null;
+            case UNION -> throw new EsqlIllegalArgumentException("rendering a union needs its leg types");
             case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, PARTIAL_AGG ->
                 throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };

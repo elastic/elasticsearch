@@ -201,12 +201,60 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
         Releasables.close(getSubBlocks());
     }
 
+    /**
+     * The number of sub-block positions position {@code position} occupies.
+     * <p>
+     * This is deliberately not {@link #getValueCount(int)}, which reports zero for a null position. A null still
+     * occupies exactly one sub-block position - the builder's {@code valueAppended} counts it like any other value -
+     * so reshaping a block by value counts would drop a null's sub-position and leave the tags misaligned with the
+     * values from there on. Every position's span is at least one.
+     * </p>
+     */
+    private int subBlockSpan(int position) {
+        assert firstValueIndexes != null;
+        return firstValueIndexes[position + 1] - firstValueIndexes[position];
+    }
+
     @Override
     public T filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         if (firstValueIndexes == null) {
             return applyToSubBlocks(b -> b.filter(mayContainDuplicates, positions, offset, length), -1, null);
         }
-        throw new UnsupportedOperationException("Not yet implemented for multi-valued blocks");
+        int subPositionCount = 0;
+        for (int i = 0; i < length; i++) {
+            subPositionCount += subBlockSpan(positions[offset + i]);
+        }
+        long newFviBytes = blockFactory().preAdjustBreakerForInt(length + 1);
+        boolean success = false;
+        try {
+            int[] newFirstValueIndexes = new int[length + 1];
+            // Each kept position contributes its whole run of sub-block positions, so the sub-blocks are filtered by
+            // the expanded run rather than by the caller's positions.
+            int[] subPositions = new int[subPositionCount];
+            int next = 0;
+            for (int i = 0; i < length; i++) {
+                newFirstValueIndexes[i] = next;
+                int position = positions[offset + i];
+                for (int sub = firstValueIndexes[position]; sub < firstValueIndexes[position + 1]; sub++) {
+                    subPositions[next++] = sub;
+                }
+            }
+            newFirstValueIndexes[length] = next;
+            assert next == subPositions.length : next + " != " + subPositions.length;
+            // Duplicate positions become duplicate runs, and distinct positions have disjoint runs, so the caller's
+            // answer carries over unchanged.
+            T result = applyToSubBlocks(
+                b -> b.filter(mayContainDuplicates, subPositions, 0, subPositions.length),
+                length,
+                newFirstValueIndexes
+            );
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                blockFactory().adjustBreaker(-newFviBytes);
+            }
+        }
     }
 
     @Override
@@ -215,7 +263,25 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
         if (firstValueIndexes == null) {
             return applyToSubBlocks(b -> b.slice(beginInclusive, endExclusive), -1, null);
         }
-        throw new UnsupportedOperationException("Not yet implemented for multi-valued blocks");
+        // A contiguous run of positions is a contiguous run of sub-block positions, so the sub-blocks slice too, and
+        // the indexes only have to be rebased onto the new start.
+        int subBegin = firstValueIndexes[beginInclusive];
+        int subEnd = firstValueIndexes[endExclusive];
+        long newFviBytes = blockFactory().preAdjustBreakerForInt(newPositionCount + 1);
+        boolean success = false;
+        try {
+            int[] newFirstValueIndexes = new int[newPositionCount + 1];
+            for (int i = 0; i <= newPositionCount; i++) {
+                newFirstValueIndexes[i] = firstValueIndexes[beginInclusive + i] - subBegin;
+            }
+            T result = applyToSubBlocks(b -> b.slice(subBegin, subEnd), newPositionCount, newFirstValueIndexes);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                blockFactory().adjustBreaker(-newFviBytes);
+            }
+        }
     }
 
     @Override

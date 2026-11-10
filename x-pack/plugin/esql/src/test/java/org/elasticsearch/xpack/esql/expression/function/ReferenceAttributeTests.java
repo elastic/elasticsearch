@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.AbstractNamedExpressionSerializat
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
 import static org.hamcrest.Matchers.containsString;
@@ -47,7 +48,19 @@ public class ReferenceAttributeTests extends AbstractNamedExpressionSerializatio
             case 5 -> synthetic = false == synthetic;
             case 6 -> valuesAnalyzer = randomAlphaOfLength(valuesAnalyzer == null ? 3 : valuesAnalyzer.length() + 1);
         }
-        return new ReferenceAttribute(source, qualifier, name, type, nullability, id, synthetic, valuesAnalyzer);
+        // The leg types have to follow the type: the constructor refuses a union without them and anything else with
+        // them, and case 2 above draws from every type including UNION.
+        return new ReferenceAttribute(
+            source,
+            qualifier,
+            name,
+            type,
+            nullability,
+            id,
+            synthetic,
+            valuesAnalyzer,
+            ReferenceAttributeTestUtils.randomLegTypes(type)
+        );
     }
 
     @Override
@@ -107,4 +120,75 @@ public class ReferenceAttributeTests extends AbstractNamedExpressionSerializatio
     protected boolean equalityIgnoresId() {
         return false;
     }
+
+    /**
+     * A union's leg types are half of what its type means - a value's tag indexes them - so a reference carrying the
+     * type without them is a column nothing can read. The constructor is where that is made unconstructable, which is
+     * the nearest an enum type can come to making it unrepresentable.
+     */
+    public void testAUnionReferenceMustCarryItsLegsAndOthersMustNot() {
+        List<DataType> legs = List.of(DataType.KEYWORD, DataType.LONG);
+        IllegalArgumentException noLegs = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ReferenceAttribute(Source.EMPTY, null, "u", DataType.UNION, Nullability.TRUE, new NameId(), false, null, null)
+        );
+        assertThat(noLegs.getMessage(), containsString("[u] is a union and must carry its leg types"));
+
+        IllegalArgumentException wrongType = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG, Nullability.TRUE, new NameId(), false, null, legs)
+        );
+        assertThat(wrongType.getMessage(), containsString("[n] is [long] and cannot carry leg types"));
+
+        ReferenceAttribute union = new ReferenceAttribute(
+            Source.EMPTY,
+            null,
+            "u",
+            DataType.UNION,
+            Nullability.TRUE,
+            new NameId(),
+            false,
+            null,
+            legs
+        );
+        assertEquals(legs, union.unionLegTypes());
+    }
+
+    /**
+     * {@code withName} and the other witherers route through {@code clone}, whose signature cannot take the legs - so
+     * they are carried from the instance. A rename that dropped them would turn a readable column into an unreadable
+     * one, silently, which is exactly what renaming a union used to do.
+     */
+    public void testARenamedUnionReferenceKeepsItsLegs() {
+        List<DataType> legs = List.of(DataType.KEYWORD, DataType.LONG);
+        ReferenceAttribute union = new ReferenceAttribute(
+            Source.EMPTY,
+            null,
+            "u",
+            DataType.UNION,
+            Nullability.TRUE,
+            new NameId(),
+            false,
+            null,
+            legs
+        );
+        assertEquals(legs, ((ReferenceAttribute) union.withName("d")).unionLegTypes());
+        assertEquals(legs, ((ReferenceAttribute) union.withId(new NameId())).unionLegTypes());
+        // And the legs are part of identity, or a plan cache keyed on the attribute would serve one for another.
+        assertNotEquals(
+            union,
+            new ReferenceAttribute(
+                Source.EMPTY,
+                null,
+                "u",
+                DataType.UNION,
+                Nullability.TRUE,
+                union.id(),
+                false,
+                null,
+                List.of(DataType.DOUBLE, DataType.KEYWORD)
+            )
+        );
+    }
+
 }

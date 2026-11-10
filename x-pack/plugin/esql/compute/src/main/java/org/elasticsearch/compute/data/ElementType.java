@@ -81,7 +81,16 @@ public enum ElementType {
 
     LONG_RANGE(13, "LongRange", BlockFactory::newLongRangeBlockBuilder, LongRangeArrayBlock::readFrom),
 
-    DOUBLE_RANGE(14, "DoubleRange", BlockFactory::newDoubleRangeBlockBuilder, DoubleRangeArrayBlock::readFrom);
+    DOUBLE_RANGE(14, "DoubleRange", BlockFactory::newDoubleRangeBlockBuilder, DoubleRangeArrayBlock::readFrom),
+
+    /**
+     * Blocks holding a column whose values do not all have the same type. A builder needs the column's leg element
+     * types, which this enum cannot supply, so one is made through
+     * {@link BlockFactory#newUnionBlockBuilder(java.util.List, int)} instead.
+     */
+    UNION(15, "Union", (blockFactory, estimatedSize) -> {
+        throw new UnsupportedOperationException("a union block builder needs the leg element types");
+    }, UnionArrayBlock::readFrom);
 
     private static final TransportVersion ESQL_SERIALIZE_BLOCK_TYPE_CODE = TransportVersion.fromName("esql_serialize_block_type_code");
 

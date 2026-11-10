@@ -116,8 +116,8 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
          */
         void initFinalBuilders(int offset) {
             for (int f = 0; f < operator.fields.length; f++) {
-                finalBuilders[f] = operator.fields[f].info.type()
-                    .newBlockBuilder(docs.getPositionCount() - offset, operator.driverContext.blockFactory());
+                finalBuilders[f] = operator.fields[f].info.builderSupplier()
+                    .newBlockBuilder(operator.driverContext.blockFactory(), docs.getPositionCount() - offset);
             }
         }
 

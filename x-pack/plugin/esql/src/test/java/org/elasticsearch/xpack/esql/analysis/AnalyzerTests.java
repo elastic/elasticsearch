@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
+import org.elasticsearch.xpack.esql.core.type.UnionEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -86,6 +87,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.Typed;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.DeferredRegexExpression;
@@ -139,6 +141,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.junit.After;
@@ -147,6 +150,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -5570,6 +5574,380 @@ public class AnalyzerTests extends AnalyzerTestCase {
             FROM tdigest_standard_index
             | STATS c = COUNT(*) BY b = BUCKET(responseTime, 10, 0, 100, {"include_empty_buckets": true})
             """, containsString("does not support option [include_empty_buckets] for [tdigest] inputs"));
+    }
+
+    /**
+     * The type is a non-child and {@code Function} equality compares class and children, so without an override
+     * these two are equal. Optimizer rules key maps on expression identity: a STATS over both collapses them into
+     * one eval and binds the second aggregate to the wrong leg.
+     */
+    public void testTypedDistinguishesItsTargetType() {
+        FieldAttribute field = new FieldAttribute(
+            Source.EMPTY,
+            "salary",
+            new EsField("salary", INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Typed asLong = new Typed(Source.EMPTY, field, Literal.keyword(Source.EMPTY, "long"));
+        Typed asInteger = new Typed(Source.EMPTY, field, Literal.keyword(Source.EMPTY, "integer"));
+
+        assertThat(asLong, not(equalTo(asInteger)));
+        assertThat(asLong.hashCode(), not(equalTo(asInteger.hashCode())));
+        assertThat(asLong, equalTo(new Typed(Source.EMPTY, field, Literal.keyword(Source.EMPTY, "long"))));
+    }
+
+    /**
+     * TYPED declares every type as supported, so ResolveUnionTypes builds a conversion entry per mapped type and its
+     * all-or-nothing check passes. A conversion that declines any mapped type refuses the whole query instead.
+     */
+    public void testTypedResolvesConflictedField() {
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put("keyword", Set.of("union_index_1"));
+        typesToIndices.put("integer", Set.of("union_index_2"));
+
+        EsIndex index = new EsIndex(
+            "union_index*",
+            Map.of("id", new InvalidMappedField("id", typesToIndices)),
+            Map.of(
+                "union_index_1",
+                new IndexProperties(IndexMode.STANDARD, 0),
+                "union_index_2",
+                new IndexProperties(IndexMode.STANDARD, 0)
+            ),
+            Map.of(),
+            Map.of()
+        );
+
+        LogicalPlan plan = analyzer().addIndex(IndexResolution.valid(index)).query("FROM union_index* | EVAL t = TYPED(id, \"integer\")");
+
+        // The function is folded into the union field, so the alias holds the synthetic attribute, not TYPED.
+        Eval eval = as(as(as(plan, Project.class).child(), Limit.class).child(), Eval.class);
+        Alias alias = as(eval.fields().getFirst(), Alias.class);
+        FieldAttribute converted = as(alias.child(), FieldAttribute.class);
+        verifyNameAndType(converted.name(), converted.dataType(), "$$id$converted_to$integer", INTEGER);
+
+        // One entry per mapped type, each pinned to that type, so the data node can pick by shard mapping.
+        UnionTypeEsField unionField = as(converted.field(), UnionTypeEsField.class);
+        List<DataType> legTypes = unionField.getConversionExpressions()
+            .stream()
+            .map(e -> as(e, Typed.class).field().dataType())
+            .sorted(Comparator.comparing(DataType::typeName))
+            .toList();
+        assertThat(legTypes, equalTo(List.of(INTEGER, KEYWORD)));
+    }
+
+    /** A conflicted field with the pragma off: erased to an unsupported attribute, which is the behaviour without the union type. */
+    public void testATypeConflictIsUnsupportedWithoutThePragma() {
+        UnsupportedAttribute id = as(analyzedIdAttribute(analyzer(), "keyword", "long"), UnsupportedAttribute.class);
+        assertThat(id.name(), equalTo("id"));
+    }
+
+    /**
+     * With the pragma on the same conflict becomes a union-typed field whose legs are its types in the canonical order. This is
+     * where that order is decided, once: the block lays its sub-blocks out in it and the response publishes it by name, both from
+     * this carried list rather than by computing it again.
+     */
+    public void testATypeConflictBecomesAUnionUnderThePragma() {
+        FieldAttribute id = as(analyzedIdAttribute(unionTypedAnalyzer(), "keyword", "long"), FieldAttribute.class);
+        assertThat(id.name(), equalTo("id"));
+        assertThat(id.dataType(), equalTo(DataType.UNION));
+        UnionEsField union = as(id.field(), UnionEsField.class);
+        assertThat(union.legTypes(), equalTo(List.of(KEYWORD, LONG)));
+    }
+
+    /**
+     * A column reference where the type name belongs is a user error and has to read as one. The type is not a child of
+     * the node, so {@code ResolveRefs} never visits it and it stays an {@code UnresolvedAttribute} for good; anything
+     * that asks such an expression for its type throws {@code UnresolvedException}, which is a 500 rather than a
+     * complaint about the query. So the constant check has to come before the type check, and this is what holds that
+     * order: reverse the two in {@code Typed.resolveType} and these queries die with a server error instead.
+     */
+    public void testTypedRefusesANonConstantTypeAsAUserError() {
+        basic().error(
+            "FROM test | EVAL t = TYPED(emp_no, first_name)",
+            containsString("second argument of [TYPED(emp_no, first_name)] must be a constant, received [first_name]")
+        );
+        // An unknown name takes the same path: unresolved is unresolved, and neither reaches dataType().
+        basic().error(
+            "FROM test | EVAL t = TYPED(emp_no, nosuchcolumn)",
+            containsString("second argument of [TYPED(emp_no, nosuchcolumn)] must be a constant, received [nosuchcolumn]")
+        );
+    }
+
+    /** A well-typed constant that is not a string still has to name the expected type, not just fail to be one. */
+    public void testTypedNamesStringAsTheTypeArgumentsType() {
+        basic().error(
+            "FROM test | EVAL t = TYPED(emp_no, false)",
+            containsString("second argument of [TYPED(emp_no, false)] must be [string], found value [false] type [boolean]")
+        );
+    }
+
+    /** Two types that widen to one are no conflict a union can carry, so the field is still erased. */
+    public void testAConflictOfOneWidenedTypeIsNotAUnion() {
+        as(analyzedIdAttribute(unionTypedAnalyzer(), "float", "half_float"), UnsupportedAttribute.class);
+    }
+
+    /** A type no leg can hold leaves the whole field erased rather than making a union the engine cannot read. */
+    public void testAConflictWithALegNoBlockCanHoldIsNotAUnion() {
+        as(analyzedIdAttribute(unionTypedAnalyzer(), "keyword", "geo_point"), UnsupportedAttribute.class);
+    }
+
+    /** The one output attribute of {@code FROM union_index* | KEEP id} where the two indices map {@code id} as the given types. */
+    private static Attribute analyzedIdAttribute(TestAnalyzer analyzer, String typeInFirst, String typeInSecond) {
+        LogicalPlan plan = analyzer.addIndex(conflictedIdIndex(typeInFirst, typeInSecond)).query("FROM union_index* | KEEP id");
+        List<Attribute> output = plan.output();
+        assertThat(output, hasSize(1));
+        return output.getFirst();
+    }
+
+    /**
+     * The two things a union is refused for. {@code SORT} is in the design's own refusal list, because values of different types
+     * have no order between them, and it is decided by {@link DataType#isSortable} rather than by anything about the field. The
+     * merge case is not a design decision but a consequence of where the union is created; the comment below says why.
+     */
+    public void testCommandsThatCannotWorkOnAUnionAreRefused() {
+        TestAnalyzer analyzer = unionTypedAnalyzer().addIndex(conflictedIdIndex("keyword", "long"));
+        analyzer.error("FROM union_index* | SORT id", containsString("cannot sort on union"));
+        // A merge fixes its output attributes when the node is built, during resolution, and the conflict only becomes a union
+        // after resolution has finished, so the merge's own attribute would keep the unsupported type the conflict had then.
+        analyzer.error(
+            "FROM union_index* | FORK (WHERE id IS NOT NULL) (LIMIT 1) | KEEP id",
+            containsString("Column [id] holds more than one type, which cannot be used across subqueries")
+        );
+        // Grouping on the pair of leg and value is well defined and deferred on scope, so this has to refuse during
+        // analysis; without it the query reaches BlockHash, which fails with an element type the user never wrote.
+        analyzer.error(
+            "FROM union_index* | STATS COUNT(*) BY id",
+            allOf(
+                containsString("cannot group by [id]: it holds more than one type"),
+                containsString("Group by its type [TYPEOF(id)]"),
+                containsString("[TYPED(id, \"<type>\")]"),
+                containsString("[id::<type>]")
+            )
+        );
+    }
+
+    /**
+     * The query the grouping refusal tells the user to write instead has to work, and nothing else asserted that it
+     * does - the refusal's own test only checks the wording of the suggestion. So this is the other half of that
+     * message: {@code TYPEOF} over a union resolves, and resolves to a keyword, which is why grouping on it needs no
+     * union grouping at all.
+     */
+    public void testTypeOfOverAUnionResolvesToAKeyword() {
+        TestAnalyzer analyzer = unionTypedAnalyzer().addIndex(conflictedIdIndex("keyword", "long"));
+        LogicalPlan plan = analyzer.query("FROM union_index* | EVAL t = TYPEOF(id) | KEEP id, t");
+        Project project = as(as(plan, Limit.class).child(), Project.class);
+        assertThat(Expressions.names(project.projections()), equalTo(List.of("id", "t")));
+        assertThat(project.projections().get(0).dataType(), equalTo(DataType.UNION));
+        assertThat(project.projections().get(1).dataType(), equalTo(DataType.KEYWORD));
+    }
+
+    /**
+     * A renamed union is still a union, and still says what its legs are. The conflict becomes a {@code UnionEsField}
+     * at the end of analysis, so the reference the rename minted during resolution was typed {@code UNSUPPORTED} when
+     * it was built; {@code UnionTypesCleanup.refreshUnionReferences} is what replaces it. Revert that pass and this
+     * reads {@code unsupported}, which is the state that used to fail the plan-consistency check and then throw in
+     * the renderer.
+     */
+    public void testAUnionKeepsItsLegsThroughARename() {
+        TestAnalyzer analyzer = unionTypedAnalyzer().addIndex(conflictedIdIndex("keyword", "long"));
+        LogicalPlan plan = analyzer.query("FROM union_index* | RENAME id AS d | KEEP d");
+        List<Attribute> output = plan.output();
+        assertThat(output, hasSize(1));
+        ReferenceAttribute d = as(output.getFirst(), ReferenceAttribute.class);
+        assertThat(d.name(), equalTo("d"));
+        assertThat(d.dataType(), equalTo(DataType.UNION));
+        assertThat(d.unionLegTypes(), equalTo(List.of(KEYWORD, LONG)));
+    }
+
+    /**
+     * Each rename is its own projection at this point, so the second one wraps a reference rather than the field and
+     * only learns it holds a union once the first has been retyped. That is the round the refresh pass iterates for;
+     * with a single pass this column comes out {@code unsupported}.
+     */
+    public void testAChainOfRenamesKeepsTheLegs() {
+        TestAnalyzer analyzer = unionTypedAnalyzer().addIndex(conflictedIdIndex("keyword", "long"));
+        LogicalPlan plan = analyzer.query("FROM union_index* | RENAME id AS d | RENAME d AS e | KEEP e");
+        ReferenceAttribute e = as(plan.output().getFirst(), ReferenceAttribute.class);
+        assertThat(e.name(), equalTo("e"));
+        assertThat(e.dataType(), equalTo(DataType.UNION));
+        assertThat(e.unionLegTypes(), equalTo(List.of(KEYWORD, LONG)));
+    }
+
+    /**
+     * {@code TYPEOF} reads the leg off each value's tag in the block, so a rename costs it nothing once the legs
+     * travel with the reference - the names it will answer with come from the same carried list.
+     */
+    public void testTypeOfReadsARenamedUnion() {
+        TestAnalyzer analyzer = unionTypedAnalyzer().addIndex(conflictedIdIndex("keyword", "long"));
+        LogicalPlan plan = analyzer.query("FROM union_index* | RENAME id AS d | EVAL t = TYPEOF(d) | KEEP d, t");
+        Project project = as(as(plan, Limit.class).child(), Project.class);
+        assertThat(Expressions.names(project.projections()), equalTo(List.of("d", "t")));
+        assertThat(project.projections().get(0).dataType(), equalTo(DataType.UNION));
+        assertThat(project.projections().get(1).dataType(), equalTo(DataType.KEYWORD));
+    }
+
+    /**
+     * {@code TYPED} is the other half: it selects its leg by rewriting the field attribute per mapped type, which a
+     * renamed copy of the column is not, so applying it there would answer null for every row. Refused instead, and
+     * the message says to select before renaming. Drop {@code Typed.postAnalysisVerification} and this query is
+     * accepted and answers nulls.
+     */
+    public void testTypedIsRefusedOnARenamedUnion() {
+        TestAnalyzer analyzer = unionTypedAnalyzer().addIndex(conflictedIdIndex("keyword", "long"));
+        analyzer.error(
+            "FROM union_index* | RENAME id AS d | EVAL s = TYPED(d, \"long\")",
+            allOf(
+                // Anchored on the TYPED call the user got wrong, not on the RENAME that is fine.
+                containsString("line 1:47: [TYPED(d, \"long\")] cannot select a type from [d]"),
+                containsString("is not a column read from an index"),
+                containsString("Select the type from the column itself and rename or compute from the result instead")
+            )
+        );
+    }
+
+    /**
+     * An unknown column must still read as one with the pragma on. The retype pass walks every {@code Alias} in the
+     * plan, and the analyzer deliberately leaves an unresolved child in place for the verifier to report; asking such
+     * a child for its {@code dataType()} throws {@code UnresolvedException}, a {@code QlServerException}. Measured as
+     * a 500 on both shapes before the pass read the child's legs instead of its type.
+     */
+    public void testAnUnknownColumnIsStillAnUnknownColumnUnderThePragma() {
+        TestAnalyzer analyzer = unionTypedAnalyzer().addIndex(conflictedIdIndex("keyword", "long"));
+        analyzer.error("FROM union_index* | EVAL x = nope", containsString("Unknown column [nope]"));
+        analyzer.error("FROM union_index* | RENAME nope AS x", containsString("Unknown column [nope]"));
+    }
+
+    /**
+     * An expression that ends up typed {@code UNION} without being a union attribute has no legs to carry, and the
+     * retype pass must leave it to the refusal that already exists rather than fail on its own invariant.
+     * {@code COALESCE} and {@code CASE} take their type from their first argument with no representability test, so
+     * once the conflict has become a {@code UnionEsField} they are typed {@code UNION} with nothing to say what a tag
+     * indexes. Measured: both answered {@code [x] is a union and must carry its leg types} - an internal invariant in
+     * place of a message about the query - before the pass asked for legs instead of for the type.
+     */
+    public void testAFunctionThatTypesItselfAsAUnionIsRefusedByEvalNotByAnInvariant() {
+        TestAnalyzer analyzer = unionTypedAnalyzer().addIndex(conflictedIdIndex("keyword", "long"));
+        analyzer.error(
+            "FROM union_index* | EVAL x = COALESCE(id, id)",
+            containsString("EVAL does not support type [union] as the return data type of expression [COALESCE(id, id)]")
+        );
+        analyzer.error(
+            "FROM union_index* | EVAL x = CASE(true, id)",
+            containsString("EVAL does not support type [union] as the return data type of expression [CASE(true, id)]")
+        );
+    }
+
+    /**
+     * A refusal anchored on a renamed union points at the use, not at the rename. The retype pass replaces the
+     * reference the usage site minted, and an attribute carries the source it was minted with, so without relocating
+     * it every such failure would name the {@code RENAME} clause - which the user wrote correctly.
+     */
+    public void testARefusalOnARenamedUnionPointsAtTheUseNotTheRename() {
+        TestAnalyzer analyzer = unionTypedAnalyzer().addIndex(conflictedIdIndex("keyword", "long"));
+        // RENAME is at column 21 and the grouping use of [d] at column 60; the refusal has to name the latter.
+        analyzer.error(
+            "FROM union_index* | RENAME id AS d | STATS c = COUNT(*) BY d",
+            containsString("line 1:60: cannot group by [d]: it holds more than one type")
+        );
+    }
+
+    /**
+     * A renamed union across {@code FORK} branches. The merge fixes its own output attributes when the node is built,
+     * during resolution, with a fresh {@code NameId} - so the retype pass cannot reach them, and this check is the one
+     * thing standing between the lifted rename refusal and a column of silent nulls, which is what the renderer
+     * answers for an {@code UNSUPPORTED} column.
+     */
+    public void testARenamedUnionIsStillRefusedAcrossFork() {
+        TestAnalyzer analyzer = unionTypedAnalyzer().addIndex(conflictedIdIndex("keyword", "long"));
+        analyzer.error(
+            "FROM union_index* | RENAME id AS d | FORK (WHERE d IS NOT NULL) (LIMIT 1) | KEEP d",
+            containsString("holds more than one type, which cannot be used across subqueries")
+        );
+    }
+
+    /**
+     * The asymmetry the rename lift leaves standing, pinned so it is a recorded state rather than a surprise:
+     * {@code RENAME} copies a union, {@code EVAL} does not. What refuses it is
+     * {@code Eval.postAnalysisVerification} asking {@code DataType.isRepresentableInExpression}, which excludes
+     * {@code UNION} - so the refusal is the {@code EVAL} command's, not a property of the column or of any function.
+     * Per-function admission is a separate matter and is not uniform: {@code TypeOf} admits a union deliberately,
+     * while {@code Coalesce} and {@code Case} admit one by omission, which is what
+     * {@link #testAFunctionThatTypesItselfAsAUnionIsRefusedByEvalNotByAnInvariant} covers.
+     */
+    public void testEvalCopyingAUnionIsStillRefused() {
+        TestAnalyzer analyzer = unionTypedAnalyzer().addIndex(conflictedIdIndex("keyword", "long"));
+        analyzer.error(
+            "FROM union_index* | EVAL d = id | KEEP d",
+            containsString("EVAL does not support type [union] as the return data type of expression [id]")
+        );
+    }
+
+    /** And the order the refusal asks for works: select the leg off the column, then rename what came out. */
+    public void testSelectingALegBeforeRenamingWorks() {
+        TestAnalyzer analyzer = unionTypedAnalyzer().addIndex(conflictedIdIndex("keyword", "long"));
+        LogicalPlan plan = analyzer.query("FROM union_index* | EVAL s = TYPED(id, \"long\") | RENAME s AS t | KEEP t");
+        ReferenceAttribute t = as(plan.output().getFirst(), ReferenceAttribute.class);
+        assertThat(t.dataType(), equalTo(LONG));
+        assertNull("a long carries no legs", t.unionLegTypes());
+    }
+
+    /** And the grouping the refusal points at, end to end through analysis rather than only in the message. */
+    public void testCountByTypeOfOverAUnionResolves() {
+        TestAnalyzer analyzer = unionTypedAnalyzer().addIndex(conflictedIdIndex("keyword", "long"));
+        LogicalPlan plan = analyzer.query("FROM union_index* | STATS c = COUNT(*) BY t = TYPEOF(id)");
+        assertTrue("the grouping the error message recommends must itself resolve", plan.resolved());
+    }
+
+    /**
+     * The pragma alone no longer makes a union: the cluster must also be new enough to read the type, since
+     * {@code DataType.writeTo} treats shipping an unknown type to a remote node as a planning bug. This suite runs
+     * once per transport version, so the version is pinned up to the floor the type declares - otherwise the
+     * {@code historical} run gets no union at all, which is what
+     * {@link #testATypeConflictStaysUnsupportedOnAClusterTooOldForTheType} asserts on purpose.
+     */
+    private TestAnalyzer unionTypedAnalyzer() {
+        return analyzer().minimumTransportVersion(minimumVersionAtLeast(DataType.DataTypesTransportVersions.INDEX_SOURCE))
+            .configuration(configuration(new QueryPragmas(Settings.builder().put(QueryPragmas.UNION_TYPED_FIELDS.getKey(), true).build())));
+    }
+
+    /**
+     * An older node in the cluster cannot read the union type, so the conflict is erased exactly as it is with the
+     * pragma off. The capability is lost and no answer changes, which is the invariant applied to versions rather than
+     * to legs.
+     */
+    public void testATypeConflictStaysUnsupportedOnAClusterTooOldForTheType() {
+        // Any version that cannot read the type, rather than one pinned version: the point is the whole range below the
+        // floor, and VersionMode's own historical draw is random and may well sit above it.
+        TestAnalyzer analyzer = analyzer().minimumTransportVersion(
+            TransportVersionUtils.randomVersionNotSupporting(DataType.DataTypesTransportVersions.INDEX_SOURCE)
+        )
+            .configuration(configuration(new QueryPragmas(Settings.builder().put(QueryPragmas.UNION_TYPED_FIELDS.getKey(), true).build())))
+            .addIndex(conflictedIdIndex("keyword", "long"));
+        analyzer.error(
+            "FROM union_index* | SORT id",
+            allOf(containsString("Cannot use field [id] due to ambiguities"), containsString("[keyword] in [union_index_1]"))
+        );
+    }
+
+    /** An {@code id} field that the two indices of {@code union_index*} map as the two given types. */
+    private static IndexResolution conflictedIdIndex(String typeInFirst, String typeInSecond) {
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put(typeInFirst, Set.of("union_index_1"));
+        typesToIndices.put(typeInSecond, Set.of("union_index_2"));
+        return IndexResolution.valid(
+            new EsIndex(
+                "union_index*",
+                Map.of("id", new InvalidMappedField("id", typesToIndices)),
+                Map.of(
+                    "union_index_1",
+                    new IndexProperties(IndexMode.STANDARD, 0),
+                    "union_index_2",
+                    new IndexProperties(IndexMode.STANDARD, 0)
+                ),
+                Map.of(),
+                Map.of()
+            )
+        );
     }
 
     public void testProjectionForUnionTypeResolution() {

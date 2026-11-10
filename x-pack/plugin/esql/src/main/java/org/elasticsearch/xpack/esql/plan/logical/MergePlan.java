@@ -317,8 +317,27 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
                 return;
             }
             checkBranchCount(plan, failures, pragmas, flags);
+            checkNoUnionAcrossBranches(plan, failures);
             postAnalysisPlanVerification().accept(plan, failures);
         };
+    }
+
+    /**
+     * A union-typed column cannot cross a merge. {@link #output} is fixed when this node is built, during resolution, while a type
+     * conflict only becomes a union at the end of analysis, so the merge's own output attribute keeps the type the conflict had
+     * then: {@link DataType#UNSUPPORTED}. That is a column declared unsupported over branches that produce a union, which renders
+     * as null rather than as an error. Refuse it here until the union is created early enough for the merge to see it.
+     */
+    private static void checkNoUnionAcrossBranches(LogicalPlan plan, Failures failures) {
+        for (LogicalPlan subPlan : plan.children()) {
+            for (Attribute attr : subPlan.output()) {
+                if (attr.dataType() == DataType.UNION) {
+                    failures.add(
+                        Failure.fail(attr, "Column [{}] holds more than one type, which cannot be used across subqueries", attr.name())
+                    );
+                }
+            }
+        }
     }
 
     void checkBranchCount(LogicalPlan plan, Failures failures, QueryPragmas pragmas, EsqlFlags flags) {

@@ -1310,6 +1310,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case OBJECT, SOURCE, DOC_DATA_TYPE, TSID_DATA_TYPE,
                 // Internal only
                 UNSUPPORTED, PARTIAL_AGG,
+                // Produced by union-type resolution over fields that disagree; no index maps a field as one.
+                UNION,
                 // You can't index these - they are just constants.
                 DATE_PERIOD, TIME_DURATION, GEOTILE, GEOHASH, GEOHEX,
                 // TODO fix geo

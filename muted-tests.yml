@@ -472,3 +472,8 @@ tests:
   - :x-pack:plugin:esql:compute:test
   method: testTheResultsAreEmittedWhenTheLastSliceEndsAfterTheStatusInterval
   issue: https://github.com/elastic/elasticsearch/issues/165110
+- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
+  tasks:
+  - :server:internalClusterTest
+  method: testSearchWithRandomDisconnects
+  issue: https://github.com/elastic/elasticsearch/issues/165284

@@ -111,6 +111,23 @@ public class FieldPathFilterTests extends ESTestCase {
         return (Map<String, Object>) map;
     }
 
+    public void testChainedMultiFieldsKeepTheirParent() {
+        Map<String, Object> title = Map.of(
+            "type",
+            "text",
+            "fields",
+            Map.of("raw", Map.of("type", "keyword", "fields", Map.of("sort", Map.of("type", "keyword"))))
+        );
+
+        for (String pattern : List.of("title.raw.sort", "*.sort", "title.*.sort", "title.raw")) {
+            FieldPathFilter filter = FieldPathFilter.forPatterns(List.of(pattern));
+            assertTrue(pattern, filter.enter("title", title));
+            filter.exit();
+        }
+        assertFalse(FieldPathFilter.forPatterns(List.of("title.raw.other")).enter("title", title));
+        assertFalse(FieldPathFilter.forPatterns(List.of("*.other")).enter("title", title));
+    }
+
     public void testPatternOfOnlyWildcardsMatchesAll() {
         assertThat(FieldPathFilter.forPatterns(List.of("*")), sameInstance(FieldPathFilter.matchAll()));
         assertThat(FieldPathFilter.forPatterns(List.of("a", "**")), sameInstance(FieldPathFilter.matchAll()));

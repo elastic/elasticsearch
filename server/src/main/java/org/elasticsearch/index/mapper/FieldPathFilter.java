@@ -102,17 +102,24 @@ public abstract class FieldPathFilter {
         }
 
         private boolean canBeSkipped(String fullPath, Map<?, ?> node) {
-            if (matchesAnyPattern(fullPath) || node.get("properties") instanceof Map) {
-                return false;
-            }
+            return matchesAnyPattern(fullPath) == false
+                && (node.get("properties") instanceof Map) == false
+                && hasWantedMultiField(fullPath, node) == false;
+        }
+
+        // multi-fields can have multi-fields of their own in mappings of indices from before 8.0
+        private boolean hasWantedMultiField(String fullPath, Map<?, ?> node) {
             if (node.get("fields") instanceof Map<?, ?> multiFields) {
-                for (Object multiFieldName : multiFields.keySet()) {
-                    if (matchesAnyPattern(fullPath + "." + multiFieldName)) {
-                        return false;
+                for (Map.Entry<?, ?> multiField : multiFields.entrySet()) {
+                    String multiFieldPath = fullPath + "." + multiField.getKey();
+                    if (matchesAnyPattern(multiFieldPath)
+                        || (multiField.getValue() instanceof Map<?, ?> multiFieldNode
+                            && hasWantedMultiField(multiFieldPath, multiFieldNode))) {
+                        return true;
                     }
                 }
             }
-            return true;
+            return false;
         }
 
         private boolean matchesAnyPattern(String fieldPath) {

@@ -127,13 +127,7 @@ public class DownsampleResilienceIT extends DownsamplingIntegTestCase {
         assertThat(shardTasks(), hasSize(shards));
         DownsampleDisruptionPlugin.release();
         assertDownsampleSucceeds(first);
-        try {
-            assertDownsampleSucceeds(second);
-            logger.info("-> the second downsample request succeeded");
-        } catch (Exception e) {
-            logger.info("-> the second downsample request failed", e);
-            assertThat(e.getMessage(), containsString("] failed"));
-        }
+        assertDownsampleSucceeds(second);
         assertDownsampleCompleted(coordinator, TARGET);
     }
 

@@ -7,7 +7,7 @@ import { parse } from "yaml";
 
 const PROMCHECK_ENV = parse(readFileSync(resolve(import.meta.dirname, "../pipelines/pull-request-validate-prometheus-compliance.yml"), "utf8")).env;
 const SCRIPT = resolve(`${import.meta.dirname}/validate-prometheus-compliance.sh`);
-const CORPUS = PROMCHECK_ENV.PROMCHECK_CORPUS;
+const WORKLOAD = PROMCHECK_ENV.PROMCHECK_WORKLOAD;
 const JQ = execFileSync("sh", ["-c", "command -v jq"], { encoding: "utf8" }).trim();
 const VERSION = PROMCHECK_ENV.PROMCHECK_VER;
 
@@ -85,7 +85,7 @@ cat "${dir}/$run.log"
 exit "$(cat "${dir}/$run.rc" 2>/dev/null || echo 0)"
 `;
     for (const arch of ["amd64", "arm64"]) writeFileSync(join(assets, `promcheck-linux-${arch}`), fakeBin, { mode: 0o755 });
-    writeFileSync(join(assets, `${CORPUS}.tar.gz`), "bundle");
+    writeFileSync(join(assets, `${WORKLOAD}.tar.gz`), "bundle");
 
     // curl: release metadata lists the assets; an asset download copies the file to the -o target.
     writeFileSync(
@@ -105,7 +105,7 @@ case $url in
   */releases/tags/*)
     printf '{"assets":[{"name":"promcheck-linux-amd64","url":"https://assets/promcheck-linux-amd64"},'
     printf '{"name":"promcheck-linux-arm64","url":"https://assets/promcheck-linux-arm64"},'
-    printf '{"name":"${CORPUS}.tar.gz","url":"https://assets/${CORPUS}.tar.gz"}]}' ;;
+    printf '{"name":"${WORKLOAD}.tar.gz","url":"https://assets/${WORKLOAD}.tar.gz"}]}' ;;
   https://assets/*) cp "${assets}/\${url##*/}" "$out" ;;
   *) exit 22 ;;
 esac
@@ -129,7 +129,7 @@ esac
     writeFileSync(join(dir, "test.log"), opts.testLog ?? promcheckLog(tested));
     if (opts.controlRc !== undefined) writeFileSync(join(dir, "control.rc"), String(opts.controlRc));
     if (opts.testRc !== undefined) writeFileSync(join(dir, "test.rc"), String(opts.testRc));
-    const result = spawnSync("bash", [SCRIPT, ...(opts.args ?? [])], {
+    const result = spawnSync("bash", [SCRIPT, "oneshot", ...(opts.args ?? [])], {
       cwd: repo,
       env: {
         ...process.env,
@@ -145,7 +145,7 @@ esac
       },
       encoding: "utf8",
     });
-    const report = join(dir, "tmp", "validate-prometheus-compliance-output", `@${CORPUS}-report.md`);
+    const report = join(dir, "tmp", "validate-prometheus-compliance-output", `@${WORKLOAD}-report.md`);
     const read = (f: string) => (existsSync(f) ? readFileSync(f, "utf8") : "");
     return {
       status: result.status,
@@ -153,10 +153,10 @@ esac
       stdout: result.stdout,
       stderr: result.stderr,
       report: read(report),
-      controlStderr: read(join(dir, "tmp", "validate-prometheus-compliance-output", `@${CORPUS}-control.stderr.log`)),
-      testStderr: read(join(dir, "tmp", "validate-prometheus-compliance-output", `@${CORPUS}-test.stderr.log`)),
-      controlLog: read(join(dir, "tmp", "validate-prometheus-compliance-output", `@${CORPUS}-control.log`)),
-      changes: read(join(dir, "tmp", "validate-prometheus-compliance-output", `@${CORPUS}-changes.json`)),
+      controlStderr: read(join(dir, "tmp", "validate-prometheus-compliance-output", `@${WORKLOAD}-control.stderr.log`)),
+      testStderr: read(join(dir, "tmp", "validate-prometheus-compliance-output", `@${WORKLOAD}-test.stderr.log`)),
+      controlLog: read(join(dir, "tmp", "validate-prometheus-compliance-output", `@${WORKLOAD}-control.log`)),
+      changes: read(join(dir, "tmp", "validate-prometheus-compliance-output", `@${WORKLOAD}-changes.json`)),
       agent: read(join(dir, "agent.log")),
       controlHead: read(join(dir, "control.head")).trim(),
       args: read(join(dir, "args.log")),
@@ -426,7 +426,7 @@ esac
       ids.map((id) => [id, "mismatch", `m${id}`] as Case)
     );
     expect(r.report.match(/^\| \d{3} \|/gm)).toHaveLength(50);
-    expect(r.report).toContain(`_2 more in <a href="artifact://${join(dir, "tmp").slice(1)}/validate-prometheus-compliance-output/@${CORPUS}-changes.json">`);
+    expect(r.report).toContain(`_2 more in <a href="artifact://${join(dir, "tmp").slice(1)}/validate-prometheus-compliance-output/@${WORKLOAD}-changes.json">`);
   });
 
   test("a control run that crashes is reported as not compared without failing the job", () => {

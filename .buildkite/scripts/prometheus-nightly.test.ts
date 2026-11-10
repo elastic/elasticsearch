@@ -6,11 +6,11 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { parse } from "yaml";
 
 const PROMCHECK_ENV = parse(readFileSync(resolve(import.meta.dirname, "../pipelines/pull-request-validate-prometheus-compliance.yml"), "utf8")).env;
-const SCRIPT = resolve(import.meta.dirname, "prometheus-nightly.sh");
+const SCRIPT = resolve(import.meta.dirname, "validate-prometheus-compliance.sh");
 const COUNTS = { type: "summary", total: 6, inspected: 6, match: 1, mismatch: 1, es_4xx: 1, es_5xx: 1, error: 1, request_filtered: 0, response_filtered: 0, flaky: 1 };
 const VERDICT = JSON.stringify(COUNTS);
 
-describe("prometheus-nightly.sh", () => {
+describe("validate-prometheus-compliance.sh nightly", () => {
   let dir: string;
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "prometheus-nightly-"));
@@ -44,7 +44,7 @@ esac
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
   function run(overrides: Record<string, string> = {}) {
-    return spawnSync("bash", [SCRIPT], {
+    return spawnSync("bash", [SCRIPT, "nightly"], {
       encoding: "utf8",
       env: {
         ...process.env,

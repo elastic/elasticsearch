@@ -1,4 +1,5 @@
 import { readFileSync } from "fs";
+import { spawnSync } from "child_process";
 import { resolve } from "path";
 import { describe, expect, test } from "vitest";
 import { parse, parseAllDocuments } from "yaml";
@@ -9,10 +10,23 @@ const pipeline = parse(readFileSync(resolve(ROOT, PIPELINE_FILE), "utf8"));
 const catalog = parseAllDocuments(readFileSync(resolve(ROOT, "catalog-info.yaml"), "utf8")).map((doc) => doc.toJS());
 
 // These are Buildkite expressions evaluated at upload, before any job runs.
-const PR_CONDITION = 'build.source != "schedule" && build.env("PROMCHECK_MODE") != "nightly"';
-const NIGHTLY_CONDITION = 'build.source == "schedule" || build.env("PROMCHECK_MODE") == "nightly"';
+const ONESHOT_CONDITION = 'build.env("PROMCHECK_MODE") == "oneshot" || (build.env("PROMCHECK_MODE") == null && build.source != "schedule")';
+const NIGHTLY_CONDITION = 'build.env("PROMCHECK_MODE") == "nightly" || (build.env("PROMCHECK_MODE") == null && build.source == "schedule")';
 
 describe("shared promcheck YAML pipeline", () => {
+  test.each([
+    { args: [], message: "Unknown promcheck mode: <unset>" },
+    { args: ["unknown"], message: "Unknown promcheck mode: unknown" },
+    { args: ["oneshot", "unknown"], message: "Unknown oneshot action: unknown" },
+  ])("rejects invalid invocation $args before starting work", ({ args, message }) => {
+    const result = spawnSync("bash", [resolve(ROOT, ".buildkite/scripts/validate-prometheus-compliance.sh"), ...args], {
+      encoding: "utf8",
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(message);
+    expect(result.stdout).toBe("");
+  });
+
   test("the existing pipeline retains its identity and gains the nightly schedule", () => {
     const entries = catalog.filter((entry) => entry.spec?.implementation?.spec?.pipeline_file === PIPELINE_FILE);
     expect(entries).toHaveLength(1);
@@ -25,10 +39,17 @@ describe("shared promcheck YAML pipeline", () => {
   });
 
   test("scheduled or explicitly requested nightly builds skip the PR-only steps", () => {
-    expect(pipeline.steps.filter((step) => step.if === PR_CONDITION).map((step) => step.key)).toEqual([
+    expect(pipeline.steps.filter((step) => step.if === ONESHOT_CONDITION).map((step) => step.key)).toEqual([
       "notify", "validate-prometheus-compliance",
     ]);
     expect(pipeline.steps.filter((step) => step.if === NIGHTLY_CONDITION).map((step) => step.key)).toEqual(["prometheus-nightly"]);
+  });
+
+  test("both modes and the notification use the single script", () => {
+    const script = ".buildkite/scripts/validate-prometheus-compliance.sh";
+    expect(pipeline.steps.map((step) => step.command)).toEqual([
+      `${script} oneshot notify`, `${script} oneshot`, `${script} nightly`,
+    ]);
   });
 
   test("anchors share the runner settings while retaining PR-only retries", () => {

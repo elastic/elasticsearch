@@ -1,16 +1,19 @@
 #!/bin/bash
 
+# Modes: oneshot compares a PR with its merge base; nightly indexes a single run in Overview.
 # Detects mismatches between Prometheus and Elasticsearch with promcheck
 # (https://github.com/elastic/promcheck) on the PR and its merge base, then reports
 # regressions, improvements, and flaky cases on the build and the PR.
 # Regressions fail the step; comparisons that cannot run are reported as warnings.
 # The grafanalabs-top100.tar.gz release asset supplies the dataset and queries.
 #
-# Required environment:
+# Required environment for oneshot:
 #   GITHUB_PR_TARGET_BRANCH          PR target branch used to find the merge base.
 #   GH_TOKEN or GITHUB_TOKEN         GitHub token for release asset downloads.
 #   GRADLEW                          CI Gradle command from the pre-command hook; its options are reused.
-# Shared release, corpus, and startup timeout are supplied by .buildkite/pipelines/pull-request-validate-prometheus-compliance.yml.
+# Shared release, workload, and startup timeout are supplied by .buildkite/pipelines/pull-request-validate-prometheus-compliance.yml.
+# Nightly also requires BUILDKITE_BUILD_ID and the results namespace, URL, and Vault secret
+# configured by that YAML (or PROMCHECK_RESULTS_API_KEY in place of the Vault secret).
 # Optional environment:
 #   PROMCHECK_CONCURRENCY            Cases and seeding writes promcheck keeps in flight (default: the CPU count).
 #   PROMETHEUS_COMPLIANCE_TMPDIR     Scratch/artifact parent directory (default /tmp).
@@ -18,14 +21,136 @@
 #   BUILDKITE_JOB_ID                 Job anchor added to the build link.
 # When buildkite-agent is available, the report is annotated and saved as PR-comment
 # metadata for the build bot (the pipeline enables ELASTIC_PR_COMMENTS_ENABLED).
-# With the argument notify, it only posts the running note as an early PR comment and exits;
+# With oneshot notify, it only posts the running note as an early PR comment and exits;
 # that needs only PROMCHECK_VER from the shared YAML configuration.
 
 # Requires Bash 4.4+ (the Buildkite agent runs Linux).
 set -euo pipefail
+# Keep credentials out of traced commands in either mode.
+set +x
 shopt -s inherit_errexit lastpipe
 
-source "$(dirname "${BASH_SOURCE[0]}")/promcheck-common.sh"
+promcheck_error() {
+  printf '%s\n' "$*" >&2
+  return 1
+}
+
+# Reuse the CI Gradle command and size both Elasticsearch and promcheck for the agent.
+promcheck_configure() {
+  local var cmd cpus pages page_size
+  for var in PROMCHECK_VER PROMCHECK_TEST_INSTANCE_TIMEOUT PROMCHECK_WORKLOAD GRADLEW; do
+    [[ -n "${!var:-}" ]] || { promcheck_error "$var must be set"; return 1; }
+  done
+  for cmd in curl getconf jq tee mkfifo; do
+    command -v "$cmd" >/dev/null 2>&1 || { promcheck_error "$cmd must be on the PATH"; return 1; }
+  done
+  [[ "$PROMCHECK_TEST_INSTANCE_TIMEOUT" =~ ^[1-9][0-9]*$ ]] \
+    || { promcheck_error "PROMCHECK_TEST_INSTANCE_TIMEOUT must be a positive integer: $PROMCHECK_TEST_INSTANCE_TIMEOUT"; return 1; }
+  GITHUB_API_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+  [[ -n "$GITHUB_API_TOKEN" ]] || { promcheck_error "GH_TOKEN or GITHUB_TOKEN must be set"; return 1; }
+
+  # Size the node for the agent: every CPU (test clusters default to node.processors=2, which also caps the JVM at
+  # two) and a quarter of the memory as heap; the rest is for the Gradle daemon, promcheck's in-process Prometheus,
+  # the page cache, and the checkouts on the ramdisk. promcheck keeps one case or seeding write in flight per CPU by
+  # default, which gives the same results as a sequential run, only sooner; 100 was no faster on n1-standard-8, since
+  # the node is CPU-bound.
+  cpus=$(getconf _NPROCESSORS_ONLN) || return
+  pages=$(getconf _PHYS_PAGES) || return
+  page_size=$(getconf PAGESIZE) || return
+  AGENT_CPUS="$cpus"
+  ES_HEAP="$(( pages * page_size / 4 / 1024 / 1024 ))m"
+  PROMCHECK_CONCURRENCY="${PROMCHECK_CONCURRENCY:-$cpus}"
+  [[ "$PROMCHECK_CONCURRENCY" =~ ^[1-9][0-9]*$ ]] \
+    || { promcheck_error "PROMCHECK_CONCURRENCY must be a positive integer: $PROMCHECK_CONCURRENCY"; return 1; }
+  # Reuse the pre-command hook options (remote build cache and scans), without ./gradlew itself.
+  local -a gradlew_words
+  read -ra gradlew_words <<< "$GRADLEW"
+  GRADLEW_OPTIONS=("${gradlew_words[@]:1}")
+}
+
+# Keep the authorization header out of curl's process arguments.
+promcheck_github_curl() {
+  printf 'Authorization: Bearer %s\n' "$GITHUB_API_TOKEN" |
+    curl -fsSL --retry 3 --retry-delay 2 --connect-timeout 30 --max-time 300 -H @- "$@"
+}
+
+promcheck_download_asset() {
+  local release="$1" name="$2" target="$3" url
+  url=$(jq -er --arg name "$name" '.assets[] | select(.name == $name) | .url' <<< "$release") \
+    || { promcheck_error "The promcheck v$PROMCHECK_VER release has no $name"; return 1; }
+  promcheck_github_curl -H 'Accept: application/octet-stream' -o "$target" -- "$url" \
+    || { promcheck_error "Could not download $name"; return 1; }
+}
+
+# Download the binary and corpus from the same pinned release into caller-owned paths.
+promcheck_download() {
+  local binary="$1" bundle="$2" release arch
+  release=$(promcheck_github_curl -H 'Accept: application/vnd.github+json' \
+    -- "https://api.github.com/repos/elastic/promcheck/releases/tags/v$PROMCHECK_VER") \
+    || { promcheck_error "Could not fetch the promcheck v$PROMCHECK_VER release"; return 1; }
+  case "$(uname -m)" in
+    x86_64) arch=amd64 ;;
+    aarch64 | arm64) arch=arm64 ;;
+    *) promcheck_error "Unsupported architecture $(uname -m)"; return 1 ;;
+  esac
+  promcheck_download_asset "$release" "promcheck-linux-$arch" "$binary" || return
+  promcheck_download_asset "$release" "$PROMCHECK_WORKLOAD.tar.gz" "$bundle" || return
+  chmod -- +x "$binary"
+}
+
+# Runs promcheck against Elasticsearch built from the given checkout. promcheck exits 1 when queries fail, which
+# is a result; any other exit code means the run itself failed.
+# Arguments after -- go to promcheck's ./gradlew run: the CI Gradle options from GRADLEW, which pull task outputs from
+# the remote build cache that main CI pushes to and publish a build scan for each run, and .ci/init.gradle, which
+# configures that cache. promcheck fixes only what every run needs; the node's size and settings are this job's.
+# JSONL stdout and diagnostic stderr have separate artifacts.
+promcheck_run() {
+  local workspace="$1" binary="$2" bundle="$3" log_file="$4"
+  # Keep the FIFO beside the temporary binary, outside the artifact glob.
+  local stderr_log="${log_file%.log}.stderr.log" fifo="$binary.stderr.fifo"
+  local stderr_pid stderr_status=0
+  local -a statuses gradle_args=(
+    "${GRADLEW_OPTIONS[@]}"
+    --configuration-cache
+    -I "$workspace/.ci/init.gradle"
+    "-Dtests.es.node.processors=$AGENT_CPUS"
+    "-Dtests.heap.size=$ES_HEAP"
+    -Drun.license_type=trial
+    -Dtests.es.xpack.ml.enabled=false
+  )
+  mkfifo -- "$fifo" || return
+  tee -- "$stderr_log" < "$fifo" >&2 &
+  stderr_pid=$!
+  NO_COLOR=1 "$binary" \
+    --elasticsearch "$workspace" \
+    --elasticsearch-timeout "${PROMCHECK_TEST_INSTANCE_TIMEOUT}s" \
+    --output json \
+    --concurrency "$PROMCHECK_CONCURRENCY" \
+    -- "${gradle_args[@]}" \
+    < "$bundle" 2> "$fifo" | tee -- "$log_file"
+  statuses=("${PIPESTATUS[@]}")
+  wait "$stderr_pid" || stderr_status=$?
+  rm -f -- "$fifo"
+  # The node log times the build, startup, and seeding of each run; the merge-base worktree is gone after the job.
+  cp -- "$workspace/build/testclusters/runTask-0/logs/runTask.log" "${log_file%.log}.elasticsearch.log" 2>/dev/null || true
+  (( (statuses[0] == 0 || statuses[0] == 1) && statuses[1] == 0 && stderr_status == 0 ))
+}
+
+# Reject truncated/malformed logs and inconsistent counts before either caller reports a result.
+promcheck_summary() {
+  jq -enc '
+    reduce inputs as $row ({count: 0};
+      if $row.type == "summary" then {count: (.count + 1), summary: $row} else . end)
+    | if .count == 1 then .summary else error("Expected one complete promcheck summary") end
+    | if all([.total, .inspected, .match, .mismatch, .es_4xx, .es_5xx, .error,
+              .request_filtered, .response_filtered, .flaky][]; type == "number" and . >= 0 and . == floor)
+      then . else error("Invalid promcheck counts") end
+    | . + {errors: (.es_4xx + .es_5xx + .error)}
+    | if .total > 0 and .total == (.inspected + .request_filtered)
+         and .inspected == (.match + .mismatch + .errors + .response_filtered + .flaky)
+      then . else error("Inconsistent promcheck counts") end
+  ' -- "$1"
+}
 
 log() {
   printf '%s\n' "$*" >&2
@@ -53,7 +178,7 @@ configure_report() {
 
 configure() {
   configure_report true
-  declare -gr CORPUS="$PROMCHECK_CORPUS"
+  declare -gr WORKLOAD="$PROMCHECK_WORKLOAD"
   [[ -n "${GITHUB_PR_TARGET_BRANCH:-}" ]] || die "GITHUB_PR_TARGET_BRANCH must be set"
   promcheck_configure || return
   local cmd
@@ -69,11 +194,11 @@ configure() {
   declare -gr WORK_DIR="$TMP_ROOT/validate-prometheus-compliance"
   declare -gr OUTPUT_DIR="$TMP_ROOT/validate-prometheus-compliance-output"
   declare -gr PROMCHECK_BIN="$WORK_DIR/promcheck"
-  declare -gr BUNDLE="$WORK_DIR/$CORPUS.tar.gz"
-  declare -gr CONTROL_LOG="$OUTPUT_DIR/@$CORPUS-control.log"
-  declare -gr TEST_LOG="$OUTPUT_DIR/@$CORPUS-test.log"
-  declare -gr CHANGES_FILE="$OUTPUT_DIR/@$CORPUS-changes.json"
-  declare -gr REPORT_FILE="$OUTPUT_DIR/@$CORPUS-report.md"
+  declare -gr BUNDLE="$WORK_DIR/$WORKLOAD.tar.gz"
+  declare -gr CONTROL_LOG="$OUTPUT_DIR/@$WORKLOAD-control.log"
+  declare -gr TEST_LOG="$OUTPUT_DIR/@$WORKLOAD-test.log"
+  declare -gr CHANGES_FILE="$OUTPUT_DIR/@$WORKLOAD-changes.json"
+  declare -gr REPORT_FILE="$OUTPUT_DIR/@$WORKLOAD-report.md"
   # Artifacts keep their absolute path without the leading slash.
   declare -gr CHANGES_LINK="<a href=\"artifact://${CHANGES_FILE#/}\">${CHANGES_FILE##*/}</a>"
 }
@@ -330,8 +455,8 @@ on_exit() {
   cleanup "$control_dir"
 }
 
-# A subshell keeps main's locals available to the EXIT trap on errexit as well as explicit exit.
-main() (
+# A subshell keeps the mode's locals available to the EXIT trap on errexit as well as explicit exit.
+run_oneshot() (
   local control_dir="" base revision control_summary test_summary regressions
   local style=success status=0 final_report=false
   # Populated and consumed through namerefs in the helpers.
@@ -388,8 +513,80 @@ main() (
   exit "$status"
 )
 
-if [[ "${1:-}" == notify ]]; then
-  notify
-else
-  main
-fi
+# The scheduled mode records one real run without the PR comparison or comment workflow.
+# A subshell keeps the temporary directory available to its EXIT trap on failure.
+run_nightly() (
+  for var in PROMCHECK_RESULTS_NAMESPACE BUILDKITE_BUILD_ID; do
+    [[ -n "${!var:-}" ]] || { echo "$var must be set" >&2; exit 1; }
+  done
+  promcheck_configure
+  [[ "$PROMCHECK_RESULTS_NAMESPACE" =~ ^[a-z0-9_]+$ && ${#PROMCHECK_RESULTS_NAMESPACE} -le 100 ]] \
+    || { echo "Invalid results namespace" >&2; exit 1; }
+  # The namespace selects both the destination and its dashboard filter, keeping experimental runs isolated.
+  readonly PROMCHECK_RESULTS_INDEX="synthetics-promql.support-$PROMCHECK_RESULTS_NAMESPACE"
+  # CI provides Vault access. Environment overrides also allow an explicitly configured destination.
+  if [[ -z "${PROMCHECK_RESULTS_URL:-}" || -z "${PROMCHECK_RESULTS_API_KEY:-}" ]]; then
+    : "${PROMCHECK_RESULTS_SECRET:?Set the results URL and API key, or a Vault secret path}"
+    secret=$(vault read -format=json "$PROMCHECK_RESULTS_SECRET")
+    PROMCHECK_RESULTS_URL=${PROMCHECK_RESULTS_URL:-$(jq -er '.data.url' <<< "$secret")}
+    PROMCHECK_RESULTS_API_KEY=${PROMCHECK_RESULTS_API_KEY:-$(jq -er '.data.api_key' <<< "$secret")}
+    unset secret
+  fi
+  [[ "$PROMCHECK_RESULTS_URL" == https://* ]] || { echo "Results URL must use HTTPS" >&2; exit 1; }
+
+  readonly OUTPUT_DIR="${PROMCHECK_OUTPUT_DIR:-/tmp/prometheus-nightly-output}"
+  mkdir -p "$OUTPUT_DIR"
+  work_dir=$(mktemp -d)
+  trap 'rm -rf "$work_dir"' EXIT
+  echo "--- Downloading promcheck v$PROMCHECK_VER"
+  promcheck_download "$work_dir/promcheck" "$work_dir/$PROMCHECK_WORKLOAD.tar.gz"
+
+  revision=$(git rev-parse HEAD)
+  started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  echo "--- Running promcheck"
+  promcheck_run "$PWD" "$work_dir/promcheck" "$work_dir/$PROMCHECK_WORKLOAD.tar.gz" "$OUTPUT_DIR/promcheck.log" \
+    || { echo "promcheck failed to complete; see run artifacts" >&2; exit 1; }
+  promcheck_summary "$OUTPUT_DIR/promcheck.log" > "$OUTPUT_DIR/counts.json"
+  jq -n --slurpfile counts "$OUTPUT_DIR/counts.json" \
+    --arg timestamp "$started_at" --arg commit "$revision" --arg branch "${BUILDKITE_BRANCH:-}" \
+    --arg version "$PROMCHECK_VER" --arg corpus "$PROMCHECK_WORKLOAD" --arg namespace "$PROMCHECK_RESULTS_NAMESPACE" \
+    --arg build_id "$BUILDKITE_BUILD_ID" --arg build_url "${BUILDKITE_BUILD_URL:-}" \
+    --arg pipeline "${BUILDKITE_PIPELINE_SLUG:-elasticsearch-pull-request-validate-prometheus-compliance}" \
+    --argjson build_number "${BUILDKITE_BUILD_NUMBER:-0}" \
+    '$counts[0] as $c | {
+      "@timestamp": $timestamp, status: "ok", dataset: $corpus,
+      data_stream: {type: "synthetics", dataset: "promql.support", namespace: $namespace},
+      git: {commit: $commit, branch: $branch}, promcheck: {version: $version},
+      buildkite: {build_id: $build_id, build_number: $build_number, build_url: $build_url, pipeline: $pipeline},
+      compliance: {
+        input_total: $c.total, executed_total: $c.inspected, executed_success: $c.match,
+        executed_failure: $c.mismatch, executed_error: $c.errors,
+        executed_skip: ($c.response_filtered + $c.flaky), success_pct: ((1000 * $c.match / $c.total | round) / 10)
+      }}' > "$OUTPUT_DIR/result.json"
+
+  echo "--- Indexing promcheck results"
+  # Overview stores compliance history in a data stream, which requires create operations.
+  # A stable build/corpus ID lets an upload retry recognize an already-created result.
+  doc_id=$(jq -rn --arg id "$BUILDKITE_BUILD_ID-$PROMCHECK_WORKLOAD" '$id | @uri')
+  http_status=$(curl -sS --retry 3 --connect-timeout 30 --max-time 120 -X PUT \
+    -H "Authorization: ApiKey $PROMCHECK_RESULTS_API_KEY" -H 'Content-Type: application/json' \
+    --data-binary "@$OUTPUT_DIR/result.json" -o "$OUTPUT_DIR/index-response.json" --write-out '%{http_code}' \
+    "${PROMCHECK_RESULTS_URL%/}/$PROMCHECK_RESULTS_INDEX/_create/$doc_id")
+  case "$http_status" in
+    201) jq -e '.result == "created"' "$OUTPUT_DIR/index-response.json" >/dev/null ;;
+    409) jq -e '.error.type == "version_conflict_engine_exception"' "$OUTPUT_DIR/index-response.json" >/dev/null ;;
+    *) echo "Results upload failed (HTTP $http_status); see index-response.json" >&2; exit 1 ;;
+  esac
+  echo "Indexed $PROMCHECK_WORKLOAD results for $revision"
+)
+
+case "${1:-}" in
+  oneshot)
+    case "${2:-run}" in
+      notify) notify ;;
+      run) run_oneshot ;;
+      *) die "Unknown oneshot action: $2 (expected run or notify)" ;;
+    esac ;;
+  nightly) run_nightly ;;
+  *) die "Unknown promcheck mode: ${1:-<unset>} (expected oneshot or nightly)" ;;
+esac

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ImplicitUnionCastKibanaDefinitionTests;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.ImplicitUnionCastKibanaDefinitionTests.Conversion;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -39,13 +40,12 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Pins how a {@code TS} field that conflicts across backing indices behaves, as seen by Kibana. A type conflict
+ * Pins how a field that conflicts across backing indices behaves, as seen by Kibana. A type conflict
  * ({@code double} vs {@code aggregate_metric_double}) surfaces in discovery as {@code unsupported} with both original
- * types, yet every consumer listed in {@code implicit_union_casts.json} resolves over it. A time-series role conflict
+ * types, yet resolves under every conversion published in {@code implicit_union_casts.json}. A time-series role conflict
  * (dimension vs metric) carries no original types and fails verification.
  */
 public class TsAggregateMetricDoubleConflictTests extends AnalyzerTestCase {
@@ -75,16 +75,42 @@ public class TsAggregateMetricDoubleConflictTests extends AnalyzerTestCase {
         assertThat(columnJson("metric", originalTypes), containsString("\"suggested_cast\":\"aggregate_metric_double\""));
     }
 
-    public void testPublishedCastsResolveOverTypeConflict() {
-        assertThat(ImplicitUnionCastKibanaDefinitionTests.conflictTypes(), hasItems(DOUBLE.esNameIfPossible()));
-        for (Map.Entry<String, DataType> cast : ImplicitUnionCastKibanaDefinitionTests.implicitUnionCasts().entrySet()) {
-            String operator = COMPARISONS.get(cast.getKey());
-            LogicalPlan plan = operator == null
-                ? typeConflictedTsdb().query("TS idx | STATS r = " + cast.getKey() + "(metric)")
-                : typeConflictedTsdb().query("TS idx | EVAL r = metric " + operator + " 0 | KEEP r | LIMIT 10");
-            assertTrue("expected [" + cast.getKey() + "] to resolve over the conflict", plan.resolved());
-            assertThat("return type of [" + cast.getKey() + "]", plan.output().getFirst().dataType(), equalTo(cast.getValue()));
+    /**
+     * Kibana type-checks each published function as if the field were {@code convertsTo}, so over every
+     * {@code aggregate_metric_double}/numeric conflict the function must resolve, and return the same type as it does
+     * over a plain {@code convertsTo} field.
+     */
+    public void testPublishedConversionsMatchAnalyzer() {
+        Map<String, Conversion> byFunction = ImplicitUnionCastKibanaDefinitionTests.implicitConversions()
+            .get(AGGREGATE_METRIC_DOUBLE.esNameIfPossible());
+        for (IndexMode mode : new IndexMode[] { IndexMode.STANDARD, IndexMode.TIME_SERIES }) {
+            for (DataType numeric : DataType.values()) {
+                if (numeric.isNumeric() == false) {
+                    continue;
+                }
+                for (Map.Entry<String, Conversion> function : byFunction.entrySet()) {
+                    String query = query(mode, function.getKey());
+                    String context = query + " over [" + numeric.typeName() + ", aggregate_metric_double]";
+                    LogicalPlan conflicted = index(typeConflict(numeric), mode).query(query);
+                    assertTrue("expected " + context + " to resolve", conflicted.resolved());
+                    assertThat(context, conflicted.output().getFirst().dataType(), equalTo(function.getValue().returnType()));
+                    LogicalPlan converted = index(plainField(function.getValue().convertsTo()), mode).query(query);
+                    assertThat(
+                        query + " over [" + function.getValue().convertsTo().typeName() + "]",
+                        converted.output().getFirst().dataType(),
+                        equalTo(function.getValue().returnType())
+                    );
+                }
+            }
         }
+    }
+
+    private static String query(IndexMode mode, String function) {
+        String source = mode == IndexMode.TIME_SERIES ? "TS idx" : "FROM idx";
+        String operator = COMPARISONS.get(function);
+        return operator == null
+            ? source + " | STATS r = " + function + "(metric) | LIMIT 10"
+            : source + " | EVAL r = metric " + operator + " 0 | KEEP r | LIMIT 10";
     }
 
     public void testDiscoveryLeavesRoleConflictWithoutHint() throws IOException {
@@ -99,22 +125,33 @@ public class TsAggregateMetricDoubleConflictTests extends AnalyzerTestCase {
     }
 
     private TestAnalyzer typeConflictedTsdb() {
-        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
-        typesToIndices.put(DOUBLE.typeName(), Set.of("idx-a"));
-        typesToIndices.put(AGGREGATE_METRIC_DOUBLE.typeName(), Set.of("idx-b"));
-        return tsdb(new InvalidMappedField("metric", typesToIndices));
+        return index(typeConflict(DOUBLE), IndexMode.TIME_SERIES);
     }
 
     private TestAnalyzer roleConflictedTsdb() {
-        return tsdb(new InvalidMappedTsField("host", "Field [host] has conflicting time-series roles across indices"));
+        return index(
+            new InvalidMappedTsField("host", "Field [host] has conflicting time-series roles across indices"),
+            IndexMode.TIME_SERIES
+        );
     }
 
-    private TestAnalyzer tsdb(EsField conflicted) {
+    private static EsField typeConflict(DataType numeric) {
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put(numeric.typeName(), Set.of("idx-a"));
+        typesToIndices.put(AGGREGATE_METRIC_DOUBLE.typeName(), Set.of("idx-b"));
+        return new InvalidMappedField("metric", typesToIndices);
+    }
+
+    private static EsField plainField(DataType type) {
+        return new EsField("metric", type, Map.of(), true, EsField.TimeSeriesFieldType.METRIC);
+    }
+
+    private TestAnalyzer index(EsField field, IndexMode mode) {
         EsField timestamp = DateEsField.dateEsField("@timestamp", Map.of(), true, EsField.TimeSeriesFieldType.NONE);
         EsIndex index = new EsIndex(
             "idx",
-            Map.of(conflicted.getName(), conflicted, "@timestamp", timestamp),
-            Map.of("idx-a", new IndexProperties(IndexMode.TIME_SERIES, 1), "idx-b", new IndexProperties(IndexMode.TIME_SERIES, 1)),
+            Map.of(field.getName(), field, "@timestamp", timestamp),
+            Map.of("idx-a", new IndexProperties(mode, 1), "idx-b", new IndexProperties(mode, 1)),
             Map.of(),
             Map.of()
         );

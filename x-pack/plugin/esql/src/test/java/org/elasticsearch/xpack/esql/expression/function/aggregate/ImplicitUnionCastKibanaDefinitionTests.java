@@ -19,24 +19,21 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.hamcrest.Matchers.hasItems;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.hasEntry;
 
 /**
- * Generates the Kibana definition file describing the implicit union casts applied to
- * {@code aggregate_metric_double} conflicts: when a field is mapped as {@code aggregate_metric_double}
- * in one index and a plain numeric in another (the shape raw-versus-downsampled indices produce),
- * the {@code ImplicitCastAggregateMetricDoubles} analyzer rule implicitly reconciles the types under
- * {@code avg}, {@code sum}, {@code min}, {@code max} and {@code count} and in binary comparisons,
- * so the query runs even though field discovery reports the column as {@code unsupported}.
- * Kibana uses this file to tell a resolvable conflict from a fatal one instead of guessing
- * from {@code suggested_cast}.
+ * Generates the Kibana definition file describing the implicit union casts applied by the
+ * {@code ImplicitCastAggregateMetricDoubles} analyzer rule: when a field is mapped as {@code aggregate_metric_double}
+ * in some indices and as a numeric in the others (the shape raw-versus-downsampled indices produce), each listed
+ * function or operator reads the field converted to {@code convertsTo} and returns {@code returnType}, so the query
+ * runs even though field discovery reports the column as {@code unsupported}. Kibana uses this file to type-check
+ * those functions against the converted type instead of rejecting the field.
  * <p>
  * Run with:
  * <pre>
@@ -45,34 +42,19 @@ import static org.hamcrest.Matchers.not;
  */
 public class ImplicitUnionCastKibanaDefinitionTests extends ESTestCase {
 
-    /** The type a conflict must contain for the rule to apply; a conflict between plain numerics is not reconciled. */
-    public static DataType requiredConflictType() {
-        return AGGREGATE_METRIC_DOUBLE;
-    }
-
-    /** The types a reconcilable conflict may consist of, mirroring the rule's {@code canBeCast} condition. */
-    public static List<String> conflictTypes() {
-        TreeSet<String> types = new TreeSet<>();
-        for (DataType dataType : DataType.values()) {
-            if (dataType.isNumericOrAmd()) {
-                types.add(dataType.esNameIfPossible());
-            }
-        }
-        return List.copyOf(types);
-    }
+    public record Conversion(DataType convertsTo, DataType returnType) {}
 
     /**
-     * The functions and operators that accept the conflict, with the type each returns over it: the aggregates the rule
-     * names (min, max, sum, count and avg) and the binary comparisons. Each one is checked against the analyzer in
-     * {@code TsAggregateMetricDoubleConflictTests}.
+     * The conversions the {@code ImplicitCastAggregateMetricDoubles} rule applies, by the field type that triggers them
+     * and then by function or operator. Each one is checked against the analyzer in {@code TsAggregateMetricDoubleConflictTests}.
      */
-    public static Map<String, DataType> implicitUnionCasts() {
-        Map<String, DataType> casts = new TreeMap<>();
-        casts.put("avg", DOUBLE);
-        casts.put("count", LONG);
-        casts.put("max", DOUBLE);
-        casts.put("min", DOUBLE);
-        casts.put("sum", DOUBLE);
+    public static Map<String, Map<String, Conversion>> implicitConversions() {
+        Map<String, Conversion> byFunction = new TreeMap<>();
+        byFunction.put("avg", new Conversion(DOUBLE, DOUBLE));
+        byFunction.put("count", new Conversion(INTEGER, LONG));
+        byFunction.put("max", new Conversion(DOUBLE, DOUBLE));
+        byFunction.put("min", new Conversion(DOUBLE, DOUBLE));
+        byFunction.put("sum", new Conversion(DOUBLE, DOUBLE));
         for (String comparison : List.of(
             "equals",
             "not_equals",
@@ -81,19 +63,17 @@ public class ImplicitUnionCastKibanaDefinitionTests extends ESTestCase {
             "less_than",
             "less_than_or_equal"
         )) {
-            casts.put(comparison, BOOLEAN);
+            byFunction.put(comparison, new Conversion(DOUBLE, BOOLEAN));
         }
-        return casts;
+        return Map.of(AGGREGATE_METRIC_DOUBLE.esNameIfPossible(), byFunction);
     }
 
-    public void testConflictTypes() {
-        List<String> types = conflictTypes();
-        // the conflict from the issue: raw (double) versus downsampled (aggregate_metric_double) types
-        assertThat(types, hasItems(requiredConflictType().esNameIfPossible(), "double", "integer", "long"));
-        // non-numeric types never reconcile
-        for (String rejected : new String[] { "keyword", "boolean", "date" }) {
-            assertThat(types, not(hasItems(rejected)));
-        }
+    public void testImplicitConversions() {
+        Map<String, Conversion> byFunction = implicitConversions().get(AGGREGATE_METRIC_DOUBLE.esNameIfPossible());
+        // the conversions from the issue: a downsampled field averages as double, and count sums the value counts
+        assertThat(byFunction, hasEntry("avg", new Conversion(DOUBLE, DOUBLE)));
+        assertThat(byFunction, hasEntry("count", new Conversion(INTEGER, LONG)));
+        assertThat(byFunction, hasEntry("greater_than", new Conversion(DOUBLE, BOOLEAN)));
     }
 
     public void testGenerateKibanaDefinition() throws Exception {
@@ -104,14 +84,15 @@ public class ImplicitUnionCastKibanaDefinitionTests extends ESTestCase {
                 "This is generated by ESQL's ImplicitUnionCastKibanaDefinitionTests. "
                     + "Do not edit it. See docs/reference/query-languages/esql/README.md for how to regenerate it."
             );
-            builder.startObject("conflict");
-            builder.field("requires", requiredConflictType().esNameIfPossible());
-            builder.stringListField("types", conflictTypes());
-            builder.endObject();
-            builder.startObject("functions");
-            for (Map.Entry<String, DataType> entry : implicitUnionCasts().entrySet()) {
-                builder.startObject(entry.getKey());
-                builder.field("returnType", entry.getValue().esNameIfPossible());
+            builder.startObject("types");
+            for (Map.Entry<String, Map<String, Conversion>> type : new TreeMap<>(implicitConversions()).entrySet()) {
+                builder.startObject(type.getKey());
+                for (Map.Entry<String, Conversion> function : type.getValue().entrySet()) {
+                    builder.startObject(function.getKey());
+                    builder.field("convertsTo", function.getValue().convertsTo().esNameIfPossible());
+                    builder.field("returnType", function.getValue().returnType().esNameIfPossible());
+                    builder.endObject();
+                }
                 builder.endObject();
             }
             builder.endObject();

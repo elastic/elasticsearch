@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
@@ -116,6 +117,25 @@ public class CaseSpellingsTests extends ESTestCase {
         assertNull(CaseSpellings.of(new BytesRef("ąęćłńóśżź"), MOST));
         assertNull("nor under a count of one", CaseSpellings.of(new BytesRef("ąę"), 1));
         assertNotNull("while a term spelled one way fits a count of one", CaseSpellings.of(new BytesRef("brown"), 1));
+    }
+
+    /** A term as long as a term can be is spelled without copying what came before each character. */
+    public void testTheLongestTermIsSpelledInOnePass() {
+        final String term = "x".repeat(IndexWriter.MAX_TERM_LENGTH - 4) + "ąę";
+        final List<BytesRef> needles = CaseSpellings.of(new BytesRef(term), MOST);
+        assertNotNull(needles);
+        assertEquals(4, needles.size());
+        for (String spelling : List.of("ąę", "Ąę", "ąĘ", "ĄĘ")) {
+            final String spelled = "x".repeat(IndexWriter.MAX_TERM_LENGTH - 4) + spelling;
+            assertTrue(anyNeedleFound(new BytesRef(spelled), needles));
+        }
+    }
+
+    /** Bytes that are not UTF-8 are not characters to spell, so they are not read for. */
+    public void testATermThatIsNotUtf8IsNotReadFor() {
+        assertNull("a lead byte with no character after it", CaseSpellings.of(new BytesRef(new byte[] { 'a', (byte) 0xC3 }), MOST));
+        assertNull("a byte that never leads", CaseSpellings.of(new BytesRef(new byte[] { (byte) 0x80, 'a' }), MOST));
+        assertNull("a lead byte beyond Unicode", CaseSpellings.of(new BytesRef(new byte[] { (byte) 0xF8, 'a', 'a', 'a' }), MOST));
     }
 
     /**

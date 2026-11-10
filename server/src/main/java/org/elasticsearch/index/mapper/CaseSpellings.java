@@ -10,9 +10,13 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.UnicodeUtil;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,13 +37,16 @@ final class CaseSpellings {
     private CaseSpellings() {}
 
     /**
-     * Characters that lower onto a character, held only for the characters that more than one lowers onto. Built
-     * once, by asking of every character what it lowers onto, so that a change in what Unicode says cannot leave
-     * this behind.
+     * The other ways to spell a character, by the characters that lower onto it, held only for the characters
+     * spelled some way their own bytes do not cover under the comparison of ASCII case. Built once, by asking of
+     * every character what it lowers onto, so that a change in what Unicode says cannot leave this behind.
      */
-    private static final Map<Integer, int[]> LOWERS_ONTO = loweringMap();
+    private static final Map<Integer, byte[][]> OTHER_SPELLINGS;
 
-    private static Map<Integer, int[]> loweringMap() {
+    /** {@link #OTHER_SPELLINGS} for the ASCII characters, which most terms are made of. */
+    private static final byte[][][] OTHER_ASCII_SPELLINGS = new byte[128][][];
+
+    static {
         final Map<Integer, List<Integer>> sources = new TreeMap<>();
         for (int codePoint = 0; codePoint <= Character.MAX_CODE_POINT; codePoint++) {
             if (Character.isDefined(codePoint) == false) {
@@ -50,59 +57,94 @@ final class CaseSpellings {
                 sources.computeIfAbsent(lower, k -> new ArrayList<>()).add(codePoint);
             }
         }
-        final Map<Integer, int[]> built = new TreeMap<>();
+        final Map<Integer, byte[][]> built = new HashMap<>();
         sources.forEach((lower, from) -> {
-            final int[] all = new int[from.size()];
-            for (int i = 0; i < all.length; i++) {
-                all[i] = from.get(i);
+            final Set<BytesRef> apart = new HashSet<>();
+            apart.add(fold(new BytesRef(utf8(lower))));
+            final List<byte[]> others = new ArrayList<>();
+            for (int codePoint : from) {
+                final byte[] other = utf8(codePoint);
+                if (apart.add(fold(new BytesRef(other)))) {
+                    others.add(other);
+                }
             }
-            built.put(lower, all);
+            if (others.isEmpty() == false) {
+                built.put(lower, others.toArray(byte[][]::new));
+            }
         });
-        return Map.copyOf(built);
+        built.forEach((lower, others) -> {
+            if (lower < OTHER_ASCII_SPELLINGS.length) {
+                OTHER_ASCII_SPELLINGS[lower] = others;
+            }
+        });
+        OTHER_SPELLINGS = Map.copyOf(built);
+    }
+
+    private static byte[] utf8(int codePoint) {
+        return new String(Character.toChars(codePoint)).getBytes(StandardCharsets.UTF_8);
     }
 
     /**
      * Every way a value could spell {@code term}, as patterns to look for, or null where there are more of them
-     * than {@code most}. Spellings the comparison of ASCII case takes for the same are one pattern, and are made
-     * one as each character is added rather than at the end: a term of ASCII would otherwise be counted in its
-     * thousands on the way to the one pattern it comes to.
+     * than {@code most}, or where {@code term} is not UTF-8. Spellings of one character that the comparison of
+     * ASCII case takes for the same are one, so a term of ASCII comes to one pattern. A character spelled one way
+     * is appended to the spellings in place, and only one spelled more ways copies them, which can happen no more
+     * than {@code most} times over, so the work stays linear in the length of the term.
      */
     static List<BytesRef> of(BytesRef term, int most) {
-        final String spelled = term.utf8ToString();
-        List<String> spellings = List.of("");
-        for (int offset = 0; offset < spelled.length();) {
-            final int codePoint = spelled.codePointAt(offset);
-            offset += Character.charCount(codePoint);
-            final int[] lowersOnto = LOWERS_ONTO.get(codePoint);
-            final List<String> grown = new ArrayList<>(spellings.size());
-            final Set<BytesRef> apart = new LinkedHashSet<>();
-            for (String spelling : spellings) {
-                addIfApart(grown, apart, spelling + new String(Character.toChars(codePoint)));
-            }
-            if (lowersOnto != null) {
-                for (String spelling : spellings) {
-                    for (int from : lowersOnto) {
-                        addIfApart(grown, apart, spelling + new String(Character.toChars(from)));
-                    }
+        final byte[] bytes = term.bytes;
+        final int end = term.offset + term.length;
+        List<BytesRefBuilder> spellings = new ArrayList<>(List.of(new BytesRefBuilder()));
+        final UnicodeUtil.UTF8CodePoint codePoint = new UnicodeUtil.UTF8CodePoint();
+        for (int at = term.offset; at < end; at += codePoint.numBytes) {
+            final byte[][] others;
+            final int lead = bytes[at] & 0xFF;
+            if (lead < 0x80) {
+                codePoint.numBytes = 1;
+                others = OTHER_ASCII_SPELLINGS[lead];
+            } else {
+                final int length = lead >= 0xF0 ? 4 : lead >= 0xE0 ? 3 : lead >= 0xC0 ? 2 : 0;
+                if (length == 0 || lead > 0xF4 || at + length > end) {
+                    return null;
                 }
+                UnicodeUtil.codePointAt(bytes, at, codePoint);
+                others = OTHER_SPELLINGS.get(codePoint.codePoint);
             }
-            if (grown.size() > most) {
+            if (others == null) {
+                for (BytesRefBuilder spelling : spellings) {
+                    spelling.append(bytes, at, codePoint.numBytes);
+                }
+                continue;
+            }
+            if ((long) spellings.size() * (1 + others.length) > most) {
                 return null;
+            }
+            final List<BytesRefBuilder> grown = new ArrayList<>(spellings.size() * (1 + others.length));
+            for (BytesRefBuilder spelling : spellings) {
+                final BytesRefBuilder copy = new BytesRefBuilder();
+                copy.copyBytes(spelling);
+                copy.append(bytes, at, codePoint.numBytes);
+                grown.add(copy);
+            }
+            for (byte[] other : others) {
+                for (BytesRefBuilder spelling : spellings) {
+                    final BytesRefBuilder copy = new BytesRefBuilder();
+                    copy.copyBytes(spelling);
+                    copy.append(other, 0, other.length);
+                    grown.add(copy);
+                }
             }
             spellings = grown;
         }
         final List<BytesRef> patterns = new ArrayList<>(spellings.size());
-        for (String spelling : spellings) {
-            patterns.add(new BytesRef(spelling));
+        final Set<BytesRef> apart = new HashSet<>();
+        for (BytesRefBuilder spelling : spellings) {
+            final BytesRef pattern = spelling.toBytesRef();
+            if (apart.add(fold(pattern))) {
+                patterns.add(pattern);
+            }
         }
         return patterns;
-    }
-
-    /** Keeps {@code spelling} where the comparison of ASCII case tells it from the ones kept already. */
-    private static void addIfApart(List<String> kept, Set<BytesRef> apart, String spelling) {
-        if (apart.add(fold(new BytesRef(spelling)))) {
-            kept.add(spelling);
-        }
     }
 
     /** A pattern as the comparison of ASCII case reads it, which is how two spellings are told apart. */

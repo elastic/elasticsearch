@@ -38,6 +38,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -47,6 +49,21 @@ import static org.hamcrest.Matchers.not;
  * (dimension vs metric) carries no original types and fails verification.
  */
 public class TsAggregateMetricDoubleConflictTests extends AnalyzerTestCase {
+
+    private static final Map<String, String> COMPARISONS = Map.of(
+        "equals",
+        "==",
+        "not_equals",
+        "!=",
+        "greater_than",
+        ">",
+        "greater_than_or_equal",
+        ">=",
+        "less_than",
+        "<",
+        "less_than_or_equal",
+        "<="
+    );
 
     public TsAggregateMetricDoubleConflictTests(VersionMode versionMode) {
         super(versionMode);
@@ -58,21 +75,16 @@ public class TsAggregateMetricDoubleConflictTests extends AnalyzerTestCase {
         assertThat(columnJson("metric", originalTypes), containsString("\"suggested_cast\":\"aggregate_metric_double\""));
     }
 
-    public void testPublishedFunctionsResolveOverTypeConflict() {
-        var cast = ImplicitUnionCastKibanaDefinitionTests.implicitUnionCasts().get(AGGREGATE_METRIC_DOUBLE.esNameIfPossible());
-        assertTrue(cast.compatibleTypes().contains(DOUBLE.esNameIfPossible()));
-        for (String function : cast.functions()) {
-            LogicalPlan plan = typeConflictedTsdb().query("TS idx | STATS " + function + "(metric)");
-            assertTrue("expected [" + function + "] to resolve over the conflict", plan.resolved());
+    public void testPublishedCastsResolveOverTypeConflict() {
+        assertThat(ImplicitUnionCastKibanaDefinitionTests.conflictTypes(), hasItems(DOUBLE.esNameIfPossible()));
+        for (Map.Entry<String, DataType> cast : ImplicitUnionCastKibanaDefinitionTests.implicitUnionCasts().entrySet()) {
+            String operator = COMPARISONS.get(cast.getKey());
+            LogicalPlan plan = operator == null
+                ? typeConflictedTsdb().query("TS idx | STATS r = " + cast.getKey() + "(metric)")
+                : typeConflictedTsdb().query("TS idx | EVAL r = metric " + operator + " 0 | KEEP r | LIMIT 10");
+            assertTrue("expected [" + cast.getKey() + "] to resolve over the conflict", plan.resolved());
+            assertThat("return type of [" + cast.getKey() + "]", plan.output().getFirst().dataType(), equalTo(cast.getValue()));
         }
-    }
-
-    public void testComparisonResolvesOverTypeConflict() {
-        assertTrue(
-            ImplicitUnionCastKibanaDefinitionTests.implicitUnionCasts().get(AGGREGATE_METRIC_DOUBLE.esNameIfPossible()).comparisons()
-        );
-        LogicalPlan plan = typeConflictedTsdb().query("TS idx | WHERE metric > 0 | KEEP @timestamp | LIMIT 10");
-        assertTrue("expected the comparison to resolve over the conflict", plan.resolved());
     }
 
     public void testDiscoveryLeavesRoleConflictWithoutHint() throws IOException {

@@ -22,6 +22,9 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
 
@@ -29,8 +32,8 @@ import static org.hamcrest.Matchers.not;
  * Generates the Kibana definition file describing the implicit union casts applied to
  * {@code aggregate_metric_double} conflicts: when a field is mapped as {@code aggregate_metric_double}
  * in one index and a plain numeric in another (the shape raw-versus-downsampled indices produce),
- * the {@code ImplicitCastAggregateMetricDoubles} analyzer rule implicitly reconciles the legs under
- * {@code avg}, {@code sum}, {@code min}, {@code max} and {@code count} (and in binary comparisons),
+ * the {@code ImplicitCastAggregateMetricDoubles} analyzer rule implicitly reconciles the types under
+ * {@code avg}, {@code sum}, {@code min}, {@code max} and {@code count} and in binary comparisons,
  * so the query runs even though field discovery reports the column as {@code unsupported}.
  * Kibana uses this file to tell a resolvable conflict from a fatal one instead of guessing
  * from {@code suggested_cast}.
@@ -42,41 +45,54 @@ import static org.hamcrest.Matchers.not;
  */
 public class ImplicitUnionCastKibanaDefinitionTests extends ESTestCase {
 
-    /**
-     * A conflict containing the keyed type resolves when every other leg is in {@code compatibleTypes}, under
-     * {@code functions} and, if {@code comparisons} is set, in binary comparisons.
-     */
-    public record UnionCast(List<String> compatibleTypes, List<String> functions, boolean comparisons) {}
+    /** The type a conflict must contain for the rule to apply; a conflict between plain numerics is not reconciled. */
+    public static DataType requiredConflictType() {
+        return AGGREGATE_METRIC_DOUBLE;
+    }
 
-    /**
-     * The casts the {@code ImplicitCastAggregateMetricDoubles} rule applies, by the type that makes a conflict castable.
-     * The other legs mirror its {@code canBeCast} condition (every leg numeric or {@code aggregate_metric_double}) and
-     * the functions are the ones it names (min, max, sum, count and avg). Each one is checked to resolve over a conflict
-     * in {@code TsAggregateMetricDoubleConflictTests}.
-     */
-    public static Map<String, UnionCast> implicitUnionCasts() {
-        TreeSet<String> numerics = new TreeSet<>();
+    /** The types a reconcilable conflict may consist of, mirroring the rule's {@code canBeCast} condition. */
+    public static List<String> conflictTypes() {
+        TreeSet<String> types = new TreeSet<>();
         for (DataType dataType : DataType.values()) {
-            if (dataType.isNumeric()) {
-                numerics.add(dataType.esNameIfPossible());
+            if (dataType.isNumericOrAmd()) {
+                types.add(dataType.esNameIfPossible());
             }
         }
-        Map<String, UnionCast> casts = new TreeMap<>();
-        casts.put(
-            AGGREGATE_METRIC_DOUBLE.esNameIfPossible(),
-            new UnionCast(List.copyOf(numerics), List.of("avg", "count", "max", "min", "sum"), true)
-        );
+        return List.copyOf(types);
+    }
+
+    /**
+     * The functions and operators that accept the conflict, with the type each returns over it: the aggregates the rule
+     * names (min, max, sum, count and avg) and the binary comparisons. Each one is checked against the analyzer in
+     * {@code TsAggregateMetricDoubleConflictTests}.
+     */
+    public static Map<String, DataType> implicitUnionCasts() {
+        Map<String, DataType> casts = new TreeMap<>();
+        casts.put("avg", DOUBLE);
+        casts.put("count", LONG);
+        casts.put("max", DOUBLE);
+        casts.put("min", DOUBLE);
+        casts.put("sum", DOUBLE);
+        for (String comparison : List.of(
+            "equals",
+            "not_equals",
+            "greater_than",
+            "greater_than_or_equal",
+            "less_than",
+            "less_than_or_equal"
+        )) {
+            casts.put(comparison, BOOLEAN);
+        }
         return casts;
     }
 
-    public void testImplicitUnionCasts() {
-        UnionCast cast = implicitUnionCasts().get(AGGREGATE_METRIC_DOUBLE.esNameIfPossible());
-        assertNotNull(cast);
-        // the conflict from the issue: raw (double) versus downsampled (aggregate_metric_double) legs
-        assertThat(cast.compatibleTypes(), hasItems("double", "integer", "long"));
-        // non-numeric legs never reconcile
-        for (String rejected : new String[] { "keyword", "boolean", "date", "aggregate_metric_double" }) {
-            assertThat(cast.compatibleTypes(), not(hasItems(rejected)));
+    public void testConflictTypes() {
+        List<String> types = conflictTypes();
+        // the conflict from the issue: raw (double) versus downsampled (aggregate_metric_double) types
+        assertThat(types, hasItems(requiredConflictType().esNameIfPossible(), "double", "integer", "long"));
+        // non-numeric types never reconcile
+        for (String rejected : new String[] { "keyword", "boolean", "date" }) {
+            assertThat(types, not(hasItems(rejected)));
         }
     }
 
@@ -88,12 +104,14 @@ public class ImplicitUnionCastKibanaDefinitionTests extends ESTestCase {
                 "This is generated by ESQL's ImplicitUnionCastKibanaDefinitionTests. "
                     + "Do not edit it. See docs/reference/query-languages/esql/README.md for how to regenerate it."
             );
-            builder.startObject("types");
-            for (Map.Entry<String, UnionCast> entry : implicitUnionCasts().entrySet()) {
+            builder.startObject("conflict");
+            builder.field("requires", requiredConflictType().esNameIfPossible());
+            builder.stringListField("types", conflictTypes());
+            builder.endObject();
+            builder.startObject("functions");
+            for (Map.Entry<String, DataType> entry : implicitUnionCasts().entrySet()) {
                 builder.startObject(entry.getKey());
-                builder.stringListField("compatibleTypes", entry.getValue().compatibleTypes());
-                builder.stringListField("functions", entry.getValue().functions());
-                builder.field("comparisons", entry.getValue().comparisons());
+                builder.field("returnType", entry.getValue().esNameIfPossible());
                 builder.endObject();
             }
             builder.endObject();

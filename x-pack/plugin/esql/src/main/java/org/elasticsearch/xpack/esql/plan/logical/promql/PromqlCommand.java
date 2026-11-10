@@ -778,9 +778,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                 case Selector selector -> verifySelector(selector, failures);
                 case AcrossSeriesAggregate agg -> {
                     verifyGroupingLabels(agg, agg.groupings(), failures);
-                    if (agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT && usesWithoutGrouping(agg.child())) {
-                        failures.add(fail(agg, "nested WITHOUT over WITHOUT is not supported at this time [{}]", agg.sourceText()));
-                    }
                 }
                 case AcrossSeriesReduction reduction -> verifyGroupingLabels(reduction, reduction.groupings(), failures);
                 case HistogramFunctionCall histogram -> {

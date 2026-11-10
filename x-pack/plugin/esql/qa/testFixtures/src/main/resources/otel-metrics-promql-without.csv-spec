@@ -232,3 +232,19 @@ result:double | _timeseries:keyword
 6.0           | "{""labels"":{""cpu"":""system""}}"
 12.0          | "{""labels"":{""cpu"":""user""}}"
 ;
+
+// A without over a without on passthrough attributes leaves out each level's labels by either name.
+nested_without_over_passthrough_attributes
+required_capability: promql_command_v0
+required_capability: promql_without_grouping
+required_capability: promql_nested_aggregates
+required_capability: promql_nested_without
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
+PROMQL index=otel-metrics step=1h result=(sum without (attributes.state) (max without (cpu) (metrics.cpu_time)))
+| KEEP result, step, _timeseries
+| SORT step, _timeseries;
+
+result:double | step:datetime            | _timeseries:keyword
+12.0          | 2024-05-10T01:00:00.000Z | {}
+;

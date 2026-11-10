@@ -1,0 +1,1 @@
+PROMQL index=k8s step=1h result=(avg without(pod)(sum without(pod)(network.cost)))

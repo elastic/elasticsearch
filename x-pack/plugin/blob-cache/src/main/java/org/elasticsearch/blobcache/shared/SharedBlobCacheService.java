@@ -1725,6 +1725,28 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return length == 0;
         }
 
+        /**
+         * Whether all of {@code range} is in the cache: every region it touches is cached and has no missing or pending byte in
+         * {@code range}. Unlike {@link #tryRead}, the regions do not need to be filled from their start (prototype, fast activation:
+         * ranges written in the cache at known positions, see the stateless plugin's commit pointer open bytes).
+         */
+        public boolean isRangeAvailable(ByteRange range) {
+            if (range.isEmpty()) {
+                return false;
+            }
+            for (int region = getRegion(range.start()); region <= getEndingRegion(range.end()); region++) {
+                final ByteRange subRange = mapSubRangeToRegion(range, region);
+                if (subRange.isEmpty()) {
+                    continue;
+                }
+                final CacheEntry<CacheFileRegion<KeyType>> fileRegion = cache.getIfPresent(cacheKey, region);
+                if (fileRegion == null || fileRegion.chunk.tracker.getAbsentBytesWithin(subRange) != 0L) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         public boolean tryRead(ByteBuffer buf, long offset) throws IOException {
             return tryRead(buf, offset, SharedBytes.MADV_NORMAL);
         }

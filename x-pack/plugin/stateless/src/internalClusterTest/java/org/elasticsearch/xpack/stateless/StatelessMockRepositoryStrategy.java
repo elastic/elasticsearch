@@ -43,6 +43,12 @@ public class StatelessMockRepositoryStrategy {
     public static final StatelessMockRepositoryStrategy DEFAULT = new StatelessMockRepositoryStrategy();
 
     /**
+     * Path of the {@link BlobContainer} on which the strategy hook currently executing on this thread was invoked. Set by
+     * {@link StatelessMockRepository} immediately before each hook call; strategies may read it at the start of a hook.
+     */
+    public static final ThreadLocal<org.elasticsearch.common.blobstore.BlobPath> CURRENT_BLOB_PATH = new ThreadLocal<>();
+
+    /**
      * Called in {@link BlobContainer#deleteBlobsIgnoringIfNotExists(OperationPurpose, Iterator)}.
      */
     public void blobStoreDeleteBlobsIgnoringIfNotExists(

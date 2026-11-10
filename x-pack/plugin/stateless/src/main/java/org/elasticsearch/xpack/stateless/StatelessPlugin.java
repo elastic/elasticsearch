@@ -13,6 +13,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
+import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.termvectors.EnsureDocsSearchableAction;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
@@ -137,10 +138,12 @@ import org.elasticsearch.xpack.stateless.action.TransportEnsureDocsSearchableAct
 import org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseAction;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.action.UnparkOnWriteFilter;
 import org.elasticsearch.xpack.stateless.allocation.AbstractEstimatedHeapAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.DisableSimulationRebalancingDecider;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor;
+import org.elasticsearch.xpack.stateless.allocation.ParkedIndexAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityMonitor;
 import org.elasticsearch.xpack.stateless.allocation.StatelessAllocationDecider;
@@ -174,6 +177,7 @@ import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessPersisted
 import org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsistentClusterStateReadAction;
 import org.elasticsearch.xpack.stateless.commits.BCCHeaderReadExecutor;
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
+import org.elasticsearch.xpack.stateless.commits.CommitPointerPublisher;
 import org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure;
 import org.elasticsearch.xpack.stateless.commits.HollowIndexEngineDeletionPolicy;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -208,7 +212,9 @@ import org.elasticsearch.xpack.stateless.memory.TransportPublishMergeMemoryEstim
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTask;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTaskExecutor;
+import org.elasticsearch.xpack.stateless.recovery.ActivationSortPrefetcher;
 import org.elasticsearch.xpack.stateless.recovery.EstimatedHeapUsageRecoveryGate;
+import org.elasticsearch.xpack.stateless.recovery.FastSearchActivationSettings;
 import org.elasticsearch.xpack.stateless.recovery.PITRelocationService;
 import org.elasticsearch.xpack.stateless.recovery.PitRelocationMetrics;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
@@ -1347,6 +1353,22 @@ public class StatelessPlugin extends Plugin
             RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING,
             StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT,
             SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT,
+            FastSearchActivationSettings.FAST_ACTIVATION_ENABLED_SETTING,
+            FastSearchActivationSettings.FAST_ACTIVATION_RANGE_SIZE_SETTING,
+            FastSearchActivationSettings.FAST_ACTIVATION_WHOLE_BLOB_THRESHOLD_SETTING,
+            FastSearchActivationSettings.FAST_ACTIVATION_VECTOR_RANGE_SIZE_SETTING,
+            FastSearchActivationSettings.FAST_ACTIVATION_VECTOR_WHOLE_FILE_MAX_SETTING,
+            FastSearchActivationSettings.FAST_ACTIVATION_DISCOVERY_SETTING,
+            FastSearchActivationSettings.COMMIT_POINTER_ENABLED_SETTING,
+            FastSearchActivationSettings.COMMIT_POINTER_OPEN_BYTES_MAX_SIZE_SETTING,
+            FastSearchActivationSettings.FAST_ACTIVATION_USE_POINTER_OPEN_BYTES_SETTING,
+            ParkedIndexAllocationDecider.PARKED_SETTING,
+            UnparkOnWriteFilter.ENABLED_SETTING,
+            FastSearchActivationSettings.FAST_ACTIVATION_HEADER_RANGE_SIZE_SETTING,
+            FastSearchActivationSettings.FAST_ACTIVATION_FILL_WINDOW_SETTING,
+            FastSearchActivationSettings.FAST_ACTIVATION_PREFETCH_SORT_DOC_VALUES_SETTING,
+            FastSearchActivationSettings.FAST_ACTIVATION_PREFETCH_QUERY_RANGES_MAX_SIZE_SETTING,
+            FastSearchActivationSettings.FAST_ACTIVATION_SKIP_WHOLE_BLOB_WARMING_WITH_OPEN_BYTES_SETTING,
             HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED,
             HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL,
             HollowShardsService.SETTING_HOLLOW_INGESTION_TTL,
@@ -1521,6 +1543,14 @@ public class StatelessPlugin extends Plugin
                 }
             });
             indexModule.addIndexEventListener(
+                new CommitPointerPublisher(
+                    statelessCommitService,
+                    objectStoreService.get(),
+                    clusterService.get(),
+                    threadPool.get().executor(SHARD_WRITE_THREAD_POOL)
+                )
+            );
+            indexModule.addIndexEventListener(
                 new StatelessIndexNodeRecoveryListener(
                     threadPool.get(),
                     statelessCommitService,
@@ -1553,6 +1583,7 @@ public class StatelessPlugin extends Plugin
 
             indexModule.addIndexEventListener(this.searchShardInformationIndexListener.get());
             indexModule.addIndexEventListener(this.pitRelocationService.get());
+            indexModule.addSearchOperationListener(new ActivationSortPrefetcher(clusterService.get().getClusterSettings()));
 
             final var searchIdxVersion = indexModule.indexSettings().getIndexVersionCreated();
             indexModule.setDirectoryWrapper((in, shardRouting) -> {
@@ -1979,6 +2010,12 @@ public class StatelessPlugin extends Plugin
     }
 
     @Override
+    public Collection<ActionFilter> getActionFilters() {
+        // parking prototype, phase 3: a write to a parked index unparks its indexing shard (default off, see the filter's setting)
+        return List.of(new UnparkOnWriteFilter(clusterService::get, clientRef::get, projectResolver::get));
+    }
+
+    @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
         estimatedHeapSettings.set(new EstimatedHeapSettings(clusterSettings));
         return List.of(
@@ -1986,7 +2023,9 @@ public class StatelessPlugin extends Plugin
             new StatelessAllocationDecider(),
             new EstimatedHeapUsageAllocationDecider(estimatedHeapSettings.get(), clusterSettings),
             new SharedCacheCapacityAllocationDecider(clusterSettings),
-            new StatelessThrottlingConcurrentRecoveriesAllocationDecider(clusterSettings)
+            new StatelessThrottlingConcurrentRecoveriesAllocationDecider(clusterSettings),
+            // parking prototype, phase 3: keeps the indexing copy of an index with index.stateless.parked=true unassigned (default off)
+            new ParkedIndexAllocationDecider()
         );
     }
 

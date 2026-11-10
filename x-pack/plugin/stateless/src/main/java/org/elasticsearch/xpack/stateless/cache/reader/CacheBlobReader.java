@@ -38,6 +38,15 @@ public interface CacheBlobReader {
     ByteRange getRange(long position, int length, long remainingFileLength);
 
     /**
+     * Same as {@link #getRange(long, int, long)}, but asks for a range of at least {@code minRangeSize} bytes where the reader supports
+     * it, so that files read with long chains of dependent random reads (e.g. vector graphs) are filled in few large ranges even if
+     * the reader otherwise fills small ranges. Readers that cannot widen their ranges (e.g. reads from the indexing shard) ignore it.
+     */
+    default ByteRange getRange(long position, int length, long remainingFileLength, long minRangeSize) {
+        return getRange(position, length, remainingFileLength);
+    }
+
+    /**
      * The input stream to fetch the data from, with which to read into the cache. This may be called multiple times for different parts
      * of the range returned by {@link #getRange(long, int, long)}.
      *

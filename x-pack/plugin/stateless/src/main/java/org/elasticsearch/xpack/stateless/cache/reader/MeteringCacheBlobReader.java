@@ -37,6 +37,11 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
     }
 
     @Override
+    public ByteRange getRange(long position, int length, long remainingFileLength, long minRangeSize) {
+        return delegate.getRange(position, length, remainingFileLength, minRangeSize);
+    }
+
+    @Override
     public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
         delegate.getRangeInputStream(position, length, listener.map(MeteringInputStream::new));
     }

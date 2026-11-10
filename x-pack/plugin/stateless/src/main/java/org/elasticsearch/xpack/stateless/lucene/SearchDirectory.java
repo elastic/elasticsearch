@@ -11,7 +11,10 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -34,6 +37,7 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
+import org.elasticsearch.xpack.stateless.cache.reader.VectorFillPolicy;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -42,6 +46,8 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.NoSuchFileException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -55,6 +61,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.Consumer;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 
@@ -104,6 +111,40 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     private final long fallbackRegionTimestampMillis;
     private volatile Map<String, BlobFileRanges> currentMetadata = Map.of();
     private volatile long currentDataSetSizeInBytes = 0L;
+    /**
+     * Size of the ranges used to fill the cache from the object store on cache misses and recovery warming, or {@code -1} to use the
+     * cache range size. Set by the fast activation path (see {@code FastSearchActivationSettings}).
+     */
+    private volatile long objectStoreRangeSizeOverride = -1L;
+    /**
+     * How cache misses on vector files fill the cache, or {@code null} for the default. Set by the fast activation path together with
+     * {@link #objectStoreRangeSizeOverride} (see {@code FastSearchActivationSettings}).
+     */
+    @Nullable
+    private volatile VectorFillPolicy vectorFillPolicy;
+    /**
+     * Size of the ranges used by the activation-time header/footer/metadata warming, or {@code -1} to use
+     * {@link #objectStoreRangeSizeOverride} (see {@code FastSearchActivationSettings}).
+     */
+    private volatile long warmingRangeSizeOverride = -1L;
+    /**
+     * Whether an activation-time fill override was ever set on this directory: its cache-miss readers then read the fill size at each
+     * fill, so that {@link #clearActivationFillOverrides()} also applies to inputs opened during the activation.
+     */
+    private volatile boolean dynamicFillSize = false;
+    /**
+     * Prototype (fast activation, phase 4): set when the open-time bytes of the commit were written in the cache from its commit pointer,
+     * until {@link #clearActivationFillOverrides()}: reads of bytes already in the cache do not fill their surrounding range (see
+     * {@code CacheFileReader#withReadPresentWithoutFill}), so that opening the reader on sparse cached pages reads nothing from the store.
+     */
+    private volatile boolean readPresentWithoutFill = false;
+
+    /**
+     * Prototype (fast activation, phase 3 gap 3): notified when a query-time read finds a blob of the commit missing in the object store
+     * (see {@link #setMissingBlobListener}). {@code null} (the default) keeps the existing behaviour: the read fails, the shard stays.
+     */
+    @Nullable
+    private volatile Consumer<Exception> missingBlobListener;
 
     public SearchDirectory(
         StatelessSharedBlobCacheService cacheService,
@@ -473,15 +514,155 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         return Collections.unmodifiableList(result);
     }
 
+    /**
+     * Makes cache misses and recovery warming of this directory fill the cache from the object store with ranges of {@code rangeSize}
+     * bytes rather than the cache range size (usually a whole cache region), so that a cold shard reads only (about) the bytes it needs.
+     * Capped at the cache range size.
+     */
+    public void setObjectStoreRangeSizeOverride(long rangeSize) {
+        assert rangeSize > 0 : rangeSize;
+        this.dynamicFillSize = true;
+        this.objectStoreRangeSizeOverride = Math.min(rangeSize, cacheService.getRangeSize());
+    }
+
+    /**
+     * Makes the recovery warming of this directory (header/footer/metadata warming at activation) fill the cache with ranges of
+     * {@code rangeSize} bytes, independently of the query fill size. Capped at the cache range size.
+     */
+    public void setWarmingRangeSizeOverride(long rangeSize) {
+        assert rangeSize > 0 : rangeSize;
+        this.warmingRangeSizeOverride = Math.min(rangeSize, cacheService.getRangeSize());
+    }
+
+    /**
+     * Ends the activation-time fill overrides: later cache misses (including on inputs opened before) and warming fill whole cache ranges
+     * again and inputs opened afterwards use the default vector fill. Inputs opened during the activation keep their vector policy.
+     */
+    public void clearActivationFillOverrides() {
+        this.readPresentWithoutFill = false;
+        this.objectStoreRangeSizeOverride = -1L;
+        this.warmingRangeSizeOverride = -1L;
+        this.vectorFillPolicy = null;
+    }
+
+    private long warmingRangeSize() {
+        final long override = warmingRangeSizeOverride;
+        return override > 0 ? override : objectStoreRangeSize();
+    }
+
+    /**
+     * Makes cache misses on vector files of this directory fill the cache according to {@code policy} (see {@link VectorFillPolicy}).
+     * The range size of the policy is capped at the cache range size. Applies to inputs opened afterwards.
+     */
+    public void setVectorFillPolicy(VectorFillPolicy policy) {
+        this.vectorFillPolicy = new VectorFillPolicy(
+            Math.min(policy.rangeSize(), cacheService.getRangeSize()),
+            policy.wholeFileOnMissMaxBytes()
+        );
+    }
+
+    /**
+     * Whether the shard is still in its activation fill window (its cache misses fill the small activation ranges), i.e. it was
+     * activated recently and its cache is cold. Ends with {@link #clearActivationFillOverrides()}.
+     */
+    public boolean inActivationFillWindow() {
+        return objectStoreRangeSizeOverride > 0;
+    }
+
+    /** See {@link #readPresentWithoutFill}; ends with {@link #clearActivationFillOverrides()}. */
+    public void setReadPresentWithoutFill() {
+        this.readPresentWithoutFill = true;
+    }
+
+    @Override
+    protected boolean readPresentWithoutFill() {
+        return readPresentWithoutFill;
+    }
+
+    @Override
+    protected VectorFillPolicy vectorFillPolicy() {
+        return vectorFillPolicy;
+    }
+
+    private long objectStoreRangeSize() {
+        final long override = objectStoreRangeSizeOverride;
+        return override > 0 ? override : cacheService.getRangeSize();
+    }
+
+    /**
+     * Installs (or with {@code null} removes) a listener that is notified when a query-time read of a blob of this shard fails because the
+     * blob does not exist (any longer) in the object store. Used by pointer-based activation, whose commit's blobs are not protected from
+     * deletion by a registration with the indexing shard, to fail the shard instead of failing searches until it moves.
+     */
+    public void setMissingBlobListener(@Nullable Consumer<Exception> listener) {
+        this.missingBlobListener = listener;
+    }
+
     @Override
     public CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
+        final CacheBlobReader reader = getQueryCacheBlobReader(fileName, blobFile);
+        final Consumer<Exception> onMissingBlob = missingBlobListener;
+        return onMissingBlob == null ? reader : new MissingBlobDetectingCacheBlobReader(reader, onMissingBlob);
+    }
+
+    /**
+     * Reports a {@link NoSuchFileException} / {@link FileNotFoundException} of the object store read to a listener, then fails as
+     * before.
+     */
+    private record MissingBlobDetectingCacheBlobReader(CacheBlobReader delegate, Consumer<Exception> onMissingBlob)
+        implements
+            CacheBlobReader {
+
+        @Override
+        public ByteRange getRange(long position, int length, long remainingFileLength) {
+            return delegate.getRange(position, length, remainingFileLength);
+        }
+
+        @Override
+        public ByteRange getRange(long position, int length, long remainingFileLength, long minRangeSize) {
+            return delegate.getRange(position, length, remainingFileLength, minRangeSize);
+        }
+
+        @Override
+        public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
+            delegate.getRangeInputStream(position, length, listener.delegateResponse((l, e) -> {
+                if (ExceptionsHelper.unwrap(e, NoSuchFileException.class, FileNotFoundException.class) != null) {
+                    onMissingBlob.accept(e);
+                }
+                l.onFailure(e);
+            }));
+        }
+
+        @Override
+        public String executorName() {
+            return delegate.executorName();
+        }
+    }
+
+    private CacheBlobReader getQueryCacheBlobReader(String fileName, BlobFile blobFile) {
+        if (dynamicFillSize) {
+            return cacheBlobReaderService.getCacheBlobReader(
+                shardId,
+                this::getBlobContainer,
+                blobFile,
+                objectStoreUploadTracker,
+                totalBytesWarmedFromObjectStore::add,
+                totalBytesWarmedFromIndexing::add,
+                BlobCacheMetrics.CachePopulationReason.CacheMiss,
+                cacheService.getShardReadThreadPoolExecutor(),
+                fileName,
+                false,
+                this::objectStoreRangeSize
+            );
+        }
         return getCacheBlobReader(
             fileName,
             blobFile,
             objectStoreUploadTracker,
             BlobCacheMetrics.CachePopulationReason.CacheMiss,
             cacheService.getShardReadThreadPoolExecutor(),
-            false
+            false,
+            objectStoreRangeSize()
         );
     }
 
@@ -494,7 +675,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             objectStoreUploadTracker,
             BlobCacheMetrics.CachePopulationReason.Warming,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            true
+            true,
+            warmingRangeSize()
         );
     }
 
@@ -554,6 +736,40 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         Executor executor,
         boolean speculativeFill
     ) {
+        return getCacheBlobReader(
+            fileName,
+            blobFile,
+            tracker,
+            cachePopulationReason,
+            executor,
+            speculativeFill,
+            cacheService.getRangeSize()
+        );
+    }
+
+    private CacheBlobReader getCacheBlobReader(
+        String fileName,
+        BlobFile blobFile,
+        MutableObjectStoreUploadTracker tracker,
+        BlobCacheMetrics.CachePopulationReason cachePopulationReason,
+        Executor executor,
+        boolean speculativeFill,
+        long objectStoreRangeSize
+    ) {
+        if (objectStoreRangeSize == cacheService.getRangeSize()) {
+            return cacheBlobReaderService.getCacheBlobReader(
+                shardId,
+                this::getBlobContainer,
+                blobFile,
+                tracker,
+                totalBytesWarmedFromObjectStore::add,
+                totalBytesWarmedFromIndexing::add,
+                cachePopulationReason,
+                executor,
+                fileName,
+                speculativeFill
+            );
+        }
         return cacheBlobReaderService.getCacheBlobReader(
             shardId,
             this::getBlobContainer,
@@ -564,7 +780,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             cachePopulationReason,
             executor,
             fileName,
-            speculativeFill
+            speculativeFill,
+            objectStoreRangeSize
         );
     }
 

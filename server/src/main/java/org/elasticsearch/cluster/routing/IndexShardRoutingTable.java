@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.Randomness;
@@ -666,6 +667,7 @@ public class IndexShardRoutingTable {
         }
 
         static boolean noAssignedReplicaWithoutActivePrimary(List<ShardRouting> shards) {
+            final boolean unpromotableWithoutPrimary = ReplicaAfterPrimaryActiveAllocationDecider.UNPROMOTABLE_WITHOUT_PRIMARY;
             boolean seenAssignedReplica = false;
             for (final var shard : shards) {
                 if (shard.currentNodeId() != null) {
@@ -673,7 +675,9 @@ public class IndexShardRoutingTable {
                         if (shard.active()) {
                             return true;
                         }
-                    } else {
+                    } else if (shard.isPromotableToPrimary() || unpromotableWithoutPrimary == false) {
+                        // fast activation prototype: unpromotable copies may be assigned without an active primary, see
+                        // ReplicaAfterPrimaryActiveAllocationDecider#UNPROMOTABLE_WITHOUT_PRIMARY_ENABLED_SETTING
                         seenAssignedReplica = true;
                     }
                 }

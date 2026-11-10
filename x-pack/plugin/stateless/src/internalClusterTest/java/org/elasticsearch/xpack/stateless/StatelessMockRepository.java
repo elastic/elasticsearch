@@ -106,6 +106,12 @@ public class StatelessMockRepository extends FsRepository {
                 super(delegate);
             }
 
+            /** Exposes this container's path to the strategy for the duration of the call on the calling thread. */
+            private StatelessMockRepositoryStrategy strategy() {
+                StatelessMockRepositoryStrategy.CURRENT_BLOB_PATH.set(path());
+                return getStrategy();
+            }
+
             @Override
             protected BlobContainer wrapChild(BlobContainer child) {
                 return new StatelessMockBlobContainer(child);
@@ -113,22 +119,22 @@ public class StatelessMockRepository extends FsRepository {
 
             @Override
             public Map<String, BlobContainer> children(OperationPurpose purpose) throws IOException {
-                return getStrategy().blobContainerChildren(() -> super.children(purpose), purpose);
+                return strategy().blobContainerChildren(() -> super.children(purpose), purpose);
             }
 
             @Override
             public DeleteResult delete(OperationPurpose purpose) throws IOException {
-                return getStrategy().blobContainerDelete(() -> super.delete(purpose), purpose);
+                return strategy().blobContainerDelete(() -> super.delete(purpose), purpose);
             }
 
             @Override
             public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
-                return getStrategy().blobContainerReadBlob(() -> super.readBlob(purpose, blobName), purpose, blobName);
+                return strategy().blobContainerReadBlob(() -> super.readBlob(purpose, blobName), purpose, blobName);
             }
 
             @Override
             public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
-                return getStrategy().blobContainerReadBlob(
+                return strategy().blobContainerReadBlob(
                     () -> super.readBlob(purpose, blobName, position, length),
                     purpose,
                     blobName,
@@ -144,7 +150,7 @@ public class StatelessMockRepository extends FsRepository {
                 List<String> blobNamesCopy = new ArrayList<>();
                 blobNames.forEachRemaining(blobNamesCopy::add);
                 List<String> blobNamesCopy2 = new ArrayList<>(blobNamesCopy);
-                getStrategy().blobStoreDeleteBlobsIgnoringIfNotExists(
+                strategy().blobStoreDeleteBlobsIgnoringIfNotExists(
                     () -> super.deleteBlobsIgnoringIfNotExists(purpose, blobNamesCopy.iterator()),
                     purpose,
                     blobNamesCopy2.iterator()
@@ -159,7 +165,7 @@ public class StatelessMockRepository extends FsRepository {
                 long blobSize,
                 boolean failIfAlreadyExists
             ) throws IOException {
-                getStrategy().blobContainerWriteBlob(
+                strategy().blobContainerWriteBlob(
                     () -> super.writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists),
                     purpose,
                     blobName,
@@ -172,7 +178,7 @@ public class StatelessMockRepository extends FsRepository {
             @Override
             public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
                 throws IOException {
-                getStrategy().blobContainerWriteBlob(
+                strategy().blobContainerWriteBlob(
                     () -> super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists),
                     purpose,
                     blobName,
@@ -183,7 +189,7 @@ public class StatelessMockRepository extends FsRepository {
 
             @Override
             public boolean supportsConcurrentMultipartUploads() {
-                return getStrategy().supportsConcurrentMultipartUploads(super::supportsConcurrentMultipartUploads);
+                return strategy().supportsConcurrentMultipartUploads(super::supportsConcurrentMultipartUploads);
             }
 
             @Override
@@ -195,7 +201,7 @@ public class StatelessMockRepository extends FsRepository {
                 boolean failIfAlreadyExists,
                 Executor executor
             ) throws IOException {
-                getStrategy().blobContainerWriteBlobAtomic(
+                strategy().blobContainerWriteBlobAtomic(
                     () -> super.writeBlobAtomic(purpose, blobName, blobSize, provider, failIfAlreadyExists, executor),
                     purpose,
                     blobName,
@@ -214,7 +220,7 @@ public class StatelessMockRepository extends FsRepository {
                 long blobSize,
                 boolean failIfAlreadyExists
             ) throws IOException {
-                getStrategy().blobContainerWriteBlobAtomic(
+                strategy().blobContainerWriteBlobAtomic(
                     () -> super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists),
                     purpose,
                     blobName,
@@ -233,7 +239,7 @@ public class StatelessMockRepository extends FsRepository {
                 long blobSize,
                 @Nullable Executor executor
             ) throws IOException {
-                getStrategy().blobContainerCopyBlob(
+                strategy().blobContainerCopyBlob(
                     () -> super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor),
                     purpose,
                     sourceBlobContainer,
@@ -251,7 +257,7 @@ public class StatelessMockRepository extends FsRepository {
                 boolean atomic,
                 CheckedConsumer<OutputStream, IOException> writer
             ) throws IOException {
-                getStrategy().blobContainerWriteMetadataBlob(
+                strategy().blobContainerWriteMetadataBlob(
                     () -> super.writeMetadataBlob(purpose, blobName, failIfAlreadyExists, atomic, writer),
                     purpose,
                     blobName,
@@ -263,12 +269,12 @@ public class StatelessMockRepository extends FsRepository {
 
             @Override
             public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
-                return getStrategy().blobContainerListBlobs(() -> super.listBlobs(purpose), purpose);
+                return strategy().blobContainerListBlobs(() -> super.listBlobs(purpose), purpose);
             }
 
             @Override
             public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String blobNamePrefix) throws IOException {
-                return getStrategy().blobContainerListBlobsByPrefix(
+                return strategy().blobContainerListBlobsByPrefix(
                     () -> super.listBlobsByPrefix(purpose, blobNamePrefix),
                     purpose,
                     blobNamePrefix
@@ -283,7 +289,7 @@ public class StatelessMockRepository extends FsRepository {
                 BytesReference updated,
                 ActionListener<Boolean> listener
             ) {
-                getStrategy().blobContainerCompareAndSetRegister(
+                strategy().blobContainerCompareAndSetRegister(
                     () -> super.compareAndSetRegister(purpose, key, expected, updated, listener),
                     purpose,
                     key,
@@ -295,7 +301,7 @@ public class StatelessMockRepository extends FsRepository {
 
             @Override
             public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
-                getStrategy().blobContainerGetRegister(() -> super.getRegister(purpose, key, listener), purpose, key, listener);
+                strategy().blobContainerGetRegister(() -> super.getRegister(purpose, key, listener), purpose, key, listener);
             }
         }
     }

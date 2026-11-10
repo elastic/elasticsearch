@@ -77,6 +77,7 @@ import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -84,6 +85,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -116,6 +118,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         );
         EsPhysicalOperationProviders provider = new EsPhysicalOperationProviders(
             FoldContext.small(),
+            TEST_CFG,
             new IndexedByShardIdFromSingleton<>(
                 new EsPhysicalOperationProviders.DefaultShardContext(0, () -> {}, createMockContext(), AliasFilter.EMPTY)
             ),
@@ -171,6 +174,78 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
                 );
             }
         }
+    }
+
+    /**
+     * An {@link EsQueryExec} with several query slices (as produced by {@code ROUND_TO} pushdown) emits the documents of all of
+     * them, so a field is only dense when it is dense in every slice.
+     */
+    public void testNullsFilteredFieldsAfterSourceQueriesIntersectsSlices() {
+        QueryBuilder existsF1 = new ExistsQueryBuilder("f1");
+        QueryBuilder existsF1AndF2 = new BoolQueryBuilder().filter(new ExistsQueryBuilder("f1")).filter(new ExistsQueryBuilder("f2"));
+        QueryBuilder noF1 = new BoolQueryBuilder().mustNot(new ExistsQueryBuilder("f1"));
+
+        // A single slice keeps its dense fields.
+        assertThat(slices(existsF1), equalTo(Set.of("f1")));
+        assertThat(slices(existsF1AndF2), equalTo(Set.of("f1", "f2")));
+        // Slices that agree keep the field.
+        assertThat(slices(existsF1, existsF1AndF2), equalTo(Set.of("f1")));
+        // The shape of the single-point ROUND_TO pushdown: documents with a value, plus the documents without one.
+        assertThat(slices(existsF1, noF1), equalTo(Set.of()));
+        assertThat(slices(noF1, existsF1), equalTo(Set.of()));
+        // Only the field that is dense in every slice survives.
+        assertThat(slices(existsF1AndF2, new BoolQueryBuilder().filter(new ExistsQueryBuilder("f2"))), equalTo(Set.of("f2")));
+        // A slice without a query matches every document.
+        assertThat(slices(existsF1, null), equalTo(Set.of()));
+        assertThat(slices((QueryBuilder) null), equalTo(Set.of()));
+        assertThat(EsPhysicalOperationProviders.nullsFilteredFieldsAfterSourceQueries(List.of()), equalTo(Set.of()));
+    }
+
+    private static Set<String> slices(QueryBuilder... queries) {
+        List<EsQueryExec.QueryBuilderAndTags> slices = new ArrayList<>();
+        for (QueryBuilder query : queries) {
+            slices.add(new EsQueryExec.QueryBuilderAndTags(query, List.of()));
+        }
+        return EsPhysicalOperationProviders.nullsFilteredFieldsAfterSourceQueries(slices);
+    }
+
+    /**
+     * Regression test for the node crash {@code nullsFiltered is true, but doc [N] has no value}: {@code ROUND_TO} pushdown
+     * splits the source query into {@code exists(f)} (tagged with the rounding point) and {@code must_not(exists(f))} (tagged
+     * {@code null}). Loading {@code f} must not be told that nulls are filtered, because the second slice matches only documents
+     * without a value for {@code f}.
+     */
+    public void testRoundToQuerySlicesDoNotFilterNulls() {
+        EsPhysicalOperationProviders provider = new EsPhysicalOperationProviders(
+            FoldContext.small(),
+            TEST_CFG,
+            new IndexedByShardIdFromSingleton<>(
+                new EsPhysicalOperationProviders.DefaultShardContext(0, () -> {}, createMockContext(), AliasFilter.EMPTY)
+            ),
+            null,
+            PlannerSettings.DEFAULTS,
+            () -> 0L,
+            QueryWarnings.EMIT
+        );
+        List<EsQueryExec.QueryBuilderAndTags> roundToSlices = List.of(
+            new EsQueryExec.QueryBuilderAndTags(new ExistsQueryBuilder("f1"), List.of(0.5)),
+            new EsQueryExec.QueryBuilderAndTags(
+                new BoolQueryBuilder().mustNot(new ExistsQueryBuilder("f1")),
+                Collections.singletonList(null)
+            )
+        );
+        EsQueryExec queryExec = new EsQueryExec(Source.EMPTY, "test", IndexMode.STANDARD, List.of(), null, null, 10, roundToSlices);
+        FieldExtractExec fieldExtractExec = new FieldExtractExec(
+            Source.EMPTY,
+            queryExec,
+            List.of(
+                new FieldAttribute(Source.EMPTY, "f1", new EsField("f1", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+            ),
+            MappedFieldType.FieldExtractPreference.NONE
+        );
+        var fieldInfos = provider.extractFields(fieldExtractExec);
+        assertThat(fieldInfos.size(), equalTo(1));
+        assertThat("f1 has documents without a value in the null slice", fieldInfos.get(0).nullsFiltered(), equalTo(false));
     }
 
     /**
@@ -357,6 +432,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         assertTrue("nested subfield is mapped; isMappedField alone would not skip the shard", shardContext.isMappedField("item.value"));
         var provider = new EsPhysicalOperationProviders(
             FoldContext.small(),
+            TEST_CFG,
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
             PlannerSettings.DEFAULTS,
@@ -488,6 +564,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         );
         var provider = new EsPhysicalOperationProviders(
             FoldContext.small(),
+            TEST_CFG,
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
             PlannerSettings.DEFAULTS,
@@ -585,6 +662,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         );
         var provider = new EsPhysicalOperationProviders(
             FoldContext.small(),
+            TEST_CFG,
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
             PlannerSettings.DEFAULTS,
@@ -619,6 +697,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         );
         var provider = new EsPhysicalOperationProviders(
             FoldContext.small(),
+            TEST_CFG,
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
             PlannerSettings.DEFAULTS,

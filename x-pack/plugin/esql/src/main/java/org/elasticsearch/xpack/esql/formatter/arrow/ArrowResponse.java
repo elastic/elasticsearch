@@ -479,9 +479,11 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case AGGREGATE_METRIC_DOUBLE -> TO_BE_IMPLEMENTED_MARKER;
             case EXPONENTIAL_HISTOGRAM -> TO_BE_IMPLEMENTED_MARKER;
             case FLATTENED -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::sourceToJson);
-            case GEOHASH -> TO_BE_IMPLEMENTED_MARKER;
-            case GEOHEX -> TO_BE_IMPLEMENTED_MARKER;
-            case GEOTILE -> TO_BE_IMPLEMENTED_MARKER;
+            // Geo grid cell ids are output as their long block value. They don't fit in GeoArrow.
+            // Geohash uses all 64 bits (60 bits of hash + 4 bits of level), so it's output as unsigned.
+            // Geotile and geohex never set bit 63, so signed int64 is fine.
+            case GEOHASH -> new BlockArrowFormatter.AsInt64(type, MinorType.UINT8);
+            case GEOHEX, GEOTILE -> new BlockArrowFormatter.AsInt64(type);
             case HISTOGRAM -> TO_BE_IMPLEMENTED_MARKER;
             case TDIGEST -> TO_BE_IMPLEMENTED_MARKER;
 

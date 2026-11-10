@@ -283,6 +283,11 @@ public class ArrowResponseTests extends ESTestCase {
         Map.entry(DataType.CARTESIAN_POINT, BINARY_VALUES),
         Map.entry(DataType.CARTESIAN_SHAPE, BINARY_VALUES),
 
+        // Geo grid cell ids are longs. Geohash uses all 64 bits so it is unsigned. random longs also exercise bit 63.
+        Map.entry(DataType.GEOHASH, ULONG_VALUES),
+        Map.entry(DataType.GEOTILE, LONG_VALUES),
+        Map.entry(DataType.GEOHEX, LONG_VALUES),
+
         Map.entry(DataType.DATE_RANGE, DATE_RANGE_VALUES),
         Map.entry(DataType.DOUBLE_RANGE, DOUBLE_RANGE_VALUES)
     );

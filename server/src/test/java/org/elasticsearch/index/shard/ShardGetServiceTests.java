@@ -764,6 +764,22 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             }
             assertIgnoredFields(fromTranslog);
 
+            GetResult fromTranslogOnly = primary.getService()
+                .getFromTranslog(
+                    "1",
+                    null,
+                    null,
+                    true,
+                    Versions.MATCH_ANY,
+                    VersionType.INTERNAL,
+                    FetchSourceContext.FETCH_SOURCE,
+                    false,
+                    SplitShardCountSummary.UNSET,
+                    false
+                );
+            assertNotNull(fromTranslogOnly);
+            assertIgnoredFields(fromTranslogOnly);
+
             GetResult forUpdate = getForUpdate(primary, "1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
             assertFalse(forUpdate.getMetadataFields().containsKey(IgnoredFieldMapper.NAME));
         } finally {

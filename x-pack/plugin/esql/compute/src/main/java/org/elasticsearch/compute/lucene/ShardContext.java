@@ -74,4 +74,11 @@ public interface ShardContext extends RefCounted {
     MappedFieldType fieldType(String name);
 
     ShardSearchStats stats();
+
+    /**
+     * Whether every segment of this shard has the {@code _tsid} prefix partitions that time-series slices are cut on.
+     */
+    default boolean canPartitionByTsidPrefix() {
+        return false;
+    }
 }

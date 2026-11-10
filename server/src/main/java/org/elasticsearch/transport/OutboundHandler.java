@@ -105,6 +105,9 @@ public final class OutboundHandler {
     /**
      * Sends the request to the given channel. This method should be used to send {@link TransportRequest}
      * objects back to the caller.
+     *
+     * @param options its {@link TransportRequestOptions#circuitBreaker()}, if any, is charged for the serialized message until the write
+     *                completes; a trip is thrown to the caller and nothing is sent
      */
     void sendRequest(
         final DiscoveryNode node,
@@ -129,7 +132,7 @@ public final class OutboundHandler {
             transportVersion,
             ResponseStatsConsumer.NONE,
             size -> messageListener.onRequestSent(node, requestId, action, request, options, size),
-            null
+            options.circuitBreaker()
         );
     }
 

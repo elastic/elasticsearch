@@ -27,6 +27,8 @@ import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -43,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -57,6 +60,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
@@ -847,6 +851,75 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(serviceA.transport().getStats().getRxSize().getBytes(), lessThan(bytesLength));
             assertThat(serviceC.transport().getStats().getRxSize().getBytes(), greaterThan(bytesLength));
         }
+    }
+
+    public void testRequestChargedUntilWritten() {
+        final String action = "internal:large_request";
+        final String largeMessage = randomAlphaOfLength(between(256 * 1024, 1024 * 1024));
+        serviceA.registerRequestHandler(
+            action,
+            threadPool.executor(ThreadPool.Names.GENERIC),
+            StringMessageRequest::new,
+            (request, channel, task) -> channel.sendResponse(new StringMessageResponse(request.message))
+        );
+        final boolean compress = randomBoolean();
+        // A single channel, so the request after the rejected one is sent on the same channel
+        final ConnectionProfile profile = ConnectionProfile.buildSingleChannelProfile(
+            TransportRequestOptions.Type.REG,
+            null,
+            null,
+            null,
+            compress ? Compression.Enabled.TRUE : Compression.Enabled.FALSE,
+            compress ? randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4) : null
+        );
+        try (Transport.Connection connection = openConnection(serviceB, nodeA, profile)) {
+            // A trip fails the request before anything is sent and reaches the handler as a 429
+            final CircuitBreaker smallBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(between(0, largeMessage.length() / 2)));
+            final Exception e = safeAwaitFailure(
+                StringMessageResponse.class,
+                listener -> serviceB.sendRequest(
+                    connection,
+                    action,
+                    new StringMessageRequest(largeMessage),
+                    TransportRequestOptions.of(null, TransportRequestOptions.Type.REG, smallBreaker),
+                    new ActionListenerResponseHandler<>(listener, StringMessageResponse::new, threadPool.generic())
+                )
+            );
+            assertThat(e, instanceOf(SendRequestTransportException.class));
+            assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(CircuitBreakingException.class));
+            assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.TOO_MANY_REQUESTS));
+            assertThat(smallBreaker.getTrippedCount(), greaterThanOrEqualTo(1L));
+            assertThat(smallBreaker.getUsed(), equalTo(0L));
+
+            // The write completes before the response can arrive on the same channel, so the charge is gone by then
+            final CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+            final StringMessageResponse response = safeAwait(
+                listener -> serviceB.sendRequest(
+                    connection,
+                    action,
+                    new StringMessageRequest(largeMessage),
+                    TransportRequestOptions.of(null, TransportRequestOptions.Type.REG, breaker),
+                    new ActionListenerResponseHandler<>(listener, StringMessageResponse::new, threadPool.generic())
+                )
+            );
+            assertThat(response.message, equalTo(largeMessage));
+            assertThat(breaker.getTrippedCount(), equalTo(0L));
+            assertThat("released once written", breaker.getUsed(), equalTo(0L));
+        }
+
+        // Requests to the local node are not serialized, so they are not charged
+        final CircuitBreaker zeroBreaker = newLimitedBreaker(ByteSizeValue.ZERO);
+        final StringMessageResponse localResponse = safeAwait(
+            listener -> serviceA.sendRequest(
+                nodeA,
+                action,
+                new StringMessageRequest(largeMessage),
+                TransportRequestOptions.of(null, TransportRequestOptions.Type.REG, zeroBreaker),
+                new ActionListenerResponseHandler<>(listener, StringMessageResponse::new, threadPool.generic())
+            )
+        );
+        assertThat(localResponse.message, equalTo(largeMessage));
+        assertThat(zeroBreaker.getTrippedCount(), equalTo(0L));
     }
 
     public void testErrorMessage() throws InterruptedException {

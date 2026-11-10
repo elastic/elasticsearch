@@ -973,6 +973,10 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         return new TestEsqlQueryResponse(mockEsqlResponse(columns));
     }
 
+    public void testEsqlQueryActionNameShouldMatchEsqlQueryAction() {
+        assertThat(EsqlDatafeedQueryValidator.ESQL_QUERY_ACTION_NAME, equalTo(org.elasticsearch.xpack.esql.action.EsqlQueryAction.NAME));
+    }
+
     public void testRemoteIndexShouldFailRemoteClusterSourceRejection() {
         ElasticsearchStatusException e = expectRejected("FROM remote:logs-* | STATS c = COUNT(*) BY BUCKET(@timestamp, 1h)");
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));

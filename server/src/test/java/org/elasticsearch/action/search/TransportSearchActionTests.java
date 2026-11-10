@@ -65,6 +65,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
+import org.elasticsearch.common.logging.activity.QuerySinkRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -2601,6 +2602,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                 client,
                 new UsageService(),
+                new QuerySinkRegistry(List.of()),
                 new TestActionActionLoggingFieldsProvider(),
                 ActivityLogWriterProvider.NOOP,
                 CrossProjectModeDecider.NOOP

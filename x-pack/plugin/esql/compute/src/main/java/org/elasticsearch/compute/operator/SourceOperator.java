@@ -113,13 +113,16 @@ public abstract class SourceOperator implements Operator {
 
         if (size == 1) {
             // Single shard: attribute all processing to it
-            TaskLoadAttribution.charge(delta.getFirst().context().stats().searchLoadTarget(), extraDriverNanos, now);
+            ShardLoad load = delta.getFirst();
+            load.context().addRowsEmitted(load.rowsEmitted());
+            TaskLoadAttribution.charge(load.context().stats().searchLoadTarget(), extraDriverNanos, now);
             return true;
         }
 
         long totalProcess = 0L;
         long totalRows = 0L;
         for (var load : delta) {
+            load.context().addRowsEmitted(load.rowsEmitted());
             totalProcess += load.processTimeNanos();
             totalRows += load.rowsEmitted();
         }

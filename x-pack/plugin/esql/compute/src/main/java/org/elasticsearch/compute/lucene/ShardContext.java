@@ -79,4 +79,10 @@ public interface ShardContext extends RefCounted {
      * Adds {@code delta} to the number of slices of this shard that are not read yet.
      */
     default void addUnfinishedSlices(int delta) {}
+
+    /**
+     * Counts {@code rows} the sources emitted from this shard, to charge the work shared by several shards in proportion to
+     * their rows.
+     */
+    void addRowsEmitted(long rows);
 }

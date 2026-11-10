@@ -10,10 +10,14 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
@@ -26,6 +30,8 @@ class AcquiredSearchContexts implements Releasable {
     private final ComputeSearchContext[] allContexts;
     private int nextAddIndex = 0;
     private boolean isClosed = false;
+    /** The rows the sources emitted from each shard. */
+    private final Map<ShardId, LongAdder> rowsEmitted = new ConcurrentHashMap<>();
 
     AcquiredSearchContexts(int size) {
         this.allContexts = new ComputeSearchContext[size];
@@ -63,7 +69,8 @@ class AcquiredSearchContexts implements Releasable {
                     }
                 }
             });
-            allContexts[idx] = new ComputeSearchContext(idx, cse);
+            LongAdder rows = rowsEmitted.computeIfAbsent(cse.indexShard().shardId(), shardId -> new LongAdder());
+            allContexts[idx] = new ComputeSearchContext(idx, cse, rows);
         }
         return new SubRanged<>(allContexts, startingIndex, nextAddIndex);
     }
@@ -109,6 +116,14 @@ class AcquiredSearchContexts implements Releasable {
                 return nextAddIndex;
             }
         }
+    }
+
+    /**
+     * The rows the sources emitted from {@code shardId}, kept once its context is released.
+     */
+    long rowsEmitted(ShardId shardId) {
+        LongAdder rows = rowsEmitted.get(shardId);
+        return rows == null ? 0 : rows.sum();
     }
 
     private void checkNotClosed() {

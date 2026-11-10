@@ -112,6 +112,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -800,8 +801,22 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         /** The walk of {@code _source} that the fields one extraction reads from it share, or {@code null} for a walk each. */
         @Nullable
         private final UnmappedFields.Walk sourceWalk;
+        private final LongAdder rowsEmitted;
 
         public DefaultShardContext(int index, Releasable releasable, SearchExecutionContext ctx, AliasFilter aliasFilter) {
+            this(index, releasable, ctx, aliasFilter, new LongAdder());
+        }
+
+        /**
+         * @param rowsEmitted where the rows the sources emitted from the shard are counted
+         */
+        public DefaultShardContext(
+            int index,
+            Releasable releasable,
+            SearchExecutionContext ctx,
+            AliasFilter aliasFilter,
+            LongAdder rowsEmitted
+        ) {
             this.index = index;
             this.releasable = releasable;
             this.ctx = ctx;
@@ -810,6 +825,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             this.shardIdentifier = this.ctx.getFullyQualifiedIndex().getName() + ":" + this.ctx.getShardId();
             this.shardSearchStats = ctx.stats();
             this.sourceWalk = null;
+            this.rowsEmitted = rowsEmitted;
         }
 
         private DefaultShardContext(DefaultShardContext context, UnmappedFields.Walk sourceWalk) {
@@ -820,6 +836,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             this.shardIdentifier = context.shardIdentifier;
             this.shardSearchStats = context.shardSearchStats;
             this.sourceWalk = sourceWalk;
+            this.rowsEmitted = context.rowsEmitted;
         }
 
         /** This context, reading the fields it reads from {@code _source} through {@code sourceWalk} when it reads them. */
@@ -978,6 +995,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public ShardSearchStats stats() {
             return shardSearchStats;
+        }
+
+        @Override
+        public void addRowsEmitted(long rows) {
+            rowsEmitted.add(rows);
         }
 
         @Override

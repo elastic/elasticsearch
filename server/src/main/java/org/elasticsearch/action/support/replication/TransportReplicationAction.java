@@ -475,7 +475,6 @@ public abstract class TransportReplicationAction<
     }
 
     class AsyncPrimaryAction extends ActionRunnable<Response> {
-        private final ActionListener<Response> onCompletionListener;
         private final ReplicationTask replicationTask;
         private final ConcreteShardRequest<Request> primaryRequest;
 
@@ -486,7 +485,6 @@ public abstract class TransportReplicationAction<
         ) {
             super(onCompletionListener);
             this.primaryRequest = primaryRequest;
-            this.onCompletionListener = onCompletionListener;
             this.replicationTask = replicationTask;
         }
 
@@ -497,7 +495,7 @@ public abstract class TransportReplicationAction<
 
         @Override
         protected void doRun() throws Exception {
-            if (replicationTask != null && replicationTask.notifyIfCancelled(onCompletionListener)) {
+            if (replicationTask != null && replicationTask.notifyIfCancelled(listener)) {
                 logger.debug(
                     () -> format(
                         "Transport replication action request [%s] for Index shard [%s] is cancelled post-submission.",
@@ -550,10 +548,7 @@ public abstract class TransportReplicationAction<
         }
 
         void runWithPrimaryShardReference(final PrimaryShardReference primaryShardReference) {
-            ActionListener<Response> setFinishedListener = ActionListener.runBefore(
-                onCompletionListener,
-                () -> setPhase(replicationTask, "finished")
-            );
+            ActionListener<Response> setFinishedListener = ActionListener.runBefore(listener, () -> setPhase(replicationTask, "finished"));
             try {
                 final ClusterState clusterState = clusterService.state();
                 final Index index = primaryShardReference.routingEntry().index();
@@ -661,7 +656,7 @@ public abstract class TransportReplicationAction<
         @Override
         public void onFailure(Exception e) {
             setPhase(replicationTask, "finished");
-            onCompletionListener.onFailure(e);
+            listener.onFailure(e);
         }
 
     }
@@ -1599,8 +1594,8 @@ public abstract class TransportReplicationAction<
 
         @Override
         public boolean isRawIndexingData() {
-            if (request instanceof RawIndexingDataTransportRequest) {
-                return ((RawIndexingDataTransportRequest) request).isRawIndexingData();
+            if (request instanceof RawIndexingDataTransportRequest rawIndexingDataTransportRequest) {
+                return rawIndexingDataTransportRequest.isRawIndexingData();
             }
             return false;
         }

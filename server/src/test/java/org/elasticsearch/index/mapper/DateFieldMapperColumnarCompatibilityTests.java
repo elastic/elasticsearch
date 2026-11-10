@@ -16,7 +16,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -35,7 +34,6 @@ public class DateFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     private static Settings columnarSettings() {
         return Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
             .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
             .build();
     }
@@ -216,10 +214,7 @@ public class DateFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
      * so array values reach the mapper instead of being rejected at parse time.
      */
     private static Settings multiValueColumnarSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
     }
 
     /**
@@ -311,7 +306,6 @@ public class DateFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
             .put(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dim")
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
             .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
             .build();
     }

@@ -16,6 +16,7 @@ import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
+import org.elasticsearch.compute.operator.TsInfoOperator;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -348,6 +349,49 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * The minimum number of time series (rows in the later stages) {@code TS_INFO} samples when a {@code LIMIT} is pushed
+     * down to it. A {@code LIMIT} of N should ideally return N complete rows, but that would mean reading everything to
+     * order, deduplicate and merge them. Duplicates and rows that change as more series are read are rare, so an approximate
+     * sample is acceptable. To make it unlikely to fall short the sample is the larger of this and the limit times
+     * {@link #TS_INFO_SAMPLE_LIMIT_MULTIPLIER}. It is not a strict guarantee: the multi-valued columns may be missing values
+     * from series that were not read.
+     */
+    public static final Setting<Integer> TS_INFO_SAMPLE_MIN_ROWS = Setting.intSetting(
+        "esql.ts_info_sample_min_rows",
+        10_000,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * How many times the {@code LIMIT} pushed down to {@code TS_INFO} to sample. A {@code LIMIT} of N should return N rows,
+     * but series reported more than once, such as across backing indices, are merged away later and could leave fewer. The
+     * extra rows are headroom so that this is unlikely, though it is not strictly guaranteed.
+     */
+    public static final Setting<Integer> TS_INFO_SAMPLE_LIMIT_MULTIPLIER = Setting.intSetting(
+        "esql.ts_info_sample_limit_multiplier",
+        10,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * The memory each data node driver of {@code TS_INFO} buffers before it sends its rows on early. Rows sent early are
+     * merged again on the coordinator, so this does not change the result. A smaller value lowers data node memory. A larger
+     * value merges more rows on the data node, so it sends fewer duplicate rows and serializes fewer pages.
+     */
+    public static final Setting<ByteSizeValue> TS_INFO_PARTIAL_EMIT_THRESHOLD = Setting.byteSizeSetting(
+        "esql.ts_info_partial_emit_threshold",
+        TsInfoOperator.DEFAULT_PARTIAL_EMIT_THRESHOLD,
+        ByteSizeValue.ofBytes(1),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> settings() {
         return List.of(
             DEFAULT_DATA_PARTITIONING,
@@ -374,7 +418,10 @@ public class PlannerSettings {
             MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES,
             MIN_COMPETITIVE_GLOBAL_MERGE_MAX_PENDING_KEYS,
             AGG_PARTITIONING_COUNT_THRESHOLD,
-            AGG_PARTITIONING_MEMORY_THRESHOLD
+            AGG_PARTITIONING_MEMORY_THRESHOLD,
+            TS_INFO_SAMPLE_MIN_ROWS,
+            TS_INFO_SAMPLE_LIMIT_MULTIPLIER,
+            TS_INFO_PARTIAL_EMIT_THRESHOLD
         );
     }
 
@@ -455,6 +502,15 @@ public class PlannerSettings {
                 AGG_PARTITIONING_MEMORY_THRESHOLD,
                 v -> settings.updateAndGet(s -> s.aggregationPartitioningMemoryThreshold(v))
             );
+            clusterSettings.initializeAndWatch(TS_INFO_SAMPLE_MIN_ROWS, v -> settings.updateAndGet(s -> s.tsInfoSampleMinRows(v)));
+            clusterSettings.initializeAndWatch(
+                TS_INFO_SAMPLE_LIMIT_MULTIPLIER,
+                v -> settings.updateAndGet(s -> s.tsInfoSampleLimitMultiplier(v))
+            );
+            clusterSettings.initializeAndWatch(
+                TS_INFO_PARTIAL_EMIT_THRESHOLD,
+                v -> settings.updateAndGet(s -> s.tsInfoPartialEmitThreshold(v))
+            );
         }
 
         public PlannerSettings get() {
@@ -486,6 +542,9 @@ public class PlannerSettings {
     private final int minCompetitiveGlobalMergeMaxPendingKeys;
     private final int aggregationPartitioningCountThreshold;
     private final ByteSizeValue aggregationPartitioningMemoryThreshold;
+    private final int tsInfoSampleMinRows;
+    private final int tsInfoSampleLimitMultiplier;
+    private final ByteSizeValue tsInfoPartialEmitThreshold;
 
     /**
      * Defaults.
@@ -514,7 +573,10 @@ public class PlannerSettings {
         MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES.getDefault(Settings.EMPTY),
         MIN_COMPETITIVE_GLOBAL_MERGE_MAX_PENDING_KEYS.getDefault(Settings.EMPTY),
         AGG_PARTITIONING_COUNT_THRESHOLD.getDefault(Settings.EMPTY),
-        AGG_PARTITIONING_MEMORY_THRESHOLD.getDefault(Settings.EMPTY)
+        AGG_PARTITIONING_MEMORY_THRESHOLD.getDefault(Settings.EMPTY),
+        TS_INFO_SAMPLE_MIN_ROWS.getDefault(Settings.EMPTY),
+        TS_INFO_SAMPLE_LIMIT_MULTIPLIER.getDefault(Settings.EMPTY),
+        TS_INFO_PARTIAL_EMIT_THRESHOLD.getDefault(Settings.EMPTY)
     );
 
     /**
@@ -544,7 +606,10 @@ public class PlannerSettings {
         int minCompetitiveGlobalMergeBatchPages,
         int minCompetitiveGlobalMergeMaxPendingKeys,
         int aggregationPartitioningCountThreshold,
-        ByteSizeValue aggregationPartitioningMemoryThreshold
+        ByteSizeValue aggregationPartitioningMemoryThreshold,
+        int tsInfoSampleMinRows,
+        int tsInfoSampleLimitMultiplier,
+        ByteSizeValue tsInfoPartialEmitThreshold
     ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
         this.docsThresholdForAutoPartitioning = docsThresholdForAutoPartitioning;
@@ -570,6 +635,9 @@ public class PlannerSettings {
         this.minCompetitiveGlobalMergeMaxPendingKeys = minCompetitiveGlobalMergeMaxPendingKeys;
         this.aggregationPartitioningCountThreshold = aggregationPartitioningCountThreshold;
         this.aggregationPartitioningMemoryThreshold = aggregationPartitioningMemoryThreshold;
+        this.tsInfoSampleMinRows = tsInfoSampleMinRows;
+        this.tsInfoSampleLimitMultiplier = tsInfoSampleLimitMultiplier;
+        this.tsInfoPartialEmitThreshold = tsInfoPartialEmitThreshold;
     }
 
     public PlannerSettings defaultDataPartitioning(DataPartitioning defaultDataPartitioning) {
@@ -597,7 +665,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -630,7 +701,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -663,7 +737,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -710,7 +787,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -743,7 +823,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -776,7 +859,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -809,7 +895,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -842,7 +931,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -882,7 +974,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -918,7 +1013,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -954,7 +1052,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -987,7 +1088,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1020,7 +1124,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1053,7 +1160,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1086,7 +1196,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1119,7 +1232,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1152,7 +1268,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1185,7 +1304,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1218,7 +1340,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1251,7 +1376,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1284,7 +1412,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1317,7 +1448,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1350,7 +1484,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1387,7 +1524,10 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1397,5 +1537,113 @@ public class PlannerSettings {
      */
     public ByteSizeValue aggregationPartitioningMemoryThreshold() {
         return aggregationPartitioningMemoryThreshold;
+    }
+
+    public PlannerSettings tsInfoSampleMinRows(int tsInfoSampleMinRows) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            timeSeriesTargetChunkRows,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
+        );
+    }
+
+    public int tsInfoSampleMinRows() {
+        return tsInfoSampleMinRows;
+    }
+
+    public PlannerSettings tsInfoSampleLimitMultiplier(int tsInfoSampleLimitMultiplier) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            timeSeriesTargetChunkRows,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
+        );
+    }
+
+    public int tsInfoSampleLimitMultiplier() {
+        return tsInfoSampleLimitMultiplier;
+    }
+
+    public PlannerSettings tsInfoPartialEmitThreshold(ByteSizeValue tsInfoPartialEmitThreshold) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            timeSeriesTargetChunkRows,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
+        );
+    }
+
+    public ByteSizeValue tsInfoPartialEmitThreshold() {
+        return tsInfoPartialEmitThreshold;
     }
 }

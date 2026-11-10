@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.tasks.CancellableTask;
@@ -187,6 +188,15 @@ public final class EnrichLookupOperator extends AsyncOperator<Page> {
             Status::new
         );
 
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(Status.class, Status::toXContent)
+            .required("process_nanos", ProfileSchema.integer())
+            .optional("process_time", ProfileSchema.string())
+            .required("pages_received", ProfileSchema.integer())
+            .required("pages_completed", ProfileSchema.integer())
+            .required("total_terms", ProfileSchema.integer())
+            .required("bytes_read", ProfileSchema.integer())
+            .build();
+
         final long totalTerms;
         final long bytesRead;
 
@@ -225,10 +235,14 @@ public final class EnrichLookupOperator extends AsyncOperator<Page> {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
+        }
+
+        private static XContentBuilder toXContent(XContentBuilder builder, Status status, Params params) throws IOException {
             builder.startObject();
-            innerToXContent(builder);
-            builder.field("total_terms", totalTerms);
-            builder.field("bytes_read", bytesRead);
+            status.innerToXContent(builder);
+            builder.field("total_terms", status.totalTerms);
+            builder.field("bytes_read", status.bytesRead);
             return builder.endObject();
         }
 

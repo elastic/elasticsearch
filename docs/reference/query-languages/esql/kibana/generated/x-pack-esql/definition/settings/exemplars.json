@@ -5,7 +5,7 @@
     "boolean",
     "map_param"
   ],
-  "mapParams" : "{name='limit', values=[], description='Maximum number of exemplars to return. Without it the default limit of a regular query applies.', type=[integer]}",
+  "mapParams" : "{name='limit', values=[], description='Maximum number of exemplars to return. Without it the default limit of a regular query applies.', type=[integer]}, {name='include_timeseries', values=[], description='When enabled, a `_timeseries` column is returned, holding the dimensions that identify the series each exemplar belongs to. Defaults to `false`.', type=[boolean]}",
   "serverlessOnly" : false,
   "preview" : false,
   "snapshotOnly" : true,

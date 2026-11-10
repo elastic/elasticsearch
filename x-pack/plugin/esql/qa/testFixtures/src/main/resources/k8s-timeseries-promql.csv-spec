@@ -63,6 +63,23 @@ sum(avg_over_time(network.cost[5m] offset -5m)):double | step:date
 51.59375                                               | 2024-05-10T00:20:00.000Z
 ;
 
+// Exponentiation applies to the offset selector, including when the offset has an explicit positive sign.
+positive_offset_before_power
+required_capability: fix_promql_offset_precedence
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+required_capability: promql_offset_modifier
+PROMQL index=k8s step=5m start="2024-05-10T00:25:00.000Z" end="2024-05-10T00:30:00.000Z" result=(
+  sum(network.cost offset +5m ^ 2 - (network.cost offset 5m) ^ 2)
+)
+| SORT step;
+
+result:double | step:datetime
+0.0           | 2024-05-10T00:25:00.000Z
+0.0           | 2024-05-10T00:30:00.000Z
+;
+
 auto_step_buckets
 required_capability: promql_command_v0
 required_capability: promql_buckets_parameter
@@ -2283,6 +2300,26 @@ bytes_in:double | step:datetime            | cluster:keyword
 404.0           | 2024-05-10T00:10:00.000Z | prod
 ;
 
+sort_by_label_range_query_hides_sort_label
+required_capability: promql_command_v0
+required_capability: promql_implicit_type_coercion
+required_capability: to_gauge
+required_capability: promql_sort_by_label
+// On an open header "pod" is materialized to sort by even though a range query discards the ordering; it must still be
+// projected away, so the header below fails if it leaks. The trailing SORT is needed because range results are
+// returned in input order.
+PROMQL index=k8s step=10m bytes_in=(sort_by_label(round(avg_over_time(network.bytes_in[10m]), 4), "pod"))
+| DROP _timeseries | SORT bytes_in DESC, step | LIMIT 5;
+warningRegex:.*sort_by_label: ordering is discarded for range queries.*
+
+bytes_in:double | step:datetime
+972.0           | 2024-05-10T00:30:00.000Z
+912.0           | 2024-05-10T00:30:00.000Z
+748.0           | 2024-05-10T00:30:00.000Z
+632.0           | 2024-05-10T00:30:00.000Z
+600.0           | 2024-05-10T00:20:00.000Z
+;
+
 label_matching_on_non_string_label
 required_capability: promql_command_v0
 required_capability: time_series_translation_in_analyzer
@@ -2491,7 +2528,7 @@ result:double | step:datetime            | _timeseries:keyword
 
 // k far larger than any reasonable series count: still returns every series, still ranked. Note: k values near
 // Integer.MAX_VALUE trip ES|QL's circuit breaker (TopNBy's execution pre-sizes a buffer proportional to k, not
-// to the actual row count) - unlike Prometheus, which has no such ceiling. See TOPK's differenceFromPrometheus.
+// to the actual row count) - unlike Prometheus, which has no such ceiling. See TOPK's stdDivergence.
 topk_k_very_large
 required_capability: promql_command_v0
 required_capability: promql_topk

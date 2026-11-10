@@ -297,7 +297,7 @@ public class SharedBlobCacheWarmingService {
 
     /**
      * When search shard recovery waits for blob cache warming on a <strong>relocation target</strong> whose source is not shutting down,
-     * and <strong>some node</strong> in the cluster has shutdown metadata, the maximum time to wait before resuming recovery anyway.
+     * and <strong>some search node</strong> holding shards is shutting down, the maximum time to wait before resuming recovery anyway.
      * Non-relocation recoveries do not use this setting.
      */
     public static final Setting<TimeValue> SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING = Setting.timeSetting(
@@ -310,7 +310,7 @@ public class SharedBlobCacheWarmingService {
 
     /**
      * Same situation as {@link #SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING} (relocation target, source not shutting
-     * down) but when <strong>no</strong> node in the cluster has shutdown metadata.
+     * down) but when <strong>no</strong> search node holding shards is shutting down.
      */
     public static final Setting<TimeValue> SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING = Setting.timeSetting(
         SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_timeout_relocation",
@@ -321,8 +321,8 @@ public class SharedBlobCacheWarmingService {
     );
 
     /**
-     * When the shard is <strong>not</strong> a relocation target, cluster shutdown metadata is not present, and another active copy of the
-     * shard exists in the routing table, the maximum time to wait for cache warming before resuming recovery.
+     * When the shard is <strong>not</strong> a relocation target, no search node holding shards is shutting down, and another active copy
+     * of the shard exists in the routing table, the maximum time to wait for cache warming before resuming recovery.
      */
     public static final Setting<TimeValue> SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING = Setting.timeSetting(
         SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_timeout_non_relocation",

@@ -46,7 +46,12 @@ These settings are node-local. Configure a different password value on each node
 Configure one yourself with [`elasticsearch-keystore`](/reference/elasticsearch/command-line-tools/elasticsearch-keystore.md) if the automatic security setup is not executed.
 
 `cluster.state.encryption.required`
-:   Whether a password is required before {{es}} will store secrets using the cluster state encryption key. Defaults to `true`. Setting this to `false` is **not recommended**: {{es}} falls back to storing secrets in plain text instead, and logs a warning.
+:   Whether a password is required before {{es}} will store secrets using the cluster state encryption key. Defaults to `true`.
+
+    :::{warning}
+    Setting this to `false` is not recommended. {{es}} falls back to storing secrets in plain text instead, and logs a warning.
+
+    :::
 
 ### Upgrade existing deployments [cluster-state-encryption-upgrades]
 

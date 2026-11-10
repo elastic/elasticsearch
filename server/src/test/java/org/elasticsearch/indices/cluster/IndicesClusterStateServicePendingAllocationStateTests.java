@@ -84,8 +84,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/// Unit tests for the unified pending-allocation-state bookkeeping ({@link IndicesClusterStateService.ShardAllocationKey},
-/// {@link IndicesClusterStateService.PendingAllocationState}) and the ticket lifecycle built on top of it: claiming
+/// Unit tests for the unified pending-allocation-state bookkeeping ([IndicesClusterStateService.ShardAllocationKey],
+/// [IndicesClusterStateService.PendingAllocationState]) and the ticket lifecycle built on top of it: claiming
 /// ownership of a shard-creation attempt, holding it through the whole recovery (not just construction), the
 /// cluster-state sweep that evicts stale tickets, and the shard-lock-retry continuation re-resolving routing and
 /// source node on each iteration. No local recovery retry exists yet -- those tests belong here once it does.

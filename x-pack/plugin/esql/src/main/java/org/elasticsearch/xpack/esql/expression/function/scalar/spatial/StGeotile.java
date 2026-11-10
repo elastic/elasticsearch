@@ -180,6 +180,11 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
 
     @Override
     public Object fold(FoldContext ctx) {
+        return EvaluatorMapper.super.fold(source(), ctx);
+    }
+
+    @Override
+    public Object doFold(Source source, FoldContext ctx) {
         var point = (BytesRef) spatialField().fold(ctx);
         int precision = checkPrecisionRange((int) parameter().fold(ctx));
         if (bounds() == null) {

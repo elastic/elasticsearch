@@ -15,11 +15,13 @@ import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 
@@ -40,7 +42,10 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
  * This provides common support for type resolution and validation. Ensuring that both arguments are spatial types
  * and of compatible CRS. For example geo_point and geo_shape can be compared, but not geo_point and cartesian_point.
  */
-public abstract class BinarySpatialFunction extends BinaryScalarFunction implements SpatialEvaluatorFactory.SpatialSourceResolution {
+public abstract class BinarySpatialFunction extends BinaryScalarFunction
+    implements
+        EvaluatorMapper,
+        SpatialEvaluatorFactory.SpatialSourceResolution {
 
     private final SpatialTypeResolver spatialTypeResolver;
     private SpatialCrsType crsType;
@@ -79,6 +84,11 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
         out.writeNamedWriteable(right());
         // The doc-values fields are only used on data nodes local planning, and therefor never serialized
         // The CRS type is re-resolved from the combination of left and right fields, and also not necessary to serialize
+    }
+
+    @Override
+    public Object fold(FoldContext ctx) {
+        return EvaluatorMapper.super.fold(source(), ctx);
     }
 
     /**

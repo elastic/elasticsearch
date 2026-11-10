@@ -23,6 +23,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -451,11 +452,30 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     }
 
     public void testFold() {
-        Expression expression = buildLiteralExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
+            assertTypeResolutionFailure(buildLiteralExpression(testCase));
             return;
         }
+        Expression expression = buildFoldableLiteralExpression();
+        assertFold(new FoldNull().rule(expression, unboundLogicalOptimizerContext()));
+    }
+
+    /**
+     * {@code FoldNull} doesn't always replace an expression with null arguments before it's folded: it may not see
+     * them as null (a {@code CASE} without a match, {@code 1/0}...), and optimizer rules may fold an expression
+     * directly once its references are replaced by literals. So {@link AnyNullIsNull} expressions must fold to
+     * {@code null} by themselves too. Other expressions may evaluate, and warn about, arguments {@code FoldNull} removed.
+     */
+    public void testFoldAnyNullIsNullWithoutFoldNull() {
+        assumeTrue("Expected type error", testCase.getExpectedTypeError() == null);
+        Expression expression = buildFoldableLiteralExpression();
+        assumeTrue("Function is not marked " + AnyNullIsNull.class.getSimpleName(), expression instanceof AnyNullIsNull);
+        assumeTrue("No null argument", expression.children().stream().anyMatch(Expressions::isGuaranteedNull));
+        assertFold(expression);
+    }
+
+    private Expression buildFoldableLiteralExpression() {
+        Expression expression = buildLiteralExpression(testCase);
         assertFalse("expected resolved", expression.typeResolved().unresolved());
         if (expression instanceof SurrogateExpression s) {
             Expression surrogate = s.surrogate();
@@ -463,11 +483,14 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 expression = surrogate;
             }
         }
-        Expression nullOptimized = new FoldNull().rule(expression, unboundLogicalOptimizerContext());
-        assertThat(nullOptimized.dataType(), equalTo(testCase.expectedType()));
-        assertTrue(nullOptimized.foldable());
+        return expression;
+    }
+
+    private void assertFold(Expression expression) {
+        assertThat(expression.dataType(), equalTo(testCase.expectedType()));
+        assertTrue(expression.foldable());
         if (testCase.foldingExceptionClass() == null) {
-            Object result = nullOptimized.fold(FoldContext.small());
+            Object result = expression.fold(FoldContext.small());
             // Decode unsigned longs into BigIntegers
             if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
                 if (result instanceof List<?> l) {
@@ -484,7 +507,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 assertWarnings(testCase.getExpectedWarnings());
             }
         } else {
-            Throwable t = expectThrows(testCase.foldingExceptionClass(), () -> nullOptimized.fold(FoldContext.small()));
+            Throwable t = expectThrows(testCase.foldingExceptionClass(), () -> expression.fold(FoldContext.small()));
             assertThat(t.getMessage(), equalTo(testCase.foldingExceptionMessage()));
         }
     }

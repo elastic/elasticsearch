@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.sql.logging;
 
-import org.elasticsearch.common.logging.activity.QueryLoggerContext;
+import org.elasticsearch.common.logging.activity.QueryCaptureContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
@@ -16,18 +16,18 @@ import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class SqlLogContext extends QueryLoggerContext {
+public class SqlCaptureContext extends QueryCaptureContext {
     public static final String TYPE = "sql";
     private final SqlQueryRequest request;
     private final SqlQueryResponse response;
 
-    SqlLogContext(Task task, SqlQueryRequest request, long tookInNanos, SqlQueryResponse response) {
+    SqlCaptureContext(Task task, SqlQueryRequest request, long tookInNanos, SqlQueryResponse response) {
         super(task, TYPE, tookInNanos);
         this.request = request;
         this.response = response;
     }
 
-    SqlLogContext(Task task, SqlQueryRequest request, long tookInNanos, Exception error) {
+    SqlCaptureContext(Task task, SqlQueryRequest request, long tookInNanos, Exception error) {
         super(task, TYPE, tookInNanos, error);
         this.request = request;
         this.response = null;

@@ -11,9 +11,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationTests;
 
-public class ToTimeSeriesSerializationTests extends AbstractUnaryScalarSerializationTests<ToTimeSeries> {
+public class ToTimeSeriesMetadataSerializationTests extends AbstractUnaryScalarSerializationTests<ToTimeSeriesMetadata> {
     @Override
-    protected ToTimeSeries create(Source source, Expression child) {
-        return new ToTimeSeries(source, child);
+    protected ToTimeSeriesMetadata create(Source source, Expression child) {
+        return new ToTimeSeriesMetadata(source, child);
     }
 }

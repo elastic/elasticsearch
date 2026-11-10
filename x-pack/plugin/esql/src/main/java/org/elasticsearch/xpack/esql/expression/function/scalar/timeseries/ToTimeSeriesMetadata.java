@@ -42,27 +42,27 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
  * <p>
  * Internal: only PromQL translation builds it, so it has no ES|QL function name.
  */
-public final class ToTimeSeries extends AbstractConvertFunction {
+public final class ToTimeSeriesMetadata extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "ToTimeSeries",
-        ToTimeSeries::new
+        "ToTimeSeriesMetadata",
+        ToTimeSeriesMetadata::new
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.of(
         KEYWORD,
-        (source, field) -> new ToTimeSeriesFromKeywordEvaluator.Factory(
+        (source, field) -> new ToTimeSeriesMetadataFromKeywordEvaluator.Factory(
             source,
             field,
             context -> new BreakingBytesRefBuilder(context.breaker(), "to_timeseries")
         )
     );
 
-    public ToTimeSeries(Source source, Expression field) {
+    public ToTimeSeriesMetadata(Source source, Expression field) {
         super(source, field);
     }
 
-    private ToTimeSeries(StreamInput in) throws IOException {
+    private ToTimeSeriesMetadata(StreamInput in) throws IOException {
         super(in);
     }
 
@@ -85,7 +85,7 @@ public final class ToTimeSeries extends AbstractConvertFunction {
     @ConvertEvaluator(extraName = "FromKeyword")
     static BytesRef fromKeyword(BytesRef in, @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch) {
         scratch.clear();
-        try (XContentBuilder builder = TimeSeriesEvaluator.jsonBuilder(scratch)) {
+        try (XContentBuilder builder = TimeSeriesMetadataFunctionEvaluator.jsonBuilder(scratch)) {
             builder.startObject();
             for (var label : readSource(in).entrySet()) {
                 List<String> values = label.getValue();
@@ -173,12 +173,12 @@ public final class ToTimeSeries extends AbstractConvertFunction {
     }
 
     @Override
-    public ToTimeSeries replaceChildren(List<Expression> newChildren) {
-        return new ToTimeSeries(source(), newChildren.getFirst());
+    public ToTimeSeriesMetadata replaceChildren(List<Expression> newChildren) {
+        return new ToTimeSeriesMetadata(source(), newChildren.getFirst());
     }
 
     @Override
-    protected NodeInfo<ToTimeSeries> info() {
-        return NodeInfo.create(this, ToTimeSeries::new, field());
+    protected NodeInfo<ToTimeSeriesMetadata> info() {
+        return NodeInfo.create(this, ToTimeSeriesMetadata::new, field());
     }
 }

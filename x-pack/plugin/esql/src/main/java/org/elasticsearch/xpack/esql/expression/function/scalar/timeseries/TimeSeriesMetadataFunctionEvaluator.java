@@ -33,19 +33,19 @@ import java.util.List;
 
 /**
  * Evaluates reads and rewrites of labels in a typed label container. The label container is the canonical JSON object
- * {@link ToTimeSeries} writes - labels sorted by name - so every operation streams over it: a read stops at its label,
+ * {@link ToTimeSeriesMetadata} writes - labels sorted by name - so every operation streams over it: a read stops at its label,
  * and a rewrite copies the labels it keeps in their order, writing a set label at its sorted position, which keeps the
  * result canonical. Label names are folded once.
  */
-public final class TimeSeriesEvaluator implements ExpressionEvaluator {
+public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEvaluator {
     enum Operation {
         GET,
-        UNSET,
+        DROP,
         KEEP,
         SET
     }
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(TimeSeriesEvaluator.class);
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(TimeSeriesMetadataFunctionEvaluator.class);
 
     private final Operation operation;
     private final ExpressionEvaluator labelContainer;
@@ -54,7 +54,7 @@ public final class TimeSeriesEvaluator implements ExpressionEvaluator {
     private final @Nullable ExpressionEvaluator value;
     private final DriverContext context;
 
-    private TimeSeriesEvaluator(
+    private TimeSeriesMetadataFunctionEvaluator(
         Operation operation,
         ExpressionEvaluator labelContainer,
         List<String> names,
@@ -90,7 +90,7 @@ public final class TimeSeriesEvaluator implements ExpressionEvaluator {
         BytesRef scratch = new BytesRef();
         try (
             BytesRefBlock.Builder result = context.blockFactory().newBytesRefBlockBuilder(positions);
-            BreakingBytesRefBuilder buffer = new BreakingBytesRefBuilder(context.breaker(), "ts_transform")
+            BreakingBytesRefBuilder buffer = new BreakingBytesRefBuilder(context.breaker(), "ts_metadata")
         ) {
             for (int p = 0; p < positions; p++) {
                 BytesRef encoded = null;
@@ -103,7 +103,7 @@ public final class TimeSeriesEvaluator implements ExpressionEvaluator {
                 try {
                     switch (operation) {
                         case GET -> read(encoded, names.getFirst(), result);
-                        case UNSET -> result.appendBytesRef(copy(encoded, names, false, buffer));
+                        case DROP -> result.appendBytesRef(copy(encoded, names, false, buffer));
                         case KEEP -> result.appendBytesRef(copy(encoded, names, true, buffer));
                         case SET -> result.appendBytesRef(set(encoded, names.getFirst(), written(values, p), buffer));
                     }
@@ -218,7 +218,7 @@ public final class TimeSeriesEvaluator implements ExpressionEvaluator {
         return buffer.bytesRefView();
     }
 
-    /** One value is written as a string, several as an array, as {@link ToTimeSeries} does. */
+    /** One value is written as a string, several as an array, as {@link ToTimeSeriesMetadata} does. */
     private static void write(XContentBuilder builder, String name, List<String> values) throws IOException {
         if (values.size() == 1) {
             builder.field(name, values.getFirst());
@@ -248,7 +248,7 @@ public final class TimeSeriesEvaluator implements ExpressionEvaluator {
         return parser;
     }
 
-    /** A JSON builder writing into breaker-accounted {@code buffer}; {@link ToTimeSeries} writes the canonical form with it. */
+    /** A JSON builder writing into breaker-accounted {@code buffer}; {@link ToTimeSeriesMetadata} writes the canonical form with it. */
     static XContentBuilder jsonBuilder(BreakingBytesRefBuilder buffer) throws IOException {
         return XContentFactory.jsonBuilder(new BytesRefBuilderOutputStream(buffer));
     }
@@ -295,7 +295,7 @@ public final class TimeSeriesEvaluator implements ExpressionEvaluator {
     }
 
     private static String describe(Operation operation, List<String> names, Object labelContainer, @Nullable Object value) {
-        return "TimeSeriesEvaluator[operation="
+        return "TimeSeriesMetadataFunctionEvaluator[operation="
             + operation
             + ", names="
             + names
@@ -313,7 +313,7 @@ public final class TimeSeriesEvaluator implements ExpressionEvaluator {
     ) implements ExpressionEvaluator.Factory {
         @Override
         public ExpressionEvaluator get(DriverContext context) {
-            return new TimeSeriesEvaluator(
+            return new TimeSeriesMetadataFunctionEvaluator(
                 operation,
                 labelContainer.get(context),
                 names,

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedTableFunctionRelation;
@@ -17,10 +18,12 @@ import org.elasticsearch.xpack.esql.tablefunction.TableFunctionInvocation;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -70,6 +73,17 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
 
     private TableFunctionInvocation onlyCall(String query) {
         return onlyLeaf(query).call();
+    }
+
+    private TableFunctionInvocation onlyCall(String query, QueryParams params) {
+        List<TableFunctionInvocation> found = new ArrayList<>();
+        query(query, params).forEachDown(node -> {
+            if (node instanceof UnresolvedTableFunctionRelation leaf) {
+                found.add(leaf.call());
+            }
+        });
+        assertThat(found, hasSize(1));
+        return found.get(0);
     }
 
     private static List<String> argumentValues(TableFunctionInvocation call) {
@@ -199,6 +213,29 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
     }
 
     /**
+     * The argument list is optional in the grammar, so a call with nothing in the parentheses parses and arrives
+     * with no arguments. What to make of that is the function's signature's question, not the parser's.
+     */
+    public void testACallWithNoArgumentsParsesAndCarriesNone() {
+        assertThat(onlyCall("FROM EXAMPLE()").arguments(), hasSize(0));
+        assertThat(onlyCall("FROM EXAMPLE()").name(), equalTo("EXAMPLE"));
+    }
+
+    /**
+     * A multivalued parameter can hold a null element, and the fold has to carry it through rather than render it
+     * as the text "null" or drop it, which would change the list a function is handed.
+     */
+    public void testANullElementInAParameterListSurvivesTheFold() {
+        TableFunctionInvocation call = onlyCall(
+            "FROM EXAMPLE(my_source, \"res\", {\"file_exclusions\": ?p})",
+            new QueryParams(List.of(new QueryParam("p", Arrays.asList("a", null), DataType.KEYWORD, ParserUtils.ParamClassification.VALUE)))
+        );
+
+        assertThat(call.namedValues(2).keySet(), contains("file_exclusions"));
+        assertThat((List<?>) call.namedValues(2).get("file_exclusions"), contains("a", null));
+    }
+
+    /**
      * The lexer leaves FROM_MODE to read the call and has to come back to it, or the rest of the source list
      * would lex as an expression. Each of these puts something after the closing parenthesis that only
      * FROM_MODE can read.
@@ -255,7 +292,7 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
         assertThat(call.arguments().get(1), instanceOf(TableFunctionArgument.Name.class));
     }
 
-    /** The options are the last argument, so a call may stop before them. */
+    /** An optional argument is the last one a signature declares, so a call may stop before it. */
     public void testOptionsMayBeOmitted() {
         TableFunctionInvocation call = onlyCall("FROM EXAMPLE(my_source, \"s3://bucket/a.parquet\")");
         assertThat(call.name(0), equalTo("my_source"));

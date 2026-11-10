@@ -69,9 +69,9 @@ public record TableFunctionSignature(List<Argument> arguments) {
     public TableFunctionSignature {
         arguments = List.copyOf(arguments);
         // Thrown rather than asserted, as TableFunctionRegistry throws for its own bad declarations: assertions
-        // are off in production, so an assert here would refuse exactly nothing where it matters. Each of these is
-        // a shape no call could ever satisfy, so a function declaring one is broken at startup rather than on the
-        // first query that reaches it.
+        // are off in production, so an assert here would refuse exactly nothing where it matters. It is a shape
+        // no call could ever satisfy, so a function declaring it is broken on the first query that names it --
+        // the registry reads only a function's name, so nothing asks for a signature before then.
         boolean seenOptional = false;
         for (int i = 0; i < arguments.size(); i++) {
             Argument argument = arguments.get(i);

@@ -536,14 +536,29 @@ public final class PartitionSpec {
             if (withBounds == null) {
                 withBounds = new LinkedHashMap<>(hints);
             }
-            List<PartitionFilterHint> existing = withBounds.getOrDefault(entry.getKey(), List.of());
-            List<PartitionFilterHint> merged = new ArrayList<>(existing.size() + 2);
-            merged.add(new PartitionFilterHint(MetadataAttribute.TIMESTAMP_FIELD, Operator.GREATER_THAN_OR_EQUAL, List.of(start)));
-            merged.add(new PartitionFilterHint(MetadataAttribute.TIMESTAMP_FIELD, Operator.LESS_THAN_OR_EQUAL, List.of(end)));
-            merged.addAll(existing);
-            withBounds.put(entry.getKey(), List.copyOf(merged));
+            withBounds.put(entry.getKey(), spec.withTimestampBounds(withBounds.get(entry.getKey()), start, end));
         }
         return withBounds == null ? hints : withBounds;
+    }
+
+    /**
+     * {@code hints} with closed {@code @timestamp} bounds prepended, or {@code hints} unchanged when this spec does
+     * not bind that column or the range is not closed. The single-spec form of {@link #addTimestampBounds}.
+     */
+    public List<PartitionFilterHint> withTimestampBounds(
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Instant start,
+        @Nullable Instant end
+    ) {
+        if (start == null || end == null || start.isAfter(end) || bindsColumn(MetadataAttribute.TIMESTAMP_FIELD) == false) {
+            return hints;
+        }
+        List<PartitionFilterHint> existing = hints == null ? List.of() : hints;
+        List<PartitionFilterHint> merged = new ArrayList<>(existing.size() + 2);
+        merged.add(new PartitionFilterHint(MetadataAttribute.TIMESTAMP_FIELD, Operator.GREATER_THAN_OR_EQUAL, List.of(start)));
+        merged.add(new PartitionFilterHint(MetadataAttribute.TIMESTAMP_FIELD, Operator.LESS_THAN_OR_EQUAL, List.of(end)));
+        merged.addAll(existing);
+        return List.copyOf(merged);
     }
 
     private boolean bindsColumn(String column) {

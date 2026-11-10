@@ -5123,6 +5123,31 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    /**
+     * One file, two datasets over it, read as CSV and as TSV in one query: each gets the format it was registered with.
+     * <p>
+     * {@code COUNT(a) == 2} is uniquely determined. The TSV read of the same bytes finds no tab, so its only column is
+     * named {@code a,b} and it contributes no {@code a}. Reading both as CSV would give 4 instead.
+     * <p>
+     * With {@code ExternalSourceSpec} equality narrowed to the path this fails on the data node with
+     * {@code external dataset [two_formats_tsv] definition changed while the query was planned}.
+     */
+    public void testOneFileReadAsCsvAndAsTsvKeepsEachFormat() throws Exception {
+        // Neutral extension: the resolver refuses a .csv file claimed as tsv, which is a different check.
+        Path fixture = createTempFile("dataset-two-formats-", ".txt");
+        // Untyped header: a typed one is a single field to the TSV read, rejected as a column name.
+        Files.writeString(fixture, String.join("\n", "a,b", "1,2", "3,4") + "\n");
+        String uri = fixture.toUri().toString();
+
+        registerDataSource("local_ds", Map.of());
+        registerDataset("two_formats_csv", "local_ds", uri, Map.of("format", "csv"));
+        registerDataset("two_formats_tsv", "local_ds", uri, Map.of("format", "tsv"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM two_formats_csv, two_formats_tsv | STATS n = COUNT(a)"), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(2L))));
+        }
+    }
+
     /** TSV (shares the CSV reader via the tsv preset): a declared type coerces the file value like CSV/Parquet. */
     public void testTsvDeclaredTypeCoercionReadsAsDeclared() throws Exception {
         Path root = createTempDir();

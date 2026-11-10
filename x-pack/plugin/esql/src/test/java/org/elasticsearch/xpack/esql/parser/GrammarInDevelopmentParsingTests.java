@@ -37,9 +37,9 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
 
     /**
      * A release build must not merely refuse a call, it must refuse it the way it refused one before table
-     * functions existed — as a stray {@code (} after an index pattern. Asserting the exact message is what makes
-     * this discriminate: both predicates can be removed and a {@link ParsingException} still arrives, because the
-     * other one still refuses, so "some parse error" is satisfied by a build that has silently gained the syntax.
+     * functions existed — as a stray {@code (} after an index pattern. The exact message is what pins the lexer
+     * predicate and the {@code DEV_} stripping; the parser predicate is defence in depth no test can reach, since
+     * {@code UNQUOTED_SOURCE_PART} excludes {@code (} and the rule is never entered in a release build.
      */
     public void testDevelopmentTableFunction() throws Exception {
         parse("from dataset(a, {\"resource\": \"x\"})", "(", "line 1:13");

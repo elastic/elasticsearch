@@ -45,6 +45,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
@@ -191,7 +192,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 @Override
                 public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
                     if (blobName.contains(BatchedCompoundCommit.PREFIX)) {
-                        assert ThreadPool.assertCurrentThreadPool(StatelessPlugin.SHARD_READ_THREAD_POOL);
+                        assert ThreadPool.assertCurrentThreadPool(StatelessThreadPools.SHARD_READ_THREAD_POOL);
                     }
                     return super.readBlob(purpose, blobName);
                 }
@@ -199,7 +200,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 @Override
                 public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
                     if (blobName.contains(BatchedCompoundCommit.PREFIX)) {
-                        assert ThreadPool.assertCurrentThreadPool(StatelessPlugin.SHARD_READ_THREAD_POOL);
+                        assert ThreadPool.assertCurrentThreadPool(StatelessThreadPools.SHARD_READ_THREAD_POOL);
                     }
                     return super.readBlob(purpose, blobName, position, length);
                 }
@@ -209,7 +210,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 blobContainer,
                 fileName,
                 sharedBlobCacheService.getRangeSize(),
-                threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL)
+                threadPool.executor(StatelessThreadPools.SHARD_READ_THREAD_POOL)
             );
             final var indexShardReader = new IndexingShardCacheBlobReader(null, null, null, null, fileSize, threadPool) {
                 @Override
@@ -331,7 +332,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 blobContainer,
                 fileName,
                 sharedBlobCacheService.getRangeSize(),
-                threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL)
+                threadPool.executor(StatelessThreadPools.SHARD_READ_THREAD_POOL)
             ) {
                 @Override
                 public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
@@ -485,7 +486,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 TestUtils.singleBlobContainer(blobName, data),
                 blobName,
                 sharedBlobCacheService.getRangeSize(),
-                threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL)
+                threadPool.executor(StatelessThreadPools.SHARD_READ_THREAD_POOL)
             ) {
                 @Override
                 public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
@@ -610,8 +611,8 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             cacheBlobReader,
             () -> null, // ignored
             copiedBytes -> {},
-            StatelessPlugin.SHARD_READ_THREAD_POOL,
-            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+            StatelessThreadPools.SHARD_READ_THREAD_POOL,
+            StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
         );
 
         // Fallback behaviour for a single gap
@@ -647,7 +648,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         final var totalGapLength = Math.toIntExact(gaps.get(gaps.size() - 1).end() - gaps.get(0).start());
         final var calledOnce = ActionListener.assertOnce(ActionListener.noop());
         final var executor = randomBoolean()
-            ? threadPool.executor(StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL)
+            ? threadPool.executor(StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL)
             : EsExecutors.DIRECT_EXECUTOR_SERVICE;
         doAnswer(invocation -> {
             ActionListener<InputStream> argument = invocation.getArgument(2);
@@ -711,8 +712,8 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             cacheBlobReader,
             () -> null, // ignored
             copiedBytes -> {},
-            StatelessPlugin.SHARD_READ_THREAD_POOL,
-            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+            StatelessThreadPools.SHARD_READ_THREAD_POOL,
+            StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
         );
 
         // Create a list of disjoint gaps

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 164055
+pr: 164055
+summary: Fix WindowFilter ClassCastException for PromQL rate/irate/increase over gauges when the window is shorter than the step
+type: bug

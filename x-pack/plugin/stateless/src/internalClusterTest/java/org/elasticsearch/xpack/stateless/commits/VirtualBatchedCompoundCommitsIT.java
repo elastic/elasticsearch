@@ -748,7 +748,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                 assertThat(shard.indexSettings().getIndexMetadata().getState(), equalTo(IndexMetadata.State.CLOSE));
             });
             // wait until index is deleted
-            case INDEX_DELETED -> () -> assertBusy(() -> assertThat(listBlobsWithAbsolutePath(shardCommitsContainer), empty()));
+            case INDEX_DELETED -> () -> assertBusy(() -> assertThat(listCommitBlobsWithAbsolutePath(shardCommitsContainer), empty()));
         };
         CountDownLatch getChunkActionAppeared = new CountDownLatch(1);
         MockTransportService.getInstance(indexNode)

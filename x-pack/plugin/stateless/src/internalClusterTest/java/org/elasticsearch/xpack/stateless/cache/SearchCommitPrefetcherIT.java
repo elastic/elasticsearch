@@ -861,7 +861,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         var bccBlobs = IndexDirectory.unwrapDirectory(findIndexShard(indexName).store().directory())
             .getBlobStoreCacheDirectory()
             .getBlobContainer(primaryTerm)
-            .listBlobs(OperationPurpose.INDICES);
+            .listBlobsByPrefix(OperationPurpose.INDICES, BatchedCompoundCommit.PREFIX);
 
         var bccBlobsTotalSizeInBytes = bccBlobs.entrySet()
             .stream()

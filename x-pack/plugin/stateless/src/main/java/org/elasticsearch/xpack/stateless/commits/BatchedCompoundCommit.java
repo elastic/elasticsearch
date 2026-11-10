@@ -33,6 +33,10 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
 
     public static final String PREFIX = "stateless_commit_";
 
+    /// Prefix of merge blobs (`stateless_merge_<gen>_<segment>_<discriminator>`). Nothing writes them yet; nodes must ignore them.
+    /// TODO(szybia): move to MergeBlobFile (#162535)
+    public static final String MERGE_BLOB_PREFIX = "stateless_merge_";
+
     public BatchedCompoundCommit {
         if (primaryTermAndGeneration == null) {
             throw new IllegalArgumentException("Batched compound commits must have a non-null primary term and generation");
@@ -254,6 +258,10 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
     // A batched compound commit is stored as a single blob whose name is derived from the generation of its first compound commit.
     public static boolean startsWithBlobPrefix(String name) {
         return name.startsWith(PREFIX);
+    }
+
+    public static boolean startsWithMergeBlobPrefix(String name) {
+        return name.startsWith(MERGE_BLOB_PREFIX);
     }
 
     public static String blobNameFromGeneration(long generation) {

@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.stateless;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -80,6 +83,7 @@ import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
@@ -91,6 +95,7 @@ import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessElectionS
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
+import org.elasticsearch.xpack.stateless.commits.MergeBlobInjector;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
@@ -122,6 +127,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -140,7 +146,9 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xpack.stateless.StatelessPlugin.MERGE_BLOBS_ENABLED;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -172,22 +180,48 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     }
 
     private int uploadMaxCommits;
+    private boolean useBasePath;
+    private boolean hollowIndexShardsDisabled;
+    private boolean hollowIndexShardsZeroTtl;
+    // TODO(szybia): remove once merge blobs are uploaded for real
+    private MockLog mergeBlobLogCapture;
 
     @Before
-    public void initUploadMaxCommits() {
+    public void setup() {
         uploadMaxCommits = randomBoolean()
             ? between(1, 10)
             : StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getDefault(Settings.EMPTY);
+        useBasePath = randomBoolean();
+        if (randomBoolean()) {
+            // Randomly disable hollow shards
+            hollowIndexShardsDisabled = true;
+        } else if (randomBoolean()) {
+            // Randomly make TTL zero for hollowing shards
+            hollowIndexShardsZeroTtl = true;
+        }
+        if (MERGE_BLOBS_ENABLED) {
+            MergeBlobInjector.reset();
+            mergeBlobLogCapture = MockLog.capture("");
+            mergeBlobLogCapture.addExpectation(new NoMergeBlobWarningExpectation());
+        }
     }
 
     @After
-    public void waitForMergesAndFlushTranslogBuffers() throws Exception {
+    public void afterTest() throws Exception {
         // This works for stateless as we build a new cluster for each TEST. However, if we move to SUITE this might need to be in
         // AfterClass depending on the test's needs.
         waitForMergesToFinish();
         // Release translog buffer pages left by shards that closed before their post-write sync, else the breaker check fails
         for (StatelessComponents components : internalCluster().getInstances(StatelessComponents.class)) {
             TranslogReplicatorTestUtils.requestSyncFlush(components.getTranslogReplicator());
+        }
+        // TODO(szybia): remove once merge blobs are uploaded for real
+        if (MERGE_BLOBS_ENABLED) {
+            try {
+                assertInjectedMergeBlobsStillPresent();
+            } finally {
+                assertNoMergeBlobLoggingWarnings();
+            }
         }
     }
 
@@ -206,6 +240,79 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
 
     public int getUploadMaxCommits() {
         return uploadMaxCommits;
+    }
+
+    /// Merge blobs are never deleted, so every injected blob must still be readable unchanged, unless its index was deleted or its
+    /// shard id no longer exists (whole directories are deleted in both cases).
+    // TODO(szybia): remove once merge blobs are uploaded for real
+    private static void assertInjectedMergeBlobsStillPresent() throws Exception {
+        if (internalCluster().size() == 0) {
+            return;
+        }
+        final var components = internalCluster().getInstances(StatelessComponents.class).iterator();
+        if (components.hasNext() == false) {
+            return;
+        }
+        // any node will do, they all share one object store
+        final ObjectStoreService objectStoreService = components.next().getObjectStoreService();
+        // a blob scheduled right after an upload may still be in flight when the test ends, hence assertBusy
+        assertBusy(() -> {
+            final ClusterState state = internalCluster().clusterService().state();
+            final List<String> problems = new ArrayList<>();
+            // re-read on every attempt: a blob is registered before its write and unregistered if the write fails
+            for (var entry : MergeBlobInjector.injected().entrySet()) {
+                final var blob = entry.getKey();
+                final var indexMetadata = state.metadata().findIndex(blob.shardId().getIndex());
+                if (indexMetadata.isEmpty() || blob.shardId().id() >= indexMetadata.get().getNumberOfShards()) {
+                    continue;
+                }
+                try (
+                    InputStream in = objectStoreService.getProjectBlobContainer(blob.shardId(), blob.primaryTerm())
+                        .readBlob(OperationPurpose.INDICES, blob.blobName())
+                ) {
+                    if (Arrays.equals(in.readAllBytes(), entry.getValue()) == false) {
+                        problems.add(blob + " has different content");
+                    }
+                } catch (Exception e) {
+                    problems.add(blob + " cannot be read: " + e);
+                }
+            }
+            assertThat("injected merge blobs missing or modified", problems, empty());
+        });
+    }
+
+    // TODO(szybia): remove once merge blobs are uploaded for real
+    private void assertNoMergeBlobLoggingWarnings() {
+        if (mergeBlobLogCapture == null) {
+            return;
+        }
+        try (var capture = mergeBlobLogCapture) {
+            mergeBlobLogCapture = null;
+            capture.assertAllExpectationsMatched();
+        }
+    }
+
+    /// Check there's no >= WARN logs that mention a merge blob. Only works for tests which don't define their own [MockLog].
+    private static class NoMergeBlobWarningExpectation implements MockLog.LoggingExpectation {
+        private final List<String> seen = new CopyOnWriteArrayList<>();
+
+        @Override
+        public void match(LogEvent event) {
+            if (event.getLevel().isMoreSpecificThan(Level.WARN) == false) {
+                return;
+            }
+            final String message = event.getMessage().getFormattedMessage();
+            final Throwable thrown = event.getThrown();
+            if (message.contains(BatchedCompoundCommit.MERGE_BLOB_PREFIX)
+                || (thrown != null && ExceptionsHelper.stackTrace(thrown).contains(BatchedCompoundCommit.MERGE_BLOB_PREFIX))) {
+                seen.add("[" + event.getLoggerName() + "] " + message + (thrown != null ? " (" + thrown + ")" : ""));
+            }
+        }
+
+        @Override
+        public void assertMatched() {
+            assertThat("WARN or ERROR logs mentioning a merge blob", seen, empty());
+        }
     }
 
     public static final String SYSTEM_INDEX_NAME = ".sys-idx";
@@ -301,22 +408,6 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     @BeforeClass
     public static void setupClass() {
         operationPurpose = randomFrom(OperationPurpose.values());
-    }
-
-    private boolean useBasePath;
-    private boolean hollowIndexShardsDisabled;
-    private boolean hollowIndexShardsZeroTtl;
-
-    @Before
-    public void setup() {
-        useBasePath = randomBoolean();
-        if (randomBoolean()) {
-            // Randomly disable hollow shards
-            hollowIndexShardsDisabled = true;
-        } else if (randomBoolean()) {
-            // Randomly make TTL zero for hollowing shards
-            hollowIndexShardsZeroTtl = true;
-        }
     }
 
     /**
@@ -1156,19 +1247,25 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     }
 
     /**
-     * List all finalized blobs in the blob container, exclude any temporary blobs present for in-progress
+     * List all finalized commit blobs in the blob container, exclude any temporary commit blobs present for in-progress
      * atomic writes.
      *
      * @param blobContainer An BlobContainer that extends or delegates to a {@link FsBlobContainer}
-     * @return The list of finalized blobs in that container
+     * @return The list of finalized commit blobs in that container
      */
-    protected Set<String> listBlobsWithAbsolutePath(BlobContainer blobContainer) throws IOException {
+    protected Set<String> listCommitBlobsWithAbsolutePath(BlobContainer blobContainer) throws IOException {
         var blobContainerPath = blobContainer.path().buildAsString();
+        return listCommitBlobNames(blobContainer).stream()
+            .filter(blob -> FsBlobContainer.isTempBlobName(blob.substring(blob.lastIndexOf('/') + 1)) == false)
+            .map(blob -> blobContainerPath + blob)
+            .collect(Collectors.toSet());
+    }
+
+    protected static Set<String> listCommitBlobNames(BlobContainer blobContainer) throws IOException {
         return blobContainer.listBlobs(operationPurpose)
             .keySet()
             .stream()
-            .filter(blob -> FsBlobContainer.isTempBlobName(blob.substring(blob.lastIndexOf('/') + 1)) == false)
-            .map(blob -> blobContainerPath + blob)
+            .filter(blob -> BatchedCompoundCommit.startsWithMergeBlobPrefix(blob) == false)
             .collect(Collectors.toSet());
     }
 

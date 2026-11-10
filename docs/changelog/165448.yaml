@@ -1,5 +1,5 @@
 area: Columnar
 issues: []
 pr: 165448
-summary: Ask binary index sort fields if they're multi-valued
+summary: Fix composite aggregations missing buckets on multi-valued keyword index sort fields in columnar indices
 type: bug

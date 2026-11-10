@@ -1,0 +1,69 @@
+---
+setup:
+  - requires:
+      test_runner_features: [capabilities, contains]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [fn_decay_ga_fixes]
+      reason: "DECAY validates its parameters"
+  - do:
+      indices.create:
+        index: decay_test
+        body:
+          mappings:
+            properties:
+              id:
+                type: integer
+              price:
+                type: double
+  - do:
+      bulk:
+        index: decay_test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "id": 1, "price": 10.0 }
+          - { "index": { } }
+          - { "id": 2, "price": 15.0 }
+          - { "index": { } }
+          - { "id": 3, "price": 40.0 }
+
+---
+"Origin, scale and type from query params":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM decay_test | EVAL score = ROUND(DECAY(price, ?origin, ?scale, {"type": ?type}), 4) | SORT id | KEEP id, score'
+          params: [{"origin": 10.0}, {"scale": 10.0}, {"type": "exp"}]
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.1.name: "score" }
+  - match: { columns.1.type: "double" }
+  - length: { values: 3 }
+  - match: { values.0: [1, 1.0] }
+  - match: { values.1: [2, 0.7071] }
+  - match: { values.2: [3, 0.125] }
+
+---
+"Invalid scale is a client error":
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM decay_test | EVAL score = DECAY(price, 10.0, 0.0) | KEEP score'
+
+  - match: { status: 400 }
+  - contains: { error.reason: '[scale] must be a finite number greater than 0, found [0.0]' }
+
+---
+"Invalid decay option is a client error":
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'ROW price = 15.0 | EVAL score = DECAY(price, 10.0, 10.0, {"decay": 1.0})'
+
+  - match: { status: 400 }
+  - contains: { error.reason: '[decay] option must be in the range (0, 1), found [1.0]' }

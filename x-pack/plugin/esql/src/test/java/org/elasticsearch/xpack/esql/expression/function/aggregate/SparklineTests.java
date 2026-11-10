@@ -40,16 +40,12 @@ public class SparklineTests extends AbstractAggregationTestCase {
 
         var fromToTypes = List.of(DataType.DATETIME, DataType.KEYWORD, DataType.TEXT);
 
-        int maximumTypes = Math.max(fieldSuppliers.size(), fromToTypes.size());
-        for (int i = 0; i < maximumTypes; i++) {
-            suppliers.add(
-                makeSupplier(
-                    fieldSuppliers.get(i % fieldSuppliers.size()),
-                    DataType.DATETIME,
-                    fromToTypes.get(i % fromToTypes.size()),
-                    fromToTypes.get(i % fromToTypes.size())
-                )
-            );
+        for (TestCaseSupplier.TypedDataSupplier fieldSupplier : fieldSuppliers) {
+            for (DataType fromType : fromToTypes) {
+                for (DataType toType : fromToTypes) {
+                    suppliers.add(makeSupplier(fieldSupplier, DataType.DATETIME, fromType, toType));
+                }
+            }
         }
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);

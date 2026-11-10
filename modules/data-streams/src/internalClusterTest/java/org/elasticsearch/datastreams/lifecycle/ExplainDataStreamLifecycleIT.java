@@ -253,10 +253,6 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
     }
 
     public void testExplainFailuresLifecycle() throws Exception {
-        // Failure indices are always managed unless explicitly disabled.
-        DataStreamLifecycle failureStoreLifecycle = DataStreamLifecycle.failuresLifecycleBuilder()
-            .frozenAfter(TimeValue.timeValueMillis(1))
-            .build();
         putComposableIndexTemplate(
             "id1",
             """
@@ -274,7 +270,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(true).lifecycle(failureStoreLifecycle).buildTemplate())
+            new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(true).buildTemplate())
         );
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(

@@ -1,3 +1,0 @@
-from all_types, (from all_types | eval s = length(text) | keep s)
-| eval t = v_dot_product(dense_vector, [1, 2, 3])
-| keep s, t

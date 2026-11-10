@@ -116,11 +116,6 @@ public class MappingLookupInferenceFieldMapperTests extends MapperServiceTestCas
         protected void parseCreateField(DocumentParserContext context) {}
 
         @Override
-        public Builder getMergeBuilder() {
-            return new Builder(leafName());
-        }
-
-        @Override
         protected String contentType() {
             return CONTENT_TYPE;
         }

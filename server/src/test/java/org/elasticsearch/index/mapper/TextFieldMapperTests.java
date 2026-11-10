@@ -698,7 +698,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     public void testDocValuesSerialized() throws IOException {
         // doc_values = true should be serialized
-        DocumentMapper mapperWithTrue = createDocumentMapper(fieldMapping(b -> {
+        MapperService mapperWithTrue = createMapperService(fieldMapping(b -> {
             b.field("type", "text");
             b.field("index", false);
             b.field("doc_values", true);
@@ -706,18 +706,18 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
-        mapperWithTrue.mapping().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        mappingToXContent(mapperWithTrue, builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         String mappingString = Strings.toString(builder);
 
         assertTrue(mappingString.contains("doc_values"));
 
         // when doc_values is not specified (default), it should not be serialized
-        DocumentMapper mapperWithDefault = createDocumentMapper(fieldMapping(b -> { b.field("type", "text"); }));
+        MapperService mapperWithDefault = createMapperService(fieldMapping(b -> { b.field("type", "text"); }));
 
         builder = XContentFactory.jsonBuilder();
         builder.startObject();
-        mapperWithDefault.mapping().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        mappingToXContent(mapperWithDefault, builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         mappingString = Strings.toString(builder);
 
@@ -1427,7 +1427,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         assertEquals("""
             {"_doc":{"properties":{"field":{"type":"text","fields":{"subfield":{"type":"long"}},\
-            "fielddata":true}}}}""", Strings.toString(mapperService.documentMapper().mapping()));
+            "fielddata":true}}}}""", mapperService.documentMapper().mappingSource().string());
     }
 
     public void testEnableStore() throws IOException {
@@ -1463,7 +1463,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         mapping.endObject().endObject().endObject();
 
         DocumentMapper mapper = createDocumentMapper(mapping);
-        String serialized = Strings.toString(mapper.mapping());
+        String serialized = mapper.mappingSource().string();
         assertThat(serialized, containsString("""
             "offsets":{"type":"text","index_options":"offsets"}"""));
         assertThat(serialized, containsString("""
@@ -1588,8 +1588,11 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
-        createDocumentMapper(fieldMapping(this::minimalMapping)).mapping()
-            .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true")));
+        mappingToXContent(
+            createMapperService(fieldMapping(this::minimalMapping)),
+            builder,
+            new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"))
+        );
         builder.endObject();
         String mappingString = Strings.toString(builder);
         assertTrue(mappingString.contains("analyzer"));

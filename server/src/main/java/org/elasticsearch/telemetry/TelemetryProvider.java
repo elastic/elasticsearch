@@ -51,7 +51,7 @@ public interface TelemetryProvider {
 
         @Override
         public Tracer getTracer() {
-            return Tracer.NOOP;
+            return Tracer.noop();
         }
 
         @Override

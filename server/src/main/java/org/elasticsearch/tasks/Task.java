@@ -13,11 +13,13 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.telemetry.tracing.Traceable;
+import org.elasticsearch.telemetry.tracing.Span;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -27,7 +29,7 @@ import static java.util.Objects.requireNonNull;
 /**
  * Current task information
  */
-public class Task implements Traceable {
+public class Task {
 
     /**
      * The request header to mark tasks with specific ids
@@ -81,6 +83,24 @@ public class Task implements Traceable {
         X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER,
         X_ELASTIC_PROJECT_ID_HTTP_HEADER
     );
+
+    private static final VarHandle SPAN;
+
+    static {
+        try {
+            SPAN = MethodHandles.lookup().findVarHandle(Task.class, "span", Span.class);
+        } catch (Exception e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
+    /**
+     * The span that traces this task, a no-op span unless the task is traced. It is started by the {@link TaskManager} when the task is
+     * registered and ended when the task is unregistered, which may happen on a different thread. It is therefore handed over by way of
+     * the task, and it is not made current in any thread context.
+     */
+    @SuppressWarnings("unused")
+    private volatile Span span = Span.noop();
 
     private final long id;
 
@@ -302,11 +322,6 @@ public class Task implements Traceable {
         }
     }
 
-    @Override
-    public String getSpanId() {
-        return "task-" + getId();
-    }
-
     protected record OriginalTaskInfo(TaskId originalTaskId, long originalStartTimeMillis) {
 
         public OriginalTaskInfo {
@@ -322,5 +337,17 @@ public class Task implements Traceable {
 
     public Optional<TaskId> getOriginalTaskId() {
         return getOriginalTaskInfo().map(OriginalTaskInfo::originalTaskId);
+    }
+
+    void setSpan(Span span) {
+        SPAN.setVolatile(this, span);
+    }
+
+    Span getSpan() {
+        return (Span) SPAN.getVolatile(this);
+    }
+
+    Span popSpan() {
+        return (Span) SPAN.getAndSet(this, Span.noop());
     }
 }

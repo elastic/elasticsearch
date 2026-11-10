@@ -535,7 +535,7 @@ public class SearchableSnapshotDirectoryFactory {
         );
 
         Settings settings = Settings.builder().put("node.name", "test").put("cluster.name", "ClusterServiceTests").build();
-        TaskManager taskManager = new TaskManager(settings, threadPool, Collections.emptySet(), Tracer.NOOP, discoveryNode.getId());
+        TaskManager taskManager = new TaskManager(settings, threadPool, Collections.emptySet(), Tracer.noop(), discoveryNode.getId());
         ClusterService clusterService = new ClusterService(settings, clusterSettings, threadPool, taskManager);
         clusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override

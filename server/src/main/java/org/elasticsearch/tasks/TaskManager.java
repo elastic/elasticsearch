@@ -31,6 +31,8 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.telemetry.tracing.AttributeKeys;
+import org.elasticsearch.telemetry.tracing.SpanBuilder;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TaskTransportChannel;
@@ -99,7 +101,7 @@ public class TaskManager implements ClusterStateApplier {
 
     // For testing
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
-        this(settings, threadPool, taskHeaders, Tracer.NOOP);
+        this(settings, threadPool, taskHeaders, Tracer.noop());
     }
 
     // For testing (especially the creating a random node ID, which some tests rely on)
@@ -183,29 +185,24 @@ public class TaskManager implements ClusterStateApplier {
     }
 
     /**
-     * Starts the span of the task, as a child of the span of its parent task if that is registered here, or else of the span that is
-     * current in the thread context, if there is one. The span is not made current in any thread context: a task starts and ends in
-     * different places.
+     * Starts the span of the task, as a child of the span that is current in the thread context, if there is one; or the current span from
+     * thread context, if there isn't. The span is kept by the task, which is what ends it when it is unregistered, and it is not made
+     * current anywhere.
      */
     void startTrace(Task task) {
-        TaskId parentTaskId = task.getParentTaskId();
-        Map<String, Object> attributes = parentTaskId.isSet()
-            ? Map.of(Tracer.AttributeKeys.TASK_ID, task.getId(), Tracer.AttributeKeys.PARENT_TASK_ID, parentTaskId.toString())
-            : Map.of(Tracer.AttributeKeys.TASK_ID, task.getId());
+        final SpanBuilder spanBuilder = tracer.spanBuilder(task.getAction()).setAttribute(AttributeKeys.TASK_ID, task.getId());
+        final TaskId parentTaskId = task.getParentTaskId();
+        if (parentTaskId.isSet()) {
+            spanBuilder.setAttribute(AttributeKeys.PARENT_TASK_ID, parentTaskId.toString());
 
-        final Task parentTask = parentTaskId.isSet() && Objects.equals(parentTaskId.getNodeId(), nodeId)
-            ? getTask(parentTaskId.getId())
-            : null;
-        if (parentTask == null) {
-            // the span is a child of the span that is current in the thread context, if there is one
-            tracer.startTrace(task, task.getAction(), attributes);
-        } else {
-            // the span of a task is not made current in any thread context, as it starts and ends in different places, so the span of the
-            // parent task is made the parent of this one by hand
-            try (var ignored = tracer.storeSpanInThreadContext(parentTask)) {
-                tracer.startTrace(task, task.getAction(), attributes);
+            // if there is a parent task, propagate the span context manually -- otherwise the parent span is inherited from thread context
+            final Task parentTask = Objects.equals(parentTaskId.getNodeId(), nodeId) ? getTask(parentTaskId.getId()) : null;
+            if (parentTask != null) {
+                spanBuilder.setParent(parentTask.getSpan());
             }
         }
+
+        task.setSpan(spanBuilder.startSpan());
     }
 
     public <Request extends ActionRequest, Response extends ActionResponse> Task registerAndExecute(
@@ -383,7 +380,7 @@ public class TaskManager implements ClusterStateApplier {
                 return removedTask;
             }
         } finally {
-            tracer.stopTrace(task); // stop trace if started / known by tracer
+            task.popSpan().end();
             for (RemovedTaskListener listener : removedTaskListeners) {
                 listener.onRemoved(task);
             }

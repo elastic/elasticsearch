@@ -12,11 +12,11 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelationBuilder;
 import org.elasticsearch.xpack.esql.tablefunction.CoordinatorRowsFunction;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunction;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionInvocation;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionSignature;
-import org.elasticsearch.xpack.esql.tablefunction.TableRows;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -64,12 +64,17 @@ public class CoordinatorRowsFunctionIT extends AbstractEsqlIntegTestCase {
         }
 
         @Override
-        protected void write(TableFunctionInvocation call, ProjectMetadata projectMetadata, TableRows rows, ActionListener<Void> listener) {
+        protected void write(
+            TableFunctionInvocation call,
+            ProjectMetadata projectMetadata,
+            LocalRelationBuilder rows,
+            ActionListener<Void> listener
+        ) {
             computed(listener, out -> {
-                TableRows.Keyword letter = out.keyword("letter");
-                TableRows.Longs position = out.longs("position");
-                TableRows.Doubles half = out.doubles("half");
-                TableRows.Booleans vowel = out.booleans("vowel");
+                LocalRelationBuilder.Keyword letter = out.keyword("letter");
+                LocalRelationBuilder.Longs position = out.longs("position");
+                LocalRelationBuilder.Doubles half = out.doubles("half");
+                LocalRelationBuilder.Booleans vowel = out.booleans("vowel");
 
                 char[] letters = call.name(0).toCharArray();
                 for (int i = 0; i < letters.length; i++) {

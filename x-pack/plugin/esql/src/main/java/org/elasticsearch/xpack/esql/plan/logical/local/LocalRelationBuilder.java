@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.esql.tablefunction;
+package org.elasticsearch.xpack.esql.plan.logical.local;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
@@ -28,24 +28,27 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * The table a {@link CoordinatorRowsFunction} writes: a column is declared and the declaration hands back something
+ * Builds a {@link LocalRelation} a column at a time: a column is declared and the declaration hands back something
  * that appends values of that column's type and nothing else.
  * <p>
  * Declaring and writing are one act on purpose. A schema stated separately from the values has to be checked against
  * them — the arity per row, the Java type per cell, the element type of each block against the declared
  * {@link DataType} — and all of that is checking at runtime what a type can state once.
+ * <p>
+ * {@code owner} names whoever is building, and appears in the exception a misuse raises, since every one of them is
+ * a bug in that caller rather than anything a query can provoke.
  */
-public final class TableRows implements Releasable {
+public final class LocalRelationBuilder implements Releasable {
 
-    private final String function;
+    private final String owner;
     private final BlockFactory blockFactory;
     private final List<Attribute> columns = new ArrayList<>();
     private final List<Block.Builder> builders = new ArrayList<>();
     private final Set<String> names = new LinkedHashSet<>();
     private boolean built;
 
-    TableRows(String function, BlockFactory blockFactory) {
-        this.function = function;
+    public LocalRelationBuilder(String owner, BlockFactory blockFactory) {
+        this.owner = owner;
         this.blockFactory = blockFactory;
     }
 
@@ -83,13 +86,13 @@ public final class TableRows implements Releasable {
     private <B extends Block.Builder> B declare(String name, DataType type, B builder) {
         if (built) {
             builder.close();
-            throw new IllegalStateException("table function [" + function + "] declared the column [" + name + "] after finishing");
+            throw new IllegalStateException("[" + owner + "] declared the column [" + name + "] after finishing");
         }
         if (names.add(name) == false) {
             builder.close();
-            throw new IllegalStateException("table function [" + function + "] declared the column [" + name + "] more than once");
+            throw new IllegalStateException("[" + owner + "] declared the column [" + name + "] more than once");
         }
-        columns.add(new ReferenceAttribute(Source.EMPTY, name, type));
+        columns.add(new ReferenceAttribute(Source.EMPTY, null, name, type));
         builders.add(builder);
         return builder;
     }
@@ -193,16 +196,24 @@ public final class TableRows implements Releasable {
     }
 
     /**
+     * The relation the declared columns and appended values denote, which owns the blocks from here: releasing them
+     * is whoever holds the relation's job, as it is for any other {@link LocalRelation}.
+     */
+    public LocalRelation relation(Source source) {
+        return new LocalRelation(source, columns(), LocalSupplier.of(page()));
+    }
+
+    /**
      * The page the declared columns hold, which this stops owning: every block is the caller's to release from here.
-     * A column short of the longest is a function that stopped appending part way through, and is refused rather than
+     * A column short of the longest is a caller that stopped appending part way through, and is refused rather than
      * padded, because which column it meant to leave empty is not something this can know.
      */
     Page page() {
         if (built) {
-            throw new IllegalStateException("table function [" + function + "] built its page twice");
+            throw new IllegalStateException("[" + owner + "] built its page twice");
         }
         if (columns.isEmpty()) {
-            throw new IllegalStateException("table function [" + function + "] declared no columns");
+            throw new IllegalStateException("[" + owner + "] declared no columns");
         }
         built = true;
         Block[] blocks = new Block[builders.size()];
@@ -215,8 +226,8 @@ public final class TableRows implements Releasable {
             for (int i = 1; i < blocks.length; i++) {
                 if (blocks[i].getPositionCount() != rows) {
                     throw new IllegalStateException(
-                        "table function ["
-                            + function
+                        "["
+                            + owner
                             + "] wrote ["
                             + blocks[i].getPositionCount()
                             + "] values to the column ["

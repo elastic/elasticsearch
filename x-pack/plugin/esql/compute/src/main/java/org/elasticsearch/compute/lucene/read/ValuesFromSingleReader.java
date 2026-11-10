@@ -102,18 +102,6 @@ import java.util.Set;
 class ValuesFromSingleReader extends ValuesReader {
     private static final Logger log = LogManager.getLogger(ValuesFromSingleReader.class);
 
-    /**
-     * Minimum number of documents for which it is more efficient to use a
-     * sequential stored field reader when reading stored fields.
-     * <p>
-     *     The sequential stored field reader decompresses a whole block of docs
-     *     at a time so for very short lists it won't be faster to use it. We use
-     *     {@code 10} documents as the boundary for "very short" because it's what
-     *     search does, not because we've done extensive testing on the number.
-     * </p>
-     */
-    static final int SEQUENTIAL_BOUNDARY = 10;
-
     private final int shard;
     private final int segment;
 

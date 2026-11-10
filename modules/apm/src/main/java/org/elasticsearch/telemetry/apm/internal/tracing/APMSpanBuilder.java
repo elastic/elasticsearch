@@ -20,7 +20,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
-import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer.APMServices;
 import org.elasticsearch.telemetry.tracing.AttributeKeys;
 import org.elasticsearch.telemetry.tracing.Span;
 import org.elasticsearch.telemetry.tracing.SpanBuilder;
@@ -140,10 +139,9 @@ public class APMSpanBuilder implements SpanBuilder {
     }
 
     private Context startSpanContext() {
-        final APMServices services = tracer.services();
-        if (services == null) {
-            // tracing has been disabled, clear any parent span
-            return Context.root();
+        if (tracer.isEnabled() == false) {
+            // invalid span will break the propagation chain, which is what we want in this case
+            return Context.root().with(io.opentelemetry.api.trace.Span.getInvalid());
         }
 
         final var threadContext = tracer.threadContext();
@@ -184,7 +182,7 @@ public class APMSpanBuilder implements SpanBuilder {
             return contextWithInvalidSpan(localParentContext);
         }
 
-        final io.opentelemetry.api.trace.SpanBuilder otelSpanBuilder = services.tracer().spanBuilder(name);
+        final io.opentelemetry.api.trace.SpanBuilder otelSpanBuilder = tracer.otelTracer().spanBuilder(name).setSpanKind(spanKind);
 
         // A span can have a parent span, which is important for seeing a complete trace in the APM UI.
         // Try to use the local parent first, otherwise look for a remote parent in the request headers; otherwise use Context.root().
@@ -194,11 +192,15 @@ public class APMSpanBuilder implements SpanBuilder {
             newSpanParent = Context.root();
             otelSpanBuilder.setNoParent();
         } else {
-            newSpanParent = localParentSpan != null ? localParentContext : getRemoteParentContext(services);
+            newSpanParent = localParentSpan != null ? localParentContext : getRemoteParentContext();
             otelSpanBuilder.setParent(newSpanParent);
         }
 
-        setAttributes(otelSpanBuilder);
+        if (attributesBuilder != null) {
+            otelSpanBuilder.setAllAttributes(attributesBuilder.build());
+        }
+
+        setCommonAttributes(otelSpanBuilder);
 
         if (localParentSpan == null) {
             Instant startTime = threadContext.removeTransient(Task.LOCAL_TRACE_START_TIME);
@@ -216,28 +218,7 @@ public class APMSpanBuilder implements SpanBuilder {
         return contextForNewSpan;
     }
 
-    /** Returns an OTel {@link Context} that contains an invalid span instance; this prevents child spans from being started. */
-    private static Context contextWithInvalidSpan(Context context) {
-        return context.with(io.opentelemetry.api.trace.Span.getInvalid());
-    }
-
-    /**
-     * The remote parent of a span that starts a local trace: the context that was propagated to this node in the request headers, or
-     * {@link Context#root()} if there is none.
-     */
-    private Context getRemoteParentContext(APMServices services) {
-        return services.openTelemetry()
-            .getPropagators()
-            .getTextMapPropagator()
-            .extract(Context.root(), tracer.threadContext(), (tc, key) -> requireNonNull(tc).getHeader(key));
-    }
-
-    private void setAttributes(io.opentelemetry.api.trace.SpanBuilder spanBuilder) {
-        if (attributesBuilder != null) {
-            spanBuilder.setAllAttributes(attributesBuilder.build());
-        }
-        spanBuilder.setSpanKind(spanKind);
-
+    private void setCommonAttributes(io.opentelemetry.api.trace.SpanBuilder spanBuilder) {
         spanBuilder.setAttribute(AttributeKeys.NODE_NAME, tracer.nodeName());
         spanBuilder.setAttribute(AttributeKeys.CLUSTER_NAME, tracer.clusterName());
 
@@ -251,5 +232,21 @@ public class APMSpanBuilder implements SpanBuilder {
         if (projectId != null) {
             spanBuilder.setAttribute("project.id", projectId);
         }
+    }
+
+    /** Returns an OTel {@link Context} that contains an invalid span instance; this prevents child spans from being started. */
+    private static Context contextWithInvalidSpan(Context context) {
+        return context.with(io.opentelemetry.api.trace.Span.getInvalid());
+    }
+
+    /**
+     * The remote parent of a span that starts a local trace: the context that was propagated to this node in the request headers, or
+     * {@link Context#root()} if there is none.
+     */
+    private Context getRemoteParentContext() {
+        return tracer.openTelemetry()
+            .getPropagators()
+            .getTextMapPropagator()
+            .extract(Context.root(), tracer.threadContext(), (tc, key) -> requireNonNull(tc).getHeader(key));
     }
 }

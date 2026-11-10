@@ -82,16 +82,6 @@ public class ScriptValuesTests extends ESTestCase {
             index = doc;
         }
 
-        @Override
-        public long runAsLong() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public double runAsDouble() {
-            throw new UnsupportedOperationException();
-        }
-
     }
 
     public void testLongs() throws IOException {

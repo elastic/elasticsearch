@@ -74,8 +74,6 @@ public final class SearchCapabilities {
     private static final String KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES = "knn_retriever_optional_num_candidates";
     /** Query types that keyed {@code flattened} subfields do not support are rejected with a 400 instead of a 500. */
     private static final String KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST = "keyed_flattened_unsupported_queries_bad_request";
-    /** A numeric value script that returns {@code null} treats that value as missing. */
-    private static final String NUMERIC_VALUE_SCRIPT_NULL_IS_MISSING = "numeric_value_script_null_is_missing";
     /** Case-insensitive queries on keyed {@code flattened} subfields match their key exactly, and prefix queries run on doc values. */
     private static final String KEYED_FLATTENED_EXACT_KEY_QUERIES = "keyed_flattened_exact_key_queries";
     /** Keyed {@code flattened} subfields answer wildcard, regexp and fuzzy queries. */
@@ -89,6 +87,8 @@ public final class SearchCapabilities {
     private static final String KNN_REQUIRES_SLICE_SELECTION = "knn_requires_slice_selection";
     /** A composite aggregation with a non-positive {@code size} is rejected with a 400 instead of failing with an NPE. */
     private static final String COMPOSITE_AGG_REJECTS_NON_POSITIVE_SIZE = "composite_agg_rejects_non_positive_size";
+    /** A numeric value script that returns {@code null} treats that value as missing. */
+    private static final String NUMERIC_VALUE_SCRIPT_NULL_IS_MISSING = "numeric_value_script_null_is_missing";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -128,13 +128,13 @@ public final class SearchCapabilities {
         capabilities.add(AGGREGATE_METRIC_DOUBLE_DEFAULTS_TO_AVERAGE);
         capabilities.add(KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES);
         capabilities.add(KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST);
-        capabilities.add(NUMERIC_VALUE_SCRIPT_NULL_IS_MISSING);
         capabilities.add(KEYED_FLATTENED_EXACT_KEY_QUERIES);
         capabilities.add(KEYED_FLATTENED_PATTERN_QUERIES);
         capabilities.add(POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS);
         capabilities.add(RANGE_FIELD_DV_QUERY_DESCRIPTION_HAS_FIELD);
         capabilities.add(KNN_REQUIRES_SLICE_SELECTION);
         capabilities.add(COMPOSITE_AGG_REJECTS_NON_POSITIVE_SIZE);
+        capabilities.add(NUMERIC_VALUE_SCRIPT_NULL_IS_MISSING);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

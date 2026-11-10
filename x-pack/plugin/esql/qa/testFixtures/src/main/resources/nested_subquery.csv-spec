@@ -2183,9 +2183,33 @@ FROM (FROM (FROM employees), (FROM employees, employees_incompatible)
 | WHERE TO_STRING(emp_no) == "10001" OR does_not_exist IS NOT NULL
 | KEEP emp_no, does_not_exist
 | EVAL e = TO_STRING(emp_no)
-| STATS c = COUNT(*) BY emp_no, does_not_exist, e
+| STATS c = COUNT(*) BY does_not_exist, e
 ;
 
-c:long | emp_no:keyword | does_not_exist:null | e:keyword
-4      | null           | null                | 10001
+c:long | does_not_exist:null | e:keyword
+4      | null                | 10001
+;
+
+nestedSubqueryNestedConflictNextToKeywordSiblingIsNull
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+required_capability: subquery_in_from_command_conversion_resolved_on_later_pass
+required_capability: optional_fields_nullify_tech_preview
+required_capability: nested_union_type_conflict_is_unsupported
+
+// first_name conflicts in the nested union (keyword in employees, another type in employees_incompatible). The sibling branch
+// `FROM employees` has it as keyword, but the outer union reports a conflicting column as unsupported, so the sibling's values
+// are null too. Before, the outer union saw keyword in every branch and returned the sibling's first_name values. The nested
+// branches are empty so that only the sibling's rows are left.
+SET unmapped_fields="nullify"\;
+FROM (FROM (FROM employees | LIMIT 0), (FROM employees, employees_incompatible | LIMIT 0) | EVAL x = 1),
+     (FROM employees | SORT emp_no | LIMIT 3)
+| KEEP first_name, does_not_exist
+;
+
+first_name:unsupported | does_not_exist:null
+null                   | null
+null                   | null
+null                   | null
 ;

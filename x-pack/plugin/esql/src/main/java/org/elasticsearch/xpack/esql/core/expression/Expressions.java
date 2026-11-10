@@ -113,8 +113,8 @@ public final class Expressions {
 
     /**
      * Keep {@link UnsupportedAttribute}s already on {@code existingOutput}. LOAD_ALL UnionAll type conflicts put that
-     * attribute on the union output while the children hold null-keyword aliases so they can still execute; rebuilding
-     * from the children would report {@code keyword} and drop {@code original_types}.
+     * attribute on the union output while the children hold null aliases so they can still execute; rebuilding
+     * from the children would report a plain unsupported column and drop {@code original_types}.
      */
     public static List<Attribute> keepExistingUnsupportedAttributes(List<Attribute> converted, List<Attribute> existingOutput) {
         Map<String, Attribute> existing = existingOutput.stream()
@@ -124,6 +124,35 @@ public final class Expressions {
         return existing.isEmpty()
             ? converted
             : new ArrayList<>(converted.stream().map(attr -> existing.getOrDefault(attr.name(), attr)).toList());
+    }
+
+    /**
+     * Like {@link #keepExistingUnsupportedAttributes}, but only for the columns that are still {@code UNSUPPORTED} in {@code converted}.
+     * A merge's column with conflicting types is an {@link UnsupportedAttribute}, but its branches hold nulls typed {@code UNSUPPORTED}
+     * for it, plain attributes that carry neither {@code original_types} nor the message. Re-deriving the merge's output from the
+     * branches would then turn the column into a plain one, so it keeps what it had, as long as it is still {@code UNSUPPORTED}.
+     */
+    public static List<Attribute> keepExistingUnsupportedAttributesOfUnsupportedColumns(
+        List<Attribute> converted,
+        List<Attribute> existingOutput
+    ) {
+        Map<String, UnsupportedAttribute> existing = new HashMap<>();
+        for (Attribute attr : existingOutput) {
+            if (attr instanceof UnsupportedAttribute ua) {
+                existing.put(ua.name(), ua);
+            }
+        }
+        if (existing.isEmpty()) {
+            return converted;
+        }
+        List<Attribute> kept = new ArrayList<>(converted.size());
+        for (Attribute attr : converted) {
+            UnsupportedAttribute previous = attr.dataType() == DataType.UNSUPPORTED && attr instanceof UnsupportedAttribute == false
+                ? existing.get(attr.name())
+                : null;
+            kept.add(previous != null ? previous : attr);
+        }
+        return kept;
     }
 
     public static boolean anyMatch(List<? extends Expression> exps, Predicate<? super Expression> predicate) {

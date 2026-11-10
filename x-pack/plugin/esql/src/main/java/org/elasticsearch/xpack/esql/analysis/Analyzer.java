@@ -264,6 +264,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributes;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributesOfUnsupportedColumns;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -2265,14 +2266,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             // The output has to be populated even when no branch changes: view resolution builds a BranchPlan with an empty
             // output and relies on this rule to fill it in.
+            List<Attribute> output = toReferenceAttributesPreservingIds(outputUnion, mergePlan.output());
+            if (unmappedResolution.loadsAllUnmappedFields()) {
+                output = keepExistingUnsupportedAttributes(output, mergePlan.output());
+            }
             return mergePlan.replaceSubPlansAndOutput(
                 changed ? newSubPlans : mergePlan.children(),
-                unmappedResolution.loadsAllUnmappedFields()
-                    ? keepExistingUnsupportedAttributes(
-                        toReferenceAttributesPreservingIds(outputUnion, mergePlan.output()),
-                        mergePlan.output()
-                    )
-                    : toReferenceAttributesPreservingIds(outputUnion, mergePlan.output())
+                keepExistingUnsupportedAttributesOfUnsupportedColumns(output, mergePlan.output())
             );
         }
 
@@ -5297,28 +5297,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 convertFunctionsToAttributes
             );
 
-            // TODO: remove together with the KEYWORD null fill of UNSUPPORTED merge columns (MergeBranchAlignment#nullFillType);
-            // tracked in https://github.com/elastic/elasticsearch/issues/150207.
-            // A union decides its common types from its branches as they were before this pass, not as a nested union in them was
-            // just rebuilt by this pass. This keeps the outcome of a type conflict in a nested union the same as when the analyzer
-            // still aligned branches with Projects, which held on to the nested union's output from before the pass. A nested union's
-            // conflict then only reaches the outer union after a later pass, which under unmapped_fields may first have re-derived
-            // the nested union's output from its branches' KEYWORD null fills.
-            Map<Set<NameId>, UnionAll> unionAllsBeforeImplicitCasting = new HashMap<>();
-            planWithConvertFunctionsReplaced.forEachDown(
-                UnionAll.class,
-                ua -> unionAllsBeforeImplicitCasting.put(ua.output().stream().map(Attribute::id).collect(Collectors.toSet()), ua)
-            );
             // Next implicitly cast the outputs of the UnionAll branches to the common type, this applies to date and date_nanos types only
             LogicalPlan planWithImplicitCasting = planWithConvertFunctionsReplaced.transformUp(
                 UnionAll.class,
                 unionAll -> unionAll.resolved()
                     ? implicitCastingUnionAllOutput(
                         unionAll,
-                        unionAllsBeforeImplicitCasting.getOrDefault(
-                            unionAll.output().stream().map(Attribute::id).collect(Collectors.toSet()),
-                            unionAll
-                        ),
                         planWithConvertFunctionsReplaced,
                         updatedUnionAllOutput,
                         context.configuration()
@@ -5695,12 +5679,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Implicitly cast the outputs of the UnionAll branches to the common type, this applies to date and date_nanos types only.
-         * The common types are decided from {@code typesFrom}, {@code unionAll} as it was before this pass; see the caller.
+         * Implicitly cast the outputs of the UnionAll branches to the common type, this applies to date and date_nanos types only
          */
         private static LogicalPlan implicitCastingUnionAllOutput(
             UnionAll unionAll,
-            UnionAll typesFrom,
             LogicalPlan plan,
             List<Attribute> updatedUnionAllOutput,
             Configuration configuration
@@ -5709,9 +5691,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Map<Attribute, List<LogicalPlan>> outputToPlans = outputToPlans(unionAll, plan);
 
             // Each branch's columns, by position in the UnionAll output, matched by name.
-            List<List<Attribute>> outputs = typesFrom.children()
+            List<List<Attribute>> outputs = unionAll.children()
                 .stream()
-                .map(child -> MergeBranchAlignment.alignedColumns(typesFrom.output(), child))
+                .map(child -> MergeBranchAlignment.alignedColumns(unionAll.output(), child))
                 .toList();
             // only do implicit casting for date and date_nanos types for now, to be consistent with queries without subqueries
             List<DataType> commonTypes = commonTypes(outputs);
@@ -5727,7 +5709,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (int childIndex = 0; childIndex < unionAll.children().size(); childIndex++) {
                 LogicalPlan child = unionAll.children().get(childIndex);
                 List<Attribute> columns = outputs.get(childIndex);
-                Set<Attribute> produced = new HashSet<>(typesFrom.children().get(childIndex).output());
+                List<Attribute> childOutput = child.output();
+                Set<Attribute> produced = new HashSet<>(childOutput);
                 List<Alias> newAliases = new ArrayList<>();
                 for (int i = 0; i < columns.size(); i++) {
                     Attribute oldOutput = columns.get(i);
@@ -5876,10 +5859,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return unsupported;
             } else {
                 // Not referenced by downstream plans:
-                // Return a null KEYWORD alias for the child output (so child plans work correctly).
+                // Return a null UNSUPPORTED alias for the child output (so child plans work correctly).
                 // The UnsupportedAttribute is already stored in the side-channel map above
                 // for rebuildUnionAllOutput to use in the UnionAll output, preserving original_types metadata.
-                Alias nullAlias = new Alias(oldAttr.source(), oldAttr.name(), new Literal(oldAttr.source(), null, KEYWORD));
+                Alias nullAlias = new Alias(oldAttr.source(), oldAttr.name(), new Literal(oldAttr.source(), null, UNSUPPORTED));
                 newAliases.add(nullAlias);
                 return nullAlias.toAttribute();
             }
@@ -5916,10 +5899,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (int i = 0; i < oldOutput.size(); i++) {
                 Attribute oldAttr = oldOutput.get(i);
                 DataType commonType = commonTypes.get(i);
+                UnsupportedAttribute ua = unsupportedAttributes.get(i);
+                // The column of a conflict in a nested union is already typed UNSUPPORTED, as a plain attribute that lacks the conflict's
+                // original_types, so it needs the UnsupportedAttribute although its type does not change.
+                boolean lacksUnsupportedAttribute = ua != null && oldAttr instanceof UnsupportedAttribute == false;
 
-                if (oldAttr.dataType() != commonType) {
+                if (oldAttr.dataType() != commonType || lacksUnsupportedAttribute) {
                     Attribute newAttr;
-                    UnsupportedAttribute ua = unsupportedAttributes.get(i);
                     if (commonType == UNSUPPORTED && ua != null) {
                         // Use the UnsupportedAttribute directly so that original_types metadata
                         // is preserved and flows through to the response output.

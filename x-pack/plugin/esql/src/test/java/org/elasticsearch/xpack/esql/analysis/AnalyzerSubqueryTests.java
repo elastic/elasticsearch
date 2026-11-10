@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
@@ -88,6 +89,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -454,7 +456,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals("client_ip", leftAlias.name());
         Literal leftNull = as(leftAlias.child(), Literal.class);
         assertNull(leftNull.value());
-        assertEquals(KEYWORD, leftNull.dataType());
+        assertEquals(UNSUPPORTED, leftNull.dataType());
 
         EsRelation leftRelation = as(leftEval.child(), EsRelation.class);
 
@@ -467,7 +469,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals("client_ip", rightAlias.name());
         Literal rightNull = as(rightAlias.child(), Literal.class);
         assertNull(rightNull.value());
-        assertEquals(KEYWORD, rightNull.dataType());
+        assertEquals(UNSUPPORTED, rightNull.dataType());
 
         Eval innerEval = as(rightEval.child(), Eval.class);
         List<Alias> innerAliases = innerEval.fields();
@@ -656,7 +658,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             assertEquals("x", legConflictEval.fields().get(0).name());
             Literal legNull = as(legConflictEval.fields().get(0).child(), Literal.class);
             assertNull(legNull.value());
-            assertEquals(KEYWORD, legNull.dataType());
+            assertEquals(UNSUPPORTED, legNull.dataType());
 
             Row row = as(legConflictEval.child(), Row.class);
             assertEquals(1, row.fields().size());
@@ -775,6 +777,74 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals(converted.get(0).id(), converted.get(1).id());
     }
 
+    private static final String NESTED_CONFLICT_NEXT_TO_KEYWORD_SIBLING = """
+        SET unmapped_fields="nullify";
+        FROM (FROM (FROM keyword_index), (FROM union_index*) | EVAL x = 1), (FROM keyword_index)
+        """;
+
+    /**
+     * A column whose types conflict in a nested union is {@code unsupported} in the outer union, also next to a sibling branch that
+     * produces it as {@code keyword} ({@code first_name}), and also under {@code unmapped_fields}. Before {@code UNSUPPORTED} columns
+     * were null-filled as {@code UNSUPPORTED}, this combination reported the column as {@code keyword} and returned the sibling's values.
+     */
+    public void testNestedUnionTypeConflictNextToKeywordSiblingIsUnsupported() {
+        requireNullifySupport();
+        LogicalPlan plan = nestedConflictAnalyzer().statement(NESTED_CONFLICT_NEXT_TO_KEYWORD_SIBLING + "| KEEP name, does_not_exist");
+
+        Attribute name = plan.output().getFirst();
+        assertEquals("name", name.name());
+        assertEquals(UNSUPPORTED, name.dataType());
+        // An UnsupportedAttribute, not a plain attribute of type UNSUPPORTED, so that the response column has its original_types.
+        assertThat(plan.toString(), name, instanceOf(UnsupportedAttribute.class));
+        assertThat(((UnsupportedAttribute) name).originalTypes(), not(empty()));
+    }
+
+    /**
+     * The flip side of {@link #testNestedUnionTypeConflictNextToKeywordSiblingIsUnsupported}: a query that used the column as a
+     * {@code keyword}, which worked while the conflict was reported as {@code keyword}, is rejected now, as it is without
+     * {@code unmapped_fields}.
+     */
+    public void testNestedUnionTypeConflictNextToKeywordSiblingRejectsKeywordFunctions() {
+        requireNullifySupport();
+        String expected = "Column [name] has conflicting data types in subqueries: [unsupported, keyword]";
+        String query = "FROM (FROM (FROM keyword_index), (FROM union_index*) | EVAL x = 1), (FROM keyword_index)\n"
+            + "| EVAL upper = TO_UPPER(name) | KEEP upper, does_not_exist";
+
+        nestedConflictAnalyzer().statementError("SET unmapped_fields=\"nullify\";\n" + query, containsString(expected));
+        nestedConflictAnalyzer().error(query.replace(", does_not_exist", ""), containsString(expected));
+    }
+
+    /**
+     * {@code keyword_index} has {@code name} as {@code keyword}. {@code union_index*} has it as {@code keyword} in one index and as
+     * {@code integer} in the other, so {@code name} conflicts.
+     */
+    private TestAnalyzer nestedConflictAnalyzer() {
+        EsField keywordName = new EsField("name", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        EsIndex keywordIndex = new EsIndex(
+            "keyword_index",
+            Map.of("name", keywordName),
+            Map.of("keyword_index", new IndexProperties(IndexMode.STANDARD, 0)),
+            Map.of(),
+            Map.of()
+        );
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put("keyword", Set.of("union_index_1"));
+        typesToIndices.put("integer", Set.of("union_index_2"));
+        EsIndex unionIndex = new EsIndex(
+            "union_index*",
+            Map.of("name", new InvalidMappedField("name", typesToIndices)),
+            Map.of(
+                "union_index_1",
+                new IndexProperties(IndexMode.STANDARD, 0),
+                "union_index_2",
+                new IndexProperties(IndexMode.STANDARD, 0)
+            ),
+            Map.of(),
+            Map.of()
+        );
+        return analyzer().addIndex(keywordIndex).addIndex(unionIndex);
+    }
+
     /*
      * Limit[1000[INTEGER],false,false]
      * \_Project[[!client_ip]]
@@ -813,7 +883,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals("client_ip", fromConflictEval.fields().get(0).name());
         Literal fromNull = as(fromConflictEval.fields().get(0).child(), Literal.class);
         assertNull(fromNull.value());
-        assertEquals(KEYWORD, fromNull.dataType());
+        assertEquals(UNSUPPORTED, fromNull.dataType());
         EsRelation fromRelation = as(fromConflictEval.child(), EsRelation.class);
         assertEquals("sample_data", fromRelation.indexPattern());
 
@@ -827,7 +897,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals("client_ip", rowConflictEval.fields().get(0).name());
         Literal rowNull = as(rowConflictEval.fields().get(0).child(), Literal.class);
         assertNull(rowNull.value());
-        assertEquals(KEYWORD, rowNull.dataType());
+        assertEquals(UNSUPPORTED, rowNull.dataType());
         Row row = as(rowConflictEval.child(), Row.class);
         assertEquals("client_ip", row.fields().get(0).name());
         Literal rowLiteral = as(row.fields().get(0).child(), Literal.class);
@@ -878,7 +948,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals("emp_no", indexConflictEval.fields().get(0).name());
         Literal indexNull = as(indexConflictEval.fields().get(0).child(), Literal.class);
         assertNull(indexNull.value());
-        assertEquals(KEYWORD, indexNull.dataType());
+        assertEquals(UNSUPPORTED, indexNull.dataType());
         EsRelation indexRelation = as(indexConflictEval.child(), EsRelation.class);
         assertEquals("employees", indexRelation.indexPattern());
 
@@ -892,7 +962,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals("emp_no", rowConflictEval.fields().get(0).name());
         Literal rowNull = as(rowConflictEval.fields().get(0).child(), Literal.class);
         assertNull(rowNull.value());
-        assertEquals(KEYWORD, rowNull.dataType());
+        assertEquals(UNSUPPORTED, rowNull.dataType());
         Row row = as(rowConflictEval.child(), Row.class);
         assertEquals("emp_no", row.fields().get(0).name());
         Literal rowLiteral = as(row.fields().get(0).child(), Literal.class);
@@ -1000,7 +1070,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         Eval indexMissingEval = as(indexProject.child(), Eval.class);
         assertEquals(2, indexMissingEval.fields().size());
         for (Alias fill : indexMissingEval.fields()) {
-            assertEquals(KEYWORD, as(fill.child(), Literal.class).dataType());
+            assertEquals(UNSUPPORTED, as(fill.child(), Literal.class).dataType());
         }
         EsRelation indexRelation = as(indexMissingEval.child(), EsRelation.class);
         assertEquals("employees", indexRelation.indexPattern());
@@ -1070,7 +1140,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals("m", tsNullMAlias.name());
         Literal tsNullMLit = as(tsNullMAlias.child(), Literal.class);
         assertNull(tsNullMLit.value());
-        assertEquals(KEYWORD, tsNullMLit.dataType());
+        assertEquals(UNSUPPORTED, tsNullMLit.dataType());
 
         Project tsInnerProject = as(tsNullM.child(), Project.class);
         UnpackDims tsUnpack = as(tsInnerProject.child(), UnpackDims.class);
@@ -1104,7 +1174,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals("m", sampleNullMAlias.name());
         Literal sampleNullMLit = as(sampleNullMAlias.child(), Literal.class);
         assertNull(sampleNullMLit.value());
-        assertEquals(KEYWORD, sampleNullMLit.dataType());
+        assertEquals(UNSUPPORTED, sampleNullMLit.dataType());
 
         Eval innerEval = as(sampleNullM.child(), Eval.class);
         assertEquals(1, innerEval.fields().size());
@@ -1296,7 +1366,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals(4, tsNullSampleFields.fields().size());
         Eval tsNullM = as(tsNullSampleFields.child(), Eval.class);
         assertEquals("m", tsNullM.fields().get(0).name());
-        assertEquals(KEYWORD, as(tsNullM.fields().get(0).child(), Literal.class).dataType());
+        assertEquals(UNSUPPORTED, as(tsNullM.fields().get(0).child(), Literal.class).dataType());
         // No BY clause: outer Aggregate -> inner TimeSeriesAggregate (no PACK/UNPACK layers)
         Aggregate tsOuterAggregate = as(tsNullM.child(), Aggregate.class);
         assertFalse(tsOuterAggregate instanceof TimeSeriesAggregate);
@@ -1890,12 +1960,12 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         List<ConvertFunction> pushedDownConversions = new ArrayList<>();
         plan.forEachDown(Eval.class, eval -> {
             for (Alias alias : eval.fields()) {
-                // The keyword-typed null is the union-type null-fill of the multi-typed column; the ip-typed null that the
+                // The unsupported-typed null is the union-type null-fill of the multi-typed column; the ip-typed null that the
                 // UnionAll alignment adds to the employees branch is a legitimate conversion input.
                 if (alias.name().equals("client_ip")
                     && alias.child() instanceof Literal literal
                     && literal.value() == null
-                    && literal.dataType() == DataType.KEYWORD) {
+                    && literal.dataType() == DataType.UNSUPPORTED) {
                     nullFilledClientIps.add(alias.id());
                 } else if (alias.child() instanceof ConvertFunction convert && convert.dataType() == DataType.IP) {
                     pushedDownConversions.add(convert);

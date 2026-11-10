@@ -941,12 +941,11 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
 
     /**
      * A column with conflicting types in a nested union, next to a sibling branch of the outer union that produces it as
-     * {@code keyword} ({@code first_name}) or as another type ({@code avg_worked_seconds}). Under {@code unmapped_fields} with an
-     * unmapped reference, the nested union's conflict is null-filled as {@code keyword}, so the outer union sees {@code first_name} as
-     * {@code keyword} in every branch and returns the sibling's values, while {@code avg_worked_seconds} conflicts. This pins the
-     * behaviour from before merge branches were left unaligned until the optimizer; see the TODO in
-     * {@code ResolveUnionTypesInUnionAll}, which expects this to change once {@code UNSUPPORTED} columns are no longer null-filled as
-     * {@code keyword}.
+     * {@code keyword} ({@code first_name}) or as another type ({@code avg_worked_seconds}). The outer union reports the conflicting
+     * column as {@code unsupported}, so the sibling branch is null-filled for it too, also under {@code unmapped_fields} with an
+     * unmapped reference. Before {@code UNSUPPORTED} columns were null-filled as {@code UNSUPPORTED}, the nested union's conflict was
+     * null-filled as {@code keyword} there, so the outer union saw {@code first_name} as {@code keyword} in every branch and returned
+     * the sibling's values, while {@code avg_worked_seconds} conflicted.
      */
     public void testNestedUnionTypeConflictNextToSiblingWithUnmappedReference() {
         builder("""

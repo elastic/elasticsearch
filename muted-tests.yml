@@ -604,3 +604,8 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v8.19.26#csvSpecTestsOldCoordinator
   method: test {csv-spec:null.foldCaseWithoutMatchArgumentWithOptions}
   issue: https://github.com/elastic/elasticsearch/issues/165432
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecNullIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v8.19.26#csvSpecTestsOldCoordinator
+  method: test {csv-spec:null.foldNullArgumentsInManyFunctions}
+  issue: https://github.com/elastic/elasticsearch/issues/165434

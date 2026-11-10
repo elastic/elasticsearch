@@ -37,12 +37,10 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -859,25 +857,19 @@ public final class LuceneSliceQueue {
 
     static final class TimeSeriesPartitioner {
 
-        private static class PrefixGroup {
-            final List<PartialLeafReaderContext> leaves;
-            int numDocs = 0;
-
-            PrefixGroup(int size) {
-                leaves = new ArrayList<>(size);
-            }
-
-            void add(LeafReaderContext context, int minDoc, int maxDoc) {
-                leaves.add(new PartialLeafReaderContext(context, minDoc, maxDoc));
-                numDocs += (maxDoc - minDoc);
-            }
-        }
-
+        /**
+         * Combines the prefix cells of the leaves into slices, targeting at least {@code taskConcurrency} slices
+         * for each metric (indicated via the first prefix byte). Each slice contains at least
+         * {@code maxDocsPerLeave} docs to avoid tiny slices, but flushes early when any
+         * single leaf within a slice reaches {@code maxDocsPerLeave} docs to bound per-leaf
+         * processing cost. The cells of a leaf are sorted by prefix and contiguous in docs, so the leaves are
+         * walked together in prefix order and a slice holds one doc range per leaf.
+         */
         List<List<PartialLeafReaderContext>> partition(List<LeafReaderContext> leaves, int taskConcurrency, int maxDocsPerLeave)
             throws IOException {
             int prefixBitsShift = -1;
-            final Map<Integer, Map<Integer, PrefixGroup>> firstByteGroups = new TreeMap<>();
-            PartitionedDocValues.PrefixPartitions prefixPartitions = null;
+            List<LeafReaderContext> contexts = new ArrayList<>(leaves.size());
+            List<PartitionedDocValues.PrefixPartitions> cells = new ArrayList<>(leaves.size());
             for (LeafReaderContext leaf : leaves) {
                 var tsidValues = leaf.reader().getSortedDocValues(TimeSeriesIdFieldMapper.NAME);
                 if (tsidValues == null) {
@@ -887,74 +879,88 @@ public final class LuceneSliceQueue {
                 if (prefixBitsShift == -1) {
                     prefixBitsShift = partitionedDV.prefixPartitionBits() - Byte.SIZE;
                 }
-                prefixPartitions = partitionedDV.prefixPartitions(prefixPartitions);
+                var prefixPartitions = partitionedDV.prefixPartitions(null);
                 assert prefixPartitions != null;
-                int pendingPrefix = -1;
-                int pendingStartDoc = -1;
-                int numPartitions = prefixPartitions.numPartitions();
-                final int shift = prefixBitsShift;
-                for (int i = 0; i < numPartitions; i++) {
-                    int startDoc = prefixPartitions.startDocs()[i];
-                    int prefix = prefixPartitions.prefixes()[i];
-                    if (pendingPrefix != -1) {
-                        firstByteGroups.computeIfAbsent(pendingPrefix >>> shift, k -> new TreeMap<>())
-                            .computeIfAbsent(pendingPrefix, k -> new PrefixGroup(leaves.size()))
-                            .add(leaf, pendingStartDoc, startDoc);
+                contexts.add(leaf);
+                cells.add(prefixPartitions);
+            }
+            final int shift = prefixBitsShift;
+            final int numLeaves = contexts.size();
+            final int[] nextCell = new int[numLeaves];
+            final int[] minDoc = new int[numLeaves];
+            final int[] maxDoc = new int[numLeaves];
+            Arrays.fill(minDoc, -1);
+            List<List<PartialLeafReaderContext>> results = new ArrayList<>();
+            int metric = -1;
+            int docsPerSlice = 0;
+            int pendingDocs = 0;
+            boolean anyLeafExceedsMaxDocs = false;
+            while (true) {
+                int prefix = Integer.MAX_VALUE;
+                for (int l = 0; l < numLeaves; l++) {
+                    if (nextCell[l] < cells.get(l).numPartitions()) {
+                        prefix = Math.min(prefix, cells.get(l).prefixes()[nextCell[l]]);
                     }
-                    pendingStartDoc = startDoc;
-                    pendingPrefix = prefix;
                 }
-                if (pendingPrefix >= 0) {
-                    firstByteGroups.computeIfAbsent(pendingPrefix >>> shift, k -> new TreeMap<>())
-                        .computeIfAbsent(pendingPrefix, k -> new PrefixGroup(leaves.size()))
-                        .add(leaf, pendingStartDoc, leaf.reader().maxDoc());
+                if (prefix == Integer.MAX_VALUE) {
+                    break;
+                }
+                final boolean newMetric = prefix >>> shift != metric;
+                if (pendingDocs > 0 && (newMetric || pendingDocs >= docsPerSlice || anyLeafExceedsMaxDocs)) {
+                    results.add(takeSlice(contexts, minDoc, maxDoc));
+                    pendingDocs = 0;
+                    anyLeafExceedsMaxDocs = false;
+                }
+                if (newMetric) {
+                    metric = prefix >>> shift;
+                    int metricDocs = 0;
+                    for (int l = 0; l < numLeaves; l++) {
+                        var leafCells = cells.get(l);
+                        int end = nextCell[l];
+                        while (end < leafCells.numPartitions() && leafCells.prefixes()[end] >>> shift == metric) {
+                            end++;
+                        }
+                        metricDocs += startDoc(contexts.get(l), leafCells, end) - startDoc(contexts.get(l), leafCells, nextCell[l]);
+                    }
+                    docsPerSlice = Math.max(Math.ceilDiv(metricDocs, taskConcurrency), maxDocsPerLeave);
+                }
+                for (int l = 0; l < numLeaves; l++) {
+                    var leafCells = cells.get(l);
+                    if (nextCell[l] < leafCells.numPartitions() && leafCells.prefixes()[nextCell[l]] == prefix) {
+                        final int start = leafCells.startDocs()[nextCell[l]];
+                        nextCell[l]++;
+                        if (minDoc[l] == -1) {
+                            minDoc[l] = start;
+                        } else {
+                            assert maxDoc[l] == start : "current=" + maxDoc[l] + "; next=" + start;
+                        }
+                        maxDoc[l] = startDoc(contexts.get(l), leafCells, nextCell[l]);
+                        pendingDocs += maxDoc[l] - start;
+                        if (maxDoc[l] - minDoc[l] >= maxDocsPerLeave) {
+                            anyLeafExceedsMaxDocs = true;
+                        }
+                    }
                 }
             }
-            List<List<PartialLeafReaderContext>> results = new ArrayList<>();
-            for (Map<Integer, PrefixGroup> prefixGroups : firstByteGroups.values()) {
-                results.addAll(combineSlices(prefixGroups.values().stream().toList(), taskConcurrency, maxDocsPerLeave));
+            if (pendingDocs > 0) {
+                results.add(takeSlice(contexts, minDoc, maxDoc));
             }
             return results;
         }
 
-        /**
-         * Combines prefix groups into slices, targeting at least {@code taskConcurrency} slices
-         * for each metric (indicated via the first prefix byte). Each slice contains at least
-         * {@code maxDocsPerLeave} docs to avoid tiny slices, but flushes early when any
-         * single leaf within a slice reaches {@code maxDocsPerLeave} docs to bound per-leaf
-         * processing cost.
-         */
-        private List<List<PartialLeafReaderContext>> combineSlices(List<PrefixGroup> slices, int taskConcurrency, int maxDocsPerLeave) {
-            final int totalDocs = slices.stream().mapToInt(s -> s.numDocs).sum();
-            final int docsPerSlice = Math.max(Math.ceilDiv(totalDocs, taskConcurrency), maxDocsPerLeave);
-            Map<LeafReaderContext, PartialLeafReaderContext> current = new IdentityHashMap<>();
-            List<List<PartialLeafReaderContext>> results = new ArrayList<>();
-            int pendingDocs = 0;
-            boolean anyLeafExceedsMaxDocs = false;
-            for (PrefixGroup slice : slices) {
-                if (pendingDocs >= docsPerSlice || anyLeafExceedsMaxDocs) {
-                    results.add(current.values().stream().toList());
-                    current.clear();
-                    pendingDocs = 0;
-                    anyLeafExceedsMaxDocs = false;
+        private static int startDoc(LeafReaderContext leaf, PartitionedDocValues.PrefixPartitions cells, int cell) {
+            return cell < cells.numPartitions() ? cells.startDocs()[cell] : leaf.reader().maxDoc();
+        }
+
+        private static List<PartialLeafReaderContext> takeSlice(List<LeafReaderContext> contexts, int[] minDoc, int[] maxDoc) {
+            List<PartialLeafReaderContext> slice = new ArrayList<>();
+            for (int l = 0; l < minDoc.length; l++) {
+                if (minDoc[l] != -1) {
+                    slice.add(new PartialLeafReaderContext(contexts.get(l), minDoc[l], maxDoc[l]));
+                    minDoc[l] = -1;
                 }
-                for (PartialLeafReaderContext leaf : slice.leaves) {
-                    final LeafReaderContext ctx = leaf.leafReaderContext();
-                    current.merge(ctx, leaf, (curr, next) -> {
-                        assert curr.maxDoc() == leaf.minDoc() : "current=" + curr + "; next=" + leaf;
-                        return new PartialLeafReaderContext(ctx, curr.minDoc(), next.maxDoc());
-                    });
-                    PartialLeafReaderContext merged = current.get(ctx);
-                    if ((merged.maxDoc() - merged.minDoc()) >= maxDocsPerLeave) {
-                        anyLeafExceedsMaxDocs = true;
-                    }
-                }
-                pendingDocs += slice.numDocs;
             }
-            if (current.isEmpty() == false) {
-                results.add(current.values().stream().toList());
-            }
-            return results;
+            return slice;
         }
     }
 }

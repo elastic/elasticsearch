@@ -56,11 +56,13 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
     // Retained for wire-format compatibility with nodes that wrote the now-removed `collapsed` flag; collapsing is
     // handled by TimeSeriesCollapse rather than a flag on this node.
     private static final TransportVersion TIME_SERIES_AGGREGATE_COLLAPSED = TransportVersion.fromName("time_series_aggregate_collapsed");
+    public static final TransportVersion TIME_SERIES_SINGLE_PASS = TransportVersion.fromName("esql_time_series_single_pass");
     private static final TransportVersion TIME_SERIES_ORIGIN = TransportVersion.fromName("time_series_origin");
 
     private final Bucket timeBucket;
     private final Expression timestamp;
     private final Origin origin;
+    private final boolean singlePass;
 
     public TimeSeriesAggregate(
         Source source,
@@ -69,12 +71,14 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         List<? extends NamedExpression> aggregates,
         Bucket timeBucket,
         Expression timestamp,
-        Origin origin
+        Origin origin,
+        boolean singlePass
     ) {
         super(source, child, groupings, aggregates);
         this.timeBucket = timeBucket;
         this.timestamp = timestamp;
         this.origin = origin;
+        this.singlePass = singlePass;
     }
 
     public enum Origin {
@@ -101,6 +105,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         } else {
             this.origin = Origin.TS_COMMAND;
         }
+        this.singlePass = in.getTransportVersion().supports(TIME_SERIES_SINGLE_PASS) && in.readBoolean();
     }
 
     @Override
@@ -119,6 +124,9 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         if (out.getTransportVersion().supports(TIME_SERIES_ORIGIN)) {
             out.writeEnum(origin);
         }
+        if (out.getTransportVersion().supports(TIME_SERIES_SINGLE_PASS)) {
+            out.writeBoolean(singlePass);
+        }
     }
 
     @Override
@@ -128,28 +136,42 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     @Override
     protected NodeInfo<Aggregate> info() {
-        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket, timestamp, origin);
+        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket, timestamp, origin, singlePass);
     }
 
     @Override
     public TimeSeriesAggregate replaceChild(LogicalPlan newChild) {
-        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, timestamp, origin);
+        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, timestamp, origin, singlePass);
     }
 
     @Override
     public TimeSeriesAggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, timestamp, origin);
+        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, timestamp, origin, singlePass);
     }
 
     public LogicalPlan withTimestamp(Expression newTimestamp) {
         if (newTimestamp.equals(timestamp)) {
             return this;
         }
-        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, newTimestamp, origin);
+        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, newTimestamp, origin, singlePass);
     }
 
     public Origin origin() {
         return origin;
+    }
+
+    public boolean singlePass() {
+        return singlePass;
+    }
+
+    public TimeSeriesAggregate withSinglePass() {
+        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, timestamp, origin, true);
+    }
+
+    @Override
+    public List<Object> nodeProperties() {
+        List<Object> properties = super.nodeProperties();
+        return singlePass ? properties : properties.subList(0, properties.size() - 1);
     }
 
     @Override
@@ -169,7 +191,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     @Override
     public int hashCode() {
-        return Objects.hash(groupings, aggregates, child(), timeBucket, timestamp, origin);
+        return Objects.hash(groupings, aggregates, child(), timeBucket, timestamp, origin, singlePass);
     }
 
     @Override
@@ -188,7 +210,8 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             && Objects.equals(child(), other.child())
             && Objects.equals(timeBucket, other.timeBucket)
             && Objects.equals(timestamp, other.timestamp)
-            && origin == other.origin;
+            && origin == other.origin
+            && singlePass == other.singlePass;
     }
 
     public void verify(Failures failures) {

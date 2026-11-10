@@ -1700,6 +1700,7 @@ public class EsqlSession {
             return;
         }
         metrics.inc(FeatureMetric.VIEW);
+        planTelemetry.usedFeature(FeatureMetric.VIEW);
     }
 
     /**
@@ -1718,6 +1719,7 @@ public class EsqlSession {
             return;
         }
         metrics.inc(FeatureMetric.IN_SUBQUERY);
+        planTelemetry.usedFeature(FeatureMetric.IN_SUBQUERY);
     }
 
     private void gatherLetMetrics(EsqlStatement statement) {
@@ -1725,6 +1727,7 @@ public class EsqlSession {
             return;
         }
         metrics.inc(FeatureMetric.LET);
+        planTelemetry.usedFeature(FeatureMetric.LET);
     }
 
     /**
@@ -3221,13 +3224,14 @@ public class EsqlSession {
             flags
         );
         Analyzer analyzer = new Analyzer(analyzerContext, verifier);
-        LogicalPlan plan = analyzer.analyze(parsed);
+        LogicalPlan plan = analyzer.analyze(parsed, planTelemetry.usedFeatures());
         ExemplarsSettings exemplarsSettings = QuerySettings.EXEMPLARS.get(configuration.resolvedSettings());
         if (exemplarsSettings.enabled()) {
             // The analyzed metrics query is not executed. It is replaced with a query over the resolved exemplar data streams for the
             // metrics it aggregates; that query is analyzed in turn to resolve its fields.
             plan = analyzer.analyze(
-                ExemplarsRewriter.exemplarsQuery(plan, r.indexResolution().values(), r.exemplarsResolution(), exemplarsSettings)
+                ExemplarsRewriter.exemplarsQuery(plan, r.indexResolution().values(), r.exemplarsResolution(), exemplarsSettings),
+                planTelemetry.usedFeatures()
             );
         }
         plan.setAnalyzed();

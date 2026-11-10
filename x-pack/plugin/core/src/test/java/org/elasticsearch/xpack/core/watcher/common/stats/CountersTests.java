@@ -10,6 +10,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
@@ -30,5 +31,16 @@ public class CountersTests extends ESTestCase {
         Map<String, Object> fooMap = (Map<String, Object>) map.get("foo");
         assertThat(fooMap, hasEntry("bar", 1L));
         assertThat(fooMap, hasEntry("baz", 2L));
+    }
+
+    public void testWithoutPrefixDropsOnlyThePrefixedCounters() {
+        Counters counters = new Counters();
+        counters.inc("foo.bar", 2);
+        counters.inc("foo.baz", 1);
+        counters.inc("food", 3);
+        counters.inc("qux", 4);
+        Counters without = counters.withoutPrefix("foo.");
+        assertThat(without.toNestedMap(), equalTo(Map.of("food", 3L, "qux", 4L)));
+        assertThat(counters.size(), equalTo(4L));
     }
 }

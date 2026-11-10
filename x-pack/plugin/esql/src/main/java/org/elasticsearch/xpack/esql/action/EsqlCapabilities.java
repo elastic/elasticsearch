@@ -4718,6 +4718,12 @@ public class EsqlCapabilities {
          */
         USAGE_KIBANA_FEATURES,
 
+        /**
+         * Does {@code _xpack/usage} list every {@code query_paths} entry: caller, source and leading command, with the commands
+         * the queries on that path used?
+         */
+        USAGE_QUERY_PATHS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

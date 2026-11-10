@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.telemetry.KibanaExecutionContextClassifier.F
 import org.elasticsearch.xpack.esql.telemetry.KibanaExecutionContextClassifier.Interaction;
 import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -30,6 +31,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLongArray;
 
 /**
  * Class encapsulating the metrics collected for ESQL
@@ -52,6 +55,7 @@ public class Metrics {
     protected static final String DIRECT_CLIENTS_PREFIX = "direct_clients.";
     protected static final String KIBANA_FEATURES_PREFIX = "kibana_features.";
     protected static final String KIBANA_INTERACTIONS_PREFIX = "kibana_interactions.";
+    protected static final String QUERY_PATHS_PREFIX = QueryPath.USAGE_KEY + ".";
     protected static final String FEATURES_PREFIX = "features.";
     protected static final String SETTINGS_PREFIX = "settings.";
     protected static final String RESOLVED_SETTINGS_PREFIX = "resolved_settings.";
@@ -60,6 +64,10 @@ public class Metrics {
     protected static final String FUNC_PREFIX = "functions.";
     protected static final String TOOK_PREFIX = "took.";
 
+    private static final int PATH_TOTAL = 0;
+    private static final int PATH_FAILED = 1;
+    private static final int PATH_COMMANDS = 2;
+
     // map that holds total/failed counters for each client type (each known Elastic product, other, rest)
     private final Map<QueryMetric, Map<OperationType, CounterMetric>> opsByTypeMetrics;
     private final Map<QueryEntryPoint, Map<OperationType, CounterMetric>> opsByEntryPointMetrics;
@@ -67,6 +75,10 @@ public class Metrics {
     private final Map<DirectClient, Map<OperationType, CounterMetric>> opsByDirectClientMetrics;
     private final Map<Feature, Map<OperationType, CounterMetric>> opsByKibanaFeatureMetrics;
     private final Map<Interaction, Map<OperationType, CounterMetric>> opsByKibanaInteractionMetrics;
+    // Created on a path's first query, so only paths some query took are kept and reported. Each array holds the path's total,
+    // its failed count, then one count per FeatureMetric ordinal. Every level is a fixed list, so the number of paths is bounded:
+    // (Kibana features + direct clients + the other callers) x leading commands.
+    private final Map<QueryPath, AtomicLongArray> queryPathMetrics = new ConcurrentHashMap<>();
     // map that holds one counter per esql query "feature" (eval, sort, limit, where....)
     private final Map<FeatureMetric, CounterMetric> featuresMetrics;
     // map that holds one counter per esql query setting (unmapped_fields, time_zone, etc.)
@@ -240,6 +252,26 @@ public class Metrics {
         opsByKibanaInteractionMetrics.get(feature.interaction()).get(OperationType.FAILED).inc();
     }
 
+    /**
+     * Counts a finished query under its {@link QueryPath}, with each {@link FeatureMetric} it used, as {@code features.*} counts
+     * them. Called once per query.
+     */
+    public void total(QueryPath path, BitSet commands) {
+        AtomicLongArray counts = queryPathCounts(path);
+        counts.incrementAndGet(PATH_TOTAL);
+        for (int i = commands.nextSetBit(0); i >= 0; i = commands.nextSetBit(i + 1)) {
+            counts.incrementAndGet(PATH_COMMANDS + i);
+        }
+    }
+
+    public void failed(QueryPath path) {
+        queryPathCounts(path).incrementAndGet(PATH_FAILED);
+    }
+
+    private AtomicLongArray queryPathCounts(QueryPath path) {
+        return queryPathMetrics.computeIfAbsent(path, p -> new AtomicLongArray(PATH_COMMANDS + FeatureMetric.values().length));
+    }
+
     private void inc(QueryMetric metric, OperationType op) {
         this.opsByTypeMetrics.get(metric).get(op).inc();
     }
@@ -319,6 +351,7 @@ public class Metrics {
         opsCounters(counters, DIRECT_CLIENTS_PREFIX, opsByDirectClientMetrics);
         opsCounters(counters, KIBANA_FEATURES_PREFIX, opsByKibanaFeatureMetrics);
         opsCounters(counters, KIBANA_INTERACTIONS_PREFIX, opsByKibanaInteractionMetrics);
+        queryPathCounters(counters);
 
         // features metrics
         for (Entry<FeatureMetric, CounterMetric> entry : featuresMetrics.entrySet()) {
@@ -349,6 +382,29 @@ public class Metrics {
             for (OperationType type : OperationType.values()) {
                 counters.inc(prefix + entry.getKey() + "." + type, entry.getValue().get(type).count());
             }
+        }
+    }
+
+    /**
+     * Adds {@code query_paths.<caller>.<source>.<leading command>.total|failed|commands.<command>} for every count above zero.
+     */
+    private void queryPathCounters(Counters counters) {
+        FeatureMetric[] commands = FeatureMetric.values();
+        for (Entry<QueryPath, AtomicLongArray> entry : queryPathMetrics.entrySet()) {
+            QueryPath path = entry.getKey();
+            AtomicLongArray counts = entry.getValue();
+            String prefix = QUERY_PATHS_PREFIX + path.caller() + "." + path.source() + "." + path.leadingCommand() + ".";
+            nonZero(counters, prefix + QueryPath.TOTAL, counts.get(PATH_TOTAL));
+            nonZero(counters, prefix + QueryPath.FAILED, counts.get(PATH_FAILED));
+            for (FeatureMetric command : commands) {
+                nonZero(counters, prefix + QueryPath.COMMANDS + "." + command, counts.get(PATH_COMMANDS + command.ordinal()));
+            }
+        }
+    }
+
+    private static void nonZero(Counters counters, String key, long count) {
+        if (count > 0) {
+            counters.inc(key, count);
         }
     }
 

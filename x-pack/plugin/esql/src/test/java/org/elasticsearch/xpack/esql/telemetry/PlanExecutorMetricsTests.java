@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
@@ -107,6 +108,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
@@ -124,6 +126,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -1056,6 +1059,10 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             assertThat(stats.get("direct_clients.other.total"), equalTo(1L));
             assertThat(stats.get("direct_clients.other.failed"), equalTo(1L));
             assertThat(
+                queryPath(stats, "rest", "other", "from"),
+                equalTo(Map.of("total", 1L, "failed", 1L, "commands", Map.of("from", 1L, "keep", 1L)))
+            );
+            assertThat(
                 meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS),
                 hasSize(1)
             );
@@ -1088,11 +1095,211 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             assertThat(stats.get("entry_points.query.total"), equalTo(0L));
             assertThat(stats.get("leading_commands.from.total"), equalTo(0L));
             assertThat(directClientTotal(stats), equalTo(0L));
+            assertThat(stats.toNestedMap(), not(hasKey("query_paths")));
             assertThat(
                 meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS),
                 is(empty())
             );
         }
+    }
+
+    public void testKibanaQueryCountsItsPathAndTheCommandsItUsed() throws Exception {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            var executionInfo = createEsqlExecutionInfo(true);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin("kibana", DISCOVER_OPAQUE_ID)),
+                queryRequest("FROM test | WHERE foo > 1 | KEEP foo").entryPoint(QueryEntryPoint.QUERY),
+                executionInfo,
+                planRunnerFor(executionInfo),
+                ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
+            );
+            Map<String, Object> path = queryPath(planExecutor.metrics().stats(), "kibana", "discover", "from");
+            assertThat(path, hasEntry("total", 1L));
+            assertThat(path, not(hasKey("failed")));
+            assertThat(path.get("commands"), equalTo(usedFeatures(planExecutor.metrics().stats())));
+            assertThat(path.get("commands"), equalTo(Map.of("from", 1L, "where", 1L, "keep", 1L)));
+        }
+    }
+
+    public void testLetIsCountedInTheQueryPathCommands() throws Exception {
+        assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            var executionInfo = createEsqlExecutionInfo(true);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin(null)),
+                queryRequest("LET t = (FROM test | KEEP foo); FROM t | KEEP foo").entryPoint(QueryEntryPoint.QUERY),
+                executionInfo,
+                planRunnerFor(executionInfo),
+                ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
+            );
+            Counters stats = planExecutor.metrics().stats();
+            @SuppressWarnings("unchecked")
+            Map<String, Long> commands = (Map<String, Long>) queryPath(stats, "rest", "other", "from").get("commands");
+            assertThat(commands, hasEntry("let", 1L));
+            assertThat(commands, equalTo(usedFeatures(stats)));
+        }
+    }
+
+    public void testRestQueryPathIsSplitByDirectClient() throws Exception {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            DirectClient directClient = randomFrom(DirectClient.values());
+            var executionInfo = createEsqlExecutionInfo(true);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin(null)),
+                queryRequest("FROM test | KEEP foo").entryPoint(QueryEntryPoint.QUERY).directClient(directClient),
+                executionInfo,
+                planRunnerFor(executionInfo),
+                ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
+            );
+            assertThat(queryPaths(planExecutor.metrics().stats()).keySet(), equalTo(Set.of("rest")));
+            assertThat(queryPath(planExecutor.metrics().stats(), "rest", directClient.toString(), "from"), hasEntry("total", 1L));
+        }
+    }
+
+    public void testOtherCallersQueryPathHasNoSource() throws Exception {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            var executionInfo = createEsqlExecutionInfo(true);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin("fleet", DISCOVER_OPAQUE_ID)),
+                queryRequest("FROM test | KEEP foo").entryPoint(QueryEntryPoint.QUERY).directClient(DirectClient.PYTHON),
+                executionInfo,
+                planRunnerFor(executionInfo),
+                ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
+            );
+            assertThat(queryPath(planExecutor.metrics().stats(), "fleet", QueryPath.NO_SOURCE, "from"), hasEntry("total", 1L));
+        }
+    }
+
+    public void testQueryFailingVerificationCountsItsPathAsFailedWithoutCommands() throws Exception {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin(null)),
+                queryRequest("FROM test | STATS m = MAX(xyz)").entryPoint(QueryEntryPoint.QUERY).directClient(DirectClient.PYTHON),
+                createEsqlExecutionInfo(true),
+                (role, p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen"),
+                ActionListener.wrap(r -> fail("this shouldn't happen"), e -> assertThat(e, instanceOf(VerificationException.class)))
+            );
+            Counters stats = planExecutor.metrics().stats();
+            assertThat(queryPath(stats, "rest", "python", "from"), equalTo(Map.of("total", 1L, "failed", 1L)));
+            assertThat(usedFeatures(stats), equalTo(Map.of()));
+        }
+    }
+
+    public void testParseErrorCountsUnderTheUnknownLeadingCommandPath() throws Exception {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin(null)),
+                queryRequest("FROM test | WHERE").entryPoint(QueryEntryPoint.QUERY),
+                createEsqlExecutionInfo(true),
+                (role, p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen"),
+                ActionListener.wrap(r -> fail("this shouldn't happen"), e -> assertThat(e, instanceOf(ParsingException.class)))
+            );
+            assertThat(
+                queryPaths(planExecutor.metrics().stats()),
+                equalTo(Map.of("rest", Map.of("other", Map.of("unknown", Map.of("total", 1L, "failed", 1L)))))
+            );
+        }
+    }
+
+    public void testQueryPathsAddUpToTheFlatCounters() throws Exception {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            int queries = between(5, 20);
+            for (int i = 0; i < queries; i++) {
+                String origin = randomFrom(Arrays.asList(null, "kibana", "fleet", "logstash-output-elasticsearch", "my-app"));
+                String opaqueId = randomFrom(Arrays.asList(null, DISCOVER_OPAQUE_ID, ALERTING_V2_OPAQUE_ID));
+                String query = randomFrom(
+                    "FROM test | KEEP foo",
+                    "FROM test | WHERE foo > 1 | SORT bar",
+                    "ROW a = 1 | EVAL b = a",
+                    "FROM test | WHERE",
+                    "FROM test | STATS m = MAX(xyz)"
+                );
+                var executionInfo = createEsqlExecutionInfo(true);
+                executeEsql(
+                    planExecutor,
+                    createTransportActionServices(threadContextWithOrigin(origin, opaqueId)),
+                    queryRequest(query).entryPoint(randomFrom(QueryEntryPoint.values())).directClient(randomFrom(DirectClient.values())),
+                    executionInfo,
+                    planRunnerFor(executionInfo),
+                    ActionListener.wrap(r -> {}, e -> {})
+                );
+            }
+            Counters stats = planExecutor.metrics().stats();
+            Map<String, Long> totalByCaller = new HashMap<>();
+            Map<String, Long> failedByCaller = new HashMap<>();
+            Map<String, Long> commands = new HashMap<>();
+            forEachQueryPath(stats, (caller, path) -> {
+                totalByCaller.merge(caller, (Long) path.getOrDefault("total", 0L), Long::sum);
+                failedByCaller.merge(caller, (Long) path.getOrDefault("failed", 0L), Long::sum);
+                @SuppressWarnings("unchecked")
+                Map<String, Long> pathCommands = (Map<String, Long>) path.getOrDefault("commands", Map.of());
+                pathCommands.forEach((command, count) -> commands.merge(command, count, Long::sum));
+            });
+            long leadingTotal = 0;
+            long leadingFailed = 0;
+            for (LeadingCommand command : LeadingCommand.values()) {
+                leadingTotal += stats.get("leading_commands." + command + ".total");
+                leadingFailed += stats.get("leading_commands." + command + ".failed");
+            }
+            assertThat(totalByCaller.values().stream().mapToLong(Long::longValue).sum(), equalTo(leadingTotal));
+            assertThat(failedByCaller.values().stream().mapToLong(Long::longValue).sum(), equalTo(leadingFailed));
+            assertThat(leadingTotal, equalTo((long) queries));
+            for (QueryMetric caller : QueryMetric.values()) {
+                assertThat(totalByCaller.getOrDefault(caller.toString(), 0L), equalTo(stats.get("queries." + caller + ".total")));
+                assertThat(failedByCaller.getOrDefault(caller.toString(), 0L), equalTo(stats.get("queries." + caller + ".failed")));
+            }
+            assertThat(commands, equalTo(usedFeatures(stats)));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> queryPaths(Counters stats) {
+        return (Map<String, Object>) stats.toNestedMap().getOrDefault("query_paths", Map.of());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> queryPath(Counters stats, String caller, String source, String leadingCommand) {
+        Map<String, Object> sources = (Map<String, Object>) queryPaths(stats).get(caller);
+        assertThat("no query path for caller " + caller, sources, notNullValue());
+        Map<String, Object> leading = (Map<String, Object>) sources.get(source);
+        assertThat("no query path for source " + source, leading, notNullValue());
+        Map<String, Object> path = (Map<String, Object>) leading.get(leadingCommand);
+        assertThat("no query path for leading command " + leadingCommand, path, notNullValue());
+        return path;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void forEachQueryPath(Counters stats, BiConsumer<String, Map<String, Object>> consumer) {
+        queryPaths(stats).forEach(
+            (caller, sources) -> ((Map<String, Object>) sources).values()
+                .forEach(
+                    leading -> ((Map<String, Object>) leading).values().forEach(path -> consumer.accept(caller, (Map<String, Object>) path))
+                )
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Long> usedFeatures(Counters stats) {
+        Map<String, Long> used = new HashMap<>();
+        ((Map<String, Object>) stats.toNestedMap().get("features")).forEach((feature, count) -> {
+            if ((Long) count > 0) {
+                used.put(feature, (Long) count);
+            }
+        });
+        return used;
     }
 
     private static void assertKibanaCounted(Counters stats, Feature expected, long total, long failed) {

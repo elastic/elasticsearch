@@ -1130,3 +1130,50 @@ took:
   - match: { esql.kibana_interactions.person.total: $person_total }
   - match: { esql.kibana_interactions.background.total: $background_total }
   - match: { esql.kibana_interactions.unknown.total: $unknown_total }
+
+---
+"Queries by path":
+  - requires:
+      test_runner_features: [ capabilities, headers, contains ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_query_paths ]
+      reason: "Each query is counted under its caller, source and leading command, with the commands it used"
+
+  - do:
+      headers:
+        X-elastic-product-origin: elastic-synthetics
+      esql.query:
+        body:
+          query: 'ROW a = 1 | EVAL b = a + 1 | LIMIT 1'
+
+  - do:
+      headers:
+        X-elastic-product-origin: kibana
+        X-Opaque-Id: "yaml;kibana:application:discover:new"
+      esql.query:
+        body:
+          query: 'FROM test | WHERE count > 1 | LIMIT 1'
+
+  - do:
+      headers:
+        User-Agent: "curl/8.7.1"
+      esql.query:
+        body:
+          query: 'ROW a = 1 | LIMIT 1'
+
+  - do:
+      catch: bad_request
+      headers:
+        X-elastic-product-origin: elastic-synthetics
+      esql.query:
+        body:
+          query: 'FROM test | STATS m = MAX(no_such_field)'
+
+  - do: { xpack.usage: { } }
+  - contains: { esql.query_paths: { caller: elastic-synthetics, source: _none, leading_command: row, failed: 0 } }
+  - contains: { esql.query_paths: { caller: elastic-synthetics, source: _none, leading_command: from } }
+  - contains: { esql.query_paths: { caller: kibana, source: discover, leading_command: from } }
+  - contains: { esql.query_paths: { caller: rest, source: curl, leading_command: row } }

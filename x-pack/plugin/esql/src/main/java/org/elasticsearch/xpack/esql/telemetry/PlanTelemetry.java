@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -41,6 +42,7 @@ public class PlanTelemetry {
     private LeadingCommand leadingCommand = LeadingCommand.UNKNOWN;
     private final Set<String> externalStorageTypes = new TreeSet<>();
     private final Set<String> externalFormats = new TreeSet<>();
+    private final BitSet usedFeatures = new BitSet(FeatureMetric.values().length);
 
     public PlanTelemetry(EsqlFunctionRegistry functionRegistry, List<QuerySettingDef<?>> applicableSettings) {
         this.functionRegistry = functionRegistry;
@@ -68,6 +70,18 @@ public class PlanTelemetry {
      */
     public LeadingCommand leadingCommand() {
         return leadingCommand;
+    }
+
+    /**
+     * The {@link FeatureMetric}s this query used, as {@code features.*} counts them. Filled while the query is analyzed, so it
+     * stays empty for a query that fails before analysis passes.
+     */
+    public BitSet usedFeatures() {
+        return usedFeatures;
+    }
+
+    public void usedFeature(FeatureMetric feature) {
+        usedFeatures.set(feature.ordinal());
     }
 
     public Integer linkedProjectsCount() {

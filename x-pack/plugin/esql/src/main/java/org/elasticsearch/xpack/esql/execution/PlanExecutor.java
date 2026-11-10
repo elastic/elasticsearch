@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.telemetry.QueryCaller;
 import org.elasticsearch.xpack.esql.telemetry.QueryCallerClassifier;
 import org.elasticsearch.xpack.esql.telemetry.QueryEntryPoint;
 import org.elasticsearch.xpack.esql.telemetry.QueryMetric;
+import org.elasticsearch.xpack.esql.telemetry.QueryPath;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
@@ -445,6 +446,7 @@ public class PlanExecutor {
         }
         countFinishedQuery(finishCounted, caller, request.entryPoint(), directClient, planTelemetry, false);
         metrics.failed(planTelemetry.leadingCommand());
+        metrics.failed(QueryPath.of(caller, directClient, planTelemetry.leadingCommand()));
         planTelemetryManager.publish(planTelemetry, false);
         recordExternalSourceQuery(
             dataSourceModule.externalSourceMetrics(),
@@ -465,9 +467,9 @@ public class PlanExecutor {
     }
 
     /**
-     * Counts a finished query under its leading command, which is only known once the query is parsed, and on the APM query
-     * counter. {@link ActionListener#wrap} runs the failure handler when the success handler throws, so one query can reach both;
-     * {@code finishCounted} keeps it to one count, and the failure handler still adds the failure.
+     * Counts a finished query under its leading command and its {@link QueryPath}, which are only known once the query is parsed,
+     * and on the APM query counter. {@link ActionListener#wrap} runs the failure handler when the success handler throws, so one
+     * query can reach both; {@code finishCounted} keeps it to one count, and the failure handler still adds the failure.
      */
     private void countFinishedQuery(
         AtomicBoolean finishCounted,
@@ -479,6 +481,7 @@ public class PlanExecutor {
     ) {
         if (finishCounted.compareAndSet(false, true)) {
             metrics.total(planTelemetry.leadingCommand());
+            metrics.total(QueryPath.of(caller, directClient, planTelemetry.leadingCommand()), planTelemetry.usedFeatures());
             planTelemetryManager.publishQuery(caller, entryPoint, directClient, planTelemetry.leadingCommand(), success);
         }
     }

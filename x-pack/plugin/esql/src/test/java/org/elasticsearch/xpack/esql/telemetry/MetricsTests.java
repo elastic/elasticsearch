@@ -12,12 +12,14 @@ import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.telemetry.KibanaExecutionContextClassifier.Feature;
 import org.elasticsearch.xpack.esql.telemetry.KibanaExecutionContextClassifier.Interaction;
 
+import java.util.BitSet;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 
 public class MetricsTests extends ESTestCase {
 
@@ -155,6 +157,81 @@ public class MetricsTests extends ESTestCase {
             assertThat(stats.get("kibana_interactions." + interaction + ".total"), equalTo(own ? 2L : 0L));
             assertThat(stats.get("kibana_interactions." + interaction + ".failed"), equalTo(own ? 1L : 0L));
         }
+    }
+
+    public void testNoQueryPathsBeforeAnyQuery() {
+        assertThat(newMetrics().stats().toNestedMap(), not(hasKey("query_paths")));
+    }
+
+    public void testQueryPathCountsTotalAndTheCommandsItUsed() {
+        Metrics metrics = newMetrics();
+        QueryPath path = new QueryPath(QueryMetric.KIBANA, Feature.DISCOVER.toString(), LeadingCommand.FROM);
+        metrics.total(path, commands(FeatureMetric.FROM, FeatureMetric.WHERE));
+        metrics.total(path, commands(FeatureMetric.FROM, FeatureMetric.STATS));
+        assertThat(
+            nested(metrics.stats(), "query_paths"),
+            equalTo(
+                Map.of(
+                    "kibana",
+                    Map.of("discover", Map.of("from", Map.of("total", 2L, "commands", Map.of("from", 2L, "where", 1L, "stats", 1L))))
+                )
+            )
+        );
+    }
+
+    public void testFailedQueryPathCountsFailed() {
+        Metrics metrics = newMetrics();
+        QueryPath path = new QueryPath(QueryMetric.REST, DirectClient.PYTHON.toString(), LeadingCommand.TS);
+        metrics.total(path, commands());
+        metrics.failed(path);
+        assertThat(
+            nested(metrics.stats(), "query_paths"),
+            equalTo(Map.of("rest", Map.of("python", Map.of("ts", Map.of("total", 1L, "failed", 1L)))))
+        );
+    }
+
+    public void testQueryPathsAreCountedApart() {
+        Metrics metrics = newMetrics();
+        metrics.total(new QueryPath(QueryMetric.FLEET, QueryPath.NO_SOURCE, LeadingCommand.ROW), commands(FeatureMetric.ROW));
+        metrics.total(new QueryPath(QueryMetric.FLEET, QueryPath.NO_SOURCE, LeadingCommand.FROM), commands());
+        metrics.total(new QueryPath(QueryMetric.OTHER, QueryPath.NO_SOURCE, LeadingCommand.ROW), commands());
+        assertThat(
+            nested(metrics.stats(), "query_paths"),
+            equalTo(
+                Map.of(
+                    "fleet",
+                    Map.of("_none", Map.of("row", Map.of("total", 1L, "commands", Map.of("row", 1L)), "from", Map.of("total", 1L))),
+                    "other",
+                    Map.of("_none", Map.of("row", Map.of("total", 1L)))
+                )
+            )
+        );
+    }
+
+    public void testConcurrentQueryPathCountsAreExact() throws Exception {
+        Metrics metrics = newMetrics();
+        QueryPath path = new QueryPath(QueryMetric.REST, DirectClient.CURL.toString(), LeadingCommand.FROM);
+        int threads = between(2, 8);
+        int perThread = between(100, 1000);
+        startInParallel(threads, t -> {
+            for (int i = 0; i < perThread; i++) {
+                metrics.total(path, commands(FeatureMetric.WHERE));
+                metrics.failed(path);
+            }
+        });
+        Counters stats = metrics.stats();
+        long expected = (long) threads * perThread;
+        assertThat(stats.get("query_paths.rest.curl.from.total"), equalTo(expected));
+        assertThat(stats.get("query_paths.rest.curl.from.failed"), equalTo(expected));
+        assertThat(stats.get("query_paths.rest.curl.from.commands.where"), equalTo(expected));
+    }
+
+    private static BitSet commands(FeatureMetric... used) {
+        BitSet bits = new BitSet(FeatureMetric.values().length);
+        for (FeatureMetric metric : used) {
+            bits.set(metric.ordinal());
+        }
+        return bits;
     }
 
     private static Metrics newMetrics() {

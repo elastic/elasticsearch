@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -27,6 +28,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -39,14 +41,13 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 
 /**
  * Allocation during snapshot restores: ESA size gate, capacity decider, and storage monitor,
@@ -111,10 +112,17 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
     }
 
     private AllocationService service(AtomicReference<ClusterInfo> info, AtomicReference<SnapshotShardSizeInfo> sizes) {
-        final Settings settings = Settings.builder().put("cluster.routing.allocation.type", "desired_balance").build();
-        final ClusterSettings clusterSettings = createBuiltInClusterSettings(settings);
+        final Settings settings = Settings.builder()
+            .put("cluster.routing.allocation.type", "desired_balance")
+            .put(InternalClusterInfoService.SNAPSHOT_RESTORE_ALLOCATION_ENABLED.getKey(), true)
+            .build();
+        final Set<Setting<?>> registered = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        registered.add(InternalClusterInfoService.SNAPSHOT_RESTORE_ALLOCATION_ENABLED);
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, registered);
         var service = new AllocationService(
-            new AllocationDeciders(List.of(new SnapshotRestoreAllocationDecider(Settings.EMPTY), new StatelessAllocationDecider())),
+            new AllocationDeciders(
+                List.of(new SnapshotRestoreAllocationDecider(Settings.EMPTY, clusterSettings), new StatelessAllocationDecider())
+            ),
             createShardsAllocator(settings),
             info::get,
             sizes::get,
@@ -330,8 +338,11 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
 
     private static ClusterSettings monitorClusterSettings(TimeValue rerouteInterval) {
         return new ClusterSettings(
-            Settings.builder().put(SnapshotRestoreStorageMonitor.REROUTE_INTERVAL_SETTING.getKey(), rerouteInterval).build(),
-            Set.of(SnapshotRestoreStorageMonitor.REROUTE_INTERVAL_SETTING)
+            Settings.builder()
+                .put(InternalClusterInfoService.SNAPSHOT_RESTORE_ALLOCATION_ENABLED.getKey(), true)
+                .put(SnapshotRestoreStorageMonitor.REROUTE_INTERVAL_SETTING.getKey(), rerouteInterval)
+                .build(),
+            Set.of(InternalClusterInfoService.SNAPSHOT_RESTORE_ALLOCATION_ENABLED, SnapshotRestoreStorageMonitor.REROUTE_INTERVAL_SETTING)
         );
     }
 }

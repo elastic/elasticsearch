@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.allocation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -48,6 +49,7 @@ public class SnapshotRestoreStorageMonitor {
     private final Supplier<ClusterState> clusterState;
     private final LongSupplier currentTimeMillisSupplier;
     private final RerouteService rerouteService;
+    private volatile boolean enabled;
     private volatile TimeValue rerouteInterval;
     // Accessed only by onNewInfo callbacks. InternalClusterInfoService serializes these callbacks and
     // safely publishes their writes through the synchronized refresh handoff, even when the callback thread changes.
@@ -63,10 +65,15 @@ public class SnapshotRestoreStorageMonitor {
         this.clusterState = clusterState;
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
         this.rerouteService = rerouteService;
+        clusterSettings.initializeAndWatch(InternalClusterInfoService.SNAPSHOT_RESTORE_ALLOCATION_ENABLED, value -> this.enabled = value);
         clusterSettings.initializeAndWatch(REROUTE_INTERVAL_SETTING, value -> this.rerouteInterval = value);
     }
 
     public void onNewInfo(ClusterInfo info) {
+        if (enabled == false) {
+            nodeReservations = Map.of();
+            return;
+        }
         var state = clusterState.get();
         if (state.nodes().isLocalNodeElectedMaster() == false) {
             nodeReservations = Map.of();

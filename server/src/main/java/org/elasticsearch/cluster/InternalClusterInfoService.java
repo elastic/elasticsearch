@@ -98,10 +98,15 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         Property.Dynamic,
         Property.NodeScope
     );
-    // Temporary until restore no longer needs disk capacity checks.
-    // Operator-only and registered in StatelessPlugin to allow removal without deprecation.
-    public static final Setting<Boolean> CLUSTER_INFO_UPDATE_DISK_ENABLED = Setting.boolSetting(
-        "cluster.info.update.disk.enabled",
+    /**
+     * Enables snapshot-restore disk capacity checks. When true, this service collects disk usage into
+     * {@link ClusterInfo} even if the disk threshold decider is disabled. Also gates the stateless
+     * restore allocation decider and storage monitor (registered by StatelessPlugin).
+     * Temporary until restore no longer needs disk capacity checks. Operator-only and registered in
+     * StatelessPlugin to allow removal without deprecation.
+     */
+    public static final Setting<Boolean> SNAPSHOT_RESTORE_ALLOCATION_ENABLED = Setting.boolSetting(
+        "cluster.routing.allocation.snapshot_restore.enabled",
         false,
         Property.OperatorDynamic,
         Property.NodeScope
@@ -164,7 +169,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
             this::setDiskThresholdEnabled
         );
-        clusterSettings.initializeAndWatchIfRegistered(CLUSTER_INFO_UPDATE_DISK_ENABLED, this::setDiskInfoUpdateEnabled);
+        clusterSettings.initializeAndWatchIfRegistered(SNAPSHOT_RESTORE_ALLOCATION_ENABLED, this::setDiskInfoUpdateEnabled);
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, this::setWriteLoadConstraintEnabled);
         clusterSettings.initializeAndWatch(
             WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING,

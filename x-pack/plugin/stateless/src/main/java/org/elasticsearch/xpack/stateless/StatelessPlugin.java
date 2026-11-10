@@ -736,7 +736,7 @@ public class StatelessPlugin extends Plugin
         var settings = Settings.builder()
             .put(super.additionalSettings())
             .put(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
-            .put(InternalClusterInfoService.CLUSTER_INFO_UPDATE_DISK_ENABLED.getKey(), true)
+            .put(InternalClusterInfoService.SNAPSHOT_RESTORE_ALLOCATION_ENABLED.getKey(), true)
             .put(DATA_STREAMS_LIFECYCLE_ONLY_MODE.getKey(), true)
             .put(BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED.getKey(), true)
             .put(FAILURE_STORE_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(30));
@@ -1428,7 +1428,7 @@ public class StatelessPlugin extends Plugin
             BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED,
             COMBINE_DYNAMIC_MAPPING_UPDATES_BY_DEFAULT,
             FAILURE_STORE_REFRESH_INTERVAL_SETTING,
-            InternalClusterInfoService.CLUSTER_INFO_UPDATE_DISK_ENABLED,
+            InternalClusterInfoService.SNAPSHOT_RESTORE_ALLOCATION_ENABLED,
             SnapshotRestoreStorageMonitor.REROUTE_INTERVAL_SETTING,
             ObjectStoreService.TYPE_SETTING,
             ObjectStoreService.BUCKET_SETTING,
@@ -2122,7 +2122,7 @@ public class StatelessPlugin extends Plugin
         return List.of(
             new DisableSimulationRebalancingDecider(clusterSettings),
             new StatelessAllocationDecider(),
-            new SnapshotRestoreAllocationDecider(settings),
+            new SnapshotRestoreAllocationDecider(settings, clusterSettings),
             new EstimatedHeapUsageAllocationDecider(estimatedHeapSettings.get(), clusterSettings),
             new SharedCacheCapacityAllocationDecider(clusterSettings),
             new StatelessThrottlingConcurrentRecoveriesAllocationDecider(clusterSettings)

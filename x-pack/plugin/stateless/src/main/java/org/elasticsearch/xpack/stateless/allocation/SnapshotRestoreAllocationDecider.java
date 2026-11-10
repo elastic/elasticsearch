@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.allocation;
 
+import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -15,6 +16,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
@@ -27,14 +29,17 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
     private static final String NAME = "stateless_snapshot_restore_storage";
 
     private final RelativeByteSizeValue indexingReservedDisk;
+    private volatile boolean enabled;
 
-    public SnapshotRestoreAllocationDecider(Settings settings) {
+    public SnapshotRestoreAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         this.indexingReservedDisk = IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING.get(settings);
+        clusterSettings.initializeAndWatch(InternalClusterInfoService.SNAPSHOT_RESTORE_ALLOCATION_ENABLED, value -> this.enabled = value);
     }
 
     @Override
     public Decision canAllocate(ShardRouting shard, RoutingNode node, RoutingAllocation allocation) {
-        if (shard.primary() == false
+        if (enabled == false
+            || shard.primary() == false
             || shard.unassigned() == false
             || shard.recoverySource().getType() != RecoverySource.Type.SNAPSHOT
             || node.node().getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) == false) {

@@ -87,7 +87,6 @@ import org.elasticsearch.xpack.esql.querylog.EsqlLogProducer;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
-import org.elasticsearch.xpack.esql.tablefunction.TableFunctionResolver;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.io.IOException;
@@ -116,7 +115,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final EnrichPolicyResolver enrichPolicyResolver;
     private final ViewResolver viewResolver;
     private final DatasetResolver datasetResolver;
-    private final TableFunctionResolver tableFunctionResolver;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final AsyncTaskManagementService<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> asyncTaskManagementService;
@@ -173,7 +171,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             Federation.isAvailable(clusterService.getSettings()),
             federationLicense
         );
-        this.tableFunctionResolver = new TableFunctionResolver(planExecutor.tableFunctionRegistry(), requestExecutor);
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
         this.enrichPolicyResolver = new EnrichPolicyResolver(
@@ -434,7 +431,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             enrichPolicyResolver,
             viewResolver,
             datasetResolver,
-            tableFunctionResolver,
             executionInfo,
             remoteClusterService,
             planRunner,
@@ -835,10 +831,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     public DatasetResolver datasetResolver() {
         return datasetResolver;
-    }
-
-    public TableFunctionResolver tableFunctionResolver() {
-        return tableFunctionResolver;
     }
 
     public QueryInterceptor<EsqlCaptureContext> activityInterceptor() {

@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
@@ -92,7 +93,7 @@ public class PlanExecutor {
     private final IntSupplier maxGlobExpansion;
     @Nullable
     private final IntSupplier maxListedObjects;
-    private final TableFunctionRegistry tableFunctionRegistry;
+    private final TableFunctionResolver tableFunctionResolver;
 
     public PlanExecutor(
         IndexResolver indexResolver,
@@ -124,7 +125,7 @@ public class PlanExecutor {
             null,
             null,
             null,
-            new TableFunctionRegistry(List.of())
+            new TableFunctionResolver(new TableFunctionRegistry(List.of()), EsExecutors.DIRECT_EXECUTOR_SERVICE)
         );
     }
 
@@ -144,7 +145,7 @@ public class PlanExecutor {
         @Nullable IntSupplier maxDiscoveredFiles,
         @Nullable IntSupplier maxGlobExpansion,
         @Nullable IntSupplier maxListedObjects,
-        TableFunctionRegistry tableFunctionRegistry
+        TableFunctionResolver tableFunctionResolver
     ) {
         this.indexResolver = indexResolver;
         this.parser = parser;
@@ -163,7 +164,7 @@ public class PlanExecutor {
         this.maxDiscoveredFiles = maxDiscoveredFiles;
         this.maxGlobExpansion = maxGlobExpansion;
         this.maxListedObjects = maxListedObjects;
-        this.tableFunctionRegistry = tableFunctionRegistry;
+        this.tableFunctionResolver = tableFunctionResolver;
     }
 
     /**
@@ -251,7 +252,6 @@ public class PlanExecutor {
         EnrichPolicyResolver enrichPolicyResolver,
         ViewResolver viewResolver,
         DatasetResolver datasetResolver,
-        TableFunctionResolver tableFunctionResolver,
         EsqlExecutionInfo executionInfo,
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
@@ -519,10 +519,6 @@ public class PlanExecutor {
      * it rather than building a second one: two registries built from the same inputs are equivalent until the day
      * they are not, and nothing would catch the drift.
      */
-    public TableFunctionRegistry tableFunctionRegistry() {
-        return tableFunctionRegistry;
-    }
-
     public DataSourceModule dataSourceModule() {
         return dataSourceModule;
     }

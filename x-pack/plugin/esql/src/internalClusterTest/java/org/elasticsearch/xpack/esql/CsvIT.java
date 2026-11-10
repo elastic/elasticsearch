@@ -83,7 +83,6 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -149,16 +148,8 @@ import static org.hamcrest.Matchers.hasSize;
 public class CsvIT extends ESTestCase {
 
     private static final Logger logger = LogManager.getLogger(CsvIT.class);
-    private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(
-        TEST_FUNCTION_REGISTRY,
-        new TableFunctionRegistry(List.of()),
-        false
-    );
-    private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(
-        TEST_FUNCTION_REGISTRY,
-        new TableFunctionRegistry(List.of()),
-        true
-    );
+    private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, false);
+    private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, true);
     private static final int BULK_INDEX_BATCH_SIZE = 10_000;
 
     private static final String ML_ANOMALIES_DATASET = ".ml-anomalies-shared";

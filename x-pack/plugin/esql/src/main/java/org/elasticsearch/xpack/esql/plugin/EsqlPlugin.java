@@ -167,6 +167,7 @@ import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunction;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionResolver;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
 import org.elasticsearch.xpack.esql.view.MlAnomaliesView;
@@ -545,9 +546,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         // Already-constructed functions, so one that needs a collaborator is handed it here rather than the
         // registry acquiring one on every function's behalf.
-        TableFunctionRegistry tableFunctionRegistry = new TableFunctionRegistry(tableFunctions(services.client()));
+        TableFunctionResolver tableFunctionResolver = new TableFunctionResolver(
+            new TableFunctionRegistry(tableFunctions(services.client())),
+            services.threadPool().executor(ThreadPool.Names.SEARCH)
+        );
         EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
-        capabilities.set(EsqlCapabilities.capabilities(functionRegistry, tableFunctionRegistry, false));
+        capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
 
         services.ipLocationService()
             .addDatabaseAvailabilityListener(
@@ -673,7 +677,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 maxDiscoveredFiles::get,
                 maxGlobExpansion::get,
                 maxListedObjects::get,
-                tableFunctionRegistry
+                tableFunctionResolver
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),

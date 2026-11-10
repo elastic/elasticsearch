@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -57,9 +56,7 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
     public void checkCapability() {
         assumeTrue(
             "sparkline should be enabled",
-            EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, new TableFunctionRegistry(List.of()), false)
-                .capabilities()
-                .contains("fn_sparkline")
+            EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, false).capabilities().contains("fn_sparkline")
         );
     }
 

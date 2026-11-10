@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.tablefunction;
 
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
@@ -44,25 +43,6 @@ public final class TableFunctionRegistry {
             }
         }
         this.byName = map;
-    }
-
-    /**
-     * Adds one capability per registered function, named {@code table_fn_<name>}, so a client can ask whether this
-     * cluster has a particular function and not only whether it has the facility at all. Emits nothing while no
-     * function is registered. The facility's own
-     * capability stays separate ({@link EsqlCapabilities.Cap#FROM_TABLE_FUNCTION}), because the two become
-     * different questions the moment there is a second function.
-     * <p>
-     * Derived from the registry rather than written out by hand, as
-     * {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry#addCapabilities} does it:
-     * registering a function is then the whole change, with no second place to forget. Each is enabled with the
-     * facility, since a function is unreachable without it.
-     */
-    public void addCapabilities(EsqlCapabilities.Builder capabilities) {
-        boolean enabled = EsqlCapabilities.Cap.FROM_TABLE_FUNCTION.isEnabled();
-        for (String name : byName.keySet()) {
-            capabilities.add("table_fn_" + name, enabled);
-        }
     }
 
     /**

@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
-import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;
 
 import java.util.HashSet;
 import java.util.Locale;
@@ -46,7 +45,7 @@ public class EsqlCapabilities {
      * @param all if {@code false} then only <strong>enabled</strong> capabilities are returned,
      *            otherwise <strong>all</strong> known capabilities are returned.
      */
-    public static EsqlCapabilities capabilities(EsqlFunctionRegistry functions, TableFunctionRegistry tableFunctions, boolean all) {
+    public static EsqlCapabilities capabilities(EsqlFunctionRegistry functions, boolean all) {
         Builder builder = new Builder(all);
         for (Cap cap : Cap.values()) {
             builder.add(cap.capabilityName(), cap.isEnabled());
@@ -63,7 +62,6 @@ public class EsqlCapabilities {
             functions = functions.snapshotRegistry();
         }
         functions.addCapabilities(builder);
-        tableFunctions.addCapabilities(builder);
         return builder.build();
     }
 

@@ -881,7 +881,6 @@ public class S3StorageProvider implements StorageProvider {
                 continuationToken = response.nextContinuationToken();
             } while (continuationToken != null);
         } catch (TruncatedWithoutTokenException e) {
-            ExternalPlanningIo.addMetadataGet(0);
             throw new IOException("Failed to list children in the configured path: " + TRUNCATED_WITHOUT_TOKEN_MESSAGE);
         } catch (Exception e) {
             ExternalPlanningIo.addMetadataGet(0);

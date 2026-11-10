@@ -16,9 +16,11 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -214,6 +216,18 @@ public class S3StorageIteratorPaginationTests extends ESTestCase {
 
         assertThat(thrown.getMessage(), containsString("without a continuation token"));
         verify(client, times(1)).listObjectsV2(any(ListObjectsV2Request.class));
+    }
+
+    public void testListChildrenTruncatedPageWithoutTokenCountsTheRequestOnce() {
+        S3Client client = clientReturning(List.of(truncatedWithoutToken("data/a.csv")));
+        S3StorageProvider provider = S3StorageProvider.forTesting(client, null);
+        ExternalPlanningIo io = new ExternalPlanningIo();
+
+        try (Releasable ignored = ExternalPlanningIo.activate(io)) {
+            expectThrows(IOException.class, () -> provider.listChildren(PREFIX, 100));
+        }
+
+        assertEquals(1L, io.requestCount());
     }
 
     private static List<String> listNames(S3Client client) throws IOException {

@@ -107,13 +107,15 @@ public final class Fork extends MergePlan implements TelemetryAware {
                 // We only assign an UNSUPPORTED attribute in the FORK output when there exists no attribute with the
                 // same name and supported data type in any of the FORK branches.
                 //
-                // Likewise, a branch that does not produce the column at all had it filled with nulls to line the branches up.
-                // Those rows carry no values, so there is nothing for a sibling's declarations to disagree with.
+                // Likewise, a column of nothing but nulls has no values for a sibling's analyzer to disagree with. It still has to
+                // carry the merged data type: the plan check after optimization requires it, and failing there is a 500.
                 //
                 // Union-type resolution can also introduce synthetic conversion attributes after this FORK's output was
                 // resolved. They are carried through the branch projections so the conversion can be extracted, but are
                 // intentionally absent from the user-visible FORK output and removed by the union-types cleanup rule.
-                if (merged == null || merged.dataType() == DataType.UNSUPPORTED || onlyNull.test(attr)) {
+                if (merged == null
+                    || merged.dataType() == DataType.UNSUPPORTED
+                    || (onlyNull.test(attr) && attr.dataType() == merged.dataType())) {
                     continue;
                 }
 

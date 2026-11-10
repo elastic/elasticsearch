@@ -239,11 +239,12 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         assertThat(collectedPaths(mapperService, source, "a"), containsInAnyOrder("a"));
         assertThat(collectedPaths(mapperService, source, "text.raw"), containsInAnyOrder("text", "text.raw"));
-        assertThat(collectedPaths(mapperService, source, "obj.x"), containsInAnyOrder("obj.x", "obj.y"));
+        assertThat(collectedPaths(mapperService, source, "obj.x"), containsInAnyOrder("obj.x"));
         assertThat(collectedPaths(mapperService, source, "obj.*"), containsInAnyOrder("obj.x", "obj.y"));
+        assertThat(collectedPaths(mapperService, source, "o*.y"), containsInAnyOrder("obj.x", "obj.y"));
         assertThat(collectedPaths(mapperService, source, "a", "text"), containsInAnyOrder("a", "text", "text.raw"));
         assertThat(collectedPaths(mapperService, source, "missing"), empty());
-        assertThat(MapperService.fieldFilters(List.of("a", "*")), nullValue());
+        assertThat(collectedPaths(mapperService, source, "*"), containsInAnyOrder("a", "text", "text.raw", "obj.x", "obj.y"));
     }
 
     public void testParseMappingsWithFieldFiltersAndRootSubobjectsFalse() throws IOException {
@@ -254,15 +255,15 @@ public class MapperServiceTests extends MapperServiceTestCase {
         }));
         CompressedXContent source = mapperService.documentMapper().mappingSource();
 
-        assertThat(collectedPaths(mapperService, source, "obj.my.field"), containsInAnyOrder("obj.my.field", "obj.other"));
+        assertThat(collectedPaths(mapperService, source, "obj.my.field"), containsInAnyOrder("obj.my.field"));
         assertThat(collectedPaths(mapperService, source, "flat"), containsInAnyOrder("flat"));
         assertThat(collectedPaths(mapperService, source, "obj.*"), containsInAnyOrder("obj.my.field", "obj.other"));
-        assertThat(collectedPaths(mapperService, source, "obj.my.*"), containsInAnyOrder("obj.my.field", "obj.other"));
-        assertThat(collectedPaths(mapperService, source, "fl*"), containsInAnyOrder("obj.my.field", "obj.other", "flat"));
+        assertThat(collectedPaths(mapperService, source, "obj.my.*"), containsInAnyOrder("obj.my.field"));
+        assertThat(collectedPaths(mapperService, source, "fl*"), containsInAnyOrder("flat"));
         assertThat(collectedPaths(mapperService, source, "*"), containsInAnyOrder("obj.my.field", "obj.other", "flat"));
 
         Map<String, String> leafNames = new HashMap<>();
-        mapperService.parseMappings(source, MergeReason.MAPPING_RECOVERY, MapperService.fieldFilters(List.of("obj.my.field")))
+        mapperService.parseMappings(source, MergeReason.MAPPING_RECOVERY, FieldPathFilter.forPatterns(List.of("obj.my.field")))
             .collectFieldBuilders(MergeReason.MAPPING_RECOVERY, (path, builder) -> leafNames.put(path, builder.leafName()));
         assertThat(leafNames.get("obj.my.field"), equalTo("obj.my.field"));
     }
@@ -277,16 +278,28 @@ public class MapperServiceTests extends MapperServiceTestCase {
         }));
         CompressedXContent source = mapperService.documentMapper().mappingSource();
 
-        assertThat(collectedPaths(mapperService, source, "obj.a.b"), containsInAnyOrder("obj.a.b", "obj.c"));
+        assertThat(collectedPaths(mapperService, source, "obj.a.b"), containsInAnyOrder("obj.a.b"));
         assertThat(collectedPaths(mapperService, source, "other"), containsInAnyOrder("other"));
         assertThat(collectedPaths(mapperService, source, "obj.*"), containsInAnyOrder("obj.a.b", "obj.c"));
-        assertThat(collectedPaths(mapperService, source, "obj.a.*"), containsInAnyOrder("obj.a.b", "obj.c"));
+        assertThat(collectedPaths(mapperService, source, "obj.a.*"), containsInAnyOrder("obj.a.b"));
         assertThat(collectedPaths(mapperService, source, "*"), containsInAnyOrder("obj.a.b", "obj.c", "other"));
+    }
+
+    public void testParseMappingsWithFieldFiltersAndUnusualFieldNames() throws IOException {
+        MapperService mapperService = createMapperService(mappingNoSubobjects(b -> {
+            b.startObject("trailing ").field("type", "keyword").endObject();
+            b.startObject("obj. spaced").field("type", "keyword").endObject();
+            b.startObject("other").field("type", "keyword").endObject();
+        }));
+        CompressedXContent source = mapperService.documentMapper().mappingSource();
+
+        assertThat(collectedPaths(mapperService, source, "trailing "), containsInAnyOrder("trailing "));
+        assertThat(collectedPaths(mapperService, source, "obj. spaced"), containsInAnyOrder("obj. spaced"));
     }
 
     private static Set<String> collectedPaths(MapperService mapperService, CompressedXContent source, String... patterns) {
         Set<String> paths = new HashSet<>();
-        mapperService.parseMappings(source, MergeReason.MAPPING_RECOVERY, MapperService.fieldFilters(List.of(patterns)))
+        mapperService.parseMappings(source, MergeReason.MAPPING_RECOVERY, FieldPathFilter.forPatterns(List.of(patterns)))
             .collectFieldBuilders(MergeReason.MAPPING_RECOVERY, (path, builder) -> {
                 if (path.startsWith("_") == false) {
                     paths.add(path);

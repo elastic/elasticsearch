@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldPathFilter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.MappingBuilder;
@@ -116,7 +117,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
             mappingBuilder = mapperService.parseMappings(
                 documentMapper.mappingSource(),
                 MergeReason.MAPPING_RECOVERY,
-                MapperService.fieldFilters(Arrays.asList(request.fields()))
+                FieldPathFilter.forPatterns(Arrays.asList(request.fields()))
             );
         }
         Map<String, FieldMappingMetadata> fieldMapping = findFieldMappings(fieldPredicate, mappingBuilder, request);

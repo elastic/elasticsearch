@@ -15,8 +15,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
@@ -24,7 +22,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -81,18 +78,8 @@ public final class MappingParser {
     }
 
     static Map<String, Object> convertToMap(CompressedXContent source) {
-        return convertToMap(source, null);
-    }
-
-    /**
-     * Converts a mapping source to a map, keeping only the paths matched by {@code include} if it is not null.
-     */
-    static Map<String, Object> convertToMap(CompressedXContent source, @Nullable Set<String> include) {
         Objects.requireNonNull(source, "source cannot be null");
-        XContentParserConfiguration config = include == null
-            ? XContentParserConfiguration.EMPTY
-            : XContentParserConfiguration.EMPTY.withFiltering(null, include, null, true);
-        return XContentHelper.parseToType(XContentParser::mapOrdered, source.compressedReference(), XContentType.JSON, config).v2();
+        return XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
     }
 
     Mapping parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
@@ -137,9 +124,22 @@ public final class MappingParser {
      * @return a {@link MappingBuilder} containing the parsed root builder, metadata, and meta
      * @throws MapperParsingException in case of parsing error
      */
-    @SuppressWarnings("unchecked")
     MappingBuilder parseToBuilder(@Nullable String type, MergeReason reason, Map<String, Object> mappingSource)
         throws MapperParsingException {
+        return parseToBuilder(type, reason, mappingSource, null);
+    }
+
+    /**
+     * As {@link #parseToBuilder(String, MergeReason, Map)}, applying a {@link FieldPathFilter} to limit
+     * parsing to only those fields that pass the filter.
+     */
+    @SuppressWarnings("unchecked")
+    MappingBuilder parseToBuilder(
+        @Nullable String type,
+        MergeReason reason,
+        Map<String, Object> mappingSource,
+        @Nullable FieldPathFilter fieldFilter
+    ) throws MapperParsingException {
         if (mappingSource.isEmpty()) {
             if (type == null) {
                 throw new MapperParsingException("malformed mapping, no type name found");
@@ -159,6 +159,9 @@ public final class MappingParser {
         }
 
         MappingParserContext mappingParserContext = mappingParserContextSupplier.apply(reason);
+        if (fieldFilter != null) {
+            mappingParserContext = mappingParserContext.withFieldFilter(fieldFilter);
+        }
 
         RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mappingSource, mappingParserContext);
 

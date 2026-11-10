@@ -960,8 +960,9 @@ public abstract class DocumentParserContext {
                 if (source == null) {
                     throw new IllegalStateException("the source of the mapping is not available to update a field of it");
                 }
-                Set<String> include = MapperService.fieldFilters(List.of(fieldPath));
-                parserContext.parseStoredMapping(source, include)
+                FieldPathFilter fieldFilter = FieldPathFilter.forPatterns(List.of(fieldPath));
+                parserContext.withFieldFilter(fieldFilter)
+                    .parseStoredMapping(source)
                     .collectFieldBuilders(MergeReason.MAPPING_RECOVERY, fieldBuilders::putIfAbsent);
             }
             return fieldBuilders;

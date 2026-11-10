@@ -27,7 +27,6 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.ScriptCompiler;
 
 import java.util.List;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -59,12 +58,15 @@ public class MappingParserContext {
     private final ParseFieldLimits parseFieldLimits;
     @Nullable
     private final StoredMappingParser storedMappingParser;
+    // Restricts the properties of a mapping that are parsed, if only some of its fields are wanted
+    @Nullable
+    private final FieldPathFilter fieldPathFilter;
 
     /**
      * Parses the source of a stored mapping into builders, optionally applying a filter
      */
     @FunctionalInterface
-    public interface StoredMappingParser extends BiFunction<CompressedXContent, Set<String>, MappingBuilder> {}
+    public interface StoredMappingParser extends BiFunction<CompressedXContent, FieldPathFilter, MappingBuilder> {}
 
     // Package-private: used by MapperService (to pass ParseFieldLimits and the stored mapping parser directly) and by inner subcontexts.
     MappingParserContext(
@@ -83,7 +85,8 @@ public class MappingParserContext {
         RootObjectMapperNamespaceValidator namespaceValidator,
         Supplier<ProjectMetadata> projectMetadataSupplier,
         ParseFieldLimits parseFieldLimits,
-        @Nullable StoredMappingParser storedMappingParser
+        @Nullable StoredMappingParser storedMappingParser,
+        @Nullable FieldPathFilter fieldPathFilter
     ) {
         this.similarityLookupService = similarityLookupService;
         this.typeParsers = typeParsers;
@@ -101,6 +104,7 @@ public class MappingParserContext {
         this.projectMetadataSupplier = projectMetadataSupplier;
         this.parseFieldLimits = parseFieldLimits;
         this.storedMappingParser = storedMappingParser;
+        this.fieldPathFilter = fieldPathFilter;
     }
 
     public MappingParserContext(
@@ -141,6 +145,7 @@ public class MappingParserContext {
                 NewFieldsBudget.unlimited(),
                 0
             ),
+            null,
             null
         );
     }
@@ -220,15 +225,46 @@ public class MappingParserContext {
         return clusterSupportsFeature.test(feature);
     }
 
+    @Nullable
+    FieldPathFilter fieldPathFilter() {
+        return fieldPathFilter;
+    }
+
     /**
-     * Parses the source of a mapping that is already stored into builders, optionally applying
-     * a filter to limit the amount of parsing needed.
+     * A copy of this context that only parses the fields passed by {@code fieldFilter}.
      */
-    MappingBuilder parseStoredMapping(CompressedXContent source, @Nullable Set<String> include) {
+    MappingParserContext withFieldFilter(FieldPathFilter fieldFilter) {
+        return new MappingParserContext(
+            similarityLookupService,
+            typeParsers,
+            runtimeFieldParsers,
+            indexVersionCreated,
+            clusterTransportVersion,
+            clusterSupportsFeature,
+            searchExecutionContextSupplier,
+            scriptCompiler,
+            indexAnalyzers,
+            indexSettings,
+            bitSetProducer,
+            vectorsFormatProviders,
+            namespaceValidator,
+            projectMetadataSupplier,
+            parseFieldLimits,
+            storedMappingParser,
+            fieldFilter
+        );
+    }
+
+    /**
+     * Parses the source of a mapping that is already stored into builders.  If a
+     * {@link FieldPathFilter} is defined in this context, only fields that match
+     * the filter are parsed.
+     */
+    MappingBuilder parseStoredMapping(CompressedXContent source) {
         if (storedMappingParser == null) {
             throw new IllegalStateException("this context has no parser for stored mappings");
         }
-        return storedMappingParser.apply(source, include);
+        return storedMappingParser.apply(source, fieldPathFilter);
     }
 
     public Supplier<SearchExecutionContext> searchExecutionContext() {
@@ -334,7 +370,8 @@ public class MappingParserContext {
                 in.namespaceValidator,
                 null,
                 in.parseFieldLimits,
-                in.storedMappingParser
+                in.storedMappingParser,
+                null
             );
         }
 
@@ -381,7 +418,8 @@ public class MappingParserContext {
                 null,
                 // Dynamic templates should not count towards the total field budget
                 limits.withoutTotalFieldsBudget(),
-                in.storedMappingParser
+                in.storedMappingParser,
+                null
             );
             this.dateFormatter = dateFormatter;
         }

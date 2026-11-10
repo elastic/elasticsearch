@@ -332,9 +332,7 @@ public class InboundHandler {
                 verifyRequestReadFully(stream, requestId, action);
                 decodedBytes.checkRead();
                 if (reg.getExecutor() == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
-                    try (var ignored = threadPool.getThreadContext().newTraceContext()) {
-                        doHandleRequest(reg, request, transportChannel);
-                    }
+                    doHandleRequest(reg, request, transportChannel);
                 } else {
                     handleRequestForking(/* autocloses */ request, reg, transportChannel);
                     request = null; // now owned by the thread we forked to
@@ -364,7 +362,7 @@ public class InboundHandler {
     private <T extends TransportRequest> void handleRequestForking(T request, RequestHandlerRegistry<T> reg, TransportChannel channel) {
         boolean success = false;
         try {
-            reg.getExecutor().execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
+            reg.getExecutor().execute(threadPool.getThreadContext().preserveContext(new AbstractRunnable() {
                 @Override
                 protected void doRun() {
                     doHandleRequest(reg, request, channel);

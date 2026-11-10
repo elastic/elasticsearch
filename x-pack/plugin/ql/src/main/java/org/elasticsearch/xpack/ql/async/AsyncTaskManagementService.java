@@ -192,7 +192,7 @@ public class AsyncTaskManagementService<
             return;
         }
         String nodeId = clusterService.localNode().getId();
-        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+        try (var ignored = threadPool.getThreadContext().newStoredContextPreservingResponseHeaders()) {
             @SuppressWarnings("unchecked")
             T searchTask = (T) taskManager.register(
                 "transport",

@@ -15,7 +15,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
@@ -31,16 +30,14 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class StreamingTaskManager {
     private final TaskManager taskManager;
-    private final ThreadPool threadPool;
 
     @Inject
-    public StreamingTaskManager(TransportService transportService, ThreadPool threadPool) {
-        this(transportService.getTaskManager(), threadPool);
+    public StreamingTaskManager(TransportService transportService) {
+        this(transportService.getTaskManager());
     }
 
-    StreamingTaskManager(TaskManager taskManager, ThreadPool threadPool) {
+    StreamingTaskManager(TaskManager taskManager) {
         this.taskManager = taskManager;
-        this.threadPool = threadPool;
     }
 
     public <E> Flow.Processor<E, E> create(String taskType, String taskAction) {
@@ -82,31 +79,29 @@ public class StreamingTaskManager {
             if (task != null) {
                 task.updateStatus(FlowTask.FlowStatus.CONNECTED);
             } else {
-                try (var ignored = threadPool.getThreadContext().newTraceContext()) {
-                    task = (FlowTask) taskManager.register(taskType, taskAction, new TaskAwareRequest() {
-                        @Override
-                        public void setParentTask(TaskId taskId) {
-                            throw new UnsupportedOperationException("parent task id for streaming results shouldn't change");
-                        }
+                task = (FlowTask) taskManager.register(taskType, taskAction, new TaskAwareRequest() {
+                    @Override
+                    public void setParentTask(TaskId taskId) {
+                        throw new UnsupportedOperationException("parent task id for streaming results shouldn't change");
+                    }
 
-                        @Override
-                        public void setRequestId(long requestId) {
-                            throw new UnsupportedOperationException("does not have request ID");
-                        }
+                    @Override
+                    public void setRequestId(long requestId) {
+                        throw new UnsupportedOperationException("does not have request ID");
+                    }
 
-                        @Override
-                        public TaskId getParentTask() {
-                            return TaskId.EMPTY_TASK_ID;
-                        }
+                    @Override
+                    public TaskId getParentTask() {
+                        return TaskId.EMPTY_TASK_ID;
+                    }
 
-                        @Override
-                        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                            var flowTask = new FlowTask(id, type, action, "", parentTaskId, headers);
-                            flowTask.addListener(TaskBackedProcessor.this::cancelTask);
-                            return flowTask;
-                        }
-                    }, false);
-                }
+                    @Override
+                    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                        var flowTask = new FlowTask(id, type, action, "", parentTaskId, headers);
+                        flowTask.addListener(TaskBackedProcessor.this::cancelTask);
+                        return flowTask;
+                    }
+                }, false);
             }
         }
 

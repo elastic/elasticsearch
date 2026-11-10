@@ -83,6 +83,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -124,6 +125,8 @@ public class RestControllerTests extends ESTestCase {
     private TestThreadPool threadPool;
     private NodeClient client;
     private HttpServerInstrumentation instrumentation;
+    private final AtomicInteger startedInstrumentations = new AtomicInteger();
+    private final AtomicInteger openInstrumentationContexts = new AtomicInteger();
     private LongCounter requestsCounter;
     private TelemetryProvider telemetryProvider;
     private List<RestRequest.Method> methodList;
@@ -148,6 +151,12 @@ public class RestControllerTests extends ESTestCase {
         threadPool = createThreadPool();
         client = new NoOpNodeClient(threadPool);
         instrumentation = mock(HttpServerInstrumentation.class);
+        // the thread context that the instrumentation sets up for a request is open from the start of the request until it is closed
+        when(instrumentation.start(any(), any())).thenAnswer(invocation -> {
+            startedInstrumentations.incrementAndGet();
+            openInstrumentationContexts.incrementAndGet();
+            return (ThreadContext.StoredContext) openInstrumentationContexts::decrementAndGet;
+        });
         requestsCounter = mock(LongCounter.class);
         telemetryProvider = mock(TelemetryProvider.class);
         var mockMeterRegister = mock(MeterRegistry.class);
@@ -337,6 +346,50 @@ public class RestControllerTests extends ESTestCase {
         AssertingChannel channel = new AssertingChannel(fakeRequest, randomBoolean(), RestStatus.BAD_REQUEST);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
         verify(instrumentation).start(eq(fakeRequest), isNull());
+    }
+
+    public void testRequestIsDispatchedInTheContextOfTheInstrumentation() {
+        final AtomicInteger openWhileHandling = new AtomicInteger(-1);
+        restController.registerHandler(new Route(GET, "/instrumented"), (request, channel, client) -> {
+            openWhileHandling.set(openInstrumentationContexts.get());
+            channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+        });
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/instrumented").build();
+        final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.OK);
+
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+
+        assertThat(openWhileHandling.get(), equalTo(1));
+        assertThat(startedInstrumentations.get(), equalTo(1));
+        assertThat(openInstrumentationContexts.get(), equalTo(0));
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testFailureIsSentInTheContextOfTheInstrumentation() {
+        final AtomicInteger openWhenSending = new AtomicInteger(-1);
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/error").build();
+        final RestChannel channel = new AbstractRestChannel(request, randomBoolean()) {
+            @Override
+            public void sendResponse(RestResponse response) {
+                openWhenSending.set(openInstrumentationContexts.get());
+            }
+        };
+
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+
+        assertThat(openWhenSending.get(), equalTo(1));
+        assertThat(startedInstrumentations.get(), equalTo(1));
+        assertThat(openInstrumentationContexts.get(), equalTo(0));
+    }
+
+    public void testRequestWithoutAHandlerIsInstrumentedOnce() {
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/no/such/handler").build();
+        final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.BAD_REQUEST);
+
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+
+        assertThat(startedInstrumentations.get(), equalTo(1));
+        assertThat(openInstrumentationContexts.get(), equalTo(0));
     }
 
     public void testRequestWithDisallowedMultiValuedHeaderButSameValues() {

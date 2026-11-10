@@ -261,6 +261,22 @@ public class RestRequestMetricsTests extends ESTestCase {
         assertThat(recordings(SEARCH_DURATION_METRIC), hasSize(1));
     }
 
+    /**
+     * The state that is kept for the duration of the request is part of the thread context that the returned stored context restores.
+     */
+    public void test_start_returnsAContextThatRestoresTheThreadContext() {
+        var request = request(RestRequest.Method.GET, "/_search");
+
+        try (var ignored = metrics.start(request, "_search")) {
+            metrics.prepareEnd(request, response(RestStatus.OK)).close();
+        }
+        assertThat(recordings(SEARCH_DURATION_METRIC), hasSize(1));
+
+        // the state is gone with the context
+        metrics.prepareEnd(request, response(RestStatus.OK)).close();
+        assertThat(recordings(SEARCH_DURATION_METRIC), hasSize(1));
+    }
+
     public void test_nullRoute_noRecording() {
         var request = request(RestRequest.Method.GET, "/_search");
 

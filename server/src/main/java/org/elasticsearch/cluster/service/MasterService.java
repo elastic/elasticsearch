@@ -400,7 +400,7 @@ public class MasterService extends AbstractLifecycleComponent {
             listener.onResponse(null);
         } else {
             final long publicationStartTime = threadPool.rawRelativeTimeInMillis();
-            try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+            try (var ignored = threadPool.getThreadContext().newStoredContextPreservingResponseHeaders()) {
                 final var newClusterStateVersion = newClusterState.getVersion();
 
                 final Task task = taskManager.register("master", STATE_UPDATE_ACTION_NAME, new TaskAwareRequest() {

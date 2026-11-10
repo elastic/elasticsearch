@@ -14,9 +14,12 @@ import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.instrumentation.api.instrumenter.SpanStatusBuilder;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -36,7 +39,43 @@ public class HttpServerTracingTests extends ESTestCase {
 
     final SpanStatusBuilder spanStatusBuilder = mock(SpanStatusBuilder.class);
     final APMTracer tracer = mock(APMTracer.class);
-    final HttpServerTracing instrumentation = new HttpServerTracing(tracer);
+    final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+    final HttpServerTracing instrumentation = new HttpServerTracing(threadContext, tracer);
+
+    public void test_start_copiesRemoteTraceContextToThreadContext() {
+        final String traceParent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
+        final String traceState = "vendor=value";
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/my-index/_search")
+            .withHeaders(Map.of(Task.TRACE_PARENT_HTTP_HEADER, List.of(traceParent), Task.TRACE_STATE, List.of(traceState)))
+            .build();
+
+        instrumentation.start(request, "/{index}/_search");
+
+        assertEquals(traceParent, threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER));
+        assertEquals(traceState, threadContext.getHeader(Task.TRACE_STATE));
+    }
+
+    public void test_start_withoutRemoteTraceContext_doesNotSetTraceHeaders() {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/my-index/_search")
+            .build();
+
+        instrumentation.start(request, "/{index}/_search");
+
+        assertNull(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER));
+        assertNull(threadContext.getHeader(Task.TRACE_STATE));
+    }
+
+    public void test_start_returnsTheStoredContextOfTheSpan() {
+        final ThreadContext.StoredContext storedContext = mock(ThreadContext.StoredContext.class);
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/my-index/_search")
+            .build();
+        when(tracer.storeSpanInThreadContext(request)).thenReturn(storedContext);
+
+        assertSame(storedContext, instrumentation.start(request, "/{index}/_search"));
+    }
 
     public void test_start_setsRequestAttributes_minimal() {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
@@ -73,6 +112,7 @@ public class HttpServerTracingTests extends ESTestCase {
                     .put(stringKey("url.path"), "/my-index/_search")
                     .build()
             );
+        inOrder.verify(tracer).storeSpanInThreadContext(request);
         inOrder.verifyNoMoreInteractions();
     }
 
@@ -130,6 +170,7 @@ public class HttpServerTracingTests extends ESTestCase {
                     .put(stringKey("user_agent.original"), "Firefox")
                     .build()
             );
+        inOrder.verify(tracer).storeSpanInThreadContext(request);
         inOrder.verifyNoMoreInteractions();
     }
 

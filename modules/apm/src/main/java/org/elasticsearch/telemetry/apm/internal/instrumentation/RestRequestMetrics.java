@@ -190,9 +190,9 @@ public class RestRequestMetrics implements HttpServerInstrumentation {
     }
 
     @Override
-    public void start(RestRequest request, @Nullable String route) {
+    public ThreadContext.StoredContext start(RestRequest request, @Nullable String route) {
         if (route == null) {
-            return;
+            return () -> {};
         }
         if (route.startsWith("/")) {
             route = route.substring(1);
@@ -200,10 +200,12 @@ public class RestRequestMetrics implements HttpServerInstrumentation {
 
         var durationHistogram = measuredRoutes.get(new RouteKey(request.method(), route));
         if (durationHistogram == null) {
-            return;
+            return () -> {};
         }
 
+        final ThreadContext.StoredContext storedContext = threadContext.newStoredContextPreservingResponseHeaders();
         threadContext.putTransient(STATE_KEY, new State(durationHistogram, System.nanoTime()));
+        return storedContext;
     }
 
     @Override

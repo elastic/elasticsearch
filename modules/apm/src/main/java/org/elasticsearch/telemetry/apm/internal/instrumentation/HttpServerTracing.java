@@ -20,10 +20,12 @@ import io.opentelemetry.instrumentation.api.semconv.http.HttpSpanNameExtractor;
 import io.opentelemetry.instrumentation.api.semconv.http.HttpSpanStatusExtractor;
 
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 
@@ -34,6 +36,7 @@ import java.util.Objects;
 
 public class HttpServerTracing implements HttpServerInstrumentation {
 
+    private final ThreadContext threadContext;
     private final APMTracer tracer;
 
     private final HttpServerAttributesGetter<RequestAndRoute, RestResponse> getter;
@@ -41,7 +44,8 @@ public class HttpServerTracing implements HttpServerInstrumentation {
     private final AttributesExtractor<RequestAndRoute, RestResponse> httpServerAttributesExtractor;
     private final SpanStatusExtractor<RequestAndRoute, RestResponse> httpSpanStatusExtractor;
 
-    public HttpServerTracing(APMTracer tracer) {
+    public HttpServerTracing(ThreadContext threadContext, APMTracer tracer) {
+        this.threadContext = threadContext;
         this.tracer = tracer;
 
         this.getter = new OtelAttributesGetter();
@@ -54,13 +58,27 @@ public class HttpServerTracing implements HttpServerInstrumentation {
     }
 
     @Override
-    public void start(RestRequest request, @Nullable String matchedRoute) {
+    public ThreadContext.StoredContext start(RestRequest request, @Nullable String matchedRoute) {
         var req = new RequestAndRoute(request, matchedRoute);
+        // The trace context of the client is the remote parent of the span started below. It is only stored in the request headers
+        // (and thus propagated to other nodes) for as long as this node does not replace it with the context of its own span.
+        // TODO this will be replaced by standard OpenTelemetry TextMapPropagator later on
+        copyRemoteTraceContext(request, Task.TRACE_PARENT_HTTP_HEADER);
+        copyRemoteTraceContext(request, Task.TRACE_STATE);
         tracer.startTrace(request, spanNameExtractor.extract(req), legacyRequestAttributes(req));
 
         var attributes = Attributes.builder();
         httpServerAttributesExtractor.onStart(attributes, /* we don't care about the context in this case */ Context.root(), req);
         tracer.setAttributes(request, attributes.build());
+
+        return tracer.storeSpanInThreadContext(request);
+    }
+
+    private void copyRemoteTraceContext(RestRequest request, String header) {
+        final List<String> values = request.getHeaders().getOrDefault(header, List.of());
+        if (values.isEmpty() == false) {
+            threadContext.putHeaderAllowOverwrite(header, values.getFirst());
+        }
     }
 
     private Map<String, Object> legacyRequestAttributes(RequestAndRoute req) {

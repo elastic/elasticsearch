@@ -20,7 +20,6 @@ import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.ContextKey;
-import io.opentelemetry.context.propagation.TextMapGetter;
 import io.opentelemetry.instrumentation.api.instrumenter.SpanStatusBuilder;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
@@ -34,7 +33,6 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -49,11 +47,13 @@ import org.elasticsearch.telemetry.tracing.Traceable;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
+
+import static java.util.Objects.requireNonNull;
 
 /**
  * {@link org.elasticsearch.telemetry.tracing.Tracer} implementation provided by the Elasticsearch {@code apm}
@@ -243,118 +243,113 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         assert spanId != null;
         assert spanName != null;
 
-        // If tracing has been disabled, return immediately
         var services = this.services;
         if (services == null) {
+            // tracing has been disabled, there is nothing to keep, see storeSpanInThreadContext
             return;
         }
 
+        spans.computeIfAbsent(spanId, _spanId -> startSpan(services, spanId, spanName, attributes));
+    }
+
+    /**
+     * Starts the span, if it is to be traced, and returns the context that stands for the decision: it holds the span if it is recorded,
+     * and a span that is not recorded otherwise. This is what makes the decision part of what is propagated to the descendants of the
+     * span, both local and remote ones, once the context is made the current one by {@link #storeSpanInThreadContext}.
+     */
+    private Context startSpan(APMServices services, String spanId, String spanName, @Nullable Map<String, Object> attributes) {
+        final Context localParentContext = Objects.requireNonNullElse(threadContext.getTransient(Task.APM_TRACE_CONTEXT), Context.root());
+        final Span localParentSpan = Span.fromContextOrNull(localParentContext);
+
+        // The whole local trace is dropped when its root span was not sampled: propagate its context to disable any further child spans
+        if (localParentSpan != null && localParentSpan.getSpanContext().isSampled() == false) {
+            logger.trace("Skipping span [{}] [{}] as its local trace was dropped", spanId, spanName);
+            return localParentContext;
+        }
+
+        // todo: this will become a part of sampler logic later on
         if (filterAutomaton.run(spanName) == false) {
             logger.trace("Skipping tracing [{}] [{}] as it has been filtered out", spanId, spanName);
-            return;
+            return localParentContext.with(Span.getInvalid());
         }
 
-        spans.computeIfAbsent(spanId, _spanId -> {
-            // A span can have a parent span, which here is modelled though a parent span context.
-            // Setting this is important for seeing a complete trace in the APM UI.
-            // Attempt to fetch a local parent context first, otherwise look for a remote parent
-            final Context localParentContext = threadContext.getTransient(Task.PARENT_APM_TRACE_CONTEXT);
+        // max_depth and max_spans apply per local root: the first span of a request on this node, even if it continues a
+        // remote trace. A child gets its parent's depth + 1 and shares its parent's span counter, which excludes the root.
+        final Integer parentDepth = localParentContext.get(SPAN_LOCAL_DEPTH_KEY);
+        final int localDepth = localParentSpan == null ? 0 : (parentDepth == null ? 0 : parentDepth) + 1;
 
-            // max_depth and max_spans apply per local root: the first span of a request on this node, even if it continues a
-            // remote trace. A child gets its parent's depth + 1 and shares its parent's span counter, which excludes the root.
-            final int localDepth;
-            final AtomicInteger localSpanCount;
-            if (localParentContext != null) {
-                Integer parentDepth = localParentContext.get(SPAN_LOCAL_DEPTH_KEY);
-                localDepth = (parentDepth != null ? parentDepth : 0) + 1;
+        final AtomicInteger parentSpanCount = localParentContext.get(SPAN_LOCAL_COUNT_KEY);
+        final AtomicInteger localSpanCount = parentSpanCount == null ? new AtomicInteger() : parentSpanCount;
 
-                AtomicInteger parentSpanCount = localParentContext.get(SPAN_LOCAL_COUNT_KEY);
-                localSpanCount = parentSpanCount != null ? parentSpanCount : new AtomicInteger();
-            } else {
-                localDepth = 0;
-                localSpanCount = new AtomicInteger();
-            }
+        if (localDepth > maxTraceDepth) {
+            logger.trace("Skipping span [{}] [{}] at local depth {} (maxTraceDepth={})", spanId, spanName, localDepth, maxTraceDepth);
+            return localParentContext.with(Span.getInvalid());
+        }
 
-            if (localDepth > maxTraceDepth) {
-                logger.trace("Skipping span [{}] [{}] at local depth {} (maxTraceDepth={})", spanId, spanName, localDepth, maxTraceDepth);
-                return null;
-            }
+        if (localDepth > 0 && (localSpanCount.get() > maxSpans || localSpanCount.incrementAndGet() > maxSpans)) {
+            logger.trace("Skipping span [{}] [{}] as the local root reached maxSpans={}", spanId, spanName, maxSpans);
+            return localParentContext.with(Span.getInvalid());
+        }
 
-            if (localDepth > 0 && (localSpanCount.get() > maxSpans || localSpanCount.incrementAndGet() > maxSpans)) {
-                logger.trace("Skipping span [{}] [{}] as the local root reached maxSpans={}", spanId, spanName, maxSpans);
-                return null;
-            }
+        logger.trace("Tracing [{}] [{}]", spanId, spanName);
+        final SpanBuilder spanBuilder = services.tracer.spanBuilder(spanName);
 
-            logger.trace("Tracing [{}] [{}]", spanId, spanName);
-            final SpanBuilder spanBuilder = services.tracer.spanBuilder(spanName);
+        // A span can have a parent span, which is important for seeing a complete trace in the APM UI.
+        // Try to use the local parent first, otherwise look for a remote parent in the request headers; otherwise use Context.root()
+        final Context parentContext = localParentSpan != null ? localParentContext : getRemoteParentContext(services);
+        spanBuilder.setParent(parentContext);
 
-            final Context parentContext = localParentContext != null ? localParentContext : getRemoteParentContext(services);
-            if (parentContext != null) {
-                spanBuilder.setParent(parentContext);
-            }
+        setSpanAttributes(attributes, spanBuilder);
+        setAttributesFromHeaders(spanBuilder);
 
-            setSpanAttributes(attributes, spanBuilder);
-            setAttributesFromHeaders(spanBuilder);
-
-            Instant startTime = threadContext.getTransient(Task.TRACE_START_TIME);
+        if (localParentSpan == null) {
+            Instant startTime = threadContext.getTransient(Task.LOCAL_TRACE_START_TIME);
             if (startTime != null) {
                 spanBuilder.setStartTimestamp(startTime);
             }
+        }
 
-            final Span span = spanBuilder.startSpan();
-            if (span.isRecording() == false) {
-                logger.trace("Span [{}] [{}] will not be recorded due to sampling", spanId, spanName);
-                span.end(); // end span immediately to release any resources.
-                return null; // return null to discard and not record in map of spans
-            }
-
-            final Context contextForNewSpan = Context.current()
-                .with(span)
-                .with(SPAN_LOCAL_DEPTH_KEY, localDepth)
-                .with(SPAN_LOCAL_COUNT_KEY, localSpanCount);
-            if (span.isRecording()) {
-                logger.trace("Recording trace [{}] [{}]", spanId, spanName);
-                updateThreadContext(services, contextForNewSpan);
-            }
-
-            return contextForNewSpan;
-        });
+        final Span span = spanBuilder.startSpan();
+        if (span.isRecording() == false) {
+            logger.trace("Span [{}] [{}] will not be recorded due to sampling", spanId, spanName);
+        }
+        return parentContext.with(span).with(SPAN_LOCAL_DEPTH_KEY, localDepth).with(SPAN_LOCAL_COUNT_KEY, localSpanCount);
     }
 
-    private void updateThreadContext(APMServices services, Context context) {
-        // The new span context can be used as the parent context directly within the same Java process...
-        threadContext.putTransient(Task.APM_TRACE_CONTEXT, context);
+    @Override
+    public ThreadContext.StoredContext storeSpanInThreadContext(Traceable traceable) {
+        final var services = this.services;
+        final Context context = spans.get(traceable.getSpanId());
+        if (context == null && services != null) {
+            // not traced, so there is nothing to make current
+            return () -> {};
+        }
 
-        // ...whereas for tasks sent to other ES nodes, we need to put trace HTTP headers into the traceContext so
-        // that they can be propagated.
-        services.openTelemetry.getPropagators().getTextMapPropagator().inject(context, threadContext, (tc, key, value) -> {
-            if (isSupportedContextKey(key)) {
-                tc.putHeader(key, value);
-            }
-        });
+        final ThreadContext.StoredContext storedContext = threadContext.newStoredContextPreservingResponseHeaders();
+        // if tracing is disabled, any trace-related info is dropped from the thread context
+        updateThreadContext(services, context != null ? context : Context.root());
+        return storedContext;
+    }
+
+    private void updateThreadContext(@Nullable APMServices services, Context context) {
+        threadContext.putTransientAllowOverwrite(Task.APM_TRACE_CONTEXT, context);
+
+        // the propagator does not write an empty tracestate, so make sure that no stale value is left behind
+        threadContext.removeHeaders(Task.TRACE_PARENT_HTTP_HEADER, Task.TRACE_STATE);
+
+        if (services == null) {
+            return;
+        }
+        // propagate current trace headers into thread context
+        services.openTelemetry.getPropagators()
+            .getTextMapPropagator()
+            .inject(context, threadContext, (tc, key, value) -> requireNonNull(tc).putHeaderAllowOverwrite(key, value));
     }
 
     private Context getRemoteParentContext(APMServices services) {
-        // https://github.com/open-telemetry/opentelemetry-java/discussions/2884#discussioncomment-381870
-        // If you just want to propagate across threads within the same process, you don't need context propagators (extract/inject).
-        // You can just pass the Context object directly to another thread (it is immutable and thus thread-safe).
-
-        final String traceParentHeader = threadContext.getTransient(Task.PARENT_TRACE_PARENT_HEADER);
-        final String traceStateHeader = threadContext.getTransient(Task.PARENT_TRACE_STATE);
-
-        if (traceParentHeader != null) {
-            final Map<String, String> traceContextMap = Maps.newMapWithExpectedSize(2);
-            // traceparent and tracestate should match the keys used by W3CTraceContextPropagator
-            traceContextMap.put(Task.TRACE_PARENT_HTTP_HEADER, traceParentHeader);
-            if (traceStateHeader != null) {
-                traceContextMap.put(Task.TRACE_STATE, traceStateHeader);
-            }
-
-            return services.openTelemetry.getPropagators()
-                .getTextMapPropagator()
-                .extract(Context.current(), traceContextMap, new MapKeyGetter());
-        }
-        return null;
+        return services.openTelemetry.getPropagators()
+            .getTextMapPropagator()
+            .extract(Context.root(), threadContext, (tc, key) -> requireNonNull(tc).getHeader(key));
     }
 
     private void setSpanAttributes(@Nullable Map<String, Object> spanAttributes, SpanBuilder spanBuilder) {
@@ -471,23 +466,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             logger.trace("Finishing trace [{}]", spanId);
             Span.fromContext(context).end();
         }
-    }
-
-    private static class MapKeyGetter implements TextMapGetter<Map<String, String>> {
-
-        @Override
-        public Iterable<String> keys(Map<String, String> carrier) {
-            return carrier.keySet().stream().filter(APMTracer::isSupportedContextKey).collect(Collectors.toSet());
-        }
-
-        @Override
-        public String get(Map<String, String> carrier, String key) {
-            return carrier.get(key);
-        }
-    }
-
-    private static boolean isSupportedContextKey(String key) {
-        return Task.TRACE_PARENT_HTTP_HEADER.equals(key) || Task.TRACE_STATE.equals(key);
     }
 
     // VisibleForTesting

@@ -18,8 +18,11 @@ import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
+import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -41,6 +44,21 @@ public class HttpServerInstrumentationsTests extends ESTestCase {
         inOrder.verify(first).start(request, "route");
         inOrder.verify(second).start(request, "route");
         inOrder.verifyNoMoreInteractions();
+    }
+
+    /**
+     * Each instrumentation restores what it found, which includes what the ones before it set up, so the contexts are closed backwards.
+     */
+    public void testStartReturnsAContextThatRestoresTheContextsInReverseOrder() {
+        final List<String> closed = new ArrayList<>();
+        when(first.start(request, "route")).thenReturn(() -> closed.add("first"));
+        when(second.start(request, "route")).thenReturn(() -> closed.add("second"));
+
+        try (var ignored = instrumentations.start(request, "route")) {
+            assertThat(closed, empty());
+        }
+
+        assertThat(closed, contains("second", "first"));
     }
 
     public void testRecordExceptionDelegatesToAllInOrder() {

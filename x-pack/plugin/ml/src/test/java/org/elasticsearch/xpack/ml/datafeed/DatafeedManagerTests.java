@@ -39,6 +39,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.core.esql.action.internal.SharedSecrets;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
@@ -75,6 +79,7 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.junit.After;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -100,6 +105,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -1087,6 +1093,11 @@ public class DatafeedManagerTests extends ESTestCase {
     }
 
     /** A manager over a cloud-authenticated caller whose own thread context carries a header that must never reach the probe. */
+    @After
+    public void clearEsqlRequestBuilderAccess() {
+        SharedSecrets.setEsqlQueryRequestBuilderAccess(null);
+    }
+
     private final class UpdateFixture {
         final DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
         final CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
@@ -1098,6 +1109,7 @@ public class DatafeedManagerTests extends ESTestCase {
         final DatafeedManager manager;
 
         UpdateFixture() {
+            stubEsqlMintProbeSucceeds();
             ThreadContext callerContext = new ThreadContext(Settings.EMPTY);
             callerContext.putHeader("caller-only-header", "caller");
             when(threadPool.getThreadContext()).thenReturn(callerContext);
@@ -1116,6 +1128,21 @@ public class DatafeedManagerTests extends ESTestCase {
                 threadPool,
                 SCOPE_CHANGE_SIGNAL_DATA_ANCHOR
             );
+        }
+
+        /** The ES|QL plugin is absent from the ML test classpath, so the pre-mint ES|QL access probe runs against a stub builder. */
+        @SuppressWarnings("unchecked")
+        private static void stubEsqlMintProbeSucceeds() {
+            EsqlQueryRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> builder = mock();
+            when(builder.query(any())).thenReturn(builder);
+            when(builder.projectRouting(any())).thenReturn(builder);
+            when(builder.params(any())).thenReturn(builder);
+            when(builder.allowPartialResults(anyBoolean())).thenReturn(builder);
+            doAnswer(invocation -> {
+                invocation.<ActionListener<EsqlQueryResponse>>getArgument(0).onResponse(mock(EsqlQueryResponse.class));
+                return null;
+            }).when(builder).execute(any(ActionListener.class));
+            SharedSecrets.setEsqlQueryRequestBuilderAccess(client -> builder);
         }
 
         /** Call after {@code stubUpdateMigrationPath}, which also stubs validation. */

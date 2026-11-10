@@ -423,10 +423,6 @@ public final class CredentialTransitions {
         @Nullable CloudCredential carriedCredential,
         ActionListener<Void> listener
     ) {
-        if (config.getEsqlQuery() != null) {
-            listener.onResponse(null);
-            return;
-        }
         final CloudCredentialManager credentialManager = credentialManagerSupplier.get();
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         final CloudCredential callerCredential = resolveCallerCredential(carriedCredential, threadContext);

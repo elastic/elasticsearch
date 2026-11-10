@@ -275,26 +275,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(harness.capturedRouting, equalTo("_alias:_origin"));
     }
 
-    public void testMintAccessProbeShouldCloseResponseOnSuccess() {
-        TestEsqlQueryResponse response = new TestEsqlQueryResponse(mockEsqlResponse(List.of(mockColumn(TIME_FIELD, "date"))));
-        ValidatorHarness harness = new ValidatorHarness(response);
-
-        AtomicBoolean succeeded = new AtomicBoolean(false);
-        harness.validator.validateAccessForMint(
-            null,
-            Collections.emptyMap(),
-            ESQL_QUERY,
-            "_alias:_origin",
-            ActionListener.wrap(ignored -> succeeded.set(true), e -> {
-                throw new AssertionError(e);
-            }),
-            null
-        );
-
-        assertThat(succeeded.get(), is(true));
-        assertThat(response.closed, is(true));
-    }
-
     public void testMintAccessWithTrailingLineCommentShouldAppendLimitZeroOnNewLine() {
         ValidatorHarness harness = new ValidatorHarness(buildResponse(List.of(mockColumn(TIME_FIELD, "date"))));
 

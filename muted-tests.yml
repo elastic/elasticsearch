@@ -247,6 +247,11 @@ tests:
   - :x-pack:plugin:esql:compute:test
   method: testTheResultsAreEmittedWhenTheLastSliceEndsAfterTheStatusInterval
   issue: https://github.com/elastic/elasticsearch/issues/165077
+- class: org.elasticsearch.xpack.transform.integration.TransformIT
+  tasks:
+  - :x-pack:plugin:transform:qa:multi-node-tests:javaRestTest
+  method: testTransformLifecycleInALoop
+  issue: https://github.com/elastic/elasticsearch/issues/155844
 
 # Examples:
 #

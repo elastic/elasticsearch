@@ -448,6 +448,65 @@ public class DatasetConfigResolverTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("definition changed while the query was planned"));
     }
 
+    /**
+     * A refusal the validator already gave a status keeps it. Re-wrapping every one as a 400 would turn a node that
+     * is busy or behind into a client error, and {@code DataNodeComputeHandler.isDatasetRefusalWhileBehind} keys off
+     * the shape of these.
+     */
+    public void testRebindInlineKeepsAStatusTheValidatorAlreadyChose() {
+        ProjectMetadata project = project(dataSource(Map.of()), dataset(Map.of()));
+        DatasetConfigResolver resolver = new DatasetConfigResolver(
+            project,
+            true,
+            new DatasetDefinitionValidator(Map.of("s3", new RefusingValidator()))
+        );
+
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> resolver.rebind(inlineExec(Map.of(), inlineDefinition()))
+        );
+        assertThat(e.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        assertThat(e.getMessage(), containsString("not enough of me to go round"));
+        assertThat(e.getMessage(), not(containsString("cannot be read on this node")));
+    }
+
+    /**
+     * An inline read has no dataset name to report, so the context it annotates failures with carries the data
+     * source and no {@code dataset} entry. Asserted on the map rather than against another call of the builder under
+     * test, which would move with it.
+     */
+    public void testAnInlineReadHasNoDatasetNameToReport() {
+        ProjectMetadata project = project(dataSource(Map.of()), dataset(Map.of()));
+        ExternalSourceExec rebound = inlineResolver(project).rebind(inlineExec(Map.of(), inlineDefinition()));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> context = (Map<String, Object>) rebound.config().get(ExternalSourceResolver.DATASET_CONTEXT_KEY);
+        assertThat(context, not(hasKey("dataset")));
+        assertThat(context.get("datasource"), equalTo(PARENT));
+    }
+
+    /** Refuses with a status of its own, which is what the rebind must not overwrite. */
+    private static class RefusingValidator implements DataSourceValidator {
+        @Override
+        public String type() {
+            return "s3";
+        }
+
+        @Override
+        public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings) {
+            return Map.of();
+        }
+
+        @Override
+        public Map<String, Object> validateDataset(
+            Map<String, DataSourceSetting> datasourceSettings,
+            String resource,
+            Map<String, Object> datasetSettings
+        ) {
+            throw new ElasticsearchStatusException("not enough of me to go round", RestStatus.TOO_MANY_REQUESTS);
+        }
+    }
+
     // --- helpers ---
 
     private static void assertRegisteredInlineConfig(ExternalSourceExec rebound, ProjectMetadata project) {

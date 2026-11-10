@@ -105,6 +105,31 @@ public class ExternalSourceDatasetsTests extends ESTestCase {
         assertThat(datasets.isEmpty(), is(false));
     }
 
+    /**
+     * The same arm on an {@code ExternalSourceExec}, which is the shape a plan has once it is distributed — so a
+     * crafted shard request is read the same way as a fragment the coordinator built.
+     */
+    public void testInlineExecIsCollectedAsItsDataSource() {
+        ExternalSourceDatasets datasets = ExternalSourceDatasets.of(sink(inlineExec("supplier")));
+        assertThat(datasets.dataSources(), contains("supplier"));
+        assertThat(datasets.names(), empty());
+        assertThat(datasets.isEmpty(), is(false));
+    }
+
+    /** Both sets come off one plan, so neither arm hides the other from the authorizer. */
+    public void testANamedArmAndAnInlineArmAreBothCollected() {
+        PhysicalPlan merged = new MergeExec(SRC, List.of(exec("left"), inlineExec("supplier")), output(), MergeExec.Kind.UNION);
+
+        ExternalSourceDatasets datasets = ExternalSourceDatasets.of(sink(merged));
+        assertThat(datasets.names(), contains("left"));
+        assertThat(datasets.dataSources(), contains("supplier"));
+    }
+
+    private static ExternalSourceExec inlineExec(String dataSource) {
+        return new ExternalSourceExec(SRC, "s3://bucket/data/*.parquet", "parquet", output(), Map.of(), Map.of(), null, 10)
+            .withDatasetReference(new DatasetReference.Inline(dataSource, Map.of("resource", "s3://bucket/data/*.parquet")));
+    }
+
     public void testEveryBranchOfAMergedPlan() {
         PhysicalPlan merged = new MergeExec(
             SRC,

@@ -14,9 +14,16 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -142,6 +149,86 @@ public class DatasetReferenceTests extends ESTestCase {
         assertThat(
             expectThrows(IOException.class, () -> readInlineDefinition(withNull)).getMessage(),
             containsString("sets [description] to null")
+        );
+    }
+
+    /** A field named by something other than a string is the same malformed payload, reported the same way. */
+    public void testAWireDefinitionWithAFieldNotNamedByAStringIsRefused() {
+        Map<Object, Object> numberedKey = new HashMap<>();
+        numberedKey.put(1, "s3://bucket/*.csv");
+
+        assertThat(
+            expectThrows(IOException.class, () -> readInlineDefinition(numberedKey)).getMessage(),
+            containsString("has a field not named by a string")
+        );
+    }
+
+    /** A tag this version does not know is a malformed payload too, not a silently dropped reference. */
+    public void testAnUnknownWireTagIsRefused() {
+        IOException e = expectThrows(IOException.class, () -> {
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.setTransportVersion(TransportVersion.current());
+                out.writeBoolean(true);
+                out.writeByte((byte) 7);
+                try (StreamInput in = out.bytes().streamInput()) {
+                    in.setTransportVersion(TransportVersion.current());
+                    DatasetReference.readOptionalFrom(in);
+                }
+            }
+        });
+        assertThat(e.getMessage(), containsString("unknown dataset reference tag [7]"));
+    }
+
+    /**
+     * Toward a node predating the slot entirely, a name arm writes nothing at all — the bytes have to be what that
+     * node has always read, and it reads no dataset behind an external source. Asserted on the byte count, because a
+     * reader that returns null tells you nothing about whether something was written and then skipped.
+     */
+    public void testThereIsNoSlotAtAllForANodeWithoutOne() throws IOException {
+        TransportVersion beforeTheSlot = TransportVersionUtils.getPreviousVersion(DatasetReference.DATASET_NAME);
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(beforeTheSlot);
+            DatasetReference.writeOptional(out, NAMED);
+            DatasetReference.writeOptional(out, null);
+            assertThat(out.bytes().length(), equalTo(0));
+        }
+        assertThat(roundTrip(NAMED, beforeTheSlot), nullValue());
+        assertThat(roundTrip(null, beforeTheSlot), nullValue());
+    }
+
+    /** The walk reads a resolved leaf as well as an unresolved one, or the refusal would depend on when it ran. */
+    public void testAResolvedLeafCarryingAnInlineArmIsRefusedToo() {
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(DatasetReference.DATASET_REFERENCE);
+
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> DatasetReference.ensureEveryReferenceCanTravel(externalRelation(INLINE), before)
+        );
+        assertThat(e.getMessage(), containsString("not supported on all nodes in the cluster"));
+        DatasetReference.ensureEveryReferenceCanTravel(externalRelation(NAMED), before);
+    }
+
+    /** Neither arm holds a null, so a reference always names what it reads. */
+    public void testNeitherArmAcceptsANull() {
+        expectThrows(NullPointerException.class, () -> new DatasetReference.Named(null));
+        expectThrows(NullPointerException.class, () -> new DatasetReference.Inline(null, Map.of()));
+        expectThrows(NullPointerException.class, () -> new DatasetReference.Inline("s3_source", null));
+    }
+
+    private static LogicalPlan externalRelation(DatasetReference reference) {
+        List<Attribute> output = List.of(
+            new FieldAttribute(Source.EMPTY, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+        );
+        String path = "s3://bucket/*.csv";
+        return new ExternalRelation(
+            Source.EMPTY,
+            path,
+            new SimpleSourceMetadata(output, "csv", path),
+            output,
+            FileList.UNRESOLVED,
+            Map.of(),
+            reference
         );
     }
 

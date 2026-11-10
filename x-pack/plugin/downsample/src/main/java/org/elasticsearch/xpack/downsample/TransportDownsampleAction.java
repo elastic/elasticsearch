@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.downsample;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -69,6 +70,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -312,8 +314,16 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final TaskId parentTask = new TaskId(clusterService.localNode().getId(), task.getId());
         // Short circuit if target index has been downsampled:
         final String downsampleIndexName = request.getTargetIndex();
-        if (canShortCircuit(downsampleIndexName, parentTask, request.getWaitTimeout(), startTime, projectMetadata, listener)) {
-            logger.info("Skipping downsampling, because a previous execution already completed downsampling");
+        if (canShortCircuit(
+            sourceIndexMetadata.getIndex(),
+            downsampleIndexName,
+            parentTask,
+            request.getWaitTimeout(),
+            startTime,
+            projectMetadata,
+            listener
+        )) {
+            logger.info("Skipping downsampling, because a previous execution already completed downsampling or it cannot be resumed");
             return;
         }
         try {
@@ -428,6 +438,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 }, e -> {
                     if (e instanceof ResourceAlreadyExistsException) {
                         if (canShortCircuit(
+                            sourceIndexMetadata.getIndex(),
                             request.getTargetIndex(),
                             parentTask,
                             request.getWaitTimeout(),
@@ -435,7 +446,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             clusterService.state().metadata().getProject(projectMetadata.id()),
                             listener
                         )) {
-                            logger.info("Downsample tasks are not created, because a previous execution already completed downsampling");
+                            logger.info(
+                                "Downsample tasks are not created, because a previous execution already completed or cannot be resumed"
+                            );
                             return;
                         }
                         performShardDownsampling(
@@ -462,9 +475,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     }
 
     /**
-     * Shortcircuit when another downsample api invocation already completed successfully.
+     * Short-circuit when another downsample api invocation already completed successfully or cannot be resumed.
      */
     private boolean canShortCircuit(
+        Index sourceIndex,
         String targetIndexName,
         TaskId parentTask,
         TimeValue waitTimeout,
@@ -482,7 +496,26 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             // This isn't a downsample index, so fail:
             listener.onFailure(new ResourceAlreadyExistsException(targetIndexMetadata.getIndex()));
             return true;
-        } else if (downsampleStatus == DownsampleTaskStatus.SUCCESS) {
+        }
+        final String recordedSourceName = targetIndexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY);
+        final String recordedSourceUuid = targetIndexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID_KEY);
+        final Index recordedSourceIndex = recordedSourceName == null || recordedSourceUuid == null
+            ? null
+            : new Index(recordedSourceName, recordedSourceUuid);
+        if (recordedSourceIndex != null && sourceIndex.equals(recordedSourceIndex) == false) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "cannot downsample [{}] into [{}], the downsample index already exists and was created for another source index "
+                        + "with uuid [{}]",
+                    RestStatus.CONFLICT,
+                    sourceIndex,
+                    targetIndexName,
+                    recordedSourceUuid
+                )
+            );
+            return true;
+        }
+        if (downsampleStatus == DownsampleTaskStatus.SUCCESS) {
             listener.onResponse(AcknowledgedResponse.TRUE);
             return true;
         }

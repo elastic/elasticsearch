@@ -15,7 +15,7 @@
 # Nightly also requires BUILDKITE_BUILD_ID and the results namespace, URL, and Vault secret
 # configured by that YAML (or PROMCHECK_RESULTS_API_KEY in place of the Vault secret).
 # Optional environment:
-#   PROMCHECK_GROUP_BY               Comma-separated query-label keys to aggregate (set by nightly YAML).
+#   PROMCHECK_GROUP_BY               JSONPath selector for result aggregation (set by nightly YAML).
 #   PROMCHECK_CONCURRENCY            Cases and seeding writes promcheck keeps in flight (default: the CPU count).
 #   PROMETHEUS_COMPLIANCE_TMPDIR     Scratch/artifact parent directory (default /tmp).
 #   BUILDKITE_BUILD_URL              Build link included in the report.
@@ -111,7 +111,7 @@ promcheck_run() {
   local stderr_log="${log_file%.log}.stderr.log" fifo="$binary.stderr.fifo"
   local stderr_pid stderr_status=0
   local -a group_args=()
-  if [[ -n "${PROMCHECK_GROUP_BY:-}" ]]; then group_args=(--group-by "$PROMCHECK_GROUP_BY"); fi
+  if [[ -n "${PROMCHECK_GROUP_BY:-}" ]]; then group_args=(--groupby "$PROMCHECK_GROUP_BY"); fi
   local -a statuses gradle_args=(
     "${GRADLEW_OPTIONS[@]}"
     --configuration-cache
@@ -581,7 +581,7 @@ run_nightly() (
     "$OUTPUT_DIR/promcheck.log" > "$OUTPUT_DIR/group-coverage.json"
   jq --slurpfile coverage "$OUTPUT_DIR/group-coverage.json" \
     '. as $result | [$result] + [$coverage[0][] | . as $group |
-      $result | del(.compliance) | .metric = "label_coverage" | .label_coverage = ($group | del(.type))]' \
+      $result | del(.compliance) | .metric = "label_coverage" | .label_coverage = ($group | .parent_path = ((.path // []) | tojson) | del(.type, .path))]' \
     "$OUTPUT_DIR/result.json" > "$OUTPUT_DIR/documents.json"
 
   echo "--- Indexing promcheck results"
@@ -589,7 +589,7 @@ run_nightly() (
   # Stable build/workload/bucket IDs allow a partially uploaded run to resume on retry.
   while IFS= read -r document; do
     document_id=$(jq -r --arg base "$BUILDKITE_BUILD_ID-$PROMCHECK_WORKLOAD" \
-      '($base + (if .metric == "label_coverage" then "-groups-" + .label_coverage.label + "-" + (.label_coverage.threshold_pct | tostring) else "" end)) | @uri' \
+      '($base + (if .metric == "label_coverage" then "-groups-" + ([.label_coverage.parent_path, .label_coverage.label, .label_coverage.threshold_pct] | tojson) else "" end)) | @uri' \
       <<< "$document")
     document_file="$work_dir/document.json"
     printf '%s\n' "$document" > "$document_file"

@@ -37,10 +37,10 @@ case "$url" in
   https://assets/binary) cp "$TEST_DIR/promcheck" "$out" ;;
   https://assets/corpus) touch "$out" ;;
   */_create/*)
-    if [[ -n "\${TEST_FAIL_THRESHOLD:-}" && $url == *-groups-owner-"$TEST_FAIL_THRESHOLD" ]]; then
+    if [[ -n "\${TEST_FAIL_THRESHOLD:-}" && $url == *"%2C$TEST_FAIL_THRESHOLD%5D" ]]; then
       printf '{"error":"failed bucket"}' > "$out"; printf '500'; exit 0
     fi
-    printf '%s' "$url" > "$TEST_DIR/upload.url"; printf '%s' "$TEST_RESPONSE" > "$out"; printf '%s' "$TEST_HTTP_STATUS"; exit "$TEST_UPLOAD_RC" ;;
+    printf '%s' "$url" > "$TEST_DIR/upload.url"; printf '%s\\n' "$url" >> "$TEST_DIR/upload.urls"; printf '%s' "$TEST_RESPONSE" > "$out"; printf '%s' "$TEST_HTTP_STATUS"; exit "$TEST_UPLOAD_RC" ;;
   *) exit 99 ;;
 esac
 `, { mode: 0o755 });
@@ -55,7 +55,7 @@ esac
         PATH: `${join(dir, "bin")}:${process.env.PATH}`,
         ...PROMCHECK_ENV,
         PROMCHECK_WORKLOAD: "compliance-tester",
-        PROMCHECK_GROUP_BY: "owner",
+        PROMCHECK_GROUP_BY: "$.labels.owner[*]",
         GH_TOKEN: "fake-github-token",
         GRADLEW: "./gradlew --build-cache --scan",
         PROMCHECK_RESULTS_NAMESPACE: "experimental",
@@ -96,30 +96,45 @@ esac
   });
 
   test("exports generic label distributions calculated by promcheck without dashboard-specific code", () => {
-    const group = { type: "group_summary", label: "owner", value: "alice", query_total: 5, query_match: 4, success_pct: 80 };
-    const bucket = { type: "group_distribution", label: "owner", threshold_pct: 80, group_total: 100, group_count: 42, group_pct: 42, empty_groups: 15 };
+    const group = { type: "group_summary", label: "$.labels.owner[*]", path: [{ selector: "$.labels.owner[*]", value: "alice" }], value: "alice", query_total: 5, query_match: 4, success_pct: 80 };
+    const bucket = { type: "group_distribution", label: "$.labels.owner[*]", path: [], threshold_pct: 80, group_total: 100, group_count: 42, group_pct: 42 };
     const r = run({ TEST_LOG: [VERDICT, JSON.stringify(group), JSON.stringify(bucket)].join("\n") });
     expect(r.status, r.stderr).toBe(0);
     const documents = readFileSync(join(dir, "uploads.jsonl"), "utf8").trim().split("\n").map((row) => JSON.parse(row));
     expect(documents).toHaveLength(2);
     expect(documents[1]).toMatchObject({
       metric: "label_coverage", dataset: "compliance-tester",
-      label_coverage: { label: "owner", threshold_pct: 80, group_count: 42, group_pct: 42, empty_groups: 15 },
+      label_coverage: { label: "$.labels.owner[*]", parent_path: "[]", threshold_pct: 80, group_count: 42, group_pct: 42 },
       data_stream: { namespace: "experimental" },
     });
     expect(documents[1].compliance).toBeUndefined();
-    expect(readFileSync(join(dir, "upload.url"), "utf8")).toContain("/_create/build-123-compliance-tester-groups-owner-80");
+    expect(documents[1].label_coverage.path).toBeUndefined();
+    expect(decodeURIComponent(readFileSync(join(dir, "upload.url"), "utf8"))).toContain('/_create/build-123-compliance-tester-groups-["[]","$.labels.owner[*]",80]');
     expect(JSON.parse(readFileSync(join(dir, "output", "groups.json"), "utf8"))).toEqual([group]);
   });
 
+  test("keeps nested distributions with the same selector and threshold distinct", () => {
+    const records = ["alpha", "beta"].map((value) => ({
+      type: "group_distribution", label: "$.clazz", path: [{ selector: "$.labels.owner[*]", value }],
+      threshold_pct: 80, group_total: 1, group_count: 1, group_pct: 100,
+    }));
+    const r = run({ TEST_LOG: [VERDICT, ...records.map((row) => JSON.stringify(row))].join("\n") });
+    expect(r.status, r.stderr).toBe(0);
+    const urls = readFileSync(join(dir, "upload.urls"), "utf8").trim().split("\n").map(decodeURIComponent);
+    expect(urls).toHaveLength(3);
+    expect(new Set(urls).size).toBe(3);
+    expect(urls[1]).toContain("alpha");
+    expect(urls[2]).toContain("beta");
+  });
+
   test("rejects invalid upstream group counts before uploading", () => {
-    const r = run({ TEST_LOG: VERDICT + "\n" + JSON.stringify({ type: "group_distribution", label: "owner", threshold_pct: 80, group_total: 1, group_count: 2, group_pct: 200 }) });
+    const r = run({ TEST_LOG: VERDICT + "\n" + JSON.stringify({ type: "group_distribution", label: "$.labels.owner[*]", path: [], threshold_pct: 80, group_total: 1, group_count: 2, group_pct: 200 }) });
     expect(r.status).not.toBe(0);
     expect(existsSync(join(dir, "uploads.jsonl"))).toBe(false);
   });
 
   test("fails if a group distribution document cannot be uploaded", () => {
-    const bucket = { type: "group_distribution", label: "owner", threshold_pct: 80, group_total: 100, group_count: 42, group_pct: 42 };
+    const bucket = { type: "group_distribution", label: "$.labels.owner[*]", path: [], threshold_pct: 80, group_total: 100, group_count: 42, group_pct: 42 };
     const r = run({ TEST_LOG: VERDICT + "\n" + JSON.stringify(bucket), TEST_FAIL_THRESHOLD: "80" });
     expect(r.status).not.toBe(0);
     expect(r.stderr).toContain("Results upload failed (HTTP 500)");
@@ -129,7 +144,7 @@ esac
     const r = run();
     expect(r.status, r.stderr).toBe(0);
     const args = readFileSync(join(dir, "args.log"), "utf8");
-    expect(args).toContain("--output json --concurrency 8 --group-by owner -- --build-cache --scan --configuration-cache");
+    expect(args).toContain("--output json --concurrency 8 --groupby $.labels.owner[*] -- --build-cache --scan --configuration-cache");
     expect(args).toContain("-Dtests.es.node.processors=8 -Dtests.heap.size=2048m");
     expect(readFileSync(join(dir, "output", "promcheck.stderr.log"), "utf8")).toBe("nightly diagnostics\n");
     expect(readFileSync(join(dir, "output", "promcheck.log"), "utf8")).not.toContain("diagnostics");

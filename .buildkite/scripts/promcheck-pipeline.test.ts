@@ -67,7 +67,7 @@ describe("shared promcheck YAML pipeline", () => {
     const nightly = pipeline.steps.find((step) => step.key === "prometheus-nightly");
     expect(nightly.matrix).toEqual(["grafanalabs-top100", "compliance-tester"]);
     expect(nightly.env.PROMCHECK_WORKLOAD).toBe("{{matrix}}");
-    expect(nightly.env.PROMCHECK_GROUP_BY).toBe("dashboard");
+    expect(nightly.env.PROMCHECK_GROUP_BY).toBe("$.labels.dashboard[*]");
     expect(nightly.env.PROMCHECK_RESULTS_NAMESPACE).toBe("experimental");
     expect(nightly.env.PROMCHECK_RESULTS_URL).toBe("https://overview-elastic-cloud-com.es.us-east-1.aws.found.io");
   });

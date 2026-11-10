@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -155,6 +156,8 @@ public final class GraphExpandDriver {
     /** Hop subplans handed out so far, and the time their results took to come back. */
     private int hopSubPlans;
     private long hopSubPlanNanos;
+    /** Relationships the hops matched at the index, before any hub guard capped them. */
+    private long hopRelationshipsRead;
     private final long walkStartedNanos = System.nanoTime();
     /** Admitted edge rows matching {@link #resultAttributes}. */
     private final List<List<Object>> admittedRows = new ArrayList<>();
@@ -484,7 +487,15 @@ public final class GraphExpandDriver {
         if (inFlightHop != null) {
             long elapsedNanos = System.nanoTime() - inFlightHopStartedNanos;
             hopSubPlanNanos += elapsedNanos;
-            LOGGER.info("GRAPH EXPAND {}: {} rows in {} ms", inFlightHop, rows.size(), TimeUnit.NANOSECONDS.toMillis(elapsedNanos));
+            long read = relationshipsRead(rows);
+            hopRelationshipsRead += read;
+            LOGGER.info(
+                "GRAPH EXPAND {}: {} rows in {} ms, {} relationships read",
+                inFlightHop,
+                rows.size(),
+                TimeUnit.NANOSECONDS.toMillis(elapsedNanos),
+                read
+            );
             inFlightHop = null;
         }
 
@@ -622,11 +633,12 @@ public final class GraphExpandDriver {
         if (untilMatched || frontier.isEmpty() || nextHop > maxHops) {
             finished = true;
             LOGGER.info(
-                "GRAPH EXPAND finished: {} hops, {} subplans taking {} ms of {} ms, {} rows admitted, {} nodes visited, stop: {}",
+                "GRAPH EXPAND finished: {} hops, {} subplans taking {} ms of {} ms, {} relationships read, {} rows admitted, {} nodes visited, stop: {}",
                 nextHop - 1,
                 hopSubPlans,
                 TimeUnit.NANOSECONDS.toMillis(hopSubPlanNanos),
                 TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - walkStartedNanos),
+                hopRelationshipsRead,
                 admittedRows.size(),
                 visited.size(),
                 untilMatched ? "until matched" : frontier.isEmpty() ? "frontier exhausted" : "max hops"
@@ -1105,6 +1117,32 @@ public final class GraphExpandDriver {
         }
         outRows.addAll(inRows);
         return outRows;
+    }
+
+    /**
+     * Relationships the hop matched at the index, before the hub guard capped any node: a
+     * capped node's rows carry its full count in {@code dropped}, counted once per node and
+     * relation; every other row is one relationship. Edges to excluded nodes left before this.
+     */
+    private long relationshipsRead(List<List<Object>> rows) {
+        if (findNamed(resultAttributes, "dropped") == null) {
+            return rows.size();
+        }
+        int droppedIdx = indexOf(resultAttributes, "dropped");
+        int relationIdx = findNamed(resultAttributes, "relation") == null ? -1 : indexOf(resultAttributes, "relation");
+        long read = 0;
+        Set<List<Object>> counted = new HashSet<>();
+        for (List<Object> row : rows) {
+            if (row.get(droppedIdx) instanceof Number degree) {
+                List<Object> key = Arrays.asList(frontierNode(row), relationIdx < 0 ? null : row.get(relationIdx));
+                if (counted.add(key)) {
+                    read += degree.longValue();
+                }
+            } else {
+                read++;
+            }
+        }
+        return read;
     }
 
     private List<List<Object>> extractRows(Result hopResult) {

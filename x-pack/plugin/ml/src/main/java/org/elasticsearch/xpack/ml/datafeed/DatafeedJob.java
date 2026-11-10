@@ -28,11 +28,13 @@ import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
+import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
@@ -57,6 +59,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -86,6 +89,11 @@ class DatafeedJob {
     private final Integer maxEmptySearches;
     private final Integer maxConsecutiveExtractionFailures;
     private final long delayedDataCheckFreq;
+    private final boolean isEsqlDatafeed;
+    @Nullable
+    private final String esqlCheckpointFingerprint;
+    @Nullable
+    private final Consumer<EsqlDatafeedSourceCheckpoint> esqlSourceCheckpointPersister;
     private final CrossClusterSearchStats crossClusterSearchStats;
     private final DatafeedFieldConflictTracker fieldConflictTracker = new DatafeedFieldConflictTracker();
 
@@ -101,6 +109,8 @@ class DatafeedJob {
     private volatile SearchInterval searchInterval;
     @Nullable
     private volatile DataExtractor activeDataExtractor;
+    @Nullable
+    private volatile Long esqlSourceEndMs;
 
     DatafeedJob(
         String datafeedId,
@@ -123,7 +133,12 @@ class DatafeedJob {
         long latestRecordTimeMs,
         boolean haveSeenDataPreviously,
         long delayedDataCheckFreq,
-        CrossClusterSearchStats crossClusterSearchStats
+        CrossClusterSearchStats crossClusterSearchStats,
+        boolean isEsqlDatafeed,
+        long groupingIntervalMs,
+        @Nullable String esqlCheckpointFingerprint,
+        @Nullable Long esqlSourceEndMs,
+        @Nullable Consumer<EsqlDatafeedSourceCheckpoint> esqlSourceCheckpointPersister
     ) {
         this.datafeedId = datafeedId;
         this.projectRouting = projectRouting;
@@ -148,7 +163,23 @@ class DatafeedJob {
         }
         this.haveEverSeenData = haveSeenDataPreviously;
         this.delayedDataCheckFreq = delayedDataCheckFreq;
+        this.isEsqlDatafeed = isEsqlDatafeed;
+        this.esqlCheckpointFingerprint = esqlCheckpointFingerprint;
+        this.esqlSourceCheckpointPersister = esqlSourceCheckpointPersister;
+        this.esqlSourceEndMs = isEsqlDatafeed ? esqlResumePointMs(esqlSourceEndMs, latestRecordTimeMs, groupingIntervalMs) : null;
         this.crossClusterSearchStats = Objects.requireNonNull(crossClusterSearchStats);
+    }
+
+    /**
+     * One-shot resume point for an ES|QL datafeed at start: persisted checkpoint, lowered to the first grouping interval
+     * after {@code latest_record_time} when a model snapshot revert left the checkpoint ahead of the reverted data counts.
+     */
+    @Nullable
+    static Long esqlResumePointMs(@Nullable Long checkpointSourceEndMs, long latestRecordTimeMs, long groupingIntervalMs) {
+        if (checkpointSourceEndMs == null || latestRecordTimeMs < 0 || groupingIntervalMs <= 0) {
+            return checkpointSourceEndMs;
+        }
+        return Math.min(checkpointSourceEndMs, Intervals.alignToCeil(latestRecordTimeMs + 1, groupingIntervalMs));
     }
 
     void isolate() {
@@ -249,12 +280,11 @@ class DatafeedJob {
     }
 
     private long skipToStartTime(long startTime) {
-        if (lastEndTimeMs != null) {
-            if (lastEndTimeMs + 1 > startTime) {
-                // start time is before last checkpoint, thus continue from checkpoint
-                return lastEndTimeMs + 1;
+        Long resumeFromMs = sourceResumeFromMs();
+        if (resumeFromMs != null) {
+            if (resumeFromMs > startTime) {
+                return resumeFromMs;
             }
-            // start time is after last checkpoint, thus we need to skip time
             FlushJobAction.Request request = new FlushJobAction.Request(jobId);
             request.setSkipTime(String.valueOf(startTime));
             request.setRefreshRequired(false);
@@ -266,7 +296,7 @@ class DatafeedJob {
     }
 
     long runRealtime() throws Exception {
-        long start = lastEndTimeMs == null ? lookbackStartTimeMs : Math.max(lookbackStartTimeMs, lastEndTimeMs + 1);
+        long start = sourceWindowStart(lookbackStartTimeMs);
         long nowMinusQueryDelay = currentTimeSupplier.get() - queryDelayMs;
         long end = toIntervalStartEpochMs(nowMinusQueryDelay);
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
@@ -533,13 +563,13 @@ class DatafeedJob {
                     }
                     recordCount += counts.getProcessedRecordCount();
                     haveEverSeenData |= (recordCount > 0);
-                    if (counts.getLatestRecordTimeStamp() != null) {
+                    if (isEsqlDatafeed == false && counts.getLatestRecordTimeStamp() != null) {
                         lastEndTimeMs = counts.getLatestRecordTimeStamp().getTime();
                     }
                 }
             }
 
-            if (isRunning() && isIsolated == false && dataExtractor.isCancelled() == false) {
+            if (isEsqlDatafeed == false && isRunning() && isIsolated == false && dataExtractor.isCancelled() == false) {
                 lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, dataExtractor.getEndTime() - 1);
             }
             LOGGER.debug(
@@ -571,6 +601,10 @@ class DatafeedJob {
                 if (scopeChange != null) {
                     handleFieldConflictsAfterScopeChange(scopeChange);
                     checkForAnomaliesAfterScopeChange(scopeChange);
+                }
+
+                if (isEsqlDatafeed && dataExtractor.isCancelled() == false) {
+                    commitEsqlSourceCheckpoint(dataExtractor.getEndTime());
                 }
             }
 
@@ -838,11 +872,49 @@ class DatafeedJob {
         }
     }
 
+    private long sourceWindowStart(long configuredStart) {
+        Long resumeFromMs = sourceResumeFromMs();
+        if (resumeFromMs == null) {
+            return configuredStart;
+        }
+        return Math.max(configuredStart, resumeFromMs);
+    }
+
+    @Nullable
+    private Long sourceResumeFromMs() {
+        if (isEsqlDatafeed) {
+            return esqlSourceEndMs;
+        }
+        return lastEndTimeMs == null ? null : lastEndTimeMs + 1;
+    }
+
+    private void commitEsqlSourceCheckpoint(long sourceEndMs) {
+        esqlSourceEndMs = sourceEndMs;
+        if (esqlSourceCheckpointPersister == null || esqlCheckpointFingerprint == null) {
+            return;
+        }
+        EsqlDatafeedSourceCheckpoint checkpoint = new EsqlDatafeedSourceCheckpoint(
+            jobId,
+            datafeedId,
+            sourceEndMs,
+            esqlCheckpointFingerprint
+        );
+        esqlSourceCheckpointPersister.accept(checkpoint);
+    }
+
     /**
      * Visible for testing
      */
     Long lastEndTimeMs() {
         return lastEndTimeMs;
+    }
+
+    /**
+     * Visible for testing
+     */
+    @Nullable
+    Long esqlSourceEndMs() {
+        return esqlSourceEndMs;
     }
 
     CrossClusterSearchStats getCrossClusterSearchStats() {

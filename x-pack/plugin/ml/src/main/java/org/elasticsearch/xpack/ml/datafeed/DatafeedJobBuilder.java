@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
@@ -110,13 +109,7 @@ public class DatafeedJobBuilder {
         if (context.restartTimeInfo().getLatestRecordTimeMs() == null) {
             latestRecordTimeMs = -1;
         } else {
-            long recordMs = context.restartTimeInfo().getLatestRecordTimeMs();
-            if (datafeedConfig.getEsqlQuery() != null && EsqlDataExtractor.hasAggregation(datafeedConfig.getEsqlQuery())) {
-                // Aggregating ES|QL emits bucket-floor timestamps; {@link ChunkedDataExtractorFactory} floors the window start on
-                // restart, so advance past the last fully emitted grouping bucket. Raw {@code FROM} rows keep source timestamps.
-                recordMs += datafeedConfig.getGroupingInterval().millis() - 1;
-            }
-            latestRecordTimeMs = recordMs;
+            latestRecordTimeMs = context.restartTimeInfo().getLatestRecordTimeMs();
         }
         final DatafeedTimingStatsReporter timingStatsReporter = new DatafeedTimingStatsReporter(
             context.timingStats(),
@@ -201,11 +194,7 @@ public class DatafeedJobBuilder {
         if (context.restartTimeInfo().getLatestRecordTimeMs() == null) {
             latestRecordTimeMs = -1;
         } else {
-            long recordMs = context.restartTimeInfo().getLatestRecordTimeMs();
-            if (datafeedConfig.getEsqlQuery() != null && EsqlDataExtractor.hasAggregation(datafeedConfig.getEsqlQuery())) {
-                recordMs += datafeedConfig.getGroupingInterval().millis() - 1;
-            }
-            latestRecordTimeMs = recordMs;
+            latestRecordTimeMs = context.restartTimeInfo().getLatestRecordTimeMs();
         }
         final DatafeedTimingStatsReporter timingStatsReporter = new DatafeedTimingStatsReporter(
             context.timingStats(),
@@ -288,7 +277,12 @@ public class DatafeedJobBuilder {
             latestRecordTimeMs,
             context.restartTimeInfo().haveSeenDataPreviously(),
             delayedDataCheckFreq,
-            crossClusterSearchStats
+            crossClusterSearchStats,
+            datafeedConfig.getEsqlQuery() != null,
+            datafeedConfig.getEsqlQuery() != null ? effectiveDatafeedConfig.getGroupingInterval().millis() : 0L,
+            null,
+            null,
+            null
         );
         listener.onResponse(datafeedJob);
     }

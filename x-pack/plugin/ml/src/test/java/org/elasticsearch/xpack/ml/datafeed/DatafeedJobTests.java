@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -44,6 +46,7 @@ import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
+import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -71,6 +74,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -78,6 +82,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
@@ -1271,6 +1278,300 @@ public class DatafeedJobTests extends ESTestCase {
         when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(dataCounts));
     }
 
+    public void testEsqlCheckpointShouldAdvanceAfterSuccessfulWindow() throws Exception {
+        long groupingIntervalMs = TimeValue.timeValueHours(1).millis();
+        AtomicLong persistedSourceEnd = new AtomicLong(-1);
+        Consumer<EsqlDatafeedSourceCheckpoint> persister = checkpoint -> persistedSourceEnd.set(checkpoint.getSourceEndMs());
+        when(dataExtractor.getEndTime()).thenReturn(3_600_000L);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, groupingIntervalMs, 0L, persister);
+        datafeedJob.runLookBack(0L, 3_600_000L);
+
+        assertThat(persistedSourceEnd.get(), equalTo(3_600_000L));
+        assertThat(datafeedJob.esqlSourceEndMs(), equalTo(3_600_000L));
+        verify(auditor, never()).warning(any(), any());
+    }
+
+    public void testEsqlCheckpointShouldAdvanceAfterEmptyWindow() throws Exception {
+        long groupingIntervalMs = TimeValue.timeValueHours(1).millis();
+        AtomicLong persistedSourceEnd = new AtomicLong(-1);
+        Consumer<EsqlDatafeedSourceCheckpoint> persister = checkpoint -> persistedSourceEnd.set(checkpoint.getSourceEndMs());
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractor.getEndTime()).thenReturn(3_600_000L);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, groupingIntervalMs, 0L, persister);
+        expectThrows(DatafeedJob.EmptyDataCountException.class, () -> datafeedJob.runLookBack(0L, 3_600_000L));
+
+        assertThat(persistedSourceEnd.get(), equalTo(3_600_000L));
+        assertThat(datafeedJob.esqlSourceEndMs(), equalTo(3_600_000L));
+    }
+
+    public void testEsqlCheckpointShouldAdvanceInMemoryWithoutPersister() throws Exception {
+        long groupingIntervalMs = TimeValue.timeValueHours(1).millis();
+        when(dataExtractor.getEndTime()).thenReturn(3_600_000L);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, groupingIntervalMs, 0L, null, null);
+        datafeedJob.runLookBack(0L, 3_600_000L);
+
+        assertThat(datafeedJob.esqlSourceEndMs(), equalTo(3_600_000L));
+    }
+
+    public void testEsqlCheckpointShouldNotAdvanceOnExtractionFailure() throws Exception {
+        long groupingIntervalMs = TimeValue.timeValueHours(1).millis();
+        AtomicReference<Long> persistedSourceEnd = new AtomicReference<>();
+        Consumer<EsqlDatafeedSourceCheckpoint> persister = checkpoint -> persistedSourceEnd.set(checkpoint.getSourceEndMs());
+        when(dataExtractor.hasNext()).thenReturn(true);
+        when(dataExtractor.next()).thenThrow(new IOException("extraction failed"));
+
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, groupingIntervalMs, null, persister);
+        expectThrows(DatafeedJob.ExtractionProblemException.class, () -> datafeedJob.runLookBack(0L, 3_600_000L));
+
+        assertThat(persistedSourceEnd.get(), nullValue());
+        assertThat(datafeedJob.esqlSourceEndMs(), nullValue());
+    }
+
+    public void testEsqlRestartShouldUsePersistedCheckpointNotEmittedLatestRecord() throws Exception {
+        long groupingIntervalMs = TimeValue.timeValueHours(1).millis();
+        Consumer<EsqlDatafeedSourceCheckpoint> noopPersister = checkpoint -> {};
+        currentTime = groupingIntervalMs * 2;
+        when(dataExtractor.getEndTime()).thenReturn(currentTime);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, groupingIntervalMs, 1_800_000L, noopPersister);
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        when(dataExtractor.hasNext()).thenReturn(false);
+
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        verify(dataExtractorFactory).newExtractor(eq(1_800_000L), anyLong());
+    }
+
+    public void testEsqlRestartWithCheckpointBeyondRevertedLatestRecordShouldReplayFromAlignedLatestRecord() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        currentTime = 12 * hour;
+        when(dataExtractor.getEndTime()).thenReturn(currentTime);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, hour, 3 * hour, 10 * hour, checkpoint -> {});
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        verify(dataExtractorFactory).newExtractor(eq(4 * hour), anyLong());
+    }
+
+    public void testEsqlRestartWithUnalignedLatestRecordShouldReplayFromNextGroupingIntervalBoundary() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        currentTime = 12 * hour;
+        when(dataExtractor.getEndTime()).thenReturn(currentTime);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, hour, 3 * hour + 20 * 60_000L, 10 * hour, checkpoint -> {});
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        verify(dataExtractorFactory).newExtractor(eq(4 * hour), anyLong());
+    }
+
+    public void testEsqlRestartWithCheckpointBeforeLatestRecordShouldResumeFromCheckpoint() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        currentTime = 12 * hour;
+        when(dataExtractor.getEndTime()).thenReturn(currentTime);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, hour, 9 * hour, 4 * hour, checkpoint -> {});
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        verify(dataExtractorFactory).newExtractor(eq(4 * hour), anyLong());
+    }
+
+    public void testEsqlRestartWithoutLatestRecordShouldResumeFromCheckpoint() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        currentTime = 12 * hour;
+        when(dataExtractor.getEndTime()).thenReturn(currentTime);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, hour, -1L, 10 * hour, checkpoint -> {});
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        verify(dataExtractorFactory).newExtractor(eq(10 * hour), anyLong());
+    }
+
+    public void testEsqlRestartWithoutCheckpointShouldIgnoreLatestRecord() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        currentTime = 12 * hour;
+        when(dataExtractor.getEndTime()).thenReturn(currentTime);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, hour, 3 * hour, null, checkpoint -> {});
+        assertThat(datafeedJob.esqlSourceEndMs(), nullValue());
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        verify(dataExtractorFactory).newExtractor(eq(0L), anyLong());
+    }
+
+    public void testEsqlCheckpointCommitAfterRestartShouldNotBeLoweredByRestartLatestRecord() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        List<Long> persistedSourceEnds = new ArrayList<>();
+        currentTime = 12 * hour;
+        when(dataExtractor.getEndTime()).thenReturn(currentTime);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(
+            60_000L,
+            0L,
+            hour,
+            3 * hour,
+            10 * hour,
+            checkpoint -> persistedSourceEnds.add(checkpoint.getSourceEndMs())
+        );
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+        assertThat(persistedSourceEnds, equalTo(List.of(12 * hour)));
+
+        currentTime = 13 * hour;
+        when(dataExtractor.getEndTime()).thenReturn(currentTime);
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+        verify(dataExtractorFactory).newExtractor(eq(12 * hour), eq(13 * hour));
+    }
+
+    public void testClassicRestartShouldNotUseEsqlCheckpointRules() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        currentTime = 12 * hour;
+        when(dataExtractor.getEndTime()).thenReturn(currentTime);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        DatafeedJob datafeedJob = createDatafeedJob(60_000L, 0L, 3 * hour, 3 * hour, true);
+        assertThat(datafeedJob.esqlSourceEndMs(), nullValue());
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        verify(dataExtractorFactory).newExtractor(eq(3 * hour + 1), anyLong());
+    }
+
+    public void testEsqlLookbackShouldResumeFromPersistedCheckpointNotEmittedLatestRecord() throws Exception {
+        long groupingIntervalMs = TimeValue.timeValueHours(1).millis();
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractor.getEndTime()).thenReturn(3_600_000L);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, groupingIntervalMs, 1_800_000L, checkpoint -> {});
+        expectThrows(DatafeedJob.EmptyDataCountException.class, () -> datafeedJob.runLookBack(0L, 3_600_000L));
+
+        verify(dataExtractorFactory).newExtractor(eq(1_800_000L), eq(3_600_000L));
+    }
+
+    public void testEsqlCheckpointShouldNotAdvanceOnTimestampValidationFailure() throws Exception {
+        long groupingIntervalMs = TimeValue.timeValueHours(1).millis();
+        AtomicReference<Long> persistedSourceEnd = new AtomicReference<>();
+        Consumer<EsqlDatafeedSourceCheckpoint> persister = checkpoint -> persistedSourceEnd.set(checkpoint.getSourceEndMs());
+        when(dataExtractor.hasNext()).thenReturn(true);
+        when(dataExtractor.next()).thenThrow(
+            new ElasticsearchStatusException("emitted timestamp is outside the source window", RestStatus.BAD_REQUEST)
+        );
+
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, groupingIntervalMs, null, persister);
+        expectThrows(DatafeedJob.ExtractionProblemException.class, () -> datafeedJob.runLookBack(0L, 3_600_000L));
+
+        assertThat(persistedSourceEnd.get(), nullValue());
+        assertThat(datafeedJob.esqlSourceEndMs(), nullValue());
+    }
+
+    public void testEsqlCheckpointShouldNotAdvanceOnPostFailure() throws Exception {
+        long groupingIntervalMs = TimeValue.timeValueHours(1).millis();
+        AtomicReference<Long> persistedSourceEnd = new AtomicReference<>();
+        Consumer<EsqlDatafeedSourceCheckpoint> persister = checkpoint -> persistedSourceEnd.set(checkpoint.getSourceEndMs());
+        when(postDataFuture.actionGet()).thenThrow(new RuntimeException("post failed"));
+        when(dataExtractor.getEndTime()).thenReturn(3_600_000L);
+
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, groupingIntervalMs, null, persister);
+        expectThrows(DatafeedJob.AnalysisProblemException.class, () -> datafeedJob.runLookBack(0L, 3_600_000L));
+
+        assertThat(persistedSourceEnd.get(), nullValue());
+        assertThat(datafeedJob.esqlSourceEndMs(), nullValue());
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+    }
+
+    public void testEsqlCheckpointShouldNotAdvanceOnFlushFailure() throws Exception {
+        long groupingIntervalMs = TimeValue.timeValueHours(1).millis();
+        AtomicReference<Long> persistedSourceEnd = new AtomicReference<>();
+        Consumer<EsqlDatafeedSourceCheckpoint> persister = checkpoint -> persistedSourceEnd.set(checkpoint.getSourceEndMs());
+        when(dataExtractor.getEndTime()).thenReturn(3_600_000L);
+        when(flushJobFuture.actionGet()).thenThrow(new RuntimeException("flush failed"));
+
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, groupingIntervalMs, null, persister);
+        expectThrows(DatafeedJob.AnalysisProblemException.class, () -> datafeedJob.runLookBack(0L, 3_600_000L));
+
+        assertThat(persistedSourceEnd.get(), nullValue());
+        assertThat(datafeedJob.esqlSourceEndMs(), nullValue());
+    }
+
+    public void testEsqlCheckpointShouldNotAdvanceWhenCancelled() throws Exception {
+        long groupingIntervalMs = TimeValue.timeValueHours(1).millis();
+        AtomicReference<Long> persistedSourceEnd = new AtomicReference<>();
+        Consumer<EsqlDatafeedSourceCheckpoint> persister = checkpoint -> persistedSourceEnd.set(checkpoint.getSourceEndMs());
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractor.isCancelled()).thenReturn(true);
+        when(dataExtractor.getEndTime()).thenReturn(3_600_000L);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, groupingIntervalMs, null, persister);
+        expectThrows(DatafeedJob.EmptyDataCountException.class, () -> datafeedJob.runLookBack(0L, 3_600_000L));
+
+        assertThat(persistedSourceEnd.get(), nullValue());
+        assertThat(datafeedJob.esqlSourceEndMs(), nullValue());
+    }
+
+    public void testEsqlCheckpointShouldNotAdvanceWhenIsolated() throws Exception {
+        long groupingIntervalMs = TimeValue.timeValueHours(1).millis();
+        AtomicReference<Long> persistedSourceEnd = new AtomicReference<>();
+        Consumer<EsqlDatafeedSourceCheckpoint> persister = checkpoint -> persistedSourceEnd.set(checkpoint.getSourceEndMs());
+        when(dataExtractor.getEndTime()).thenReturn(3_600_000L);
+
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, groupingIntervalMs, null, persister);
+        datafeedJob.isolate();
+        datafeedJob.runLookBack(0L, 3_600_000L);
+
+        assertThat(persistedSourceEnd.get(), nullValue());
+        assertThat(datafeedJob.esqlSourceEndMs(), nullValue());
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+    }
+
+    public void testClassicDatafeedShouldNotPersistEsqlCheckpoint() throws Exception {
+        AtomicReference<Long> persistedSourceEnd = new AtomicReference<>();
+        Consumer<EsqlDatafeedSourceCheckpoint> persister = checkpoint -> persistedSourceEnd.set(checkpoint.getSourceEndMs());
+        when(dataExtractor.getEndTime()).thenReturn(3_600_000L);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+
+        DatafeedJob datafeedJob = createDatafeedJob(
+            60_000L,
+            0L,
+            0L,
+            0L,
+            false,
+            DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
+            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime)),
+            "classic-datafeed",
+            null,
+            null,
+            false,
+            0L,
+            null,
+            null,
+            persister
+        );
+        datafeedJob.runLookBack(0L, 3_600_000L);
+
+        assertThat(persistedSourceEnd.get(), nullValue());
+        assertThat(datafeedJob.esqlSourceEndMs(), nullValue());
+        assertThat(datafeedJob.lastEndTimeMs(), equalTo(3_599_999L));
+    }
+
     public void testEffectiveMaxConsecutiveExtractionFailures() {
         long frequencyMs = TimeValue.timeValueMinutes(10).millis();
         long searchesPerDay = createDatafeedJobWithExtractionFailureThreshold(frequencyMs, null).numberOfSearchesIn24Hours();
@@ -1327,7 +1628,12 @@ public class DatafeedJobTests extends ESTestCase {
             -1,
             false,
             DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
-            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime))
+            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime)),
+            false,
+            0L,
+            null,
+            null,
+            null
         );
     }
 
@@ -1452,6 +1758,50 @@ public class DatafeedJobTests extends ESTestCase {
         String projectRouting,
         String cloudCredentialId
     ) {
+        return createDatafeedJob(
+            frequencyMs,
+            queryDelayMs,
+            latestFinalBucketEndTimeMs,
+            latestRecordTimeMs,
+            haveSeenDataPreviously,
+            delayedDataFreq,
+            crossClusterSearchStats,
+            datafeedId,
+            projectRouting,
+            cloudCredentialId,
+            false,
+            0L,
+            null,
+            null,
+            null
+        );
+    }
+
+    private DatafeedJob createDatafeedJob(
+        long frequencyMs,
+        long queryDelayMs,
+        long latestFinalBucketEndTimeMs,
+        long latestRecordTimeMs,
+        boolean haveSeenDataPreviously,
+        long delayedDataFreq,
+        CrossClusterSearchStats crossClusterSearchStats,
+        String datafeedId,
+        String projectRouting,
+        String cloudCredentialId,
+        boolean isEsqlDatafeed,
+        long groupingIntervalMs,
+        @Nullable String esqlCheckpointFingerprint,
+        @Nullable Long esqlSourceEndMs,
+        @Nullable Consumer<EsqlDatafeedSourceCheckpoint> esqlSourceCheckpointPersister
+    ) {
+        if (isEsqlDatafeed && esqlCheckpointFingerprint == null) {
+            esqlCheckpointFingerprint = EsqlDatafeedSourceCheckpoint.computeFingerprint(
+                "FROM logs",
+                "@timestamp",
+                dataDescription.build().getTimeField(),
+                TimeValue.timeValueMillis(groupingIntervalMs)
+            );
+        }
         Supplier<Long> currentTimeSupplier = () -> currentTime;
         return new DatafeedJob(
             datafeedId,
@@ -1474,7 +1824,69 @@ public class DatafeedJobTests extends ESTestCase {
             latestRecordTimeMs,
             haveSeenDataPreviously,
             delayedDataFreq,
-            crossClusterSearchStats
+            crossClusterSearchStats,
+            isEsqlDatafeed,
+            groupingIntervalMs,
+            esqlCheckpointFingerprint,
+            esqlSourceEndMs,
+            esqlSourceCheckpointPersister
+        );
+    }
+
+    private DatafeedJob createEsqlDatafeedJob(
+        long frequencyMs,
+        long queryDelayMs,
+        long groupingIntervalMs,
+        @Nullable Long esqlSourceEndMs,
+        @Nullable Consumer<EsqlDatafeedSourceCheckpoint> checkpointPersister
+    ) {
+        return createEsqlDatafeedJob(frequencyMs, queryDelayMs, groupingIntervalMs, 7_200_000L, esqlSourceEndMs, checkpointPersister);
+    }
+
+    private DatafeedJob createEsqlDatafeedJob(
+        long frequencyMs,
+        long queryDelayMs,
+        long groupingIntervalMs,
+        long latestRecordTimeMs,
+        @Nullable Long esqlSourceEndMs,
+        @Nullable Consumer<EsqlDatafeedSourceCheckpoint> checkpointPersister
+    ) {
+        return createEsqlDatafeedJob(
+            frequencyMs,
+            queryDelayMs,
+            groupingIntervalMs,
+            latestRecordTimeMs,
+            esqlSourceEndMs,
+            checkpointPersister,
+            null
+        );
+    }
+
+    private DatafeedJob createEsqlDatafeedJob(
+        long frequencyMs,
+        long queryDelayMs,
+        long groupingIntervalMs,
+        long latestRecordTimeMs,
+        @Nullable Long esqlSourceEndMs,
+        @Nullable Consumer<EsqlDatafeedSourceCheckpoint> checkpointPersister,
+        @Nullable String esqlCheckpointFingerprint
+    ) {
+        return createDatafeedJob(
+            frequencyMs,
+            queryDelayMs,
+            -1,
+            latestRecordTimeMs,
+            false,
+            DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
+            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime)),
+            "esql-datafeed",
+            null,
+            null,
+            true,
+            groupingIntervalMs,
+            esqlCheckpointFingerprint,
+            esqlSourceEndMs,
+            checkpointPersister
         );
     }
 

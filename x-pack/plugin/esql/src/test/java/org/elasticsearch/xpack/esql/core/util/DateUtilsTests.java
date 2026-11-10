@@ -74,6 +74,30 @@ public class DateUtilsTests extends ESTestCase {
         }
     }
 
+    /**
+     * The day is added to the local date before the zone is resolved. Sao Paulo's midnight on 2018-11-04 and Apia's on
+     * 2011-12-30 do not exist, and resolving them first would reject the value or add a second day.
+     */
+    public void testEndOfDayHourInNamedZoneAcrossDaylightSavingTransitions() {
+        Map<String, String> sameAsNextDayMidnight = Map.of(
+            "2018-11-04T24:00:00America/Sao_Paulo",
+            "2018-11-05T00:00:00America/Sao_Paulo",
+            "2018-11-03T24:00:00America/Sao_Paulo",
+            "2018-11-04T00:00:00America/Sao_Paulo",
+            "2011-12-30T24:00:00Pacific/Apia",
+            "2011-12-31T00:00:00Pacific/Apia",
+            "2011-12-29T24:00:00Pacific/Apia",
+            "2011-12-30T00:00:00Pacific/Apia",
+            "2024-03-30T24:00:00Europe/Madrid",
+            "2024-03-31T00:00:00Europe/Madrid",
+            "2024-11-02T24:00:00America/Havana",
+            "2024-11-03T00:00:00America/Havana"
+        );
+        for (Map.Entry<String, String> e : sameAsNextDayMidnight.entrySet()) {
+            assertEquals(e.getKey(), DateUtils.asDateTime(e.getValue()).toInstant(), DateUtils.asDateTime(e.getKey()).toInstant());
+        }
+    }
+
     public void testEndOfDayHourOnlyReadsAsMidnight() {
         for (String value : new String[] {
             "2024-06-01T24:30:00Z",

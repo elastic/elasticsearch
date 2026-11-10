@@ -14,6 +14,7 @@ import java.sql.Timestamp;
 import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetTime;
 import java.time.Period;
@@ -23,6 +24,8 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
+import java.time.temporal.TemporalAccessor;
+import java.time.temporal.TemporalQueries;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -212,7 +215,8 @@ public class DateUtils {
             : DATE_OPTIONAL_TIME_FORMATTER_WHITESPACE;
         // The formatters resolve strictly, so a day the month lacks (2024-02-30) is refused instead of clamped, but strict
         // resolution also refuses the ISO end-of-day hour 24. Keep reading 24:00 as the next day's midnight: validate the
-        // date with the hour replaced by 00, require that time to be exactly midnight, and only then add the day.
+        // date with the hour replaced by 00, require that time to be exactly midnight, and only then add the day to the
+        // local date, before resolving the zone, so a midnight that does not exist in a named zone does not shift the result.
         int hourIdx = separatorIdx + 1;
         int afterHourIdx = hourIdx + 2;
         boolean endOfDay = afterHourIdx < dateFormat.length() && dateFormat.startsWith("24", hourIdx);
@@ -220,8 +224,8 @@ public class DateUtils {
             return DateFormatters.from(formatter.parse(dateFormat)).withZoneSameInstant(UTC);
         }
         String midnight = dateFormat.substring(0, hourIdx) + "00" + dateFormat.substring(afterHourIdx);
-        ZonedDateTime parsed = DateFormatters.from(formatter.parse(midnight));
-        if (parsed.toLocalTime().equals(LocalTime.MIDNIGHT) == false) {
+        TemporalAccessor parsed = formatter.parse(midnight);
+        if (LocalTime.from(parsed).equals(LocalTime.MIDNIGHT) == false) {
             throw new DateTimeParseException(
                 "Text '" + dateFormat + "' could not be parsed: hour 24 is only valid as 24:00[:00]",
                 dateFormat,
@@ -229,7 +233,8 @@ public class DateUtils {
             );
         }
         try {
-            return parsed.plusDays(1).withZoneSameInstant(UTC);
+            return ZonedDateTime.of(LocalDate.from(parsed).plusDays(1), LocalTime.MIDNIGHT, parsed.query(TemporalQueries.zone()))
+                .withZoneSameInstant(UTC);
         } catch (DateTimeException e) {
             throw new DateTimeParseException("Text '" + dateFormat + "' could not be parsed: " + e.getMessage(), dateFormat, hourIdx, e);
         }

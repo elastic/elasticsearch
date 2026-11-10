@@ -130,7 +130,7 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
         );
     }
 
-    private static String getRequiredParam(RestRequest request, String name) {
+    public static String getRequiredParam(RestRequest request, String name) {
         String value = request.param(name);
         if (value == null || value.isEmpty()) {
             throw new IllegalArgumentException("required parameter \"" + name + "\" is missing");

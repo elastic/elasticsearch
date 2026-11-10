@@ -63,7 +63,7 @@ public class SnapshotRestoreStorageMonitor {
         this.clusterState = clusterState;
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
         this.rerouteService = rerouteService;
-        clusterSettings.initializeAndWatchIfRegistered(REROUTE_INTERVAL_SETTING, value -> this.rerouteInterval = value);
+        clusterSettings.initializeAndWatch(REROUTE_INTERVAL_SETTING, value -> this.rerouteInterval = value);
     }
 
     public void onNewInfo(ClusterInfo info) {

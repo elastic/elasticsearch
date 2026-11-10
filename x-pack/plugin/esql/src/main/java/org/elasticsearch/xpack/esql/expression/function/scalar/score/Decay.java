@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.time.Period;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -66,6 +67,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -94,7 +96,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Decay", Decay::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Decay.class)
         .quaternary(Decay::new)
-        .capabilities("ga_fixes")
+        .capabilities("ga_fixes", "date_period")
         .name("decay");
 
     public static final String ORIGIN = "origin";
@@ -105,7 +107,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
 
     private static final Map<String, Collection<DataType>> ALLOWED_OPTIONS = Map.of(
         OFFSET,
-        Set.of(TIME_DURATION, INTEGER, LONG, DOUBLE, KEYWORD, TEXT, UNSIGNED_LONG),
+        Set.of(TIME_DURATION, DATE_PERIOD, INTEGER, LONG, DOUBLE, KEYWORD, TEXT, UNSIGNED_LONG),
         DECAY,
         Set.of(DOUBLE),
         TYPE,
@@ -149,7 +151,8 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
             for the decay function.
 
             For spatial queries, scale and offset for geo points use distance units (e.g., "10km", "5mi"),
-            while cartesian points use numeric values. For date queries, scale and offset use time_duration values.
+            while cartesian points use numeric values. For date queries, scale and offset use time_duration values,
+            or date_period values made only of days and weeks.
             For numeric queries you also use numeric values.
 
             :::{tip}
@@ -173,7 +176,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         ) Expression origin,
         @Param(
             name = SCALE,
-            type = { "double", "integer", "long", "unsigned_long", "time_duration", "keyword", "text" },
+            type = { "double", "integer", "long", "unsigned_long", "time_duration", "date_period", "keyword", "text" },
             hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Distance from the origin where the function returns the decay value."
         ) Expression scale,
@@ -183,7 +186,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
             params = {
                 @MapParam.MapParamEntry(
                     name = OFFSET,
-                    type = { "double", "integer", "long", "unsigned_long", "time_duration", "keyword", "text" },
+                    type = { "double", "integer", "long", "unsigned_long", "time_duration", "date_period", "keyword", "text" },
                     description = "Distance from the origin where no decay occurs."
                 ),
                 @MapParam.MapParamEntry(
@@ -280,10 +283,10 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
             return validateOriginScaleAndOffset(
                 DataType::isMillisOrNanos,
                 "datetime or date_nanos",
-                DataType::isTimeDuration,
-                "time_duration",
-                DataType::isTimeDuration,
-                "time_duration"
+                DataType::isTemporalAmount,
+                "time_duration or date_period",
+                DataType::isTemporalAmount,
+                "time_duration or date_period"
             );
         } else {
             return validateOriginScaleAndOffset(
@@ -793,7 +796,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     }
 
     private static long temporalScale(Object folded, DataType valueDataType) {
-        long scaleValue = toTemporalUnits(SCALE, (Duration) folded, valueDataType);
+        long scaleValue = toTemporalUnits(SCALE, toDuration(SCALE, folded), valueDataType);
         checkScale(scaleValue, scaleValue + temporalUnit(valueDataType));
         return scaleValue;
     }
@@ -802,9 +805,26 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         if (folded == null) {
             return 0L;
         }
-        long offsetValue = toTemporalUnits(OFFSET, (Duration) folded, valueDataType);
+        long offsetValue = toTemporalUnits(OFFSET, toDuration(OFFSET, folded), valueDataType);
         checkOffset(offsetValue, offsetValue + temporalUnit(valueDataType));
         return offsetValue;
+    }
+
+    /**
+     * Months and years have no fixed length, so only periods made of days (weeks are days) are accepted.
+     */
+    private static Duration toDuration(String name, Object folded) {
+        if (folded instanceof Period period) {
+            if (period.getYears() != 0 || period.getMonths() != 0) {
+                throw new InvalidArgumentException(
+                    "[{}] must not contain months or years, use days or a time duration: [{}]",
+                    name,
+                    period
+                );
+            }
+            return Duration.ofDays(period.getDays());
+        }
+        return (Duration) folded;
     }
 
     private static long toTemporalUnits(String name, Duration duration, DataType valueDataType) {

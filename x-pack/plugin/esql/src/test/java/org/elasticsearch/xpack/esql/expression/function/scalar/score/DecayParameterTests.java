@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.score.Decay.DecayFunction;
 
 import java.time.Duration;
+import java.time.Period;
 import java.util.Arrays;
 import java.util.List;
 
@@ -154,6 +155,26 @@ public class DecayParameterTests extends ESTestCase {
             new Literal(Source.EMPTY, 0L, DataType.DATETIME),
             Literal.timeDuration(Source.EMPTY, Duration.ofNanos(100)),
             null
+        );
+    }
+
+    public void testScaleInMonthsIsRejected() {
+        assertFoldError(
+            "[scale] must not contain months or years, use days or a time duration: [P1M]",
+            new Literal(Source.EMPTY, 1_000L, DataType.DATETIME),
+            new Literal(Source.EMPTY, 0L, DataType.DATETIME),
+            new Literal(Source.EMPTY, Period.ofMonths(1), DataType.DATE_PERIOD),
+            null
+        );
+    }
+
+    public void testOffsetInYearsIsRejected() {
+        assertFoldError(
+            "[offset] must not contain months or years, use days or a time duration: [P1Y]",
+            new Literal(Source.EMPTY, 1_000L, DataType.DATE_NANOS),
+            new Literal(Source.EMPTY, 0L, DataType.DATE_NANOS),
+            new Literal(Source.EMPTY, Period.ofDays(7), DataType.DATE_PERIOD),
+            options("offset", new Literal(Source.EMPTY, Period.ofYears(1), DataType.DATE_PERIOD))
         );
     }
 

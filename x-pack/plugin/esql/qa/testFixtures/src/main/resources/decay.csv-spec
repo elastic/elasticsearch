@@ -597,6 +597,51 @@ decay_result:double
 0.75
 ;
 
+datetimeScaleInDays
+required_capability: fn_decay_date_period
+
+ROW value = TO_DATETIME("2023-01-04T12:00:00Z")
+| EVAL decay_result = decay(value, TO_DATETIME("2023-01-01T00:00:00Z"), 7 days)
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+datetimeScaleInWeeks
+required_capability: fn_decay_date_period
+
+ROW value = TO_DATETIME("2023-01-04T12:00:00Z")
+| EVAL decay_result = decay(value, TO_DATETIME("2023-01-01T00:00:00Z"), 1 week)
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+datetimeOffsetInDays
+required_capability: fn_decay_date_period
+
+// distance 3.5 days minus 1 day offset, scale 7 days: (14 - 2.5) / 14
+ROW value = TO_DATETIME("2023-01-04T12:00:00Z")
+| EVAL decay_result = round(decay(value, TO_DATETIME("2023-01-01T00:00:00Z"), 7 days, {"offset": 1 day}), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.8214286
+;
+
+dateNanosScaleInDays
+required_capability: fn_decay_date_period
+
+ROW value = TO_DATE_NANOS("2023-01-04T12:00:00Z")
+| EVAL decay_result = decay(value, TO_DATE_NANOS("2023-01-01T00:00:00Z"), 7 days)
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
 datetimeDistanceAboveLongRange
 required_capability: fn_decay_ga_fixes
 

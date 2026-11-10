@@ -292,7 +292,7 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
         assertThat(call.arguments().get(1), instanceOf(TableFunctionArgument.Name.class));
     }
 
-    /** The options are the last argument, so a call may stop before them. */
+    /** An optional argument is the last one a signature declares, so a call may stop before it. */
     public void testOptionsMayBeOmitted() {
         TableFunctionInvocation call = onlyCall("FROM EXAMPLE(my_source, \"s3://bucket/a.parquet\")");
         assertThat(call.name(0), equalTo("my_source"));

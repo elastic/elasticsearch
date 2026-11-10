@@ -22,7 +22,9 @@ import java.util.List;
  * <p>
  * It does not return a schema, because a relation has an output. A function whose columns follow from its
  * arguments returns a resolved leaf; a function whose columns are only knowable by looking returns an
- * <i>unresolved</i> leaf, and the ordinary analyzer resolves it exactly as it resolves {@code FROM logs-*}.
+ * <i>unresolved</i> leaf, which the ordinary analyzer then resolves. Not every stage, though: resolution runs
+ * after view and dataset rewriting, so a leaf a function returns reaches pre-analysis and view scoping but
+ * neither view expansion nor dataset rewriting. A function wanting either returns that relation itself.
  * <p>
  * Three things a function cannot do, each of which something else owns. It cannot authorize: nothing here checks
  * a privilege, so a function reaching something access-controlled does that itself, and dispatching the action

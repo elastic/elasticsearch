@@ -50,9 +50,9 @@ public record TableFunctionInvocation(Source source, String name, List<TableFunc
      * <p>
      * Deliberately unlike {@link #name(int)}, which throws for a position nobody wrote. A name argument is required
      * by every signature that reads one, so its absence is a signature bug; a named-values argument is the one a
-     * signature may declare optional ({@code TableFunctionSignature.optional}), and the map payload can only ever
-     * be written last, so absence there is an answer about the call rather than a fault. Both still throw a
-     * {@link ClassCastException} for a position holding the other kind, which the signature has already refused.
+     * signature may declare optional ({@code TableFunctionSignature.optional}), so absence there is an answer about
+     * the call rather than a fault. Both still throw a {@link ClassCastException} for a position holding the other
+     * kind, which the signature has already refused.
      */
     public Map<String, Object> namedValues(int i) {
         return i < arguments.size() ? ((TableFunctionArgument.NamedValues) arguments.get(i)).values() : null;

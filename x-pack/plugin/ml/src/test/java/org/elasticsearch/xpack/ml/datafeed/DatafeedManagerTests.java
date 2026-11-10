@@ -1491,10 +1491,10 @@ public class DatafeedManagerTests extends ESTestCase {
         }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
 
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJobAndEsqlQuery(any(), any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
 
         doAnswer(invocation -> {
             ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = (ActionListener<
@@ -1521,6 +1521,8 @@ public class DatafeedManagerTests extends ESTestCase {
         assertThat(response.get().getResponse().getCloudInternalCredential(), equalTo(null));
         verify(apiKeyService, never()).grantCloudAuthentication(any(), anyString(), any());
         verify(auditor, never()).info(anyString(), anyString());
+        verify(jobConfigProvider).validateDatafeedJob(any(), any());
+        verify(jobConfigProvider, never()).validateDatafeedJobAndEsqlQuery(any(), any(), any());
     }
 
     @SuppressWarnings("unchecked")
@@ -1556,10 +1558,10 @@ public class DatafeedManagerTests extends ESTestCase {
         }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
 
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJobAndEsqlQuery(any(), any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
 
         doAnswer(invocation -> {
             ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = (ActionListener<
@@ -1586,6 +1588,8 @@ public class DatafeedManagerTests extends ESTestCase {
         assertThat(response.get(), notNullValue());
         assertThat(response.get().getResponse().getProjectRouting(), equalTo("_alias:prod-*"));
         assertWarnings(DatafeedConfig.PROJECT_ROUTING_INERT_WITHOUT_CPS_MESSAGE);
+        verify(jobConfigProvider).validateDatafeedJob(any(), any());
+        verify(jobConfigProvider, never()).validateDatafeedJobAndEsqlQuery(any(), any(), any());
     }
 
     @SuppressWarnings("unchecked")
@@ -1695,10 +1699,10 @@ public class DatafeedManagerTests extends ESTestCase {
         DatafeedConfig updatedConfig = updatedBuilder.build();
 
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJobAndEsqlQuery(any(), any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
@@ -1853,10 +1857,10 @@ public class DatafeedManagerTests extends ESTestCase {
         }).when(datafeedConfigProvider).updateDatefeedConfig(anyString(), any(), any(), any(), any());
 
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = invocation.getArgument(2);
+            ActionListener<Boolean> listener = invocation.getArgument(1);
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJobAndEsqlQuery(any(), any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
 
         UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(
             new DatafeedUpdate.Builder("test-datafeed").setQueryDelay(org.elasticsearch.core.TimeValue.timeValueSeconds(60)).build()

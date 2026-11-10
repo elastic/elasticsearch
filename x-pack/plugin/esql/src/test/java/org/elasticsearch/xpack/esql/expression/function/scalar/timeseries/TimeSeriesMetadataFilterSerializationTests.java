@@ -28,7 +28,7 @@ public class TimeSeriesMetadataFilterSerializationTests extends AbstractExpressi
     @Override
     protected TimeSeriesMetadataFilter mutateInstance(TimeSeriesMetadataFilter instance) throws IOException {
         Source source = instance.source();
-        Expression labelContainer = instance.labelContainer();
+        Expression labelContainer = instance.children().getFirst();
         List<Expression> labels = instance.labels();
         boolean exclude = instance.exclude();
         switch (between(0, 2)) {

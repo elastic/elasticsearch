@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.parser;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.completion.Reasoning.ReasoningEffort;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
@@ -549,7 +550,7 @@ public class EndpointMetadataParserTests extends ESTestCase {
         var map = new HashMap<String, Object>();
         map.put(TEMPLATES_FIELD_NAME, "not-an-object");
 
-        expectThrows(ClassCastException.class, () -> EndpointMetadataParser.capabilitiesFromMap(map, ROOT));
+        expectThrows(ElasticsearchStatusException.class, () -> EndpointMetadataParser.capabilitiesFromMap(map, ROOT));
     }
 
     public void testCapabilitiesFromMap_ReasoningOnly() {
@@ -624,7 +625,7 @@ public class EndpointMetadataParserTests extends ESTestCase {
         var map = new HashMap<String, Object>();
         map.put(CONTEXT_WINDOW_FIELD_NAME, "not-an-object");
 
-        expectThrows(ClassCastException.class, () -> EndpointMetadataParser.capabilitiesFromMap(map, ROOT));
+        expectThrows(ElasticsearchStatusException.class, () -> EndpointMetadataParser.capabilitiesFromMap(map, ROOT));
     }
 
     public void testFromMap_ParsesCapabilitiesBlock() {

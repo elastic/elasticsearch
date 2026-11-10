@@ -373,11 +373,6 @@ public final class AsymmetricHashingQuantizer {
 
         for (int start = 0; start < trainingSize; start += blockRows) {
             int rows = Math.min(blockRows, trainingSize - start);
-            if (rows != blockRows) {
-                // the final, partial block: the multiply needs exactly-sized arrays
-                block = new float[rows * originalDim];
-                blockT = new float[rows * originalDim];
-            }
             for (int i = 0; i < rows; i++) {
                 int srcIdx = sampleIndices[start + i];
                 float[] centroid = centroids.apply(srcIdx);
@@ -585,10 +580,10 @@ public final class AsymmetricHashingQuantizer {
 
         @Override
         protected void project() {
-            // The multiply doesn't have offsets, so the full matrix is calculated
-            // Although this means that partial blocks multiply whatever is left in 'centered' after the tail,
-            // only 'size' rows are read back
-            ESVectorUtil.matrixMultiply(centered, w, maxBlockSize, originalDim, nDims, latent, executor);
+            // round the rows up to next multiple of 8 so the matrix multiply doesn't have to deal with row tails
+            // maxBlockSize can vary in tests
+            int roundedSize = Math.min(maxBlockSize, (size + 7) & ~7);
+            ESVectorUtil.matrixMultiply(centered, w, roundedSize, originalDim, nDims, latent, executor);
         }
     }
 
@@ -676,8 +671,9 @@ public final class AsymmetricHashingQuantizer {
 
         @Override
         protected void project() {
-            // As in FloatBlockEncoder, rows past 'size' hold stale data and are never read back
-            ESVectorUtil.matrixMultiplyI8(centeredQ, wq, maxBlockSize, originalDim, nDims, product, executor);
+            // round the rows up to nearest 8, same as floats
+            int roundedSize = Math.min(maxBlockSize, (size + 7) & ~7);
+            ESVectorUtil.matrixMultiplyI8(centeredQ, wq, roundedSize, originalDim, nDims, product, executor);
 
             // scale the multiply results back to floats
             // copy to an array, then iterate through the array for speed

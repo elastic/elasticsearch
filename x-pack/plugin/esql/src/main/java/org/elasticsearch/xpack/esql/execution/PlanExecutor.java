@@ -514,11 +514,6 @@ public class PlanExecutor {
         return this.metrics;
     }
 
-    /**
-     * The one registry this node plans against, built by the plugin. Held here so the transport action can reach
-     * it rather than building a second one: two registries built from the same inputs are equivalent until the day
-     * they are not, and nothing would catch the drift.
-     */
     public DataSourceModule dataSourceModule() {
         return dataSourceModule;
     }

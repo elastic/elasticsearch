@@ -28,6 +28,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.externalResolutionFor;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 
 /**
@@ -472,7 +473,8 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
                 return "parquet";
             }
         };
-        return new ExternalSourceResolution(
+        return externalResolutionFor(
+            salariesDatasetMetadata(),
             Map.of(SALARIES_RESOURCE, new ExternalSourceResolution.ResolvedSource(metadata, FileList.UNRESOLVED, Map.of()))
         );
     }

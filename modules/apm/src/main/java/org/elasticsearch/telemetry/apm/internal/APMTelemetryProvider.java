@@ -21,11 +21,10 @@ import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.apm.internal.instrumentation.HttpServerInstrumentations;
 import org.elasticsearch.telemetry.apm.internal.instrumentation.HttpServerTracing;
 import org.elasticsearch.telemetry.apm.internal.instrumentation.RestRequestMetrics;
-import org.elasticsearch.telemetry.apm.internal.metrics.APMMeterRegistry;
 import org.elasticsearch.telemetry.apm.internal.metrics.spi.MetricReaderProvider;
-import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
-import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.telemetry.tracing.Tracer;
 
 import java.nio.file.Path;
 import java.util.Collection;
@@ -33,8 +32,8 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class APMTelemetryProvider implements TelemetryProvider {
-    private final APMTracer apmTracer;
-    private final APMMeterService apmMeterService;
+    private final APMTracingService tracingService;
+    private final APMMeterService meterService;
     private final APMLoggingService loggingService;
     private final HttpServerInstrumentation httpServerInstrumentation;
 
@@ -47,45 +46,41 @@ public class APMTelemetryProvider implements TelemetryProvider {
         TelemetryLogResourceProvider logResourceProvider,
         @Nullable MetricReaderProvider metricReaderProvider
     ) {
-        apmMeterService = new APMMeterService(settings, diskBufferPath, metricReaderProvider);
-        apmTracer = new APMTracer(threadContext, settings, apmMeterService::getHealthMeterProvider);
+        meterService = new APMMeterService(settings, diskBufferPath, metricReaderProvider);
+        tracingService = new APMTracingService(threadContext, settings, meterService::getHealthMeterProvider);
         loggingService = new APMLoggingService(
             settings,
             configDir,
             filterProviders,
             logResourceProvider,
-            apmMeterService::getHealthMeterProvider
+            meterService::getHealthMeterProvider
         );
         httpServerInstrumentation = new HttpServerInstrumentations(
-            List.of(new HttpServerTracing(apmTracer), new RestRequestMetrics(threadContext, apmMeterService.getMeterRegistry()))
+            List.of(new HttpServerTracing(tracingService.tracer()), new RestRequestMetrics(threadContext, meterService.getMeterRegistry()))
         );
     }
 
     // visible for testing: pre-built service/tracer instances with stubbed suppliers
     public APMTelemetryProvider(
-        APMMeterService apmMeterService,
-        APMTracer apmTracer,
+        APMMeterService meterService,
+        APMTracingService tracingService,
         APMLoggingService loggingService,
         HttpServerInstrumentation httpServerInstrumentation
     ) {
-        this.apmMeterService = apmMeterService;
-        this.apmTracer = apmTracer;
+        this.meterService = meterService;
+        this.tracingService = tracingService;
         this.loggingService = loggingService;
         this.httpServerInstrumentation = httpServerInstrumentation;
     }
 
     @Override
-    public APMTracer getTracer() {
-        return apmTracer;
-    }
-
-    public APMMeterService getMeterService() {
-        return apmMeterService;
+    public Tracer getTracer() {
+        return tracingService.tracer();
     }
 
     @Override
-    public APMMeterRegistry getMeterRegistry() {
-        return apmMeterService.getMeterRegistry();
+    public MeterRegistry getMeterRegistry() {
+        return meterService.getMeterRegistry();
     }
 
     @Override
@@ -95,15 +90,19 @@ public class APMTelemetryProvider implements TelemetryProvider {
 
     @Override
     public void attemptFlush() {
-        CompletableResultCode metrics = apmMeterService.attemptFlushMetrics();
-        CompletableResultCode traces = apmTracer.attemptFlushTraces();
+        CompletableResultCode metrics = meterService.attemptFlushMetrics();
+        CompletableResultCode traces = tracingService.attemptFlushTraces();
         CompletableResultCode logs = loggingService.forceFlush();
         CompletableResultCode.ofAll(List.of(metrics, traces, logs))
             .join(OtelSdkSettings.OTEL_EXPORT_FLUSH_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
     }
 
-    public void initCertReload(ResourceWatcherService resourceWatcher) {
-        loggingService.initCertReload(resourceWatcher);
+    public APMTracingService getTracingService() {
+        return tracingService;
+    }
+
+    public APMMeterService getMeterService() {
+        return meterService;
     }
 
     public APMLoggingService getLoggingService() {

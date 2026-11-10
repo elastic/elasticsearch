@@ -360,6 +360,7 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         assertEquals(MetadataAttribute.TIMESTAMP_FIELD, merged.get(0).columnName());
         assertEquals(Operator.GREATER_THAN_OR_EQUAL, merged.get(0).operator());
         assertEquals(List.of(start), merged.get(0).values());
+        assertEquals(MetadataAttribute.TIMESTAMP_FIELD, merged.get(1).columnName());
         assertEquals(Operator.LESS_THAN_OR_EQUAL, merged.get(1).operator());
         assertEquals(List.of(end), merged.get(1).values());
         assertEquals(existing, merged.get(2));
@@ -370,8 +371,14 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         List<PartitionFilterHint> hints = List.of(hint("region", Operator.EQUALS, "emea"));
         PartitionSpec spec = PartitionSpec.parse("year(ts)");
 
-        assertSame(hints, spec.withTimestampBounds(hints, Instant.parse("2024-06-01T00:00:00Z"), Instant.parse("2025-01-01T00:00:00Z")));
-        assertNull(spec.withTimestampBounds(null, Instant.parse("2024-06-01T00:00:00Z"), Instant.parse("2025-01-01T00:00:00Z")));
+        Instant start = Instant.parse("2024-06-01T00:00:00Z");
+        Instant end = Instant.parse("2025-01-01T00:00:00Z");
+
+        assertSame(hints, spec.withTimestampBounds(hints, start, end));
+        assertNull(spec.withTimestampBounds(null, start, end));
+        // The absent-bounds arm, which is what EsqlSession passes for every spec when the request carries no filter.
+        assertSame(hints, spec.withTimestampBounds(hints, null, null));
+        assertSame(hints, spec.withTimestampBounds(hints, end, start));
     }
 
     public void testTimestampBoundsBecomeYearInForAtTimestamp() {

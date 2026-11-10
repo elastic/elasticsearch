@@ -3,13 +3,13 @@
 ## Parameters
 
 `value`
-:   The input value to apply decay scoring to.
+:   The value to score. A `null` value scores `null`, and a multivalued value scores `null` with a warning.
 
 `origin`
-:   Central point from which the distances are calculated.
+:   Central point from which the distances are calculated. Must be a constant.
 
 `scale`
-:   Distance from the origin where the function returns the decay value.
+:   Distance beyond `offset` at which the score equals `decay`. Must be a constant greater than 0.
 
 `options`
 :   (Optional) Additional options such as `decay`, `offset` and `type`.

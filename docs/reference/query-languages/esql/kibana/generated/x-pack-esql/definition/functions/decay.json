@@ -10,13 +10,13 @@
           "name" : "value",
           "type" : "cartesian_point",
           "optional" : false,
-          "description" : "The input value to apply decay scoring to."
+          "description" : "The value to score. A `null` value scores `null`, and a multivalued value scores `null` with a warning."
         },
         {
           "name" : "origin",
           "type" : "cartesian_point",
           "optional" : false,
-          "description" : "Central point from which the distances are calculated.",
+          "description" : "Central point from which the distances are calculated. Must be a constant.",
           "hint" : {
             "kind" : "constant"
           }
@@ -25,7 +25,7 @@
           "name" : "scale",
           "type" : "double",
           "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value.",
+          "description" : "Distance beyond `offset` at which the score equals `decay`. Must be a constant greater than 0.",
           "hint" : {
             "kind" : "constant"
           }
@@ -33,7 +33,7 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.', type=[double, integer, long, unsigned_long, time_duration, date_period, keyword, text]}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.', type=[double]}, {name='type', values=[], description='Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.', type=[keyword]}",
+          "mapParams" : "{name='offset', values=[], description='Distance from the origin within which the score is 1. Must not be negative. Defaults to 0.', type=[double, integer, long, unsigned_long, time_duration, date_period, keyword, text]}, {name='decay', values=[], description='Score at `scale` beyond `offset`. Must be greater than 0 and less than 1. Defaults to 0.5.', type=[double]}, {name='type', values=[], description='Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.', type=[keyword]}",
           "optional" : true,
           "description" : "(Optional) Additional options such as `decay`, `offset` and `type`."
         }
@@ -47,13 +47,13 @@
           "name" : "value",
           "type" : "date",
           "optional" : false,
-          "description" : "The input value to apply decay scoring to."
+          "description" : "The value to score. A `null` value scores `null`, and a multivalued value scores `null` with a warning."
         },
         {
           "name" : "origin",
           "type" : "date",
           "optional" : false,
-          "description" : "Central point from which the distances are calculated.",
+          "description" : "Central point from which the distances are calculated. Must be a constant.",
           "hint" : {
             "kind" : "constant"
           }
@@ -62,7 +62,7 @@
           "name" : "scale",
           "type" : "date_period",
           "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value.",
+          "description" : "Distance beyond `offset` at which the score equals `decay`. Must be a constant greater than 0.",
           "hint" : {
             "kind" : "constant"
           }
@@ -70,7 +70,7 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.', type=[double, integer, long, unsigned_long, time_duration, date_period, keyword, text]}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.', type=[double]}, {name='type', values=[], description='Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.', type=[keyword]}",
+          "mapParams" : "{name='offset', values=[], description='Distance from the origin within which the score is 1. Must not be negative. Defaults to 0.', type=[double, integer, long, unsigned_long, time_duration, date_period, keyword, text]}, {name='decay', values=[], description='Score at `scale` beyond `offset`. Must be greater than 0 and less than 1. Defaults to 0.5.', type=[double]}, {name='type', values=[], description='Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.', type=[keyword]}",
           "optional" : true,
           "description" : "(Optional) Additional options such as `decay`, `offset` and `type`."
         }
@@ -84,13 +84,13 @@
           "name" : "value",
           "type" : "date",
           "optional" : false,
-          "description" : "The input value to apply decay scoring to."
+          "description" : "The value to score. A `null` value scores `null`, and a multivalued value scores `null` with a warning."
         },
         {
           "name" : "origin",
           "type" : "date",
           "optional" : false,
-          "description" : "Central point from which the distances are calculated.",
+          "description" : "Central point from which the distances are calculated. Must be a constant.",
           "hint" : {
             "kind" : "constant"
           }
@@ -99,7 +99,7 @@
           "name" : "scale",
           "type" : "time_duration",
           "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value.",
+          "description" : "Distance beyond `offset` at which the score equals `decay`. Must be a constant greater than 0.",
           "hint" : {
             "kind" : "constant"
           }
@@ -107,7 +107,7 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.', type=[double, integer, long, unsigned_long, time_duration, date_period, keyword, text]}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.', type=[double]}, {name='type', values=[], description='Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.', type=[keyword]}",
+          "mapParams" : "{name='offset', values=[], description='Distance from the origin within which the score is 1. Must not be negative. Defaults to 0.', type=[double, integer, long, unsigned_long, time_duration, date_period, keyword, text]}, {name='decay', values=[], description='Score at `scale` beyond `offset`. Must be greater than 0 and less than 1. Defaults to 0.5.', type=[double]}, {name='type', values=[], description='Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.', type=[keyword]}",
           "optional" : true,
           "description" : "(Optional) Additional options such as `decay`, `offset` and `type`."
         }
@@ -121,13 +121,13 @@
           "name" : "value",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "The input value to apply decay scoring to."
+          "description" : "The value to score. A `null` value scores `null`, and a multivalued value scores `null` with a warning."
         },
         {
           "name" : "origin",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "Central point from which the distances are calculated.",
+          "description" : "Central point from which the distances are calculated. Must be a constant.",
           "hint" : {
             "kind" : "constant"
           }
@@ -136,7 +136,7 @@
           "name" : "scale",
           "type" : "date_period",
           "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value.",
+          "description" : "Distance beyond `offset` at which the score equals `decay`. Must be a constant greater than 0.",
           "hint" : {
             "kind" : "constant"
           }
@@ -144,7 +144,7 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.', type=[double, integer, long, unsigned_long, time_duration, date_period, keyword, text]}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.', type=[double]}, {name='type', values=[], description='Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.', type=[keyword]}",
+          "mapParams" : "{name='offset', values=[], description='Distance from the origin within which the score is 1. Must not be negative. Defaults to 0.', type=[double, integer, long, unsigned_long, time_duration, date_period, keyword, text]}, {name='decay', values=[], description='Score at `scale` beyond `offset`. Must be greater than 0 and less than 1. Defaults to 0.5.', type=[double]}, {name='type', values=[], description='Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.', type=[keyword]}",
           "optional" : true,
           "description" : "(Optional) Additional options such as `decay`, `offset` and `type`."
         }
@@ -158,13 +158,13 @@
           "name" : "value",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "The input value to apply decay scoring to."
+          "description" : "The value to score. A `null` value scores `null`, and a multivalued value scores `null` with a warning."
         },
         {
           "name" : "origin",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "Central point from which the distances are calculated.",
+          "description" : "Central point from which the distances are calculated. Must be a constant.",
           "hint" : {
             "kind" : "constant"
           }
@@ -173,7 +173,7 @@
           "name" : "scale",
           "type" : "time_duration",
           "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value.",
+          "description" : "Distance beyond `offset` at which the score equals `decay`. Must be a constant greater than 0.",
           "hint" : {
             "kind" : "constant"
           }
@@ -181,7 +181,7 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.', type=[double, integer, long, unsigned_long, time_duration, date_period, keyword, text]}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.', type=[double]}, {name='type', values=[], description='Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.', type=[keyword]}",
+          "mapParams" : "{name='offset', values=[], description='Distance from the origin within which the score is 1. Must not be negative. Defaults to 0.', type=[double, integer, long, unsigned_long, time_duration, date_period, keyword, text]}, {name='decay', values=[], description='Score at `scale` beyond `offset`. Must be greater than 0 and less than 1. Defaults to 0.5.', type=[double]}, {name='type', values=[], description='Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.', type=[keyword]}",
           "optional" : true,
           "description" : "(Optional) Additional options such as `decay`, `offset` and `type`."
         }
@@ -195,13 +195,13 @@
           "name" : "value",
           "type" : "double",
           "optional" : false,
-          "description" : "The input value to apply decay scoring to."
+          "description" : "The value to score. A `null` value scores `null`, and a multivalued value scores `null` with a warning."
         },
         {
           "name" : "origin",
           "type" : "double",
           "optional" : false,
-          "description" : "Central point from which the distances are calculated.",
+          "description" : "Central point from which the distances are calculated. Must be a constant.",
           "hint" : {
             "kind" : "constant"
           }
@@ -210,7 +210,7 @@
           "name" : "scale",
           "type" : "double",
           "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value.",
+          "description" : "Distance beyond `offset` at which the score equals `decay`. Must be a constant greater than 0.",
           "hint" : {
             "kind" : "constant"
           }
@@ -218,7 +218,7 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.', type=[double, integer, long, unsigned_long, time_duration, date_period, keyword, text]}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.', type=[double]}, {name='type', values=[], description='Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.', type=[keyword]}",
+          "mapParams" : "{name='offset', values=[], description='Distance from the origin within which the score is 1. Must not be negative. Defaults to 0.', type=[double, integer, long, unsigned_long, time_duration, date_period, keyword, text]}, {name='decay', values=[], description='Score at `scale` beyond `offset`. Must be greater than 0 and less than 1. Defaults to 0.5.', type=[double]}, {name='type', values=[], description='Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.', type=[keyword]}",
           "optional" : true,
           "description" : "(Optional) Additional options such as `decay`, `offset` and `type`."
         }
@@ -232,13 +232,13 @@
           "name" : "value",
           "type" : "geo_point",
           "optional" : false,
-          "description" : "The input value to apply decay scoring to."
+          "description" : "The value to score. A `null` value scores `null`, and a multivalued value scores `null` with a warning."
         },
         {
           "name" : "origin",
           "type" : "geo_point",
           "optional" : false,
-          "description" : "Central point from which the distances are calculated.",
+          "description" : "Central point from which the distances are calculated. Must be a constant.",
           "hint" : {
             "kind" : "constant"
           }
@@ -247,7 +247,7 @@
           "name" : "scale",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value.",
+          "description" : "Distance beyond `offset` at which the score equals `decay`. Must be a constant greater than 0.",
           "hint" : {
             "kind" : "constant"
           }
@@ -255,7 +255,7 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.', type=[double, integer, long, unsigned_long, time_duration, date_period, keyword, text]}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.', type=[double]}, {name='type', values=[], description='Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.', type=[keyword]}",
+          "mapParams" : "{name='offset', values=[], description='Distance from the origin within which the score is 1. Must not be negative. Defaults to 0.', type=[double, integer, long, unsigned_long, time_duration, date_period, keyword, text]}, {name='decay', values=[], description='Score at `scale` beyond `offset`. Must be greater than 0 and less than 1. Defaults to 0.5.', type=[double]}, {name='type', values=[], description='Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.', type=[keyword]}",
           "optional" : true,
           "description" : "(Optional) Additional options such as `decay`, `offset` and `type`."
         }
@@ -269,13 +269,13 @@
           "name" : "value",
           "type" : "geo_point",
           "optional" : false,
-          "description" : "The input value to apply decay scoring to."
+          "description" : "The value to score. A `null` value scores `null`, and a multivalued value scores `null` with a warning."
         },
         {
           "name" : "origin",
           "type" : "geo_point",
           "optional" : false,
-          "description" : "Central point from which the distances are calculated.",
+          "description" : "Central point from which the distances are calculated. Must be a constant.",
           "hint" : {
             "kind" : "constant"
           }
@@ -284,7 +284,7 @@
           "name" : "scale",
           "type" : "text",
           "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value.",
+          "description" : "Distance beyond `offset` at which the score equals `decay`. Must be a constant greater than 0.",
           "hint" : {
             "kind" : "constant"
           }
@@ -292,7 +292,7 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.', type=[double, integer, long, unsigned_long, time_duration, date_period, keyword, text]}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.', type=[double]}, {name='type', values=[], description='Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.', type=[keyword]}",
+          "mapParams" : "{name='offset', values=[], description='Distance from the origin within which the score is 1. Must not be negative. Defaults to 0.', type=[double, integer, long, unsigned_long, time_duration, date_period, keyword, text]}, {name='decay', values=[], description='Score at `scale` beyond `offset`. Must be greater than 0 and less than 1. Defaults to 0.5.', type=[double]}, {name='type', values=[], description='Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.', type=[keyword]}",
           "optional" : true,
           "description" : "(Optional) Additional options such as `decay`, `offset` and `type`."
         }
@@ -306,13 +306,13 @@
           "name" : "value",
           "type" : "integer",
           "optional" : false,
-          "description" : "The input value to apply decay scoring to."
+          "description" : "The value to score. A `null` value scores `null`, and a multivalued value scores `null` with a warning."
         },
         {
           "name" : "origin",
           "type" : "integer",
           "optional" : false,
-          "description" : "Central point from which the distances are calculated.",
+          "description" : "Central point from which the distances are calculated. Must be a constant.",
           "hint" : {
             "kind" : "constant"
           }
@@ -321,7 +321,7 @@
           "name" : "scale",
           "type" : "integer",
           "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value.",
+          "description" : "Distance beyond `offset` at which the score equals `decay`. Must be a constant greater than 0.",
           "hint" : {
             "kind" : "constant"
           }
@@ -329,7 +329,7 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.', type=[double, integer, long, unsigned_long, time_duration, date_period, keyword, text]}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.', type=[double]}, {name='type', values=[], description='Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.', type=[keyword]}",
+          "mapParams" : "{name='offset', values=[], description='Distance from the origin within which the score is 1. Must not be negative. Defaults to 0.', type=[double, integer, long, unsigned_long, time_duration, date_period, keyword, text]}, {name='decay', values=[], description='Score at `scale` beyond `offset`. Must be greater than 0 and less than 1. Defaults to 0.5.', type=[double]}, {name='type', values=[], description='Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.', type=[keyword]}",
           "optional" : true,
           "description" : "(Optional) Additional options such as `decay`, `offset` and `type`."
         }
@@ -343,13 +343,13 @@
           "name" : "value",
           "type" : "long",
           "optional" : false,
-          "description" : "The input value to apply decay scoring to."
+          "description" : "The value to score. A `null` value scores `null`, and a multivalued value scores `null` with a warning."
         },
         {
           "name" : "origin",
           "type" : "long",
           "optional" : false,
-          "description" : "Central point from which the distances are calculated.",
+          "description" : "Central point from which the distances are calculated. Must be a constant.",
           "hint" : {
             "kind" : "constant"
           }
@@ -358,7 +358,7 @@
           "name" : "scale",
           "type" : "long",
           "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value.",
+          "description" : "Distance beyond `offset` at which the score equals `decay`. Must be a constant greater than 0.",
           "hint" : {
             "kind" : "constant"
           }
@@ -366,7 +366,7 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.', type=[double, integer, long, unsigned_long, time_duration, date_period, keyword, text]}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.', type=[double]}, {name='type', values=[], description='Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.', type=[keyword]}",
+          "mapParams" : "{name='offset', values=[], description='Distance from the origin within which the score is 1. Must not be negative. Defaults to 0.', type=[double, integer, long, unsigned_long, time_duration, date_period, keyword, text]}, {name='decay', values=[], description='Score at `scale` beyond `offset`. Must be greater than 0 and less than 1. Defaults to 0.5.', type=[double]}, {name='type', values=[], description='Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.', type=[keyword]}",
           "optional" : true,
           "description" : "(Optional) Additional options such as `decay`, `offset` and `type`."
         }
@@ -380,13 +380,13 @@
           "name" : "value",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "The input value to apply decay scoring to."
+          "description" : "The value to score. A `null` value scores `null`, and a multivalued value scores `null` with a warning."
         },
         {
           "name" : "origin",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Central point from which the distances are calculated.",
+          "description" : "Central point from which the distances are calculated. Must be a constant.",
           "hint" : {
             "kind" : "constant"
           }
@@ -395,7 +395,7 @@
           "name" : "scale",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value.",
+          "description" : "Distance beyond `offset` at which the score equals `decay`. Must be a constant greater than 0.",
           "hint" : {
             "kind" : "constant"
           }
@@ -403,7 +403,7 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.', type=[double, integer, long, unsigned_long, time_duration, date_period, keyword, text]}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.', type=[double]}, {name='type', values=[], description='Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.', type=[keyword]}",
+          "mapParams" : "{name='offset', values=[], description='Distance from the origin within which the score is 1. Must not be negative. Defaults to 0.', type=[double, integer, long, unsigned_long, time_duration, date_period, keyword, text]}, {name='decay', values=[], description='Score at `scale` beyond `offset`. Must be greater than 0 and less than 1. Defaults to 0.5.', type=[double]}, {name='type', values=[], description='Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.', type=[keyword]}",
           "optional" : true,
           "description" : "(Optional) Additional options such as `decay`, `offset` and `type`."
         }
@@ -413,8 +413,9 @@
     }
   ],
   "examples" : [
-    "FROM employees\n| EVAL decay_result = decay(salary, 0, 100000, {\"offset\": 5, \"decay\": 0.5, \"type\": \"linear\"})\n| SORT decay_result DESC"
+    "FROM employees\n| EVAL decay_result = decay(salary, 0, 100000, {\"offset\": 5, \"decay\": 0.5, \"type\": \"linear\"})\n| SORT decay_result DESC",
+    "FROM books METADATA _score\n| WHERE MATCH(author, \"Faulkner\")\n| EVAL boosted = _score * COALESCE(DECAY(year, 2005, 1, {\"type\": \"exp\", \"decay\": 0.25}), 0.5)\n| SORT boosted DESC\n| KEEP book_no, author, year\n| LIMIT 2"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

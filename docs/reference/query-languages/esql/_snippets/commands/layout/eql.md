@@ -1,6 +1,6 @@
 ```yaml {applies_to}
-stack: preview
-serverless: preview
+stack: preview 9.7+
+serverless: unavailable
 ```
 
 ::::{warning}
@@ -15,7 +15,7 @@ columns that the rest of the query can filter, aggregate and reshape.
 ## Syntax
 
 ```esql
-EQL index_pattern [, index_pattern]* "<eql_query>" [METADATA fields] [WITH { "<option>": <value> [, ...] }]
+EQL index_pattern [, index_pattern]* "eql_query" [METADATA fields] [WITH { "<option>": <value> [, ...] }]
 ```
 
 ## Parameters
@@ -25,7 +25,7 @@ EQL index_pattern [, index_pattern]* "<eql_query>" [METADATA fields] [WITH { "<o
     directly after the command name — the same leading position `FROM` uses. Supports wildcards, date
     math and remote-cluster patterns (`<remote_cluster>:<target>`).
 
-`<eql_query>`
+`eql_query`
 :   The EQL query to run, as a string. Supports event queries, `sequence` queries and `sample` queries.
     See the [EQL syntax reference](/reference/query-languages/eql/eql-syntax.md).
 

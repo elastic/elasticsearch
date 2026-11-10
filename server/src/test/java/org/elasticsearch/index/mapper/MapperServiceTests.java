@@ -207,7 +207,10 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("parameter [multi_value] can only be used in columnar index modes"));
     }
 
-    /** An array of objects gives a field one value per object, so a {@code multi_value=false} field rejects it, for object and nested parents. */
+    /**
+     * An array of objects gives a field one value per object, so a {@code multi_value=false} field rejects it, for object and nested
+     * parents.
+     */
     public void testMultiValueFalseRejectsArrayOfObjects() throws IOException {
         Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         for (String parentType : List.of("object", "nested")) {

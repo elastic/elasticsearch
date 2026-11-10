@@ -18,25 +18,29 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
-public class TimeSeriesPathErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+public class TimeSeriesMetadataSetErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
-        return paramsToSuppliers(TimeSeriesPathTests.parameters());
+        return paramsToSuppliers(TimeSeriesMetadataSetTests.parameters());
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new TimeSeriesPath(source, args.get(0), args.get(1));
+        return new TimeSeriesMetadataSet(source, args.get(0), args.get(1), args.get(2));
     }
 
     @Override
     protected Stream<List<DataType>> testCandidates(List<TestCaseSupplier> cases, Set<List<DataType>> valid) {
-        // A null label container is the empty one, so only the label can be wrong there; the label rules have their own test.
-        return super.testCandidates(cases, valid).filter(types -> types.getFirst() != DataType.NULL);
+        // A null label container is the empty one and a null value removes the label; the label rules have their own test.
+        return super.testCandidates(cases, valid).filter(
+            types -> types.get(0) != DataType.NULL && types.get(1) == DataType.KEYWORD && types.get(2) != DataType.NULL
+        );
     }
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return typeErrorMessage(signature, 0, "_timeseries");
+        return signature.getFirst() == DataType.TSMD_DATA_TYPE
+            ? typeErrorMessage(signature, 2, "string")
+            : typeErrorMessage(signature, 0, "_timeseries");
     }
 }

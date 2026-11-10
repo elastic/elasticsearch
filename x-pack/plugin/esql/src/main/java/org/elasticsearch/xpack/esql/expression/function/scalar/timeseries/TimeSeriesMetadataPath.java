@@ -10,28 +10,29 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.timeseries;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.stream.Stream;
 
-/** Keeps only the requested labels; keeping an absent label adds nothing. */
-public final class TimeSeriesKeep extends AbstractTimeSeriesFunction {
+/** Reads a label; an absent label returns null. */
+public final class TimeSeriesMetadataPath extends AbstractTimeSeriesMetadataFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "TimeSeriesKeep",
-        TimeSeriesKeep::new
+        "TimeSeriesMetadataPath",
+        TimeSeriesMetadataPath::new
     );
 
-    public TimeSeriesKeep(Source source, Expression labelContainer, List<Expression> labels) {
-        super(source, Stream.concat(Stream.of(labelContainer), labels.stream()).toList());
+    public TimeSeriesMetadataPath(Source source, Expression labelContainer, Expression label) {
+        super(source, List.of(labelContainer, label));
     }
 
-    private TimeSeriesKeep(StreamInput in) throws IOException {
+    private TimeSeriesMetadataPath(StreamInput in) throws IOException {
         super(in);
     }
 
@@ -42,32 +43,31 @@ public final class TimeSeriesKeep extends AbstractTimeSeriesFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.TSMD_DATA_TYPE;
+        return DataType.KEYWORD;
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return TimeSeriesEvaluator.factory(TimeSeriesEvaluator.Operation.KEEP, children(), toEvaluator);
+        return TimeSeriesMetadataFunctionEvaluator.factory(TimeSeriesMetadataFunctionEvaluator.Operation.GET, children(), toEvaluator);
     }
 
     @Override
     protected TypeResolution resolveArguments() {
-        for (int i = 1; i < children().size(); i++) {
-            TypeResolution resolution = labelName(i);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-        }
-        return TypeResolution.TYPE_RESOLVED;
+        return labelName(1);
     }
 
     @Override
-    public TimeSeriesKeep replaceChildren(List<Expression> children) {
-        return new TimeSeriesKeep(source(), children.getFirst(), children.subList(1, children.size()));
+    public Nullability nullable() {
+        return Nullability.TRUE;
     }
 
     @Override
-    protected NodeInfo<TimeSeriesKeep> info() {
-        return NodeInfo.create(this, TimeSeriesKeep::new, labelContainer(), children().subList(1, children().size()));
+    public TimeSeriesMetadataPath replaceChildren(List<Expression> children) {
+        return new TimeSeriesMetadataPath(source(), children.get(0), children.get(1));
+    }
+
+    @Override
+    protected NodeInfo<TimeSeriesMetadataPath> info() {
+        return NodeInfo.create(this, TimeSeriesMetadataPath::new, children().get(0), children().get(1));
     }
 }

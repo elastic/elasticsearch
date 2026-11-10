@@ -31,8 +31,8 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TimeSeriesTransformTests extends AbstractScalarFunctionTestCase {
-    public TimeSeriesTransformTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class TimeSeriesMetadataFilterExcludeTests extends AbstractScalarFunctionTestCase {
+    public TimeSeriesMetadataFilterExcludeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -57,9 +57,9 @@ public class TimeSeriesTransformTests extends AbstractScalarFunctionTestCase {
         suppliers.add(
             remove(
                 "escaped name and value",
-                "{\"job\":\"api\",\"label\\\"\\\\\":\"value\\\"\\\\\\nλ😀\"}",
+                "{\"job\":\"api\",\"label\\\"\\\\\":\"value\\\"\\\\\\n\u03bb\ud83d\ude00\"}",
                 List.of("job"),
-                "{\"label\\\"\\\\\":\"value\\\"\\\\\\nλ😀\"}"
+                "{\"label\\\"\\\\\":\"value\\\"\\\\\\n\u03bb\ud83d\ude00\"}"
             )
         );
         return parameterSuppliersFromTypedData(suppliers);
@@ -73,14 +73,16 @@ public class TimeSeriesTransformTests extends AbstractScalarFunctionTestCase {
             List<TestCaseSupplier.TypedData> data = new ArrayList<>();
             data.add(new TestCaseSupplier.TypedData(new BytesRef(labelContainer), DataType.TSMD_DATA_TYPE, "labelContainer"));
             labels.forEach(label -> data.add(new TestCaseSupplier.TypedData(new BytesRef(label), DataType.KEYWORD, label).forceLiteral()));
-            String evaluator = "TimeSeriesEvaluator[operation=UNSET, names=" + labels + ", labelContainer=Attribute[channel=0]]";
+            String evaluator = "TimeSeriesMetadataFunctionEvaluator[operation=DROP, names="
+                + labels
+                + ", labelContainer=Attribute[channel=0]]";
             return new TestCaseSupplier.TestCase(data, evaluator, DataType.TSMD_DATA_TYPE, equalTo(new BytesRef(expected)));
         });
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new TimeSeriesTransform(source, args.getFirst(), args.subList(1, args.size()));
+        return new TimeSeriesMetadataFilter(source, args.getFirst(), args.subList(1, args.size()), true);
     }
 
     /** A missing label container is the empty one, so removing labels from it leaves it empty rather than null. */
@@ -98,17 +100,23 @@ public class TimeSeriesTransformTests extends AbstractScalarFunctionTestCase {
             Literal.NULL,
             field("label", DataType.KEYWORD)
         )) {
-            var transform = new TimeSeriesTransform(Source.EMPTY, labelContainer, List.of(Literal.keyword(Source.EMPTY, "pod"), label));
+            var transform = new TimeSeriesMetadataFilter(
+                Source.EMPTY,
+                labelContainer,
+                List.of(Literal.keyword(Source.EMPTY, "pod"), label),
+                true
+            );
             assertTrue(label.toString(), transform.typeResolved().unresolved());
         }
     }
 
     /** Only a typed label container can be rewritten: its keyword form is not one. */
     public void testLabelContainerMustBeTyped() {
-        var transform = new TimeSeriesTransform(
+        var transform = new TimeSeriesMetadataFilter(
             Source.EMPTY,
             field("labelContainer", DataType.KEYWORD),
-            List.of(Literal.keyword(Source.EMPTY, "pod"))
+            List.of(Literal.keyword(Source.EMPTY, "pod")),
+            true
         );
         assertThat(transform.typeResolved().message(), containsString("_timeseries"));
     }
@@ -127,10 +135,11 @@ public class TimeSeriesTransformTests extends AbstractScalarFunctionTestCase {
     }
 
     private void remove(Object labelContainer) {
-        var transform = new TimeSeriesTransform(
+        var transform = new TimeSeriesMetadataFilter(
             Source.EMPTY,
             field("labelContainer", DataType.TSMD_DATA_TYPE),
-            List.of(Literal.keyword(Source.EMPTY, "pod"))
+            List.of(Literal.keyword(Source.EMPTY, "pod")),
+            true
         );
         try (
             ExpressionEvaluator eval = evaluator(transform).get(driverContext());

@@ -161,12 +161,16 @@ public class FieldArrayContext {
                 BytesRef encoded = encodeOffsetArray(offsets);
                 if (encoded.length <= IndexWriter.MAX_TERM_LENGTH) {
                     doc.add(new SortedDocValuesField(entry.getKey(), encoded));
-                } else {
+                } else if (offsets instanceof SortedOffsets sorted) {
                     // Lucene rejects sorted doc values larger than MAX_TERM_LENGTH, and the encoding takes 1-5 bytes per array
                     // slot, so a very large leaf array can exceed the limit. Rather than failing the whole document, keep the
                     // array in _ignored_source when possible; otherwise reject the document with a clearer and earlier error
                     // than the one Lucene would produce at indexing time.
-                    storeArrayInIgnoredSource(context, doc, entry.getKey(), offsets, encoded.length);
+                    storeArrayInIgnoredSource(context, doc, entry.getKey(), sorted, encoded.length);
+                } else {
+                    // Offsets in document order don't keep the values, so the array can't be rebuilt for _ignored_source. Reject the
+                    // document with a clearer and earlier error than the one Lucene would produce at indexing time.
+                    throw new IllegalArgumentException(oversizedOffsetsMessage(entry.getKey(), encoded.length));
                 }
             }
         }
@@ -186,24 +190,20 @@ public class FieldArrayContext {
         DocumentParserContext context,
         LuceneDocument doc,
         String offsetsFieldName,
-        Offsets offsets,
+        SortedOffsets offsets,
         int encodedSize
     ) throws IOException {
-        // Only offsets sorted by value keep the values themselves, which the array is rebuilt from.
-        if (offsets instanceof SortedOffsets == false
-            || ((SortedOffsets) offsets).fallbackWriter == null
-            || context.canAddIgnoredField() == false) {
+        CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> fallbackWriter = offsets.fallbackWriter;
+        if (fallbackWriter == null || context.canAddIgnoredField() == false) {
             // Either the recording mapper registered no way to rebuild the recorded values, or _ignored_source is unavailable
             // (strict columnar mode or ignored source writes disabled).
             throw new IllegalArgumentException(
                 oversizedOffsetsMessage(offsetsFieldName, encodedSize) + " and the array cannot be preserved in [_ignored_source]"
             );
         }
-        SortedOffsets sorted = (SortedOffsets) offsets;
-        CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> fallbackWriter = sorted.fallbackWriter;
         assert offsetsFieldName.endsWith(OFFSETS_FIELD_NAME_SUFFIX) : offsetsFieldName;
         String fieldName = offsetsFieldName.substring(0, offsetsFieldName.length() - OFFSETS_FIELD_NAME_SUFFIX.length());
-        List<SortedOffsets.IgnoredValue> ignoredValues = sorted.ignoredValues();
+        List<SortedOffsets.IgnoredValue> ignoredValues = offsets.ignoredValues();
         if (ignoredValues.isEmpty() && context.isFieldIgnored(fieldName)) {
             // Some values of this field were not indexed (e.g. ignore_above or ignore_malformed), but the mapper did not record
             // them here. They live in field-specific fallback storage that the _ignored_source entry would suppress at load
@@ -217,9 +217,9 @@ public class FieldArrayContext {
         }
         // Force inline single-value state to materialize, mirroring encodeOffsetArray. In practice an array large enough to get
         // here is always recording already.
-        sorted.startRecording();
-        Comparable<?>[] slotValues = new Comparable<?>[sorted.currentOffset()];
-        for (var valueEntry : sorted.valueToOffsets.entrySet()) {
+        offsets.startRecording();
+        Comparable<?>[] slotValues = new Comparable<?>[offsets.currentOffset()];
+        for (var valueEntry : offsets.valueToOffsets.entrySet()) {
             for (int slot : valueEntry.getValue()) {
                 slotValues[slot] = valueEntry.getKey();
             }

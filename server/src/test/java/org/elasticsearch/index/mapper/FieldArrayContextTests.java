@@ -26,6 +26,8 @@ import java.util.Map;
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 import static org.elasticsearch.index.mapper.FieldArrayContext.parseOffsetArray;
 import static org.elasticsearch.index.mapper.FieldArrayContext.shouldRecordOffsets;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class FieldArrayContextTests extends ESTestCase {
 
@@ -97,6 +99,20 @@ public class FieldArrayContextTests extends ESTestCase {
         context.addToLuceneDocument(parserContext);
 
         assertNull(parserContext.doc().getField("field"));
+    }
+
+    /** Offsets in document order don't keep the values, so an array too large for them can't move to _ignored_source. */
+    public void testOversizedOffsetsInDocOrderAreRejected() {
+        var context = new FieldArrayContext();
+        var offsets = context.docOrderOffsets("field.offsets");
+        offsets.recordNull();
+        for (int i = 0; i < 20_000; i++) {
+            offsets.recordValue();
+        }
+
+        var e = expectThrows(IllegalArgumentException.class, () -> context.addToLuceneDocument(strictColumnarParserContext()));
+        assertThat(e.getMessage(), containsString("encoded offsets of field [field.offsets] are too large to store"));
+        assertThat(e.getMessage(), not(containsString("_ignored_source")));
     }
 
     public void testOnlyNullsInDocOrder() throws IOException {

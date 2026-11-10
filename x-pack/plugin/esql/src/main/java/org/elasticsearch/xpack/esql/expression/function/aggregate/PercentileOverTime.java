@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.util.List;
@@ -37,7 +38,8 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction
         SurrogateExpression,
         TimestampAware,
         ToAggregator,
-        AnyNullIsNull {
+        AnyNullIsNull,
+        UnitAware.PreservesUnit {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(PercentileOverTime.class)
         .ternary(PercentileOverTime::new)
         .name("percentile_over_time");

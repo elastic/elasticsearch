@@ -85,7 +85,8 @@ public class PreAnalyzer {
                 needsAnalyzerGroups,
                 true,
                 externalSourcePaths,
-                inferenceIds
+                inferenceIds,
+                eqlPatterns
             );
         }
 

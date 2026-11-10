@@ -82,6 +82,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.SHARD_READ_THREAD_POOL;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -355,7 +356,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                             bytesReadFromObjectStore -> {},
                             bytesReadFromIndexing -> {},
                             BlobCacheMetrics.CachePopulationReason.CacheMiss,
-                            threadPool.executor(StatelessThreadPools.SHARD_READ_THREAD_POOL),
+                            threadPool.executor(SHARD_READ_THREAD_POOL),
                             "fileName",
                             false
                         ),
@@ -561,7 +562,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                 var stats = node.threadPool.stats()
                     .stats()
                     .stream()
-                    .filter((s) -> s.name().equals(StatelessThreadPools.SHARD_READ_THREAD_POOL))
+                    .filter((s) -> s.name().equals(SHARD_READ_THREAD_POOL))
                     .findFirst()
                     .get();
                 assertThat(stats.active(), equalTo(0));

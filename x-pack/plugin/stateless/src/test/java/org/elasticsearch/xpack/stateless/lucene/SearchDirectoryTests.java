@@ -441,7 +441,8 @@ public class SearchDirectoryTests extends ESTestCase {
 
             {
                 searchDirectory.retainFiles(Set.of());
-                List<BlobLocation> blobLocations = createBlobLocations("blob1", 5);
+                final String blobName = BatchedCompoundCommit.blobNameFromGeneration(1);
+                List<BlobLocation> blobLocations = createBlobLocations(blobName, 5);
                 searchDirectory.updateCommit(
                     createCommit(
                         searchDirectory.shardId,
@@ -459,7 +460,7 @@ public class SearchDirectoryTests extends ESTestCase {
                 Collection<BlobFileRanges> blobFilesAndHighesRanges = searchDirectory.getHighestOffsetSegmentInfos();
                 assertEquals(1, blobFilesAndHighesRanges.size());
                 BlobFileRanges range = blobFilesAndHighesRanges.iterator().next();
-                assertEquals("blob1", range.blobName());
+                assertEquals(blobName, range.blobName());
                 assertEquals(blobLocations.getLast().offset(), range.blobLocation().offset());
             }
 
@@ -469,7 +470,7 @@ public class SearchDirectoryTests extends ESTestCase {
 
                 int numBlobs = randomIntBetween(2, 10);
                 for (int i = 0; i < numBlobs; i++) {
-                    String blobName = "blob_" + i;
+                    String blobName = BatchedCompoundCommit.blobNameFromGeneration(i + 1);
                     List<BlobLocation> blobLocations = createBlobLocations(blobName, 5);
                     expectedLocations.put(blobName, blobLocations.getFirst());
                     searchDirectory.updateCommit(
@@ -1371,7 +1372,8 @@ public class SearchDirectoryTests extends ESTestCase {
         int offset = randomIntBetween(0, 500);  // model some initial offset in the File
         int length = randomIntBetween(10, 200);  // some small file length initially
         for (int i = 0; i < n; i++) {
-            locations.add(new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1, -1)), offset, length));
+            var termAndGeneration = new PrimaryTermAndGeneration(1, BatchedCompoundCommit.parseGenerationFromBlobName(blobName));
+            locations.add(new BlobLocation(new BlobFile(blobName, termAndGeneration), offset, length));
             offset += length;
             // randomly increase next file length a bit
             length += randomIntBetween(50, 200);

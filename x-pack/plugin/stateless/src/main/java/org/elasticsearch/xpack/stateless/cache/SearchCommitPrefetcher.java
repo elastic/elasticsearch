@@ -44,6 +44,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.PREWARM_THREAD_POOL;
 
 /**
  * Prefetches segment files from {@link BatchedCompoundCommit}
@@ -609,7 +610,7 @@ public class SearchCommitPrefetcher {
             this.throttledFetchExecutor = new ThrottledTaskRunner(
                 PrefetchExecutor.class.getCanonicalName(),
                 // Leave room for the recovery and online pre-warming to make progress
-                threadPool.info(StatelessThreadPools.PREWARM_THREAD_POOL).getMax() / 2 + 1,
+                threadPool.info(PREWARM_THREAD_POOL).getMax() / 2 + 1,
                 threadPool.executor(StatelessThreadPools.PREWARM_THREAD_POOL)
             );
         }

@@ -16,9 +16,11 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 
 import java.util.concurrent.Executor;
+
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.PREWARM_THREAD_POOL;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.SHARD_READ_THREAD_POOL;
 
 /**
  * Executor that limits concurrent BCC header reads to avoid memory exhaustion when processing referenced BCCs during
@@ -53,8 +55,8 @@ public class BCCHeaderReadExecutor implements Executor {
     static int maxConcurrency(Settings settings, ThreadPool threadPool) {
         return maxConcurrency(
             MAX_CONCURRENCY_SETTING.get(settings),
-            threadPool.info(StatelessThreadPools.PREWARM_THREAD_POOL).getMax(),
-            threadPool.info(StatelessThreadPools.SHARD_READ_THREAD_POOL).getMax()
+            threadPool.info(PREWARM_THREAD_POOL).getMax(),
+            threadPool.info(SHARD_READ_THREAD_POOL).getMax()
         );
     }
 

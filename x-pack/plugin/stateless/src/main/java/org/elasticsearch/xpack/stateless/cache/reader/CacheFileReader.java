@@ -46,6 +46,7 @@ import java.util.function.LongSupplier;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.threadpool.ThreadPool.Names.SEARCH;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL;
 
 /**
  * Used by {@link BlobCacheIndexInput} to read data from the cache using a given {@link StatelessSharedBlobCacheService.CacheFile} instance.
@@ -513,8 +514,7 @@ public class CacheFileReader {
         String executorName = EsExecutors.executorName(Thread.currentThread());
 
         if (executorName != null
-            && (executorName.equals(SEARCH)
-                || executorName.equals(StatelessThreadPools.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL))) {
+            && (executorName.equals(SEARCH) || executorName.equals(GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL))) {
             long start = relativeTimeInMillisSupplier.getAsLong();
             doRead(initiator, b, blobFileRanges.getPosition(position, length), length, endOfInput, resourceDescription);
             blobCacheMetrics.getSearchOriginDownloadTime()

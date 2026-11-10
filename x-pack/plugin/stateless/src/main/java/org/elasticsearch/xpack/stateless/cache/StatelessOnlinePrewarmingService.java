@@ -38,6 +38,8 @@ import static org.apache.logging.log4j.Level.DEBUG;
 import static org.apache.logging.log4j.Level.INFO;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.PREWARM_THREAD_POOL;
 
 /**
  * {@link OnlinePrewarmingService} implementation specific to our stateless search nodes. This aims to prewarm all the segments of the
@@ -97,8 +99,8 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
         // leave a few threads available for the blob cache warming that happens on shard recovery
         this.throttledTaskRunner = new ThrottledTaskRunner(
             "online-prewarming",
-            threadPool.info(StatelessThreadPools.PREWARM_THREAD_POOL).getMax() / 2 + 1,
-            threadPool.executor(StatelessThreadPools.PREWARM_THREAD_POOL)
+            threadPool.info(PREWARM_THREAD_POOL).getMax() / 2 + 1,
+            threadPool.executor(PREWARM_THREAD_POOL)
         );
         shardTookDurationMillisHistogram = meterRegistry.registerLongHistogram(
             SHARD_TOOK_DURATION_HISTOGRAM_NAME,
@@ -216,8 +218,8 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
                                 // Can be executed on different thread pool depending whether we read from
                                 // the SharedBlobCacheWarmingService (PREWARM_THREAD_POOL pool) or the IndexingShardCacheBlobReader (VBCC
                                 // pool)
-                                StatelessThreadPools.PREWARM_THREAD_POOL,
-                                StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                                PREWARM_THREAD_POOL,
+                                FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
                             )
                         ),
                         fetchRangeRunnable -> throttledTaskRunner.enqueueTask(new ActionListener<>() {

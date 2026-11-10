@@ -5,14 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.stateless;/*
-                                          * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-                                          * or more contributor license agreements. Licensed under the "Elastic License
-                                          * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
-                                          * Public License v 1"; you may not use this file except in compliance with, at
-                                          * your election, the "Elastic License 2.0", the "GNU Affero General Public
-                                          * License v3.0 only", or the "Server Side Public License, v 1".
-                                          */
+package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -74,6 +67,104 @@ public class StatelessThreadPools {
         public int expectedBlobStoreConcurrency() {
             return shardReadMaxThreads + translogMaxThreads + shardWriteMaxThreads + clusterStateReadWriteMaxThreads + prewarmMaxThreads
                 + blobCopyMaxThreads;
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        public static class Builder {
+            private int shardReadMaxThreads;
+            private int translogCoreThreads;
+            private int translogMaxThreads;
+            private int shardWriteCoreThreads;
+            private int shardWriteMaxThreads;
+            private int clusterStateReadWriteCoreThreads;
+            private int clusterStateReadWriteMaxThreads;
+            private int getVirtualBatchedCompoundCommitChunkCoreThreads;
+            private int getVirtualBatchedCompoundCommitChunkMaxThreads;
+            private int fillVirtualBatchedCompoundCommitCacheCoreThreads;
+            private int fillVirtualBatchedCompoundCommitCacheMaxThreads;
+            private int prewarmMaxThreads;
+            private int uploadPrewarmCoreThreads;
+            private int uploadPrewarmMaxThreads;
+            private int blobCopyCoreThreads;
+            private int blobCopyMaxThreads;
+
+            private Builder() {}
+
+            public Builder shardReadMaxThreads(int maxThreads) {
+                this.shardReadMaxThreads = maxThreads;
+                return this;
+            }
+
+            public Builder translogThreads(int coreThreads, int maxThreads) {
+                this.translogCoreThreads = coreThreads;
+                this.translogMaxThreads = maxThreads;
+                return this;
+            }
+
+            public Builder shardWriteThreads(int coreThreads, int maxThreads) {
+                this.shardWriteCoreThreads = coreThreads;
+                this.shardWriteMaxThreads = maxThreads;
+                return this;
+            }
+
+            public Builder clusterStateReadWriteThreads(int coreThreads, int maxThreads) {
+                this.clusterStateReadWriteCoreThreads = coreThreads;
+                this.clusterStateReadWriteMaxThreads = maxThreads;
+                return this;
+            }
+
+            public Builder getVirtualBatchedCompoundCommitChunkThreads(int coreThreads, int maxThreads) {
+                this.getVirtualBatchedCompoundCommitChunkCoreThreads = coreThreads;
+                this.getVirtualBatchedCompoundCommitChunkMaxThreads = maxThreads;
+                return this;
+            }
+
+            public Builder fillVirtualBatchedCompoundCommitCacheThreads(int coreThreads, int maxThreads) {
+                this.fillVirtualBatchedCompoundCommitCacheCoreThreads = coreThreads;
+                this.fillVirtualBatchedCompoundCommitCacheMaxThreads = maxThreads;
+                return this;
+            }
+
+            public Builder prewarmMaxThreads(int maxThreads) {
+                this.prewarmMaxThreads = maxThreads;
+                return this;
+            }
+
+            public Builder uploadPrewarmThreads(int coreThreads, int maxThreads) {
+                this.uploadPrewarmCoreThreads = coreThreads;
+                this.uploadPrewarmMaxThreads = maxThreads;
+                return this;
+            }
+
+            public Builder blobCopyThreads(int coreThreads, int maxThreads) {
+                this.blobCopyCoreThreads = coreThreads;
+                this.blobCopyMaxThreads = maxThreads;
+                return this;
+            }
+
+            public ThreadPoolConfig build() {
+                return new ThreadPoolConfig(
+                    shardReadMaxThreads,
+                    translogCoreThreads,
+                    translogMaxThreads,
+                    shardWriteCoreThreads,
+                    shardWriteMaxThreads,
+                    clusterStateReadWriteCoreThreads,
+                    clusterStateReadWriteMaxThreads,
+                    getVirtualBatchedCompoundCommitChunkCoreThreads,
+                    getVirtualBatchedCompoundCommitChunkMaxThreads,
+                    fillVirtualBatchedCompoundCommitCacheCoreThreads,
+                    fillVirtualBatchedCompoundCommitCacheMaxThreads,
+                    prewarmMaxThreads,
+                    uploadPrewarmCoreThreads,
+                    uploadPrewarmMaxThreads,
+                    blobCopyCoreThreads,
+                    blobCopyMaxThreads
+                );
+            }
         }
     }
 

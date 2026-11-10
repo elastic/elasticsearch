@@ -1,0 +1,5 @@
+area: Infra/Entitlements
+issues: []
+pr: 165320
+summary: "Entitlements: delegate checks to caller or creator"
+type: enhancement

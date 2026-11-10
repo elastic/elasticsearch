@@ -431,30 +431,6 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
 
         BinaryOp binaryOperator = binaryOp(ctx.op);
 
-        // Handle scalar folding once validation passes
-        if (le instanceof LiteralSelector leftSel && re instanceof LiteralSelector rightSel) {
-            Literal leftLiteral = leftSel.literal();
-            Literal rightLiteral = rightSel.literal();
-
-            // Extract values
-            Object leftValue = leftLiteral.value();
-            Object rightValue = rightLiteral.value();
-
-            // arithmetics
-            if (binaryOperator instanceof ArithmeticOp arithmeticOp) {
-                Object result = PromqlFoldingUtils.evaluate(source, leftValue, rightValue, arithmeticOp);
-                DataType resultType = determineResultType(result);
-                return new LiteralSelector(source, new Literal(source, result, resultType));
-            }
-
-            // With the bool modifier, scalar-scalar comparisons fold to 0 or 1.
-            // Without it, fall through to the general case so postAnalysisVerification can reject it.
-            if (binaryOperator instanceof ComparisonOp compOp && bool) {
-                int result = PromqlFoldingUtils.evaluate(source, leftValue, rightValue, compOp) ? 1 : 0;
-                return new LiteralSelector(source, Literal.integer(source, result));
-            }
-        }
-
         VectorMatch modifier = VectorMatch.NONE;
 
         PromqlBaseParser.ModifierContext modifierCtx = ctx.modifier();
@@ -491,6 +467,39 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             }
 
             modifier = new VectorMatch(filter, new LinkedHashSet<>(filterList), joining, new LinkedHashSet<>(groupingList));
+        }
+
+        if (modifier != VectorMatch.NONE
+            && (PromqlPlan.getType(le) == PromqlDataType.SCALAR || PromqlPlan.getType(re) == PromqlDataType.SCALAR)) {
+            if (modifier.filterLabels().isEmpty() == false) {
+                throw new ParsingException(source, "Vector matching only allowed between instant vectors");
+            }
+            // Prometheus discards matching with an empty matching-label list for scalar operands.
+            modifier = VectorMatch.NONE;
+        }
+
+        // Handle scalar folding once validation passes
+        if (le instanceof LiteralSelector leftSel && re instanceof LiteralSelector rightSel) {
+            Literal leftLiteral = leftSel.literal();
+            Literal rightLiteral = rightSel.literal();
+
+            // Extract values
+            Object leftValue = leftLiteral.value();
+            Object rightValue = rightLiteral.value();
+
+            // arithmetics
+            if (binaryOperator instanceof ArithmeticOp arithmeticOp) {
+                Object result = PromqlFoldingUtils.evaluate(source, leftValue, rightValue, arithmeticOp);
+                DataType resultType = determineResultType(result);
+                return new LiteralSelector(source, new Literal(source, result, resultType));
+            }
+
+            // With the bool modifier, scalar-scalar comparisons fold to 0 or 1.
+            // Without it, fall through to the general case so postAnalysisVerification can reject it.
+            if (binaryOperator instanceof ComparisonOp compOp && bool) {
+                int result = PromqlFoldingUtils.evaluate(source, leftValue, rightValue, compOp) ? 1 : 0;
+                return new LiteralSelector(source, Literal.integer(source, result));
+            }
         }
 
         return switch (binaryOperator) {

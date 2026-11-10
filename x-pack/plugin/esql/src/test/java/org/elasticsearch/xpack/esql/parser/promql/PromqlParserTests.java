@@ -1015,10 +1015,51 @@ public class PromqlParserTests extends ESTestCase {
         PromqlParser parser = new PromqlParser();
         for (String grouping : List.of("group_left", "group_right")) {
             for (String matching : List.of("on(instance)", "on(instance,job)")) {
-                for (String operands : List.of("foo + %s bar")) {
+                for (String operands : List.of("foo + %s bar", "1 + %s 2", "(1 + 2) == bool %s 3")) {
                     String query = String.format(Locale.ROOT, operands, matching + " " + grouping + "(instance)");
                     ParsingException e = expectThrows(ParsingException.class, () -> parser.createStatement(query));
                     assertThat(e.getErrorMessage(), containsString("must not occur in ON and GROUP clause at once"));
+                }
+            }
+        }
+    }
+
+    /** Named matching labels require two instant vectors, including scalars returned by unresolved function calls. */
+    public void testNonEmptyMatchingLabelsRejectScalarOperands() {
+        PromqlParser parser = new PromqlParser();
+        for (String matching : List.of("on(instance)", "ignoring(instance)")) {
+            for (String grouping : List.of("", " group_left(extra)", " group_right(extra)")) {
+                for (String operands : List.of(
+                    "1 + %s 2",
+                    "foo + %s 2",
+                    "1 + %s foo",
+                    "scalar(foo) + %s bar",
+                    "foo + %s scalar(bar)",
+                    "(scalar(foo) + scalar(bar)) + %s baz",
+                    "1 == bool %s 2"
+                )) {
+                    String query = String.format(Locale.ROOT, operands, matching + grouping);
+                    ParsingException e = expectThrows(ParsingException.class, () -> parser.createStatement(query));
+                    assertThat(e.getErrorMessage(), containsString("Vector matching only allowed between instant vectors"));
+                }
+            }
+        }
+    }
+
+    /** Prometheus discards matching with no matching labels for scalars, even when group labels are present. */
+    public void testEmptyMatchingLabelsPreserveScalarFolding() {
+        PromqlParser parser = new PromqlParser();
+        for (String matching : List.of("on()", "ignoring()")) {
+            for (String grouping : List.of("", " group_left()", " group_right()", " group_left(extra)", " group_right(extra)")) {
+                String modifier = matching + grouping;
+                LiteralSelector arithmetic = as(parser.createStatement("1 + " + modifier + " 2"), LiteralSelector.class);
+                assertThat(arithmetic.literal().value(), equalTo(3.0));
+                LiteralSelector comparison = as(parser.createStatement("1 < bool " + modifier + " 2"), LiteralSelector.class);
+                assertThat(comparison.literal().value(), equalTo(1));
+                for (String operands : List.of("foo + %s 2", "1 + %s foo", "scalar(foo) + %s bar")) {
+                    String query = String.format(Locale.ROOT, operands, modifier);
+                    VectorBinaryArithmetic binary = as(parser.createStatement(query), VectorBinaryArithmetic.class);
+                    assertSame(VectorMatch.NONE, binary.match());
                 }
             }
         }

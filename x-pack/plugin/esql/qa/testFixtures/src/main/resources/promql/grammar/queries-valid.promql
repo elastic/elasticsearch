@@ -95,6 +95,8 @@ foo * on(bar) group_left() (baz);
 foo * on(bar) group_right() (baz);
 foo * on(bar) group_left(baz) +qux;
 foo * on(bar) group_right(baz) -qux;
+1 + on() 2;
+1 < bool ignoring() group_right(extra) 2;
 
 //
 // evaluation

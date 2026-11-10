@@ -566,3 +566,8 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
   method: test {csv-spec:tdigest.count with bucket only in TS}
   issue: https://github.com/elastic/elasticsearch/issues/165290
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecTdigestIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
+  method: test {csv-spec:tdigest.count with bucket and instance in TS}
+  issue: https://github.com/elastic/elasticsearch/issues/165292

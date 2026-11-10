@@ -4726,11 +4726,9 @@ public class EsqlCapabilities {
 
         /**
          * Table functions in a {@code FROM} source list — {@code FROM foo, bar*, SOMEFUNC(a_name, {...})}. This
-         * is the facility; which functions exist is a separate capability each, emitted per registered function
-         * as {@code table_fn_<name>}. Snapshot-only: the {@code tableFunction} parser rule in
-         * {@code EsqlBaseParser.g4} carries {@code isDevVersion()}, which is what decides whether the syntax parses
-         * at all, and this capability mirrors it so a test only runs where it does.
-
+         * is the facility, and nothing here says which functions exist. Snapshot-only: the {@code tableFunction}
+         * parser rule in {@code EsqlBaseParser.g4} carries {@code isDevVersion()}, which is what decides whether
+         * the syntax parses at all, and this capability mirrors it so a test only runs where it does.
          */
         FROM_TABLE_FUNCTION(Build.current().isSnapshot()),
 

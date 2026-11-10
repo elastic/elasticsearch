@@ -80,8 +80,8 @@ public class TableFunctionSignatureTests extends ESTestCase {
     }
 
     /**
-     * The three declaration guards, each a shape no call could satisfy. Thrown rather than asserted, so these
-     * hold in production, which is the only place a mis-declared function would otherwise surface.
+     * The one declaration guard, a shape no call could satisfy. Thrown rather than asserted, so it holds in
+     * production, which is the only place a mis-declared function would otherwise surface.
      */
     public void testARequiredArgumentCannotFollowAnOptionalOne() {
         IllegalStateException e = expectThrows(

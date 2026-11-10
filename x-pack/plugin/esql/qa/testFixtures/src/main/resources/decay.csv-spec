@@ -595,3 +595,25 @@ ROW value = TO_DATETIME(9223372036854775807)
 decay_result:double
 0.0
 ;
+
+datetimeDistanceAboveLongRangeWithLargeOffset
+required_capability: fn_decay_ga_fixes
+
+ROW value = TO_DATETIME(9223372036854775807)
+| EVAL decay_result = decay(value, TO_DATETIME(-9223372036854775807), 24 hours, {"offset": 9223372036854775807 milliseconds})
+| KEEP decay_result;
+
+decay_result:double
+0.0
+;
+
+datetimeDistanceAboveLongRangeWithLargeScale
+required_capability: fn_decay_ga_fixes
+
+ROW value = TO_DATETIME(9223372036854775807)
+| EVAL decay_result = decay(value, TO_DATETIME(-9223372036854775807), 9223372036854775807 milliseconds)
+| KEEP decay_result;
+
+decay_result:double
+0.0
+;

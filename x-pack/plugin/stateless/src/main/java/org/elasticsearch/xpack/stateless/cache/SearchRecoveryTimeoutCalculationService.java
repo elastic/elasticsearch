@@ -48,9 +48,10 @@ public class SearchRecoveryTimeoutCalculationService {
         SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_timeout_reevaluation";
 
     /// When true, drain-path search recovery warming timeouts may use the warm-amount share fetched from the shutting-down source node.
+    /// On by default.
     public static final Setting<Boolean> SEARCH_OFFLINE_WARMING_WARM_AMOUNTS_ENABLED_SETTING = Setting.boolSetting(
         SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".warm_amounts.enabled",
-        false,
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -437,18 +438,17 @@ public class SearchRecoveryTimeoutCalculationService {
         // Warm-amount shares use the source's estimates of its current commits; they can differ from this target's WarmTarget plan.
         final SourceWarmAmountShare.Status warmAmountShareStatus = sourceWarmAmountShare.status(shutdown.getStartedAtMillis());
         final double warmAmountMs;
+        final long shardWarmAmountBytes;
+        final long competingWarmAmountBytes;
         if (warmAmountShareStatus == SourceWarmAmountShare.Status.AVAILABLE) {
             final var share = sourceWarmAmountShare.share();
             assert share != null;
-            warmAmountMs = (share.shardAmount() / (double) share.competingSum()) * remaining;
-            logger.debug(
-                "{} warm amount share [{}/{}] bytes, target plans to warm [{}] bytes",
-                shardId,
-                share.shardAmount(),
-                share.competingSum(),
-                totalBytesToWarm
-            );
+            shardWarmAmountBytes = share.shardAmount();
+            competingWarmAmountBytes = share.competingSum();
+            warmAmountMs = (shardWarmAmountBytes / (double) competingWarmAmountBytes) * remaining;
         } else {
+            shardWarmAmountBytes = 0;
+            competingWarmAmountBytes = 0;
             warmAmountMs = 0;
         }
 
@@ -474,8 +474,25 @@ public class SearchRecoveryTimeoutCalculationService {
                 warmAmountShareStatus.attributeValue()
             )
         );
+        final long timeoutMs = Math.round(Math.min(remaining, heuristic.perShardShareMs() * concurrentRelocations));
+        logger.debug(
+            "{} drain timeout equal_share [{}] ms, data_volume [{}] ms ({} / {} bytes), warm_amount [{}] ms ({} {} / {} bytes),"
+                + " concurrent_relocations [{}], chose [{}], timeout [{}] ms",
+            shardId,
+            Math.round(equalShareMs),
+            Math.round(dataVolumeMs),
+            totalBytesToWarm,
+            warmingCacheBytes,
+            Math.round(warmAmountMs),
+            warmAmountShareStatus.attributeValue(),
+            shardWarmAmountBytes,
+            competingWarmAmountBytes,
+            concurrentRelocations,
+            heuristic.name(),
+            timeoutMs
+        );
         return new SearchRecoveryTimeout(
-            TimeValue.timeValueMillis(Math.round(Math.min(remaining, heuristic.perShardShareMs() * concurrentRelocations))),
+            TimeValue.timeValueMillis(timeoutMs),
             heuristic.context(),
             // Only equal-share plans are extended, and a re-evaluation compares this share with the fresh one.
             heuristic.context() == TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE ? heuristic.perShardShareMs() : 0

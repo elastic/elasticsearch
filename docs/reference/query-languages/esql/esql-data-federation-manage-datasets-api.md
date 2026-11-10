@@ -22,6 +22,8 @@ Datasets are managed under the `/_query/dataset` endpoint. All dataset operation
 | [List all](#list-all-datasets) | `GET /_query/dataset` | [Get ES\|QL datasets]({{es-apis}}operation/operation-esql-get-dataset) |
 | [Delete](#delete-a-dataset) | `DELETE /_query/dataset/{name}` | [Delete ES\|QL datasets]({{es-apis}}operation/operation-esql-delete-dataset) |
 
+This page is a quick reference for each operation. For the complete request and response details, follow the API reference links in the table.
+
 ## Create or update a dataset
 
 [`PUT /_query/dataset/{name}`]({{es-apis}}operation/operation-esql-put-dataset) creates a new dataset or replaces an existing one entirely.
@@ -135,6 +137,8 @@ curl -X GET "${ELASTICSEARCH_URL}/_query/dataset" \
 ## Delete a dataset
 
 [`DELETE /_query/dataset/{name}`]({{es-apis}}operation/operation-esql-delete-dataset) deletes a dataset by name.
+
+Deleting a dataset doesn't check whether an [{{esql}} view](/reference/query-languages/esql/esql-views.md) reads from it. Views that read from a deleted dataset fail when queried.
 
 ::::{tab-set}
 :group: api-ref

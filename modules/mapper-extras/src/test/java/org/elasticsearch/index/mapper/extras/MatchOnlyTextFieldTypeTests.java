@@ -671,14 +671,14 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpQueryDocValuesOnlyCaseInsensitive() {
-        // SortedSet DV → RegexpQuery with DOC_VALUES_REWRITE and ASCII_CASE_INSENSITIVE matchFlag
-        Query q = sortedSetDocValuesOnly().regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
+        // SortedSet DV → RegexpQuery with DOC_VALUES_REWRITE and CASE_INSENSITIVE matchFlag
+        Query q = sortedSetDocValuesOnly().regexpQuery("foo.*", 0, RegExp.CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
         assertThat(q, Matchers.instanceOf(RegexpQuery.class));
         assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
 
-        // Binary DV → ScanningBinaryDocValuesRegexpQuery with ASCII_CASE_INSENSITIVE matchFlag
+        // Binary DV → ScanningBinaryDocValuesRegexpQuery with CASE_INSENSITIVE matchFlag
         assertThat(
-            binaryDocValuesOnly().regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT),
+            binaryDocValuesOnly().regexpQuery("foo.*", 0, RegExp.CASE_INSENSITIVE, 10, null, MOCK_CONTEXT),
             Matchers.instanceOf(ScanningBinaryDocValuesRegexpQuery.class)
         );
     }

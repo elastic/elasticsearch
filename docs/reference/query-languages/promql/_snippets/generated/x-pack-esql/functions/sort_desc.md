@@ -24,6 +24,8 @@ Ordering is observable only on instant queries. Range queries return the series 
 sort_desc(http_requests_total)
 ```
 
-**Differences from Prometheus**
+:::{note}
+**Differences from {{prom}}**
 
-Supported in this version only as the outermost function of the query. Prometheus also applies an ordering requested inside an enclosing function call. On a range query the ordering is discarded either way, but Prometheus returns the series ordered by their labels, where {{es}} returns them in input order.
+A call below the top level of the query, such as `abs(sort(x))`, isn't supported yet. {{prom}} applies the ordering there too. On a range query the ordering is discarded in both, but {{prom}} returns the series ordered by their labels, where {{es}} returns them in input order.
+:::

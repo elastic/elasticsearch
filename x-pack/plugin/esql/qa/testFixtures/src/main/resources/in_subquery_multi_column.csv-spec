@@ -2163,3 +2163,54 @@ staging         | one         | 9
 staging         | three       | 9
 staging         | two         | 9
 ;
+
+forkBeforeMultiColumnInSubqueryWithFork
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: fork_v9
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM employees
+| WHERE emp_no <= 10005
+| FORK (WHERE emp_no <= 10002) (WHERE emp_no >= 10005)
+| WHERE (emp_no, salary) IN (
+    FROM employees
+    | FORK
+        (WHERE emp_no <= 10002)
+        (WHERE emp_no == 10003)
+    | KEEP emp_no, salary
+  )
+| SORT _fork, emp_no
+| KEEP emp_no, _fork
+;
+
+emp_no:integer | _fork:keyword
+10001          | fork1
+10002          | fork1
+;
+
+forkAfterMultiColumnInSubqueryWithFork
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: fork_v9
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM employees
+| WHERE emp_no <= 10005
+| WHERE (emp_no, salary) IN (
+    FROM employees
+    | FORK
+        (WHERE emp_no <= 10002)
+        (WHERE emp_no == 10003)
+    | KEEP emp_no, salary
+  )
+| FORK (WHERE emp_no <= 10002) (WHERE emp_no == 10003)
+| SORT _fork, emp_no
+| KEEP emp_no, _fork
+;
+
+emp_no:integer | _fork:keyword
+10001          | fork1
+10002          | fork1
+10003          | fork2
+;

@@ -6338,3 +6338,332 @@ emp_no:integer | first_name:keyword | unmapped_field_foo:keyword | y:keyword
 10001          | Georgi             | null                       | null
 10002          | Bezalel            | null                       | null
 ;
+
+forkInsideInSubqueryInEval
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: eval_in_subquery
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM employees
+| WHERE emp_no <= 10005
+| EVAL m = emp_no IN (
+    FROM employees
+    | FORK
+        (WHERE emp_no <= 10002)
+        (WHERE emp_no == 10003)
+    | KEEP emp_no
+  )
+| SORT emp_no
+| KEEP emp_no, m
+;
+
+emp_no:integer | m:boolean
+10001          | true
+10002          | true
+10003          | true
+10004          | false
+10005          | false
+;
+
+forkBeforeInSubqueryWithForkInEval
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: eval_in_subquery
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM employees
+| WHERE emp_no <= 10005
+| FORK (WHERE emp_no <= 10002) (WHERE emp_no >= 10005)
+| EVAL m = emp_no IN (
+    FROM employees
+    | FORK
+        (WHERE emp_no <= 10002)
+        (WHERE emp_no == 10003)
+    | KEEP emp_no
+  )
+| SORT _fork, emp_no
+| KEEP emp_no, m, _fork
+;
+
+emp_no:integer | m:boolean | _fork:keyword
+10001          | true      | fork1
+10002          | true      | fork1
+10005          | false     | fork2
+;
+
+forkAfterInSubqueryWithForkInEval
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: eval_in_subquery
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM employees
+| WHERE emp_no <= 10005
+| EVAL m = emp_no IN (
+    FROM employees
+    | FORK
+        (WHERE emp_no <= 10002)
+        (WHERE emp_no == 10003)
+    | KEEP emp_no
+  )
+| FORK (WHERE m == true) (WHERE m == false)
+| SORT _fork, emp_no
+| KEEP emp_no, m, _fork
+;
+
+emp_no:integer | m:boolean | _fork:keyword
+10001          | true      | fork1
+10002          | true      | fork1
+10003          | true      | fork1
+10004          | false     | fork2
+10005          | false     | fork2
+;
+
+forkBranchWithInSubqueryWithForkInEval
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: eval_in_subquery
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM employees
+| WHERE emp_no <= 10003
+| FORK (EVAL m = emp_no IN (
+    FROM employees
+    | FORK
+        (WHERE emp_no <= 10002)
+        (WHERE emp_no == 10003)
+    | KEEP emp_no
+  )) (EVAL m = false)
+| SORT _fork, emp_no
+| KEEP emp_no, m, _fork
+;
+
+emp_no:integer | m:boolean | _fork:keyword
+10001          | true      | fork1
+10002          | true      | fork1
+10003          | true      | fork1
+10001          | false     | fork2
+10002          | false     | fork2
+10003          | false     | fork2
+;
+
+forkInsideInSubqueryInStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: stats_where_in_subquery
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM employees
+| WHERE emp_no <= 10005
+| STATS c = COUNT(*) WHERE emp_no IN (
+    FROM employees
+    | FORK
+        (WHERE emp_no <= 10002)
+        (WHERE emp_no == 10003)
+    | KEEP emp_no
+  ), total = COUNT(*)
+;
+
+c:long | total:long
+3      | 5
+;
+
+forkInsideNotInSubqueryInStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: stats_where_in_subquery
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM employees
+| WHERE emp_no <= 10005
+| STATS c = COUNT(*) WHERE emp_no NOT IN (
+    FROM employees
+    | FORK
+        (WHERE emp_no <= 10002)
+        (WHERE emp_no == 10003)
+    | KEEP emp_no
+  ), total = COUNT(*)
+;
+
+c:long | total:long
+2      | 5
+;
+
+forkBeforeInSubqueryWithForkInStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: stats_where_in_subquery
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM employees
+| WHERE emp_no <= 10005
+| FORK (WHERE emp_no <= 10002) (WHERE emp_no >= 10005)
+| STATS c = COUNT(*) WHERE emp_no IN (
+    FROM employees
+    | FORK
+        (WHERE emp_no <= 10002)
+        (WHERE emp_no == 10003)
+    | KEEP emp_no
+  ), total = COUNT(*) BY _fork
+| SORT _fork
+| KEEP c, total, _fork
+;
+
+c:long | total:long | _fork:keyword
+2      | 2          | fork1
+0      | 1          | fork2
+;
+
+forkAfterInSubqueryWithForkInStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: stats_where_in_subquery
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM employees
+| WHERE emp_no <= 10005
+| STATS c = COUNT(*) WHERE emp_no IN (
+    FROM employees
+    | FORK
+        (WHERE emp_no <= 10002)
+        (WHERE emp_no == 10003)
+    | KEEP emp_no
+  ), total = COUNT(*)
+| FORK (WHERE c == 3) (WHERE total == 5)
+| SORT _fork
+| KEEP c, total, _fork
+;
+
+c:long | total:long | _fork:keyword
+3      | 5          | fork1
+3      | 5          | fork2
+;
+
+forkBranchWithInSubqueryWithForkInStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: stats_where_in_subquery
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM employees
+| WHERE emp_no <= 10005
+| FORK (STATS c = COUNT(*) WHERE emp_no IN (
+    FROM employees
+    | FORK
+        (WHERE emp_no <= 10002)
+        (WHERE emp_no == 10003)
+    | KEEP emp_no
+  )) (STATS c = COUNT(*))
+| SORT _fork
+| KEEP c, _fork
+;
+
+c:long | _fork:keyword
+3      | fork1
+5      | fork2
+;
+
+forkInsideInSubqueryInInlineStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: inline_stats_where_in_subquery
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM employees
+| WHERE emp_no <= 10005
+| INLINE STATS c = COUNT(*) WHERE emp_no IN (
+    FROM employees
+    | FORK
+        (WHERE emp_no <= 10002)
+        (WHERE emp_no == 10003)
+    | KEEP emp_no
+  )
+| SORT emp_no
+| KEEP emp_no, c
+;
+
+emp_no:integer | c:long
+10001          | 3
+10002          | 3
+10003          | 3
+10004          | 3
+10005          | 3
+;
+
+forkBeforeInSubqueryWithForkInInlineStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: inline_stats_where_in_subquery
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM employees
+| WHERE emp_no <= 10005
+| FORK (WHERE emp_no <= 10002) (WHERE emp_no >= 10005)
+| INLINE STATS c = COUNT(*) WHERE emp_no IN (
+    FROM employees
+    | FORK
+        (WHERE emp_no <= 10002)
+        (WHERE emp_no == 10003)
+    | KEEP emp_no
+  )
+| SORT _fork, emp_no
+| KEEP emp_no, c, _fork
+;
+
+emp_no:integer | c:long | _fork:keyword
+10001          | 2      | fork1
+10002          | 2      | fork1
+10005          | 2      | fork2
+;
+
+forkAfterInSubqueryWithForkInInlineStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: inline_stats_where_in_subquery
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM employees
+| WHERE emp_no <= 10005
+| INLINE STATS c = COUNT(*) WHERE emp_no IN (
+    FROM employees
+    | FORK
+        (WHERE emp_no <= 10002)
+        (WHERE emp_no == 10003)
+    | KEEP emp_no
+  )
+| FORK (WHERE emp_no <= 10002) (WHERE emp_no >= 10005)
+| SORT _fork, emp_no
+| KEEP emp_no, c, _fork
+;
+
+emp_no:integer | c:long | _fork:keyword
+10001          | 3      | fork1
+10002          | 3      | fork1
+10005          | 3      | fork2
+;
+
+forkBranchWithInSubqueryWithForkInInlineStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: inline_stats_where_in_subquery
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM employees
+| WHERE emp_no <= 10002
+| FORK (INLINE STATS c = COUNT(*) WHERE emp_no IN (
+    FROM employees
+    | FORK
+        (WHERE emp_no <= 10002)
+        (WHERE emp_no == 10003)
+    | KEEP emp_no
+  )) (WHERE emp_no == 10001)
+| SORT _fork, emp_no
+| KEEP emp_no, c, _fork
+;
+
+emp_no:integer | c:long | _fork:keyword
+10001          | 2      | fork1
+10002          | 2      | fork1
+10001          | null   | fork2
+;

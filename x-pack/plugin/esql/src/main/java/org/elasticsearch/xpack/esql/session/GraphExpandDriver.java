@@ -156,7 +156,6 @@ public final class GraphExpandDriver {
     private Leg nextLeg;
     /** Index into {@link #targetFields} for the field leg currently in flight. */
     /** Outbound rows buffered while the inbound leg of {@code direction: both} runs. */
-    private List<List<Object>> pendingOutRows;
     /** Set when the walk had no frontier to start from and an empty hop result is in flight. */
     private boolean emptyStart;
     /**
@@ -369,27 +368,30 @@ public final class GraphExpandDriver {
             finished = true;
             return null;
         }
-        // One subplan per leg. With several TO fields the per-field plans become the branches
-        // of a FORK, which the compute service runs concurrently (up to branch_parallel_degree)
-        // and concatenates, so a hop's latency is that of its slowest field, not the sum.
+        // One subplan per hop. Each leg of a `both` walk and each TO field is its own plan;
+        // with more than one they become the branches of a FORK, which the compute service runs
+        // concurrently (up to branch_parallel_degree) and concatenates, so a hop's latency is
+        // that of its slowest leg and field, not the sum.
         List<Attribute> fields = currentTargetFields();
-        LogicalPlan hopPlan;
-        if (fields.size() == 1) {
-            hopPlan = buildHopPlan(nextHop, frontier, nextLeg, fields.get(0));
-        } else {
-            List<LogicalPlan> branches = new ArrayList<>(fields.size());
+        List<Leg> legs = "both".equals(direction) ? List.of(Leg.OUT, Leg.IN) : List.of(initialLeg());
+        List<LogicalPlan> branches = new ArrayList<>(legs.size() * fields.size());
+        for (Leg leg : legs) {
             for (Attribute field : fields) {
-                LogicalPlan branch = buildHopPlan(nextHop, frontier, nextLeg, field);
-                branch.setOptimized();
-                branches.add(branch);
+                branches.add(buildHopPlan(nextHop, frontier, leg, field));
             }
+        }
+        LogicalPlan hopPlan;
+        if (branches.size() == 1) {
+            hopPlan = branches.get(0);
+        } else {
+            branches.forEach(LogicalPlan::setOptimized);
             hopPlan = new Fork(graphExpand.source(), branches, resultAttributes);
         }
         hopPlan.setOptimized();
         inFlightHop = "hop "
             + nextHop
             + " "
-            + nextLeg.name().toLowerCase(Locale.ROOT)
+            + ("both".equals(direction) ? "both" : nextLeg.name().toLowerCase(Locale.ROOT))
             + " "
             + fields.stream().map(Attribute::name).collect(Collectors.joining(","));
         inFlightHopStartedNanos = System.nanoTime();
@@ -425,20 +427,12 @@ public final class GraphExpandDriver {
             return admitAndAdvance(mainPlan, rows, false);
         }
 
-        if ("both".equals(direction) && nextLeg == Leg.OUT) {
-            pendingOutRows = rows;
-            nextLeg = Leg.IN;
-            return mainPlan;
+        // FORK does not promise branch order, so put the legs (out before in) and the TO fields
+        // back in written order, rows within a branch keeping theirs, before SORT/caps run once
+        // over the hop. A `both` walk also drops the inbound copy of a self-loop.
+        if ("both".equals(direction)) {
+            rows = combineBothLegs(rows);
         }
-
-        if ("both".equals(direction) && nextLeg == Leg.IN) {
-            rows = combineBothLegs(pendingOutRows, rows);
-            pendingOutRows = null;
-            nextLeg = initialLeg();
-        }
-
-        // Multi-field TO: FORK does not promise branch order, so put the fields back in written
-        // order (rows within a field keep theirs) before SORT/caps run once over the hop.
         if (multiField) {
             orderByField(rows);
         }
@@ -970,18 +964,30 @@ public final class GraphExpandDriver {
      * Concatenate outbound then inbound rows. A self-loop (stored source equals
      * target) is kept from the outbound leg only.
      */
-    private List<List<Object>> combineBothLegs(List<List<Object>> outRows, List<List<Object>> inRows) {
-        List<List<Object>> combined = new ArrayList<>(outRows.size() + inRows.size());
-        combined.addAll(outRows);
-        for (List<Object> row : inRows) {
+    /**
+     * Rows of a {@code both} hop, outbound ones (reached is {@code node_to}) first, then inbound.
+     * A self-loop reaches itself from either side and both branches emit the same row; one copy
+     * is kept, as the inbound copy was dropped when the legs ran separately.
+     */
+    private List<List<Object>> combineBothLegs(List<List<Object>> rows) {
+        List<List<Object>> outRows = new ArrayList<>(rows.size());
+        List<List<Object>> inRows = new ArrayList<>();
+        Set<List<Object>> selfLoops = new HashSet<>();
+        for (List<Object> row : rows) {
             Object from = row.get(nodeFromIdx);
             Object to = row.get(nodeToIdx);
             if (Objects.equals(from, to)) {
-                continue;
+                if (selfLoops.add(row)) {
+                    outRows.add(row);
+                }
+            } else if (Objects.equals(row.get(nodeReachedIdx), to)) {
+                outRows.add(row);
+            } else {
+                inRows.add(row);
             }
-            combined.add(row);
         }
-        return combined;
+        outRows.addAll(inRows);
+        return outRows;
     }
 
     private List<List<Object>> extractRows(Result hopResult) {

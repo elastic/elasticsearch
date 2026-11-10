@@ -28,12 +28,20 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQueryBuilder> {
     @Override
     protected SpanNearQueryBuilder doCreateTestQueryBuilder() {
+        boolean inOrder = randomBoolean();
         SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(randomIntBetween(1, 6));
         SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder(spanTermQueries[0], randomIntBetween(-10, 10));
         for (int i = 1; i < spanTermQueries.length; i++) {
+            // Randomly add a gap queries to test special accounting for these query types
+            if (inOrder && randomBoolean()) {
+                // Lucene only supports gaps in ordered span_near queries
+                queryBuilder.addClause(
+                    new SpanNearQueryBuilder.SpanGapQueryBuilder(spanTermQueries[0].fieldName(), randomIntBetween(1, 3))
+                );
+            }
             queryBuilder.addClause(spanTermQueries[i]);
         }
-        queryBuilder.inOrder(randomBoolean());
+        queryBuilder.inOrder(inOrder);
         return queryBuilder;
     }
 
@@ -67,7 +75,16 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
             assertThat(spanNearQuery.getClauses().length, equalTo(queryBuilder.clauses().size()));
             Iterator<SpanQueryBuilder> spanQueryBuilderIterator = queryBuilder.clauses().iterator();
             for (SpanQuery spanQuery : spanNearQuery.getClauses()) {
-                assertThat(spanQuery, equalTo(spanQueryBuilderIterator.next().toQuery(context)));
+                SpanQueryBuilder clause = spanQueryBuilderIterator.next();
+                if (clause instanceof SpanNearQueryBuilder.SpanGapQueryBuilder gap) {
+                    // SpanGapQuery is private to Lucene's SpanNearQuery, so build the expected gap through its builder
+                    SpanQuery expectedGap = new SpanNearQuery.Builder(spanNearQuery.getField(), true).addGap(gap.width())
+                        .build()
+                        .getClauses()[0];
+                    assertThat(spanQuery, equalTo(expectedGap));
+                } else {
+                    assertThat(spanQuery, equalTo(clause.toQuery(context)));
+                }
             }
         } else if (query instanceof SpanTermQuery) {
             assertThat(queryBuilder.clauses().size(), equalTo(1));

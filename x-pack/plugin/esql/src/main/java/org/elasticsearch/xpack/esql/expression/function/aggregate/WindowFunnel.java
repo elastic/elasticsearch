@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator;
 import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.fromIndex;
@@ -43,6 +44,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isBoo
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 
 public class WindowFunnel extends AggregateFunction implements OnlySurrogateExpression, ConfigurationFunction {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(WindowFunnel.class)
@@ -176,23 +178,33 @@ public class WindowFunnel extends AggregateFunction implements OnlySurrogateExpr
         if (resolution.unresolved()) {
             return resolution;
         }
-        Object span = maxspan().fold(FoldContext.small());
-        if (span == null) {
-            return new TypeResolution(
-                format(null, "first argument of [{}] cannot be null, received [{}]", sourceText(), maxspan().sourceText())
+        return resolveTypeMaxspan(maxspan(), sourceText(), forPreOptimizationValidation(maxspan()));
+    }
+
+    static TypeResolution resolveTypeMaxspan(Expression maxspan, String sourceText, TypeResolutionValidator validator) {
+        if (maxspan instanceof Literal nullSpan && nullSpan.value() == null) {
+            validator.invalid(
+                new TypeResolution(format(null, "first argument of [{}] cannot be null, received [{}]", sourceText, maxspan.sourceText()))
+            );
+        } else if (maxspan instanceof Literal literal && literal.value() instanceof Duration duration) {
+            if (duration.isNegative()) {
+                validator.invalid(
+                    new TypeResolution(
+                        format(
+                            null,
+                            "first argument of [{}] must be a non-negative time_duration, found [{}]",
+                            sourceText,
+                            maxspan.sourceText()
+                        )
+                    )
+                );
+            }
+        } else {
+            validator.invalidIfPostValidation(
+                fail(maxspan, "maxspan of [{}] must be a constant time_duration, found [{}]", sourceText, maxspan)
             );
         }
-        if (span instanceof Duration duration && duration.isNegative()) {
-            return new TypeResolution(
-                format(
-                    null,
-                    "first argument of [{}] must be a non-negative time_duration, found [{}]",
-                    sourceText(),
-                    maxspan().sourceText()
-                )
-            );
-        }
-        return TypeResolution.TYPE_RESOLVED;
+        return validator.getResolvedType();
     }
 
     @Override

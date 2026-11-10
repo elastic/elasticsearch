@@ -167,6 +167,45 @@ public class WindowFunnelErrorTests extends ErrorsForCasesWithoutExamplesTestCas
         );
     }
 
+    public void testLevelRejectsNullMaxspan() {
+        assertThat(
+            levelFailure(new Literal(Source.synthetic("span"), null, DataType.TIME_DURATION)),
+            equalTo("first argument of [f] cannot be null, received [span]")
+        );
+    }
+
+    public void testLevelRejectsNegativeMaxspan() {
+        assertThat(
+            levelFailure(Literal.timeDuration(Source.synthetic("-1 hour"), Duration.ofHours(-1))),
+            equalTo("first argument of [f] must be a non-negative time_duration, found [-1 hour]")
+        );
+    }
+
+    public void testLevelAcceptsZeroMaxspan() {
+        Failures failures = new Failures();
+        level(maxspan(Duration.ZERO)).postOptimizationVerification(failures);
+        assertFalse(failures.hasFailures());
+    }
+
+    private static String levelFailure(Expression maxspan) {
+        Failures failures = new Failures();
+        level(maxspan).postOptimizationVerification(failures);
+        assertThat(failures.failures(), hasSize(1));
+        return failures.failures().iterator().next().message();
+    }
+
+    private static WindowFunnelLevel level(Expression maxspan) {
+        return new WindowFunnelLevel(
+            Source.synthetic("f"),
+            timestamp(),
+            field("mask", DataType.LONG),
+            Literal.TRUE,
+            AggregateFunction.NO_WINDOW,
+            maxspan,
+            Literal.integer(Source.EMPTY, 1)
+        );
+    }
+
     private static Expression maxspan(Duration duration) {
         return Literal.timeDuration(Source.EMPTY, duration);
     }

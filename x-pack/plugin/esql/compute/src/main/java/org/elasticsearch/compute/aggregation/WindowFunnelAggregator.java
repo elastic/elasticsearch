@@ -27,6 +27,28 @@ import org.elasticsearch.core.Releasables;
 /**
  * Level of the longest ordered chain of conditions that ends at most {@code span} after its first condition.
  * Each group keeps one entry per distinct timestamp, OR-ing the condition bit masks of the rows that share it.
+ * <p>
+ * For example, {@code STATS f = WINDOW_FUNNEL(15 minutes, @timestamp, event == "view", event == "cart", event == "checkout") BY user}
+ * sets bit {@code i} of a row's mask when condition {@code i} matches. A data node receiving these rows:
+ * <pre>
+ * | user  | @timestamp | event    | mask |
+ * |-------|------------|----------|------|
+ * | alice | 10:00      | view     | 001  |
+ * | bob   | 10:00      | view     | 001  |
+ * | alice | 10:05      | cart     | 010  |
+ * | alice | 10:10      | checkout | 100  |
+ * | bob   | 10:30      | cart     | 010  |
+ * </pre>
+ * stores the same five {@code (group, timestamp) -> mask} entries and emits this intermediate state:
+ * <pre>
+ * | user  | timestamps     | masks      |
+ * |-------|----------------|------------|
+ * | alice | [10:00]        | [111]      |
+ * | bob   | [10:00, 10:30] | [001, 010] |
+ * </pre>
+ * alice's chain reaches every step within 15 minutes, so it collapses to one entry with all bits, which marks alice
+ * complete on the node that merges it. bob's cart comes after 10:00 + 15 minutes, so the final levels are 3 for alice
+ * and 1 for bob.
  */
 @Aggregator({ @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "masks", type = "LONG_BLOCK") })
 @GroupingAggregator
@@ -117,12 +139,12 @@ class WindowFunnelAggregator {
     }
 
     public static class GroupingState implements GroupingAggregatorState {
-        private final BigArrays bigArrays;
-        private final LongLongHashTable keys;
+        private final BigArrays bigArrays; // breaker-tracked allocator for masks and complete
+        private final LongLongHashTable keys; // one id per distinct (groupId, timestamp); the id indexes masks
         private final long span;
         private final int steps;
-        private final long allSteps;
-        private final BitArray complete;
+        private final long allSteps; // the lowest steps bits set: an entry with this mask matches every condition
+        private final BitArray complete; // groups holding an allSteps entry: their level is steps, so later events are skipped
         private LongArray masks;
 
         private GroupingState(BlockFactory blockFactory, long span, int steps) {
@@ -186,6 +208,25 @@ class WindowFunnelAggregator {
             return new Prepared(blockFactory, layout, last);
         }
 
+        /**
+         * Emits the selected groups, either as final levels or as intermediate {@code timestamps} and {@code masks} blocks.
+         * {@code layout.ids} lists each group's entry ids as one contiguous slice in insertion order, so a slice is sorted
+         * by timestamp in place before {@code level} walks it; complete groups skip the sort.
+         * <p>
+         * For the rows in the class example, with alice as group 0 and bob as group 1:
+         * <pre>
+         * | id | (group, timestamp) | mask |
+         * |----|--------------------|------|
+         * | 0  | (0, 10:00)         | 001  |
+         * | 1  | (1, 10:00)         | 001  |
+         * | 2  | (0, 10:05)         | 010  |
+         * | 3  | (0, 10:10)         | 100  |
+         * | 4  | (1, 10:30)         | 010  |
+         * </pre>
+         * {@code layout.ids} is {@code [0, 2, 3, 1, 4]}: alice's slice is {@code [0, 3)} and bob's is {@code [3, 5)}.
+         * The final evaluation emits the levels {@code [3, 1]} and the intermediate one emits the state shown in the class
+         * example.
+         */
         private final class Prepared implements GroupingAggregatorFunction.PreparedForEvaluation {
             private final BlockFactory blockFactory;
             private final ValuesNextPreparedForEmitting layout;
@@ -206,6 +247,10 @@ class WindowFunnelAggregator {
                 }
             }
 
+            /**
+             * One level per selected group: null for a group without entries, {@code steps} for a complete group, and
+             * otherwise the {@code level} of its slice sorted by timestamp. In the class example: {@code [3, 1]}.
+             */
             private Block buildLevels(IntVector selectedInPage) {
                 long[] firsts = new long[steps];
                 IntroSorter sorter = timestampSorter(layout.ids);
@@ -229,6 +274,11 @@ class WindowFunnelAggregator {
                 }
             }
 
+            /**
+             * Parallel {@code timestamps} and {@code masks} values per selected group: nulls for a group without entries, a
+             * single entry with every bit for a group that already reaches every step, and otherwise all of the group's
+             * entries. In the class example alice becomes {@code [10:00] / [111]} and bob keeps {@code [10:00, 10:30] / [001, 010]}.
+             */
             private void buildIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
                 int positions = selectedInPage.getPositionCount();
                 long[] firsts = new long[steps];
@@ -321,6 +371,21 @@ class WindowFunnelAggregator {
             };
         }
 
+        /**
+         * Deepest step reached by the entries {@code ids[start, end)}, which must be sorted by timestamp. {@code firsts[k]}
+         * is the latest start of a chain reaching step {@code k}: a later start keeps the deadline as late as possible, so
+         * step {@code k + 1} extends the chain if its timestamp is within {@code deadline(firsts[k])}. The bits of one entry
+         * are taken in step order, so conditions sharing a timestamp chain.
+         * <p>
+         * With a one hour span and three steps, where {@code bN} is an entry whose mask has bit {@code N}:
+         * <pre>{@code
+         * u1: 10:00 b0 -> firsts[0]=10:00, best=1
+         *     10:05 b1 -> 10:05 <= 11:00 -> firsts[1]=10:00, best=2
+         *     10:10 b2 -> 10:10 <= 11:00 -> best=3 == steps -> return 3
+         * u2: 10:00 b0 -> best=1
+         *     10:30 b1 -> 10:30 <= 11:00 -> best=2 (no b2 entry) -> return 2
+         * }</pre>
+         */
         private int level(int[] ids, int start, int end, long[] firsts) {
             long reached = 0;
             int best = 0;
@@ -349,6 +414,10 @@ class WindowFunnelAggregator {
             return best;
         }
 
+        /**
+         * Latest timestamp a chain started at {@code first} may extend to, saturated at {@link Long#MAX_VALUE} instead of
+         * overflowing.
+         */
         private long deadline(long first) {
             return first > Long.MAX_VALUE - span ? Long.MAX_VALUE : first + span;
         }

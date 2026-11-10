@@ -26,11 +26,22 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPostOptimizationValidation;
 
+/**
+ * Internal, not user-facing, aggregate that {@link WindowFunnel#surrogate()} rewrites {@code WINDOW_FUNNEL} into; it is
+ * serialized to the data nodes and mapped to the compute {@code WindowFunnelAggregator}. The conditions are already folded
+ * into one {@code mask} per row, the sum of {@code CASE(condition_i, 1 << i, 0)}, so bit {@code i} is set when condition
+ * {@code i} matches, and {@code steps} is the number of conditions. Unlike {@code WINDOW_FUNNEL} it returns null for a group
+ * where no row matches a condition, so the surrogate wraps it in {@code COALESCE(..., 0)}.
+ * <p>
+ * For example, {@code WINDOW_FUNNEL(15 minutes, @timestamp, event == "view", event == "cart")} becomes
+ * {@code COALESCE(WindowFunnelLevel(@timestamp, CASE(event == "view", 1, 0) + CASE(event == "cart", 2, 0), 15 minutes, 2), 0)},
+ * and the optimizer then moves the mask into an {@code EVAL} before the aggregation.
+ */
 public class WindowFunnelLevel extends AggregateFunction implements ToAggregator, PostOptimizationVerificationAware, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -91,10 +102,7 @@ public class WindowFunnelLevel extends AggregateFunction implements ToAggregator
 
     @Override
     public void postOptimizationVerification(Failures failures) {
-        if (maxspan() instanceof Literal literal && literal.value() instanceof Duration) {
-            return;
-        }
-        failures.add(fail(maxspan(), "maxspan of [{}] must be a constant time_duration, found [{}]", sourceText(), maxspan()));
+        WindowFunnel.resolveTypeMaxspan(maxspan(), sourceText(), forPostOptimizationValidation(maxspan(), failures));
     }
 
     @Override

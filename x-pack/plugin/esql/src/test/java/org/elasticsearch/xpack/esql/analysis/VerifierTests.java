@@ -1951,6 +1951,27 @@ public class VerifierTests extends AnalyzerTestCase {
             )
         );
         defaultAnalyzer().error(
+            "FROM test | STATS WINDOW_FUNNEL(3600000, hire_date, still_hired)",
+            equalTo(
+                "1:19: first argument of [WINDOW_FUNNEL(3600000, hire_date, still_hired)] must be [time_duration], "
+                    + "found value [3600000] type [integer]"
+            )
+        );
+        defaultAnalyzer().error(
+            "FROM test | STATS WINDOW_FUNNEL(\"1 hour\", hire_date, still_hired)",
+            equalTo(
+                "1:19: first argument of [WINDOW_FUNNEL(\"1 hour\", hire_date, still_hired)] must be [time_duration], "
+                    + "found value [\"1 hour\"] type [keyword]"
+            )
+        );
+        defaultAnalyzer().error(
+            "FROM test | STATS WINDOW_FUNNEL(1 hour, salary, still_hired)",
+            equalTo(
+                "1:19: second argument of [WINDOW_FUNNEL(1 hour, salary, still_hired)] must be [date or date_nanos], "
+                    + "found value [salary] type [integer]"
+            )
+        );
+        defaultAnalyzer().error(
             "FROM test | STATS WINDOW_FUNNEL(-1 hour, hire_date, still_hired)",
             equalTo(
                 "1:19: first argument of [WINDOW_FUNNEL(-1 hour, hire_date, still_hired)] must be a non-negative time_duration, "
@@ -1967,6 +1988,26 @@ public class VerifierTests extends AnalyzerTestCase {
         defaultAnalyzer().error(
             "FROM test | EVAL x = WINDOW_FUNNEL(1 hour, hire_date, still_hired)",
             equalTo("1:22: aggregate function [WINDOW_FUNNEL(1 hour, hire_date, still_hired)] not allowed outside STATS command")
+        );
+    }
+
+    public void testWindowFunnelParameterLimits() {
+        assumeTrue("WINDOW_FUNNEL is only available in snapshot builds", Build.current().isSnapshot());
+        String tooMany = "WINDOW_FUNNEL(1 hour, hire_date, " + "still_hired, ".repeat(32) + "still_hired)";
+        defaultAnalyzer().error(
+            "FROM test | STATS " + tooMany,
+            equalTo("1:19: [" + tooMany + "] supports at most [32] conditions, found [33]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | STATS WINDOW_FUNNEL(null, hire_date, still_hired)",
+            equalTo("1:19: first argument of [WINDOW_FUNNEL(null, hire_date, still_hired)] cannot be null, received [null]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | STATS WINDOW_FUNNEL(TO_TIMEDURATION(first_name), hire_date, still_hired)",
+            equalTo(
+                "1:19: first argument of [WINDOW_FUNNEL(TO_TIMEDURATION(first_name), hire_date, still_hired)] must be a constant, "
+                    + "received [TO_TIMEDURATION(first_name)]"
+            )
         );
     }
 

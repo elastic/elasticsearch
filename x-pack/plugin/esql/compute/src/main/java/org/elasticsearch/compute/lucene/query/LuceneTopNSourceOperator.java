@@ -333,7 +333,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         QueryWarnings singleValueQueryWarnings,
         @Nullable SharedSortBound sortBound
     ) {
-        super(contexts, driverContext, maxPageSize, sliceQueue, directoryBytesRead, singleValueQueryWarnings);
+        super(contexts, driverContext, maxPageSize, sliceQueue, directoryBytesRead, singleValueQueryWarnings, false);
         this.driverContext = driverContext;
         this.sorts = sorts;
         this.estimatedPerRowSortSize = estimatedPerRowSortSize;

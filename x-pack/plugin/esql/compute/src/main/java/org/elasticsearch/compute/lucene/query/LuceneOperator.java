@@ -47,6 +47,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -135,6 +136,7 @@ public abstract class LuceneOperator extends SourceOperator {
     private IsBlockedResult blocked = Operator.NOT_BLOCKED;
 
     private final LongSupplier directoryBytesRead;
+    private final ScorersMap scorersMap;
 
     protected LuceneOperator(
         IndexedByShardId<? extends RefCounted> refCounteds,
@@ -142,7 +144,8 @@ public abstract class LuceneOperator extends SourceOperator {
         int maxPageSize,
         LuceneSliceQueue sliceQueue,
         LongSupplier directoryBytesRead,
-        QueryWarnings singleValueQueryWarnings
+        QueryWarnings singleValueQueryWarnings,
+        boolean reuseScorers
     ) {
         this.directoryBytesRead = directoryBytesRead;
         this.refCounteds = refCounteds;
@@ -155,6 +158,7 @@ public abstract class LuceneOperator extends SourceOperator {
 
         this.shardProcessNanos = new long[sliceQueue.maxShardIndex() + 1];
         this.shardRowsEmitted = new long[shardProcessNanos.length];
+        this.scorersMap = new ScorersMap(reuseScorers);
     }
 
     public abstract static class Factory implements SourceOperator.SourceOperatorFactory {
@@ -277,18 +281,15 @@ public abstract class LuceneOperator extends SourceOperator {
 
     @Override
     public final void close() {
-        releaseCurrentScorer();
+        if (currentScorer != null) {
+            currentScorer.releaseExecutionMemory();
+        }
+        scorersMap.releaseAllScorers();
         refCounteds.iterable().forEach(RefCounted::decRef);
         additionalClose();
     }
 
     protected void additionalClose() { /* Override this method to add any additional cleanup logic if needed */ }
-
-    private void releaseCurrentScorer() {
-        if (currentScorer != null) {
-            currentScorer.releaseExecutionMemory();
-        }
-    }
 
     LuceneScorer getCurrentOrLoadNextScorer() {
         if (doneCollecting) {
@@ -301,7 +302,7 @@ public abstract class LuceneOperator extends SourceOperator {
                     sliceIndex = 0;
                     currentSlice = sliceQueue.nextSlice(currentSlice);
                     if (currentSlice == null) {
-                        releaseCurrentScorer();
+                        scorersMap.releaseScorer(currentScorer);
                         doneCollecting = true;
                         return null;
                     }
@@ -319,11 +320,14 @@ public abstract class LuceneOperator extends SourceOperator {
                     if (renderedQueries.add(weight.getQuery())) {
                         processedQueries.add(Status.queryString(weight.getQuery()));
                     }
-                    releaseCurrentScorer();
-                    currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.tags(), leaf);
-                    sliceBlocked = currentSlice.leafBlockedOnCaching(currentScorer.leafReaderContext());
-                    if (sliceBlocked == null || sliceBlocked.isDone()) {
-                        currentScorer.reinitialize();
+                    scorersMap.releaseScorer(currentScorer);
+                    currentScorer = scorersMap.getScorer(currentSlice.shardContext(), weight, partialLeaf);
+                    if (currentScorer == null) {
+                        currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.tags(), leaf);
+                        sliceBlocked = currentSlice.leafBlockedOnCaching(currentScorer.leafReaderContext());
+                        if (sliceBlocked == null || sliceBlocked.isDone()) {
+                            currentScorer.reinitialize();
+                        }
                     }
                 }
                 assert currentScorer.maxPosition <= partialLeaf.maxDoc() : currentScorer.maxPosition + ">" + partialLeaf.maxDoc();
@@ -416,6 +420,70 @@ public abstract class LuceneOperator extends SourceOperator {
             blocked = NOT_BLOCKED;
         }
         return blocked;
+    }
+
+    static class ScorersMap {
+        record Key(LeafReaderContext leafContext, Weight weight) {
+            @Override
+            public boolean equals(Object o) {
+                if (o == null || getClass() != o.getClass()) return false;
+                Key key = (Key) o;
+                return leafContext == key.leafContext && weight == key.weight;
+            }
+
+            @Override
+            public int hashCode() {
+                return System.identityHashCode(leafContext) * 31 + System.identityHashCode(weight);
+            }
+        }
+
+        final boolean reused;
+        int lastShard = -1;
+        final Map<Key, LuceneScorer> scorers;
+
+        public ScorersMap(boolean reused) {
+            this.reused = reused;
+            this.scorers = new HashMap<>();
+        }
+
+        void releaseScorer(LuceneScorer scorer) {
+            if (reused && scorer != null) {
+                LeafReaderContext ctx = scorer.leafReaderContext;
+                if (scorer.maxPosition < ctx.reader().maxDoc()) {
+                    LuceneScorer prev = scorers.put(new Key(ctx, scorer.weight), scorer);
+                    if (prev != null) {
+                        prev.releaseExecutionMemory();
+                    }
+                    return;
+                }
+            }
+            if (scorer != null) {
+                scorer.releaseExecutionMemory();
+            }
+        }
+
+        LuceneScorer getScorer(ShardContext shardContext, Weight weight, PartialLeafReaderContext partialLeaf) {
+            if (reused) {
+                final int shardIndex = shardContext.index();
+                if (lastShard == shardIndex) {
+                    LuceneScorer scorer = scorers.remove(new Key(partialLeaf.leafReaderContext(), weight));
+                    if (scorer != null && scorer.maxPosition > partialLeaf.minDoc()) {
+                        scorer.releaseExecutionMemory();
+                        return null;
+                    }
+                    return scorer;
+                } else {
+                    lastShard = shardIndex;
+                    releaseAllScorers();
+                }
+            }
+            return null;
+        }
+
+        void releaseAllScorers() {
+            scorers.values().forEach(LuceneScorer::releaseExecutionMemory);
+            scorers.clear();
+        }
     }
 
     /**

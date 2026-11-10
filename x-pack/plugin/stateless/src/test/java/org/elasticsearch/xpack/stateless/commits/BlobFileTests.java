@@ -107,10 +107,7 @@ public class BlobFileTests extends AbstractWireSerializingTestCase<BlobFile> {
     }
 
     public void testReadRejectsUnrecognizedBlobName() {
-        var exception = expectThrows(
-            IOException.class,
-            () -> readInvalidBlob("foo_" + randomNonNegativeInt(), randomTermAndGeneration())
-        );
+        var exception = expectThrows(IOException.class, () -> readInvalidBlob("foo_" + randomNonNegativeInt(), randomTermAndGeneration()));
         assertThat(exception.getMessage(), containsString("unrecognized blob name"));
     }
 

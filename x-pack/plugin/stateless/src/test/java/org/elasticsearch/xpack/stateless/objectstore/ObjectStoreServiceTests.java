@@ -122,6 +122,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomNonZeroPositiveLong;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.OBJECT_STORE_FILE_DELETION_DELAY;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType.AZURE;
@@ -1243,7 +1244,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             objectStoreService.asyncDeleteShardFile(
                 new StaleCompoundCommit(
                     new ShardId(new Index(randomIdentifier(), randomUUID()), between(0, 3)),
-                    new PrimaryTermAndGeneration(primaryTerm, randomNonNegativeLong()),
+                    new PrimaryTermAndGeneration(primaryTerm, randomNonZeroPositiveLong()),
                     primaryTerm
                 )
             );
@@ -1251,7 +1252,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             objectStoreService.asyncDeleteShardFile(
                 new StaleCompoundCommit(
                     new ShardId(new Index(indexMetadata.getIndex().getName(), indexMetadata.getIndexUUID()), 0),
-                    new PrimaryTermAndGeneration(primaryTerm, randomNonNegativeLong()),
+                    new PrimaryTermAndGeneration(primaryTerm, randomNonZeroPositiveLong()),
                     primaryTerm
                 )
             );
@@ -1259,7 +1260,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             objectStoreService.asyncDeleteShardFile(
                 new StaleCompoundCommit(
                     testHarness.shardId,
-                    new PrimaryTermAndGeneration(primaryTerm, randomNonNegativeLong()),
+                    new PrimaryTermAndGeneration(primaryTerm, randomNonZeroPositiveLong()),
                     primaryTerm
                 )
             );

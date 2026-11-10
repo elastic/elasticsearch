@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongLongHashTable;
 import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
@@ -120,36 +121,48 @@ class WindowFunnelAggregator {
         private final LongLongHashTable keys;
         private final long span;
         private final int steps;
+        private final long allSteps;
+        private final BitArray complete;
         private LongArray masks;
 
         private GroupingState(BlockFactory blockFactory, long span, int steps) {
+            assert steps > 0 && steps < Long.SIZE : steps;
+            assert span >= 0 : span;
             this.bigArrays = blockFactory.bigArrays();
             this.span = span;
             this.steps = steps;
+            this.allSteps = (1L << steps) - 1;
             LongLongHashTable keys = HashImplFactory.newLongLongHash(blockFactory);
+            BitArray complete = null;
             boolean success = false;
             try {
                 this.masks = bigArrays.newLongArray(1, false);
+                complete = new BitArray(1, bigArrays);
                 success = true;
             } finally {
                 if (success == false) {
-                    keys.close();
+                    Releasables.closeExpectNoException(keys, masks);
                 }
             }
             this.keys = keys;
+            this.complete = complete;
         }
 
         void add(int groupId, long timestamp, long mask) {
-            if (mask == 0) {
+            if (mask == 0 || complete.get(groupId)) {
                 return;
             }
             long id = keys.add(groupId, timestamp);
             if (id >= 0) {
                 masks = bigArrays.grow(masks, id + 1);
-                masks.set(id, mask);
             } else {
                 id = -1 - id;
-                masks.set(id, masks.get(id) | mask);
+                mask |= masks.get(id);
+            }
+            masks.set(id, mask);
+            // skipping later events is exact only while all steps may share a timestamp and the span is never negative
+            if (mask == allSteps) {
+                complete.set(groupId);
             }
         }
 
@@ -205,6 +218,10 @@ class WindowFunnelAggregator {
                             builder.appendNull();
                             continue;
                         }
+                        if (complete.get(group)) {
+                            builder.appendInt(steps);
+                            continue;
+                        }
                         sorter.sort(start, end);
                         builder.appendInt(level(layout.ids, start, end, firsts));
                     }
@@ -214,6 +231,8 @@ class WindowFunnelAggregator {
 
             private void buildIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
                 int positions = selectedInPage.getPositionCount();
+                long[] firsts = new long[steps];
+                IntroSorter sorter = timestampSorter(layout.ids);
                 try (
                     LongBlock.Builder timestamps = blockFactory.newLongBlockBuilder(positions);
                     LongBlock.Builder entryMasks = blockFactory.newLongBlockBuilder(positions)
@@ -225,6 +244,11 @@ class WindowFunnelAggregator {
                         if (start == end) {
                             timestamps.appendNull();
                             entryMasks.appendNull();
+                            continue;
+                        }
+                        if (complete.get(group) || reachesAllSteps(start, end, sorter, firsts)) {
+                            timestamps.appendLong(keys.getKey2(layout.ids[start]));
+                            entryMasks.appendLong(allSteps);
                             continue;
                         }
                         if (end - start == 1) {
@@ -246,6 +270,21 @@ class WindowFunnelAggregator {
                     blocks[offset] = timestamps.build();
                     blocks[offset + 1] = entryMasks.build();
                 }
+            }
+
+            private boolean reachesAllSteps(int start, int end, IntroSorter sorter, long[] firsts) {
+                if (end - start == 1) {
+                    return false;
+                }
+                long seen = 0;
+                for (int i = start; i < end; i++) {
+                    seen |= masks.get(layout.ids[i]);
+                }
+                if (seen != allSteps) {
+                    return false;
+                }
+                sorter.sort(start, end);
+                return level(layout.ids, start, end, firsts) == steps;
             }
 
             @Override
@@ -316,7 +355,7 @@ class WindowFunnelAggregator {
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(keys, masks);
+            Releasables.closeExpectNoException(keys, masks, complete);
         }
     }
 }

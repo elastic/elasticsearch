@@ -58,6 +58,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
@@ -301,6 +302,9 @@ public class StatelessPlugin extends Plugin
         RecoveryPlugin {
 
     private static final Logger logger = LogManager.getLogger(StatelessPlugin.class);
+
+    /// Whether `Merge Impact Reduction` project functionality is enabled.
+    public static final boolean MERGE_BLOBS_ENABLED = new FeatureFlag("merge_blobs").isEnabled();
 
     public static final LicensedFeature.Persistent STATELESS_FEATURE = LicensedFeature.persistent(
         null,

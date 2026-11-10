@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -1022,7 +1023,7 @@ public class LocalExecutionPlanner {
         context.lastVisitedTopN.set(topNExec);
         final Integer rowSize = topNExec.estimatedRowSize();
         LuceneMinCompetitiveTimestampTopN luceneMinCompetitivePilot = context.plannerSettings().minCompetitiveTimestampOptimizationEnabled()
-            ? tryBuildLuceneMinCompetitiveTimestampTopN(topNExec, context.blockFactory, context.foldCtx())
+            ? tryBuildLuceneMinCompetitiveTimestampTopN(topNExec, context.blockFactory, context.foldCtx(), context.sortBound())
             : null;
         if (luceneMinCompetitivePilot != null) {
             context.luceneMinCompetitivePilot.set(luceneMinCompetitivePilot);
@@ -1286,19 +1287,20 @@ public class LocalExecutionPlanner {
     /**
      * Path B pilot: wire {@link SharedMinCompetitive} between engine {@code TopNOperator} and
      * {@code LuceneSourceOperator} for {@code TopN → (Project|Filter|FieldExtract)* → EsQuery}
-     * with a single {@code @timestamp}-like sort key.
+     * with a {@code @timestamp}-like first sort key. The other keys only order the rows that tie on it.
      */
     @Nullable
     private static LuceneMinCompetitiveTimestampTopN tryBuildLuceneMinCompetitiveTimestampTopN(
         TopNExec topNExec,
         BlockFactory blockFactory,
-        FoldContext foldCtx
+        FoldContext foldCtx,
+        @Nullable SharedSortBound sortBound
     ) {
         List<Order> orders = topNExec.order();
-        if (orders.size() != 1) {
+        if (orders.isEmpty()) {
             return null;
         }
-        Order order = orders.get(0);
+        Order order = orders.getFirst();
         if (order.child() instanceof FieldAttribute fa == false) {
             return null;
         }
@@ -1319,15 +1321,18 @@ public class LocalExecutionPlanner {
         if (esQuery.queryBuilderAndTags().size() != 1) {
             return null;
         }
-        SharedMinCompetitive.Supplier supplier = new SharedMinCompetitive.Supplier(
-            blockFactory.breaker(),
-            topNExec.minCompetitiveKeyConfig()
-        );
+        // The bound of the request carries over to the batches of shards that run later
+        SharedMinCompetitive.Supplier supplier = sortBound == null || sortBound.sharedWith(orders.size()) == false
+            ? null
+            : sortBound.minCompetitive(sortField.name(), blockFactory.breaker(), topNExec.minCompetitiveKeyConfig());
+        if (supplier == null) {
+            supplier = new SharedMinCompetitive.Supplier(blockFactory.breaker(), topNExec.minCompetitiveKeyConfig());
+        }
         int topCount = ((Number) topNExec.limit().fold(foldCtx)).intValue();
         SharedGlobalTopK.Supplier globalTopKSupplier = topCount > 0
             ? new SharedGlobalTopK.Supplier(blockFactory.breaker(), topCount, supplier)
             : null;
-        return new LuceneMinCompetitiveTimestampTopN(supplier, sortField.qualifiedName(), globalTopKSupplier);
+        return new LuceneMinCompetitiveTimestampTopN(supplier, sortField.qualifiedName(), sortField.dataType(), globalTopKSupplier);
     }
 
     @Nullable
@@ -2196,7 +2201,14 @@ public class LocalExecutionPlanner {
         MetricsInfoOperator.MetricFieldLookup fieldLookup = createMetricFieldLookup(context.shardContexts);
 
         return sourceWithMetadata.with(
-            new TsInfoOperator.Factory(fieldLookup, createDataStreamLookup(context.shardContexts), metadataSourceChannel, indexChannel),
+            new TsInfoOperator.Factory(
+                fieldLookup,
+                createDataStreamLookup(context.shardContexts),
+                metadataSourceChannel,
+                indexChannel,
+                context.plannerSettings().tsInfoPartialEmitThreshold(),
+                ByteSizeValue.ofBytes(Operator.TARGET_PAGE_SIZE)
+            ),
             layoutBuilder.build()
         );
     }
@@ -2230,7 +2242,10 @@ public class LocalExecutionPlanner {
             case INTERMEDIATE -> tsInfoSampleRows(tsInfoExec.limit(), context.plannerSettings());
             case INITIAL -> throw new IllegalStateException("unexpected mode [" + tsInfoExec.mode() + "]");
         };
-        return source.with(new TsInfoOperator.FinalFactory(channels, limit), layoutBuilder.build());
+        return source.with(
+            new TsInfoOperator.FinalFactory(channels, limit, ByteSizeValue.ofBytes(Operator.TARGET_PAGE_SIZE)),
+            layoutBuilder.build()
+        );
     }
 
     /**

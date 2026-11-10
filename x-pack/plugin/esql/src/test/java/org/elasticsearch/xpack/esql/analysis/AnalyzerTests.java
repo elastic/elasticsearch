@@ -3589,8 +3589,8 @@ public class AnalyzerTests extends AnalyzerTestCase {
         Map<String, IndexFieldCapabilities> stdFields = Map.of("@timestamp", timestamp, "status", metricField, "bytes_in", counter);
         return new FieldCapabilitiesResponse(
             List.of(
-                new FieldCapabilitiesIndexResponse("ts_index", "hash_a", tsFields, false, IndexMode.TIME_SERIES, 0, 0, 0),
-                new FieldCapabilitiesIndexResponse("std_index", "hash_b", stdFields, false, IndexMode.STANDARD, 0, 0, 0)
+                new FieldCapabilitiesIndexResponse("ts_index", "hash_a", tsFields, false, IndexMode.TIME_SERIES, 0, 0, 0, 0),
+                new FieldCapabilitiesIndexResponse("std_index", "hash_b", stdFields, false, IndexMode.STANDARD, 0, 0, 0, 0)
             ),
             List.of()
         );
@@ -3607,6 +3607,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
                    ( SORT emp_no )
                    ( LIMIT 9 )
             """);
+        plan = aligned(plan);
 
         var expectedOutput = List.of("emp_no", "first_name", "last_name", "_fork");
         Limit limit = as(plan, Limit.class);
@@ -3701,6 +3702,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
                    | STATS x = MIN(d::double), y = MAX(e::double) WHERE d::double > 1000
                    | EVAL xyz = "abc")
             """);
+        plan = aligned(plan);
 
         Limit limit = as(plan, Limit.class);
         Fork fork = as(limit.child(), Fork.class);
@@ -3807,6 +3809,35 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
         esRelation = as(filter.child(), EsRelation.class);
         assertThat(esRelation.indexPattern(), equalTo("test"));
+    }
+
+    /**
+     * A FORK over a wide index aligns every branch to all of its columns. The alignment used to be quadratic in the number of
+     * columns (#163560); this checks the wide case still aligns the branches correctly.
+     */
+    public void testForkAlignmentOverWideIndex() {
+        int width = 10_000;
+        Map<String, EsField> mapping = new LinkedHashMap<>();
+        for (int i = 0; i < width; i++) {
+            String name = String.format(Locale.ROOT, "f%05d", i);
+            mapping.put(name, new EsField(name, KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+        }
+        TestAnalyzer analyzer = analyzer().addIndex(EsIndexGenerator.esIndex("wide", mapping));
+
+        LogicalPlan plan = analyzer.query("""
+            FROM wide
+            | FORK ( EVAL a = 1 )
+                   ( EVAL b = 2 )
+            """);
+        plan = aligned(plan);
+
+        Fork fork = as(as(plan, Limit.class).child(), Fork.class);
+        List<String> expected = new ArrayList<>(mapping.keySet());
+        expected.addAll(List.of("a", "_fork", "b"));
+        assertThat(Expressions.names(fork.output()), equalTo(expected));
+        for (LogicalPlan branch : fork.children()) {
+            assertThat(Expressions.names(as(branch, Project.class).projections()), equalTo(expected));
+        }
     }
 
     public void testForkError() {
@@ -4075,7 +4106,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     private LogicalPlan analyzeWithEmptyFieldCapsResponse(String query) throws IOException {
         List<FieldCapabilitiesIndexResponse> idxResponses = List.of(
-            new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD, 0, 0, 0)
+            new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD, 0, 0, 0, 0)
         );
         IndexResolution resolution = mergedResolution("test*", new FieldCapabilitiesResponse(idxResponses, List.of()));
         return analyzer().addIndex(resolution).query(query);
@@ -6414,6 +6445,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
                 | STATS {}
                 """, count);
             var plan = basic().addNoFieldsIndex().query(query);
+            plan = aligned(plan);
 
             Limit limit = as(plan, Limit.class);
             Aggregate aggregate = as(limit.child(), Aggregate.class);
@@ -6442,6 +6474,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
                 | STATS {}
                 """, count);
             var plan = basic().addEmptyIndex().query(query);
+            plan = aligned(plan);
 
             Limit limit = as(plan, Limit.class);
             Aggregate aggregate = as(limit.child(), Aggregate.class);
@@ -7409,7 +7442,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         Fork fork = plan.collect(Fork.class).getFirst();
         assertThat(fork.output(), hasItem(key));
         for (LogicalPlan branch : fork.children()) {
-            assertThat(fieldNames(branch.output()).getLast(), equalTo(ResolveHighlightIndexKey.INDEX_KEY_NAME));
+            assertThat(fieldNames(branch.output()), hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME));
         }
         assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
         assertWarnings();

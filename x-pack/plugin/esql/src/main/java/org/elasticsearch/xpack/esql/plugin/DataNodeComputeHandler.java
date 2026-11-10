@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
@@ -43,6 +44,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -252,6 +254,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 .isEnabled();
                             var dataNodeRequest = new DataNodeRequest(
                                 childSessionId,
+                                computeService.queryId(parentTask),
                                 configuration,
                                 clusterAlias,
                                 shards,
@@ -401,7 +404,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         transportService.sendChildRequest(
                             connection,
                             ComputeService.DATA_ACTION_NAME,
-                            externalRequest(childSessionId, configuration, dataNodePlan, nodeSplits, requiredClusterStateVersion),
+                            externalRequest(
+                                childSessionId,
+                                computeService.queryId(parentTask),
+                                configuration,
+                                dataNodePlan,
+                                nodeSplits,
+                                requiredClusterStateVersion
+                            ),
                             groupTask,
                             TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(
@@ -594,6 +604,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
     private static DataNodeRequest externalRequest(
         String sessionId,
+        TaskId queryId,
         Configuration configuration,
         ExchangeSinkExec dataNodePlan,
         List<ExternalSplit> splits,
@@ -601,6 +612,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     ) {
         return new DataNodeRequest(
             sessionId,
+            queryId,
             configuration,
             "",
             List.of(),
@@ -783,6 +795,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     }
                     var computeContext = new ComputeContext(
                         sessionId,
+                        request.queryId(),
                         ComputeService.DATA_DESCRIPTION,
                         clusterAlias,
                         flags,
@@ -830,6 +843,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 }
             }
             final var doAcquire = ActionRunnable.supply(listener, () -> {
+                // acquiring the search contexts and planning the batch with them is work for its shards
+                TaskLoadAttribution.attribute(shardsLoad(shards));
                 var newContexts = new ArrayList<SearchContext>();
                 for (Tuple<IndexShard, SplitShardCountSummary> targetShard : targetShards) {
                     SearchContext context = null;
@@ -925,13 +940,16 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         if (externalSink == null) {
             return;
         }
-        // Shared by the batches of shards
+        // Shared by the batches of shards, and released once all of them are done
         final int sortKeys = ShardTimestampOrder.sharedSortKeys(request.plan());
         final SharedSortBound sortBound = sortKeys > 0 ? new SharedSortBound(sortKeys) : null;
         try (
             ComputeListener computeListener = new ComputeListener(
                 computeService.cancelQueryOnFailure(task),
-                listener.map(profiles -> new DataNodeComputeResponse(profiles, shardLevelFailures))
+                ActionListener.runAfter(
+                    listener.map(profiles -> new DataNodeComputeResponse(profiles, shardLevelFailures)),
+                    () -> Releasables.close(sortBound)
+                )
             )
         ) {
             var parentListener = computeListener.acquireAvoid();
@@ -976,6 +994,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     task,
                     new ComputeContext(
                         request.sessionId(),
+                        request.queryId(),
                         ComputeService.REDUCE_DESCRIPTION,
                         request.clusterAlias(),
                         flags,
@@ -1013,6 +1032,21 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 parentListener.onFailure(e);
             }
         }
+    }
+
+    /**
+     * Charges the time of tasks equally to {@code shards}.
+     */
+    private TaskLoadAttribution.Target shardsLoad(List<DataNodeRequest.Shard> shards) {
+        return searchService.getIndicesService().searchLoad(shards.stream().map(DataNodeRequest.Shard::shardId).toList());
+    }
+
+    /**
+     * The query of a data-node request: its {@link DataNodeRequest#queryId()}, or its parent task if the sender does not
+     * send one.
+     */
+    static TaskId queryId(DataNodeRequest request, Task task) {
+        return request.queryId().isSet() ? request.queryId() : task.getParentTaskId();
     }
 
     /**
@@ -1167,6 +1201,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         final String sessionId = request.sessionId();
         request = new DataNodeRequest(
             sessionId + "[n]", // internal session
+            queryId(request, task),
             request.configuration(),
             request.clusterAlias(),
             request.shards(),
@@ -1548,6 +1583,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 String internalSessionId = sessionId + "[n]";
                 var computeContext = new ComputeContext(
                     internalSessionId,
+                    queryId(request, task),
                     ComputeService.DATA_DESCRIPTION,
                     request.clusterAlias(),
                     flags,

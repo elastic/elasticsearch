@@ -84,6 +84,7 @@ processingCommand
     | {this.isDevVersion()}? lookupCommand
     | dedupCommand
     | {this.isDevVersion()}? fillNullCommand
+    | {this.isDevVersion()}? describeCommand
     | {this.isDevVersion()}? graphExpandCommand
     ;
 
@@ -392,6 +393,10 @@ tsInfoCommand
 
 tsCollapseCommand
     : TS_COLLAPSE
+    ;
+
+describeCommand
+    : DEV_DESCRIBE
     ;
 
 //

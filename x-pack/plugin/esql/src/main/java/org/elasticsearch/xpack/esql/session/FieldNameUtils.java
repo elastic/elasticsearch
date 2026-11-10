@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
+import org.elasticsearch.xpack.esql.plan.logical.Describe;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -91,6 +93,15 @@ public class FieldNameUtils {
     private static final String HIGHLIGHT_MATCH = "match";
     private static final String HIGHLIGHT_MATCH_PHRASE = "match_phrase";
 
+    /**
+     * The names the query uses as fields, which a {@code flattened} field may hold as keys.
+     */
+    public static Set<String> namedFields(LogicalPlan parsed) {
+        Set<String> names = new HashSet<>();
+        parsed.forEachExpressionDown(UnresolvedAttribute.class, ua -> names.add(ua.name()));
+        return names;
+    }
+
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
 
         // get the field names from the parsed plan combined with the ENRICH match fields from the ENRICH policy
@@ -126,6 +137,12 @@ public class FieldNameUtils {
         if (projectAll.get() == false) {
             parsed.forEachDown(Dedup.class, d -> {
                 if (d.anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs)) == false) {
+                    projectAll.set(true);
+                }
+            });
+            // DESCRIBE reports every column of its child, so the same rule applies.
+            parsed.forEachDown(Describe.class, d -> {
+                if (d.child().anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs)) == false) {
                     projectAll.set(true);
                 }
             });
@@ -449,8 +466,9 @@ public class FieldNameUtils {
      * <li>The field itself: "a.b.c"</li>
      * <li>Its multi-fields: "a.b.c.*". A sample case where this is required is TEXT fields that may have a ".keyword" subfield that's
      * implicitly used in some queries.</li>
-     * <li>(Only when {@code unmapped_fields="load"}) All dot-delimited parent prefixes: ["a", "a.b"]. This is needed to get back flattened
-     * parents, so the verifier can detect subfields of flattened.</li>
+     * <li>(Only when {@code includeFieldParentPrefixes}) All dot-delimited parent prefixes: ["a", "a.b"]. This is needed to get back
+     * flattened parents, which hold a name as a key or, under {@code unmapped_fields="load"}, let the verifier detect their
+     * subfields.</li>
      * </ul>
      */
     private static void addRelatedFields(boolean includeFieldParentPrefixes, Set<String> allFields, String name) {

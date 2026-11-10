@@ -70,7 +70,7 @@ PUT my-index-000001
 2. In ascending order for the `username` field and in descending order for the `date` field.
 
 
-Instead of the separate `index.sort.*` settings, you can configure the whole sort with the single `index.sort` expression:
+{applies_to}`stack: ga 9.7` Instead of the separate `index.sort.*` settings, you can configure the whole sort with the single `index.sort` expression:
 
 ```console
 PUT my-index-000001
@@ -100,8 +100,8 @@ PUT my-index-000001
 Index sorting supports the following settings:
 
 $$$index-sort-expression$$$
-`index.sort`
-:   A comma-separated list of sort fields that configures the whole index sort. Each entry is a field name followed by optional keywords, separated by whitespace, in any order and each at most once:
+`index.sort` {applies_to}`stack: ga 9.7`
+:   A comma-separated list of sort fields that configures the whole index sort. Each entry is a field name followed by optional keywords, separated by whitespace, in any order:
 
     * `ASC` or `DESC`: The sort order. Defaults to `ASC`.
     * `MV_FIRST_MIN` or `MV_FIRST_MAX`: Which value of a multi-valued field to sort by. Defaults to `MV_FIRST_MIN`, or `MV_FIRST_MAX` when the order is `DESC`.

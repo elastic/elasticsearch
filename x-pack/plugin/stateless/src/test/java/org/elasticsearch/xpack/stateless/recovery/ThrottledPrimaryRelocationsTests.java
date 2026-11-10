@@ -240,7 +240,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         assertTrue(shard2.recoveryStats().noCurrentRecoveries());
     }
 
-    public void testShardMarkedAsRelocationSourceOnlyWhileRelocationRuns() {
+    public void testShardMarkedAsActivelyRelocatingOnlyWhileRelocationRuns() {
         final var taskQueue = new DeterministicTaskQueue();
         final var capturedListener = new AtomicReference<ActionListener<StartRelocationResponse>>();
         final var clusterService = mockClusterService();
@@ -297,7 +297,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         assertFalse(shard2.isActivelyRelocatingPrimary());
     }
 
-    public void testDiscardedQueuedRelocationNeverMarksShardAsRelocationSource() {
+    public void testDiscardedQueuedRelocationNeverMarksShardAsActivelyRelocating() {
         final var taskQueue = new DeterministicTaskQueue();
         final var clusterService = mockClusterService();
         final var throttle = new ThrottledPrimaryRelocations(
@@ -991,9 +991,9 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         return new StatelessPrimaryRelocationAction.Request(randomLong(), shardId, targetNode, randomIdentifier(), 0);
     }
 
-    /// Creates a mock [IndexShard] with a real [RecoveryStats] to leverage counter assertions. The relocation-as-source marking is
-    /// backed by a simple counter, since a mocked [IndexShard#markActivelyRelocatingPrimary(long)] would return a `null`
-    /// releasable and the tests assert on [IndexShard#isActivelyRelocatingPrimary()].
+    /// Creates a mock [IndexShard] with a real [RecoveryStats] to leverage counter assertions. The actively-relocating
+    /// marking is backed by a simple counter, since a mocked [IndexShard#markActivelyRelocatingPrimary(long)] would return
+    /// a `null` releasable and the tests assert on [IndexShard#isActivelyRelocatingPrimary()].
     private static IndexShard mockShard(ShardId shardId) {
         final var shard = mock(IndexShard.class);
         when(shard.recoveryStats()).thenReturn(new RecoveryStats());

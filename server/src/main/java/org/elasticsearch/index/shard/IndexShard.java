@@ -287,14 +287,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         RELOCATING
     }
 
-    /// Whether a relocation of this primary is executing on this node, see [#isActivelyRelocatingPrimary()].
-    /// Updated atomically with `latestPrimaryRelocationClusterStateVersion`.
+    /// Whether the latest relocation of this primary is executing on this node, see [#isActivelyRelocatingPrimary()].
+    /// Always `NONE` on replicas. Updated atomically with `latestPrimaryRelocationClusterStateVersion`.
     private volatile PrimaryRelocationState primaryRelocationState = PrimaryRelocationState.NONE;
 
     /// The cluster state version sent by the target of the latest relocation that started on this node.
     ///
     /// If a relocation fails or is cancelled and the master retries it (e.g. to a new target), the retry can start before
-    /// the previous attempt has finished unwinding. Each attempt's target recovers in a newer cluster state, so this version
+    /// the previous attempt has finished unwinding. Each attempt's target shard is created in a newer cluster state, since a
+    /// new relocation target only appears once the previous one has been removed from the routing table, so this version
     /// strictly increases across attempts. Both transitions check it, so a stale attempt cannot modify `primaryRelocationState`
     /// once a newer attempt has started.
     private long latestPrimaryRelocationClusterStateVersion = ClusterState.UNKNOWN_VERSION;
@@ -4065,7 +4066,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ///
     /// No-op if a relocation with a higher cluster state version already started, see `latestPrimaryRelocationClusterStateVersion`.
     ///
-    /// @param clusterStateVersion the cluster state version in which the relocation target started recovering
+    /// @param clusterStateVersion the cluster state version sent by the target of the relocation
     public Releasable markActivelyRelocatingPrimary(long clusterStateVersion) {
         assert shardRouting.primary() : "markActivelyRelocatingPrimary was called on a non-primary shard " + shardRouting;
         synchronized (mutex) {
@@ -4088,14 +4089,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         });
     }
 
-    /// Returns whether a relocation of this primary is actively executing on this node, see also [#isRelocatedPrimary()]
-    /// for once the relocation handoff has completed.
+    /// Returns whether the latest relocation of this primary is actively executing on this node, see [#isRelocatedPrimary()]
+    /// for once the relocation handoff has completed. Always returns `false` on replicas.
     ///
     /// This differs from `routingEntry().relocating()`: the routing table marks a shard as relocating as soon as the master
     /// decides to move it, but the data node may queue the relocation for some time before it actually starts doing any work.
-    /// This method only returns `true` when the relocation is actually executing.
+    /// This method only returns `true` while the latest relocation is actually executing.
     ///
-    /// Currently only tracked by stateless primary relocations (see `StatelessPrimaryRelocationSourceService`).
+    /// Currently only tracked by stateless primary relocations (see `StatelessPrimaryRelocationSourceService`), this always
+    /// returns `false` for stateful shards.
     /// TODO: also mark stateful primary relocations in [org.elasticsearch.indices.recovery.PeerRecoverySourceService].
     public boolean isActivelyRelocatingPrimary() {
         return primaryRelocationState == PrimaryRelocationState.RELOCATING;

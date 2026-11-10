@@ -36,6 +36,9 @@ public final class ConcurrentBufferFill {
 
     private ByteBuffer buffer;
 
+    /** The thread that created this fill, which must complete it; {@code null} unless asserting. */
+    private final Thread owner = Assertions.ENABLED ? Thread.currentThread() : null;
+
     /** Address of the buffer's writable region if it is native, otherwise {@code 0}, in which case slices are slices of {@link #buffer}. */
     private final long nativeAddress;
 
@@ -45,8 +48,8 @@ public final class ConcurrentBufferFill {
     private final TreeMap<Integer, Integer> claimedRegions = Assertions.ENABLED ? new TreeMap<>() : null;
 
     /**
-     * Must be called on the thread that owns {@code buffer}, which must also call {@link #complete}. Fills the bytes between the
-     * buffer's position and its limit.
+     * Must be called on the thread that owns {@code buffer}, which must also call {@link #complete}; that is checked when assertions are
+     * enabled. Fills the bytes between the buffer's position and its limit.
      */
     public ConcurrentBufferFill(ByteBuffer buffer) {
         this.buffer = buffer;
@@ -98,11 +101,13 @@ public final class ConcurrentBufferFill {
 
     /**
      * Ends the fill: waits, uninterruptibly, for fillers in progress, then advances the buffer's position. Later calls have no effect.
+     * Must be called on the thread that created the fill, so that the owner cannot free or reuse the buffer before this returns.
      *
      * @param bytesFilled bytes to advance the position by, at most the total length of the claimed regions. Zero if nothing was filled or
      *                    the caller accounts for it itself.
      */
     public void complete(int bytesFilled) {
+        assert Thread.currentThread() == owner : "completed on [" + Thread.currentThread() + "] but created on [" + owner + "]";
         if (buffer != null) {
             assert bytesFilled == 0 || permits.availablePermits() == Integer.MAX_VALUE
                 : "Try to complete with [" + bytesFilled + "] bytes but only had [" + permits.availablePermits() + "] permits available.";

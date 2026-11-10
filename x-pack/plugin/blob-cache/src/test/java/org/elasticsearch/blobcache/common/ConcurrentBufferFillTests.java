@@ -273,6 +273,24 @@ public class ConcurrentBufferFillTests extends ESTestCase {
         expectThrows(AssertionError.class, () -> fill.complete(9));
     }
 
+    // The owner must not be able to free the buffer while another thread is still completing the fill.
+    public void testCompleteOnAnotherThreadIsRejected() throws Exception {
+        assumeTrue("the check needs assertions enabled", Assertions.ENABLED);
+        final ConcurrentBufferFill fill = new ConcurrentBufferFill(ByteBuffer.allocate(16));
+        final AtomicReference<Throwable> failure = new AtomicReference<>();
+        onOtherThread(() -> {
+            try {
+                fill.complete(0);
+            } catch (AssertionError e) {
+                failure.set(e);
+            }
+        });
+        assertThat(failure.get(), instanceOf(AssertionError.class));
+        // the rejected call left the fill alone, so the owner can still complete it
+        fill.complete(0);
+        assertComplete(fill);
+    }
+
     public void testFailingActionDoesNotLeakPermit() throws Exception {
         try (Arena arena = Arena.ofConfined()) {
             final ConcurrentBufferFill fill = new ConcurrentBufferFill(arena.allocate(8).asByteBuffer());

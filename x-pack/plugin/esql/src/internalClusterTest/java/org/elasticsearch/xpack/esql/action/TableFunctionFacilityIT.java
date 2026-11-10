@@ -11,14 +11,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.tablefunction.CoordinatorRowsFunction;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunction;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionContext;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionInvocation;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionSignature;
+import org.elasticsearch.xpack.esql.tablefunction.TableRows;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -62,11 +61,6 @@ public class TableFunctionFacilityIT extends AbstractEsqlIntegTestCase {
     private static final class Letters extends CoordinatorRowsFunction {
 
         @Override
-        protected int maxRows() {
-            return 100;
-        }
-
-        @Override
         public String name() {
             return "letters";
         }
@@ -77,19 +71,13 @@ public class TableFunctionFacilityIT extends AbstractEsqlIntegTestCase {
         }
 
         @Override
-        protected List<Attribute> columns(TableFunctionInvocation call, TableFunctionContext context) {
-            return List.of(column("letter", DataType.KEYWORD));
-        }
-
-        @Override
-        protected void rows(TableFunctionInvocation call, TableFunctionContext context, ActionListener<List<List<Object>>> listener) {
-            computed(listener, () -> {
-                List<List<Object>> rows = new ArrayList<>();
+        protected void write(TableFunctionInvocation call, TableFunctionContext context, TableRows rows, ActionListener<Void> listener) {
+            computed(listener, out -> {
+                TableRows.Keyword letter = out.keyword("letter");
                 for (char c : call.name(0).toCharArray()) {
-                    rows.add(List.of(String.valueOf(c)));
+                    letter.append(String.valueOf(c));
                 }
-                return rows;
-            });
+            }, rows);
         }
     }
 

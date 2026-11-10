@@ -89,20 +89,25 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         return boolQueryBuilder;
     }
 
-    private static void addRandomClause(BoolQueryBuilder boolQueryBuilder, QueryBuilder innerQueryBuilder) {
+    @Override
+    protected QueryBuilder createInnerQuery() {
+        return RandomQueryBuilder.createQuery(random());
+    }
+
+    private void addRandomClause(BoolQueryBuilder boolQueryBuilder, QueryBuilder innerQueryBuilder) {
         int iters = randomIntBetween(1, 3);
         for (int i = 0; i < iters; i++) {
             if (randomBoolean()) {
-                boolQueryBuilder.filter(randomBoolean() ? innerQueryBuilder : new MatchAllQueryBuilder());
+                boolQueryBuilder.filter(randomBoolean() ? innerQueryBuilder : createInnerQuery());
             }
             if (randomBoolean()) {
-                boolQueryBuilder.should(randomBoolean() ? innerQueryBuilder : new MatchAllQueryBuilder());
+                boolQueryBuilder.should(randomBoolean() ? innerQueryBuilder : createInnerQuery());
             }
             if (randomBoolean()) {
-                boolQueryBuilder.mustNot(randomBoolean() ? innerQueryBuilder : new MatchAllQueryBuilder());
+                boolQueryBuilder.mustNot(randomBoolean() ? innerQueryBuilder : createInnerQuery());
             }
             if (randomBoolean()) {
-                boolQueryBuilder.filter(randomBoolean() ? innerQueryBuilder : new MatchAllQueryBuilder());
+                boolQueryBuilder.filter(randomBoolean() ? innerQueryBuilder : createInnerQuery());
             }
         }
     }

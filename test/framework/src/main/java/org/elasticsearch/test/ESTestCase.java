@@ -3325,6 +3325,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             assertBusy(() -> {
                 assertThat(searchService.getActiveContexts(), equalTo(0));
                 assertThat(searchService.getOpenScrollContexts(), equalTo(0));
+                assertThat(searchService.queryScheduler().queries(), equalTo(0));
             });
         } catch (Exception e) {
             throw new AssertionError("Failed to verify search contexts", e);

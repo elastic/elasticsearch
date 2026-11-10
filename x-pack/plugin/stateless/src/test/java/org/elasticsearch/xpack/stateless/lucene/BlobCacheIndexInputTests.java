@@ -1251,7 +1251,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             new CacheFileReader(
                 realCacheFile,
                 blobReader,
-                createBlobFileRanges(primaryTerm, 0L, 0, length),
+                createBlobFileRanges(primaryTerm, 1L, 0, length),
                 cacheService.getBlobCacheMetrics(),
                 System::currentTimeMillis,
                 true
@@ -1302,7 +1302,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             new CacheFileReader(
                 cacheFile,
                 lateCallbackBlobReader,
-                createBlobFileRanges(primaryTerm, 0L, 0, length),
+                createBlobFileRanges(primaryTerm, 1L, 0, length),
                 cacheService.getBlobCacheMetrics(),
                 System::currentTimeMillis,
                 true

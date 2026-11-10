@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.stateless.allocation;
 
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -34,9 +33,7 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shard, RoutingNode node, RoutingAllocation allocation) {
-        if (shard.primary() == false
-            || shard.unassigned() == false
-            || shard.recoverySource().getType() != RecoverySource.Type.SNAPSHOT) {
+        if (shard.primary() == false || shard.unassigned() == false || shard.recoverySource().getType() != RecoverySource.Type.SNAPSHOT) {
             return Decision.YES;
         }
         Long shardSize = allocation.snapshotShardSizeInfo().getShardSize(shard);

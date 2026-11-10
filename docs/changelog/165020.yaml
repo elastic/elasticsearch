@@ -1,5 +1,0 @@
-area: Mapping
-issues: []
-pr: 165020
-summary: "Fixed a batch indexing bug under dynamic: false"
-type: bug

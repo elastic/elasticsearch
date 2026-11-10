@@ -1211,6 +1211,20 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             if (UNKNOWN_UUID.equals(uuid)) {
                 uuid = UUIDs.randomBase64UUID();
             }
+
+            // Build the routing table before the reuse check below: initializeProjects may rebuild the project map (reordering
+            // projects) when adding a project, so the cached RoutingNodes must be compared against the final table.
+            if (metadata == null) {
+                if (routingTable == null) {
+                    routingTable = GlobalRoutingTable.EMPTY_ROUTING_TABLE;
+                }
+            } else if (routingTable == null) {
+                var projectRouting = Maps.transformValues(metadata.projects(), ignore -> RoutingTable.EMPTY_ROUTING_TABLE);
+                routingTable = new GlobalRoutingTable(ImmutableOpenMap.builder(projectRouting).build());
+            } else {
+                routingTable = routingTable.initializeProjects(metadata.projects().keySet());
+            }
+
             final RoutingNodes routingNodes;
             if (previous != null && this.routingTable.hasSameIndexRouting(previous.routingTable) && this.nodes == previous.nodes) {
                 // routing table contents and nodes haven't changed so we can try to reuse the previous state's routing nodes which are
@@ -1226,18 +1240,6 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 for (DiscoveryNode node : nodes) {
                     nodeFeatures.putIfAbsent(node.getId(), Set.of());
                 }
-            }
-
-            // Build routing table if required
-            if (metadata == null) {
-                if (routingTable == null) {
-                    routingTable = GlobalRoutingTable.EMPTY_ROUTING_TABLE;
-                }
-            } else if (routingTable == null) {
-                var projectRouting = Maps.transformValues(metadata.projects(), ignore -> RoutingTable.EMPTY_ROUTING_TABLE);
-                routingTable = new GlobalRoutingTable(ImmutableOpenMap.builder(projectRouting).build());
-            } else {
-                routingTable = routingTable.initializeProjects(metadata.projects().keySet());
             }
 
             return new ClusterState(

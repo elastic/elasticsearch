@@ -1056,7 +1056,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             estimatedRowSize,
             List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
         );
-        PageStreamPublisher pageStream = new PageStreamPublisher(randomIntBetween(1, 1000));
+        PageStreamPublisher pageStream = new PageStreamPublisher();
         StreamingOutputExec streamingOutput = new StreamingOutputExec(Source.EMPTY, esQueryExec, pageStream);
 
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(

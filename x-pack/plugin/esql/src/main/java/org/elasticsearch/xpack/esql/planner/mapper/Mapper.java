@@ -255,14 +255,12 @@ public class Mapper {
                     hashJoin.rightFields(),
                     addedFields
                 );
-                // INNER drops unmatched probe rows; LEFT keeps them (PromQL unless).
+                // `INNER` tells operator to filter out non-matched outputs
                 if (hashJoin.config().type() == JoinTypes.INNER) {
                     join = new FilterExec(hashJoin.source(), join, new IsNotNull(hashJoin.source(), marker));
                 }
                 if (hashJoin.unique()) {
-                    // Guard: unique=true requires every build row to be matched at most once. The marker
-                    // is unique per build row, so a distinct-by on it alone detects duplicates independent
-                    // of the join key types and count.
+                    // `UNIQUE` tells operator to throw on duplicate matches
                     join = new DistinctByExec(hashJoin.source(), join, marker, true);
                 }
                 return new ProjectExec(hashJoin.source(), join, hashJoin.output());

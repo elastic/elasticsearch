@@ -12,48 +12,43 @@ package org.elasticsearch.search.vectors;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.concurrent.atomic.LongAccumulator;
-
 public class MaxScoreTopKnnCollectorTests extends ESTestCase {
 
     public void testMaxScorePropagation() {
-        LongAccumulator accumulator = new LongAccumulator(Long::max, AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE);
-        MaxScoreTopKnnCollector collector = new MaxScoreTopKnnCollector(2, 1000, new IVFKnnSearchStrategy(0.5f, 100, 10, accumulator));
+        MaxScoreTopKnnCollector collector = new MaxScoreTopKnnCollector(2, 1000, new IVFKnnSearchStrategy(0.5f, 100, 10, null));
         long competitiveScore = NeighborQueue.encodeRaw(1, 0.9f);
 
-        collector.updateMinCompetitiveDocScore(competitiveScore);
-        assertEquals(competitiveScore, collector.getMinCompetitiveDocScore());
-        // haven't collected k results
-        assertTrue(Float.NEGATIVE_INFINITY == collector.minCompetitiveSimilarity());
+        assertEquals(competitiveScore, collector.mergeMinCompetitiveDocScore(competitiveScore));
+        // A shared score is competitive even before the local queue fills.
+        assertEquals(0.9f, collector.minCompetitiveSimilarity(), 0f);
         collector.collect(2, 1.5f);
-        assertTrue(Float.NEGATIVE_INFINITY == collector.minCompetitiveSimilarity());
+        assertEquals(0.9f, collector.minCompetitiveSimilarity(), 0f);
 
         // we ignore queue min until we've collected k results
-        assertEquals(competitiveScore, collector.getMinCompetitiveDocScore());
+        assertEquals(competitiveScore, collector.mergeMinCompetitiveDocScore(AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE));
         collector.collect(3, 1.9f);
 
         // min competitive for this collector is more than global once we have k
-        assertEquals(NeighborQueue.encodeRaw(2, 1.5f), collector.getMinCompetitiveDocScore());
+        assertEquals(
+            NeighborQueue.encodeRaw(2, 1.5f),
+            collector.mergeMinCompetitiveDocScore(AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE)
+        );
 
         // we have collected k results, min competitive is the min value collected
         assertEquals(1.5f, collector.minCompetitiveSimilarity(), 0.0f);
         // we update the global min competitive doc score with a new value
         competitiveScore = NeighborQueue.encodeRaw(4, 4f);
-        collector.updateMinCompetitiveDocScore(competitiveScore);
-        assertEquals(competitiveScore, collector.getMinCompetitiveDocScore());
+        assertEquals(competitiveScore, collector.mergeMinCompetitiveDocScore(competitiveScore));
         assertEquals(4f, collector.minCompetitiveSimilarity(), 0.0f);
     }
 
-    public void testUpdateMinCompetitiveDocScoreIgnoresPartialQueue() {
-        LongAccumulator accumulator = new LongAccumulator(Long::max, AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE);
-        MaxScoreTopKnnCollector collector = new MaxScoreTopKnnCollector(2, 1000, new IVFKnnSearchStrategy(0.5f, 100, 10, accumulator));
+    public void testUpdateMinCompetitiveDocScoreWithPartialQueue() {
+        MaxScoreTopKnnCollector collector = new MaxScoreTopKnnCollector(2, 1000, new IVFKnnSearchStrategy(0.5f, 100, 10, null));
         collector.collect(2, 2.0f);
 
         long globalCompetitiveScore = NeighborQueue.encodeRaw(10, 0.2f);
-        collector.updateMinCompetitiveDocScore(globalCompetitiveScore);
-
-        assertEquals(globalCompetitiveScore, collector.getMinCompetitiveDocScore());
-        assertTrue(Float.NEGATIVE_INFINITY == collector.minCompetitiveSimilarity());
+        assertEquals(globalCompetitiveScore, collector.mergeMinCompetitiveDocScore(globalCompetitiveScore));
+        assertEquals(0.2f, collector.minCompetitiveSimilarity(), 0f);
     }
 
 }

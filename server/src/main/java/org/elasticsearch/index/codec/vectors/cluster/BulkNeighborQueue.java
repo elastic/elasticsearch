@@ -86,6 +86,21 @@ public class BulkNeighborQueue {
     }
 
     /**
+     * Returns a lower bound on every retained encoded document score. Before the reservoir fills, this is the exact
+     * worst retained value: the lowest score, using document ID as the tie-breaker. Once full, the deferred reservoir
+     * threshold is used and may remain conservatively below the exact top-k minimum until compaction. The queue must
+     * not be empty.
+     */
+    public long peekScoreLowerBound() {
+        assert size() > 0;
+        if (tinyHeap != null) {
+            return tinyHeap.top();
+        }
+        assert collector != null;
+        return collector.peekScoreLowerBound();
+    }
+
+    /**
      * Encodes the node ID and its similarity score as long, preserving the Lucene tie-breaking rule
      * that when two scores are equal, the smaller node ID must win.
      * @param node the node ID
@@ -195,6 +210,8 @@ public class BulkNeighborQueue {
         private int size;
         private long threshold = Long.MIN_VALUE;
         private float thresholdScore = Float.NEGATIVE_INFINITY;
+        // Exact minimum while filling. Long.MAX_VALUE is the empty-state identity and is never returned for an empty queue.
+        private long worst = Long.MAX_VALUE;
 
         private ReservoirTopK(int maxSize) {
             this.maxSize = maxSize;
@@ -210,6 +227,10 @@ public class BulkNeighborQueue {
             return threshold;
         }
 
+        private long peekScoreLowerBound() {
+            return size < maxSize ? worst : threshold;
+        }
+
         private int insertWithOverflowBulk(int[] docs, float[] scores, int count, float bestScore) {
             if (count <= 0) {
                 return 0;
@@ -219,7 +240,9 @@ public class BulkNeighborQueue {
             if (size < maxSize) {
                 int fill = Math.min(count, maxSize - size);
                 for (; i < fill; i++) {
-                    values[size++] = encodeRaw(docs[i], scores[i]);
+                    long encoded = encodeRaw(docs[i], scores[i]);
+                    values[size++] = encoded;
+                    worst = Math.min(worst, encoded);
                 }
                 accepted += fill;
                 if (size == maxSize) {
@@ -324,6 +347,7 @@ public class BulkNeighborQueue {
             size = 0;
             threshold = Long.MIN_VALUE;
             thresholdScore = Float.NEGATIVE_INFINITY;
+            worst = Long.MAX_VALUE;
         }
 
         /**

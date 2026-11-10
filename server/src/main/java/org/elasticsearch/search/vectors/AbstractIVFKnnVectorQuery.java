@@ -41,9 +41,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
-import java.util.concurrent.atomic.LongAccumulator;
-
-import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE;
 
 /**
  * Base class for IVF kNN vector queries. {@link #k} is the final result size (after any outer rescore) - callers
@@ -172,26 +169,32 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         // When providedVisitRatio is 0.0f (dynamic), the codec computes the visit ratio
         // per-segment using the Two-Signal model with segment-size awareness.
         final float visitRatio = providedVisitRatio;
-        final LongAccumulator longAccumulator = indexSearcher.getIndexReader().leaves().size() > 1
-            ? new LongAccumulator(Long::max, LEAST_COMPETITIVE)
-            : null;
+
+        IvfSegmentConfig[] resolvedPerLeaf = new IvfSegmentConfig[leafReaderContexts.size()];
+        float maxRescoreOversampleAcrossLeaves = 1f;
+        for (int i = 0; i < leafReaderContexts.size(); i++) {
+            LeafReader leafReader = leafReaderContexts.get(i).reader();
+            FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(field);
+            if (fieldInfo != null) {
+                resolvedPerLeaf[i] = ivfQueryConfigResolver.resolve(fieldInfo, leafReader);
+                maxRescoreOversampleAcrossLeaves = Math.max(maxRescoreOversampleAcrossLeaves, resolvedPerLeaf[i].rescoreOversample());
+            }
+        }
+
+        int mergeK = leafReaderContexts.isEmpty() ? k : IvfSegmentConfig.shardMergeBudget(k, maxRescoreOversampleAcrossLeaves);
+        // The max leaf budget includes overspill, so this many retained observations support a safe shard-wide cutoff.
+        int requiredObservations = IvfSegmentConfig.leafCollectorBudget(k, maxRescoreOversampleAcrossLeaves);
+        SharedCompetitiveScore sharedScore = leafReaderContexts.size() > 1 ? new SharedCompetitiveScore(requiredObservations) : null;
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
-        float maxRescoreOversampleAcrossLeaves = 1f;
-        for (LeafReaderContext context : leafReaderContexts) {
-            LeafReader leafReader = context.reader();
-            FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(field);
-            float segmentOversample = 1f;
-            IvfSegmentConfig resolved = null;
-            if (fieldInfo != null) {
-                resolved = ivfQueryConfigResolver.resolve(fieldInfo, leafReader);
-                segmentOversample = resolved.rescoreOversample();
-                maxRescoreOversampleAcrossLeaves = Math.max(maxRescoreOversampleAcrossLeaves, segmentOversample);
-            }
+        for (int i = 0; i < leafReaderContexts.size(); i++) {
+            LeafReaderContext context = leafReaderContexts.get(i);
+            IvfSegmentConfig resolved = resolvedPerLeaf[i];
+            float segmentOversample = resolved != null ? resolved.rescoreOversample() : 1f;
 
             IVFCollectorManager knnCollectorManagerForSegment = getKnnCollectorManager(
                 IvfSegmentConfig.leafCollectorBudget(k, segmentOversample),
-                longAccumulator
+                sharedScore
             );
 
             // Preconditioning might differ per segment when they are calibrated, so, potentially,
@@ -207,7 +210,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             this.rawPerLeafResults = perLeafResults;
         }
 
-        int mergeK = tasks.isEmpty() ? k : IvfSegmentConfig.shardMergeBudget(k, maxRescoreOversampleAcrossLeaves);
         TopDocs topK = mergeLeafResults(mergeK, perLeafResults);
         vectorOpsCount = (int) topK.totalHits.value();
         if (topK.scoreDocs.length == 0) {
@@ -402,8 +404,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return numCands;
     }
 
-    protected IVFCollectorManager getKnnCollectorManager(int k, LongAccumulator longAccumulator) {
-        return new IVFCollectorManager(k, longAccumulator);
+    protected IVFCollectorManager getKnnCollectorManager(int k, SharedCompetitiveScore sharedScore) {
+        return new IVFCollectorManager(k, sharedScore);
     }
 
     @Override
@@ -413,11 +415,11 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     static class IVFCollectorManager implements KnnCollectorManager {
         private final int k;
-        final LongAccumulator longAccumulator;
+        final SharedCompetitiveScore sharedScore;
 
-        IVFCollectorManager(int k, LongAccumulator longAccumulator) {
+        IVFCollectorManager(int k, SharedCompetitiveScore sharedScore) {
             this.k = k;
-            this.longAccumulator = longAccumulator;
+            this.sharedScore = sharedScore;
         }
 
         @Override

@@ -58,6 +58,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
@@ -274,6 +275,8 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
         var settings = Settings.builder()
             .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 2)
             .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
+            // reduce the consistency check to delete faster if a blob shows up for deletion
+            .put(DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(100))
             // we hold the prewarm until after the relocation, so no reason for the source to wait
             .put(PREWARM_WAIT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO)
             .build();
@@ -361,12 +364,9 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
         // Extra activity to trigger deletions on target node after relocation.
         indexDocs(indexName, 10);
         assertNoFailures(indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get());
+        indexDocs(indexName, 1);
         // Confirm that the blob passed in pre-warming message was deleted from the blob store
         assertBusy(() -> {
-            // Keep indexing so we get translog uploads and hence cluster-state checks that eventually lead to having blobs deleted through
-            // the `StatelessCommitCleaner`. If we did `indexDocs` right before `assertBusy`, the to-be-deleted blob might not have yet
-            // been added in the queues of `StatelessCommitCleaner` for it to be deleted and that's why we keep it here.
-            indexDocs(indexName, 1);
             var prewarmBccBlob = prewarmBccBlobRef.get();
             assertThat(prewarmBccBlob, not(equalTo(null)));
             var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(prewarmBccBlob.blobFile().generation());

@@ -2366,10 +2366,10 @@ public class ComputeService {
     }
 
     /**
-     * The id the drivers of {@code task} are tracked under on this node, as one query.
+     * The id of the query a coordinator task runs.
      */
-    TaskId queryId(Task task) {
-        return new TaskId(transportService.getLocalNode().getId(), task.getId());
+    TaskId queryId(Task coordinatorTask) {
+        return new TaskId(transportService.getLocalNode().getId(), coordinatorTask.getId());
     }
 
     /**

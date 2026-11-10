@@ -71,6 +71,7 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
@@ -273,6 +274,32 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         Map<String, BlobFileRanges> blobFileRanges
     ) {
         public static IndexingShardState EMPTY = new IndexingShardState(null, Set.of(), Map.of());
+
+        /** Reconstructs a hollow commit's file locations from its metadata, without reading referenced blobs. */
+        public static IndexingShardState forHollowCommit(BatchedCompoundCommit latestBcc, Set<BlobFile> otherBlobs) {
+            // We re-calculate the blob locations of all commit's files, by replacing the referenced blob location for
+            // replicated .si files in the CC's extra content with their extra content blob location instead.
+            // We do not calculate blob file ranges for internal files using replicated headers/footers, since we do not
+            // expect replicated content to exist (all hollow files should be in first region typically), and we do not
+            // expect reading of any other files than .si files.
+            final var hollowCC = latestBcc.lastCompoundCommit();
+            assert hollowCC.hollow();
+            assert hollowCC.extraContent()
+                .keySet()
+                .stream()
+                .allMatch(filename -> Objects.equals(IndexFileNames.getExtension(filename), LuceneFilesExtensions.SI.getExtension()))
+                : "currently only segment info ."
+                    + LuceneFilesExtensions.SI.getExtension()
+                    + " files are expected to be in extra content files, and found "
+                    + hollowCC.extraContent().keySet();
+            // When combining the replicated files with the commit files, the replicated .si files should override the
+            // referenced .si files in commit files, so that only the replicated .si files' locations stay.
+            final Map<String, BlobFileRanges> hollowCommitBlobFileRanges = Stream.concat(
+                hollowCC.commitFiles().entrySet().stream(),
+                hollowCC.extraContent().entrySet().stream()
+            ).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> new BlobFileRanges(e.getValue()), (v1, v2) -> v2));
+            return new IndexingShardState(latestBcc, otherBlobs, hollowCommitBlobFileRanges);
+        }
     }
 
     public static final Setting<ObjectStoreType> TYPE_SETTING = Setting.enumSetting(
@@ -450,13 +477,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         this.clusterService = clusterService;
         this.uploadTranslogTaskRunner = new PrioritizedThrottledTaskRunner<>(
             getClass().getSimpleName() + "#upload-translog-file-task-runner",
-            threadPool.info(StatelessPlugin.TRANSLOG_THREAD_POOL).getMax(),
-            threadPool.executor(StatelessPlugin.TRANSLOG_THREAD_POOL)
+            threadPool.info(StatelessThreadPools.TRANSLOG_THREAD_POOL).getMax(),
+            threadPool.executor(StatelessThreadPools.TRANSLOG_THREAD_POOL)
         );
         this.uploadTaskRunner = new PrioritizedThrottledTaskRunner<>(
             "upload_task_runner",
-            threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax(),
-            threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL),
+            threadPool.info(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).getMax(),
+            threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL),
             meterRegistry,
             threadPool::relativeTimeInNanos
         );
@@ -894,9 +921,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         asyncDeleteFile(() -> {
             translogBlobsToDelete.add(fileToDelete);
             if (translogDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(StatelessPlugin.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(this::getTranslogBlobContainer));
+                threadPool.executor(StatelessThreadPools.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(this::getTranslogBlobContainer));
             }
-        }, StatelessPlugin.TRANSLOG_THREAD_POOL);
+        }, StatelessThreadPools.TRANSLOG_THREAD_POOL);
     }
 
     public void asyncDeleteShardFile(StaleCompoundCommit staleCompoundCommit) {
@@ -904,9 +931,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         asyncDeleteFile(() -> {
             commitBlobsToDelete.add(staleCompoundCommit);
             if (shardFileDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
+                threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
             }
-        }, StatelessPlugin.SHARD_WRITE_THREAD_POOL);
+        }, StatelessThreadPools.SHARD_WRITE_THREAD_POOL);
     }
 
     private void asyncDeleteFile(Runnable deleteFileRunnable, String executor) {
@@ -1209,31 +1236,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 );
                 // If the last CC is hollow, we do not need to read any other blobs than the last CC itself.
                 if (readSingleBlobIfHollow && latestBcc.lastCompoundCommit().hollow()) {
-                    ActionListener.completeWith(l, () -> {
-                        // We re-calculate the blob locations of all commit's files, by replacing the referenced blob location for
-                        // replicated .si files in the CC's extra content with their extra content blob location instead.
-                        // We do not calculate blob file ranges for internal files using replicated headers/footers, since we do not
-                        // expect replicated content to exist (all hollow files should be in first region typically), and we do not
-                        // expect reading of any other files than .si files.
-                        final var hollowCC = latestBcc.lastCompoundCommit();
-                        assert hollowCC.extraContent()
-                            .keySet()
-                            .stream()
-                            .allMatch(
-                                filename -> Objects.equals(IndexFileNames.getExtension(filename), LuceneFilesExtensions.SI.getExtension())
-                            )
-                            : "currently only segment info ."
-                                + LuceneFilesExtensions.SI.getExtension()
-                                + " files are expected to be in extra content files, and found "
-                                + hollowCC.extraContent().keySet();
-                        // When combining the replicated files with the commit files, the replicated .si files should override the
-                        // referenced .si files in commit files, so that only the replicated .si files' locations stay.
-                        final Map<String, BlobFileRanges> hollowCommitBlobFileRanges = Stream.concat(
-                            hollowCC.commitFiles().entrySet().stream(),
-                            hollowCC.extraContent().entrySet().stream()
-                        ).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> new BlobFileRanges(e.getValue()), (v1, v2) -> v2));
-                        return new IndexingShardState(latestBcc, otherBlobs, hollowCommitBlobFileRanges);
-                    });
+                    ActionListener.completeWith(l, () -> IndexingShardState.forHollowCommit(latestBcc, otherBlobs));
                 } else {
                     Map<String, BlobFileRanges> blobFileRanges = new ConcurrentHashMap<>();
 
@@ -1305,7 +1308,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                     ) {
                         for (var blobContainerWithTerm : blobContainersWithTerms) {
                             // use the prewarm thread pool to avoid exceeding the connection pool size with blob listings
-                            threadPool.executor(StatelessPlugin.PREWARM_THREAD_POOL)
+                            threadPool.executor(StatelessThreadPools.PREWARM_THREAD_POOL)
                                 .execute(
                                     ActionRunnable.run(
                                         listeners.acquire(),
@@ -1354,7 +1357,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             }
         }
 
-        final Executor executor = threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL);
+        final Executor executor = threadPool.executor(StatelessThreadPools.BLOB_COPY_THREAD_POOL);
         ConcurrentMultipartHelper.runConcurrentTasks(tasks.size(), executor, i -> {
             var t = tasks.get(i);
             task.ensureNotCancelled();
@@ -1388,7 +1391,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             blobName,
             blobName,
             virtualBcc.getTotalSizeInBytes(),
-            threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL)
+            threadPool.executor(StatelessThreadPools.BLOB_COPY_THREAD_POOL)
         );
     }
 
@@ -1862,8 +1865,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                             // Ensure that one large upload doesn't starve other uploads
                             new ThrottledTaskRunner(
                                 "bcc-concurrent-multipart-upload",
-                                Math.max(1, threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax() / 2),
-                                threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)
+                                Math.max(1, threadPool.info(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).getMax() / 2),
+                                threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL)
                             ).asExecutor()
                         );
                     } finally {
@@ -1934,7 +1937,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         public void onAfter() {
             translogDeleteSchedulePermit.release();
             if (isRunning() && translogBlobsToDelete.isEmpty() == false && translogDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(StatelessPlugin.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(blobContainer));
+                threadPool.executor(StatelessThreadPools.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(blobContainer));
             }
         }
 
@@ -2002,7 +2005,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             toDeleteInThisTask.values().forEach(commitBlobsToDelete::addAll);
             shardFileDeleteSchedulePermit.release();
             if (lifecycle.started() && commitBlobsToDelete.isEmpty() == false && shardFileDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
+                threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
             }
         }
 

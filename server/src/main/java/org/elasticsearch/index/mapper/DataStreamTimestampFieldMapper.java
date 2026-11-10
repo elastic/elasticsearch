@@ -15,23 +15,19 @@ import org.apache.lucene.document.column.LongValuesCursor;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.escf.EscfLongColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.TimestampBounds;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static org.elasticsearch.core.TimeValue.NSEC_PER_MSEC;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * FieldMapper for the data-stream's timestamp meta-field.
@@ -77,13 +73,9 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private static DataStreamTimestampFieldMapper toType(FieldMapper in) {
-        return (DataStreamTimestampFieldMapper) in;
-    }
-
     public static class Builder extends MetadataFieldMapper.Builder {
 
-        private final Parameter<Boolean> enabled = Parameter.boolParam("enabled", true, m -> toType(m).enabled, false)
+        private final Parameter<Boolean> enabled = Parameter.boolParam("enabled", true, false)
             // this field mapper may be enabled but once enabled, may not be disabled
             .setMergeValidator((previous, current, ignored) -> (previous == current) || (previous == false && current));
 
@@ -105,6 +97,71 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             return NAME;
         }
 
+        /**
+         * The {@code @timestamp} field of a data stream may only carry the attributes listed here. Which ones the user
+         * set explicitly is read from the field's builder, which serializes only those that differ from their defaults.
+         * A missing or non-date {@code @timestamp} is left for {@link #doValidate} to report.
+         */
+        @Override
+        void validateMapping(RootObjectMapper.Builder root) {
+            if (enabled.getValue() == false) {
+                return;
+            }
+            for (Mapper.Builder child : root.getChildBuilders()) {
+                if (DEFAULT_PATH.equals(child.leafName()) && child instanceof DateFieldMapper.Builder dateBuilder) {
+                    validateTimestampSettings(dateBuilder);
+                }
+            }
+        }
+
+        private static void validateTimestampSettings(DateFieldMapper.Builder dateBuilder) {
+            // A timestamp field can configure multi-fields, copy_to and synthetic_source_keep; all other
+            // configuration parameters need specific values to survive validation.
+            Set<String> disallowed = new TreeSet<>();
+            for (Parameter<?> parameter : dateBuilder.getParameters()) {
+                if (parameter.isConfigured() == false) {
+                    continue;
+                }
+                switch (parameter.name) {
+                    case "meta", "format", "locale", "ignore_malformed" -> {
+                        // ignoring malformed values is disallowed (see the check in doValidate), however if
+                        // `index.mapping.ignore_malformed` has been set to true then there is no way to disable ignore_malformed
+                        // for the timestamp field mapper, other than not using 'index.mapping.ignore_malformed' at all. So by
+                        // ignoring it here, we allow the index setting to be set to true and then turned off for the timestamp field.
+                    }
+                    case "null_value" -> {
+                        // any configured null_value is non-null, which doValidate rejects with a message of its own
+                    }
+                    case "doc_values" -> {
+                        // disabled doc values are rejected by doValidate with a message of its own
+                        if (parameter instanceof FieldMapper.DocValuesParameter docValues && docValues.getValue().enabled()) {
+                            disallowed.add(parameter.name);
+                        }
+                    }
+                    case "index" -> {
+                        if (Boolean.FALSE.equals(parameter.getValue())) {
+                            throw new IllegalArgumentException(
+                                "data stream timestamp field [@timestamp] indexing can't be explicitly disabled"
+                            );
+                        }
+                    }
+                    default -> disallowed.add(parameter.name);
+                }
+            }
+            if (dateBuilder.multiFieldsBuilder.hasMultiFields()) {
+                disallowed.add("fields");
+            }
+            if (dateBuilder.copyTo.copyToFields().isEmpty() == false) {
+                disallowed.add("copy_to");
+            }
+            if (dateBuilder.sourceKeepMode.isPresent()) {
+                disallowed.add(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
+            }
+            if (disallowed.isEmpty() == false) {
+                throw new IllegalArgumentException("data stream timestamp field [@timestamp] has disallowed attributes: " + disallowed);
+            }
+        }
+
         @Override
         public MetadataFieldMapper build() {
             return enabled.getValue() ? ENABLED_INSTANCE : DISABLED_INSTANCE;
@@ -118,11 +175,6 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     private DataStreamTimestampFieldMapper(boolean enabled) {
         super(TimestampFieldType.INSTANCE);
         this.enabled = enabled;
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder().init(this);
     }
 
     @Override
@@ -152,30 +204,6 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
         DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper;
 
-        // Serialize the @timestamp mapper to detect explicitly configured attributes before running
-        // field-level checks, so that explicit misconfigurations get a precise error message first.
-        Map<?, ?> configuredSettings;
-        try (XContentBuilder builder = jsonBuilder()) {
-            builder.startObject();
-            dateFieldMapper.toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            configuredSettings = XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
-            configuredSettings = (Map<?, ?>) configuredSettings.values().iterator().next();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-
-        // Only the following attributes are allowed:
-        configuredSettings.remove("type");
-        configuredSettings.remove("meta");
-        configuredSettings.remove("format");
-        configuredSettings.remove("locale");
-
-        Object value = configuredSettings.remove("index");
-        if (Boolean.FALSE.equals(value)) {
-            throw new IllegalArgumentException("data stream timestamp field [@timestamp] indexing can't be explicitly disabled");
-        }
-
         IndexType indexType = dateFieldMapper.fieldType().indexType();
         if (indexType.hasPoints() == false && indexType.hasDocValuesSkipper() == false) {
             throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is not indexed");
@@ -191,23 +219,6 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         if (dateFieldMapper.ignoreMalformed()) {
             throw new IllegalArgumentException(
                 "data stream timestamp field [" + DEFAULT_PATH + "] has disallowed [ignore_malformed] attribute specified"
-            );
-        }
-
-        // ignoring malformed values is disallowed (see previous check),
-        // however if `index.mapping.ignore_malformed` has been set to true then
-        // there is no way to disable ignore_malformed for the timestamp field mapper,
-        // other than not using 'index.mapping.ignore_malformed' at all.
-        // So by ignoring the ignore_malformed here, we allow index.mapping.ignore_malformed
-        // index setting to be set to true and then turned off for the timestamp field mapper.
-        // (ignore_malformed will here always be false, otherwise previous check would have failed)
-        value = configuredSettings.remove("ignore_malformed");
-        assert value == null || Boolean.FALSE.equals(value);
-
-        // All other configured attributes are not allowed:
-        if (configuredSettings.isEmpty() == false) {
-            throw new IllegalArgumentException(
-                "data stream timestamp field [@timestamp] has disallowed attributes: " + configuredSettings.keySet()
             );
         }
     }

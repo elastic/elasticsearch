@@ -79,6 +79,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     public static final String TRANSLOG_UPLOAD_ATTEMPTS_HISTOGRAM = "es.stateless.translog.upload.attempts.histogram";
     public static final String TRANSLOG_UPLOAD_TOTAL_DURATION_HISTOGRAM = "es.stateless.translog.upload.total_duration.histogram";
+    public static final String TRANSLOG_UPLOAD_CONSISTENCY_CHECK_DURATION_HISTOGRAM =
+        "es.stateless.translog.upload.consistency_check_duration.histogram";
     public static final String TRANSLOG_UPLOAD_HEDGES_TOTAL = "es.stateless.translog.upload.hedges.total";
     public static final String TRANSLOG_UPLOAD_HEDGES_WON_TOTAL = "es.stateless.translog.upload.hedges_won.total";
 
@@ -135,6 +137,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     private final TimeValue uploadHedgeDelay;
     private final LongHistogram translogUploadAttemptsHistogram;
     private final LongHistogram translogUploadTotalDurationHistogram;
+    private final LongHistogram translogUploadConsistencyCheckDurationHistogram;
     private final LongCounter translogUploadHedgesCounter;
     private final LongCounter translogUploadHedgesWonCounter;
 
@@ -212,6 +215,12 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         this.translogUploadTotalDurationHistogram = meterRegistry.registerLongHistogram(
             TRANSLOG_UPLOAD_TOTAL_DURATION_HISTOGRAM,
             "total time (includes time spent on failed attempts) until the translog is uploaded to the object store",
+            "milliseconds",
+            ObjectStoreService.TRANSLOG_UPLOAD_DURATION_BUCKET_BOUNDARIES
+        );
+        this.translogUploadConsistencyCheckDurationHistogram = meterRegistry.registerLongHistogram(
+            TRANSLOG_UPLOAD_CONSISTENCY_CHECK_DURATION_HISTOGRAM,
+            "time taken to validate the cluster state is consistent with the root blob after a translog upload, including retries",
             "milliseconds",
             ObjectStoreService.TRANSLOG_UPLOAD_DURATION_BUCKET_BOUNDARIES
         );
@@ -708,7 +717,11 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         private final long validateGeneration;
         private final ArrayList<BlobTranslogFileImpl> completedUploads;
 
-        private ValidateClusterStateForUploadTask(long validateGeneration, ArrayList<BlobTranslogFileImpl> completedUploads) {
+        private ValidateClusterStateForUploadTask(
+            long validateGeneration,
+            ArrayList<BlobTranslogFileImpl> completedUploads,
+            long startTimeMillis
+        ) {
             super(
                 org.apache.logging.log4j.LogManager.getLogger(TranslogReplicator.class),
                 threadPool,
@@ -725,6 +738,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                                 completedUploads.stream().map(BlobTranslogFile::blobName).toList()
                             )
                         );
+                        translogUploadConsistencyCheckDurationHistogram.record(threadPool.relativeTimeInMillis() - startTimeMillis);
                         nodeState.markClusterStateValidateFinished(validateGeneration);
                     }
 
@@ -973,7 +987,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             synchronized (ongoingValidateClusterState) {
                 validateClusterStateTask = new ValidateClusterStateForUploadTask(
                     validateClusterStateGeneration.getAndIncrement(),
-                    completedSyncs
+                    completedSyncs,
+                    threadPool.relativeTimeInMillis()
                 );
                 ongoingValidateClusterState.add(validateClusterStateTask);
             }

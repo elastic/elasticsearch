@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryBuilder;
@@ -290,6 +291,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    /**
+     * Whether a name under a {@code flattened} field is a field: the key of that name.
+     */
+    public static final FeatureFlag FLATTENED_KEYS_FEATURE_FLAG = new FeatureFlag("esql_flattened_subfields");
 
     public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_WARN_SETTING = Setting.timeSetting(
         "esql.querylog.threshold.warn",
@@ -692,7 +698,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new DatasetService(services.clusterService(), crudValidators, dataSourceModule.externalSourceMetrics()),
             inventoryCounters,
             inventoryMetrics,
-            new PluginComponentBinding<>(QueryMetricsListener.class, collector)
+            new PluginComponentBinding<>(QueryMetricsListener.class, collector),
+            // Without federation no external split is ever dispatched, so there is nothing to hold a joining node back from.
+            new ExternalWorkerReadiness(
+                services.clusterService(),
+                services.client(),
+                services.threadPool(),
+                Federation.isAvailable(settings)
+            )
         );
     }
 
@@ -745,6 +758,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE,
                 EsqlFlags.ESQL_MAX_FILLNULL_FIELDS,
                 EsqlFlags.ESQL_METRICS_INFO_MAX_TIME_RANGE,
+                EsqlFlags.ESQL_TIME_SERIES_REDUCE_PER_INDEX,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
@@ -929,6 +943,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsExecutors.TaskTrackingConfig.builder()
                     .trackOngoingTasks()
                     .trackExecutionTime(ESQL_WORKER_EXECUTION_TIME_EWMA_ALPHA)
+                    .attributeTaskLoad()
                     .build()
             ),
             // Dedicated scaling pool for blocking external blob-store I/O and the streaming parse pipeline, kept

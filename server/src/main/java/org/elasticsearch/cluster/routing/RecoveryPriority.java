@@ -140,6 +140,11 @@ public enum RecoveryPriority implements Writeable {
         return isValidForUnassigned;
     }
 
+    /// Returns the max of the two priorities (the highest priority), which is the reverse of the enum's natural ordering
+    public static RecoveryPriority max(RecoveryPriority first, RecoveryPriority second) {
+        return first.compareTo(second) <= 0 ? first : second;
+    }
+
     /// Returns whether a recovery with this priority is critical, i.e. one for a shard copy that the client expects
     /// to be available but currently isn't. Relocations (whose source stays active until they complete), recoveries
     /// of unassigned shards added for performance reasons, and snapshot restores (whose index is expected to be

@@ -4,6 +4,7 @@ import org.elasticsearch.gradle.internal.DockerBase
 import org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.internal.docker.DockerBuildTask
+import org.elasticsearch.gradle.internal.docker.DockerImagePullSupport
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin
 import org.elasticsearch.gradle.internal.docker.DockerSupportService
 import org.elasticsearch.gradle.internal.docker.ShellRetry
@@ -18,6 +19,8 @@ apply plugin: 'elasticsearch.internal-distribution-download'
 apply plugin: 'elasticsearch.dra-artifacts'
 apply plugin: 'elasticsearch.jdk-download'
 apply plugin: 'elasticsearch.repositories'
+// Pre-cache Docker base images when baking CI agent images
+apply plugin: 'elasticsearch.docker-image-cache'
 
 String buildId = providers.systemProperty('build.id').getOrNull()
 boolean useLocalArtifacts = buildId != null && buildId.isBlank() == false && useDra == false
@@ -385,6 +388,10 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
       dockerContext.fileProvider(transformTask.map { Sync task -> task.getDestinationDir() })
 
       noCache = buildParams.ci
+      if (buildParams.ci) {
+        // Without the build cache, unchanged layers would get new digests on every build because of their timestamps
+        sourceDateEpoch.set(0L)
+      }
       tags = variant.tags(VersionProperties.elasticsearch, Architecture.current())
       platforms.add(architecture.dockerPlatform)
 
@@ -410,7 +417,8 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
       } else if(base.image != null) {
         baseImages = [base.image]
       } else {
-        baseImages = []
+        // Declare the digest-pinned base images referenced by the Dockerfile, so they are pre-cached on CI agents
+        baseImages = DockerImagePullSupport.digestPinnedBaseImages(file("src/docker/${base.dockerfile}")) as String[]
       }
 
       if (base == DockerBase.WOLFI) {
@@ -482,6 +490,10 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
       dockerContext.fileProvider(buildContextTask.map { it.getDestinationDir() })
 
       noCache = buildParams.ci
+      if (buildParams.ci) {
+        // Without the build cache, unchanged layers would get new digests on every build because of their timestamps
+        sourceDateEpoch.set(0L)
+      }
       baseImages = []
       tags = variant.tags(VersionProperties.elasticsearch, Architecture.current())
       platforms.add(architecture.dockerPlatform)

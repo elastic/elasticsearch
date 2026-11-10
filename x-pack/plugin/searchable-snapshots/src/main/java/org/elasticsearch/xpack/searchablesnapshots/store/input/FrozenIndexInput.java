@@ -172,7 +172,7 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput implements
         // Async callbacks (such as those used by readCacheFile) may run on other threads, and may still be running if this read fails,
         // so they only write to the buffer through bufferFill. Completing it waits for them and stops any later one, and only then
         // advances the buffer's position.
-        final ConcurrentBufferFill bufferFill = new ConcurrentBufferFill(b);
+        final ConcurrentBufferFill bufferFill = ConcurrentBufferFill.of(b);
         logger.trace("readInternal: read [{}-{}] from [{}]", position, position + length, this);
         try {
             final ByteRange rangeToWrite = BlobCacheUtils.computeRange(

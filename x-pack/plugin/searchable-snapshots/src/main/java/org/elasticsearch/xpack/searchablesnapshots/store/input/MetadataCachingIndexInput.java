@@ -262,7 +262,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
     private void readWithBlobCache(ByteBuffer b, long position, ByteRange blobCacheByteRange) throws Exception {
         // Callbacks that fill the buffer may run on other threads, and may still be running if this read fails, so they only write to it
         // through bufferFill. Completing it waits for them and stops any later one.
-        final ConcurrentBufferFill bufferFill = new ConcurrentBufferFill(b);
+        final ConcurrentBufferFill bufferFill = ConcurrentBufferFill.of(b);
         try {
             final int bytesRead = readWithBlobCache(bufferFill, b, position, blobCacheByteRange);
             bufferFill.complete(bytesRead);

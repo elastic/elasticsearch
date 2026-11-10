@@ -7,6 +7,7 @@
 
 package org.elasticsearch.blobcache.common;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.test.ESTestCase;
 
@@ -15,6 +16,9 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
+import java.nio.ReadOnlyBufferException;
+import java.nio.channels.FileChannel;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -22,6 +26,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.nio.channels.FileChannel.MapMode.READ_WRITE;
+import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.READ;
+import static java.nio.file.StandardOpenOption.WRITE;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -35,7 +43,7 @@ public class ConcurrentBufferFillTests extends ESTestCase {
     public void testHeapBuffer() {
         final byte[] data = randomByteArrayOfLength(randomIntBetween(1, 1024));
         final ByteBuffer buffer = ByteBuffer.allocate(data.length + randomIntBetween(0, 16));
-        final ConcurrentBufferFill fill = new ConcurrentBufferFill(buffer);
+        final ConcurrentBufferFill fill = ConcurrentBufferFill.of(buffer);
 
         final int written = fill.fillSlice(0, data.length, COMPLETE, slice -> {
             slice.put(data);
@@ -57,7 +65,7 @@ public class ConcurrentBufferFillTests extends ESTestCase {
         final int offset = randomIntBetween(0, 16);
         final ByteBuffer buffer = ByteBuffer.allocateDirect(offset + data.length + randomIntBetween(0, 16));
         buffer.position(offset);
-        final ConcurrentBufferFill fill = new ConcurrentBufferFill(buffer);
+        final ConcurrentBufferFill fill = ConcurrentBufferFill.of(buffer);
 
         writeOnOtherThread(fill, 0, data, 0, prefix);
         writeOnOtherThread(fill, prefix, data, prefix, data.length - prefix);
@@ -81,7 +89,7 @@ public class ConcurrentBufferFillTests extends ESTestCase {
         try (Arena arena = Arena.ofConfined()) {
             final MemorySegment scratch = arena.allocate(data.length);
             final ByteBuffer buffer = scratch.asByteBuffer();
-            fill = new ConcurrentBufferFill(buffer);
+            fill = ConcurrentBufferFill.of(buffer);
 
             // two writers, each with its own slice, as the cache does when a read spans regions
             writeOnOtherThread(fill, 0, data, 0, prefix);
@@ -108,7 +116,7 @@ public class ConcurrentBufferFillTests extends ESTestCase {
         final CountDownLatch inAction = new CountDownLatch(1);
         try (Arena arena = Arena.ofConfined()) {
             final MemorySegment scratch = arena.allocate(data.length);
-            final ConcurrentBufferFill fill = new ConcurrentBufferFill(scratch.asByteBuffer());
+            final ConcurrentBufferFill fill = ConcurrentBufferFill.of(scratch.asByteBuffer());
             final AtomicReference<Throwable> writerFailure = new AtomicReference<>();
 
             final Thread writer = new Thread(() -> {
@@ -146,7 +154,7 @@ public class ConcurrentBufferFillTests extends ESTestCase {
         for (boolean direct : new boolean[] { false, true }) {
             try (Arena arena = Arena.ofConfined()) {
                 final ByteBuffer buffer = direct ? arena.allocate(size).asByteBuffer() : ByteBuffer.allocate(size);
-                final ConcurrentBufferFill fill = new ConcurrentBufferFill(buffer);
+                final ConcurrentBufferFill fill = ConcurrentBufferFill.of(buffer);
                 final AtomicBoolean ran = new AtomicBoolean();
                 expectThrows(IndexOutOfBoundsException.class, () -> fill.fillSlice(randomIntBetween(1, size), size, COMPLETE, slice -> {
                     ran.set(true);
@@ -182,7 +190,7 @@ public class ConcurrentBufferFillTests extends ESTestCase {
             final byte[] filled = new byte[fillers * chunk];
             try (Arena arena = Arena.ofConfined()) {
                 final MemorySegment scratch = arena.allocate(fillers * chunk);
-                final ConcurrentBufferFill fill = new ConcurrentBufferFill(scratch.asByteBuffer());
+                final ConcurrentBufferFill fill = ConcurrentBufferFill.of(scratch.asByteBuffer());
                 for (int i = 0; i < fillers; i++) {
                     final int index = i;
                     threads[i] = new Thread(() -> {
@@ -231,7 +239,7 @@ public class ConcurrentBufferFillTests extends ESTestCase {
 
     public void testOverlappingRegionsAreRejected() throws Exception {
         assumeTrue("the check needs assertions enabled", Assertions.ENABLED);
-        final ConcurrentBufferFill fill = new ConcurrentBufferFill(ByteBuffer.allocate(16));
+        final ConcurrentBufferFill fill = ConcurrentBufferFill.of(ByteBuffer.allocate(16));
         fillWith(fill, 4, 4);
         // adjacent and disjoint regions are fine, and so is an empty one wherever it is
         fillWith(fill, 0, 4);
@@ -254,10 +262,10 @@ public class ConcurrentBufferFillTests extends ESTestCase {
     // Starting over with a new fill of the same buffer, as the bypass read does, may fill regions that the first fill did.
     public void testNewFillAfterCompleteMayRefillSameRegions() throws Exception {
         final ByteBuffer buffer = ByteBuffer.allocate(16);
-        final ConcurrentBufferFill first = new ConcurrentBufferFill(buffer);
+        final ConcurrentBufferFill first = ConcurrentBufferFill.of(buffer);
         fillWith(first, 0, 8);
         first.complete(0);
-        final ConcurrentBufferFill second = new ConcurrentBufferFill(buffer);
+        final ConcurrentBufferFill second = ConcurrentBufferFill.of(buffer);
         fillWith(second, 0, 16);
         // the first fill is over, so a late filler of the failed attempt does not write, and does not claim anything from the second
         assertComplete(first);
@@ -267,7 +275,7 @@ public class ConcurrentBufferFillTests extends ESTestCase {
 
     public void testCompleteRejectsMoreBytesThanClaimed() {
         assumeTrue("the check needs assertions enabled", Assertions.ENABLED);
-        final ConcurrentBufferFill fill = new ConcurrentBufferFill(ByteBuffer.allocate(16));
+        final ConcurrentBufferFill fill = ConcurrentBufferFill.of(ByteBuffer.allocate(16));
         fillWith(fill, 0, 4);
         fillWith(fill, 8, 4);
         expectThrows(AssertionError.class, () -> fill.complete(9));
@@ -276,7 +284,7 @@ public class ConcurrentBufferFillTests extends ESTestCase {
     // The owner must not be able to free the buffer while another thread is still completing the fill.
     public void testCompleteOnAnotherThreadIsRejected() throws Exception {
         assumeTrue("the check needs assertions enabled", Assertions.ENABLED);
-        final ConcurrentBufferFill fill = new ConcurrentBufferFill(ByteBuffer.allocate(16));
+        final ConcurrentBufferFill fill = ConcurrentBufferFill.of(ByteBuffer.allocate(16));
         final AtomicReference<Throwable> failure = new AtomicReference<>();
         onOtherThread(() -> {
             try {
@@ -293,7 +301,7 @@ public class ConcurrentBufferFillTests extends ESTestCase {
 
     public void testFailingActionDoesNotLeakPermit() throws Exception {
         try (Arena arena = Arena.ofConfined()) {
-            final ConcurrentBufferFill fill = new ConcurrentBufferFill(arena.allocate(8).asByteBuffer());
+            final ConcurrentBufferFill fill = ConcurrentBufferFill.of(arena.allocate(8).asByteBuffer());
             expectThrows(IOException.class, () -> fill.fillSlice(0, 8, COMPLETE, slice -> { throw new IOException("simulated"); }));
             // a leaked permit would make this block forever
             fill.complete(0);
@@ -304,7 +312,7 @@ public class ConcurrentBufferFillTests extends ESTestCase {
     /** Interrupting the owner must not let it stop waiting for fillers in use and go on to free the memory. */
     public void testCompleteIgnoresInterrupt() throws Exception {
         try (Arena arena = Arena.ofConfined()) {
-            final ConcurrentBufferFill fill = new ConcurrentBufferFill(arena.allocate(8).asByteBuffer());
+            final ConcurrentBufferFill fill = ConcurrentBufferFill.of(arena.allocate(8).asByteBuffer());
             Thread.currentThread().interrupt();
             try {
                 fill.complete(0);
@@ -329,6 +337,92 @@ public class ConcurrentBufferFillTests extends ESTestCase {
                 }
             });
             assertThat(failure.get(), instanceOf(WrongThreadException.class));
+        }
+    }
+
+    /** The kinds of buffer that a fill may be given. Only the memory of a confined arena is filled through its address. */
+    private enum BufferKind {
+        HEAP,
+        HEAP_SLICE,
+        HEAP_SEGMENT,
+        DIRECT,
+        DIRECT_SLICE,
+        MAPPED,
+        CONFINED_ARENA,
+        CONFINED_ARENA_SLICE,
+        SHARED_ARENA,
+        SHARED_ARENA_SLICE,
+        AUTO_ARENA
+    }
+
+    // The slices are at an offset in the buffer, which is not the start of its array or memory, for the kinds that can be.
+    private static ByteBuffer newBuffer(BufferKind kind, int size, Arena confined, Arena shared, Path dir) throws IOException {
+        return switch (kind) {
+            case HEAP -> ByteBuffer.allocate(size);
+            case HEAP_SLICE -> ByteBuffer.allocate(size + 7).slice(3, size);
+            case HEAP_SEGMENT -> MemorySegment.ofArray(new byte[size]).asByteBuffer();
+            case DIRECT -> ByteBuffer.allocateDirect(size);
+            case DIRECT_SLICE -> ByteBuffer.allocateDirect(size + 7).slice(3, size);
+            case MAPPED -> {
+                try (FileChannel channel = FileChannel.open(dir.resolve("mapped"), READ, WRITE, CREATE)) {
+                    yield channel.map(READ_WRITE, 0, size);
+                }
+            }
+            case CONFINED_ARENA -> confined.allocate(size).asByteBuffer();
+            case CONFINED_ARENA_SLICE -> confined.allocate(size + 7).asSlice(3, size).asByteBuffer();
+            case SHARED_ARENA -> shared.allocate(size).asByteBuffer();
+            case SHARED_ARENA_SLICE -> shared.allocate(size + 7).asSlice(3, size).asByteBuffer();
+            case AUTO_ARENA -> Arena.ofAuto().allocate(size).asByteBuffer();
+        };
+    }
+
+    // Whatever the buffer is, other threads can fill disjoint slices of it, starting from its position, and the owner sees the bytes.
+    public void testFilledByOtherThreadsForEveryKindOfBuffer() throws Exception {
+        final Path dir = createTempDir();
+        for (BufferKind kind : BufferKind.values()) {
+            if (kind == BufferKind.MAPPED && Constants.WINDOWS) {
+                continue; // a file cannot be deleted while it is mapped, which the cleanup of the test directory would try to do
+            }
+            final byte[] data = randomByteArrayOfLength(randomIntBetween(2, 4096));
+            final int offset = randomIntBetween(0, 16);
+            final int prefix = randomIntBetween(1, data.length - 1);
+            try (Arena confined = Arena.ofConfined(); Arena shared = Arena.ofShared()) {
+                final ByteBuffer buffer = newBuffer(kind, offset + data.length + randomIntBetween(0, 16), confined, shared, dir);
+                buffer.position(offset);
+                final ConcurrentBufferFill fill = ConcurrentBufferFill.of(buffer);
+
+                writeOnOtherThread(fill, 0, data, 0, prefix);
+                writeOnOtherThread(fill, prefix, data, prefix, data.length - prefix);
+                fill.complete(data.length);
+
+                assertThat(kind.toString(), buffer.position(), equalTo(offset + data.length));
+                final byte[] actual = new byte[data.length];
+                buffer.get(offset, actual);
+                assertArrayEquals(kind.toString(), data, actual);
+                assertComplete(fill);
+                onOtherThread(() -> assertComplete(fill));
+            }
+        }
+    }
+
+    // A read-only buffer cannot be filled whatever it is backed by, and the failure does not stop the fill from completing.
+    public void testReadOnlyBuffersCannotBeFilled() {
+        try (Arena confined = Arena.ofConfined(); Arena shared = Arena.ofShared()) {
+            final ByteBuffer[] buffers = {
+                ByteBuffer.allocate(8).asReadOnlyBuffer(),
+                ByteBuffer.allocateDirect(8).asReadOnlyBuffer(),
+                confined.allocate(8).asReadOnly().asByteBuffer(),
+                shared.allocate(8).asReadOnly().asByteBuffer() };
+            for (ByteBuffer buffer : buffers) {
+                final ConcurrentBufferFill fill = ConcurrentBufferFill.of(buffer);
+                expectThrows(ReadOnlyBufferException.class, () -> fill.fillSlice(0, 8, COMPLETE, slice -> {
+                    slice.put((byte) 1);
+                    return 1;
+                }));
+                // a leaked permit would make this block forever
+                fill.complete(0);
+                assertComplete(fill);
+            }
         }
     }
 

@@ -58,7 +58,6 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeThat;
 
-@com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 1000)
 public class ESTestCaseTests extends ESTestCase {
 
     public void testExpectThrows() {

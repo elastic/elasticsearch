@@ -9,6 +9,7 @@ package org.elasticsearch.blobcache.common;
 
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.nativeaccess.SegmentBuffers;
 
 import java.lang.foreign.MemorySegment;
@@ -25,43 +26,50 @@ import java.util.concurrent.Semaphore;
  *
  * <p>Once {@link #complete} returns, no filler is running and none will run, so the owner may reuse or free the buffer. That includes
  * native memory of a thread-confined {@link java.lang.foreign.Arena}, which other threads cannot reach through the buffer itself: for
- * those, slices are short-lived views of the memory that are not bound to the arena, created per {@link #fillSlice} call.
+ * those, slices are short-lived views of the memory that are not bound to the arena, created per {@link #fillSlice} call. Every other
+ * buffer, including one of a shared or automatic arena, is sliced normally.
  *
  * <p>Fillers may only write to their slice, and only during the call. That cannot be checked. Slice bounds are, and with assertions
  * enabled so are overlapping regions and completing with more bytes than were claimed.
  */
-public final class ConcurrentBufferFill {
+public abstract class ConcurrentBufferFill {
+
+    /**
+     * Stands in for any thread other than the one that created the fill, to find out whether the
+     * buffer is confined to that thread. It is never started.
+     */
+    private static final Thread ANOTHER_THREAD = new Thread(() -> {}, "concurrent-buffer-fill-another-thread");
 
     private final Semaphore permits = new Semaphore(Integer.MAX_VALUE);
 
-    private ByteBuffer buffer;
+    protected ByteBuffer buffer;
 
     /** The thread that created this fill, which must complete it; {@code null} unless asserting. */
     private final Thread owner = Assertions.ENABLED ? Thread.currentThread() : null;
 
-    /** Address of the buffer's writable region if it is native, otherwise {@code 0}, in which case slices are slices of {@link #buffer}. */
-    private final long nativeAddress;
-
-    private final int nativeLength;
-
     /** Claimed regions as start to end (exclusive); {@code null} unless asserting. */
     private final TreeMap<Integer, Integer> claimedRegions = Assertions.ENABLED ? new TreeMap<>() : null;
 
-    /**
-     * Must be called on the thread that owns {@code buffer}, which must also call {@link #complete}; that is checked when assertions are
-     * enabled. Fills the bytes between the buffer's position and its limit.
-     */
-    public ConcurrentBufferFill(ByteBuffer buffer) {
+    private ConcurrentBufferFill(ByteBuffer buffer) {
         this.buffer = buffer;
+    }
+
+    /**
+     * Must be called on the thread that owns {@code buffer}, which must also call {@link #complete}; that
+     * is checked when assertions are enabled. Fills the bytes between the buffer's position and its limit.
+     */
+    public static ConcurrentBufferFill of(ByteBuffer buffer) {
+        // Only the memory of a confined arena needs the address: a buffer of any other kind, whether it is on the heap, direct, read-only
+        // or of a shared or automatic arena, can be sliced by any thread, and slicing it keeps the JDK's thread and liveness checks.
         if (buffer.isDirect() && buffer.isReadOnly() == false) {
             // The segment is created here, on the owner thread, and only its address is kept: the address is plain data that other
             // threads can use, while the segment's scope would reject them
-            this.nativeAddress = MemorySegment.ofBuffer(buffer).address();
-            this.nativeLength = buffer.remaining();
-        } else {
-            this.nativeAddress = 0L;
-            this.nativeLength = 0;
+            final MemorySegment segment = MemorySegment.ofBuffer(buffer);
+            if (segment.isAccessibleBy(ANOTHER_THREAD) == false) {
+                return new Unscoped(buffer, segment.address(), buffer.remaining());
+            }
         }
+        return new Sliced(buffer);
     }
 
     /**
@@ -71,7 +79,7 @@ public final class ConcurrentBufferFill {
      * @param position start of the slice, relative to the buffer's position when this fill was created
      * @param length slice length
      * @param valueIfComplete returned, without running the filler, if {@link #complete} was already called; the read has been abandoned
-     *                        by then, so for a filler that returns a byte count this should be the value that makes callers treat it as done
+     *                        by then, so for a filler that returns a byte count this should make callers treat it as done
      * @return the filler's result, or {@code valueIfComplete}
      * @throws IndexOutOfBoundsException if the slice does not lie within the buffer
      */
@@ -81,23 +89,16 @@ public final class ConcurrentBufferFill {
             return valueIfComplete;
         }
         try {
-            return filler.apply(slice(position, length));
+            final ByteBuffer slice = newSlice(position, length);
+            assert claim(position, length);
+            return filler.apply(slice);
         } finally {
             permits.release();
         }
     }
 
-    private ByteBuffer slice(int position, int length) {
-        final ByteBuffer slice;
-        if (nativeAddress == 0L) {
-            slice = buffer.slice(buffer.position() + position, length);
-        } else {
-            Objects.checkFromIndexSize(position, length, nativeLength);
-            slice = SegmentBuffers.unscopedByteBuffer(nativeAddress + position, length);
-        }
-        assert claim(position, length);
-        return slice;
-    }
+    /** Returns a slice of the buffer that the caller holding a permit may write to. */
+    abstract ByteBuffer newSlice(int position, int length);
 
     /**
      * Ends the fill: waits, uninterruptibly, for fillers in progress, then advances the buffer's position. Later calls have no effect.
@@ -143,6 +144,43 @@ public final class ConcurrentBufferFill {
     private long claimedLength() {
         synchronized (claimedRegions) {
             return claimedRegions.entrySet().stream().mapToLong(e -> e.getValue() - e.getKey()).sum();
+        }
+    }
+
+    /** A buffer that any thread can slice, which is every kind but the memory of a confined arena. */
+    private static final class Sliced extends ConcurrentBufferFill {
+        private final int start;
+
+        Sliced(ByteBuffer buffer) {
+            super(buffer);
+            this.start = buffer.position();
+        }
+
+        @Override
+        ByteBuffer newSlice(int position, int length) {
+            return buffer.slice(start + position, length);
+        }
+    }
+
+    /**
+     * The native memory of a confined arena, which other threads cannot reach through the buffer. Slices are short-lived views of the
+     * memory that are not bound to the arena, created per call.
+     */
+    private static final class Unscoped extends ConcurrentBufferFill {
+        private final long address;
+        private final int capacity;
+
+        Unscoped(ByteBuffer buffer, long address, int capacity) {
+            super(buffer);
+            this.address = address;
+            this.capacity = capacity;
+        }
+
+        @Override
+        @SuppressForbidden(reason = "a slice is only handed to a filler holding a permit, which complete waits for")
+        ByteBuffer newSlice(int position, int length) {
+            Objects.checkFromIndexSize(position, length, capacity);
+            return SegmentBuffers.unscopedByteBuffer(address + position, length);
         }
     }
 }

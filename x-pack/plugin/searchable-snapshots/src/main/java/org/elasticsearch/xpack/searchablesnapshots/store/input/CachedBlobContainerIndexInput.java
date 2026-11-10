@@ -118,7 +118,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
         assert rangeToRead.isSubRangeOf(rangeToWrite) : rangeToRead + " vs " + rangeToWrite;
         assert rangeToRead.length() == b.remaining() : b.remaining() + " vs " + rangeToRead;
 
-        final ConcurrentBufferFill bufferFill = new ConcurrentBufferFill(b);
+        final ConcurrentBufferFill bufferFill = ConcurrentBufferFill.of(b);
         try {
             final int bytesRead = populateAndRead(bufferFill, length, position, cacheFile, rangeToWrite).get();
             assert bytesRead == length : bytesRead + " vs " + length;

@@ -534,7 +534,7 @@ public class CacheFileReader {
         // Async callbacks (such as those used by readCacheFile) may run on other threads, and may still be running if this read fails,
         // so they only write to the buffer through bufferFill. Completing it waits for them and stops any later one, and only then
         // advances the buffer's position.
-        final ConcurrentBufferFill bufferFill = new ConcurrentBufferFill(b);
+        final ConcurrentBufferFill bufferFill = ConcurrentBufferFill.of(b);
         try {
             // Compute the range of bytes of the blob to fetch and to write to the cache.
             //
@@ -596,7 +596,7 @@ public class CacheFileReader {
                     // that none of its callbacks is, or will be, writing to the buffer, before the read below starts over with a new fill
                     // and writes all of the same bytes again.
                     bufferFill.complete(0);
-                    final ConcurrentBufferFill bypassFill = new ConcurrentBufferFill(b);
+                    final ConcurrentBufferFill bypassFill = ConcurrentBufferFill.of(b);
                     // TODO ideally we would make it async, but it should be safe
                     // since the future is created on the shard read thread pool or GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL.
                     // ObjectStoreCacheBlobReader is completed on the same thread and before actually waiting on the future, and

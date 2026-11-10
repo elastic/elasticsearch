@@ -10,8 +10,8 @@ const pipeline = parse(readFileSync(resolve(ROOT, PIPELINE_FILE), "utf8"));
 const catalog = parseAllDocuments(readFileSync(resolve(ROOT, "catalog-info.yaml"), "utf8")).map((doc) => doc.toJS());
 
 // These are Buildkite expressions evaluated at upload, before any job runs.
-const ONESHOT_CONDITION = 'build.env("PROMCHECK_MODE") == "oneshot" || (build.env("PROMCHECK_MODE") == null && build.source != "schedule")';
-const NIGHTLY_CONDITION = 'build.env("PROMCHECK_MODE") == "nightly" || (build.env("PROMCHECK_MODE") == null && build.source == "schedule")';
+const ONESHOT_CONDITION = 'build.source != "schedule"';
+const NIGHTLY_CONDITION = 'build.source == "schedule"';
 
 describe("shared promcheck YAML pipeline", () => {
   test.each([
@@ -38,7 +38,7 @@ describe("shared promcheck YAML pipeline", () => {
     expect(catalog.some((entry) => entry.metadata?.name === "buildkite-pipeline-elastic-prometheus-nightly")).toBe(false);
   });
 
-  test("scheduled or explicitly requested nightly builds skip the PR-only steps", () => {
+  test("build source alone selects nightly or the PR-only steps", () => {
     expect(pipeline.steps.filter((step) => step.if === ONESHOT_CONDITION).map((step) => step.key)).toEqual([
       "notify", "validate-prometheus-compliance",
     ]);

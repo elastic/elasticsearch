@@ -1,5 +1,5 @@
 # Reuses the existing promcheck pipeline and its permissions. Schedules run nightly;
-# other builds compare a PR, unless PROMCHECK_MODE=nightly is explicitly requested.
+# other builds compare a PR.
 env:
   PROMCHECK_VER: "0.11.0+prometheus-3.13.1"
   PROMCHECK_TEST_INSTANCE_TIMEOUT: "900"
@@ -8,11 +8,11 @@ steps:
   # The PR build bot posts this note before the comparison finishes.
   - label: notify
     key: notify
-    if: build.env("PROMCHECK_MODE") == "oneshot" || (build.env("PROMCHECK_MODE") == null && build.source != "schedule")
+    if: build.source != "schedule"
     command: .buildkite/scripts/validate-prometheus-compliance.sh oneshot notify
   - label: validate-prometheus-compliance
     key: validate-prometheus-compliance
-    if: build.env("PROMCHECK_MODE") == "oneshot" || (build.env("PROMCHECK_MODE") == null && build.source != "schedule")
+    if: build.source != "schedule"
     command: .buildkite/scripts/validate-prometheus-compliance.sh oneshot
     timeout_in_minutes: &promcheck-timeout 120
     retry:
@@ -32,7 +32,7 @@ steps:
       buildDirectory: /dev/shm/bk
   - label: elastic / prometheus / nightly
     key: prometheus-nightly
-    if: build.env("PROMCHECK_MODE") == "nightly" || (build.env("PROMCHECK_MODE") == null && build.source == "schedule")
+    if: build.source == "schedule"
     command: .buildkite/scripts/validate-prometheus-compliance.sh nightly
     timeout_in_minutes: *promcheck-timeout
     artifact_paths:

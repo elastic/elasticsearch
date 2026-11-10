@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
@@ -30,9 +31,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.CountValuesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.SortByLabelFunction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -1129,6 +1132,106 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    public void testCountValuesLabelMustBeStringLiteral() {
+        tsdb.error(
+            "PROMQL index=test step=5m count_values(5, network.connections)",
+            containsString("expected a string literal as the label name in call to function [count_values], got [5]")
+        );
+    }
+
+    public void testCountValuesInvalidLabelName() {
+        tsdb.error(
+            "PROMQL index=test step=5m count_values(\"\", network.connections)",
+            containsString("invalid label name [] in call to function [count_values]")
+        );
+    }
+
+    public void testCountValuesWithoutNotSupported() {
+        tsdb.error(
+            "PROMQL index=test step=5m count_values without (host) (\"v\", network.connections)",
+            containsString("function [count_values] is not yet supported with [WITHOUT]")
+        );
+    }
+
+    public void testCountValuesOnHistogramNotSupported() {
+        tsdb.error(
+            "PROMQL index=test step=5m count_values(\"v\", request_duration)",
+            ParsingException.class,
+            containsString("Error building ESQL function for [count_values]: count_values() is not supported yet on native histograms")
+        );
+    }
+
+    public void testCountValuesLabelCollidesWithBuiltInColumn() {
+        tsdb.error(
+            "PROMQL index=test step=5m value=(count_values(\"value\", network.connections))",
+            containsString("label [value] collides with the built-in [value] output column")
+        );
+    }
+
+    public void testCountValuesTimeseriesLabelRejected() {
+        tsdb.error(
+            "PROMQL index=test step=5m count_values(\"_timeseries\", network.connections)",
+            containsString("label [_timeseries] in call to function [count_values] collides with a reserved column")
+        );
+    }
+
+    /**
+     * A {@code count_values} operand is translated on its own and then joined, which needs concrete label sets on both
+     * sides; an operand that is neither scalar nor labelled concretely cannot be joined.
+     */
+    public void testCountValuesWithRawOperandNotSupported() {
+        for (String query : List.of(
+            "count_values(\"v\", vector(1)) / network.connections",
+            "network.connections / count_values(\"v\", vector(1))",
+            "abs(count_values(\"v\", vector(1))) / rate(network.bytes_in[5m])"
+        )) {
+            tsdb.error(
+                "PROMQL index=test step=5m " + query,
+                containsString("binary operations between an aggregated and a raw vector are not supported at this time")
+            );
+        }
+    }
+
+    public void testCountValuesAcceptsParenthesizedLabel() {
+        assertTrue(resolvePromqlWithoutTranslation("PROMQL index=test step=5m count_values((\"v\"), network.connections)").resolved());
+    }
+
+    public void testCountValuesValueLabelSurvivesRewrites() {
+        CountValuesAggregate countValues = promqlPlanWithoutTranslation("count_values(\"v\", network.connections)").collect(
+            CountValuesAggregate.class
+        ).getFirst();
+        Attribute valueLabel = countValues.valueLabel();
+        assertNotNull(valueLabel);
+        assertEquals("v", valueLabel.name());
+        assertEquals(List.of(valueLabel), countValues.output());
+        CountValuesAggregate replaced = countValues.replaceChild(countValues.child());
+        assertEquals(valueLabel.id(), replaced.valueLabel().id());
+        assertEquals(countValues, replaced);
+    }
+
+    /** A selector below {@code count_values} matches the stored label, not the value label of the same name. */
+    public void testSelectorBelowCountValuesBindsToStoredLabel() {
+        Expression matched = promqlPlanWithoutTranslation("sum by (host) (count_values(\"host\", network.connections{host=\"a\"}))")
+            .collect(Selector.class)
+            .getFirst()
+            .labels()
+            .stream()
+            .filter(l -> l instanceof Attribute a && a.name().equals("host"))
+            .findFirst()
+            .orElseThrow();
+        assertThat(matched, instanceOf(FieldAttribute.class));
+    }
+
+    public void testRelabelOverCountValuesMustAddNewLabel() {
+        tsdb.error(
+            "PROMQL index=test step=5m label_replace(count_values(\"v\", network.connections), \"v\", \"$1\", \"v\", \"(.*)\")",
+            containsString(
+                "[label_replace] used as a top-level expression over [count_values] must add a new label, "
+                    + "but destination [v] overwrites a label of the aggregation"
+            )
+        );
+    }
+
     /**
      * Batch test for analysis-level invalid queries. Each bare PromQL expression is wrapped in
      * "PROMQL index=test step=5m (%s)" and expected to throw during analysis (either a
@@ -1157,6 +1260,11 @@ public class PromqlVerifierTests extends ESTestCase {
     private LogicalPlan resolvePromqlWithoutTranslation(String query) {
         LogicalPlan parsed = InSubqueryResolver.resolve(EsqlTestUtils.TEST_PARSER.parseQuery(query));
         return new ResolveOnlyAnalyzer(tsdb.buildContext()).resolve(parsed);
+    }
+
+    /** The resolved-but-not-translated PromQL plan of {@code PROMQL index=test step=5m <promql>}. */
+    private LogicalPlan promqlPlanWithoutTranslation(String promql) {
+        return resolvePromqlWithoutTranslation("PROMQL index=test step=5m " + promql).collect(PromqlCommand.class).getFirst().promqlPlan();
     }
 
     /**

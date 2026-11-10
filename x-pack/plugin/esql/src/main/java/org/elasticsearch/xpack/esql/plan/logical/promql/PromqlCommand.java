@@ -469,16 +469,11 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         }
                     }
                 }
-                case AcrossSeriesAggregate agg -> {
-                    if (agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT && usesWithoutGrouping(agg.child())) {
-                        failures.add(fail(agg, "nested WITHOUT over WITHOUT is not supported at this time [{}]", agg.sourceText()));
-                    }
-                    // Reject labels whose name collides with a built-in output column.
-                    // If this proves too restrictive, we could add an option to rename the built-in step column.
-                    for (Attribute grouping : agg.groupings()) {
-                        checkBuiltInColumnCollision(agg, PromqlLabels.labelName(grouping), failures);
-                    }
+                case CountValuesAggregate countValues -> {
+                    verifyAcrossSeriesAggregate(countValues, failures);
+                    verifyCountValues(countValues, failures);
                 }
+                case AcrossSeriesAggregate agg -> verifyAcrossSeriesAggregate(agg, failures);
                 case AcrossSeriesReduction reduction -> {
                     for (Attribute grouping : reduction.groupings()) {
                         checkBuiltInColumnCollision(reduction, PromqlLabels.labelName(grouping), failures);
@@ -601,7 +596,18 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     }
                     if (hasSourceBackedExpression(binaryOperator.left()) && hasSourceBackedExpression(binaryOperator.right())) {
                         verifySourceBackedOperands(failures, binaryOperator);
-                    }
+                    } else if (binaryOperator instanceof VectorBinarySet == false
+                        && binaryOperator.match() == VectorMatch.NONE
+                        && (pairsCountValuesWithRawOperand(binaryOperator.left(), binaryOperator.right())
+                            || pairsCountValuesWithRawOperand(binaryOperator.right(), binaryOperator.left()))) {
+                                failures.add(
+                                    fail(
+                                        binaryOperator,
+                                        "binary operations between an aggregated and a raw vector are not supported at this time [{}]",
+                                        binaryOperator.sourceText()
+                                    )
+                                );
+                            }
                     // Arithmetic/comparison binary operators merge both source-backed operands into a single
                     // TimeSeriesAggregate (one shared time bucket and timestamp), which cannot represent two
                     // different offsets. `or` (UNION) translates to independent branches, so per-branch offsets
@@ -695,18 +701,20 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             ? "under [" + reduction.definition().name() + "]"
             : "as a top-level expression";
         LogicalPlan identitySource = identitySource(relabel.child());
-        if (identitySource instanceof AcrossSeriesAggregate agg && agg.grouping() == AcrossSeriesAggregate.Grouping.BY) {
+        if (identitySource instanceof AcrossSeriesAggregate agg
+            && (agg.grouping() == AcrossSeriesAggregate.Grouping.BY || agg instanceof CountValuesAggregate)) {
             // Compare by label name, not attribute name: a destination written as `labels.pod` names the same label as the
             // aggregation's `pod`, which is how the analyzer shadows it and how translation resolves it.
             String destination = PromqlLabels.labelName(relabel.destination());
             if (overwritesLabel(relabel, destination)) {
+                String source = agg instanceof CountValuesAggregate ? "[" + agg.definition().name() + "]" : "a `by(...)` aggregation";
                 failures.add(
                     fail(
                         relabel,
-                        "[{}] used {} over a `by(...)` aggregation must add a new label, but destination [{}] overwrites a label of the "
-                            + "aggregation [{}]",
+                        "[{}] used {} over {} must add a new label, but destination [{}] overwrites a label of the aggregation [{}]",
                         name,
                         position,
+                        source,
                         destination,
                         relabel.sourceText()
                     )
@@ -728,6 +736,48 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                 relabel.sourceText()
             )
         );
+    }
+
+    private void verifyAcrossSeriesAggregate(AcrossSeriesAggregate agg, Failures failures) {
+        if (agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT && usesWithoutGrouping(agg.child())) {
+            failures.add(fail(agg, "nested WITHOUT over WITHOUT is not supported at this time [{}]", agg.sourceText()));
+        }
+        // Reject labels whose name collides with a built-in output column.
+        // If this proves too restrictive, we could add an option to rename the built-in step column.
+        for (Attribute grouping : agg.groupings()) {
+            checkBuiltInColumnCollision(agg, PromqlLabels.labelName(grouping), failures);
+        }
+    }
+
+    /**
+     * Rejects the {@code count_values} shapes that are not supported yet: a {@code without(...)} grouping, whose output keeps
+     * the opaque series identity the value label would have to be added to, and a value label that names a column the command
+     * reserves - the step or value column, or {@code _timeseries}, which the Prometheus response format reads as the
+     * series' label set.
+     */
+    private void verifyCountValues(CountValuesAggregate agg, Failures failures) {
+        String name = agg.definition().name();
+        if (agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT) {
+            failures.add(fail(agg, "function [{}] is not yet supported with [{}] [{}]", name, agg.grouping(), agg.sourceText()));
+            return;
+        }
+        String label = PromqlLabels.labelName(agg.valueLabel());
+        checkBuiltInColumnCollision(agg, label, failures);
+        if (MetadataAttribute.isTimeSeriesAttributeName(label)) {
+            failures.add(
+                fail(agg, "label [{}] in call to function [{}] collides with a reserved column [{}]", label, name, agg.sourceText())
+            );
+        }
+    }
+
+    /**
+     * Whether {@code countValues} contains a {@code count_values} aggregation and {@code other} is a vector without a
+     * concrete label set. Such an operator translates as a join, which matches operands on their label columns.
+     */
+    private static boolean pairsCountValuesWithRawOperand(LogicalPlan countValues, LogicalPlan other) {
+        return CountValuesAggregate.usesCountValues(countValues)
+            && PromqlPlan.returnsScalar(other) == false
+            && hasConcreteLabels(other) == false;
     }
 
     /**

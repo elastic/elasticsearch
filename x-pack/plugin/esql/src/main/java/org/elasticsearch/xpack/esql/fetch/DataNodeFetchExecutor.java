@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.fetch.FetchResponse.ShardResult;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 
@@ -54,6 +55,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -130,6 +132,11 @@ final class DataNodeFetchExecutor {
          */
         private final List<DefaultShardContext> contexts;
         /**
+         * The fields the fetch plan reads that some shards may not map. Each shard resolves them to what it holds, like in
+         * the query phase, so a fetched column has the values the query phase would have loaded.
+         */
+        private final Set<String> unmappedFieldNames;
+        /**
          * Where the pieces of each shard start in the pieces of the request, with one more entry for the end. A shard that
          * failed to open has no pieces. Set before the drivers start.
          */
@@ -151,6 +158,7 @@ final class DataNodeFetchExecutor {
             int shards = request.shards().size();
             this.results = new ShardResult[shards];
             this.contexts = new ArrayList<>(Arrays.asList(new DefaultShardContext[shards]));
+            this.unmappedFieldNames = PlannerUtils.unmappedFieldNames(request.fetchPlan());
         }
 
         void start() {
@@ -212,7 +220,8 @@ final class DataNodeFetchExecutor {
                 checkBounds(searchContext, shard);
                 EsqlSearchExecutionContext executionContext = new EsqlSearchExecutionContext(
                     searchContext.getSearchExecutionContext(),
-                    QueryWarnings.EMIT
+                    QueryWarnings.EMIT,
+                    unmappedFieldNames
                 );
                 searchContext.addReleasable(executionContext::releaseQueryConstructionMemory);
                 // the request's reference, the first on the context. The search context closes once every reference is gone.

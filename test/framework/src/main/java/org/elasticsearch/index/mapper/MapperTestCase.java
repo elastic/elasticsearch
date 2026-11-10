@@ -2718,11 +2718,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
-     * The single-value proof that ES|QL uses ({@link MappedFieldType#isStaticallySingleValued()}) holds for a field with
-     * {@code multi_value=false} and {@code on_failure=ignore}, because the second value never reaches the doc values or the stored
-     * fields. This pins the reader side of that: the block loaders that ES|QL uses return the first value only, never the value
-     * that went to the {@code ._on_failure} column and is still in {@code _source}. If this fails, the proof is wrong for such a
-     * field and must not be used until the loader, or the proof, is fixed.
+     * With {@code multi_value=false} and {@code on_failure=ignore}, the diverted second value is still in {@code _source}, but block
+     * loaders must not return it. {@link MappedFieldType#isStaticallySingleValued()} relies on that.
      */
     public void testMultiValueFalseOnFailureIgnoreBlockLoaderSeesOneValue() throws IOException {
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
@@ -2730,12 +2727,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
-     * Indexes a document with the same value twice into a field with {@code multi_value=false} and {@code on_failure=ignore}, which
-     * diverts the second one, and checks that the block loaders that ES|QL uses return it as a single value, like a document that
-     * holds the value once. A value that is diverted is still in {@code _source} and in the {@code ._on_failure} column, so this fails
-     * if a block loader starts to read either. It covers each source mode that allows {@code multi_value=false} and each field extract
-     * preference, including {@code STORED}, and both the column-at-a-time and the row-stride readers. Mapper tests that do not run
-     * {@link #testMultiValueFalseOnFailureIgnoreBlockLoaderSeesOneValue} can call it with a sample value of their field.
+     * Indexes {@code sample} twice into a field with {@code multi_value=false} and {@code on_failure=ignore}, and checks that block
+     * loaders return the same single value as for a document that holds it once. It runs for every source mode that allows
+     * {@code multi_value=false} and every field extract preference. Mapper tests that do not run
+     * {@link #testMultiValueFalseOnFailureIgnoreBlockLoaderSeesOneValue} can call it directly.
      */
     protected final void assertDivertedValueIsNotLoaded(Object sample) throws IOException {
         for (SourceFieldMapper.Mode sourceMode : IndexMode.COLUMNAR.supportedSourceModes()) {

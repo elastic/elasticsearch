@@ -145,12 +145,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertNull(lookup.isPassthrough("unknown"));
     }
 
-    /**
-     * A field with {@code multi_value=false} is reported as single-valued, so that ES|QL can rely on it. The
-     * guarantee comes from the field's own {@code multi_value=false} or from the index-level default. With
-     * {@code on_failure=ignore} the extra value is kept out of the doc values and the stored fields instead of rejecting the document,
-     * so the field is still reported.
-     */
+    /** A field with {@code multi_value=false}, including with {@code on_failure=ignore}, is statically single-valued. */
     public void testIsSingleValueGuaranteed() throws IOException {
         Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(columnar, mapping(b -> {
@@ -166,9 +161,8 @@ public class MapperServiceTests extends MapperServiceTestCase {
             assertTrue(type, isStaticallySingleValued(lookup, type + "_single"));
             assertFalse(type, isStaticallySingleValued(lookup, type + "_multi"));
         }
-        // With on_failure=ignore the extra value is not in the doc values or the stored fields, which are what the ES|QL block loaders
-        // read, so the field is still single-valued.
-        // MapperTestCase#testMultiValueFalseOnFailureIgnoreBlockLoaderSeesOneValue checks that the block loaders do not expose it.
+        // MapperTestCase#testMultiValueFalseOnFailureIgnoreBlockLoaderSeesOneValue checks that block loaders do not expose the diverted
+        // value.
         assertTrue(isStaticallySingleValued(lookup, "keyword_ignore"));
         assertFalse(isStaticallySingleValued(lookup, "unknown"));
 
@@ -195,15 +189,9 @@ public class MapperServiceTests extends MapperServiceTestCase {
     }
 
     /**
-     * Today no {@code copy_to} can feed a field with {@code multi_value=false}: the {@code multi_value} parameter is only accepted in
-     * strict columnar index modes, and those modes reject {@code copy_to}. This pins that.
-     * <p>
-     * {@link MappedFieldType#isStaticallySingleValued()} does not exclude a {@code copy_to} target, because a target enforces
-     * {@code multi_value=false} like any field: the copied values are parsed by the target's {@code FieldMapper#parse}, in a context
-     * that shares the per-document set of fields that already have a value. A mapping with a {@code copy_to} source never takes the
-     * columnar batch path. If this test fails because {@code multi_value} can now be combined with {@code copy_to}, replace it with a
-     * test that a {@code copy_to} into a {@code multi_value=false} field rejects a second value, from one source array, from two
-     * sources, and from a source plus the field's own value. The single-value proof relies on that.
+     * {@code multi_value=false} is only accepted in strict columnar index modes, which reject {@code copy_to}, so no {@code copy_to}
+     * can feed such a field. If that changes, test that a {@code copy_to} into a {@code multi_value=false} field rejects a second
+     * value, because the single-value guarantee relies on it.
      */
     public void testMultiValueFalseCannotBeCombinedWithCopyTo() {
         Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
@@ -219,12 +207,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("parameter [multi_value] can only be used in columnar index modes"));
     }
 
-    /**
-     * An array of objects gives a field in the objects one value per object, so a {@code multi_value=false} field rejects it, and never
-     * holds more than one value in a document. This is so for {@code object} and for {@code nested} parents. For {@code nested} it is
-     * stricter than needed, since each nested object is its own Lucene document with one value: the values are counted per top-level
-     * document. That only rejects more documents, so the single-value guarantee still holds.
-     */
+    /** An array of objects gives a field one value per object, so a {@code multi_value=false} field rejects it, for object and nested parents. */
     public void testMultiValueFalseRejectsArrayOfObjects() throws IOException {
         Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         for (String parentType : List.of("object", "nested")) {

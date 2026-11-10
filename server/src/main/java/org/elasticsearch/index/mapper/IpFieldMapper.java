@@ -315,8 +315,7 @@ public class IpFieldMapper extends FieldMapper {
                     readInArrayOrder,
                     arrayOrderBinaryDocValues,
                     indexSettings.getIndexVersionCreated(),
-                    docValuesParameters.getValue(),
-                    docValuesParameters.getValue().multiValue() == false
+                    docValuesParameters.getValue()
                 ),
                 builderParams(this, context),
                 context.isSourceSynthetic(),
@@ -349,7 +348,6 @@ public class IpFieldMapper extends FieldMapper {
         private final boolean useArrayOrderBinaryDocValues;
         private final IndexVersion indexVersion;
         private final DocValuesParameter.Values docValuesParams;
-        private final boolean staticallySingleValued;
 
         public IpFieldType(
             String name,
@@ -364,8 +362,7 @@ public class IpFieldMapper extends FieldMapper {
             boolean readInArrayOrder,
             boolean useArrayOrderBinaryDocValues,
             IndexVersion indexVersion,
-            DocValuesParameter.Values docValuesParams,
-            boolean staticallySingleValued
+            DocValuesParameter.Values docValuesParams
         ) {
             super(name, indexType, stored, meta);
             this.nullValue = nullValue;
@@ -378,12 +375,11 @@ public class IpFieldMapper extends FieldMapper {
             this.useArrayOrderBinaryDocValues = useArrayOrderBinaryDocValues;
             this.indexVersion = indexVersion;
             this.docValuesParams = docValuesParams;
-            this.staticallySingleValued = staticallySingleValued;
         }
 
         @Override
         public boolean isStaticallySingleValued() {
-            return staticallySingleValued;
+            return docValuesParams != null && docValuesParams.multiValue() == false;
         }
 
         public IpFieldType(String name) {
@@ -408,8 +404,7 @@ public class IpFieldMapper extends FieldMapper {
                 false,
                 false,
                 IndexVersion.current(),
-                null,
-                false
+                null
             );
         }
 

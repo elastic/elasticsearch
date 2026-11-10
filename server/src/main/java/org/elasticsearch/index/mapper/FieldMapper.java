@@ -1942,9 +1942,8 @@ public abstract class FieldMapper extends Mapper {
          *   <li>{@code "nullability": false} - reject any document that omits the field or supplies null (columnar only)</li>
          *   <li>{@code "on_failure": "fail"} - reject the document if it violates multi_value/nullability (default; columnar only)</li>
          *   <li>{@code "on_failure": "ignore"} - route the offending value to a per-field failure column
-         *       (columnar only; see {@link DocumentParserContext#enforceSingleValue}). The value stays in {@code _source}, which synthetic
-         *       source rebuilds from the failure column. It is not exposed to block loaders, ES|QL or aggregations, and ES|QL relies on
-         *       that: see {@link MappedFieldType#isStaticallySingleValued()}.</li>
+         *       (columnar only; see {@link DocumentParserContext#enforceSingleValue}). The value stays in {@code _source}, but block
+         *       loaders do not return it; see {@link MappedFieldType#isStaticallySingleValued()}.</li>
          *   <li>Legacy nested form: {@code "doc_values": { "multi_value": false }} etc. — still accepted for backwards
          *       compatibility but no longer emitted for new indices.</li>
          * </ul>

@@ -1338,8 +1338,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             false,
             false,
             IndexVersion.current(),
-            null,
-            false
+            null
         );
         testCase(iw -> {
             Document document = new Document();

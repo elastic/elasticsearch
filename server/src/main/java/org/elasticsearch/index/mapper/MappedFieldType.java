@@ -192,24 +192,13 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * Whether the mapping guarantees that a block loader sees at most one value per document for this field:
-     * {@code multi_value=false}. Readers such as field caps, and through it ES|QL, may rely on it.
+     * Whether the mapping guarantees at most one value per document for this field ({@code multi_value=false}). Readers such as
+     * field caps, and through it ES|QL, may rely on it. {@code false} means "no guarantee", not "multi-valued".
      * <p>
-     * With {@code on_failure=fail} a second value rejects the document, so no reader can see it. With {@code on_failure=ignore} the
-     * document is kept and a second value goes to the {@code ._on_failure} side column. It is in neither the doc values, the stored
-     * fields nor the index, but it is in {@code _source}. So the guarantee holds for the block loaders that ES|QL uses, and not for a
-     * reader of {@code _source} itself, such as the fetch phase or the ES|QL {@code _source} metadata column.
+     * The guarantee covers what block loaders read: doc values, stored fields and the index. With {@code on_failure=ignore} a second
+     * value is kept in {@code _source} only, so a reader of {@code _source} can still see more than one value.
      * <p>
-     * A change that makes a block loader return the {@code ._on_failure} values, or read the diverted value from {@code _source},
-     * for a field with {@code multi_value=false} would make the guarantee wrong without any error. {@code MapperTestCase} tests that
-     * the block loaders do not expose the diverted value, for every field extract preference and every source mode that allows
-     * {@code multi_value=false}; keep that test passing.
-     * <p>
-     * Defaults to {@code false}, which means "unknown": the field type gives no guarantee, so the field may hold more than one value.
-     * {@code multi_value} and {@code on_failure} are not updateable, so the guarantee cannot be removed later.
-     * <p>
-     * An alias has the field type of its target, so it has the guarantee of its target. A runtime field replaces the field type of
-     * the mapped field it shadows, and its values do not come from the mapper, so it has no guarantee.
+     * {@code multi_value} and {@code on_failure} cannot be updated, so the guarantee cannot be removed later.
      */
     public boolean isStaticallySingleValued() {
         return false;

@@ -53,4 +53,9 @@ public class RandomTests extends AbstractScalarFunctionTestCase {
     public void testFold() {
         // Random cannot be folded as it is non-deterministic.
     }
+
+    @Override
+    public void testFoldAnyNullIsNullWithoutFoldNull() {
+        // Random cannot be folded as it is non-deterministic.
+    }
 }

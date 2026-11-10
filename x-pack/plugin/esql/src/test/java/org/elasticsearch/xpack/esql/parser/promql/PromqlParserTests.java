@@ -981,6 +981,23 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(function.groupingKeys().stream().map(key -> key.name()).toList(), equalTo(List.of("pod")));
     }
 
+    /** An opening parenthesis after a grouping modifier belongs to its label list, even for scalar operands. */
+    public void testGroupLabelsCannotBeParsedAsOperand() {
+        PromqlParser parser = new PromqlParser();
+        for (String grouping : List.of("group_left", "group_right")) {
+            for (String matching : List.of("on(instance)", "ignoring(instance)")) {
+                for (String left : List.of("foo", "1")) {
+                    for (String right : List.of("(bar)", "(bar and baz)", "(2)")) {
+                        for (String operator : List.of("*", "== bool")) {
+                            String query = left + " " + operator + " " + matching + " " + grouping + " " + right;
+                            expectThrows(ParsingException.class, () -> parser.createStatement(query));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /** Folding must not erase the ON/GROUP overlap, including when the group list is a subset of the matching list. */
     public void testOnAndGroupLabelsMustBeDisjointBeforeFolding() {
         PromqlParser parser = new PromqlParser();
@@ -990,6 +1007,21 @@ public class PromqlParserTests extends ESTestCase {
                     String query = String.format(Locale.ROOT, operands, matching + " " + grouping + "(instance)");
                     ParsingException e = expectThrows(ParsingException.class, () -> parser.createStatement(query));
                     assertThat(e.getErrorMessage(), containsString("must not occur in ON and GROUP clause at once"));
+                }
+            }
+        }
+    }
+
+    /** Explicit empty group labels allow a parenthesized operand; a sign after group labels starts a unary operand. */
+    public void testExplicitGroupLabelsPreserveParenthesizedAndUnaryOperands() {
+        PromqlParser parser = new PromqlParser();
+        for (String grouping : List.of("group_left", "group_right")) {
+            for (String matching : List.of("on(instance)", "ignoring(instance)")) {
+                for (String right : List.of("() (bar)", "(extra) (bar)", "(extra) +bar", "(extra) -bar")) {
+                    String query = "foo * " + matching + " " + grouping + right;
+                    VectorBinaryArithmetic binary = as(parser.createStatement(query), VectorBinaryArithmetic.class);
+                    assertThat(binary.match().filterLabels(), equalTo(Set.of("instance")));
+                    assertThat(binary.right().collect(InstantSelector.class).getFirst().series().sourceText(), equalTo("bar"));
                 }
             }
         }

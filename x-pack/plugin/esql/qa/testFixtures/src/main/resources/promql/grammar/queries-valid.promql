@@ -91,6 +91,10 @@ foo / ignoring(test,blub) group_left(blub) bar;
 foo / ignoring(test,blub) group_left(bar) bar;
 foo - on(test,blub) group_right(bar,foo) bar;
 foo - ignoring(test,blub) group_right(bar,foo) bar;
+foo * on(bar) group_left() (baz);
+foo * on(bar) group_right() (baz);
+foo * on(bar) group_left(baz) +qux;
+foo * on(bar) group_right(baz) -qux;
 
 //
 // evaluation

@@ -116,7 +116,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(HISTOGRAM, ToStringFromHistogramEvaluator.Factory::new),
         Map.entry(EXPONENTIAL_HISTOGRAM, ToStringFromExponentialHistogramEvaluator.Factory::new),
         Map.entry(TDIGEST, ToStringFromTDigestEvaluator.Factory::new),
-        // A typed label container is already its JSON display form.
+        // TODO(sidosera): Change this once we add binary format for TSMD_DATA_TYPE
         Map.entry(TSMD_DATA_TYPE, (source, fieldEval) -> fieldEval),
 
         // Evaluators dynamically created in #factories()

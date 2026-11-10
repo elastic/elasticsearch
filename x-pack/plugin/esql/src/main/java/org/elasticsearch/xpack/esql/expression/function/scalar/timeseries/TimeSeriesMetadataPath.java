@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.io.IOException;
 import java.util.List;
 
-/** Reads a label; an absent label returns null. */
+/** Internal function that accesses a selected dimension value on metadata container {@link DataType#TSMD_DATA_TYPE}. */
 public final class TimeSeriesMetadataPath extends AbstractTimeSeriesMetadataFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -49,11 +49,6 @@ public final class TimeSeriesMetadataPath extends AbstractTimeSeriesMetadataFunc
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return TimeSeriesMetadataFunctionEvaluator.factory(TimeSeriesMetadataFunctionEvaluator.Operation.GET, children(), toEvaluator);
-    }
-
-    @Override
-    protected TypeResolution resolveArguments() {
-        return labelName(1);
     }
 
     @Override

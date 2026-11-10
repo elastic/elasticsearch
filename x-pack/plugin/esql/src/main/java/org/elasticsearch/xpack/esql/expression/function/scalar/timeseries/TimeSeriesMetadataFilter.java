@@ -22,7 +22,8 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 /**
- * Keeps only the requested labels, or with {@code exclude} every label but them. Naming an absent label changes nothing.
+ * Internal function that keeps selected dimension names of metadata container {@link DataType#TSMD_DATA_TYPE}, or with
+ * {@code exclude} removes them. Naming an absent dimension changes nothing.
  */
 public final class TimeSeriesMetadataFilter extends AbstractTimeSeriesMetadataFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -58,11 +59,6 @@ public final class TimeSeriesMetadataFilter extends AbstractTimeSeriesMetadataFu
         return exclude;
     }
 
-    /** The requested label names. */
-    public List<Expression> labels() {
-        return children().subList(1, children().size());
-    }
-
     @Override
     public DataType dataType() {
         return DataType.TSMD_DATA_TYPE;
@@ -75,24 +71,13 @@ public final class TimeSeriesMetadataFilter extends AbstractTimeSeriesMetadataFu
     }
 
     @Override
-    protected TypeResolution resolveArguments() {
-        for (int i = 1; i < children().size(); i++) {
-            TypeResolution resolution = labelName(i);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-        }
-        return TypeResolution.TYPE_RESOLVED;
-    }
-
-    @Override
     public TimeSeriesMetadataFilter replaceChildren(List<Expression> children) {
         return new TimeSeriesMetadataFilter(source(), children.getFirst(), children.subList(1, children.size()), exclude);
     }
 
     @Override
     protected NodeInfo<TimeSeriesMetadataFilter> info() {
-        return NodeInfo.create(this, TimeSeriesMetadataFilter::new, labelContainer(), labels(), exclude);
+        return NodeInfo.create(this, TimeSeriesMetadataFilter::new, children().getFirst(), labels(), exclude);
     }
 
     @Override

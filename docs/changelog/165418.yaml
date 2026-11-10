@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165418
+summary: "Arrow output for geohash, geohex, geotile"
+type: enhancement

@@ -882,35 +882,39 @@ public class APMTracerTests extends ESTestCase {
             .put(OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH.getKey(), maxTraceDepth)
             .put(OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS.getKey(), recordExceptionStacks)
             .build();
-        final APMTracingService service = new APMTracingService(threadContext, allSampled, (processor, serviceSampler) -> () -> {
-            final SdkTracerProvider tracerProvider = SdkTracerProvider.builder().setSampler(new Sampler() {
-                @Override
-                public SamplingResult shouldSample(
-                    Context parentContext,
-                    String traceId,
-                    String name,
-                    SpanKind spanKind,
-                    Attributes attributes,
-                    List<LinkData> parentLinks
-                ) {
-                    final SamplingResult result = sampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
-                    return result.getDecision() == SamplingDecision.DROP
-                        ? result
-                        : serviceSampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
-                }
+        final APMTracingService service = new APMTracingService(
+            threadContext,
+            allSampled,
+            (exporterDecorator, processor, serviceSampler) -> () -> {
+                final SdkTracerProvider tracerProvider = SdkTracerProvider.builder().setSampler(new Sampler() {
+                    @Override
+                    public SamplingResult shouldSample(
+                        Context parentContext,
+                        String traceId,
+                        String name,
+                        SpanKind spanKind,
+                        Attributes attributes,
+                        List<LinkData> parentLinks
+                    ) {
+                        final SamplingResult result = sampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
+                        return result.getDecision() == SamplingDecision.DROP
+                            ? result
+                            : serviceSampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
+                    }
 
-                @Override
-                public String getDescription() {
-                    return "test sampler in front of " + serviceSampler.getDescription();
-                }
-            }).addSpanProcessor(processor).addSpanProcessor(SimpleSpanProcessor.create(exporter)).build();
-            final OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
-                .setTracerProvider(tracerProvider)
-                .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
-                .build();
-            sdks.add(sdk);
-            return sdk;
-        });
+                    @Override
+                    public String getDescription() {
+                        return "test sampler in front of " + serviceSampler.getDescription();
+                    }
+                }).addSpanProcessor(processor).addSpanProcessor(SimpleSpanProcessor.create(exporter)).build();
+                final OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
+                    .setTracerProvider(tracerProvider)
+                    .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
+                    .build();
+                sdks.add(sdk);
+                return sdk;
+            }
+        );
         settingsUpdater = new TracingSettingsUpdater(service, allSampled);
         service.start();
         return service.tracer();

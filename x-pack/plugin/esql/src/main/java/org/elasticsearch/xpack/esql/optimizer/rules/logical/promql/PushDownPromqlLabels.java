@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
@@ -37,7 +36,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.ToTime
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.promql.function.HashOffset;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
@@ -64,6 +62,8 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.TreeSet;
+
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.seriesId;
 
 /**
  * Pushes the labels of a translated PromQL plan down into columns, right after {@link TranslatePromqlToEsqlPlan}.
@@ -453,11 +453,8 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
                     Shape shape = shape(definition);
                     Shape columns;
                     if (collapse && isSource(definition)) {
-                        // The series id keys the collapse: two series can render the same labels, an empty label being
-                        // absent, and their samples must not merge.
-                        Attribute id = seriesId(aggregate.child());
-                        child = withSeriesId(aggregate.child(), id);
-                        groupings.add(id);
+                        // The translation keys the collapse by the series id too
+                        assert aggregate.groupings().contains(seriesId(aggregate.child())) : "a collapse per series keys by its id";
                         if (finding == false && views.getOrDefault(named.id(), Set.of()).isEmpty()) {
                             // Nothing reads a view of the series above: the labels are columns.
                             var aliases = new ArrayList<NamedExpression>();
@@ -533,28 +530,6 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
             shape.labels().forEach((name, value) -> labels.put(name, named(value, name, aliases)));
             groupings.addAll(aliases);
             return new Shape(null, id, shape.excluded(), labels);
-        }
-
-        /** The time-series id of the source under {@code plan}. */
-        private static Attribute seriesId(LogicalPlan plan) {
-            for (EsRelation relation : plan.collect(EsRelation.class)) {
-                for (Attribute attribute : relation.output()) {
-                    if (attribute.name().equals(MetadataAttribute.TSID_FIELD)) {
-                        return attribute;
-                    }
-                }
-            }
-            return new MetadataAttribute(plan.source(), MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false);
-        }
-
-        /** {@code plan} with its source reading {@code id}. */
-        private static LogicalPlan withSeriesId(LogicalPlan plan, Attribute id) {
-            return plan.transformUp(
-                EsRelation.class,
-                relation -> relation.output().contains(id)
-                    ? relation
-                    : relation.withAttributes(CollectionUtils.combine(relation.output(), id))
-            );
         }
 
         /** The view the collapse {@code id} carries, as its column and what it leaves out. */

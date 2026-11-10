@@ -74,7 +74,7 @@ public final class SortFunction extends PromqlFunctionCall implements ResultOrde
             IntermediateResult skipped = result.with(skipAllFilter, result.value());
             return skipped.kind().afterInitialAggregation
                 ? context.emitAggregate(skipped, skipped.labels(), nullGrouping)
-                : context.emitInitialAggregate(skipped, skipped.labels(), nullGrouping);
+                : context.emitInitialAggregate(skipped, nullGrouping);
         }
         return result;
     }

@@ -214,6 +214,31 @@ Copyright 2009-2024 Elasticsearch"""
                         "to contain [foo license] but it did not")
     }
 
+    def "checkModules is stored in and reused from the configuration cache"() {
+        given:
+        buildFile << """
+            tasks.withType(AbstractArchiveTask).configureEach {
+                into("elasticsearch-${VersionProperties.getElasticsearch()}") {
+                    from 'SomeFile.txt'
+                }
+            }
+        """
+
+        when:
+        // checkModules fails in these fixtures because they have no lib directory; the cache entry is stored before
+        // any task runs, so the failure must come from the task itself and the second run must reuse the entry
+        def first = gradleRunner(":darwin-tar:checkModules").buildAndFail()
+        def second = gradleRunner(":darwin-tar:checkModules").buildAndFail()
+
+        then:
+        first.output.contains("Configuration cache entry stored.")
+        first.task(":darwin-tar:checkModules").outcome == TaskOutcome.FAILED
+        second.output.contains("Reusing configuration cache.")
+        second.task(":darwin-tar:checkModules").outcome == TaskOutcome.FAILED
+        second.output.contains("NoSuchFileException")
+        second.output.contains("tar-extracted/elasticsearch-${VersionProperties.getElasticsearch()}/lib")
+    }
+
     void elasticLicense(File file = file("licenses/ELASTIC-LICENSE-2.0.txt")) {
         file << """elastic license coorp stuff line 1
 elastic license coorp stuff line 2

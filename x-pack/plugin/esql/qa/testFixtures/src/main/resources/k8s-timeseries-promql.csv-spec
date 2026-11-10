@@ -2780,12 +2780,12 @@ result:double | step:datetime            | v:keyword
 9.0           | 2024-05-10T01:00:00.000Z | NaN
 ;
 
-// A value below 500 times 0 is -0, which Prometheus counts apart from 0.
+// For a value below 500, 0 * (value - 500) is -0, which Prometheus counts apart from 0.
 count_values_signed_zeros
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_count_values
-PROMQL index=k8s step=1h result=(count_values("v", (network.bytes_in - 500) * 0))
+PROMQL index=k8s step=1h result=(count_values("v", 0 * (network.bytes_in - 500)))
 | SORT v;
 
 result:double | step:datetime            | v:keyword

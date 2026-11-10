@@ -827,14 +827,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         }
     }
 
-    /// Start running any shard-level clone tasks that are ready to start (e.g. in state [ShardState#INIT]), in any repository from the
-    /// given project.
-    private void runReadyShardClonesInProject(SnapshotsInProgress snapshotsInProgress, ProjectId projectId) {
-        for (List<SnapshotsInProgress.Entry> entries : snapshotsInProgress.entriesByRepo(projectId)) {
-            runReadyShardClonesInEntries(entries);
-        }
-    }
-
     /// Start running any shard-level clone tasks that are ready to start (e.g. in state [ShardState#INIT]), in the given repository.
     private void runReadyShardClonesInRepository(SnapshotsInProgress snapshotsInProgress, ProjectRepo projectRepo) {
         runReadyShardClonesInEntries(snapshotsInProgress.forRepo(Objects.requireNonNull(projectRepo)));
@@ -1327,7 +1319,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             }
             // TODO: be more efficient here, we could collect newly ready shard clones as we compute them and then directly start them
             // instead of looping over all possible clones to execute
-            runReadyShardClonesInProject(SnapshotsInProgress.get(newState), deleteEntry.projectId());
+            runReadyShardClonesInRepository(
+                SnapshotsInProgress.get(newState),
+                new ProjectRepo(deleteEntry.projectId(), deleteEntry.repository())
+            );
         }
 
         /**

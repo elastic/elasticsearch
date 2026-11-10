@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
@@ -90,7 +91,8 @@ public final class ColumnSemantics {
 
     /**
      * RENAME and pass-through aliases keep what is known about the column they point at, and so do the grouping keys
-     * of a translated {@code TS} aggregation, which are read per series and may be packed into one column.
+     * of a translated {@code TS} aggregation, which are read per series and may be packed into one column. The columns
+     * of a {@link MergePlan} keep what their branches agree on.
      */
     private static <T> void followAliases(LogicalPlan plan, Map<NameId, T> known) {
         // Grouping keys read per series, and packed dimensions, by the attribute that holds them.
@@ -135,8 +137,35 @@ public final class ColumnSemantics {
                         copy(known, dims.get(i), unpack.dims().get(i).id());
                     }
                 }
+            } else if (node instanceof MergePlan merge) {
+                mergeBranches(merge, known);
             }
         });
+    }
+
+    /**
+     * A column of a {@link MergePlan} (views next to indices, {@code FORK}, subqueries) keeps what is known about
+     * the same-named column of its branches when every branch that has the column knows it and they agree.
+     */
+    static <T> void mergeBranches(MergePlan merge, Map<NameId, T> known) {
+        for (Attribute column : merge.output()) {
+            T agreed = null;
+            for (LogicalPlan branch : merge.children()) {
+                Attribute source = branch.output().stream().filter(a -> a.name().equals(column.name())).findFirst().orElse(null);
+                if (source == null) {
+                    continue;
+                }
+                T value = known.get(source.id());
+                if (value == null || (agreed != null && agreed.equals(value) == false)) {
+                    agreed = null;
+                    break;
+                }
+                agreed = value;
+            }
+            if (agreed != null) {
+                known.put(column.id(), agreed);
+            }
+        }
     }
 
     private static <T> void copy(Map<NameId, T> known, NameId from, NameId to) {

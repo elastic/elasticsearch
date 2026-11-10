@@ -11,14 +11,14 @@ import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTe
 
 import java.util.ArrayList;
 
-public class TimeSeriesPathSerializationTests extends AbstractExpressionSerializationTests<TimeSeriesPath> {
+public class TimeSeriesMetadataSetSerializationTests extends AbstractExpressionSerializationTests<TimeSeriesMetadataSet> {
     @Override
-    protected TimeSeriesPath createTestInstance() {
-        return new TimeSeriesPath(randomSource(), randomChild(), randomChild());
+    protected TimeSeriesMetadataSet createTestInstance() {
+        return new TimeSeriesMetadataSet(randomSource(), randomChild(), randomChild(), randomChild());
     }
 
     @Override
-    protected TimeSeriesPath mutateInstance(TimeSeriesPath instance) {
+    protected TimeSeriesMetadataSet mutateInstance(TimeSeriesMetadataSet instance) {
         var children = new ArrayList<>(instance.children());
         int index = randomInt(children.size() - 1);
         children.set(index, mutateExpression(children.get(index)));

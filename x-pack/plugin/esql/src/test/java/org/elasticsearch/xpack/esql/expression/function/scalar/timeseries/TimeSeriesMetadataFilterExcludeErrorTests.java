@@ -18,16 +18,16 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
-public class TimeSeriesTransformErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+public class TimeSeriesMetadataFilterExcludeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
         // Only the one-label signatures: error generation permutes every argument position, which longer signatures explode.
-        return paramsToSuppliers(TimeSeriesTransformTests.parameters()).stream().filter(c -> c.types().size() == 2).toList();
+        return paramsToSuppliers(TimeSeriesMetadataFilterExcludeTests.parameters()).stream().filter(c -> c.types().size() == 2).toList();
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new TimeSeriesTransform(source, args.getFirst(), args.subList(1, args.size()));
+        return new TimeSeriesMetadataFilter(source, args.getFirst(), args.subList(1, args.size()), true);
     }
 
     @Override

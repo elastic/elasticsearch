@@ -31,8 +31,8 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TimeSeriesKeepTests extends AbstractScalarFunctionTestCase {
-    public TimeSeriesKeepTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class TimeSeriesMetadataFilterTests extends AbstractScalarFunctionTestCase {
+    public TimeSeriesMetadataFilterTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -71,14 +71,16 @@ public class TimeSeriesKeepTests extends AbstractScalarFunctionTestCase {
             List<TestCaseSupplier.TypedData> data = new ArrayList<>();
             data.add(new TestCaseSupplier.TypedData(new BytesRef(labelContainer), DataType.TSMD_DATA_TYPE, "labelContainer"));
             labels.forEach(label -> data.add(new TestCaseSupplier.TypedData(new BytesRef(label), DataType.KEYWORD, label).forceLiteral()));
-            String evaluator = "TimeSeriesEvaluator[operation=KEEP, names=" + labels + ", labelContainer=Attribute[channel=0]]";
+            String evaluator = "TimeSeriesMetadataFunctionEvaluator[operation=KEEP, names="
+                + labels
+                + ", labelContainer=Attribute[channel=0]]";
             return new TestCaseSupplier.TestCase(data, evaluator, DataType.TSMD_DATA_TYPE, equalTo(new BytesRef(expected)));
         });
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new TimeSeriesKeep(source, args.getFirst(), args.subList(1, args.size()));
+        return new TimeSeriesMetadataFilter(source, args.getFirst(), args.subList(1, args.size()), false);
     }
 
     /** A missing label container is the empty one, so keeping labels of it leaves it empty rather than null. */
@@ -96,17 +98,23 @@ public class TimeSeriesKeepTests extends AbstractScalarFunctionTestCase {
             Literal.NULL,
             field("label", DataType.KEYWORD)
         )) {
-            var transform = new TimeSeriesKeep(Source.EMPTY, labelContainer, List.of(Literal.keyword(Source.EMPTY, "pod"), label));
+            var transform = new TimeSeriesMetadataFilter(
+                Source.EMPTY,
+                labelContainer,
+                List.of(Literal.keyword(Source.EMPTY, "pod"), label),
+                false
+            );
             assertTrue(label.toString(), transform.typeResolved().unresolved());
         }
     }
 
     /** Only a typed label container can be rewritten: its keyword form is not one. */
     public void testLabelContainerMustBeTyped() {
-        var transform = new TimeSeriesKeep(
+        var transform = new TimeSeriesMetadataFilter(
             Source.EMPTY,
             field("labelContainer", DataType.KEYWORD),
-            List.of(Literal.keyword(Source.EMPTY, "pod"))
+            List.of(Literal.keyword(Source.EMPTY, "pod")),
+            false
         );
         assertThat(transform.typeResolved().message(), containsString("_timeseries"));
     }
@@ -125,10 +133,11 @@ public class TimeSeriesKeepTests extends AbstractScalarFunctionTestCase {
     }
 
     private void remove(Object labelContainer) {
-        var transform = new TimeSeriesKeep(
+        var transform = new TimeSeriesMetadataFilter(
             Source.EMPTY,
             field("labelContainer", DataType.TSMD_DATA_TYPE),
-            List.of(Literal.keyword(Source.EMPTY, "pod"))
+            List.of(Literal.keyword(Source.EMPTY, "pod")),
+            false
         );
         try (
             ExpressionEvaluator eval = evaluator(transform).get(driverContext());

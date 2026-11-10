@@ -32,8 +32,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TimeSeriesPathTests extends AbstractScalarFunctionTestCase {
-    public TimeSeriesPathTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class TimeSeriesMetadataPathTests extends AbstractScalarFunctionTestCase {
+    public TimeSeriesMetadataPathTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -63,9 +63,9 @@ public class TimeSeriesPathTests extends AbstractScalarFunctionTestCase {
                 read(
                     "escaped name and value",
                     labelType,
-                    "{\"label\\\"\\\\\":\"value\\\"\\\\\\nλ😀\"}",
+                    "{\"label\\\"\\\\\":\"value\\\"\\\\\\n\u03bb\ud83d\ude00\"}",
                     "label\"\\",
-                    equalTo(new BytesRef("value\"\\\nλ😀"))
+                    equalTo(new BytesRef("value\"\\\n\u03bb\ud83d\ude00"))
                 )
             );
         }
@@ -78,14 +78,16 @@ public class TimeSeriesPathTests extends AbstractScalarFunctionTestCase {
                 new TestCaseSupplier.TypedData(new BytesRef(labelContainer), DataType.TSMD_DATA_TYPE, "labelContainer"),
                 new TestCaseSupplier.TypedData(new BytesRef(label), labelType, "label").forceLiteral()
             );
-            String evaluator = "TimeSeriesEvaluator[operation=GET, names=[" + label + "], labelContainer=Attribute[channel=0]]";
+            String evaluator = "TimeSeriesMetadataFunctionEvaluator[operation=GET, names=["
+                + label
+                + "], labelContainer=Attribute[channel=0]]";
             return new TestCaseSupplier.TestCase(data, evaluator, DataType.KEYWORD, expected);
         });
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new TimeSeriesPath(source, args.get(0), args.get(1));
+        return new TimeSeriesMetadataPath(source, args.get(0), args.get(1));
     }
 
     /** A label name must be a non-empty constant string, so the evaluator folds it once. */
@@ -97,13 +99,17 @@ public class TimeSeriesPathTests extends AbstractScalarFunctionTestCase {
             Literal.NULL,
             field("label", DataType.KEYWORD)
         )) {
-            assertTrue(label.toString(), new TimeSeriesPath(Source.EMPTY, labelContainer, label).typeResolved().unresolved());
+            assertTrue(label.toString(), new TimeSeriesMetadataPath(Source.EMPTY, labelContainer, label).typeResolved().unresolved());
         }
     }
 
     /** Only a typed label container can be read: its keyword form is not one. */
     public void testLabelContainerMustBeTyped() {
-        var path = new TimeSeriesPath(Source.EMPTY, field("labelContainer", DataType.KEYWORD), Literal.keyword(Source.EMPTY, "pod"));
+        var path = new TimeSeriesMetadataPath(
+            Source.EMPTY,
+            field("labelContainer", DataType.KEYWORD),
+            Literal.keyword(Source.EMPTY, "pod")
+        );
         assertThat(path.typeResolved().message(), containsString("_timeseries"));
     }
 
@@ -121,7 +127,11 @@ public class TimeSeriesPathTests extends AbstractScalarFunctionTestCase {
     }
 
     private void read(Object labelContainer) {
-        var path = new TimeSeriesPath(Source.EMPTY, field("labelContainer", DataType.TSMD_DATA_TYPE), Literal.keyword(Source.EMPTY, "pod"));
+        var path = new TimeSeriesMetadataPath(
+            Source.EMPTY,
+            field("labelContainer", DataType.TSMD_DATA_TYPE),
+            Literal.keyword(Source.EMPTY, "pod")
+        );
         try (
             ExpressionEvaluator eval = evaluator(path).get(driverContext());
             Block block = eval.eval(row(Collections.singletonList(labelContainer)))

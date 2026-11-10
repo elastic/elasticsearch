@@ -28,6 +28,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.externalResolutionFor;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 
 /**
@@ -96,7 +97,8 @@ public class PruneRedundantAggregateGroupingsGoldenTests extends GoldenTestCase 
                 return "parquet";
             }
         };
-        return new ExternalSourceResolution(
+        return externalResolutionFor(
+            datasetMetadata(),
             Map.of(DATA_RESOURCE, new ExternalSourceResolution.ResolvedSource(metadata, FileList.UNRESOLVED, Map.of()))
         );
     }

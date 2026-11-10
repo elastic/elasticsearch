@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165330
+summary: Read one resource correctly through datasets that configure it differently
+type: bug

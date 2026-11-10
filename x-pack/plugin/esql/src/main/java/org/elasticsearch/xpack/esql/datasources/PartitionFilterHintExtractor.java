@@ -116,7 +116,8 @@ public final class PartitionFilterHintExtractor {
         Map<String, List<List<PartitionFilterHint>>> perOccurrence = new LinkedHashMap<>();
         collectHints(unresolvedPlan, List.of(), perOccurrence);
 
-        // One listing serves every occurrence of a path, so a folder may be skipped only if EVERY occurrence excludes
+        // Hints are keyed by path while resolution is keyed by a spec, so one path's hints must hold for every
+        // spec over it: a folder may be skipped only if EVERY occurrence excludes
         // it. `FROM ds | FORK (WHERE year == 2025) (WHERE ...)` reaches the same relation twice; letting one branch's
         // hint narrow the shared listing would starve the other. An unguarded occurrence contributes no hints and so
         // vetoes the rewrite outright.

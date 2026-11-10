@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.data.Block;
@@ -74,6 +75,7 @@ import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
@@ -87,6 +89,7 @@ import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
 import org.elasticsearch.xpack.esql.datasources.FoldDateFunctionFiltersForListing;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
@@ -131,6 +134,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
@@ -885,7 +889,7 @@ public class EsqlSession {
      * string. The UUID feeds the HMAC key used by the anonymizer; an empty key still produces a
      * deterministic HMAC, only the token namespace is shared across affected sessions (test only).
      */
-    private static String resolveClusterUuid(org.elasticsearch.cluster.service.ClusterService clusterService) {
+    private static String resolveClusterUuid(ClusterService clusterService) {
         try {
             var state = clusterService.state();
             return state != null ? state.metadata().clusterUUID() : "";
@@ -2335,24 +2339,13 @@ public class EsqlSession {
             return;
         }
 
-        Map<String, Map<String, Object>> pathConfigs = extractExternalConfigs(plan);
+        List<ExternalSourceSpec> specs = extractExternalSourceSpecs(plan);
         Map<String, DatasetMapping> declaredMappings = extractDeclaredMappings(plan);
 
         LogicalPlan listingPlan = FoldDateFunctionFiltersForListing.fold(plan, configuration, functionRegistry);
-        // QueryDslTimestampBoundsExtractor parses both ends with roundUp=false, so
-        // `lte now/y` is start-of-year. Including that Instant in year IN is safe
-        // only while listing is year grain.
-        var withBounds = PartitionSpec.addTimestampBounds(
-            PartitionFilterHintExtractor.extract(listingPlan),
-            pathConfigs,
-            listingBounds == null ? null : listingBounds.start(),
-            listingBounds == null ? null : listingBounds.end()
-        );
-        // Folder-range from the TEMPORAL extract before projectListingHints drops @timestamp / NOW().
-        // Strict, union_by_name, and eager-stats listings are unbounded and reused as the scan set;
-        // without this, listForQuery never runs and one-sided filters do not prune before the cap.
-        Map<String, FolderRangePredicate> folderRanges = folderRangePredicates(withBounds, pathConfigs);
-        var filterHints = projectPartitionSpecs(withBounds, pathConfigs);
+        ListingInputs listingInputs = listingInputsPerSpec(specs, listingPlan, listingBounds);
+        Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints = listingInputs.filterHints();
+        Map<ExternalSourceSpec, FolderRangePredicate> folderRanges = listingInputs.folderRanges();
 
         // Always non-null (empty when no ungrouped aggregate is present). A non-null set switches the
         // resolver to selective eager stats: only the listed paths read every file's footer at
@@ -2366,8 +2359,7 @@ public class EsqlSession {
         Set<String> pathsReadingNoRows = SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan);
 
         externalSourceResolver.resolve(
-            preAnalysis.externalSourcePaths(),
-            pathConfigs,
+            specs,
             filterHints.isEmpty() ? null : filterHints,
             declaredMappings.isEmpty() ? null : declaredMappings,
             pathsRequiringStats,
@@ -2382,17 +2374,16 @@ public class EsqlSession {
      * that carry one ({@code FROM <dataset>} where the dataset declared a mapping). Paths without a declared
      * schema are absent — the resolver infers them as before.
      *
-     * <p>Resolution is per-path, so one path gets exactly one schema. Two datasets over the same resource with
-     * <em>different</em> declared mappings in one query — or one mapped and one unmapped — would silently share
-     * whichever resolution won; that is a wrong-schema answer, so it is rejected loudly here instead.
+     * <p>Still keyed by path while resolution is keyed by spec, so two datasets over one resource with differing
+     * mappings cannot be told apart here and are refused. Keying this by spec too is tracked separately.
      */
     // package-private for testing
     static Map<String, DatasetMapping> extractDeclaredMappings(LogicalPlan plan) {
         Map<String, DatasetMapping> declaredMappings = new HashMap<>();
         Set<String> unmappedPaths = new HashSet<>();
-        plan.forEachUp(org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation.class, p -> {
-            if (p.tablePath() instanceof org.elasticsearch.xpack.esql.core.expression.Literal literal && literal.value() != null) {
-                String path = org.elasticsearch.common.lucene.BytesRefs.toString(literal.value());
+        plan.forEachUp(UnresolvedExternalRelation.class, p -> {
+            if (p.tablePath() instanceof Literal literal && literal.value() != null) {
+                String path = BytesRefs.toString(literal.value());
                 if (p.mapping() != null) {
                     DatasetMapping previous = declaredMappings.putIfAbsent(path, p.mapping());
                     if (previous != null && previous.equals(p.mapping()) == false) {
@@ -2413,76 +2404,59 @@ public class EsqlSession {
         return declaredMappings;
     }
 
+    /** Per-spec listing hints and folder ranges, the two inputs that depend on a spec's own {@code partition_spec}. */
+    private record ListingInputs(
+        Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        Map<ExternalSourceSpec, FolderRangePredicate> folderRanges
+    ) {}
+
     /**
-     * Map from table path to config across all {@code UnresolvedExternalRelation} nodes. Every
-     * {@code tablePath} is a non-null {@code Literal} post-parsing; non-Literal here is a
-     * precondition violation and throws.
+     * Projects the query's partition-filter hints through each spec's own {@code partition_spec}, and takes the
+     * folder range before that projection drops {@code @timestamp}.
+     * <p>
+     * Per spec rather than per resource: keying by resource would narrow one spec's listing by the other's spec. The
+     * extractor's hints stay per path, intersected across occurrences, so one value is right for every spec over it.
+     */
+    private static ListingInputs listingInputsPerSpec(
+        List<ExternalSourceSpec> specs,
+        LogicalPlan listingPlan,
+        @Nullable QueryDslTimestampBoundsExtractor.TimestampBounds listingBounds
+    ) {
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> hintsByPath = PartitionFilterHintExtractor.extract(listingPlan);
+        Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints = new HashMap<>();
+        Map<ExternalSourceSpec, FolderRangePredicate> folderRanges = new HashMap<>();
+        for (ExternalSourceSpec spec : specs) {
+            PartitionSpec partitionSpec = PartitionSpec.fromConfig(spec.config());
+            // Applied even with no hints for this path: a spec binding @timestamp earns the request's bounds with no
+            // WHERE in the query at all.
+            List<PartitionFilterHintExtractor.PartitionFilterHint> hints = partitionSpec.withTimestampBounds(
+                hintsByPath.get(spec.path()),
+                listingBounds == null ? null : listingBounds.start(),
+                listingBounds == null ? null : listingBounds.end()
+            );
+            if (hints == null) {
+                continue;
+            }
+            // Taken before projectListingHints drops @timestamp: unbounded listings are reused as the scan set, so
+            // without this a one-sided filter does not prune.
+            FolderRangePredicate folderRange = partitionSpec.folderRangePredicate(hints);
+            if (folderRange != null) {
+                folderRanges.put(spec, folderRange);
+            }
+            filterHints.put(spec, partitionSpec.projectListingHints(hints));
+        }
+        return new ListingInputs(filterHints, folderRanges);
+    }
+
+    /**
+     * One spec per distinct read, in plan order. Equal specs collapse, which is what makes a resource reached twice
+     * through one plan resolve once.
      */
     // package-private for testing
-    static Map<String, Map<String, Object>> extractExternalConfigs(LogicalPlan plan) {
-        Map<String, Map<String, Object>> pathConfigs = new HashMap<>();
-        plan.forEachUp(org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation.class, p -> {
-            org.elasticsearch.xpack.esql.core.expression.Expression tablePath = p.tablePath();
-            if (tablePath instanceof org.elasticsearch.xpack.esql.core.expression.Literal literal && literal.value() != null) {
-                String path = org.elasticsearch.common.lucene.BytesRefs.toString(literal.value());
-                // If two UnresolvedExternalRelation nodes share the same literal path the later config
-                // overwrites the earlier one. Today the dataset-rewrite pipeline produces at most one
-                // UER per concrete path, so this is benign; if plan shapes evolve to allow per-call
-                // config divergence at the same path this needs to become a merge or a verifier check.
-                pathConfigs.put(path, p.config());
-            } else {
-                throw new IllegalStateException(
-                    "UnresolvedExternalRelation tablePath is not a non-null Literal: ["
-                        + (tablePath == null ? "null" : tablePath.sourceText())
-                        + "]"
-                );
-            }
-        });
-        return pathConfigs;
-    }
-
-    /**
-     * Remaps identity hints and emits finite {@code year}/{@code month}/{@code day}/{@code hour}
-     * {@code IN} lists through each path's {@code partition_spec}. Source-column bounds such as
-     * {@code @timestamp} GTE/LTE from {@link PartitionSpec#addTimestampBounds} are dropped after
-     * those {@code IN}s are built so they cannot fragment listing-cache identity. Hour IN
-     * changes listing-cache identity each hour; a Kibana refresh within the
-     * hour still hits. Identity-only specs leave the extractor hints unchanged.
-     */
-    static Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> projectPartitionSpecs(
-        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
-        Map<String, Map<String, Object>> pathConfigs
-    ) {
-        if (filterHints.isEmpty()) {
-            return filterHints;
-        }
-        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> projected = new HashMap<>(filterHints.size());
-        filterHints.forEach((path, hints) -> {
-            PartitionSpec spec = PartitionSpec.fromConfig(pathConfigs.get(path));
-            projected.put(path, spec.projectListingHints(hints));
-        });
-        return projected;
-    }
-
-    /**
-     * Per-path {@link FolderRangePredicate} from the TEMPORAL extract, before
-     * {@link #projectPartitionSpecs} drops source-column bounds.
-     */
-    static Map<String, FolderRangePredicate> folderRangePredicates(
-        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
-        Map<String, Map<String, Object>> pathConfigs
-    ) {
-        if (filterHints.isEmpty()) {
-            return Map.of();
-        }
-        Map<String, FolderRangePredicate> predicates = new HashMap<>();
-        filterHints.forEach((path, hints) -> {
-            FolderRangePredicate predicate = PartitionSpec.fromConfig(pathConfigs.get(path)).folderRangePredicate(hints);
-            if (predicate != null) {
-                predicates.put(path, predicate);
-            }
-        });
-        return predicates;
+    static List<ExternalSourceSpec> extractExternalSourceSpecs(LogicalPlan plan) {
+        Set<ExternalSourceSpec> specs = new LinkedHashSet<>();
+        plan.forEachUp(UnresolvedExternalRelation.class, p -> specs.add(ExternalSourceSpec.of(p)));
+        return List.copyOf(specs);
     }
 
     private void skipClusterOrError(String clusterAlias, EsqlExecutionInfo executionInfo, String message) {

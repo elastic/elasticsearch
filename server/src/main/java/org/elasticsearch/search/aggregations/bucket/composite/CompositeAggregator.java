@@ -14,7 +14,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.search.BinarySortField;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -257,10 +256,6 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
         // Binary doc values sort as STRING too, but have no SORTED_SET doc values to ask below, which would read as single-valued.
         if (sortField instanceof MultiValuedBinaryDocValuesSortField binarySortField) {
             return binarySortField.isMaybeMultiValued(context.reader());
-        }
-        if (sortField instanceof BinarySortField) {
-            // Sorts a single-valued field, whose blob is its one value.
-            return false;
         }
         SortField.Type type = IndexSortConfig.getSortFieldType(sortField);
         return switch (type) {

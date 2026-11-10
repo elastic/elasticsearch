@@ -61,6 +61,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -1023,8 +1024,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 expected += chargeQuery(hiddenQuery, context, true);
             }
 
-            assertTrue(breaker.queryBytes > 0);
-            assertEquals(builder.toString(), expected, breaker.queryBytes);
+            assertTrue(builder.toString(), breaker.totalBytes() > 0);
+            assertEquals(builder.toString(), expected, breaker.queryBytes());
         } finally {
             context.releaseQueryConstructionMemory();
         }
@@ -1049,24 +1050,20 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         assertNotNull(source.getCircuitBreaker());
         SearchExecutionContext context = estimateOnly ? new SearchExecutionContext(source, NoopCircuitBreaker.INSTANCE) : source;
 
-        try {
-            // Actual query charge
-            Query query = builder.toQuery(context);
-            assertNotNull("toQuery should not return null", query);
+        // Actual query charge
+        Query query = builder.toQuery(context);
+        assertNotNull("toQuery should not return null", query);
 
-            // Estimated query charge, without hidden queries
-            MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(
-                Integer.MAX_VALUE,
-                context.getCircuitBreaker(),
-                context::isQueryMemoryPreCharged,
-                MaxClauseCountQueryVisitor.segmentCountOrDefault(context.getIndexReader()),
-                context.getIndexReader()
-            );
-            query.visit(visitor);
-            return visitor.getEstimatedBytes();
-        } finally {
-            context.releaseQueryConstructionMemory();
-        }
+        // Estimated query charge, without hidden queries
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(
+            Integer.MAX_VALUE,
+            context.getCircuitBreaker(),
+            context::isQueryMemoryPreCharged,
+            MaxClauseCountQueryVisitor.segmentCountOrDefault(context.getIndexReader()),
+            context.getIndexReader()
+        );
+        query.visit(visitor);
+        return visitor.getEstimatedBytes();
     }
 
     public boolean isTextField(String fieldName) {
@@ -1151,9 +1148,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
     }
 
-    /** Records the bytes charged under the query category, the only category that {@code toQuery} charges for the visitor walk. */
+    /**
+     * Records the net bytes (charges minus refunds) per breaker category. The query category holds the charge for the visitor walk, the
+     * other categories hold the charges made at construction for pre-charged leaves such as ids, wildcard and regexp queries.
+     */
     private static final class QueryChargeRecordingBreaker extends NoopCircuitBreaker {
-        private long queryBytes;
+        private final Map<String, Long> bytesByLabel = new HashMap<>();
 
         QueryChargeRecordingBreaker() {
             super("query-charge-recorder");
@@ -1161,9 +1161,20 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
         @Override
         public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
-            if (ChildMemoryCircuitBreaker.CATEGORY_QUERY.equals(label)) {
-                queryBytes += bytes;
-            }
+            bytesByLabel.merge(label, bytes, Long::sum);
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes, String label) {
+            bytesByLabel.merge(label, bytes, Long::sum);
+        }
+
+        long queryBytes() {
+            return bytesByLabel.getOrDefault(ChildMemoryCircuitBreaker.CATEGORY_QUERY, 0L);
+        }
+
+        long totalBytes() {
+            return bytesByLabel.values().stream().mapToLong(Long::longValue).sum();
         }
     }
 }

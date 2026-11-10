@@ -418,7 +418,7 @@ public class EsqlSessionTests extends ESTestCase {
         assertThat(resolution, sameInstance(originalResolution));
     }
 
-    public void testExtractExternalReadsThrowsOnNonLiteralTablePath() {
+    public void testExtractExternalSourceSpecsThrowsOnNonLiteralTablePath() {
         // After parameter substitution at parse time, every UnresolvedExternalRelation tablePath is
         // expected to be a non-null Literal. extractExternalSourceSpecs fails closed with
         // IllegalStateException rather than silently dropping the relation from the resulting list.
@@ -430,7 +430,7 @@ public class EsqlSessionTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("UnresolvedExternalRelation tablePath is not a non-null Literal"));
     }
 
-    public void testExtractExternalReadsHandlesLiteralTablePath() {
+    public void testExtractExternalSourceSpecsHandlesLiteralTablePath() {
         // Positive case: a Literal-tablePath relation produces one read of that path under the relation's config.
         Source source = Source.EMPTY;
         Expression tablePath = Literal.keyword(source, "s3://bucket/table");
@@ -459,7 +459,7 @@ public class EsqlSessionTests extends ESTestCase {
     }
 
     /** One resource read the same way twice is one read, so the two relations share a listing and a schema. */
-    public void testOneResourceReadOneWayTwiceCollapsesToOneRead() {
+    public void testOneResourceReadOneWayTwiceCollapsesToOneSpec() {
         String path = "s3://bucket/sales";
 
         List<ExternalSourceSpec> reads = EsqlSession.extractExternalSourceSpecs(
@@ -474,7 +474,7 @@ public class EsqlSessionTests extends ESTestCase {
      * does not change which bytes are read, but {@code ExternalSourceResolver} annotates a classified failure with it,
      * so collapsing the two would report one dataset's failure under the other's name.
      */
-    public void testTwoDatasetsOverOneResourceAreTwoReads() {
+    public void testTwoDatasetsOverOneResourceAreTwoSpecs() {
         String path = "s3://bucket/sales";
         Map<String, Object> first = configWith("format", "csv");
         first.put(ExternalSourceResolver.DATASET_CONTEXT_KEY, Map.of("dataset", "a", "datasource", "src", "type", "s3"));
@@ -492,7 +492,7 @@ public class EsqlSessionTests extends ESTestCase {
     }
 
     /** Different paths never compare, however far their configurations diverge. */
-    public void testExtractExternalReadsKeepsDistinctPathsApart() {
+    public void testExtractExternalSourceSpecsKeepsDistinctPathsApart() {
         UnresolvedExternalRelation left = new UnresolvedExternalRelation(
             EMPTY,
             Literal.keyword(EMPTY, "s3://bucket/left"),

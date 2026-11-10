@@ -36,7 +36,7 @@ public class ExternalSourceSpecTests extends ESTestCase {
      * and not by map identity, and their hash codes with them, or a lookup misses a resolution that is sitting right
      * there — and two relations reading one dataset would resolve it twice instead of sharing.
      */
-    public void testEqualConfigsInDifferentMapsAreOneRead() {
+    public void testEqualConfigsInDifferentMapsAreOneSpec() {
         Map<String, Object> left = new HashMap<>(Map.of("format", "csv", "schema_resolution", "union_by_name"));
         // A different implementation and a different insertion order, so only content can make these equal.
         Map<String, Object> right = new LinkedHashMap<>();
@@ -51,7 +51,7 @@ public class ExternalSourceSpecTests extends ESTestCase {
     }
 
     /** The defect itself: one resource, two formats, two reads. */
-    public void testDifferingFormatIsTwoReads() {
+    public void testDifferingFormatIsTwoSpecs() {
         assertThat(
             new ExternalSourceSpec(PATH, config(Map.of("format", "csv"))),
             not(equalTo(new ExternalSourceSpec(PATH, config(Map.of("format", "tsv")))))
@@ -63,7 +63,7 @@ public class ExternalSourceSpecTests extends ESTestCase {
      * does not change which bytes are read, but {@code ExternalSourceResolver} annotates a classified failure with it,
      * so collapsing the two would report one dataset's failure under the other's name.
      */
-    public void testDifferingDatasetContextIsTwoReads() {
+    public void testDifferingDatasetContextIsTwoSpecs() {
         Map<String, Object> asA = config(Map.of("format", "csv"));
         asA.put(ExternalSourceResolver.DATASET_CONTEXT_KEY, Map.of("dataset", "a", "datasource", "src", "type", "s3"));
         Map<String, Object> asB = config(Map.of("format", "csv"));
@@ -73,15 +73,16 @@ public class ExternalSourceSpecTests extends ESTestCase {
     }
 
     /**
-     * The silent half of the defect this key closes. Two data sources over one resource that differ only in their
-     * credentials are two reads here, because {@code EncryptedData.equals} compares the payload.
+     * {@code EncryptedData} participates in equality by content, so a config differing only in a secret's payload is
+     * a different spec. In production {@code _dataset_context} already separates two datasets, so this pins the
+     * value type's own behaviour rather than the production path.
      * <p>
      * Nothing upstream catches that case: {@code DefinitionVersion} folds an encrypted secret's key id and not its
      * value — a fresh IV per write makes ciphertext unstable — and folds neither name, so the two definitions have
      * <em>equal</em> versions and the data node's rebind check finds nothing wrong. Keyed by the resource alone,
      * both relations would have resolved under whichever configuration was stored last, credentials included.
      */
-    public void testDifferingEncryptedSecretIsTwoReads() {
+    public void testDifferingEncryptedSecretIsTwoSpecs() {
         Map<String, Object> withSecretA = config(Map.of("access_key", "same"));
         withSecretA.put("secret_key", new EncryptedData("key-1", new byte[] { 1, 2, 3 }));
         Map<String, Object> withSecretB = config(Map.of("access_key", "same"));
@@ -93,7 +94,7 @@ public class ExternalSourceSpecTests extends ESTestCase {
     }
 
     /** The same secret under the same key id is one read, so an identical pair still shares its resolution. */
-    public void testIdenticalEncryptedSecretIsOneRead() {
+    public void testIdenticalEncryptedSecretIsOneSpec() {
         Map<String, Object> one = config(Map.of("access_key", "same"));
         one.put("secret_key", new EncryptedData("key-1", new byte[] { 1, 2, 3 }));
         Map<String, Object> two = config(Map.of("access_key", "same"));
@@ -103,7 +104,7 @@ public class ExternalSourceSpecTests extends ESTestCase {
     }
 
     /** And the resource still separates reads on its own, with nothing in the configuration to tell them apart. */
-    public void testDifferingPathIsTwoReads() {
+    public void testDifferingPathIsTwoSpecs() {
         Map<String, Object> config = config(Map.of("format", "csv"));
         assertThat(new ExternalSourceSpec("s3://bucket/left", config), not(equalTo(new ExternalSourceSpec("s3://bucket/right", config))));
     }

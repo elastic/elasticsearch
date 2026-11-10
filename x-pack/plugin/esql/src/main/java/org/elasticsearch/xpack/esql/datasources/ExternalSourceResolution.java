@@ -63,26 +63,16 @@ public record ExternalSourceResolution(Map<ExternalSourceSpec, ResolvedSource> r
     }
 
     /**
-     * The resolution for one read, or {@code null} when nothing resolved it. Keyed by the read rather than by its
-     * resource: two relations reading one resource under different configurations are two reads, and sharing one
-     * listing between them would resolve one of them against the other's settings.
+     * The resolution for one spec, or {@code null} when nothing resolved it.
      */
     public ResolvedSource resolvedSource(ExternalSourceSpec read) {
         return resolved.get(read);
     }
 
     /**
-     * The resolution of the <b>only</b> read of {@code path}, or {@code null} when nothing resolved it. The read dual
-     * of {@code ExternalSourceResolver#resolve(paths, pathConfigs, listener)}: a caller that resolved one path under
-     * one configuration gets it back by that path, with no key to rebuild.
-     * <p>
-     * Never a stand-in for {@link #resolvedSource(ExternalSourceSpec)} when resolving a plan. Two relations can read one
-     * path under two configurations, and then the path alone does not say which resolution a relation wants — so this
-     * throws rather than return the one it happens to reach first, which is the defect {@link ExternalSourceSpec} exists to
-     * close.
-     *
-     * No production caller: resolution of a plan goes through {@link #resolvedSource(ExternalSourceSpec)}. This is the
-     * accessor for the path-keyed {@code resolve} forms, which are themselves test entry points.
+     * The resolution of the <b>only</b> spec over {@code path}, for the path-keyed {@code resolve} forms. No
+     * production caller; a plan resolves through {@link #resolvedSource(ExternalSourceSpec)}. Throws rather than
+     * guess when a path has two specs.
      *
      * @throws IllegalStateException if more than one read of {@code path} resolved
      */

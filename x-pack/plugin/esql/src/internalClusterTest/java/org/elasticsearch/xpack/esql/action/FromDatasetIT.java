@@ -5124,28 +5124,18 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * One file, two datasets over it, read as CSV and as TSV in one query: each read gets the format it was registered
-     * with, end to end.
+     * One file, two datasets over it, read as CSV and as TSV in one query: each gets the format it was registered with.
      * <p>
-     * The CSV read sees two columns, {@code a} and {@code b}, over two rows. The TSV read of the same bytes finds no
-     * tab, so its header is one column literally named {@code a,b} and there is no {@code a} at all — the union
-     * null-fills it, and {@code COUNT(a)} counts only the CSV read's two rows.
+     * {@code COUNT(a) == 2} is uniquely determined. The TSV read of the same bytes finds no tab, so its only column is
+     * named {@code a,b} and it contributes no {@code a}; both-CSV would give 4 and both-TSV 0.
      * <p>
-     * Keyed by the resource alone, both relations bind to one resolution and this answer does not come back. With
-     * {@code ExternalSourceSpec} equality narrowed to the path, the query fails on the data node with "external dataset
-     * [two_formats_tsv] definition changed while the query was planned": the relation reaches execution carrying the
-     * other dataset's resolution, and {@code DatasetConfigResolver} rebinds its config from cluster state and refuses
-     * the mismatch.
-     * <p>
-     * The two datasets have different definition versions, which are part of the configuration the cache is addressed
-     * by, so neither read can be served what the other cached.
+     * With {@code ExternalSourceSpec} equality narrowed to the path this fails on the data node with
+     * {@code external dataset [two_formats_tsv] definition changed while the query was planned}.
      */
     public void testOneFileReadAsCsvAndAsTsvKeepsEachFormat() throws Exception {
-        // A neutral extension on purpose: the resolver refuses a .csv file claimed as tsv, and that check is not what
-        // this case is about.
+        // Neutral extension: the resolver refuses a .csv file claimed as tsv, which is a different check.
         Path fixture = createTempFile("dataset-two-formats-", ".txt");
-        // Untyped header on purpose: a typed header is one field to the TSV read, and the reader rejects
-        // `a:integer,b:integer` as a column name ("Expected 'name:type'"), so inference supplies the types instead.
+        // Untyped header: a typed one is a single field to the TSV read, rejected as a column name.
         Files.writeString(fixture, String.join("\n", "a,b", "1,2", "3,4") + "\n");
         String uri = fixture.toUri().toString();
 

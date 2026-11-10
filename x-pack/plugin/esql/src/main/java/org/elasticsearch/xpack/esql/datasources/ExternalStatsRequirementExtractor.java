@@ -57,9 +57,10 @@ import java.util.Set;
  * The result is a {@link Set}: if the same path appears under an ungrouped aggregate in one branch
  * (e.g. a {@code FORK} arm) and under {@code LIMIT} in another, the union marks it as requiring eager
  * stats. Resolution is keyed by {@link ExternalSourceSpec}, so one resource read two ways has two
- * resolutions while this set is still keyed by path alone — both of them stay eager. That is safe in the
- * only direction that matters, never under-eager, but it is no longer exact: a spec whose branch reads no
- * stats pays footer reads it cannot use. Keying this by the spec would make it exact.
+ * resolutions while this set is still keyed by path alone — both of them stay eager. The union never makes a
+ * spec less eager than its own branch needs, so it cannot produce a wrong answer for this reason; but it is
+ * no longer exact, and the over-eager spec both reads footers it cannot use and lists unbounded. Keying this
+ * by the spec would make it exact.
  */
 public final class ExternalStatsRequirementExtractor {
 

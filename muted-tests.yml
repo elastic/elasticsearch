@@ -175,6 +175,11 @@ tests:
   - :qa:mixed-cluster:v8.17.10#yamlRestTest
   method: test {yaml=logsdb/20_source_mapping/disabled _source is not supported}
   issue: https://github.com/elastic/elasticsearch/issues/165280
+- class: org.elasticsearch.http.netty4.Netty4HttpRequestSizeLimitIT
+  tasks:
+  - :modules:transport-netty4:pooledInternalClusterTest
+  method: testLimitsInFlightRequests
+  issue: https://github.com/elastic/elasticsearch/issues/165412
 
 # Examples:
 #

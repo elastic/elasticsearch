@@ -1372,7 +1372,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             // for master to confirm a shard started message (either master failover, or a cluster event before
             // we managed to tell the master we started), mark us as started. If the recovery is still in
             // flight, shard.state() reached POST_RECOVERY before the recovery's own completion callback
-            // sent its first shardStarted -- let that callback send it instead of resending one that was never sent.
+            // (onRecoveryDone) sent its first shardStarted -- skip resending here, since that callback
+            // will send its own shortly. onRecoveryDone isn't synchronized with this check (it releases
+            // the ticket, then sends), so a shardStarted from here can still race one from onRecoveryDone
+            // right at that boundary; shardStateAction.shardStarted is idempotent for a given allocation
+            // and term, so an occasional duplicate from that race is harmless and left unguarded against.
             if (logger.isTraceEnabled()) {
                 logger.trace(
                     "{} master marked shard as initializing, but shard has state [{}], resending shard started to {}",

@@ -945,6 +945,16 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), contains("host", "message"));
     }
 
+    public void testRoutingPathOnSortExpressionMismatch() {
+        var settings = Settings.builder()
+            .put(IndexSortConfig.INDEX_SORT_SETTING.getKey(), "host, message DESC, @timestamp DESC")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host,message,foo")
+            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
+            .build();
+        Exception e = expectThrows(IllegalStateException.class, () -> generateLogsdbSettings(settings));
+        assertThat(e.getMessage(), containsString("[index.routing_path:[host, message, foo]], [index.sort:[host, message]]"));
+    }
+
     public void testRoutingPathOnSortFieldsDisabledInOldNode() throws Exception {
         var settings = Settings.builder()
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host,message")
@@ -1005,7 +1015,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
                     + DATA_STREAM_NAME
                     + "] in logsdb mode and with [index."
                     + "logsdb.route_on_sort_fields] index setting has mismatching sort "
-                    + "and routing fields, [index.routing_path:[host, message, foo]], [index.sort.fields:[host, message]]"
+                    + "and routing fields, [index.routing_path:[host, message, foo]], [index.sort.field:[host, message]]"
             )
         );
     }

@@ -117,7 +117,7 @@ The `logsdb_columnar` index mode, like `logsdb` index mode, uses by default the 
 Hosts typically emit similar logs, so storing log entries from the same host sequentially on disk improves the efficiency of compression techniques such as run-length and delta encoding.
 The `@timestamp` field is also used as the index sort field with recent log entries appearing first, improving query performance for queries over recent data.
 
-The `columnar` index mode doesn't enable index sorting by default. If you collect logs from different agents, sorting by agent ID and timestamp might be a good choice:
+{applies_to}`stack: preview 9.7+` The `columnar` index mode doesn't enable index sorting by default. If you collect logs from different agents, sorting by agent ID and timestamp might be a good choice:
 
 ```console
 PUT my-index
@@ -140,6 +140,32 @@ PUT my-logs-index
   }
 }
 ```
+
+::::{dropdown} Configure the sort with separate settings
+Use `index.sort.field` and `index.sort.order` instead of the `index.sort` expression.
+
+```console
+PUT my-index
+{
+  "settings": {
+    "mode": "columnar",
+    "sort.field": [ "agent.id", "@timestamp" ],
+    "sort.order": [ "asc", "desc" ]
+  }
+}
+```
+
+```console
+PUT my-logs-index
+{
+  "settings": {
+    "mode": "logsdb_columnar",
+    "sort.field": [ "@timestamp" ],
+    "sort.order": [ "desc" ]
+  }
+}
+```
+::::
 
 ## Dynamic mappings [dynamic-mappings]
 

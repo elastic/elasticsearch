@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.indices.shrink;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.common.Strings;
@@ -39,6 +40,7 @@ import static org.elasticsearch.action.admin.indices.shrink.ResizeRequest.MAX_PR
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasToString;
 
 public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRequest> {
@@ -65,6 +67,25 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
             request.setCopySettings(copySettings);
             return request;
         });
+    }
+
+    public void testIndexSortOverrideValidation() {
+        String sortKey = randomFrom("index.sort", "index.sort.field");
+        ResizeRequest request = new ResizeRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            ResizeType.CLONE,
+            randomIdentifier(),
+            randomIdentifier()
+        );
+        request.setTargetIndex(new CreateIndexRequest(randomIdentifier()).settings(Settings.builder().put(sortKey, "foo")));
+        ActionRequestValidationException e = request.validate();
+        assertNotNull(e);
+        assertThat(e.validationErrors(), hasItem("can't override index sort when resizing an index"));
+
+        request.setTargetIndex(new CreateIndexRequest(randomIdentifier()));
+        e = request.validate();
+        assertTrue(e == null || e.validationErrors().contains("can't override index sort when resizing an index") == false);
     }
 
     public void testToXContent() throws IOException {

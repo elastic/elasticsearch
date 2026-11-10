@@ -259,10 +259,13 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                                 String.format(
                                     Locale.ROOT,
                                     "data stream [%s] in logsdb mode and with [%s] index setting has mismatching sort "
-                                        + "and routing fields, [index.routing_path:%s], [index.sort.fields:%s]",
+                                        + "and routing fields, [index.routing_path:%s], [%s:%s]",
                                     dataStreamName,
                                     IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(),
                                     routingPaths,
+                                    sortExpression.isEmpty()
+                                        ? IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey()
+                                        : IndexSortConfig.INDEX_SORT_SETTING.getKey(),
                                     sortFields
                                 )
                             );

@@ -12,7 +12,6 @@ package org.elasticsearch.gradle.internal;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 
-import org.elasticsearch.gradle.internal.test.LegacyRestTestBasePlugin;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.provider.Property;
@@ -23,14 +22,7 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
 
     public static final String BUILD_API_RESTRICTIONS_SYS_PROPERTY = "org.elasticsearch.gradle.build-api-restriction.disabled";
 
-    private static ListMultimap<Class<?>, String> usageWhitelist = createLegacyRestTestBasePluginUsage();
-
-    private static ListMultimap<Class<?>, String> createLegacyRestTestBasePluginUsage() {
-        ListMultimap<Class<?>, String> map = ArrayListMultimap.create(1, 200);
-        // Projects that apply LegacyRestTestBasePlugin directly via the legacy-yaml-rest-test or legacy-java-rest-test plugins.
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:xpack-prefix-rest-compat");
-        return map;
-    }
+    private static ListMultimap<Class<?>, String> usageWhitelist = ArrayListMultimap.create(1, 200);
 
     public void failOnUsageRestriction(Class<?> aClass, Project project) {
         if (getParameters().getDisabled().getOrElse(false)) {

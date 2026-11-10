@@ -1140,10 +1140,19 @@ public class TableFunctionResolverTests extends ESTestCase {
 
     /** A flattened cell is read with {@code utf8ToString}, so for it the bytes are the text and a String fits. */
     public void testAStringIsAcceptedForAFlattenedColumn() {
-        LocalRelation rows = (LocalRelation) resolve(new Typed(DataType.FLATTENED, List.of(List.of("x"))), call("1"));
+        LocalRelation rows = (LocalRelation) resolve(new Typed(DataType.FLATTENED, List.of(List.of("{\"a\":1}"))), call("1"));
 
         BytesRef held = ((BytesRefBlock) rows.supplier().get().getBlock(0)).getBytesRef(0, new BytesRef());
-        assertThat(held, equalTo(new BytesRef("x")));
+        assertThat(held, equalTo(new BytesRef("{\"a\":1}")));
+    }
+
+    /** A flattened cell is parsed as XContent for the response, so text that is not JSON is refused here instead. */
+    public void testUnparseableFlattenedTextIsRefused() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.FLATTENED, List.of(List.of("x"))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("flattened"));
     }
 
     /** A _source cell is parsed as XContent on the way out, so bytes that are not are refused here instead. */

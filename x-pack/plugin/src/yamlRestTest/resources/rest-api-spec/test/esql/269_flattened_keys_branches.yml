@@ -1,0 +1,223 @@
+---
+# A key of a flattened field read through subqueries, views, FORK and LOOKUP JOIN.
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_keys, optional_fields_load_with_fork_subqueries_and_views, views_with_branching ]
+      reason: "A name under a flattened field is a field"
+  - do:
+      indices.create:
+        index: flat
+        body:
+          mappings:
+            properties:
+              attrs:
+                type: flattened
+  - do:
+      indices.create:
+        index: mapped
+        body:
+          mappings:
+            properties:
+              attrs.bar:
+                type: keyword
+  - do:
+      indices.create:
+        index: unmapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "flat", "_id": "f1" } }
+          - { "attrs": { "bar": "a" } }
+          - { "index": { "_index": "mapped", "_id": "m1" } }
+          - { "attrs": { "bar": "c" } }
+          - { "index": { "_index": "unmapped", "_id": "u1" } }
+          - { "attrs": { "bar": "e" } }
+
+---
+'subqueries':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, (FROM mapped | KEEP attrs.bar) | KEEP attrs.bar | SORT attrs.bar | LIMIT 10'
+  - match: { values: [ [ "a" ], [ "c" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM mapped, (FROM flat | KEEP attrs.bar) | KEEP attrs.bar | SORT attrs.bar | LIMIT 10'
+  - match: { values: [ [ "a" ], [ "c" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM mapped, (FROM flat | WHERE attrs.bar == "a" | KEEP attrs.bar) | WHERE attrs.bar >= "a" | KEEP attrs.bar | SORT attrs.bar | LIMIT 10'
+  - match: { values: [ [ "a" ], [ "c" ] ] }
+
+---
+'subqueries under load':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM flat, (FROM unmapped | KEEP attrs.bar) | KEEP attrs.bar | SORT attrs.bar | LIMIT 10'
+  - match: { values: [ [ "a" ], [ "e" ] ] }
+  # As for a mapped field, a branch that does not name the key does not load it
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM unmapped, (FROM flat | KEEP attrs.bar) | KEEP attrs.bar | SORT attrs.bar | LIMIT 10'
+  - match: { values: [ [ "a" ], [ null ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM flat, (FROM unmapped) | KEEP attrs.bar | SORT attrs.bar | LIMIT 10'
+  - match: { values: [ [ "a" ], [ null ] ] }
+
+---
+'subqueries under load_all':
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ optional_fields_load_all_v2 ]
+      reason: "unmapped_fields=load_all"
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load_all"; FROM unmapped, (FROM flat | KEEP attrs.bar) | KEEP attrs.bar | SORT attrs.bar | LIMIT 10'
+  - match: { values: [ [ "a" ], [ "e" ] ] }
+
+---
+'fork':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped | FORK (WHERE attrs.bar == "a") (WHERE attrs.bar == "c") | KEEP _fork, attrs.bar | SORT _fork | LIMIT 10'
+  - match: { values: [ [ "fork1", "a" ], [ "fork2", "c" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat | FORK (WHERE attrs.bar == "a") (WHERE attrs.bar IS NULL) | KEEP _fork, attrs.bar | SORT _fork | LIMIT 10'
+  - match: { values: [ [ "fork1", "a" ] ] }
+
+---
+'fork under load':
+  - requires:
+      test_runner_features: [ allowed_warnings ]
+  - do:
+      # The flattened root cannot be loaded from _source in [unmapped]
+      allowed_warnings:
+        - "Field [attrs] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM flat, unmapped | FORK (WHERE attrs.bar == "a") (WHERE attrs.bar == "e") | KEEP _fork, attrs.bar | SORT _fork | LIMIT 10'
+  - match: { values: [ [ "fork1", "a" ], [ "fork2", "e" ] ] }
+
+---
+'views':
+  - do:
+      esql.put_view:
+        name: v_flat
+        body:
+          query: 'FROM flat'
+  - do:
+      esql.query:
+        body:
+          query: 'FROM v_flat | KEEP attrs.bar | LIMIT 10'
+  - match: { values: [ [ "a" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM v_flat, mapped | KEEP attrs.bar | SORT attrs.bar | LIMIT 10'
+  - match: { values: [ [ "a" ], [ "c" ] ] }
+  - do:
+      esql.delete_view:
+        name: v_flat
+
+---
+'a lookup index contributes no keys':
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ join_lookup_v12 ]
+      reason: "LOOKUP JOIN"
+  - do:
+      indices.create:
+        index: lk
+        body:
+          settings:
+            index.mode: lookup
+          mappings:
+            properties:
+              k:
+                type: keyword
+              attrs:
+                type: flattened
+  - do:
+      indices.create:
+        index: main_kw
+        body:
+          mappings:
+            properties:
+              k:
+                type: keyword
+              attrs.bar:
+                type: keyword
+  - do:
+      indices.create:
+        index: main_flat
+        body:
+          mappings:
+            properties:
+              k:
+                type: keyword
+              attrs:
+                type: flattened
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "lk" } }
+          - { "k": "x", "attrs": { "bar": "L", "baz": "L" } }
+          - { "index": { "_index": "main_kw" } }
+          - { "k": "x", "attrs": { "bar": "M" } }
+          - { "index": { "_index": "main_flat" } }
+          - { "k": "x", "attrs": { "bar": "F" } }
+  # The name keeps reading the field of the main index
+  - do:
+      esql.query:
+        body:
+          query: 'FROM main_kw | LOOKUP JOIN lk ON k | KEEP attrs.bar | LIMIT 10'
+  - match: { values: [ [ "M" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM main_flat | LOOKUP JOIN lk ON k | KEEP attrs.bar | LIMIT 10'
+  - match: { values: [ [ "F" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM main_flat | LOOKUP JOIN lk ON k | KEEP attrs.baz | LIMIT 10'
+  - match: { values: [ [ null ] ] }
+  # A key only the lookup index holds is not a column
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM main_kw | LOOKUP JOIN lk ON k | KEEP attrs.baz | LIMIT 10'
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "/(?s).*Unknown.column.\\[attrs.baz\\].*/" }

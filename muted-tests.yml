@@ -584,3 +584,8 @@ tests:
   - :x-pack:plugin:esql:qa:server:multi-clusters:v8.19.26#csvSpecTests#oldToNew
   method: test {csv-spec:null.foldNullArgumentWithCaseSiblingAfterStats}
   issue: https://github.com/elastic/elasticsearch/issues/165424
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecNullIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:multi-clusters:v8.19.26#csvSpecTests#oldToNew
+  method: test {csv-spec:null.foldNullArgumentsInManyFunctions}
+  issue: https://github.com/elastic/elasticsearch/issues/165426

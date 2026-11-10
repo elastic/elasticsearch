@@ -148,6 +148,7 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.MockLog;
@@ -2763,6 +2764,76 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         return future.actionGet();
     }
 
+    /**
+     * The coordinating node learns a context id only from the response. If it drops the response, it can't free the context, but it
+     * cancels the request, so the data node frees the contexts that request opened, and only those.
+     */
+    public void testCancelledOpeningRequestFreesItsContexts() throws Exception {
+        final IndexService indexService = createIndex("index");
+        final ShardId shardId = indexService.getShard(0).shardId();
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final TaskManager taskManager = getInstanceFromNode(TransportService.class).getTaskManager();
+        final TaskId parentTaskId = new TaskId("coordinator", randomNonNegativeLong());
+        final long cancelledRequestId = randomLongBetween(1, Long.MAX_VALUE - 1);
+        final long otherRequestId = cancelledRequestId + 1;
+
+        // With batched execution, one node-level request opens the contexts of all the node's shards.
+        final List<ShardSearchContextId> cancelledContexts = new ArrayList<>();
+        for (int i = between(1, 3); i > 0; i--) {
+            cancelledContexts.add(openContext(service, shardId, parentTaskId, cancelledRequestId));
+        }
+        final ShardSearchContextId otherRequestContext = openContext(service, shardId, parentTaskId, otherRequestId);
+        final ShardSearchContextId otherParentContext = openContext(
+            service,
+            shardId,
+            new TaskId("other_coordinator", parentTaskId.getId()),
+            cancelledRequestId
+        );
+        // A request without a parent, for example one this node runs for itself, can't be cancelled by a parent.
+        final ShardSearchContextId noParentContext = service.createOrGetReaderContext(newShardRequest(shardId), null).id();
+        assertEquals(cancelledContexts.size() + 3, service.getActiveContexts());
+        assertEquals(3, service.getOpeningRequestCount());
+
+        taskManager.cancelChildLocal(parentTaskId, cancelledRequestId, "test");
+        assertBusy(() -> assertEquals(3, service.getActiveContexts()));
+        assertEquals(2, service.getOpeningRequestCount());
+        for (ShardSearchContextId contextId : cancelledContexts) {
+            assertFalse(service.freeReaderContext(contextId));
+        }
+
+        // Freeing a context the usual way stops tracking its request.
+        assertTrue(service.freeReaderContext(otherRequestContext));
+        assertTrue(service.freeReaderContext(otherParentContext));
+        assertEquals(0, service.getOpeningRequestCount());
+        assertTrue(service.freeReaderContext(noParentContext));
+        assertEquals(0, service.getActiveContexts());
+    }
+
+    private static ShardSearchContextId openContext(SearchService service, ShardId shardId, TaskId parentTaskId, long requestId) {
+        final ShardSearchRequest request = newShardRequest(shardId);
+        request.setParentTask(parentTaskId);
+        request.setRequestId(requestId);
+        return service.createOrGetReaderContext(request, null).id();
+    }
+
+    private static ShardSearchRequest newShardRequest(ShardId shardId) {
+        return new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(true),
+            shardId,
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            -1,
+            null,
+            null,
+            null,
+            SplitShardCountSummary.IRRELEVANT,
+            true
+        );
+    }
+
     private static ShardSearchRequest shardSearchRequest(ShardId shardId, ShardSearchContextId readerId) {
         return new ShardSearchRequest(
             OriginalIndices.NONE,
@@ -3155,6 +3226,47 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
         SearchTimeoutException ex = expectThrows(SearchTimeoutException.class, future::actionGet);
         assertThat(ex.getMessage(), containsString("Wait for seq_no [0] refreshed timed out ["));
+    }
+
+    public void testWaitOnRefreshWithoutTimeoutWaitsForGlobalCheckpoint() throws Exception {
+        assertWaitOnRefreshWaitsForLaggingGlobalCheckpoint(SearchService.NO_TIMEOUT);
+    }
+
+    public void testWaitOnRefreshWithTimeoutWaitsForGlobalCheckpoint() throws Exception {
+        assertWaitOnRefreshWaitsForLaggingGlobalCheckpoint(TimeValue.timeValueSeconds(30));
+    }
+
+    private void assertWaitOnRefreshWaitsForLaggingGlobalCheckpoint(TimeValue timeout) throws Exception {
+        // with async durability the global checkpoint only advances after a translog sync, so it can lag behind a refresh
+        createIndex(
+            "index",
+            Settings.builder()
+                .put("index.refresh_interval", "60s")
+                .put("index.translog.durability", "async")
+                .put("index.translog.sync_interval", "1h")
+                .build()
+        );
+        prepareIndex("index").setSource("id", "1").get();
+        final IndexShard indexShard = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex("index")).getShard(0);
+
+        final PlainActionFuture<Long> future = new PlainActionFuture<>();
+        getInstanceFromNode(SearchService.class).executeQueryPhase(
+            waitForCheckpointRequest(timeout),
+            newSearchShardTask(),
+            future.map(r -> r.queryResult().getTotalHits().value())
+        );
+        assertBusy(() -> assertThat(indexShard.refreshStats().getListeners(), equalTo(1)));
+
+        // the refresh makes the doc visible while the global checkpoint is still behind it, so the request must keep waiting
+        indexShard.refresh("test");
+        assertThat(indexShard.getLastKnownGlobalCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+        assertFalse(future.isDone());
+
+        // the primary takes its synced local checkpoint on the next replicated operation, which advances the global checkpoint
+        indexShard.sync();
+        indicesAdmin().prepareRefresh("index").get();
+        assertThat(indexShard.getLastKnownGlobalCheckpoint(), equalTo(0L));
+        assertEquals(1L, (long) safeGet(future));
     }
 
     public void testWaitOnRefreshCompletesWhileTimeoutIsBeingScheduled() throws Exception {

@@ -257,9 +257,13 @@ public enum IndexMode {
 
         @Override
         public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
-            return indexSettings != null && indexSettings.logsdbAddHostNameField()
-                ? DEFAULT_MAPPING_TIMESTAMP_HOSTNAME
-                : DEFAULT_MAPPING_TIMESTAMP;
+            if (indexSettings == null) {
+                return DEFAULT_MAPPING_TIMESTAMP;
+            }
+            final boolean addHostNameField = indexSettings.logsdbAddHostNameField()
+                || (indexSettings.getIndexVersionCreated().before(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME_BACKPORT)
+                    && indexSettings.getIndexSortConfig().hasPrimarySortOnField(HOST_NAME));
+            return addHostNameField ? DEFAULT_MAPPING_TIMESTAMP_HOSTNAME : DEFAULT_MAPPING_TIMESTAMP;
         }
 
         @Override

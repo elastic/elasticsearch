@@ -1,0 +1,6 @@
+area: Logs
+issues:
+ - 164178
+pr: 165168
+summary: "Fix(logsdb): map `host.name` in pre-8.18 mixed clusters"
+type: bug

@@ -848,9 +848,7 @@ public class RestoreServiceTests extends ESTestCase {
             Settings.EMPTY,
             new TestGatewayAllocator(),
             EmptyClusterInfoService.INSTANCE,
-            () -> new SnapshotShardSizeInfo(
-                Map.of(new InternalSnapshotsInfoService.SnapshotShard(snapshot, indexId, shardId), shardSize)
-            )
+            () -> new SnapshotShardSizeInfo(Map.of(new InternalSnapshotsInfoService.SnapshotShard(snapshot, indexId, shardId), shardSize))
         );
 
         // Allocation with zero data nodes: the restore primary correctly stays unassigned.
@@ -860,9 +858,7 @@ public class RestoreServiceTests extends ESTestCase {
 
         // Data node returns: the restore must place the primary rather than staying stuck unassigned.
         var dataNode = DiscoveryNodeUtils.builder("data").roles(Set.of(DiscoveryNodeRole.DATA_ROLE)).build();
-        clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(dataNode))
-            .build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(dataNode)).build();
         clusterState = allocationService.reroute(clusterState, "reroute after data node joins", ActionListener.noop());
 
         primary = clusterState.routingTable().index("test").shard(0).primaryShard();

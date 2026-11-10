@@ -56,6 +56,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
@@ -83,6 +84,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
@@ -174,7 +176,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -1130,6 +1131,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         searchReady();
                         return;
                     }
+                    // no timeout here, since the timeout task below handles a finite one and NO_TIMEOUT must wait for the global checkpoint
                     shard.addGlobalCheckpointListener(waitForCheckpoint, new GlobalCheckpointListeners.GlobalCheckpointListener() {
                         @Override
                         public Executor executor() {
@@ -1143,14 +1145,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                     : shard.shardId() + " only advanced to [" + g + "] while waiting for [" + waitForCheckpoint + "]";
                                 searchReady();
                             } else {
-                                assert e != null;
-                                // Ignore TimeoutException, our scheduled timeout task will handle this
-                                if (e instanceof TimeoutException == false) {
-                                    onFailure(e);
-                                }
+                                assert e instanceof IndexShardClosedException : e;
+                                onFailure(e);
                             }
                         }
-                    }, NO_TIMEOUT.equals(timeout) == false ? null : timeout);
+                    }, null);
                 }
 
                 @Override
@@ -1244,13 +1243,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
     }
 
+    /**
+     * Runs {@code executable} on the pool of {@code shard} through the {@link QueryScheduler}, as a task of {@code shard}, so
+     * its time is the search load of the shard.
+     */
     private <T extends RefCounted> void runAsync(
         IndexShard shard,
         Task task,
         CheckedSupplier<T, Exception> executable,
         ActionListener<T> listener
     ) {
-        executeOnShard(shard, task, ActionRunnable.supplyAndDecRef(listener, executable));
+        TaskLoadAttribution.Target searchLoad = shard.shardSearchStats().searchLoadTarget();
+        executeOnShard(shard, task, ActionRunnable.supplyAndDecRef(listener, () -> {
+            TaskLoadAttribution.attribute(searchLoad);
+            return executable.get();
+        }));
     }
 
     /**
@@ -1482,8 +1489,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         FetchPhaseResponseChunk.Writer writer,
         ActionListener<FetchSearchResult> listener
     ) {
-        // the chunks produced after the first one queue for the shard too
-        final Executor searchExecutor = shardExecutor(readerContext.indexShard(), task);
+        // the chunks produced after the first one queue for the shard and are its tasks too
+        final Executor searchExecutor = TaskLoadAttribution.charging(
+            shardExecutor(readerContext.indexShard(), task),
+            readerContext.indexShard().shardSearchStats().searchLoadTarget()
+        );
         searchExecutor.execute(new AbstractRunnable() {
             private volatile SearchContext searchContext;
 
@@ -3239,6 +3249,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public IndicesService getIndicesService() {
         return indicesService;
+    }
+
+    /**
+     * Charges the time of tasks equally to those of {@code shardIds} still on this node when a task completes.
+     */
+    public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds) {
+        return indicesService.searchLoad(shardIds);
     }
 
     /**

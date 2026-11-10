@@ -29,11 +29,13 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
@@ -55,6 +57,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.iplocation.api.IpLocationService;
@@ -2016,6 +2019,9 @@ public class ComputeService {
             directoryBytesRead,
             singleValueQueryWarnings
         );
+        // the time its sources do not attribute to a shard goes to all the shards of the compute
+        TaskLoadAttribution.Target computeLoad = context.description().equals(DATA_DESCRIPTION) ? shardsLoad(shardContexts) : null;
+        Executor parallelWorkers = searchService.queryScheduler().executor(context.queryId(), computeExecutor, List.of());
 
         try {
             var workerThreadPool = transportService.getThreadPool();
@@ -2047,7 +2053,7 @@ public class ComputeService {
                 operatorFactoryRegistry,
                 datasetConfigResolver.snapshotBuild(),
                 // the workers of parallel operators are tasks of the query, with no shard of their own
-                searchService.queryScheduler().executor(context.queryId(), computeExecutor, List.of()),
+                computeLoad == null ? parallelWorkers : TaskLoadAttribution.charging(parallelWorkers, computeLoad),
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
                 clusterService.state().getMinTransportVersion()
@@ -2144,6 +2150,9 @@ public class ComputeService {
             }
             if (drivers.isEmpty()) {
                 throw new IllegalStateException("no drivers created");
+            }
+            for (Driver driver : drivers) {
+                driver.loadTarget(computeLoad);
             }
             LOGGER.debug("using {} drivers", drivers.size());
             // Bridge per-driver stop hooks to the async task's execution info. Source operators register
@@ -2445,6 +2454,15 @@ public class ComputeService {
         public String getDescription() {
             return "group [" + parentDescription.get() + "]";
         }
+    }
+
+    /**
+     * A target charging the shards of a compute equally, or {@code null} when it reads none.
+     */
+    private static TaskLoadAttribution.Target shardsLoad(IndexedByShardId<? extends ShardContext> shardContexts) {
+        List<ShardSearchStats> shards = new ArrayList<>();
+        shardContexts.iterable().forEach(shard -> shards.add(shard.stats()));
+        return ShardSearchStats.target(shards);
     }
 
     private static Map<String, OriginalIndices> getIndices(PhysicalPlan plan, Function<EsRelation, Map<String, List<String>>> getter) {

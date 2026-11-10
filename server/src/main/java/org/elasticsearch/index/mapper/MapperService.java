@@ -313,7 +313,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             mapperRegistry.getVectorsFormatProviders(),
             mapperRegistry.getNamespaceValidator(),
             projectMetadataSupplier,
-            ParseFieldLimits.parseFieldLimits(reason, indexSettings)
+            ParseFieldLimits.parseFieldLimits(reason, indexSettings),
+            source -> parseMappings(source, MergeReason.MAPPING_RECOVERY)
         );
         this.documentParser = new DocumentParser(
             parserConfiguration,

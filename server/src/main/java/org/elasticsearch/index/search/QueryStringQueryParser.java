@@ -583,7 +583,11 @@ public class QueryStringQueryParser extends QueryParser {
                 source = getAnalyzer().tokenStream(field, termStr);
                 source.reset();
             } catch (IOException e) {
-                return currentFieldType.prefixQuery(termStr, getMultiTermRewriteMethod(), context);
+                return currentFieldType.prefixQuery(
+                    getAnalyzer().normalize(field, termStr).utf8ToString(),
+                    getMultiTermRewriteMethod(),
+                    context
+                );
             }
             tlist = new ArrayList<>();
             List<String> currentPos = new ArrayList<>();

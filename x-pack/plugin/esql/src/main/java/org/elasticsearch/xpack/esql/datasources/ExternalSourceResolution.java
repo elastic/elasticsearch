@@ -65,8 +65,8 @@ public record ExternalSourceResolution(Map<ExternalSourceSpec, ResolvedSource> r
     /**
      * The resolution for one spec, or {@code null} when nothing resolved it.
      */
-    public ResolvedSource resolvedSource(ExternalSourceSpec read) {
-        return resolved.get(read);
+    public ResolvedSource resolvedSource(ExternalSourceSpec spec) {
+        return resolved.get(spec);
     }
 
     /**
@@ -74,7 +74,7 @@ public record ExternalSourceResolution(Map<ExternalSourceSpec, ResolvedSource> r
      * production caller; a plan resolves through {@link #resolvedSource(ExternalSourceSpec)}. Throws rather than
      * guess when a path has two specs.
      *
-     * @throws IllegalStateException if more than one read of {@code path} resolved
+     * @throws IllegalStateException if more than one spec over {@code path} resolved
      */
     public ResolvedSource soleResolvedSource(String path) {
         ResolvedSource found = null;

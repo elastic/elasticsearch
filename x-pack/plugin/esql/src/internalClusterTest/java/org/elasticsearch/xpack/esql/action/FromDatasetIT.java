@@ -5127,7 +5127,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
      * One file, two datasets over it, read as CSV and as TSV in one query: each gets the format it was registered with.
      * <p>
      * {@code COUNT(a) == 2} is uniquely determined. The TSV read of the same bytes finds no tab, so its only column is
-     * named {@code a,b} and it contributes no {@code a}; both-CSV would give 4 and both-TSV 0.
+     * named {@code a,b} and it contributes no {@code a}. Reading both as CSV would give 4 instead.
      * <p>
      * With {@code ExternalSourceSpec} equality narrowed to the path this fails on the data node with
      * {@code external dataset [two_formats_tsv] definition changed while the query was planned}.

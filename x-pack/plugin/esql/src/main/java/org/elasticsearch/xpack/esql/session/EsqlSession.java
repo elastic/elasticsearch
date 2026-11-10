@@ -2387,11 +2387,7 @@ public class EsqlSession {
         return declaredMappings;
     }
 
-    /**
-     * One spec per distinct read, in plan order. Equal specs collapse, which is what makes a resource reached twice
-     * through one plan resolve once.
-     */
-       /** Per-spec listing hints and folder ranges, the two inputs that depend on a spec's own {@code partition_spec}. */
+    /** Per-spec listing hints and folder ranges, the two inputs that depend on a spec's own {@code partition_spec}. */
     private record ListingInputs(
         Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         Map<ExternalSourceSpec, FolderRangePredicate> folderRanges
@@ -2435,6 +2431,10 @@ public class EsqlSession {
         return new ListingInputs(filterHints, folderRanges);
     }
 
+    /**
+     * One spec per distinct read, in plan order. Equal specs collapse, which is what makes a resource reached twice
+     * through one plan resolve once.
+     */
     // package-private for testing
     static List<ExternalSourceSpec> extractExternalSourceSpecs(LogicalPlan plan) {
         Set<ExternalSourceSpec> specs = new LinkedHashSet<>();

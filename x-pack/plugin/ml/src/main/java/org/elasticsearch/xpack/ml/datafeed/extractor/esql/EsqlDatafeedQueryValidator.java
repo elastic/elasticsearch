@@ -122,8 +122,7 @@ public class EsqlDatafeedQueryValidator {
         String limitZeroQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(esqlQuery, LIMIT_ZERO);
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
-            // The response is ref-counted and only its column metadata is needed, so release it before completing the listener.
-            try (response) {
+            try {
                 checkRequiredColumns(response.response().columns(), timeField, summaryCountField, datafeedId);
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -166,7 +165,7 @@ public class EsqlDatafeedQueryValidator {
         List<EsqlQueryParam> params = List.of(new EsqlQueryParam("sourceTimeField", sourceTimeField, IDENTIFIER));
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
-            try (response) {
+            try {
                 checkSourceTimeFieldType(response.response().columns(), sourceTimeField, datafeedId);
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -528,6 +527,9 @@ public class EsqlDatafeedQueryValidator {
         }
     }
 
+    /**
+     * The listener borrows the response; it is released after {@code onResponse} returns, so call {@code incRef()} to keep it.
+     */
     private void executeEsqlQueryAsync(
         Client client,
         String query,

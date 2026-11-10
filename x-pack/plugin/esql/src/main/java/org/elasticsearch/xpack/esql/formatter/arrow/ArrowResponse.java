@@ -459,9 +459,9 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             // ipv4 addresses it would still be twice as big.
             case IP -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARBINARY, ValueConversions::shortenIpV4Addresses);
 
-            // geo_point: Keep WKB format (JSON converts to WKT)
-            // FIXME: use GeoArrow
-            case GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> new BlockArrowFormatter.AsVarBinary(type);
+            // Geo types: keep the WKB format (JSON converts to WKT), tagged with the geoarrow.wkb extension type
+            case GEO_POINT, GEO_SHAPE -> new BlockArrowFormatter.AsGeoArrowWkb(type, true);
+            case CARTESIAN_POINT, CARTESIAN_SHAPE -> new BlockArrowFormatter.AsGeoArrowWkb(type, false);
 
             // version: convert to string
             case VERSION -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::versionToString);

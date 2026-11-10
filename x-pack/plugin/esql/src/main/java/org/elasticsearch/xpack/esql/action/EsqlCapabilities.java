@@ -4214,6 +4214,12 @@ public class EsqlCapabilities {
         PROMQL_SORT(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * Support for the PromQL {@code sort_by_label} and {@code sort_by_label_desc} functions, which order an instant
+         * vector by label values in natural order.
+         */
+        PROMQL_SORT_BY_LABEL(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Fix PromQL {@code count_over_time} and {@code present_over_time} over a series without a sample in the window,
          * and {@code count} over a group without a valued series: like Prometheus, they emit no element rather than
          * {@code 0}. {@code absent_over_time} likewise emits no element for a series with a sample, nor for a series its
@@ -4703,6 +4709,13 @@ public class EsqlCapabilities {
          * than the score from before the {@code WHERE}.
          */
         SCORE_IN_OR_SEES_OTHER_SEARCHES,
+
+        /**
+         * Folding a function that returns {@code null} if any argument is {@code null} no longer fails when an
+         * argument is a constant expression folding to {@code null}, like {@code CASE} without a match, {@code 1/0}
+         * or a typed {@code null}. See <a href="https://github.com/elastic/elasticsearch/issues/162639">#162639</a>.
+         */
+        FIX_FOLD_NULL_ARGUMENTS,
 
         /**
          * The {@code Project}s of a chain of {@code LOOKUP JOIN} blocks are hoisted in ONE optimizer pass.

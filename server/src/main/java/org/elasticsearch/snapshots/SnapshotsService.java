@@ -1603,8 +1603,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         // handles the completion of some shard-snapshot updates, performing the next possible actions
         private final ShardSnapshotUpdateCompletionHandler completionHandler;
 
-        // entries that became complete due to this batch of updates
-        private final List<SnapshotsInProgress.Entry> newlyCompletedEntries = new ArrayList<>();
+        // repositories containing entries that became complete due to this batch of updates
+        private final Set<ProjectRepo> repositoriesWithNewlyCompletedEntries = new HashSet<>();
 
         /**
          * Sets up {@link #updatesByRepo} to organize the {@link ShardSnapshotUpdate} tasks by repository name.
@@ -1652,7 +1652,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     final var newEntry = applyUpdatesToEntry(entry, updates.getValue());
                     newEntries.add(newEntry);
                     if (newEntry != entry && newEntry.state().completed()) {
-                        newlyCompletedEntries.add(newEntry);
+                        repositoriesWithNewlyCompletedEntries.add(projectRepo);
                     }
                 }
                 updated = updated.createCopyWithUpdatedEntriesForRepo(projectRepo.projectId(), projectRepo.name(), newEntries);
@@ -1680,12 +1680,15 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 return;
             }
 
-            final var result = new ShardSnapshotUpdateResult(initialState.metadata(), snapshotsInProgress);
             try (
                 // Set up this callback (handleShardSnapshotUpdateCompletion) to run after all the individual update requests receive
                 // responses.
                 var onCompletionRefs = new RefCountingRunnable(
-                    () -> completionHandler.handleCompletion(result, newlyCompletedEntries, updatesByRepo.keySet())
+                    () -> completionHandler.handleCompletion(
+                        snapshotsInProgress,
+                        repositoriesWithNewlyCompletedEntries,
+                        updatesByRepo.keySet()
+                    )
                 )
             ) {
                 for (final var taskContext : batchExecutionContext.taskContexts()) {
@@ -1693,7 +1696,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         final var ref = onCompletionRefs.acquire();
                         taskContext.success(() -> {
                             try (ref) {
-                                task.listener.onResponse(result);
+                                task.listener.onResponse(snapshotsInProgress);
                             }
                         });
                     }
@@ -1999,31 +2002,22 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         }
     }
 
-    /**
-     * The result of a {@link ShardSnapshotUpdate}, capturing the info needed to finalize the relevant snapshot if appropriate.
-     */
-    record ShardSnapshotUpdateResult(Metadata metadata, SnapshotsInProgress snapshotsInProgress) {}
-
     interface ShardSnapshotUpdateCompletionHandler {
         void handleCompletion(
-            ShardSnapshotUpdateResult shardSnapshotUpdateResult,
-            List<SnapshotsInProgress.Entry> newlyCompletedEntries,
+            SnapshotsInProgress snapshotsInProgress,
+            Set<ProjectRepo> repositoriesWithNewlyCompletedEntries,
             Set<ProjectRepo> updatedRepositories
         );
     }
 
     private void handleShardSnapshotUpdateCompletion(
-        ShardSnapshotUpdateResult shardSnapshotUpdateResult,
-        List<SnapshotsInProgress.Entry> newlyCompletedEntries,
+        SnapshotsInProgress snapshotsInProgress,
+        Set<ProjectRepo> repositoriesWithNewlyCompletedEntries,
         Set<ProjectRepo> updatedRepositories
     ) {
-        // Maybe this state update completed one or more snapshots. If we are not already ending them because of some earlier update, end
-        // them now.
-        final var snapshotsInProgress = shardSnapshotUpdateResult.snapshotsInProgress();
-        for (final var newlyCompletedEntry : newlyCompletedEntries) {
-            if (endingSnapshots.contains(newlyCompletedEntry.snapshot()) == false) {
-                submitFinalizeSnapshotRepositoryDataWriteTask(newlyCompletedEntry, shardSnapshotUpdateResult.metadata, null);
-            }
+        // Maybe this state update completed one or more snapshots, so ensure their repositories are running write tasks.
+        for (final var repository : repositoriesWithNewlyCompletedEntries) {
+            ensureRepositoryDataWriteTaskRunning(repository.projectId(), repository.name(), null);
         }
         // Likewise this state update may enable some new shard clones on any affected repository, so check them all.
         for (final var updatedRepository : updatedRepositories) {
@@ -2047,14 +2041,14 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         private final ShardId shardId;
         private final RepositoryShardId repoShardId;
         private final ShardSnapshotStatus updatedState;
-        private final ActionListener<ShardSnapshotUpdateResult> listener;
+        private final ActionListener<SnapshotsInProgress> listener;
 
         ShardSnapshotUpdate(
             Snapshot snapshot,
             ShardId shardId,
             RepositoryShardId repoShardId,
             ShardSnapshotStatus updatedState,
-            ActionListener<ShardSnapshotUpdateResult> listener
+            ActionListener<SnapshotsInProgress> listener
         ) {
             assert shardId != null ^ repoShardId != null;
             this.snapshot = snapshot;

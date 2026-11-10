@@ -3,10 +3,10 @@
 ### Supported function named parameters
 
 `offset`
-:   (double, integer, long, unsigned_long, time_duration, date_period, keyword, text) Distance from the origin where no decay occurs.
+:   (double, integer, long, unsigned_long, time_duration, date_period, keyword, text) Distance from the origin within which the score is 1. Must not be negative. Defaults to 0.
 
 `decay`
-:   (double) Multiplier value returned at the scale distance from the origin.
+:   (double) Score at `scale` beyond `offset`. Must be greater than 0 and less than 1. Defaults to 0.5.
 
 `type`
 :   (keyword) Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.

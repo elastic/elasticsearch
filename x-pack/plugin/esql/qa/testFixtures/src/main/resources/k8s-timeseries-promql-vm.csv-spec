@@ -1347,6 +1347,7 @@ labeled_times_labelless_default_match_is_empty
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: promql_binary_opaque_signature_match
+required_capability: enable_tsmd_data_type
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(max without (cluster) (last_over_time(network.eth0.tx[5m])) * sum without (cluster, pod, region) (last_over_time(network.eth0.tx[5m])))
 | KEEP result;
 

@@ -18,12 +18,14 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.persistent.StartPersistentTaskAction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -35,6 +37,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiPredicate;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -67,7 +70,8 @@ public class DownsampleResilienceIT extends DownsamplingIntegTestCase {
     private static final String TARGET = "target";
     private static final int DATA_NODES = 3;
     private static final int DOC_COUNT = 10_000;
-    private static final TimeValue WAIT_TIMEOUT = TimeValue.timeValueMinutes(2);
+    // Use this timeout for the downsample request to ensure it will not time out while the disruptions are in progress
+    private static final TimeValue EXTENDED_WAIT_TIMEOUT = TimeValue.timeValueMinutes(2);
 
     private DownsampleConfig config;
 
@@ -96,34 +100,89 @@ public class DownsampleResilienceIT extends DownsamplingIntegTestCase {
 
     /**
      * Sends a second request for the same downsample index while the first one is in progress.
-     * Expected: the first request succeeds. The second one succeeds if it finds the first one's shard-level tasks, otherwise it starts new
-     * ones that fail once the first request makes the downsample index read-only.
+     * Expected: both succeed but only one persistent task per shard is created.
      */
     public void testSecondRequestWhileFirstInProgress() throws Exception {
         final String coordinator = startCluster(1);
         final int shards = between(1, 3);
         createReadOnlyTimeSeriesIndex(SOURCE, shards, between(0, 1), DOC_COUNT);
 
-        DownsampleDisruptionPlugin.parkAll(DownsampleDisruptionPlugin.shardTask(SOURCE));
+        DownsampleDisruptionPlugin.parkAll(DownsampleDisruptionPlugin.downsamplingShardTask(SOURCE));
         final ActionFuture<AcknowledgedResponse> first = startDownsample(coordinator, TARGET);
         awaitParked(shards);
 
+        // For the second request we only want to capture the start task request because it will
+        // attach to the existing downsampling shard tasks
         DownsampleDisruptionPlugin.parkAll(DownsampleDisruptionPlugin.persistentTaskStart());
         final ActionFuture<AcknowledgedResponse> second = startDownsample(
             randomFrom(internalCluster().getNodeNames()),
             TARGET,
-            WAIT_TIMEOUT
+            EXTENDED_WAIT_TIMEOUT
         );
         awaitParked(2 * shards);
+        DownsampleDisruptionPlugin.releaseParked(DownsampleDisruptionPlugin.persistentTaskStart());
+        // Wait for the cluster state updates of the released start requests to be processed, so a duplicate task would be visible
+        assertFalse(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get().isTimedOut());
+        // Both requests share the persistent task of each shard, so there is exactly one per shard
+        assertThat(shardTasks(), hasSize(shards));
         DownsampleDisruptionPlugin.release();
         assertDownsampleSucceeds(first);
         try {
-            assertTrue(second.actionGet(WAIT_TIMEOUT).isAcknowledged());
+            assertDownsampleSucceeds(second);
             logger.info("-> the second downsample request succeeded");
         } catch (Exception e) {
             logger.info("-> the second downsample request failed", e);
             assertThat(e.getMessage(), containsString("] failed"));
         }
+        assertDownsampleCompleted(coordinator, TARGET);
+    }
+
+    /**
+     * Sends a second request while the first one is in progress, after every shard but one has completed. The shard-level task of the
+     * remaining shard is parked.
+     * Expected: both requests succeed, and the second request only attaches to the task of the unfinished shard, so no persistent task
+     * is started again for the shards that already completed.
+     */
+    public void testSecondRequestDoesNotRetryCompletedShards() throws Exception {
+        final String coordinator = startCluster(1);
+        final int shards = between(2, 3);
+        createReadOnlyTimeSeriesIndex(SOURCE, shards, between(0, 1), DOC_COUNT);
+
+        // Park only one shard-level task, the others run to completion
+        int parkedShardId = randomIntBetween(0, shards - 1);
+        BiPredicate<String, ActionRequest> incompleteShard = DownsampleDisruptionPlugin.downsamplingShardTask(SOURCE, parkedShardId);
+        DownsampleDisruptionPlugin.parkAll(incompleteShard);
+        final ActionFuture<AcknowledgedResponse> first = startDownsample(coordinator, TARGET);
+        awaitParked(1);
+        // A persistent task is removed when it completes, and so is its running task on the node, so only the parked one is left
+        assertBusy(() -> {
+            assertThat(shardTasks(), hasSize(1));
+            assertThat(clusterAdmin().prepareListTasks().setActions(DownsampleShardTask.TASK_NAME + "[c]").get().getTasks(), hasSize(1));
+        }, 60, TimeUnit.SECONDS);
+        assertThat(DownsampleDisruptionPlugin.parkedRequests(), hasSize(1));
+
+        // We park the start of persistent tasks for the shards that have already completed, the second request should not issue any.
+        // This has to be in place before the second request starts, and a single rule has to match all the completed shards.
+        DownsampleDisruptionPlugin.parkAll((action, request) -> {
+            if (StartPersistentTaskAction.INSTANCE.name().equals(action)
+                && request instanceof StartPersistentTaskAction.Request start
+                && DownsampleShardTask.TASK_NAME.equals(start.getTaskName())
+                && start.getParams() instanceof DownsampleShardTaskParams params) {
+                return params.shardId().getIndexName().equals(SOURCE) && params.shardId().getId() != parkedShardId;
+            }
+            return false;
+        });
+
+        // The second request should attach to the existing unfinished task
+        final ActionFuture<AcknowledgedResponse> second = startDownsample(
+            randomFrom(internalCluster().getNodeNames()),
+            TARGET,
+            EXTENDED_WAIT_TIMEOUT
+        );
+        DownsampleDisruptionPlugin.releaseParked(incompleteShard);
+        assertDownsampleSucceeds(first);
+        // The second request should be able to finish without creating any new persistent tasks that would be parked.
+        assertDownsampleSucceeds(second);
         assertDownsampleCompleted(coordinator, TARGET);
     }
 
@@ -140,10 +199,10 @@ public class DownsampleResilienceIT extends DownsamplingIntegTestCase {
         for (int i = between(3, 6); i > 0; i--) {
             final String target = TARGET + "-" + i;
             targets.add(target);
-            requests.add(startDownsample(randomFrom(internalCluster().getNodeNames()), target, WAIT_TIMEOUT));
+            requests.add(startDownsample(randomFrom(internalCluster().getNodeNames()), target, EXTENDED_WAIT_TIMEOUT));
         }
-        for (ActionFuture<AcknowledgedResponse> request : requests) {
-            assertTrue(request.actionGet(WAIT_TIMEOUT).isAcknowledged());
+        for (ActionFuture<AcknowledgedResponse> downsampleRequest : requests) {
+            assertDownsampleSucceeds(downsampleRequest);
         }
         assertDownsampleCompleted(coordinator, targets.get(0));
         for (String target : targets.subList(1, targets.size())) {
@@ -175,7 +234,7 @@ public class DownsampleResilienceIT extends DownsamplingIntegTestCase {
 
         final long indexedByInterruptedRun = interruptAfterFirstBulk(coordinator);
 
-        assertTrue(startDownsample(coordinator, TARGET, WAIT_TIMEOUT).actionGet(WAIT_TIMEOUT).isAcknowledged());
+        assertDownsampleSucceeds(startDownsample(coordinator, TARGET, EXTENDED_WAIT_TIMEOUT));
         final Map<String, DocSnapshot> docs = assertDownsampleCompleted(coordinator, TARGET);
         assertThat((long) docs.size(), greaterThan(indexedByInterruptedRun));
         assertNoDocumentRewritten(docs);
@@ -193,7 +252,7 @@ public class DownsampleResilienceIT extends DownsamplingIntegTestCase {
 
         final long indexedByInterruptedRun = interruptAfterFirstBulk(coordinator);
 
-        assertTrue(startDownsample(coordinator, TARGET, WAIT_TIMEOUT).actionGet(WAIT_TIMEOUT).isAcknowledged());
+        assertDownsampleSucceeds(startDownsample(coordinator, TARGET, EXTENDED_WAIT_TIMEOUT));
         final Map<String, DocSnapshot> docs = assertDownsampleCompleted(coordinator, TARGET);
         assertThat((long) docs.size(), greaterThan(indexedByInterruptedRun));
         assertNoDocumentRewritten(docs);
@@ -228,7 +287,7 @@ public class DownsampleResilienceIT extends DownsamplingIntegTestCase {
         assertThat(bulks.matched(), greaterThanOrEqualTo(3));
 
         DownsampleDisruptionPlugin.failParked();
-        final Exception failure = expectThrows(Exception.class, () -> downsample.actionGet(WAIT_TIMEOUT));
+        final Exception failure = expectThrows(Exception.class, () -> downsample.actionGet(TimeValue.THIRTY_SECONDS));
         assertThat(failure.getMessage(), containsString("] failed"));
         awaitNoShardTasks();
         assertThat(
@@ -236,7 +295,7 @@ public class DownsampleResilienceIT extends DownsamplingIntegTestCase {
             equalTo(IndexMetadata.DownsampleTaskStatus.STARTED)
         );
 
-        assertTrue(startDownsample(coordinator, TARGET, WAIT_TIMEOUT).actionGet(WAIT_TIMEOUT).isAcknowledged());
+        assertDownsampleSucceeds(startDownsample(coordinator, TARGET, EXTENDED_WAIT_TIMEOUT));
         final Map<String, DocSnapshot> docs = assertDownsampleCompleted(coordinator, TARGET);
         assertThat((long) docs.size(), equalTo(buckets));
         assertNoDocumentRewritten(docs);
@@ -258,7 +317,10 @@ public class DownsampleResilienceIT extends DownsamplingIntegTestCase {
         );
         // The tiny wait timeout makes the request fail right after it created the downsample index and the shard-level task, so it
         // does not complete the downsample index once the task is removed
-        expectThrows(Exception.class, () -> startDownsample(coordinator, TARGET, TimeValue.timeValueMillis(1)).actionGet(WAIT_TIMEOUT));
+        expectThrows(
+            Exception.class,
+            () -> startDownsample(coordinator, TARGET, TimeValue.timeValueMillis(1)).actionGet(TimeValue.THIRTY_SECONDS)
+        );
 
         // Wait until the first bulk request landed and the next one is parked
         assertBusy(() -> {
@@ -323,7 +385,7 @@ public class DownsampleResilienceIT extends DownsamplingIntegTestCase {
     }
 
     private ActionFuture<AcknowledgedResponse> startDownsample(String coordinator, String target) {
-        return startDownsample(coordinator, target, WAIT_TIMEOUT);
+        return startDownsample(coordinator, target, EXTENDED_WAIT_TIMEOUT);
     }
 
     /**
@@ -362,7 +424,7 @@ public class DownsampleResilienceIT extends DownsamplingIntegTestCase {
 
         DownsampleDisruptionPlugin.reset();
         final String reference = "reference-" + target;
-        assertTrue(startDownsample(coordinator, reference).actionGet(WAIT_TIMEOUT).isAcknowledged());
+        assertTrue(safeGet(startDownsample(coordinator, reference)).isAcknowledged());
         return assertSameDocuments(reference, target);
     }
 

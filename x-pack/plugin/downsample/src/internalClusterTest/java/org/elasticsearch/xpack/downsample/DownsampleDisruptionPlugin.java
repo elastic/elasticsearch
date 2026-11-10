@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -131,6 +132,22 @@ public class DownsampleDisruptionPlugin extends Plugin implements ActionPlugin {
         }
 
         /**
+         * Removes the parked executions that match {@code matcher}, the rest stay parked. The park rule is not changed.
+         * @return the executions that were removed
+         */
+        synchronized List<Parked> takeParked(BiPredicate<String, ActionRequest> matcher) {
+            final List<Parked> taken = new ArrayList<>();
+            for (Iterator<Parked> iterator = parked.iterator(); iterator.hasNext();) {
+                final Parked candidate = iterator.next();
+                if (matcher.test(candidate.action(), candidate.request())) {
+                    taken.add(candidate);
+                    iterator.remove();
+                }
+            }
+            return taken;
+        }
+
+        /**
          * @return the parked executions, except the ones parked on nodes that have been closed since
          */
         synchronized List<Parked> parkedOnOpenNodes() {
@@ -196,7 +213,19 @@ public class DownsampleDisruptionPlugin extends Plugin implements ActionPlugin {
      * the executions that match the current {@link #park} rule.
      */
     public static void releaseParked() {
-        for (Parked parked : DISRUPTIONS_STATE.takeParked(false)) {
+        releaseParked(DISRUPTIONS_STATE.takeParked(false));
+    }
+
+    /**
+     * Lets the parked executions that match {@code matcher} continue, except the ones parked on a node that has been closed since.
+     * The other parked executions stay parked, and the current {@link #park} rule keeps applying.
+     */
+    public static void releaseParked(BiPredicate<String, ActionRequest> matcher) {
+        releaseParked(DISRUPTIONS_STATE.takeParked(matcher));
+    }
+
+    private static void releaseParked(List<Parked> toRelease) {
+        for (Parked parked : toRelease) {
             if (parked.node().closed) {
                 logger.info("-> dropping [{}] parked on closed node [{}]", parked.action(), parked.node().name);
             } else {
@@ -296,10 +325,21 @@ public class DownsampleDisruptionPlugin extends Plugin implements ActionPlugin {
     /**
      * Matches the shard-level work of the downsample persistent tasks whose source shard belongs to {@code sourceIndex}.
      */
-    public static BiPredicate<String, ActionRequest> shardTask(String sourceIndex) {
+    public static BiPredicate<String, ActionRequest> downsamplingShardTask(String sourceIndex) {
         return (action, request) -> DownsampleShardPersistentTaskExecutor.DelegatingAction.NAME.equals(action)
             && request instanceof IndicesRequest indicesRequest
             && Arrays.asList(indicesRequest.indices()).contains(sourceIndex);
+    }
+
+    /**
+     * Matches the shard-level work of the downsample persistent tasks whose source shard is the {@code [sourceIndex][shardId]}.
+     */
+    public static BiPredicate<String, ActionRequest> downsamplingShardTask(String sourceIndex, int shardId) {
+        return (action, request) -> DownsampleShardPersistentTaskExecutor.DelegatingAction.NAME.equals(action)
+            && request instanceof DownsampleShardPersistentTaskExecutor.DelegatingAction.Request downsamplingShardRequest
+            && downsamplingShardRequest.shards()
+                .stream()
+                .anyMatch(shard -> shard.getIndexName().equals(sourceIndex) && shard.getId() == shardId);
     }
 
     /**

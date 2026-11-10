@@ -4753,11 +4753,15 @@ public class EsqlCapabilities {
         COUNT_PRESENT_ABSENT_COUNTER_SUPPORT,
 
         /**
-         * Under {@code unmapped_fields="LOAD_ALL"}, a union nested inside a subquery next to an outer {@code FROM} source keeps
-         * the rows and the {@code _unmapped_fields} values that its sibling sources load from {@code _source}, instead of
-         * null-filling them. See https://github.com/elastic/elasticsearch/issues/162512.
+         * Under {@code unmapped_fields="LOAD_ALL"}, a {@code FROM} subquery branch that lacks a column which a sibling branch has, with
+         * one type in every branch that has it, reads that column from its own {@code _source}, cast to that type, instead of
+         * null-filling it. It makes no difference how the sibling got the column: a mapping, an {@code EVAL}, a {@code RENAME} or a
+         * union nested in it. A branch that drops the column still null-fills it. Only meaningful when
+         * {@link #OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES} is available. See
+         * <a href="https://github.com/elastic/elasticsearch/issues/162512">#162512</a> and
+         * <a href="https://github.com/elastic/elasticsearch/issues/164545">#164545</a>.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_NESTED_UNION,
+        OPTIONAL_FIELDS_LOAD_ALL_SIBLING_COLUMN_FROM_SOURCE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

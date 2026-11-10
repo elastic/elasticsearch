@@ -1,6 +1,7 @@
 area: ES|QL
 issues:
  - 162512
+ - 164545
 pr: 164237
-summary: Fix LOAD_ALL with nested subqueries
+summary: Load a column that a sibling subquery has from `_source` under LOAD_ALL
 type: bug

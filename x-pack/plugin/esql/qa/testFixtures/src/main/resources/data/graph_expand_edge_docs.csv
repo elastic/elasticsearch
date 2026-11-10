@@ -1,0 +1,12 @@
+src:keyword,kind:keyword,dst:keyword
+u1,member_of,g1
+u1,member_of,g2
+u1,owns,x1
+h1,member_of,g1
+h2,member_of,g1
+h3,member_of,g1
+g1,sso_to_role,r1
+g2,sso_to_role,r1
+r1,can_assume,r2
+r1,bucket_policy,b1
+r2,bucket_policy,b2

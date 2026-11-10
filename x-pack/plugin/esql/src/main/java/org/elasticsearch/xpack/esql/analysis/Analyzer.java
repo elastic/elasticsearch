@@ -3365,7 +3365,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
 
             boolean includeDropped = org.elasticsearch.xpack.esql.session.GraphExpandDriver.hasHubDegree(ge.options());
-            boolean includeRelation = org.elasticsearch.xpack.esql.session.GraphExpandDriver.isMultiFieldTo(targetFields);
+            boolean includeRelation = org.elasticsearch.xpack.esql.session.GraphExpandDriver.isMultiFieldTo(targetFields)
+                || org.elasticsearch.xpack.esql.session.GraphExpandDriver.hasRelationField(ge.options());
             int baseWalkColumns = 4 + (includeRelation ? 1 : 0) + (includeDropped ? 1 : 0);
             boolean needResultAttributes = ge.resultAttributes() == null
                 || statsChanged

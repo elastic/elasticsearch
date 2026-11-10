@@ -96,6 +96,8 @@ public final class GraphExpandDriver {
         "max_edges_per_node",
         "max_edges_per_hop",
         "hop_fields",
+        "relation_field",
+        "hop_relations",
         "max_nodes",
         "max_frontier",
         "exclude"
@@ -120,6 +122,16 @@ public final class GraphExpandDriver {
      * every TO field. A hop only issues subplans for its own fields.
      */
     private final List<List<Attribute>> hopFields;
+    /**
+     * Edge documents: the {@code relation_field} option names the column holding an edge's
+     * kind. Each document is then one edge with a single-valued target, one TO field carries
+     * every relationship, and {@code relation} reports the kind. Null when relationships are
+     * arrays on the node documents.
+     */
+    @Nullable
+    private final Attribute relationField;
+    /** The {@code hop_relations} option: the kinds each hop follows, shaped like {@link #hopFields}. */
+    private final List<List<String>> hopRelations;
     private final List<Attribute> resultAttributes;
     private final DataType nodeType;
     private final int nodeFromIdx;
@@ -200,6 +212,8 @@ public final class GraphExpandDriver {
         this.targetFields = targetFields;
         this.multiField = targetFields.size() > 1;
         this.hopFields = hopFields(graphExpand, targetFields);
+        this.relationField = relationField(graphExpand);
+        this.hopRelations = hopRelations(graphExpand);
         this.resultAttributes = resultAttributes;
         this.nodeType = targetFields.get(0).dataType();
         this.nodeFromIdx = indexOf(resultAttributes, "node_from");
@@ -276,6 +290,58 @@ public final class GraphExpandDriver {
             result.add(fields);
         }
         return result;
+    }
+
+    /** True when the query set {@code relation_field}: edges are documents and {@code relation} is emitted. */
+    public static boolean hasRelationField(@Nullable MapExpression options) {
+        return options != null && options.keyFoldedMap().get("relation_field") != null;
+    }
+
+    @Nullable
+    private static Attribute relationField(GraphExpand ge) {
+        if (hasRelationField(ge.options()) == false) {
+            return null;
+        }
+        String name = BytesRefs.toString(ge.options().keyFoldedMap().get("relation_field").fold(FoldContext.small()));
+        for (Attribute attribute : ge.edgeRelation().output()) {
+            if (attribute.name().equals(name)) {
+                return attribute;
+            }
+        }
+        throw new IllegalArgumentException("GRAPH EXPAND relation_field [" + name + "] is not a field of the edge index");
+    }
+
+    /** {@code hop_relations}: one comma-separated list of kinds per hop, the last reused for later hops. */
+    private static List<List<String>> hopRelations(GraphExpand ge) {
+        MapExpression options = ge.options();
+        Expression value = options == null ? null : options.keyFoldedMap().get("hop_relations");
+        if (value == null) {
+            return List.of();
+        }
+        Object folded = value.fold(FoldContext.small());
+        List<?> entries = folded instanceof List<?> list ? list : folded == null ? List.of() : List.of(folded);
+        List<List<String>> result = new ArrayList<>(entries.size());
+        for (Object entry : entries) {
+            List<String> kinds = new ArrayList<>();
+            for (String kind : BytesRefs.toString(entry).split(",")) {
+                if (kind.strip().isEmpty() == false) {
+                    kinds.add(kind.strip());
+                }
+            }
+            if (kinds.isEmpty()) {
+                throw new IllegalArgumentException("GRAPH EXPAND hop_relations has an entry with no relations");
+            }
+            result.add(kinds);
+        }
+        return result;
+    }
+
+    /** The kinds the hop about to run follows over edge documents; empty means every kind. */
+    private List<String> currentRelations() {
+        if (hopRelations.isEmpty()) {
+            return List.of();
+        }
+        return hopRelations.get(Math.min(nextHop, hopRelations.size()) - 1);
     }
 
     /** The TO fields the hop about to run walks: its {@code hop_fields} entry, else every TO field. */
@@ -433,7 +499,7 @@ public final class GraphExpandDriver {
         if ("both".equals(direction)) {
             rows = combineBothLegs(rows);
         }
-        if (multiField) {
+        if (multiField || relationField != null) {
             orderByField(rows);
         }
 
@@ -459,8 +525,19 @@ public final class GraphExpandDriver {
             return;
         }
         Map<String, Integer> position = new HashMap<>();
-        for (int i = 0; i < targetFields.size(); i++) {
-            position.put(targetFields.get(i).name(), i);
+        if (relationField != null) {
+            // Edge documents: written order is the hop's hop_relations entry, when it has one.
+            List<String> relations = currentRelations();
+            for (int i = 0; i < relations.size(); i++) {
+                position.put(relations.get(i), i);
+            }
+            if (position.isEmpty()) {
+                return;
+            }
+        } else {
+            for (int i = 0; i < targetFields.size(); i++) {
+                position.put(targetFields.get(i).name(), i);
+            }
         }
         rows.sort(Comparator.comparingInt(row -> {
             Object relation = row.get(relationIdx);
@@ -632,19 +709,35 @@ public final class GraphExpandDriver {
         if (closingEdges() == false) {
             skipped.addAll(visited);
         }
-        List<Expression> indexPredicates = new ArrayList<>(3);
-        if (leg == Leg.OUT) {
+        // Edge documents: both ends of an edge are single values on the document, so every
+        // frontier and skip filter is a plain IN that Lucene answers, and the hop's kinds filter
+        // the edge index directly.
+        boolean edgeDocuments = relationField != null;
+        if (edgeDocuments) {
+            // Nothing is exploded below, so the matched field is the frontier attribute itself.
+            expandedFrontier = frontierField;
+        }
+        List<Expression> indexPredicates = new ArrayList<>(4);
+        if (leg == Leg.OUT || edgeDocuments) {
             indexPredicates.add(new In(source, frontierField, literals));
         } else {
             Literal frontierList = new Literal(source, List.copyOf(frontierValues), nodeType);
             indexPredicates.add(new MvIntersects(source, frontierField, frontierList));
-            if (skipped.isEmpty() == false) {
-                List<Expression> skippedLiterals = new ArrayList<>(skipped.size());
-                for (Object value : skipped) {
-                    skippedLiterals.add(new Literal(source, value, nodeType));
-                }
-                indexPredicates.add(new Not(source, new In(source, pointerField, skippedLiterals)));
+        }
+        if (skipped.isEmpty() == false && (leg == Leg.IN || edgeDocuments)) {
+            List<Expression> skippedLiterals = new ArrayList<>(skipped.size());
+            for (Object value : skipped) {
+                skippedLiterals.add(new Literal(source, value, nodeType));
             }
+            indexPredicates.add(new Not(source, new In(source, pointerField, skippedLiterals)));
+        }
+        List<String> relations = currentRelations();
+        if (edgeDocuments && relations.isEmpty() == false) {
+            List<Expression> kinds = new ArrayList<>(relations.size());
+            for (String kind : relations) {
+                kinds.add(Literal.keyword(source, kind));
+            }
+            indexPredicates.add(new In(source, relationField, kinds));
         }
         indexPredicates.add(new IsNotNull(source, pointerField));
         LogicalPlan edges = new Filter(source, graphExpand.edgeRelation(), Predicates.combineAnd(indexPredicates));
@@ -659,7 +752,7 @@ public final class GraphExpandDriver {
         Attribute degreeAttr = null;
         Attribute expandSource = pointerField;
         LogicalPlan beforeExpand = edges;
-        if (leg == Leg.OUT && (hubDegree != null || skipped.isEmpty() == false)) {
+        if (leg == Leg.OUT && edgeDocuments == false && (hubDegree != null || skipped.isEmpty() == false)) {
             Expression pointers = skipped.isEmpty()
                 ? pointerField
                 : new MvDifference(source, pointerField, new Literal(source, List.copyOf(skipped), nodeType));
@@ -682,34 +775,43 @@ public final class GraphExpandDriver {
             beforeExpand = new Eval(source, edges, rewritten);
             expandSource = capped.toAttribute();
         }
-        LogicalPlan scanned = new MvExpand(source, beforeExpand, frontierField, expandedFrontier);
-        // The other side of the edge is exploded too, so a multi-valued pointer (an entity's
-        // list of relationship targets) yields one edge per value on an outbound leg as well,
-        // and UNTIL compares against a single reached id rather than a list. Without STATS
-        // nothing else would split the values.
-        Attribute expandedPointer = new ReferenceAttribute(
-            pointerField.source(),
-            pointerField.qualifier(),
-            pointerField.name(),
-            pointerField.dataType(),
-            pointerField.nullable(),
-            null,
-            false
-        );
-        scanned = new MvExpand(source, scanned, expandSource, expandedPointer);
-        In inPredicate = new In(source, expandedFrontier, literals);
-        // Null pointer values emit no row (TO IS NOT NULL on the scanned documents).
-        Expression notNullPointer = new IsNotNull(
-            source,
-            retarget(retarget(targetField, frontierField, expandedFrontier), pointerField, expandedPointer)
-        );
-        Expression documentFilter = graphExpand.documentFilter() == null
-            ? null
-            : retarget(retarget(graphExpand.documentFilter(), frontierField, expandedFrontier), pointerField, expandedPointer);
-        Expression edgePredicate = Predicates.combineAnd(
-            documentFilter != null ? List.of(inPredicate, notNullPointer, documentFilter) : List.of(inPredicate, notNullPointer)
-        );
-        LogicalPlan hopChild = new Filter(source, scanned, edgePredicate);
+        Attribute expandedPointer;
+        LogicalPlan hopChild;
+        if (edgeDocuments) {
+            // Both ends of an edge document are single values: there is nothing to explode, and the
+            // index filter already matched the frontier, so only the command's WHERE is left.
+            expandedPointer = pointerField;
+            hopChild = graphExpand.documentFilter() == null ? edges : new Filter(source, edges, graphExpand.documentFilter());
+        } else {
+            LogicalPlan scanned = new MvExpand(source, beforeExpand, frontierField, expandedFrontier);
+            // The other side of the edge is exploded too, so a multi-valued pointer (an entity's
+            // list of relationship targets) yields one edge per value on an outbound leg as well,
+            // and UNTIL compares against a single reached id rather than a list. Without STATS
+            // nothing else would split the values.
+            expandedPointer = new ReferenceAttribute(
+                pointerField.source(),
+                pointerField.qualifier(),
+                pointerField.name(),
+                pointerField.dataType(),
+                pointerField.nullable(),
+                null,
+                false
+            );
+            scanned = new MvExpand(source, scanned, expandSource, expandedPointer);
+            In inPredicate = new In(source, expandedFrontier, literals);
+            // Null pointer values emit no row (TO IS NOT NULL on the scanned documents).
+            Expression notNullPointer = new IsNotNull(
+                source,
+                retarget(retarget(targetField, frontierField, expandedFrontier), pointerField, expandedPointer)
+            );
+            Expression documentFilter = graphExpand.documentFilter() == null
+                ? null
+                : retarget(retarget(graphExpand.documentFilter(), frontierField, expandedFrontier), pointerField, expandedPointer);
+            Expression edgePredicate = Predicates.combineAnd(
+                documentFilter != null ? List.of(inPredicate, notNullPointer, documentFilter) : List.of(inPredicate, notNullPointer)
+            );
+            hopChild = new Filter(source, scanned, edgePredicate);
+        }
 
         Attribute nodeFrom = resultAttributes.get(nodeFromIdx);
         Attribute nodeTo = resultAttributes.get(nodeToIdx);
@@ -720,11 +822,12 @@ public final class GraphExpandDriver {
         Attribute seenTarget = retarget(retarget(targetField, frontierField, expandedFrontier), pointerField, expandedPointer);
         Attribute evalFrom = seenMatch;
         Attribute evalTo = seenTarget;
-        boolean inboundGuard = leg == Leg.IN && hubDegree != null && countOnlyAggregates();
-        if (inboundGuard) {
-            // Inbound hub guard. The node reached is the document holding the pointer, one row per
-            // document, so there is no array to slice; instead the rows are grouped by the frontier
-            // value they point at, counted, and at most hub_degree + 1 of their ids kept with TOP.
+        // Grouped hub guard: an inbound leg, or any leg over edge documents, reaches one node per
+        // document, so there is no array to slice. Instead the rows are grouped by the frontier
+        // value (and the kind, over edge documents), counted, and at most hub_degree + 1 of the
+        // reached ids kept with TOP.
+        boolean groupedGuard = hubDegree != null && countOnlyAggregates() && (leg == Leg.IN || edgeDocuments);
+        if (groupedGuard) {
             // A hub thus ships just enough rows for the refusal after the fetch to see it, with its
             // true in-degree in `dropped`, and max_edges_per_hop no longer cuts its neighbours' edges.
             // Per-edge STATS values cannot survive the regrouping, so this form runs only when the
@@ -736,16 +839,23 @@ public final class GraphExpandDriver {
                 HUB_REACHED_COLUMN,
                 new Top(source, expandedPointer, new Literal(source, hubDegree + 1, DataType.INTEGER), Literal.keyword(source, "asc"), null)
             );
-            Aggregate perFrontier = new Aggregate(
-                source,
-                hopChild,
-                List.of(expandedFrontier),
-                List.<NamedExpression>of(degree, reachedTop, expandedFrontier)
-            );
+            List<Expression> guardGroupings = new ArrayList<>(2);
+            guardGroupings.add(expandedFrontier);
+            List<NamedExpression> guardAggregates = new ArrayList<>(List.of(degree, reachedTop, expandedFrontier));
+            if (edgeDocuments) {
+                guardGroupings.add(relationField);
+                guardAggregates.add(relationField);
+            }
+            Aggregate perFrontier = new Aggregate(source, hopChild, guardGroupings, guardAggregates);
             Attribute reachedExpanded = new ReferenceAttribute(source, null, HUB_REACHED_COLUMN, nodeType, Nullability.TRUE, null, false);
             hopChild = new MvExpand(source, perFrontier, reachedTop.toAttribute(), reachedExpanded);
-            evalFrom = reachedExpanded;
-            evalTo = expandedFrontier;
+            if (leg == Leg.OUT) {
+                evalFrom = expandedFrontier;
+                evalTo = reachedExpanded;
+            } else {
+                evalFrom = reachedExpanded;
+                evalTo = expandedFrontier;
+            }
             degreeAttr = degree.toAttribute();
         } else if (graphExpand.aggregates() != null) {
             Aggregate aggregate = buildHopAggregate(
@@ -774,15 +884,19 @@ public final class GraphExpandDriver {
         evalFields.add(new Alias(source, nodeTo.name(), evalTo, nodeTo.id(), false));
         evalFields.add(new Alias(source, nodeReached.name(), reachedExpr, nodeReached.id(), false));
         evalFields.add(new Alias(source, hopAttr.name(), new Literal(source, hop, DataType.INTEGER), hopAttr.id(), false));
-        if (inboundGuard && graphExpand.aggregates() != null) {
+        if (groupedGuard && graphExpand.aggregates() != null) {
             for (NamedExpression aggregate : graphExpand.aggregates()) {
                 evalFields.add(new Alias(source, aggregate.name(), new Literal(source, 1L, DataType.LONG), aggregate.id(), false));
             }
         }
-        // Multi-field TO only: relation = the pointer field name that fired this leg.
+        // relation: over edge documents the kind column's value, else the TO field that fired this
+        // leg (emitted for a multi-field TO only).
         Attribute relationAttr = findNamed(resultAttributes, "relation");
         if (relationAttr != null) {
-            evalFields.add(new Alias(source, relationAttr.name(), Literal.keyword(source, targetField.name()), relationAttr.id(), false));
+            Expression relationValue = relationField != null
+                ? attributeByName(hopChild.output(), relationField.name())
+                : Literal.keyword(source, targetField.name());
+            evalFields.add(new Alias(source, relationAttr.name(), relationValue, relationAttr.id(), false));
         }
         // Optional dropped: null on every hop row; hub stubs overwrite with the refused degree.
         // Must live on Eval (Literal) — Project only accepts Attribute children.
@@ -792,7 +906,7 @@ public final class GraphExpandDriver {
             if (degreeAttr != null) {
                 // The guard counted the pointers: a count past hub_degree is the refused degree.
                 Expression degree = graphExpand.aggregates() != null ? attributeByName(hopChild.output(), HUB_DEGREE_COLUMN) : degreeAttr;
-                if (inboundGuard) {
+                if (groupedGuard) {
                     // COUNT(*) is a long; `dropped` is an integer column.
                     degree = new ToInteger(source, degree);
                 }
@@ -867,6 +981,9 @@ public final class GraphExpandDriver {
         List<Expression> groupings = new ArrayList<>(2 + userGroupings.size());
         groupings.add(seenMatch);
         groupings.add(seenTarget);
+        if (relationField != null) {
+            groupings.add(relationField);
+        }
         for (Expression grouping : userGroupings) {
             groupings.add(retarget(retarget(grouping, frontierField, expandedFrontier), pointerField, expandedPointer));
         }

@@ -4765,6 +4765,11 @@ public class EsqlCapabilities {
          */
         COUNT_PRESENT_ABSENT_COUNTER_SUPPORT,
 
+        /**
+         * {@code column_metadata} reports the field a column reads as {@code _meta.field} and its unit as {@code _meta.unit}.
+         */
+        COLUMN_METADATA_FIELD_SEMANTICS(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

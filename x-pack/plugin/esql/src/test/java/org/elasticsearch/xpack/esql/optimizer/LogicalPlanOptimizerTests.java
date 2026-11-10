@@ -8683,6 +8683,26 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(rateHolder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(7)));
     }
 
+    public void testRateWindowMustBeTimeDuration() {
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> planMetrics("TS k8s | STATS AVG(RATE(network.total_bytes_in, RATE(network.total_bytes_in))) BY TBUCKET(1h)")
+        );
+        assertThat(e.getMessage(), containsString("must be [time_duration]"));
+
+        e = expectThrows(
+            VerificationException.class,
+            () -> planMetrics("TS k8s | STATS AVG(RATE(network.total_bytes_in, client.ip)) BY TBUCKET(1h)")
+        );
+        assertThat(e.getMessage(), containsString("must be [time_duration]"));
+
+        e = expectThrows(
+            VerificationException.class,
+            () -> planMetrics("TS k8s | STATS AVG(RATE(network.total_bytes_in, 10)) BY TBUCKET(1h)")
+        );
+        assertThat(e.getMessage(), containsString("must be [time_duration]"));
+    }
+
     public void testMvSortInvalidOrder() {
         VerificationException e = expectThrows(VerificationException.class, () -> plan("""
             from test

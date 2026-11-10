@@ -542,6 +542,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             listingService
         );
 
+        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+        // Already-constructed functions, so one that needs a collaborator is handed it here rather than the
+        // registry acquiring one on every function's behalf.
+        TableFunctionRegistry tableFunctionRegistry = new TableFunctionRegistry(tableFunctions(services.client()));
+        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
+        capabilities.set(EsqlCapabilities.capabilities(functionRegistry, tableFunctionRegistry, false));
+
         services.ipLocationService()
             .addDatabaseAvailabilityListener(
                 (projectId, databaseFile) -> logger.trace(
@@ -631,13 +638,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 c.onQueryCompleted(metrics);
             }
         };
-        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-        // Built from already-constructed functions: a table function declares its own dependencies by being
-        // constructed with them, which is what keeps the facility from carrying any one function's.
-        TableFunctionRegistry tableFunctionRegistry = new TableFunctionRegistry(tableFunctions(services.client()));
-        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
-        capabilities.set(EsqlCapabilities.capabilities(functionRegistry, tableFunctionRegistry, false));
-
         ViewService viewService = new ViewService(services.clusterService(), parser, (statement, viewName, listener) -> {
             var request = PreparedEsqlQueryRequest.analyzeOnly(statement, "view [" + viewName + "]");
             services.client().execute(EsqlQueryAction.INSTANCE, request, listener.map(response -> null));

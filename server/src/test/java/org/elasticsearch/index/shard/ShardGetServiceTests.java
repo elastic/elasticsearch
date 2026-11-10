@@ -732,6 +732,45 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         }
     }
 
+    /**
+     * On a synthetic source index a realtime get served from the translog indexes the operation into an in-memory segment to
+     * build the source, so it returns the {@code _ignored} metadata field by default before the document is refreshed.
+     */
+    public void testGetFromTranslogReturnsIgnoredMetadataFieldWithSyntheticSource() throws IOException {
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).put("index.mapping.source.mode", "synthetic").build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            {
+              "properties": {
+                "kw": { "type": "keyword", "ignore_above": 3 },
+                "num": { "type": "long", "ignore_malformed": true }
+              }
+            }""").settings(settings).primaryTerm(0, 1).build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        try {
+            recoverShardFromStore(primary);
+            // the first realtime get refreshes and makes the engine track translog locations for later gets
+            indexDoc(primary, "test", "0", """
+                { "kw": "ok", "num": 1 }""");
+            GetResult notIgnored = get(primary, "0", null);
+            assertTrue(notIgnored.isExists());
+            assertFalse(notIgnored.getMetadataFields().containsKey(IgnoredFieldMapper.NAME));
+
+            indexDoc(primary, "test", "1", """
+                { "kw": "too long", "num": "not a number" }""");
+            assertTrue(primary.getEngine().refreshNeeded());
+            GetResult fromTranslog = get(primary, "1", null);
+            try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+                assertEquals(1, searcher.getIndexReader().maxDoc()); // read from the translog
+            }
+            assertIgnoredFields(fromTranslog);
+
+            GetResult forUpdate = getForUpdate(primary, "1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+            assertFalse(forUpdate.getMetadataFields().containsKey(IgnoredFieldMapper.NAME));
+        } finally {
+            closeShards(primary);
+        }
+    }
+
     private static void assertIgnoredFields(GetResult getResult) {
         DocumentField ignored = getResult.getMetadataFields().get(IgnoredFieldMapper.NAME);
         assertNotNull(ignored);

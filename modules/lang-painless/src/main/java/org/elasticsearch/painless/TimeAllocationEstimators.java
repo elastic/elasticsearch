@@ -29,6 +29,9 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.chrono.ChronoLocalDate;
+import java.time.chrono.ChronoLocalDateTime;
+import java.time.chrono.ChronoPeriod;
+import java.time.chrono.ChronoZonedDateTime;
 import java.time.chrono.Chronology;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
@@ -1063,9 +1066,9 @@ public final class TimeAllocationEstimators {
         return FORMATTER_BYTES;
     }
 
-    /** {@code DateTimeFormatter.withResolverFields}. */
+    /** {@code DateTimeFormatter.withResolverFields(Set)}: the formatter plus a copy of the set. */
     public static long formatterCopyBytes(DateTimeFormatter receiver, Set<?> set) {
-        return FORMATTER_BYTES;
+        return AllocSizes.addSat(FORMATTER_BYTES, AllocationEstimators.setCopyBytes(set));
     }
 
     /** {@code DateTimeFormatter.withResolverStyle}. */
@@ -1203,9 +1206,10 @@ public final class TimeAllocationEstimators {
         return PATTERN_BYTES_PER_CHARACTER;
     }
 
-    /** {@code DateTimeFormatterBuilder.appendZoneText}. */
+    /** {@code DateTimeFormatterBuilder.appendZoneText(TextStyle, Set)}: the step plus a copy of the set when it has entries. */
     public static long builderStepBytes(DateTimeFormatterBuilder receiver, TextStyle textStyle, Set<?> set) {
-        return PATTERN_BYTES_PER_CHARACTER;
+        long copy = set == null || set.isEmpty() ? 0 : AllocationEstimators.setCopyBytes(set);
+        return AllocSizes.addSat(PATTERN_BYTES_PER_CHARACTER, copy);
     }
 
     /** {@code DateTimeFormatterBuilder.padNext}. */
@@ -1248,5 +1252,132 @@ public final class TimeAllocationEstimators {
     /** {@code Month.getDisplayName}. */
     public static long displayNameBytes(Month receiver, TextStyle textStyle, Locale locale) {
         return newStringBytes(DISPLAY_NAME_CHARACTERS);
+    }
+
+    // Entries declared only on the java.time.chrono interfaces. The concrete classes inherit them, so the charge lives here.
+
+    /** {@code ChronoLocalDate.atTime}. */
+    public static long localDateTimeBytes(ChronoLocalDate receiver, LocalTime localTime) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    /** {@code ChronoLocalDate.format}. */
+    public static long formatBytes(ChronoLocalDate receiver, DateTimeFormatter dateTimeFormatter) {
+        return newStringBytes(FORMAT_CHARACTERS);
+    }
+
+    /** {@code ChronoLocalDate.minus}, {@code ChronoLocalDate.plus}. */
+    public static long flatValueBytes(ChronoLocalDate receiver, TemporalAmount temporalAmount) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code ChronoLocalDate.minus}, {@code ChronoLocalDate.plus}. */
+    public static long flatValueBytes(ChronoLocalDate receiver, long amount, TemporalUnit temporalUnit) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code ChronoLocalDate.until}. */
+    public static long flatValueBytes(ChronoLocalDate receiver, ChronoLocalDate chronoLocalDate) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code ChronoLocalDate.with}. */
+    public static long flatValueBytes(ChronoLocalDate receiver, TemporalAdjuster temporalAdjuster) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code ChronoLocalDate.with}. */
+    public static long flatValueBytes(ChronoLocalDate receiver, TemporalField temporalField, long amount) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code ChronoLocalDateTime.atZone}. */
+    public static long zonedDateTimeBytes(ChronoLocalDateTime<?> receiver, ZoneId zoneId) {
+        return ZONED_DATE_TIME_BYTES;
+    }
+
+    /** {@code ChronoLocalDateTime.format}. */
+    public static long formatBytes(ChronoLocalDateTime<?> receiver, DateTimeFormatter dateTimeFormatter) {
+        return newStringBytes(FORMAT_CHARACTERS);
+    }
+
+    /** {@code ChronoLocalDateTime.minus}, {@code ChronoLocalDateTime.plus}. */
+    public static long localDateTimeBytes(ChronoLocalDateTime<?> receiver, TemporalAmount temporalAmount) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    /** {@code ChronoLocalDateTime.minus}, {@code ChronoLocalDateTime.plus}. */
+    public static long localDateTimeBytes(ChronoLocalDateTime<?> receiver, long amount, TemporalUnit temporalUnit) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    /** {@code ChronoLocalDateTime.toInstant}. */
+    public static long flatValueBytes(ChronoLocalDateTime<?> receiver, ZoneOffset zoneOffset) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code ChronoLocalDateTime.with}. */
+    public static long localDateTimeBytes(ChronoLocalDateTime<?> receiver, TemporalAdjuster temporalAdjuster) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    /** {@code ChronoLocalDateTime.with}. */
+    public static long localDateTimeBytes(ChronoLocalDateTime<?> receiver, TemporalField temporalField, long amount) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    /** {@code ChronoPeriod.minus}, {@code ChronoPeriod.plus}. */
+    public static long flatValueBytes(ChronoPeriod receiver, TemporalAmount temporalAmount) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code ChronoPeriod.multipliedBy}. */
+    public static long flatValueBytes(ChronoPeriod receiver, int scalar) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code ChronoPeriod.negated}, {@code ChronoPeriod.normalized}. */
+    public static long flatValueBytes(ChronoPeriod receiver) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code ChronoZonedDateTime.format}. */
+    public static long formatBytes(ChronoZonedDateTime<?> receiver, DateTimeFormatter dateTimeFormatter) {
+        return newStringBytes(FORMAT_CHARACTERS);
+    }
+
+    /** {@code ChronoZonedDateTime.minus}, {@code ChronoZonedDateTime.plus}. */
+    public static long zonedDateTimeBytes(ChronoZonedDateTime<?> receiver, TemporalAmount temporalAmount) {
+        return ZONED_DATE_TIME_BYTES;
+    }
+
+    /** {@code ChronoZonedDateTime.minus}, {@code ChronoZonedDateTime.plus}. */
+    public static long zonedDateTimeBytes(ChronoZonedDateTime<?> receiver, long amount, TemporalUnit temporalUnit) {
+        return ZONED_DATE_TIME_BYTES;
+    }
+
+    /** {@code ChronoZonedDateTime.toInstant}. */
+    public static long flatValueBytes(ChronoZonedDateTime<?> receiver) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code ChronoZonedDateTime.with}. */
+    public static long zonedDateTimeBytes(ChronoZonedDateTime<?> receiver, TemporalAdjuster temporalAdjuster) {
+        return ZONED_DATE_TIME_BYTES;
+    }
+
+    /** {@code ChronoZonedDateTime.with}. */
+    public static long zonedDateTimeBytes(ChronoZonedDateTime<?> receiver, TemporalField temporalField, long amount) {
+        return ZONED_DATE_TIME_BYTES;
+    }
+
+    /** {@code ChronoZonedDateTime.withEarlierOffsetAtOverlap}, {@code ChronoZonedDateTime.withLaterOffsetAtOverlap}. */
+    public static long zonedDateTimeBytes(ChronoZonedDateTime<?> receiver) {
+        return ZONED_DATE_TIME_BYTES;
+    }
+
+    /** {@code ChronoZonedDateTime.withZoneSameLocal}, {@code ChronoZonedDateTime.withZoneSameInstant}. */
+    public static long zonedDateTimeBytes(ChronoZonedDateTime<?> receiver, ZoneId zoneId) {
+        return ZONED_DATE_TIME_BYTES;
     }
 }

@@ -16,12 +16,16 @@ import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
@@ -380,6 +384,72 @@ public class AllocationEstimatorTests extends AllocationTestCase {
         long base = allocatedBytes("[1, 2].stream(); return 'x';");
         long withIterator = allocatedBytes("[1, 2].stream().iterator(); return 'x';");
         assertEquals(AllocSizes.ITERATOR_BYTES, withIterator - base);
+    }
+
+    public void testPrimitiveStreamIteratorCharged() {
+        // IntStream, LongStream and DoubleStream redeclare iterator(), so each needs its own entry.
+        long base = allocatedBytes("IntStream.range(0, 2); LongStream.range(0, 2); DoubleStream.of(new double[] {1.0}); return 'x';");
+        long withIterators = allocatedBytes(
+            "IntStream.range(0, 2).iterator(); LongStream.range(0, 2).iterator(); "
+                + "DoubleStream.of(new double[] {1.0}).iterator(); return 'x';"
+        );
+        assertEquals(3 * AllocSizes.ITERATOR_BYTES, withIterators - base);
+    }
+
+    public void testChronoInterfaceEntriesCharged() {
+        // These methods are declared only on the chrono interfaces, so the charge must come from those entries.
+        long format = TimeAllocationEstimators.formatBytes((DateTimeFormatter) null, (TemporalAccessor) null);
+        String zoned = "ZonedDateTime z = Instant.ofEpochMilli(0).atZone(ZoneOffset.UTC); ";
+        long zonedBase = allocatedBytes(zoned + "return 'x';");
+
+        assertEquals(TimeAllocationEstimators.FLAT_VALUE_BYTES, allocatedBytes(zoned + "z.toInstant(); return 'x';") - zonedBase);
+        assertEquals(format, allocatedBytes(zoned + "z.format(DateTimeFormatter.ISO_INSTANT); return 'x';") - zonedBase);
+        assertEquals(
+            TimeAllocationEstimators.ZONED_DATE_TIME_BYTES,
+            allocatedBytes(zoned + "z.withZoneSameInstant(ZoneOffset.UTC); return 'x';") - zonedBase
+        );
+
+        String local = "LocalDateTime d = LocalDateTime.of(2020, 1, 1, 0, 0); ";
+        long localBase = allocatedBytes(local + "return 'x';");
+        assertEquals(
+            TimeAllocationEstimators.FLAT_VALUE_BYTES,
+            allocatedBytes(local + "d.toInstant(ZoneOffset.UTC); return 'x';") - localBase
+        );
+        assertEquals(format, allocatedBytes(local + "d.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME); return 'x';") - localBase);
+
+        String date = "LocalDate d = LocalDate.of(2020, 1, 1); ";
+        long dateBase = allocatedBytes(date + "return 'x';");
+        assertEquals(format, allocatedBytes(date + "d.format(DateTimeFormatter.ISO_LOCAL_DATE); return 'x';") - dateBase);
+    }
+
+    public void testChronoInterfaceEntriesChargedThroughDefDispatch() {
+        String zoned = "def z = Instant.ofEpochMilli(0).atZone(ZoneOffset.UTC); ";
+        long zonedBase = allocatedBytes(zoned + "return 'x';");
+        assertEquals(TimeAllocationEstimators.FLAT_VALUE_BYTES, allocatedBytes(zoned + "z.toInstant(); return 'x';") - zonedBase);
+    }
+
+    public void testFormatterResolverFieldsCopyCharged() {
+        // withResolverFields copies the set, so the charge grows with it.
+        String fields =
+            "Set s = new HashSet(); s.add(ChronoField.YEAR); s.add(ChronoField.MONTH_OF_YEAR); s.add(ChronoField.DAY_OF_MONTH); ";
+        long base = allocatedBytes(fields + "return 'x';");
+        long withCopy = allocatedBytes(fields + "DateTimeFormatter.ISO_DATE.withResolverFields(s); return 'x';");
+        Set<?> three = Set.of(ChronoField.YEAR, ChronoField.MONTH_OF_YEAR, ChronoField.DAY_OF_MONTH);
+        assertEquals(TimeAllocationEstimators.formatterCopyBytes(null, three), withCopy - base);
+        assertTrue(TimeAllocationEstimators.formatterCopyBytes(null, three) > TimeAllocationEstimators.formatterCopyBytes(null, Set.of()));
+    }
+
+    public void testAppendZoneTextCopyCharged() {
+        // appendZoneText copies a non-empty set of preferred zones.
+        String zones = "Set s = new HashSet(); s.add(ZoneOffset.UTC); s.add(ZoneId.of('Europe/Paris')); "
+            + "DateTimeFormatterBuilder b = new DateTimeFormatterBuilder(); ";
+        long base = allocatedBytes(zones + "return 'x';");
+        long withStep = allocatedBytes(zones + "b.appendZoneText(TextStyle.FULL, s); return 'x';");
+        Set<?> two = Set.of(ZoneOffset.UTC, ZoneId.of("Europe/Paris"));
+        assertEquals(TimeAllocationEstimators.builderStepBytes(null, null, two), withStep - base);
+        assertTrue(
+            TimeAllocationEstimators.builderStepBytes(null, null, two) > TimeAllocationEstimators.builderStepBytes(null, null, Set.of())
+        );
     }
 
     public void testTimeEstimatorChargedThroughDefDispatch() {

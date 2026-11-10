@@ -56,6 +56,9 @@ import java.util.function.ToDoubleFunction;
 import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 import java.util.stream.BaseStream;
+import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 
 /**
  * Built-in {@code @allocates} estimators: {@code public static long} methods matching the annotated target's full Java
@@ -145,6 +148,21 @@ public final class AllocationEstimators {
 
     /** Cost of {@code BaseStream.iterator()}: the adapter over the stream's spliterator. */
     public static long iteratorBytes(BaseStream<?, ?> receiver) {
+        return AllocSizes.ITERATOR_BYTES;
+    }
+
+    /** Cost of {@code IntStream.iterator()}: the adapter over the stream's spliterator. */
+    public static long iteratorBytes(IntStream receiver) {
+        return AllocSizes.ITERATOR_BYTES;
+    }
+
+    /** Cost of {@code LongStream.iterator()}: the adapter over the stream's spliterator. */
+    public static long iteratorBytes(LongStream receiver) {
+        return AllocSizes.ITERATOR_BYTES;
+    }
+
+    /** Cost of {@code DoubleStream.iterator()}: the adapter over the stream's spliterator. */
+    public static long iteratorBytes(DoubleStream receiver) {
         return AllocSizes.ITERATOR_BYTES;
     }
 

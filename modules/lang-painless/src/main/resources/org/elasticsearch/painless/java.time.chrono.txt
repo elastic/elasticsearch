@@ -15,10 +15,10 @@
 #### Interfaces
 
 class java.time.chrono.ChronoLocalDate {
-  ChronoLocalDateTime atTime(LocalTime)
+  ChronoLocalDateTime atTime(LocalTime) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
   int compareTo(ChronoLocalDate)
   boolean equals(Object)
-  String format(DateTimeFormatter)
+  String format(DateTimeFormatter) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatBytes"]
   ChronoLocalDate from(TemporalAccessor)
   Chronology getChronology()
   Era getEra()
@@ -29,41 +29,41 @@ class java.time.chrono.ChronoLocalDate {
   boolean isLeapYear()
   int lengthOfMonth()
   int lengthOfYear()
-  ChronoLocalDate minus(TemporalAmount)
-  ChronoLocalDate minus(long,TemporalUnit)
-  ChronoLocalDate plus(TemporalAmount)
-  ChronoLocalDate plus(long,TemporalUnit)
+  ChronoLocalDate minus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  ChronoLocalDate minus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  ChronoLocalDate plus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  ChronoLocalDate plus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
   Comparator timeLineOrder()
   long toEpochDay()
   String toString()
-  ChronoPeriod until(ChronoLocalDate)
-  ChronoLocalDate with(TemporalAdjuster)
-  ChronoLocalDate with(TemporalField,long)
+  ChronoPeriod until(ChronoLocalDate) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  ChronoLocalDate with(TemporalAdjuster) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  ChronoLocalDate with(TemporalField,long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
 }
 
 class java.time.chrono.ChronoLocalDateTime {
-  ChronoZonedDateTime atZone(ZoneId)
+  ChronoZonedDateTime atZone(ZoneId) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zonedDateTimeBytes"]
   int compareTo(ChronoLocalDateTime)
   boolean equals(Object)
-  String format(DateTimeFormatter)
+  String format(DateTimeFormatter) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatBytes"]
   ChronoLocalDateTime from(TemporalAccessor)
   int hashCode()
   boolean isAfter(ChronoLocalDateTime)
   boolean isBefore(ChronoLocalDateTime)
   boolean isEqual(ChronoLocalDateTime)
   Chronology getChronology()
-  ChronoLocalDateTime minus(TemporalAmount)
-  ChronoLocalDateTime minus(long,TemporalUnit)
-  ChronoLocalDateTime plus(TemporalAmount)
-  ChronoLocalDateTime plus(long,TemporalUnit)
+  ChronoLocalDateTime minus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  ChronoLocalDateTime minus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  ChronoLocalDateTime plus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  ChronoLocalDateTime plus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
   Comparator timeLineOrder()
   long toEpochSecond(ZoneOffset)
-  Instant toInstant(ZoneOffset)
+  Instant toInstant(ZoneOffset) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
   ChronoLocalDate toLocalDate()
   LocalTime toLocalTime()
   String toString()
-  ChronoLocalDateTime with(TemporalAdjuster)
-  ChronoLocalDateTime with(TemporalField,long)
+  ChronoLocalDateTime with(TemporalAdjuster) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  ChronoLocalDateTime with(TemporalField,long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
 }
 
 class java.time.chrono.Chronology {
@@ -104,18 +104,18 @@ class java.time.chrono.ChronoPeriod {
   int hashCode()
   boolean isNegative()
   boolean isZero()
-  ChronoPeriod minus(TemporalAmount)
-  ChronoPeriod multipliedBy(int)
-  ChronoPeriod negated()
-  ChronoPeriod normalized()
-  ChronoPeriod plus(TemporalAmount)
+  ChronoPeriod minus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  ChronoPeriod multipliedBy(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  ChronoPeriod negated() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  ChronoPeriod normalized() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  ChronoPeriod plus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
   String toString()
 }
 
 class java.time.chrono.ChronoZonedDateTime {
   int compareTo(ChronoZonedDateTime)
   boolean equals(Object)
-  String format(DateTimeFormatter)
+  String format(DateTimeFormatter) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatBytes"]
   ChronoZonedDateTime from(TemporalAccessor)
   Chronology getChronology()
   ZoneOffset getOffset()
@@ -124,23 +124,23 @@ class java.time.chrono.ChronoZonedDateTime {
   boolean isBefore(ChronoZonedDateTime)
   boolean isAfter(ChronoZonedDateTime)
   boolean isEqual(ChronoZonedDateTime)
-  ChronoZonedDateTime minus(TemporalAmount)
-  ChronoZonedDateTime minus(long,TemporalUnit)
-  ChronoZonedDateTime plus(TemporalAmount)
-  ChronoZonedDateTime plus(long,TemporalUnit)
+  ChronoZonedDateTime minus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zonedDateTimeBytes"]
+  ChronoZonedDateTime minus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zonedDateTimeBytes"]
+  ChronoZonedDateTime plus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zonedDateTimeBytes"]
+  ChronoZonedDateTime plus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zonedDateTimeBytes"]
   Comparator timeLineOrder()
-  Instant toInstant()
+  Instant toInstant() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
   long toEpochSecond()
   ChronoLocalDate toLocalDate()
   LocalTime toLocalTime()
   ChronoLocalDateTime toLocalDateTime()
   String toString()
-  ChronoZonedDateTime with(TemporalAdjuster)
-  ChronoZonedDateTime with(TemporalField,long)
-  ChronoZonedDateTime withEarlierOffsetAtOverlap()
-  ChronoZonedDateTime withLaterOffsetAtOverlap()
-  ChronoZonedDateTime withZoneSameLocal(ZoneId)
-  ChronoZonedDateTime withZoneSameInstant(ZoneId)
+  ChronoZonedDateTime with(TemporalAdjuster) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zonedDateTimeBytes"]
+  ChronoZonedDateTime with(TemporalField,long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zonedDateTimeBytes"]
+  ChronoZonedDateTime withEarlierOffsetAtOverlap() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zonedDateTimeBytes"]
+  ChronoZonedDateTime withLaterOffsetAtOverlap() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zonedDateTimeBytes"]
+  ChronoZonedDateTime withZoneSameLocal(ZoneId) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zonedDateTimeBytes"]
+  ChronoZonedDateTime withZoneSameInstant(ZoneId) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zonedDateTimeBytes"]
 }
 
 class java.time.chrono.Era {

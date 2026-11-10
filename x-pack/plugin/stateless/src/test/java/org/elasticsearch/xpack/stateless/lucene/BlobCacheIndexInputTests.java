@@ -75,8 +75,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
@@ -90,6 +92,7 @@ import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.cr
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheFile;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -946,6 +949,12 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         withCachedInputWithoutMmap(BlobCacheIndexInputTests::assertCopiesIntoScratch);
     }
 
+    // Verifies that, when nothing is cached yet, a read into a segment of a thread-confined arena is completed by a cache fetch thread
+    // without that thread touching the arena.
+    public void testWithMemorySegmentSliceColdCacheCopiesIntoScratch() throws IOException {
+        withColdInputWithoutMmap(BlobCacheIndexInputTests::assertCopiesIntoScratch);
+    }
+
     // Verifies that, on a slice of an input whose cache is not mmap-backed, a read of at least the buffer size is copied from
     // the slice's position in the file.
     public void testWithMemorySegmentSliceNoMmapCopiesIntoScratchOnSlice() throws IOException {
@@ -988,11 +997,47 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         withCachedInput(false, regionSize, randomIntBetween(BlobCacheBufferedIndexInput.MERGE_BUFFER_SIZE, regionSize / 2), check);
     }
 
+    // Runs the check on a file in a cache that is not mmap-backed and has not been populated, whose blob data is delivered by the
+    // reader's own thread pool rather than the reading thread, as it is when a fetch thread fills the cache. Uses regions of 16-64 KB.
+    private void withColdInputWithoutMmap(CheckedBiConsumer<BlobCacheIndexInput, byte[], IOException> check) throws IOException {
+        final int regionSize = (int) pageAligned(ByteSizeValue.ofKb(randomIntBetween(16, 64))).getBytes();
+        final int fileLength = randomIntBetween(BlobCacheBufferedIndexInput.MERGE_BUFFER_SIZE, regionSize / 2);
+        withCachedInput(false, regionSize, fileLength, false, reader -> new CacheBlobReader() {
+            @Override
+            public ByteRange getRange(long position, int length, long remainingFileLength) {
+                return reader.getRange(position, length, remainingFileLength);
+            }
+
+            @Override
+            public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
+                threadPool.executor(reader.executorName()).execute(() -> reader.getRangeInputStream(position, length, listener));
+            }
+
+            @Override
+            public String executorName() {
+                return reader.executorName();
+            }
+        }, check);
+    }
+
     // Populates a file of the given length in a cache of 10 regions of the given size, then runs the check on it.
     private void withCachedInput(
         boolean mmap,
         int regionSize,
         int fileLength,
+        CheckedBiConsumer<BlobCacheIndexInput, byte[], IOException> check
+    ) throws IOException {
+        withCachedInput(mmap, regionSize, fileLength, true, UnaryOperator.identity(), check);
+    }
+
+    // Runs the check on a file of the given length in a cache of 10 regions of the given size, populating the cache first if asked to.
+    // The blob reader that fills the cache is passed through the decorator.
+    private void withCachedInput(
+        boolean mmap,
+        int regionSize,
+        int fileLength,
+        boolean populate,
+        UnaryOperator<CacheBlobReader> readerDecorator,
         CheckedBiConsumer<BlobCacheIndexInput, byte[], IOException> check
     ) throws IOException {
         final var settings = Settings.builder()
@@ -1017,7 +1062,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                         SharedBlobCacheService.CacheMissHandler.NOOP,
                         randomRegionTimestampMillis()
                     ),
-                    createBlobReader(fileName, input, sharedBlobCacheService),
+                    readerDecorator.apply(createBlobReader(fileName, input, sharedBlobCacheService)),
                     createBlobFileRanges(primaryTerm, 0L, 0, input.length),
                     BlobCacheMetrics.NOOP,
                     System::currentTimeMillis,
@@ -1028,9 +1073,11 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 0
             );
 
-            // Read all data to populate the cache
-            byte[] output = randomReadAndSlice(indexInput, input.length);
-            assertArrayEquals(input, output);
+            if (populate) {
+                // Read all data to populate the cache
+                byte[] output = randomReadAndSlice(indexInput, input.length);
+                assertArrayEquals(input, output);
+            }
 
             check.accept(indexInput, input);
         }
@@ -1153,16 +1200,21 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
     private static void assertCopiesIntoScratch(BlobCacheIndexInput indexInput, byte[] input, int offset, int length) throws IOException {
         final AtomicBoolean copied = new AtomicBoolean();
         final AtomicBoolean invoked = new AtomicBoolean();
-        final boolean available = indexInput.withMemorySegmentSlice(offset, length, len -> {
-            copied.set(true);
-            return Arena.ofAuto().allocate(len);
-        }, seg -> {
-            invoked.set(true);
-            assertEquals(length, seg.byteSize());
-            byte[] bytes = new byte[length];
-            MemorySegment.ofArray(bytes).copyFrom(seg);
-            assertArrayEquals(Arrays.copyOfRange(input, offset, offset + length), bytes);
-        });
+        final boolean available;
+        // a confined arena, as used by callers that want deterministic release of the scratch segment: the read
+        // into it may be completed by another thread, which must not trip the arena's owner-thread check
+        try (Arena arena = Arena.ofConfined()) {
+            available = indexInput.withMemorySegmentSlice(offset, length, len -> {
+                copied.set(true);
+                return arena.allocate(len);
+            }, seg -> {
+                invoked.set(true);
+                assertEquals(length, seg.byteSize());
+                byte[] bytes = new byte[length];
+                MemorySegment.ofArray(bytes).copyFrom(seg);
+                assertArrayEquals(Arrays.copyOfRange(input, offset, offset + length), bytes);
+            });
+        }
         assertTrue(available);
         assertTrue("expected a copy into the scratch segment", copied.get());
         assertTrue(invoked.get());
@@ -1219,6 +1271,187 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
             // Third read: cache hit — 1 read (from tryRead), no miss, no bypass
             assertBypassReadMetrics(fileName, cacheFileReader, input, recordingMeterRegistry, metrics, 1, 0, 0);
+        }
+    }
+
+    // When the cache evicts a region mid-read, CacheFileReader falls back to a bypass read straight from the blob reader, whose listener
+    // may complete on another thread. Verifies that the data still reaches a thread-confined arena that the other thread cannot touch.
+    public void testBypassReadIntoConfinedArenaCompletedByOtherThread() throws Exception {
+        final var regionSize = SharedBytes.PAGE_SIZE * between(1, 10);
+        final var settings = sharedCacheSettings(ByteSizeValue.ofBytes(regionSize * 10L), ByteSizeValue.ofBytes(regionSize));
+        try (
+            var nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = newCacheService(nodeEnvironment, settings, threadPool)
+        ) {
+            final var shardId = new ShardId(new Index(randomIndexName(), randomUUID()), 0);
+            final var fileName = randomIdentifier() + randomFileExtension();
+            final var input = randomByteArrayOfLength(between(2, regionSize));
+            final long primaryTerm = randomNonNegativeLong();
+
+            // the cache always reports the region as evicted, which forces the bypass read
+            final var cacheFile = spy(
+                cacheService.getCacheFile(
+                    new FileCacheKey(shardId, primaryTerm, fileName),
+                    input.length,
+                    SharedBlobCacheService.CacheMissHandler.NOOP,
+                    System.currentTimeMillis()
+                )
+            );
+            doThrow(new AlreadyClosedException("evicted")).when(cacheFile).populateAndRead(any(), any(), any(), any(), any());
+
+            // completes the bypass read's stream from another thread, once the reading thread is already waiting for it
+            final var blobReader = createBlobReader(fileName, input, cacheService);
+            final var completingThread = new AtomicReference<Thread>();
+            final CacheBlobReader otherThreadBlobReader = new CacheBlobReader() {
+                @Override
+                public ByteRange getRange(long position, int length, long remainingFileLength) {
+                    return blobReader.getRange(position, length, remainingFileLength);
+                }
+
+                @Override
+                public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
+                    threadPool.generic().execute(() -> {
+                        completingThread.set(Thread.currentThread());
+                        listener.onResponse(new ByteArrayInputStream(input, Math.toIntExact(position), length));
+                    });
+                }
+
+                @Override
+                public String executorName() {
+                    return blobReader.executorName();
+                }
+            };
+
+            final var cacheFileReader = new CacheFileReader(
+                cacheFile,
+                otherThreadBlobReader,
+                createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                cacheService.getBlobCacheMetrics(),
+                System::currentTimeMillis,
+                true
+            );
+
+            try (Arena arena = Arena.ofConfined()) {
+                final var scratch = arena.allocate(input.length);
+                final var buffer = scratch.asByteBuffer();
+                cacheFileReader.read(this, buffer, 0, input.length, input.length, "bypass read into confined arena");
+                assertThat(buffer.position(), equalTo(input.length));
+                assertNotNull(completingThread.get());
+                assertThat(completingThread.get(), not(equalTo(Thread.currentThread())));
+                assertEquals(-1L, scratch.mismatch(MemorySegment.ofArray(input)));
+            }
+        }
+    }
+
+    // When the cache evicts a region mid-read, CacheFileReader falls back to a bypass read straight from the blob reader. If its
+    // wait for that data fails, here because the reading thread is interrupted, the read is abandoned and the caller may free the
+    // destination buffer. The blob reader's listener can still complete later, on another thread: it must then close the stream, but
+    // neither read it nor write to the buffer. The destination here is a confined arena that is closed before the listener completes,
+    // so a late write would be a write to freed memory.
+    public void testAbandonedBypassReadDoesNotWriteAfterReturn() throws Exception {
+        final var regionSize = SharedBytes.PAGE_SIZE * between(1, 10);
+        final var settings = sharedCacheSettings(ByteSizeValue.ofBytes(regionSize * 10L), ByteSizeValue.ofBytes(regionSize));
+        try (
+            var nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = newCacheService(nodeEnvironment, settings, threadPool)
+        ) {
+            final var shardId = new ShardId(new Index(randomIndexName(), randomUUID()), 0);
+            final var fileName = randomIdentifier() + randomFileExtension();
+            final var input = randomByteArrayOfLength(between(1, regionSize));
+            final long primaryTerm = randomNonNegativeLong();
+
+            // the cache always reports the region as evicted, which forces the bypass read
+            final var cacheFile = spy(
+                cacheService.getCacheFile(
+                    new FileCacheKey(shardId, primaryTerm, fileName),
+                    input.length,
+                    SharedBlobCacheService.CacheMissHandler.NOOP,
+                    System.currentTimeMillis()
+                )
+            );
+            doThrow(new AlreadyClosedException("evicted")).when(cacheFile).populateAndRead(any(), any(), any(), any(), any());
+
+            // holds back the bypass read's blob data until the test completes the captured listener
+            final var blobReader = createBlobReader(fileName, input, cacheService);
+            final var bypassListener = new AtomicReference<ActionListener<InputStream>>();
+            final var bypassRequested = new CountDownLatch(1);
+            final CacheBlobReader heldBackBlobReader = new CacheBlobReader() {
+                @Override
+                public ByteRange getRange(long position, int length, long remainingFileLength) {
+                    return blobReader.getRange(position, length, remainingFileLength);
+                }
+
+                @Override
+                public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
+                    bypassListener.set(listener);
+                    bypassRequested.countDown();
+                }
+
+                @Override
+                public String executorName() {
+                    return blobReader.executorName();
+                }
+            };
+
+            final var cacheFileReader = new CacheFileReader(
+                cacheFile,
+                heldBackBlobReader,
+                createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                cacheService.getBlobCacheMetrics(),
+                System::currentTimeMillis,
+                true
+            );
+
+            final var readerThread = new AtomicReference<Thread>();
+            final var readFailure = new AtomicReference<Throwable>();
+            final var scratchUntouched = new AtomicBoolean();
+            final var readerDone = new CountDownLatch(1);
+            threadPool.generic().execute(() -> {
+                readerThread.set(Thread.currentThread());
+                try (Arena arena = Arena.ofConfined()) {
+                    final var scratch = arena.allocate(input.length);
+                    try {
+                        cacheFileReader.read(this, scratch.asByteBuffer(), 0, input.length, input.length, "abandoned bypass read");
+                    } catch (Throwable t) {
+                        readFailure.set(t);
+                    }
+                    scratchUntouched.set(scratch.mismatch(MemorySegment.ofArray(new byte[input.length])) == -1);
+                } finally {
+                    readerDone.countDown();
+                }
+            });
+
+            // wait for the bypass read to be blocked on the blob data, then abandon it by interrupting the wait
+            safeAwait(bypassRequested);
+            assertBusy(() -> assertThat(readerThread.get().getState(), equalTo(Thread.State.WAITING)));
+            readerThread.get().interrupt();
+            safeAwait(readerDone);
+            assertThat(readFailure.get(), instanceOf(InterruptedException.class));
+            assertTrue("nothing should have been written to the scratch segment", scratchUntouched.get());
+
+            // now the blob data shows up, after the read returned and its arena was closed
+            final var streamRead = new AtomicBoolean();
+            final var streamClosed = new AtomicBoolean();
+            bypassListener.get().onResponse(new InputStream() {
+                @Override
+                public int read() {
+                    streamRead.set(true);
+                    return -1;
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) {
+                    streamRead.set(true);
+                    return -1;
+                }
+
+                @Override
+                public void close() {
+                    streamClosed.set(true);
+                }
+            });
+            assertTrue("the stream should be closed", streamClosed.get());
+            assertFalse("the stream should not be read once the read was abandoned", streamRead.get());
         }
     }
 

@@ -3318,6 +3318,23 @@ public abstract class ESTestCase extends LuceneTestCase {
         runInParallel(tasks.length, i -> tasks[i].run());
     }
 
+    /**
+     * Runs {@code task} to completion on a new thread other than the calling one, which waits for it. Any failure of the task, including
+     * a failed assertion, is rethrown on the calling thread as an {@link AssertionError}.
+     */
+    public static void onOtherThread(CheckedRunnable<Exception> task) {
+        // runInParallel runs the last task on the calling thread and every other task on a new thread, so the task at index 0 is off-thread
+        runInParallel(2, i -> {
+            if (i == 0) {
+                try {
+                    task.run();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            }
+        });
+    }
+
     public static void ensureAllContextsReleased(SearchService searchService) {
         try {
             assertBusy(() -> {

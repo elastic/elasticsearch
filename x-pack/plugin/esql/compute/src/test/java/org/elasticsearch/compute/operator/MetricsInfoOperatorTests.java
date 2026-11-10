@@ -8,13 +8,18 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -25,6 +30,7 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class MetricsInfoOperatorTests extends OperatorTestCase {
 
@@ -1502,5 +1508,215 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
 
         op.close();
         assertThat(blockFactory.breaker().getUsed(), equalTo(usedBefore));
+    }
+
+    /** Every field named {@code metric.*} is a metric. All other fields are dimensions. */
+    private static final MetricsInfoOperator.MetricFieldLookup PREFIX_LOOKUP = (indexName, fieldName) -> fieldName.startsWith("metric.")
+        ? new MetricFieldInfo(fieldName, indexName, "double", "gauge", "percent")
+        : null;
+
+    /** Uncharged state lets many metrics across many data streams exhaust the heap before the breaker trips. */
+    public void testInitialModeChargesRetainedState() {
+        BlockFactory factory = blockFactory();
+        try (Operator op = createOperator(factory, false)) {
+            long retainedBefore = RetainedOperatorState.bytes(op);
+            long chargedBefore = factory.breaker().getUsed();
+            for (int ds = 0; ds < 64; ds++) {
+                String[] fields = new String[33];
+                for (int m = 0; m < 32; m++) {
+                    fields[m] = "metric." + m;
+                }
+                fields[32] = "host";
+                op.addInput(buildPage(factory, "ds-" + ds, fields));
+            }
+            long retained = RetainedOperatorState.bytes(op) - retainedBefore;
+            long charged = factory.breaker().getUsed() - chargedBefore;
+            assertThat(charged, greaterThanOrEqualTo(retained));
+        }
+    }
+
+    /** The coordinator receives fresh strings in every row, so nothing it keeps may go uncharged. */
+    public void testFinalModeChargesRetainedState() {
+        BlockFactory factory = blockFactory();
+        try (Operator op = createOperator(factory, true)) {
+            long retainedBefore = RetainedOperatorState.bytes(op);
+            long chargedBefore = factory.breaker().getUsed();
+            for (int ds = 0; ds < 64; ds++) {
+                for (int m = 0; m < 32; m++) {
+                    op.addInput(
+                        buildFinalPage(
+                            factory,
+                            "metric." + m,
+                            Set.of("ds-" + ds),
+                            Set.of("percent"),
+                            Set.of("gauge"),
+                            Set.of("double"),
+                            Set.of("host", "region")
+                        )
+                    );
+                }
+            }
+            long retained = RetainedOperatorState.bytes(op) - retainedBefore;
+            long charged = factory.breaker().getUsed() - chargedBefore;
+            assertThat(charged, greaterThanOrEqualTo(retained));
+        }
+    }
+
+    /** Entries share names, so a long dimension name is charged once instead of once per entry. */
+    public void testEntriesShareNames() {
+        String dimension = randomAlphaOfLength(4096);
+        BlockFactory factory = blockFactory();
+        try (Operator op = createOperator(factory, false)) {
+            op.addInput(buildPage(factory, "ds-0", "metric.cpu", dimension));
+            long usedAfterFirstEntry = factory.breaker().getUsed();
+            int additionalEntries = 100;
+            for (int ds = 1; ds <= additionalEntries; ds++) {
+                op.addInput(buildPage(factory, "ds-" + ds, "metric.cpu", dimension));
+            }
+            long bytesPerAdditionalEntry = (factory.breaker().getUsed() - usedAfterFirstEntry) / additionalEntries;
+            assertThat(bytesPerAdditionalEntry, lessThan(RamUsageEstimator.sizeOf(dimension)));
+        }
+    }
+
+    /**
+     * Dimension keys grow as documents and backing indices add keys. The charge must follow the current keys, not
+     * every intermediate version of the list.
+     */
+    public void testGrowingDimensionKeysChargeOnlyTheCurrentList() {
+        BlockFactory factory = blockFactory();
+        try (Operator op = createOperator(factory, false)) {
+            long retainedBefore = RetainedOperatorState.bytes(op);
+            long chargedBefore = factory.breaker().getUsed();
+            for (int i = 0; i < 512; i++) {
+                op.addInput(buildPage(factory, "ds", "metric.cpu", "dimension" + i));
+            }
+            long retained = RetainedOperatorState.bytes(op) - retainedBefore;
+            long charged = factory.breaker().getUsed() - chargedBefore;
+            assertThat(charged, greaterThanOrEqualTo(retained));
+            assertThat(charged, lessThan(3 * retained));
+        }
+    }
+
+    /** The driver can keep a finished operator open, so its state must not outlive the output page. */
+    public void testGetOutputReleasesAccumulatedState() {
+        for (boolean finalMode : new boolean[] { false, true }) {
+            BlockFactory factory = blockFactory();
+            try (Operator op = createOperator(factory, finalMode)) {
+                for (int ds = 0; ds < 16; ds++) {
+                    if (finalMode) {
+                        op.addInput(
+                            buildFinalPage(
+                                factory,
+                                "metric.cpu",
+                                Set.of("ds-" + ds),
+                                Set.of("percent"),
+                                Set.of("gauge"),
+                                Set.of("double"),
+                                Set.of("host")
+                            )
+                        );
+                    } else {
+                        op.addInput(buildPage(factory, "ds-" + ds, "metric.cpu", "host"));
+                    }
+                }
+                op.finish();
+                Page output = op.getOutput();
+                assertThat(output.getPositionCount(), equalTo(1));
+                output.releaseBlocks();
+                assertThat(factory.breaker().getUsed(), equalTo(0L));
+            }
+        }
+    }
+
+    /** Multi-valued columns are sorted, so results do not depend on hash iteration order. */
+    public void testMultiValuedColumnsAreSorted() {
+        BlockFactory factory = blockFactory();
+        try (Operator op = createOperator(factory, true)) {
+            op.addInput(
+                buildFinalPage(
+                    factory,
+                    "metric.cpu",
+                    new LinkedHashSet<>(List.of("ds-c", "ds-a", "ds-b")),
+                    new LinkedHashSet<>(List.of("ratio", "percent")),
+                    Set.of("gauge"),
+                    Set.of("double"),
+                    new LinkedHashSet<>(List.of("region", "host", "az"))
+                )
+            );
+            op.finish();
+            Page output = op.getOutput();
+            try {
+                assertThat(readOrderedValues(output.getBlock(1), 0), equalTo(List.of("ds-a", "ds-b", "ds-c")));
+                assertThat(readOrderedValues(output.getBlock(2), 0), equalTo(List.of("percent", "ratio")));
+                assertThat(readOrderedValues(output.getBlock(5), 0), equalTo(List.of("az", "host", "region")));
+            } finally {
+                output.releaseBlocks();
+            }
+        }
+    }
+
+    /** Coordinator memory pressure can interrupt accumulation before the operator reaches finish. */
+    public void testFinalModeInputCircuitBreaking() {
+        BlockFactory inputFactory = blockFactory();
+        BlockFactory operatorFactory = blockFactory(ByteSizeValue.ofKb(randomIntBetween(1, 32)));
+        expectThrows(CircuitBreakingException.class, () -> {
+            try (Operator op = createOperator(operatorFactory, true)) {
+                for (int ds = 0; ds < 512; ds++) {
+                    op.addInput(
+                        buildFinalPage(
+                            inputFactory,
+                            "metric.cpu",
+                            Set.of("ds-" + ds),
+                            Set.of("percent"),
+                            Set.of("gauge"),
+                            Set.of("double"),
+                            Set.of("host")
+                        )
+                    );
+                }
+            }
+        });
+        assertThat(operatorFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    /** Allocation failures can interrupt an entry or a shared value half way through being recorded. */
+    public void testFinalModeWithCrankyBreaker() {
+        BlockFactory inputFactory = blockFactory();
+        testWithCrankyBlockFactory(factory -> {
+            try (Operator op = createOperator(factory, true)) {
+                for (int i = 0; i < 512; i++) {
+                    op.addInput(
+                        buildFinalPage(
+                            inputFactory,
+                            "metric." + (i % 7),
+                            Set.of("ds-" + (i % 13)),
+                            Set.of(i % 2 == 0 ? "percent" : "ratio"),
+                            Set.of("gauge"),
+                            Set.of("double"),
+                            Set.of("host", "dimension" + (i % 5))
+                        )
+                    );
+                }
+                op.finish();
+                Page output = op.getOutput();
+                output.releaseBlocks();
+            }
+        });
+    }
+
+    private static Operator createOperator(BlockFactory factory, boolean finalMode) {
+        DriverContext context = new DriverContext(factory.bigArrays(), factory, null);
+        return finalMode
+            ? new MetricsInfoOperator.FinalFactory(FINAL_CHANNELS).get(context)
+            : new MetricsInfoOperator.Factory(PREFIX_LOOKUP, Map.of(), INDEX_CHANNEL, FIELD_NAMES_CHANNEL).get(context);
+    }
+
+    private static List<String> readOrderedValues(BytesRefBlock block, int position) {
+        List<String> values = new ArrayList<>();
+        int start = block.getFirstValueIndex(position);
+        for (int i = start; i < start + block.getValueCount(position); i++) {
+            values.add(block.getBytesRef(i, new BytesRef()).utf8ToString());
+        }
+        return values;
     }
 }

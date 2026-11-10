@@ -1198,29 +1198,23 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * the cluster's failure, but no {@link SearchResponse} reader charges a breaker today.
      */
     static final class RemoteResponseHandler extends ActionListenerResponseHandler<SearchResponse> {
-        private final CircuitBreaker circuitBreaker;
-        private volatile CircuitBreakingException reservationTrip;
+        private final ShardResponseReservation reservation;
 
         RemoteResponseHandler(ActionListener<? super SearchResponse> listener, Executor executor, CircuitBreaker circuitBreaker) {
             super(listener, SearchResponse::new, executor);
-            this.circuitBreaker = circuitBreaker;
+            this.reservation = new ShardResponseReservation(circuitBreaker, SearchResponseMerger.BREAKER_LABEL, listener::onFailure);
         }
 
         @Override
         public Releasable reserveResponseBytes(int bytes) {
-            try {
-                circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, SearchResponseMerger.BREAKER_LABEL);
-            } catch (CircuitBreakingException e) {
-                reservationTrip = e;
-                throw e;
-            }
-            return Releasables.assertOnce(() -> circuitBreaker.addWithoutBreaking(-bytes, SearchResponseMerger.BREAKER_LABEL));
+            return reservation.reserve(bytes);
         }
 
         @Override
         public void handleException(TransportException e) {
-            CircuitBreakingException trip = reservationTrip;
-            listener.onFailure(trip != null ? trip : e);
+            if (reservation.reportTrip() == false) {
+                listener.onFailure(e);
+            }
         }
     }
 

@@ -165,7 +165,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                 logger.trace("built an ESCF batch of [{}] rows for [{}]", totalItems, firstTarget);
                 return context;
             }
-            logger.trace("[{}] is batch-indexed but a data point or attribute value is not expressible as ESCF columns", firstTarget);
+            logger.debug("[{}] is batch-indexed but a data point or attribute value is not expressible as ESCF columns", firstTarget);
         }
 
         MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, defaultMappingHints);

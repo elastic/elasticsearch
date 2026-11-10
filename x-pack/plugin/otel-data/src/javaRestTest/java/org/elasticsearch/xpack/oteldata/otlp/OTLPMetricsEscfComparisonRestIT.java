@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.oteldata.otlp;
 
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.common.AttributesBuilder;
+import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporter;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
 import io.opentelemetry.proto.common.v1.AnyValue;
@@ -21,6 +25,16 @@ import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
 import io.opentelemetry.proto.metrics.v1.ScopeMetrics;
 import io.opentelemetry.proto.metrics.v1.Sum;
 import io.opentelemetry.proto.resource.v1.Resource;
+import io.opentelemetry.sdk.common.CompletableResultCode;
+import io.opentelemetry.sdk.common.InstrumentationScopeInfo;
+import io.opentelemetry.sdk.metrics.data.DoublePointData;
+import io.opentelemetry.sdk.metrics.data.LongPointData;
+import io.opentelemetry.sdk.metrics.data.MetricData;
+import io.opentelemetry.sdk.metrics.internal.data.ImmutableDoublePointData;
+import io.opentelemetry.sdk.metrics.internal.data.ImmutableGaugeData;
+import io.opentelemetry.sdk.metrics.internal.data.ImmutableLongPointData;
+import io.opentelemetry.sdk.metrics.internal.data.ImmutableMetricData;
+import io.opentelemetry.sdk.metrics.internal.data.ImmutableSumData;
 
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
@@ -45,13 +59,16 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import static io.opentelemetry.sdk.metrics.data.AggregationTemporality.CUMULATIVE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -71,13 +88,18 @@ import static org.hamcrest.Matchers.greaterThan;
  * <p>Per-shard doc-count equality across the two three-shard streams further validates that both paths
  * route documents to the same shards.
  *
- * <p>The payload is built as OTLP protobuf directly rather than through the OpenTelemetry SDK, because the
- * SDK's {@code Attributes} API can only express a fixed set of attribute shapes. Attributes are entirely
- * random: which keys exist at each level, which shape from {@link AttributeShape} each key uses, which
- * subset of keys each series carries (possibly none) and their values. Because a single unsupported value
- * makes the whole export fall back to
- * doc mode — which would make this comparison pass vacuously — the test also asserts that the ESCF path was
- * genuinely taken; see {@link #countEscfBatches()}.
+ * <p>Attributes are entirely random: which keys exist at each level, which shape from {@link AttributeShape}
+ * each key uses, which subset of keys each series carries (possibly none) and their values. The payload is
+ * sent in two ways, one per test:
+ * <ul>
+ *   <li>{@link #testProtobufPayloads()} builds OTLP protobuf directly, which can express every shape.</li>
+ *   <li>{@link #testSdkPayloads()} goes end to end through the OpenTelemetry SDK's exporter, as real clients do.
+ *       Its {@code Attributes} API can only express {@link #SDK_SHAPES}, but it provides a real end-to-end test.</li>
+ * </ul>
+ *
+ * <p>Because a single unsupported value makes the whole export fall back to doc mode — which would make this
+ * comparison pass vacuously — both tests also assert that the ESCF path was genuinely taken; see
+ * {@link #countEscfBatches()}.
  */
 public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
 
@@ -115,7 +137,9 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    // Templates are installed on the first @Before and deleted in @AfterClass.
+    // Shared across all iterations: created on the first @Before, shut down in @AfterClass.
+    // Templates are also installed once and deleted in @AfterClass.
+    private static OtlpHttpMetricExporter sdkExporter;
     private static volatile boolean classSetupDone = false;
 
     /**
@@ -131,6 +155,10 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
     @AfterClass
     public static void teardownClass() throws Exception {
         classSetupDone = false;
+        if (sdkExporter != null) {
+            sdkExporter.shutdown();
+            sdkExporter = null;
+        }
         try {
             client().performRequest(new Request("DELETE", "_index_template/metrics-docmode.otel-template"));
         } catch (Exception ignored) {}
@@ -156,6 +184,10 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
             // Install the ESCF template — same but with index.batch_indexing: true.
             installTemplate("metrics-escf.otel-template", "metrics-escf.otel-*", true);
 
+            // Build the exporter once. Security is disabled so no auth header is needed.
+            String firstHost = cluster.getHttpAddresses().split(",")[0].trim();
+            sdkExporter = OtlpHttpMetricExporter.builder().setEndpoint("http://" + firstHost + "/_otlp/v1/metrics").build();
+
             classSetupDone = true;
         }
     }
@@ -176,9 +208,19 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
         }
     }
 
+    /** Sends payloads built as OTLP protobuf directly, which can carry every {@link AttributeShape}. */
+    public void testProtobufPayloads() throws Exception {
+        assertEscfMatchesDocMode(randomWorkload(EnumSet.allOf(AttributeShape.class)), OTLPMetricsEscfComparisonRestIT::exportProto);
+    }
+
+    /** Sends payloads end to end through the OpenTelemetry SDK's exporter, limited to {@link #SDK_SHAPES}. */
+    public void testSdkPayloads() throws Exception {
+        assertEscfMatchesDocMode(randomWorkload(SDK_SHAPES), OTLPMetricsEscfComparisonRestIT::exportSdk);
+    }
+
     /**
      * Sends identical OTLP payloads (differentiated only by {@code data_stream.dataset} resource attribute)
-     * to a doc-mode stream and an ESCF-enabled stream, then verifies:
+     * through {@code sender} to a doc-mode stream and an ESCF-enabled stream, then verifies:
      * <ol>
      *   <li>No data point is rejected, and both streams contain the same number of documents. The count is
      *       not predicted, because metrics that happen to share an attribute set merge into one document.</li>
@@ -190,8 +232,7 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
      *   <li>Every export to the ESCF stream was actually written through the ESCF path.</li>
      * </ol>
      */
-    public void testEscfProducesSameDocumentsAsDocMode() throws Exception {
-        Workload workload = randomWorkload();
+    private void assertEscfMatchesDocMode(Workload workload, Sender sender) throws Exception {
         int numTimestamps = randomIntBetween(1, 20);
         // Each OTLP message (MetricData) covers 1–5 consecutive timestamps, which exercises splitting a
         // multi-timestamp message into one TSDB document per (timestamp, attribute set).
@@ -211,9 +252,9 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
         createDataStream(ESCF_STREAM);
         // The doc-mode template has no index.batch_indexing setting, so its exports take the
         // XContent path even though indices.batch_indexing is enabled cluster-wide.
-        populate(DOCMODE_DATASET, workload, timestamps, numTimestampsPerMsg, numSplits);
+        populate(sender, DOCMODE_DATASET, workload, timestamps, numTimestampsPerMsg, numSplits);
         int escfBatchesBefore = countEscfBatches();
-        int escfExports = populate(ESCF_DATASET, workload, timestamps, numTimestampsPerMsg, numSplits);
+        int escfExports = populate(sender, ESCF_DATASET, workload, timestamps, numTimestampsPerMsg, numSplits);
         assertThat(
             "every ESCF export must have been written as an ESCF batch",
             countEscfBatches() - escfBatchesBefore,
@@ -264,10 +305,6 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Workload builders
-    // -------------------------------------------------------------------------
-
     /**
      * The attribute value shapes the ESCF path supports. Bytes values, key-value (object) values and arrays
      * nested inside arrays are deliberately
@@ -297,6 +334,18 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
         UNSET
     }
 
+    /** The shapes the OpenTelemetry SDK's {@code Attributes} API can express: scalars and homogeneous arrays. */
+    private static final Set<AttributeShape> SDK_SHAPES = EnumSet.of(
+        AttributeShape.STRING,
+        AttributeShape.LONG,
+        AttributeShape.DOUBLE,
+        AttributeShape.BOOLEAN,
+        AttributeShape.STRING_ARRAY,
+        AttributeShape.LONG_ARRAY,
+        AttributeShape.DOUBLE_ARRAY,
+        AttributeShape.BOOLEAN_ARRAY
+    );
+
     /** An attribute key together with the single value shape it uses for the whole run. */
     private record AttributeSpec(String key, AttributeShape shape) {}
 
@@ -323,15 +372,17 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
         List<List<List<KeyValue>>> dataPointAttributes
     ) {}
 
-    private static Workload randomWorkload() {
+    /** A random workload whose attribute keys only use {@code shapes}. */
+    private static Workload randomWorkload(Set<AttributeShape> shapes) {
         List<MetricSpec> metrics = new ArrayList<>();
         for (int m = 0, numMetrics = randomIntBetween(1, 6); m < numMetrics; m++) {
             metrics.add(new MetricSpec("metric." + m, randomBoolean(), randomBoolean()));
         }
 
-        List<AttributeSpec> resourceSchema = randomAttributeSchema("test.resource");
-        List<AttributeSpec> scopeSchema = randomAttributeSchema("test.scope");
-        List<AttributeSpec> dataPointSchema = randomAttributeSchema("test.datapoint");
+        List<AttributeShape> shapeList = List.copyOf(shapes);
+        List<AttributeSpec> resourceSchema = randomAttributeSchema("test.resource", shapeList);
+        List<AttributeSpec> scopeSchema = randomAttributeSchema("test.scope", shapeList);
+        List<AttributeSpec> dataPointSchema = randomAttributeSchema("test.datapoint", shapeList);
 
         List<List<KeyValue>> resourceAttributes = distinctRandomAttributes(resourceSchema, randomIntBetween(1, 3));
         List<List<List<KeyValue>>> dataPointAttributes = new ArrayList<>(metrics.size());
@@ -380,13 +431,13 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
     }
 
     /**
-     * Between zero and eight keys, each with a random shape. A key keeps its shape for the whole run, which
-     * is what keeps dynamic mapping deterministic; see {@link AttributeShape}.
+     * Between zero and eight keys, each with a random shape from {@code shapes}. A key keeps its shape for the
+     * whole run, which is what keeps dynamic mapping deterministic; see {@link AttributeShape}.
      */
-    private static List<AttributeSpec> randomAttributeSchema(String prefix) {
+    private static List<AttributeSpec> randomAttributeSchema(String prefix, List<AttributeShape> shapes) {
         List<AttributeSpec> schema = new ArrayList<>();
         for (int i = 0, numKeys = randomIntBetween(0, 8); i < numKeys; i++) {
-            schema.add(new AttributeSpec(prefix + ".attr" + i, randomFrom(AttributeShape.values())));
+            schema.add(new AttributeSpec(prefix + ".attr" + i, randomFrom(shapes)));
         }
         return schema;
     }
@@ -463,9 +514,14 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
         return KeyValue.newBuilder().setKey(key).setValue(stringValue(value)).build();
     }
 
-    // -------------------------------------------------------------------------
-    // Export
-    // -------------------------------------------------------------------------
+    /** The data points of one metric of one resource at a few consecutive timestamps. */
+    private record Message(int resourceIdx, int metricIdx, long[] timestamps) {}
+
+    /** Encodes {@code messages} as a single OTLP export and sends it to the data stream selected by {@code dataset}. */
+    @FunctionalInterface
+    private interface Sender {
+        void send(String dataset, Workload workload, List<Message> messages) throws IOException;
+    }
 
     /**
      * Sends {@code workload} to the data stream selected by {@code dataset}. Timestamps are grouped into
@@ -474,24 +530,24 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
      *
      * @return the number of exports sent
      */
-    private int populate(String dataset, Workload workload, long[] timestamps, int numTimestampsPerMsg, int numSplits) throws IOException {
-        List<ExportMetricsServiceRequest.Builder> splits = new ArrayList<>(numSplits);
+    private static int populate(Sender sender, String dataset, Workload workload, long[] timestamps, int numTimestampsPerMsg, int numSplits)
+        throws IOException {
+        List<List<Message>> splits = new ArrayList<>(numSplits);
         for (int s = 0; s < numSplits; s++) {
-            splits.add(ExportMetricsServiceRequest.newBuilder());
+            splits.add(new ArrayList<>());
         }
         for (int msgStart = 0; msgStart < timestamps.length; msgStart += numTimestampsPerMsg) {
             long[] msgTimestamps = Arrays.copyOfRange(timestamps, msgStart, Math.min(msgStart + numTimestampsPerMsg, timestamps.length));
             for (int r = 0; r < workload.resourceAttributes().size(); r++) {
                 for (int m = 0; m < workload.metrics().size(); m++) {
-                    Metric metric = buildMetric(workload, m, r, msgTimestamps);
-                    splits.get(m % numSplits).addResourceMetrics(buildResourceMetrics(dataset, workload, r, metric));
+                    splits.get(m % numSplits).add(new Message(r, m, msgTimestamps));
                 }
             }
         }
         int exports = 0;
-        for (ExportMetricsServiceRequest.Builder split : splits) {
-            if (split.getResourceMetricsCount() > 0) {
-                export(split.build());
+        for (List<Message> split : splits) {
+            if (split.isEmpty() == false) {
+                sender.send(dataset, workload, split);
                 exports++;
             }
         }
@@ -522,10 +578,7 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
             .build();
     }
 
-    /**
-     * Builds one metric carrying one data point per (attribute set, timestamp) pair. Point values are derived
-     * from the indices rather than randomised, so that a monotonic sum never receives a negative value.
-     */
+    /** Builds one metric carrying one data point per (attribute set, timestamp) pair. */
     private static Metric buildMetric(Workload workload, int metricIdx, int resourceIdx, long[] msgTimestamps) {
         MetricSpec spec = workload.metrics().get(metricIdx);
         List<List<KeyValue>> attributeSets = workload.dataPointAttributes().get(metricIdx);
@@ -536,7 +589,7 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
                     .setTimeUnixNano(timestamp)
                     .setStartTimeUnixNano(timestamp)
                     .addAllAttributes(attributeSets.get(a));
-                long value = resourceIdx * 10_000L + a * 100L + metricIdx;
+                long value = pointValue(resourceIdx, a, metricIdx);
                 points.add(spec.longValued() ? point.setAsInt(value).build() : point.setAsDouble(value + 0.5).build());
             }
         }
@@ -552,9 +605,20 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
             : metric.setGauge(Gauge.newBuilder().addAllDataPoints(points).build()).build();
     }
 
-    private void export(ExportMetricsServiceRequest metricsRequest) throws IOException {
+    /** Point values are derived from the indices rather than randomised, so a monotonic sum never goes negative. */
+    private static long pointValue(int resourceIdx, int attributeSetIdx, int metricIdx) {
+        return resourceIdx * 10_000L + attributeSetIdx * 100L + metricIdx;
+    }
+
+    /** Builds the export as OTLP protobuf directly, wrapping every message in its own resource and scope. */
+    private static void exportProto(String dataset, Workload workload, List<Message> messages) throws IOException {
+        ExportMetricsServiceRequest.Builder metricsRequest = ExportMetricsServiceRequest.newBuilder();
+        for (Message message : messages) {
+            Metric metric = buildMetric(workload, message.metricIdx(), message.resourceIdx(), message.timestamps());
+            metricsRequest.addResourceMetrics(buildResourceMetrics(dataset, workload, message.resourceIdx(), metric));
+        }
         Request request = new Request("POST", "/_otlp/v1/metrics");
-        request.setEntity(new ByteArrayEntity(metricsRequest.toByteArray(), ContentType.create("application/x-protobuf")));
+        request.setEntity(new ByteArrayEntity(metricsRequest.build().toByteArray(), ContentType.create("application/x-protobuf")));
         Response response = client().performRequest(request);
         assertOK(response);
         ExportMetricsServiceResponse metricsResponse = ExportMetricsServiceResponse.parseFrom(response.getEntity().getContent());
@@ -565,13 +629,95 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
         );
     }
 
+    /**
+     * Sends the export through the OpenTelemetry SDK's exporter, which groups all metrics of a resource and
+     * scope into one message. The SDK only reports partial success in its own log, so rejected data points
+     * surface as missing documents instead.
+     */
+    private static void exportSdk(String dataset, Workload workload, List<Message> messages) {
+        InstrumentationScopeInfo scope = InstrumentationScopeInfo.builder(SCOPE_NAME)
+            .setVersion(SCOPE_VERSION)
+            .setAttributes(sdkAttributes(workload.scopeAttributes()))
+            .build();
+        List<MetricData> metrics = new ArrayList<>(messages.size());
+        for (Message message : messages) {
+            metrics.add(buildSdkMetric(dataset, workload, scope, message));
+        }
+        CompletableResultCode result = sdkExporter.export(metrics).join(30, TimeUnit.SECONDS);
+        assertTrue("SDK export must succeed", result.isSuccess());
+    }
+
+    /** The SDK counterpart of {@link #buildResourceMetrics} and {@link #buildMetric}. */
+    private static MetricData buildSdkMetric(String dataset, Workload workload, InstrumentationScopeInfo scope, Message message) {
+        MetricSpec spec = workload.metrics().get(message.metricIdx());
+        io.opentelemetry.sdk.resources.Resource resource = io.opentelemetry.sdk.resources.Resource.create(
+            sdkAttributes(workload.resourceAttributes().get(message.resourceIdx())).toBuilder().put("data_stream.dataset", dataset).build()
+        );
+        List<List<KeyValue>> attributeSets = workload.dataPointAttributes().get(message.metricIdx());
+        if (spec.longValued()) {
+            List<LongPointData> points = new ArrayList<>();
+            for (long timestamp : message.timestamps()) {
+                for (int a = 0; a < attributeSets.size(); a++) {
+                    long value = pointValue(message.resourceIdx(), a, message.metricIdx());
+                    points.add(ImmutableLongPointData.create(timestamp, timestamp, sdkAttributes(attributeSets.get(a)), value));
+                }
+            }
+            return spec.sum()
+                ? ImmutableMetricData.createLongSum(
+                    resource,
+                    scope,
+                    spec.name(),
+                    "",
+                    "1",
+                    ImmutableSumData.create(true, CUMULATIVE, points)
+                )
+                : ImmutableMetricData.createLongGauge(resource, scope, spec.name(), "", "1", ImmutableGaugeData.create(points));
+        }
+        List<DoublePointData> points = new ArrayList<>();
+        for (long timestamp : message.timestamps()) {
+            for (int a = 0; a < attributeSets.size(); a++) {
+                double value = pointValue(message.resourceIdx(), a, message.metricIdx()) + 0.5;
+                points.add(ImmutableDoublePointData.create(timestamp, timestamp, sdkAttributes(attributeSets.get(a)), value));
+            }
+        }
+        return spec.sum()
+            ? ImmutableMetricData.createDoubleSum(resource, scope, spec.name(), "", "1", ImmutableSumData.create(true, CUMULATIVE, points))
+            : ImmutableMetricData.createDoubleGauge(resource, scope, spec.name(), "", "1", ImmutableGaugeData.create(points));
+    }
+
+    /** Converts protobuf attributes to SDK {@link Attributes}; only {@link #SDK_SHAPES} can be converted. */
+    private static Attributes sdkAttributes(List<KeyValue> attributes) {
+        AttributesBuilder builder = Attributes.builder();
+        for (KeyValue kv : attributes) {
+            AnyValue value = kv.getValue();
+            switch (value.getValueCase()) {
+                case STRING_VALUE -> builder.put(kv.getKey(), value.getStringValue());
+                case INT_VALUE -> builder.put(kv.getKey(), value.getIntValue());
+                case DOUBLE_VALUE -> builder.put(kv.getKey(), value.getDoubleValue());
+                case BOOL_VALUE -> builder.put(kv.getKey(), value.getBoolValue());
+                case ARRAY_VALUE -> putSdkArray(builder, kv.getKey(), value.getArrayValue().getValuesList());
+                case BYTES_VALUE, KVLIST_VALUE, VALUE_NOT_SET -> throw new IllegalArgumentException("not expressible in the SDK: " + kv);
+            }
+        }
+        return builder.build();
+    }
+
+    /** Puts a non-empty, homogeneous array, typed by its first element. */
+    private static void putSdkArray(AttributesBuilder builder, String key, List<AnyValue> elements) {
+        switch (elements.getFirst().getValueCase()) {
+            case STRING_VALUE -> builder.put(AttributeKey.stringArrayKey(key), elements.stream().map(AnyValue::getStringValue).toList());
+            case INT_VALUE -> builder.put(AttributeKey.longArrayKey(key), elements.stream().map(AnyValue::getIntValue).toList());
+            case DOUBLE_VALUE -> builder.put(AttributeKey.doubleArrayKey(key), elements.stream().map(AnyValue::getDoubleValue).toList());
+            case BOOL_VALUE -> builder.put(AttributeKey.booleanArrayKey(key), elements.stream().map(AnyValue::getBoolValue).toList());
+            case ARRAY_VALUE, BYTES_VALUE, KVLIST_VALUE, VALUE_NOT_SET -> throw new IllegalArgumentException(
+                "not expressible in the SDK: " + key + "=" + elements
+            );
+        }
+    }
+
     private static void refreshAll() throws IOException {
         assertOK(client().performRequest(new Request("POST", "metrics-*.otel-default/_refresh")));
     }
-
-    // -------------------------------------------------------------------------
-    // Index-template installation
-    // -------------------------------------------------------------------------
 
     /**
      * Installs an index template that overrides {@code metrics-otel@template} (priority 120) for the given
@@ -627,10 +773,6 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
             """.replace("$PATTERN", pattern).replace("$BATCH_INDEXING_SETTING", batchIndexingSetting));
         assertOK(client().performRequest(request));
     }
-
-    // -------------------------------------------------------------------------
-    // Assertion helpers
-    // -------------------------------------------------------------------------
 
     /**
      * Returns the mappings of the single backing index of {@code target}, with the {@code data_stream.dataset}

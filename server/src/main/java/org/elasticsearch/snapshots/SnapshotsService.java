@@ -2883,6 +2883,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     /// Called when a [RepositoryData] write task completes and there are no more tasks to run, so the repository is idle again.
     /// Must be called by the task that currently holds the repository's slot in [#repositoriesRunningRepositoryDataWriteTasks].
     private void endRepositoryDataWriteTask(ProjectId projectId, String repository) {
+        assert lifecycle.stoppedOrClosed() || MasterService.assertMasterUpdateOrTestThread(); // nothing can have become ready concurrently
         final boolean removed = repositoriesRunningRepositoryDataWriteTasks.remove(new ProjectRepo(projectId, repository));
         assert removed : "repository [" + projectRepoString(projectId, repository) + "] was not running a RepositoryData write";
     }

@@ -89,6 +89,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils
 import static org.elasticsearch.xpack.stateless.TestUtils.NOOP_TIME_PROVIDER;
 import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomNonZeroPositiveLong;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheFile;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -153,7 +154,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                             randomRegionTimestampMillis()
                         ),
                         createBlobReader(fileName, input, sharedBlobCacheService),
-                        createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                        createBlobFileRanges(primaryTerm, 1L, 0, input.length),
                         BlobCacheMetrics.NOOP,
                         System::currentTimeMillis,
                         true
@@ -182,7 +183,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
             final String fileName = randomAlphaOfLength(5) + randomFileExtension();
             final byte[] input = randomChecksumBytes((int) fileSize.getBytes()).v2();
-            final var termAndGen = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomNonNegativeLong());
+            final var termAndGen = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomNonZeroPositiveLong());
 
             final var blobContainer = new FilterBlobContainer(TestUtils.singleBlobContainer(fileName, input)) {
                 @Override
@@ -304,7 +305,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             final ShardId shardId = new ShardId(new Index(randomIndexName(), randomUUID()), 0);
             final String fileName = randomAlphaOfLength(5) + randomFileExtension();
             final byte[] input = randomChecksumBytes((int) fileSize.getBytes()).v2();
-            final var termAndGen = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomNonNegativeLong());
+            final var termAndGen = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomNonZeroPositiveLong());
             final var tracker = new AtomicMutableObjectStoreUploadTracker();
             final var blobContainer = TestUtils.singleBlobContainer(fileName, input);
 
@@ -442,7 +443,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                         randomRegionTimestampMillis()
                     ),
                     createBlobReader(fileName, input, sharedBlobCacheService),
-                    createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                    createBlobFileRanges(primaryTerm, 1L, 0, input.length),
                     BlobCacheMetrics.NOOP,
                     System::currentTimeMillis,
                     true
@@ -476,7 +477,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         ) {
             final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
             final long primaryTerm = randomNonNegativeLong();
-            final long generation = randomNonNegativeLong();
+            final long generation = randomNonZeroPositiveLong();
             final String blobName = BatchedCompoundCommit.blobNameFromGeneration(generation);
             // Create a blob with data span from 2 to 4 regions
             final int numberRegions = between(2, 4);
@@ -774,7 +775,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                         randomRegionTimestampMillis()
                     ),
                     createBlobReader(fileName, input, sharedBlobCacheService),
-                    createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                    createBlobFileRanges(primaryTerm, 1L, 0, input.length),
                     BlobCacheMetrics.NOOP,
                     System::currentTimeMillis,
                     true
@@ -844,7 +845,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                         randomRegionTimestampMillis()
                     ),
                     createBlobReader(fileName, input, sharedBlobCacheService),
-                    createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                    createBlobFileRanges(primaryTerm, 1L, 0, input.length),
                     BlobCacheMetrics.NOOP,
                     System::currentTimeMillis,
                     true
@@ -912,7 +913,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                         randomRegionTimestampMillis()
                     ),
                     createBlobReader(fileName, input, sharedBlobCacheService),
-                    createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                    createBlobFileRanges(primaryTerm, 1L, 0, input.length),
                     BlobCacheMetrics.NOOP,
                     System::currentTimeMillis,
                     true
@@ -1021,7 +1022,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                         randomRegionTimestampMillis()
                     ),
                     createBlobReader(fileName, input, sharedBlobCacheService),
-                    createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                    createBlobFileRanges(primaryTerm, 1L, 0, input.length),
                     BlobCacheMetrics.NOOP,
                     System::currentTimeMillis,
                     true
@@ -1080,7 +1081,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                         randomRegionTimestampMillis()
                     ),
                     createBlobReader(fileNameA, inputA, sharedBlobCacheService),
-                    createBlobFileRanges(primaryTerm, 0L, 0, inputA.length),
+                    createBlobFileRanges(primaryTerm, 1L, 0, inputA.length),
                     BlobCacheMetrics.NOOP,
                     System::currentTimeMillis,
                     true
@@ -1119,7 +1120,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                             randomRegionTimestampMillis()
                         ),
                         createBlobReader(evictFileName, evictInput, sharedBlobCacheService),
-                        createBlobFileRanges(primaryTerm, 0L, 0, evictInput.length),
+                        createBlobFileRanges(primaryTerm, 1L, 0, evictInput.length),
                         BlobCacheMetrics.NOOP,
                         System::currentTimeMillis,
                         true
@@ -1208,7 +1209,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             final var cacheFileReader = new CacheFileReader(
                 cacheFile,
                 createBlobReader(fileName, input, cacheService),
-                createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                createBlobFileRanges(primaryTerm, 1L, 0, input.length),
                 metrics,
                 System::currentTimeMillis,
                 true
@@ -1472,7 +1473,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                         randomRegionTimestampMillis()
                     ),
                     createBlobReader(fileName, input, sharedBlobCacheService),
-                    createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                    createBlobFileRanges(primaryTerm, 1L, 0, input.length),
                     BlobCacheMetrics.NOOP,
                     System::currentTimeMillis,
                     true
@@ -1537,7 +1538,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                         randomRegionTimestampMillis()
                     ),
                     createBlobReader(fileName, input, sharedBlobCacheService),
-                    createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                    createBlobFileRanges(primaryTerm, 1L, 0, input.length),
                     BlobCacheMetrics.NOOP,
                     System::currentTimeMillis,
                     true
@@ -1603,7 +1604,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                         randomRegionTimestampMillis()
                     ),
                     createBlobReader(fileName, input, sharedBlobCacheService),
-                    createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                    createBlobFileRanges(primaryTerm, 1L, 0, input.length),
                     BlobCacheMetrics.NOOP,
                     System::currentTimeMillis,
                     true
@@ -1661,7 +1662,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                         randomRegionTimestampMillis()
                     ),
                     createBlobReader(fileNameA, inputA, sharedBlobCacheService),
-                    createBlobFileRanges(primaryTerm, 0L, 0, inputA.length),
+                    createBlobFileRanges(primaryTerm, 1L, 0, inputA.length),
                     BlobCacheMetrics.NOOP,
                     System::currentTimeMillis,
                     true
@@ -1708,7 +1709,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                             randomRegionTimestampMillis()
                         ),
                         createBlobReader(evictFileName, evictInput, sharedBlobCacheService),
-                        createBlobFileRanges(primaryTerm, 0L, 0, evictInput.length),
+                        createBlobFileRanges(primaryTerm, 1L, 0, evictInput.length),
                         BlobCacheMetrics.NOOP,
                         System::currentTimeMillis,
                         true
@@ -1746,7 +1747,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         final CacheFileReader cacheFileReader = new CacheFileReader(
             cacheFile,
             cacheBlobReader,
-            createBlobFileRanges(primaryTerm, 0L, 0, (int) fileLength),
+            createBlobFileRanges(primaryTerm, 1L, 0, (int) fileLength),
             BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             true
@@ -1799,7 +1800,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         final CacheFileReader cacheFileReader = new CacheFileReader(
             cacheFile,
             cacheBlobReader,
-            createBlobFileRanges(randomNonNegativeLong(), 0L, 0, (int) fileLength),
+            createBlobFileRanges(randomNonNegativeLong(), 1L, 0, (int) fileLength),
             metrics,
             System::currentTimeMillis,
             true
@@ -1860,7 +1861,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         final CacheFileReader cacheFileReader = new CacheFileReader(
             cacheFile,
             cacheBlobReader,
-            createBlobFileRanges(randomNonNegativeLong(), 0L, 0, (int) fileLength),
+            createBlobFileRanges(randomNonNegativeLong(), 1L, 0, (int) fileLength),
             metrics,
             System::currentTimeMillis,
             true
@@ -1910,7 +1911,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         final CacheFileReader cacheFileReader = new CacheFileReader(
             cacheFile,
             cacheBlobReader,
-            createBlobFileRanges(randomNonNegativeLong(), 0L, 0, (int) fileLength),
+            createBlobFileRanges(randomNonNegativeLong(), 1L, 0, (int) fileLength),
             metrics,
             System::currentTimeMillis,
             true
@@ -1950,7 +1951,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         final CacheFileReader cacheFileReader = new CacheFileReader(
             cacheFile,
             cacheBlobReader,
-            createBlobFileRanges(randomNonNegativeLong(), 0L, 0, (int) fileLength),
+            createBlobFileRanges(randomNonNegativeLong(), 1L, 0, (int) fileLength),
             metrics,
             System::currentTimeMillis,
             true

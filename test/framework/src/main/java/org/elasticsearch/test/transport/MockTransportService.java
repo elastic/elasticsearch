@@ -268,7 +268,7 @@ public class MockTransportService extends TransportService {
             interceptor,
             localNodeFactory,
             clusterSettings,
-            MockTaskManager.create(settings, threadPool, taskHeaders, Tracer.NOOP, nodeId),
+            MockTaskManager.create(settings, threadPool, taskHeaders, Tracer.noop(), nodeId),
             new ClusterSettingsLinkedProjectConfigService(settings, clusterSettings, DefaultProjectResolver.INSTANCE),
             new NoopTelemetryProvider() {
                 final MeterRegistry meterRegistry = new RecordingMeterRegistry();

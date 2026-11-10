@@ -10,7 +10,9 @@
 package org.elasticsearch.telemetry.apm.internal.instrumentation;
 
 import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.context.Context;
+import io.opentelemetry.instrumentation.api.config.IncludeExclude;
 import io.opentelemetry.instrumentation.api.instrumenter.AttributesExtractor;
 import io.opentelemetry.instrumentation.api.instrumenter.SpanNameExtractor;
 import io.opentelemetry.instrumentation.api.instrumenter.SpanStatusExtractor;
@@ -19,17 +21,17 @@ import io.opentelemetry.instrumentation.api.semconv.http.HttpServerAttributesGet
 import io.opentelemetry.instrumentation.api.semconv.http.HttpSpanNameExtractor;
 import io.opentelemetry.instrumentation.api.semconv.http.HttpSpanStatusExtractor;
 
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.telemetry.apm.internal.tracing.APMSpan;
+import org.elasticsearch.telemetry.apm.internal.tracing.APMSpanBuilder;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
+import org.elasticsearch.telemetry.tracing.SpanBuilder;
 
-import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 
 public class HttpServerTracing implements HttpServerInstrumentation {
@@ -47,8 +49,8 @@ public class HttpServerTracing implements HttpServerInstrumentation {
         this.getter = new OtelAttributesGetter();
         this.spanNameExtractor = HttpSpanNameExtractor.create(getter);
         this.httpServerAttributesExtractor = HttpServerAttributesExtractor.builder(getter)
-            .setCapturedRequestHeaders(List.of(/* TODO which headers? */))
-            .setCapturedResponseHeaders(List.of(/* TODO which headers? */))
+            .setRequestHeaders(IncludeExclude.builder()/* TODO which headers? */.build())
+            .setResponseHeaders(IncludeExclude.builder()/* TODO which headers? */.build())
             .build();
         this.httpSpanStatusExtractor = HttpSpanStatusExtractor.create(getter);
     }
@@ -58,56 +60,60 @@ public class HttpServerTracing implements HttpServerInstrumentation {
         var req = new RequestAndRoute(request, matchedRoute);
         // The trace context of the client (the remote parent of the span) is already in the thread context at this point, as it is
         // copied from the request headers before the request is dispatched, see ActionModule#copyRequestHeadersToThreadContext.
-        tracer.startTrace(request, spanNameExtractor.extract(req), legacyRequestAttributes(req));
+        final APMSpanBuilder spanBuilder = tracer.spanBuilder(spanNameExtractor.extract(req)).setSpanKind(SpanKind.SERVER);
+        setLegacyRequestAttributes(spanBuilder, req);
+        httpServerAttributesExtractor.onStart(
+            spanBuilder.attributesBuilder(),
+            /* we don't care about the context in this case */ Context.root(),
+            req
+        );
 
-        var attributes = Attributes.builder();
-        httpServerAttributesExtractor.onStart(attributes, /* we don't care about the context in this case */ Context.root(), req);
-        tracer.setAttributes(request, attributes.build());
-
-        return () -> tracer.storeSpanInThreadContext(request);
+        var span = spanBuilder.startSpan();
+        return span::storeInThreadContext;
     }
 
-    private Map<String, Object> legacyRequestAttributes(RequestAndRoute req) {
-        final Map<String, Object> attributes = Maps.newMapWithExpectedSize(req.request().getHeaders().size() + 3);
+    private void setLegacyRequestAttributes(SpanBuilder spanBuilder, RequestAndRoute req) {
         req.request().getHeaders().forEach((key, values) -> {
             final String lowerKey = key.toLowerCase(Locale.ROOT).replace('-', '_');
-            attributes.put("http.request.headers." + lowerKey, values == null ? "" : String.join("; ", values));
+            spanBuilder.setAttribute("http.request.headers." + lowerKey, values == null ? "" : String.join("; ", values));
         });
-        attributes.put("http.method", Objects.requireNonNullElse(getter.getHttpRequestMethod(req), "<unknown>"));
-        attributes.put("http.url", Objects.requireNonNullElse(req.request().uri(), "<unknown>"));
-        attributes.put("http.flavour", getter.getNetworkProtocolVersion(req, null));
-        return attributes;
+        spanBuilder.setAttribute("http.method", Objects.requireNonNullElse(getter.getHttpRequestMethod(req), "<unknown>"));
+        spanBuilder.setAttribute("http.url", Objects.requireNonNullElse(req.request().uri(), "<unknown>"));
+        spanBuilder.setAttribute("http.flavour", getter.getNetworkProtocolVersion(req, null));
     }
 
     @Override
     public void recordException(RestRequest request, Throwable t) {
-        this.tracer.addError(request, t);
+        tracer.currentSpan().recordException(t);
     }
 
     @Override
     public Releasable prepareEnd(RestRequest request, RestResponse response) {
-        return () -> {
-            setLegacyResponseAttributes(request, response);
+        // the span of the request is the current one when its response is sent, see start(); spans that are not recorded are not current
+        if (tracer.currentSpan() instanceof APMSpan span) {
+            return () -> {
+                setLegacyResponseAttributes(span, response);
 
-            var requestAndRoute = new RequestAndRoute(request, /* only needed at start */ null);
-            var attributes = Attributes.builder();
-            httpServerAttributesExtractor.onEnd(
-                attributes,
-                /* we don't care about the context in this case */ Context.root(),
-                requestAndRoute,
-                response,
-                null
-            );
-            tracer.setAttributes(request, attributes.build());
+                var requestAndRoute = new RequestAndRoute(request, /* only needed at start */ null);
+                var attributes = Attributes.builder();
+                httpServerAttributesExtractor.onEnd(
+                    attributes,
+                    /* we don't care about the context in this case */ Context.root(),
+                    requestAndRoute,
+                    response,
+                    null
+                );
+                span.setAllAttributes(attributes.build());
 
-            httpSpanStatusExtractor.extract(tracer.spanStatusBuilder(request), requestAndRoute, response, null);
-            tracer.stopTrace(request);
-        };
+                httpSpanStatusExtractor.extract(span, requestAndRoute, response, null);
+                span.end();
+            };
+        }
+        return () -> {};
     }
 
-    private void setLegacyResponseAttributes(RestRequest request, RestResponse response) {
-        tracer.setAttribute(request, "http.status_code", response.status().getStatus());
-        response.getHeaders()
-            .forEach((key, values) -> tracer.setAttribute(request, "http.response.headers." + key, String.join("; ", values)));
+    private void setLegacyResponseAttributes(APMSpan span, RestResponse response) {
+        span.setAttribute("http.status_code", response.status().getStatus());
+        response.getHeaders().forEach((key, values) -> span.setAttribute("http.response.headers." + key, String.join("; ", values)));
     }
 }

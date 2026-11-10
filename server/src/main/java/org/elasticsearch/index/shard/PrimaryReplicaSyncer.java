@@ -205,7 +205,7 @@ public class PrimaryReplicaSyncer {
                 listener.onFailure(e);
             }
         };
-        try (var ignored = taskManager.tracer().storeSpanInThreadContext(resyncTask)) {
+        try (var ignored = resyncTask.getSpan().storeInThreadContext()) {
             new SnapshotSender(
                 syncAction,
                 resyncTask,

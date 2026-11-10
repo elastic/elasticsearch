@@ -255,7 +255,7 @@ public class AsyncTaskManagementService<
             action + ASYNC_ACTION_SUFFIX,
             new AsyncRequestWrapper(request, nodeId, resolvedKeepAlive)
         );
-        try (var ignored = taskManager.tracer().storeSpanInThreadContext(searchTask)) {
+        try (var ignored = searchTask.getSpan().storeInThreadContext()) {
             boolean operationStarted = false;
             try {
                 AtomicBoolean skipExecute = new AtomicBoolean();

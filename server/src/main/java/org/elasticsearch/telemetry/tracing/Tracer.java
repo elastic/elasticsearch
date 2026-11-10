@@ -11,129 +11,30 @@ package org.elasticsearch.telemetry.tracing;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
-import java.util.Map;
-
 /**
- * Represents a distributed tracing system that keeps track of the start and end
- * of various activities in the cluster. Traces are composed of "spans", each of
- * which represents some piece of work with a duration. Spans are nested to
- * create a parent-child hierarchy.
- * <p>
- * You can open a span using {@link #startTrace}, and stop it using {@link #stopTrace}, at which point the tracing system will queue
- * the data to be sent somewhere for processing and storage.
- * <p>
- * You can add additional data to a span using the {@code #setAttribute} methods. This allows you
- * to attach data that is not available when the span is opened.
- * <p>
- * <b>Implementation node:</b> tracers have similar performance requirements to loggers,
- * in that they may be called in performance-sensitive locations. For example, network
- * requests must be queued on separate threads, in order to avoid blocking any
- * calling threads. Care should be taken to avoid allocating an excessive number of
- * objects.
+ * Entry point of the tracing API, used to create {@link Span}s and to interact with tracing-related parts of thread context. Spans are
+ * created through a {@link SpanBuilder} obtained from {@link #spanBuilder(String)}. The span that is currently active can be looked up with
+ * {@link #currentSpan()}.
  */
 public interface Tracer {
 
-    /**
-     * Called when a span starts.
-     * @param traceable provides a unique identifier for the activity, and will not be sent to the tracing system. Add the ID
-     *                  to the attributes if it is important
-     * @param name the name of the span. Used to filter out spans, but also sent to the tracing system
-     * @param attributes arbitrary key/value data for the span. Sent to the tracing system
-     */
-    void startTrace(Traceable traceable, String name, Map<String, Object> attributes);
-
-    /**
-     * Called when a span ends.
-     * @param traceable provides an identifier for the span
-     */
-    void stopTrace(Traceable traceable);
-
-    /**
-     * If an exception occurs during a span, you can add data about the exception to the span where the exception occurred.
-     * This should only be called when a span has been started, otherwise it has no effect.
-     * @param traceable provides an identifier for the span
-     * @param throwable the exception that occurred.
-     */
-    void addError(Traceable traceable, Throwable throwable);
-
-    /**
-     * Adds a boolean attribute to an active span. These will be sent to the endpoint that collects tracing data.
-     * @param traceable provides an identifier for the span
-     * @param key the attribute key
-     * @param value the attribute value
-     */
-    void setAttribute(Traceable traceable, String key, boolean value);
-
-    /**
-     * Adds a double attribute to an active span. These will be sent to the endpoint that collects tracing data.
-     * @param traceable provides an identifier for the span
-     * @param key the attribute key
-     * @param value the attribute value
-     */
-    void setAttribute(Traceable traceable, String key, double value);
-
-    /**
-     * Adds a long attribute to an active span. These will be sent to the endpoint that collects tracing data.
-     * @param traceable provides an identifier for the span
-     * @param key the attribute key
-     * @param value the attribute value
-     */
-    void setAttribute(Traceable traceable, String key, long value);
-
-    /**
-     * Adds a String attribute to an active span. These will be sent to the endpoint that collects tracing data.
-     * @param traceable provides an identifier for the span
-     * @param key the attribute key
-     * @param value the attribute value
-     */
-    void setAttribute(Traceable traceable, String key, String value);
-
-    /**
-     * Makes the span of the given activity the current one in the {@link ThreadContext} of the calling thread.
-     * The returned {@link ThreadContext.StoredContext} restores the thread context to what it was before, and must be closed (or restored)
-     * once the span is no longer meant to be the current one.
-     *
-     * @param traceable provides an identifier for the span
-     * @return the stored context that restores the thread context to what it was before this method was called
-     */
-    ThreadContext.StoredContext storeSpanInThreadContext(Traceable traceable);
-
-    /**
-     * A Tracer implementation that does nothing. This is used when no tracer is configured,
-     * in order to avoid null checks everywhere.
-     */
-    Tracer NOOP = new Tracer() {
-        @Override
-        public void startTrace(Traceable traceable, String name, Map<String, Object> attributes) {}
-
-        @Override
-        public void stopTrace(Traceable traceable) {}
-
-        @Override
-        public void addError(Traceable traceable, Throwable throwable) {}
-
-        @Override
-        public void setAttribute(Traceable traceable, String key, boolean value) {}
-
-        @Override
-        public void setAttribute(Traceable traceable, String key, double value) {}
-
-        @Override
-        public void setAttribute(Traceable traceable, String key, long value) {}
-
-        @Override
-        public void setAttribute(Traceable traceable, String key, String value) {}
-
-        @Override
-        public ThreadContext.StoredContext storeSpanInThreadContext(Traceable traceable) {
-            return () -> {};
-        }
-    };
-
-    interface AttributeKeys {
-        String TASK_ID = "es.task.id";
-        String PARENT_TASK_ID = "es.task.parent.id";
-        String CLUSTER_NAME = "es.cluster.name";
-        String NODE_NAME = "es.node.name";
+    /** Returns a tracer implementation that does nothing. */
+    static Tracer noop() {
+        return NoopTracer.INSTANCE;
     }
+
+    /**
+     * Initiates the process of creating a new span via the returned {@link SpanBuilder}.
+     *
+     * @param name the name of the span. It should be a low-cardinality description of the operation.
+     * @return a {@link SpanBuilder} used to create and start a new span.
+     */
+    SpanBuilder spanBuilder(String name);
+
+    /**
+     * Returns the span that is current in the calling thread's {@link ThreadContext}, or a no-op span if there is none.
+     *
+     * @return the current span stored in the {@link ThreadContext}.
+     */
+    Span currentSpan();
 }

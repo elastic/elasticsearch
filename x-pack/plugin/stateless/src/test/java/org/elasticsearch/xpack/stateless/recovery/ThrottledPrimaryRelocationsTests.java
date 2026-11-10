@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -332,7 +333,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         throttle.beforeIndexShardClosed(shardId2, shard2, Settings.EMPTY);
         assertThat(shard2Failure.get(), instanceOf(AlreadyClosedException.class));
         assertThat(throttle.queuedRelocationCount(), equalTo(0));
-        verify(shard2, never()).markActivelyRelocatingPrimary();
+        verify(shard2, never()).markActivelyRelocatingPrimary(anyLong());
         assertFalse(shard2.isActivelyRelocatingPrimary());
     }
 
@@ -991,14 +992,14 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
     }
 
     /// Creates a mock [IndexShard] with a real [RecoveryStats] to leverage counter assertions. The relocation-as-source marking is
-    /// backed by a real counter too, mirroring [IndexShard#markActivelyRelocatingPrimary()], since a mocked method would return
-    /// a `null` releasable and the tests assert on [IndexShard#isActivelyRelocatingPrimary()].
+    /// backed by a simple counter, since a mocked [IndexShard#markActivelyRelocatingPrimary(long)] would return a `null`
+    /// releasable and the tests assert on [IndexShard#isActivelyRelocatingPrimary()].
     private static IndexShard mockShard(ShardId shardId) {
         final var shard = mock(IndexShard.class);
         when(shard.recoveryStats()).thenReturn(new RecoveryStats());
         when(shard.shardId()).thenReturn(shardId);
         final var activePrimaryRelocations = new AtomicInteger();
-        when(shard.markActivelyRelocatingPrimary()).thenAnswer(invocation -> {
+        when(shard.markActivelyRelocatingPrimary(anyLong())).thenAnswer(invocation -> {
             activePrimaryRelocations.incrementAndGet();
             return Releasables.releaseOnce(activePrimaryRelocations::decrementAndGet);
         });

@@ -71,8 +71,8 @@ public class SearchWaitingIT extends ESIntegTestCase {
         try {
             // all shard tasks of the search are queued behind the blocked threads, as one query
             assertBusy(() -> assertThat(searchService.queryScheduler().queries(), equalTo(1)));
-            // the waiting shows while the tasks are still queued
-            assertBusy(() -> assertThat(searchWaiting("test").getSearchWaitingRate(), greaterThan(0.0)));
+            // the waiting is charged when the tasks leave the queue
+            assertThat(searchWaiting("test").getSearchWaitingRate(), equalTo(0.0));
         } finally {
             release.countDown();
         }

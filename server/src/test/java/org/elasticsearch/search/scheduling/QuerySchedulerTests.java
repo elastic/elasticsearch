@@ -181,8 +181,7 @@ public class QuerySchedulerTests extends ESTestCase {
     }
 
     /**
-     * A shared shard an executor ran out of work for is charged, from the next charge on, only from when another executor
-     * with work for it queues it.
+     * A shared shard an executor ran out of work for is charged only from when another executor with work for it queues it.
      */
     public void testSharedShardOutOfWorkIsChargedFromWhenAnotherHasWork() {
         Waits shard = new Waits();
@@ -194,12 +193,13 @@ public class QuerySchedulerTests extends ESTestCase {
         second.execute(() -> {});
         clock.set(10);
         firstHasWork.set(false);
-        scheduler.chargeWaiting();
         clock.set(20);
         var third = executor("q", pool, shard);
         third.execute(() -> {});
         clock.set(30);
-        scheduler.chargeWaiting();
+        while (pool.tasks.isEmpty() == false) {
+            pool.runNext();
+        }
         assertThat(shard.total(), equalTo(10L));
         assertThat(other.total(), equalTo(30L));
     }
@@ -215,20 +215,20 @@ public class QuerySchedulerTests extends ESTestCase {
         var first = scheduler.newExecutor(queryId("q"), pool, List.of(new QueryScheduler.Shard(shard, shard, firstHasWork::get)));
         var second = executor("q", pool, other);
         first.execute(() -> {});
+        first.execute(() -> {});
         second.execute(() -> {});
         clock.set(10);
         firstHasWork.set(false);
-        scheduler.chargeWaiting();
+        pool.runNext();
         assertThat(shard.total(), equalTo(0L));
         clock.set(20);
         firstHasWork.set(true);
         clock.set(30);
-        scheduler.chargeWaiting();
-        assertThat(shard.total(), equalTo(20L));
-        assertThat(other.total(), equalTo(30L));
         while (pool.tasks.isEmpty() == false) {
             pool.runNext();
         }
+        assertThat(shard.total(), equalTo(20L));
+        assertThat(other.total(), equalTo(30L));
         assertThat(scheduler.queries(), equalTo(0));
     }
 
@@ -251,7 +251,6 @@ public class QuerySchedulerTests extends ESTestCase {
         var third = executor("q", pool, shard);
         third.execute(() -> {});
         clock.set(30);
-        scheduler.chargeWaiting();
         while (pool.tasks.isEmpty() == false) {
             pool.runNext();
         }
@@ -434,43 +433,11 @@ public class QuerySchedulerTests extends ESTestCase {
     }
 
     /**
-     * Charging the waiting while tasks are queued charges their shards up to now, and a task leaving the queue then
-     * charges only the rest, so a shard is charged the same in total, once even when several executors queue it.
-     */
-    public void testChargeWaitingWhileQueued() {
-        Waits first = new Waits();
-        Waits second = new Waits();
-        var alone = executor("q", pool, first);
-        var shared = executor("q", pool, first, second);
-        alone.execute(() -> {});
-        clock.set(10);
-        scheduler.chargeWaiting();
-        assertThat(first.values, contains(10L));
-        shared.execute(() -> {});
-        clock.set(25);
-        scheduler.chargeWaiting();
-        scheduler.chargeWaiting();
-        assertThat(first.values, contains(10L, 15L));
-        assertThat(second.values, contains(15L));
-        clock.set(30);
-        pool.runNext();
-        assertThat(first.values, contains(10L, 15L, 5L));
-        clock.set(40);
-        scheduler.chargeWaiting();
-        assertThat(first.values, contains(10L, 15L, 5L, 10L));
-        assertThat(second.values, contains(15L, 15L));
-        pool.runNext();
-        assertThat(first.total(), equalTo(40L));
-        assertThat(second.total(), equalTo(30L));
-        assertThat(scheduler.queries(), equalTo(0));
-    }
-
-    /**
      * Random tasks of a few queries go through executors sharing shards: they queue, start in any order, run while others
      * start, get rejected, and complete. Executors join late, and a task can run out of work for shards of its executor,
      * like an ES|QL driver reading the last slice of a shard. A reference follows each step: while a query has tasks queued
      * and none running, each shard that an executor with tasks queued still has work for accumulates the time, once. The
-     * shards must match it after each charge and at the end. A round takes microseconds, so many run.
+     * shards never get ahead of it, and match it at the end. A round takes microseconds, so many run.
      */
     public void testAccumulatesTheWaitingOfAReference() {
         for (int round = 0; round < 1000; round++) {
@@ -514,10 +481,7 @@ public class QuerySchedulerTests extends ESTestCase {
                     case 5 -> {
                         return;
                     }
-                    case 6 -> {
-                        scheduler.chargeWaiting();
-                        reference.assertAccumulated();
-                    }
+                    case 6 -> reference.assertAccumulatedAtMost();
                     default -> throw new AssertionError();
                 }
             }
@@ -652,6 +616,13 @@ public class QuerySchedulerTests extends ESTestCase {
         void assertAccumulated() {
             waited.forEach((shard, nanos) -> assertThat(shard.total(), equalTo(nanos)));
         }
+
+        /**
+         * While tasks are queued, a shard is charged only up to when a task of its executor last left the queue.
+         */
+        void assertAccumulatedAtMost() {
+            waited.forEach((shard, nanos) -> assertThat(shard.total(), lessThanOrEqualTo(nanos)));
+        }
     }
 
     /**
@@ -732,8 +703,7 @@ public class QuerySchedulerTests extends ESTestCase {
 
     /**
      * Tasks of a few queries submitted from many threads, through executors the threads share or their own, all over the
-     * same shards of each query, while the waiting is charged from another thread. Nothing is left tracked, and no shard
-     * is charged more than the time it all took.
+     * same shards of each query. Nothing is left tracked, and no shard is charged more than the time it all took.
      */
     public void testConcurrentQueries() throws Exception {
         QueryScheduler concurrent = new QueryScheduler(System::nanoTime);
@@ -768,28 +738,16 @@ public class QuerySchedulerTests extends ESTestCase {
                     }));
                 }
             }
-            AtomicBoolean submitting = new AtomicBoolean(true);
-            Thread charger = new Thread(() -> {
-                while (submitting.get()) {
-                    concurrent.chargeWaiting();
-                }
-            });
             threads.forEach(Thread::start);
-            charger.start();
             long startNanos = System.nanoTime();
-            try {
-                safeAwait(start);
-                for (Thread thread : threads) {
-                    thread.join();
-                }
-                assertBusy(() -> {
-                    assertThat(ran.get(), equalTo(queries * submittersPerQuery * tasksPerSubmitter));
-                    assertThat(concurrent.queries(), equalTo(0));
-                });
-            } finally {
-                submitting.set(false);
-                charger.join();
+            safeAwait(start);
+            for (Thread thread : threads) {
+                thread.join();
             }
+            assertBusy(() -> {
+                assertThat(ran.get(), equalTo(queries * submittersPerQuery * tasksPerSubmitter));
+                assertThat(concurrent.queries(), equalTo(0));
+            });
             long tookNanos = System.nanoTime() - startNanos;
             waited.values().forEach(w -> assertThat(w.get(), lessThanOrEqualTo(tookNanos)));
         } finally {

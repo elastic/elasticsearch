@@ -27,8 +27,7 @@ import java.util.function.LongSupplier;
  * Measures the search waiting of the queries on this node. It only measures: tasks go to their pools unchanged and in
  * order. A query waits while it has tasks queued on the node and none running: a query running fewer tasks than it queued
  * is not waiting. While a query waits, each shard with queued work accumulates the waiting time once, however many of its
- * tasks are queued. Shards are charged when a task leaves the queue, and by {@link #chargeWaiting} while it is still
- * queued.
+ * tasks are queued. Shards are charged when a task leaves the queue.
  */
 public final class QueryScheduler {
 
@@ -102,18 +101,6 @@ public final class QueryScheduler {
     }
 
     /**
-     * Charges the waiting so far to the shards of every query with tasks queued. Otherwise a shard sees its waiting only
-     * when one of its tasks leaves the queue, which is late for a query that waits long.
-     */
-    public void chargeWaiting() {
-        for (Query query : queries.values()) {
-            synchronized (query) {
-                query.chargeWaiting(clock);
-            }
-        }
-    }
-
-    /**
      * Submits the tasks of a query to the executor it wraps and tracks them for the query. Its state is guarded by the
      * query its tasks are submitted for.
      */
@@ -129,8 +116,6 @@ public final class QueryScheduler {
         private QueuedShard[] queuedShards;
         /** Whether other executors of the query queued at the same time, so its shards are charged through the query. */
         private boolean shared;
-        /** Links this executor in the list of executors of its query with tasks queued. */
-        private QueryExecutor previousQueuing, nextQueuing;
 
         private QueryExecutor(TaskId queryId, Executor delegate, List<Shard> shards) {
             this.queryId = queryId;
@@ -213,7 +198,6 @@ public final class QueryScheduler {
      * <p>
      * The query keeps the total time it waited on the node. When a task leaves the queue, its shards are charged the part
      * of that total they were not charged yet, so a task never touches the other shards of the query.
-     * {@link QueryScheduler#chargeWaiting} does the same for every executor with tasks queued.
      * <p>
      * An executor remembers what its shards were charged up to. When other executors of the query queue at the same time,
      * the query remembers it for each shard instead, so a shard they share is charged once.
@@ -226,8 +210,10 @@ public final class QueryScheduler {
         long waitedNanos;
         /** The last time {@link #waitedNanos} was brought up to date. */
         long waitedUpToNanos;
-        /** The first executor with tasks queued, the others follow through {@link QueryExecutor#nextQueuing}. */
-        QueryExecutor queuing;
+        /** The executors with tasks queued. */
+        int queuingExecutors;
+        /** The executor with tasks queued while no other has any, so it is shared once another joins. */
+        QueryExecutor alone;
         /** The shards of the shared executors, by id. */
         Map<Object, QueuedShard> queuedShards;
         /** Whether the query had no task left and is no longer tracked. */
@@ -297,35 +283,18 @@ public final class QueryScheduler {
         }
 
         /**
-         * Brings the waiting up to now if the query waits, then charges the shards of every executor with tasks queued.
-         */
-        void chargeWaiting(LongSupplier clock) {
-            if (isWaiting()) {
-                tick(clock);
-            }
-            for (QueryExecutor executor = queuing; executor != null; executor = executor.nextQueuing) {
-                if (executor.chargedWaitedNanos != waitedNanos) {
-                    charge(executor);
-                }
-            }
-        }
-
-        /**
          * The executor has its first task queued: its shards are charged from the waiting so far, or, once shared, from where
          * the query has them.
          */
         private void join(QueryExecutor executor) {
             executor.chargedWaitedNanos = waitedNanos;
-            QueryExecutor other = queuing;
-            executor.nextQueuing = other;
-            queuing = executor;
-            if (other == null) {
+            if (queuingExecutors++ == 0) {
+                alone = executor;
                 return;
             }
-            other.previousQueuing = executor;
-            // the other executor was alone until now
-            if (other.shared == false) {
-                share(other);
+            if (alone != null) {
+                share(alone);
+                alone = null;
             }
             share(executor);
         }
@@ -377,18 +346,10 @@ public final class QueryScheduler {
             if (--executor.queuedTasks > 0) {
                 return;
             }
-            if (executor.previousQueuing == null) {
-                queuing = executor.nextQueuing;
-            } else {
-                executor.previousQueuing.nextQueuing = executor.nextQueuing;
-            }
-            if (executor.nextQueuing != null) {
-                executor.nextQueuing.previousQueuing = executor.previousQueuing;
-            }
-            executor.previousQueuing = null;
-            executor.nextQueuing = null;
+            queuingExecutors--;
             if (executor.shared == false) {
-                assert queuing == null : "executor of query [" + id + "] is neither alone nor shared";
+                assert alone == executor && queuingExecutors == 0 : "executor of query [" + id + "] is neither alone nor shared";
+                alone = null;
                 return;
             }
             for (int i = 0; i < executor.queuedShards.length; i++) {

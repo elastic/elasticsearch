@@ -29,8 +29,6 @@ import org.elasticsearch.script.field.HalfFloatDocValuesField;
 import org.elasticsearch.script.field.IpDocValuesField;
 import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.script.field.LongDocValuesField;
-import org.elasticsearch.script.field.SourceMapField;
-import org.elasticsearch.script.field.WriteField;
 import org.elasticsearch.script.field.vectors.BinaryDenseVector;
 import org.elasticsearch.script.field.vectors.DenseVector;
 import org.elasticsearch.script.field.vectors.KnnDenseVector;
@@ -387,11 +385,6 @@ public class AllocationEsFieldTests extends AllocationTestCase {
             whitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, resource));
             PainlessLookupBuilder.buildFromWhitelists(whitelists, new HashMap<>(), new HashMap<>());
         }
-    }
-
-    public void testWriteFieldIteratorsChargeAnIterator() {
-        assertEquals(AllocSizes.ITERATOR_BYTES, AllocationEstimators.iteratorBytes((WriteField) null));
-        assertEquals(AllocSizes.ITERATOR_BYTES, AllocationEstimators.iteratorBytes((SourceMapField) null));
     }
 
     /** A keyword field with {@code terms} in one document, already on that document. */

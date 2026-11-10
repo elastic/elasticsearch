@@ -15,9 +15,9 @@
 #### Classes
 
 class java.time.Clock {
-  Clock fixed(Instant,ZoneId) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Clock fixed(Instant,ZoneId) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="clockBytes"]
   ZoneId getZone() @nondeterministic
-  Instant instant() @nondeterministic
+  Instant instant() @nondeterministic @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
   long millis() @nondeterministic
   Clock offset(Clock,Duration) @nondeterministic
   Clock tick(Clock,Duration) @nondeterministic
@@ -551,14 +551,14 @@ class java.time.ZonedDateTime {
 
 class java.time.ZoneId {
   Map SHORT_IDS
-  Set getAvailableZoneIds()
-  ZoneId of(String) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
-  ZoneId of(String,Map) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
-  ZoneId ofOffset(String,ZoneOffset) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Set getAvailableZoneIds() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="availableZoneIdsBytes"]
+  ZoneId of(String) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zoneIdBytes"]
+  ZoneId of(String,Map) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zoneIdBytes"]
+  ZoneId ofOffset(String,ZoneOffset) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zoneIdBytes"]
   ZoneId from(TemporalAccessor)
   String getId()
   String getDisplayName(TextStyle,Locale) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="displayNameBytes"]
-  ZoneId normalized() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  ZoneId normalized()
   ZoneId systemDefault()
   ZoneRules getRules()
 }
@@ -569,7 +569,7 @@ class java.time.ZoneOffset {
   ZoneOffset UTC
   ZoneOffset from(TemporalAccessor)
   int getTotalSeconds()
-  ZoneOffset of(String) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  ZoneOffset of(String) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zoneIdBytes"]
   ZoneOffset ofHours(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
   ZoneOffset ofHoursMinutes(int,int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
   ZoneOffset ofHoursMinutesSeconds(int,int,int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]

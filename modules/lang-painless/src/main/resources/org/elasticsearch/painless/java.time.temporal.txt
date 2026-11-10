@@ -29,7 +29,7 @@ class java.time.temporal.TemporalAccessor {
   long getLong(TemporalField)
   boolean isSupported(TemporalField)
   def query(TemporalQuery)
-  ValueRange range(TemporalField)
+  ValueRange range(TemporalField) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="valueRangeBytes"]
   # An easy method to convert temporalAccessors to millis since epoch similar to Instant#toEpochMilli.
   long org.elasticsearch.painless.api.Augmentation toEpochMilli()
   long org.elasticsearch.painless.api.Augmentation getMillis()
@@ -56,7 +56,7 @@ class java.time.temporal.TemporalField {
   boolean isSupportedBy(TemporalAccessor)
   boolean isTimeBased()
   ValueRange range()
-  ValueRange rangeRefinedBy(TemporalAccessor)
+  ValueRange rangeRefinedBy(TemporalAccessor) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="valueRangeBytes"]
   TemporalAccessor resolve(Map,TemporalAccessor,ResolverStyle)
   String toString()
 }

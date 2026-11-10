@@ -20,8 +20,9 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Writes one label: the value replaces the label's values, and a missing or empty value removes the label, as PromQL has no
- * empty label. Several values write a multi-valued label. The label keeps its sorted position, so the result stays canonical.
+ * Internal function that mutates metadata container {@link DataType#TSMD_DATA_TYPE}; the value replaces the dimension values,
+ * and a missing or empty value removes the dimension. Several values write a multi-valued dimension, which keeps its sorted
+ * position, so the result stays canonical.
  */
 public final class TimeSeriesMetadataSet extends AbstractTimeSeriesMetadataFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -62,8 +63,13 @@ public final class TimeSeriesMetadataSet extends AbstractTimeSeriesMetadataFunct
     }
 
     @Override
-    protected TypeResolution resolveArguments() {
-        return labelName(1).and(TypeResolutions.isString(value(), sourceText(), TypeResolutions.ParamOrdinal.THIRD));
+    public List<Expression> labels() {
+        return List.of(label());
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        return super.resolveType().and(TypeResolutions.isString(value(), sourceText(), TypeResolutions.ParamOrdinal.THIRD));
     }
 
     @Override
@@ -73,6 +79,6 @@ public final class TimeSeriesMetadataSet extends AbstractTimeSeriesMetadataFunct
 
     @Override
     protected NodeInfo<TimeSeriesMetadataSet> info() {
-        return NodeInfo.create(this, TimeSeriesMetadataSet::new, labelContainer(), label(), value());
+        return NodeInfo.create(this, TimeSeriesMetadataSet::new, children().getFirst(), label(), value());
     }
 }

@@ -933,7 +933,7 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
                 maxConcurrentRecoveries
             )
             .put(
-                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(),
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(),
                 relocationPercent + "%"
             );
         if (heapBasedLimit) {

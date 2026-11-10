@@ -171,7 +171,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                             perHeapGb
                         )
                         .put(
-                            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING
+                            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING
                                 .getKey(),
                             relocationPercent + "%"
                         )

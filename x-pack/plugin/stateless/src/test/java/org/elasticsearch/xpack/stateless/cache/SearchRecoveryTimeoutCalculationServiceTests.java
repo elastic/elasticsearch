@@ -1991,7 +1991,8 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 Settings.builder()
                     .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 2)
                     .put(
-                        DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(),
+                        DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING
+                            .getKey(),
                         "50%"
                     )
                     .build()

@@ -69,8 +69,6 @@ public class EsqlDataExtractor implements DataExtractor {
     private boolean hasNext = true;
     private volatile boolean isCancelled = false;
     private final AtomicReference<Task> inFlightQueryTask = new AtomicReference<>();
-    @Nullable
-    private TruncationReuseCache truncationReuseCache;
 
     public EsqlDataExtractor(Client client, EsqlDataExtractorContext context, DatafeedTimingStatsReporter timingStatsReporter) {
         this(client, context, timingStatsReporter, null);
@@ -108,7 +106,6 @@ public class EsqlDataExtractor implements DataExtractor {
     @Override
     public void destroy() {
         cancel();
-        truncationReuseCache = null;
     }
 
     @Override
@@ -269,90 +266,12 @@ public class EsqlDataExtractor implements DataExtractor {
                 }
                 rowCount = processor.getWrittenDocumentCount();
             }
-            if (rowCount >= INJECTED_ROW_LIMIT) {
-                truncationReuseCache = buildTruncationReuseCache(columns, materializedRows, searchInterval);
-            } else {
-                truncationReuseCache = null;
-            }
             if (rowCount > 0) {
                 data = Optional.of(out.bytes().streamInput());
             }
             return new Result(searchInterval, data, List.of(), rowCount);
         }
     }
-
-    @Override
-    public Optional<Result> esqlTruncatedPrefixBefore(long chunkEndExclusive) throws IOException {
-        TruncationReuseCache cache = truncationReuseCache;
-        if (cache == null) {
-            return Optional.empty();
-        }
-        if (chunkEndExclusive > cache.lastEmittedTimeMs()) {
-            return Optional.empty();
-        }
-        int emittedTimeColumnIndex = cache.emittedTimeColumnIndex();
-        List<List<Object>> prefixRows = new ArrayList<>();
-        for (List<Object> row : cache.rows()) {
-            Object rawTime = row.get(emittedTimeColumnIndex);
-            long emittedMs = EsqlDatafeedQueryValidator.validateEmittedTimeValueInSourceWindow(
-                context.jobId(),
-                context.emittedTimeField(),
-                rawTime,
-                cache.searchInterval().startMs(),
-                cache.searchInterval().endMs()
-            );
-            if (emittedMs < chunkEndExclusive) {
-                prefixRows.add(row);
-            } else {
-                break;
-            }
-        }
-        long prefixRowCount = prefixRows.size();
-        if (prefixRowCount <= 0 || prefixRowCount >= INJECTED_ROW_LIMIT) {
-            return Optional.empty();
-        }
-        BytesStreamOutput out = new BytesStreamOutput();
-        try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(cache.columns(), out)) {
-            for (List<Object> row : prefixRows) {
-                processor.process(row);
-            }
-        }
-        truncationReuseCache = null;
-        SearchInterval prefixInterval = new SearchInterval(cache.searchInterval().startMs(), chunkEndExclusive);
-        return Optional.of(new Result(prefixInterval, Optional.of(out.bytes().streamInput()), List.of(), prefixRowCount));
-    }
-
-    private TruncationReuseCache buildTruncationReuseCache(
-        List<? extends ColumnInfo> columns,
-        List<List<Object>> rows,
-        SearchInterval searchInterval
-    ) {
-        int emittedTimeColumnIndex = -1;
-        for (int i = 0; i < columns.size(); i++) {
-            if (columns.get(i).name().equals(context.emittedTimeField())) {
-                emittedTimeColumnIndex = i;
-                break;
-            }
-        }
-        assert emittedTimeColumnIndex >= 0;
-        List<Object> lastRow = rows.get(rows.size() - 1);
-        long lastEmittedTimeMs = EsqlDatafeedQueryValidator.validateEmittedTimeValueInSourceWindow(
-            context.jobId(),
-            context.emittedTimeField(),
-            lastRow.get(emittedTimeColumnIndex),
-            searchInterval.startMs(),
-            searchInterval.endMs()
-        );
-        return new TruncationReuseCache(columns, rows, searchInterval, emittedTimeColumnIndex, lastEmittedTimeMs);
-    }
-
-    private record TruncationReuseCache(
-        List<? extends ColumnInfo> columns,
-        List<List<Object>> rows,
-        SearchInterval searchInterval,
-        int emittedTimeColumnIndex,
-        long lastEmittedTimeMs
-    ) {}
 
     private EsqlQueryResponse runQueryWithSingleRetry(String query, QueryBuilder timeFilter, List<EsqlQueryParam> params) {
         return EsqlQueryRunner.runWithSingleRetry(syncQueryRunner, query, timeFilter, params, () -> isCancelled, context.jobId());

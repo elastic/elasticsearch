@@ -94,12 +94,4 @@ public interface DataExtractor {
     default Optional<SearchInterval> getIncompleteSearchInterval() {
         return Optional.empty();
     }
-
-    /**
-     * When the latest {@link #next()} hit the injected ES|QL row cap, slice cached rows to
-     * {@code [windowStart, chunkEndExclusive)} without re-querying. Empty for non-ES|QL extractors or when reuse is unsafe.
-     */
-    default Optional<Result> esqlTruncatedPrefixBefore(long chunkEndExclusive) throws IOException {
-        return Optional.empty();
-    }
 }

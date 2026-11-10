@@ -87,8 +87,7 @@ public class EsqlCCSUtils {
         if (e instanceof NoClustersToSearchException || ExceptionsHelper.isRemoteUnavailableException(e)) {
             for (String clusterAlias : executionInfo.clusterAliases()) {
                 // Check if we have any remotes that can't be skipped on failure.
-                if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false
-                    && executionInfo.shouldSkipOnFailure(clusterAlias) == false) {
+                if (executionInfo.shouldSkipOnFailure(clusterAlias) == false) {
                     return false;
                 }
             }
@@ -162,7 +161,7 @@ public class EsqlCCSUtils {
         Map<String, FieldCapabilitiesFailure> unavailable = determineUnavailableRemoteClusters(failures);
         for (Map.Entry<String, FieldCapabilitiesFailure> entry : unavailable.entrySet()) {
             String clusterAlias = entry.getKey();
-            boolean skipUnavailable = execInfo.getCluster(clusterAlias).isSkipUnavailable();
+            boolean skipUnavailable = execInfo.shouldSkipOnFailure(clusterAlias);
             RemoteTransportException e = new RemoteTransportException(
                 Strings.format("Remote cluster [%s] (with setting skip_unavailable=%s) is not available", clusterAlias, skipUnavailable),
                 entry.getValue().getException()

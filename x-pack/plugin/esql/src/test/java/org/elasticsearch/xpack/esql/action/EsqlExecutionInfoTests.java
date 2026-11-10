@@ -90,7 +90,6 @@ public class EsqlExecutionInfoTests extends ESTestCase {
             clusterAlias,
             clusterAlias,
             indexExpression,
-            true,
             EsqlExecutionInfo.Cluster.Status.RUNNING,
             null,
             null,
@@ -107,18 +106,6 @@ public class EsqlExecutionInfoTests extends ESTestCase {
         boolean skipUnavailable,
         EsqlExecutionInfo.Cluster.Status status
     ) {
-        return new EsqlExecutionInfo.Cluster(
-            clusterAlias,
-            clusterAlias,
-            indexExpression,
-            skipUnavailable,
-            status,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
+        return new EsqlExecutionInfo.Cluster(clusterAlias, clusterAlias, indexExpression, status, null, null, null, null, null, null);
     }
 }

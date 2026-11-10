@@ -33,7 +33,10 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shard, RoutingNode node, RoutingAllocation allocation) {
-        if (shard.primary() == false || shard.unassigned() == false || shard.recoverySource().getType() != RecoverySource.Type.SNAPSHOT) {
+        if (shard.primary() == false
+            || shard.unassigned() == false
+            || shard.recoverySource().getType() != RecoverySource.Type.SNAPSHOT
+            || node.node().getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
             return Decision.YES;
         }
         Long shardSize = allocation.snapshotShardSizeInfo().getShardSize(shard);

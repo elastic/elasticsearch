@@ -99,6 +99,7 @@ public class EsqlCapabilities {
      * instead.
      */
     public enum Cap {
+
         /**
          * Introduction of {@code MV_SORT}, {@code MV_SLICE}, and {@code MV_ZIP}.
          * Added in #106095.
@@ -2673,6 +2674,9 @@ public class EsqlCapabilities {
          * PromQL support in ESQL, in the state it was when first available in non-snapshot builds.
          */
         PROMQL_COMMAND_V0,
+
+        /** Configurable selector lookback shared by instant and range PromQL queries, independent of step. */
+        PROMQL_LOOKBACK_DELTA(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * Bundle flag for PromQL math functions.

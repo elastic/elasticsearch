@@ -39,6 +39,14 @@ public class PromqlGoldenTests extends GoldenTestCase {
             .run();
     }
 
+    public void testMixedSelectorWindows() {
+        assumeTrue("requires configurable lookback", EsqlCapabilities.Cap.PROMQL_LOOKBACK_DELTA.isEnabled());
+        builder(
+            "PROMQL index=k8s start=\"2024-05-10T00:23:00Z\" end=\"2024-05-10T00:30:00Z\" step=1m lookback_delta=150s "
+                + "result=(sum(network.eth0.tx) + sum(last_over_time(network.eth0.tx[10m])))"
+        ).expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX).run();
+    }
+
     public void testAdditionScalarScalar() {
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         builder("PROMQL index=k8s step=1h sum=(1+1)").run();

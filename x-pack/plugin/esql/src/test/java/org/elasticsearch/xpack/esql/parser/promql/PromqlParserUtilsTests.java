@@ -26,6 +26,14 @@ import static org.hamcrest.Matchers.containsString;
 
 public class PromqlParserUtilsTests extends ESTestCase {
 
+    public void testLookbackNumericBoundsAndSubMillisecondValues() {
+        assertEquals(Duration.ofNanos(500000), PromqlParserUtils.parseLookbackDelta(Source.EMPTY, "0.0005"));
+        assertEquals(Duration.ZERO, PromqlParserUtils.parseLookbackDelta(Source.EMPTY, "1e-12"));
+        for (String value : List.of("1e1000000000", "300000000y", "2147483647y", "1000y", "1e10")) {
+            expectThrows(ParsingException.class, () -> PromqlParserUtils.parseLookbackDelta(Source.EMPTY, value));
+        }
+    }
+
     private Duration parseTimeValue(String value) {
         return PromqlParserUtils.parseDuration(new Source(0, 0, value), value);
     }

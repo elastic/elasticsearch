@@ -1,0 +1,6 @@
+@timestamp:date,labels.__name__:keyword,labels.host:keyword,metrics.value:double
+2026-01-01T00:00:00.000Z,lookback_gauge,one,42
+2025-12-31T23:58:30.000Z,lookback_changing,one,42
+2026-01-01T00:00:00.000Z,lookback_changing,one,84
+2025-12-31T23:58:30.000Z,lookback_hosts,old,7
+2026-01-01T00:00:00.000Z,lookback_hosts,new,13

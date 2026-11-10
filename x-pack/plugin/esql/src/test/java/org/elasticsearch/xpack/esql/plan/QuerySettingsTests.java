@@ -66,6 +66,24 @@ import static org.mockito.Mockito.verify;
 
 public class QuerySettingsTests extends ESTestCase {
 
+    public void testPromqlLookbackWireRoundTrip() throws IOException {
+        var resolved = ResolvedSettings.EMPTY.withOverride(QuerySettings.PROMQL_LOOKBACK_DELTA, java.time.Duration.ofMillis(123456));
+        try (var out = new BytesStreamOutput()) {
+            resolved.writeTo(out);
+            try (var in = out.bytes().streamInput()) {
+                assertThat(new ResolvedSettings(in), equalTo(resolved));
+            }
+        }
+    }
+
+    public void testPromqlLookbackClusterDefault() {
+        var setting = QuerySettings.PROMQL_LOOKBACK_DELTA;
+        assertThat(setting.defaultValue(), equalTo(java.time.Duration.ofMinutes(5)));
+        assertThat(setting.clusterSetting().get(clusterSetting(setting, "2m")), equalTo(java.time.Duration.ofMinutes(2)));
+        expectThrows(IllegalArgumentException.class, () -> setting.clusterSetting().get(clusterSetting(setting, "0")));
+        expectThrows(IllegalArgumentException.class, () -> setting.clusterSetting().get(clusterSetting(setting, "bad")));
+    }
+
     private static final SettingsValidationContext NON_SNAPSHOT_CTX_WITH_CPS_ENABLED = new SettingsValidationContext(true, false);
 
     private static final SettingsValidationContext SNAPSHOT_CTX_WITH_CPS_ENABLED = new SettingsValidationContext(true, true);
@@ -715,6 +733,7 @@ public class QuerySettingsTests extends ESTestCase {
             equalTo(
                 Set.of(
                     "esql.query.settings.time_zone",
+                    "esql.query.settings.promql_lookback_delta",
                     "esql.query.settings.unmapped_fields",
                     "esql.query.settings.column_metadata",
                     "esql.query.settings.approximation",

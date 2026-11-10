@@ -141,6 +141,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEF
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_INDEX_PATTERN;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.END;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.INDEX;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.LOOKBACK_DELTA;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.PROMQL_ALLOWED_PARAMS;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.SCRAPE_INTERVAL;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.START;
@@ -2064,6 +2065,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             params.stepLiteral(),
             params.bucketsLiteral(),
             params.scrapeIntervalLiteral(),
+            params.lookbackDeltaLiteral(),
             valueColumnName,
             new UnresolvedTimestamp(source)
         );
@@ -2124,6 +2126,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Duration step = null;
         Integer buckets = null;
         Duration scrapeInterval = Duration.ofMinutes(1);
+        Duration lookbackDelta = null;
         IndexPattern indexPattern = new IndexPattern(source, DEFAULT_PROMQL_INDEX_PATTERN);
 
         Set<String> paramsSeen = new HashSet<>();
@@ -2144,6 +2147,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     valueSource,
                     parseParamValueString(paramCtx.value),
                     SCRAPE_INTERVAL
+                );
+                case LOOKBACK_DELTA -> lookbackDelta = PromqlParserUtils.parseLookbackDelta(
+                    valueSource,
+                    parseParamValueString(paramCtx.value)
                 );
                 case INDEX -> indexPattern = parseIndexPattern(paramCtx.value);
                 default -> {
@@ -2200,7 +2207,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 buckets = DEFAULT_PROMQL_BUCKETS;
             }
         }
-        return new PromqlParams(source, start, end, step, buckets, scrapeInterval, indexPattern);
+        return new PromqlParams(source, start, end, step, buckets, scrapeInterval, lookbackDelta, indexPattern);
     }
 
     private Duration parsePositivePromqlDuration(Source source, String value, String parameterName) {
@@ -2338,8 +2345,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Duration step,
         Integer buckets,
         Duration scrapeInterval,
+        Duration lookbackDelta,
         IndexPattern indexPattern
     ) {
+
+        /** The per-command lookback override, left unset so analysis can apply the cluster default. */
+        public Literal lookbackDeltaLiteral() {
+            return lookbackDelta == null || lookbackDelta.isPositive() == false
+                ? Literal.NULL
+                : Literal.timeDuration(source, lookbackDelta);
+        }
 
         public Literal startLiteral() {
             if (start == null) {

@@ -274,7 +274,8 @@ required_capability: uri_parts_command
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 
-PROMQL index=k8s-downsampled step=1h oYJdEiiJ=(network.bytes_in{cluster!="qa",pod!="two"}) 
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s-downsampled step=1h oYJdEiiJ=(network.bytes_in{cluster!="qa",pod!="two"})
 | GROK _timeseries "%{WORD:zEyDkwmbYa} %{WORD:step} %{WORD:step}" 
 | URI_PARTS parts = _timeseries
 | DROP _timeseries, oYJdEiiJ, step, zEyDkwmbYa

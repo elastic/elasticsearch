@@ -151,8 +151,118 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
     }
 
     /**
-     * An exact-multiple window (10m over 5m buckets) merges the two covered buckets, no partial channel involved.
+     * A bounded evaluation continues emitting windowed values after the last input bucket.
      */
+    public void testWindowContinuesBeyondLastSampleThroughEvaluationEnd() {
+        var bucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
+        var aggregator = new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), Duration.ofMinutes(3))
+            .groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(HASH_CHANNEL_COUNT));
+        var output = extractRows(
+            runPipeline(
+                bucket,
+                aggregator,
+                List.of(ElementType.BYTES_REF, ElementType.LONG, ElementType.INT),
+                List.of(List.of("x", 0L, 42)),
+                randomIntBetween(1, 3),
+                TimeValue.timeValueMinutes(2).millis()
+            )
+        );
+        output.sort(Comparator.comparingLong(OutputRow::bucket));
+        assertThat(output.size(), equalTo(3));
+        for (int i = 0; i < output.size(); i++) {
+            assertThat(output.get(i).bucket(), equalTo(TimeValue.timeValueMinutes(i).millis()));
+            assertThat(output.get(i).value(), equalTo(42L));
+        }
+    }
+
+    public void testMixedWindowsExpireIndependently() {
+        var bucket = Rounding.ToUpperRounding.createRounding(Rounding.builder(TimeValue.timeValueMinutes(1)).build()).prepareForUnknown();
+        var last = new org.elasticsearch.compute.aggregation.LastDoubleByTimestampAggregatorFunctionSupplier();
+        var partial = new org.elasticsearch.compute.aggregation.FilteredAggregatorFunctionSupplier(
+            last,
+            trailingWindowFilter(bucket, 30000, 1, 3)
+        );
+        var aggregators = List.of(
+            new WindowAggregatorFunctionSupplier(last, partial, Duration.ofSeconds(150), Duration.ofSeconds(30)).groupingAggregatorFactory(
+                AggregatorMode.SINGLE,
+                List.of(2, 3)
+            ),
+            new WindowAggregatorFunctionSupplier(last, Duration.ofMinutes(10)).groupingAggregatorFactory(
+                AggregatorMode.SINGLE,
+                List.of(2, 3)
+            )
+        );
+        List<Page> pages = runPipeline(
+            bucket,
+            aggregators,
+            List.of(ElementType.BYTES_REF, ElementType.LONG, ElementType.DOUBLE, ElementType.LONG),
+            List.of(List.of("x", 60000L, 42.0, 59000L)),
+            Integer.MAX_VALUE,
+            540000L
+        );
+        try {
+            for (Page page : pages) {
+                LongBlock times = page.getBlock(1);
+                org.elasticsearch.compute.data.DoubleBlock shortValues = page.getBlock(2);
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    long time = times.getLong(p);
+                    assertEquals("short window at " + time, time >= 240000L, shortValues.isNull(p));
+                }
+            }
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testMixedWindowsExpireIndependentlyInFinalPhase() {
+        var bucket = Rounding.ToUpperRounding.createRounding(Rounding.builder(TimeValue.timeValueMinutes(1)).build()).prepareForUnknown();
+        var last = new org.elasticsearch.compute.aggregation.LastDoubleByTimestampAggregatorFunctionSupplier();
+        var partial = new org.elasticsearch.compute.aggregation.FilteredAggregatorFunctionSupplier(
+            last,
+            trailingWindowFilter(bucket, 30000, 1, 3)
+        );
+        var aggregators = List.of(
+            new WindowAggregatorFunctionSupplier(last, partial, Duration.ofSeconds(150), Duration.ofSeconds(30)).groupingAggregatorFactory(
+                AggregatorMode.FINAL,
+                List.of(2, 3, 4, 5)
+            ),
+            new WindowAggregatorFunctionSupplier(last, Duration.ofMinutes(10)).groupingAggregatorFactory(
+                AggregatorMode.FINAL,
+                List.of(6, 7)
+            )
+        );
+        List<Page> pages = runPipeline(
+            bucket,
+            aggregators,
+            List.of(
+                ElementType.BYTES_REF,
+                ElementType.LONG,
+                ElementType.LONG,
+                ElementType.DOUBLE,
+                ElementType.LONG,
+                ElementType.DOUBLE,
+                ElementType.LONG,
+                ElementType.DOUBLE
+            ),
+            List.of(List.of("x", 60000L, 59000L, 42.0, 59000L, 42.0, 59000L, 42.0)),
+            Integer.MAX_VALUE,
+            540000L,
+            AggregatorMode.FINAL
+        );
+        try {
+            for (Page page : pages) {
+                LongBlock times = page.getBlock(1);
+                org.elasticsearch.compute.data.DoubleBlock shortValues = page.getBlock(2);
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    long time = times.getLong(p);
+                    assertEquals("short window at " + time, time >= 240000L, shortValues.isNull(p));
+                }
+            }
+        } finally {
+            releasePages(pages);
+        }
+    }
+
     public void testExactMultipleWindow() {
         Rounding.Prepared fiveMinBucket = Rounding.builder(TimeValue.timeValueMinutes(5)).build().prepareForUnknown();
         Duration windowDuration = Duration.ofMinutes(10);
@@ -1061,6 +1171,40 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         List<List<Object>> rows,
         int targetChunkRows
     ) {
+        return runPipeline(timeBucket, aggregatorFactory, elementTypes, rows, targetChunkRows, null);
+    }
+
+    private List<Page> runPipeline(
+        Rounding.Prepared timeBucket,
+        GroupingAggregator.Factory aggregatorFactory,
+        List<ElementType> elementTypes,
+        List<List<Object>> rows,
+        int targetChunkRows,
+        Long windowEndMillis
+    ) {
+        return runPipeline(timeBucket, List.of(aggregatorFactory), elementTypes, rows, targetChunkRows, windowEndMillis);
+    }
+
+    private List<Page> runPipeline(
+        Rounding.Prepared timeBucket,
+        List<GroupingAggregator.Factory> aggregatorFactories,
+        List<ElementType> elementTypes,
+        List<List<Object>> rows,
+        int targetChunkRows,
+        Long windowEndMillis
+    ) {
+        return runPipeline(timeBucket, aggregatorFactories, elementTypes, rows, targetChunkRows, windowEndMillis, AggregatorMode.SINGLE);
+    }
+
+    private List<Page> runPipeline(
+        Rounding.Prepared timeBucket,
+        List<GroupingAggregator.Factory> aggregatorFactories,
+        List<ElementType> elementTypes,
+        List<List<Object>> rows,
+        int targetChunkRows,
+        Long windowEndMillis,
+        AggregatorMode mode
+    ) {
         var operatorFactory = new TimeSeriesAggregationOperator.Factory(
             timeBucket,
             false,
@@ -1068,12 +1212,13 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
                 new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
                 new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
             ),
-            AggregatorMode.SINGLE,
-            List.of(aggregatorFactory),
+            mode,
+            aggregatorFactories,
             10_000,
             targetChunkRows,
             TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
-            null
+            null,
+            windowEndMillis
         );
 
         BlockFactory bf = blockFactory();
@@ -1131,7 +1276,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
                 LongBlock timestampBlock = page.getBlock(timestampChannel);
                 try (var builder = context.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount())) {
                     for (int p = 0; p < page.getPositionCount(); p++) {
-                        long bucketEnd = timeBucket.nextRoundingValue(bucketBlock.getLong(p));
+                        long bucketEnd = timeBucket.roundingCeiling(bucketBlock.getLong(p));
                         builder.appendBoolean(p, timestampBlock.getLong(p) >= bucketEnd - remainderMillis);
                     }
                     return builder.build().asBlock();

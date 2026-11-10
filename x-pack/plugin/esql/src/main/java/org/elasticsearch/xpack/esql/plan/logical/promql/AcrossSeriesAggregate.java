@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
@@ -201,6 +202,9 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
 
         var promqlCtx = new PromqlContext(context.time(), AggregateFunction.NO_WINDOW, ir.step(), context.configuration());
         Expression function = buildEsqlFunction(ir.value(), promqlCtx);
+        if (function instanceof Sum sum) {
+            function = TranslationContext.emptySumAsNull(sum);
+        }
         // A raw operand collapses once, with the operator's function fused into the per-series aggregate; a table regroups.
         IntermediateResult result = ir.kind().afterInitialAggregation
             ? context.regroup(ir, schema, grouping() == WITHOUT, function)

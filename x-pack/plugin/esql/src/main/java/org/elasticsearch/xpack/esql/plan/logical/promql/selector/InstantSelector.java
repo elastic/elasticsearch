@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
@@ -109,6 +109,16 @@ public final class InstantSelector extends Selector {
     /** An instant selector maps to LastOverTime to get the latest sample per time series. */
     @Override
     public IntermediateResult translate(TranslationContext context) {
-        return translateSeries(context, new LastOverTime(source(), series(), AggregateFunction.NO_WINDOW, context.time()));
+        return translateSeries(
+            context,
+            new LastOverTime(
+                source(),
+                series(),
+                context.time(),
+                // Prometheus truncates a positive sub-millisecond lookback to an empty (t, t] window.
+                context.cmd().lookback().toMillis() == 0 ? Literal.FALSE : Literal.TRUE,
+                Literal.timeDuration(source(), context.cmd().lookback())
+            )
+        );
     }
 }

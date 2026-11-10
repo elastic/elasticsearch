@@ -9,6 +9,9 @@
 :::{include} project_routing.md
 :::
 
+:::{include} promql_lookback_delta.md
+:::
+
 :::{include} time_series_reduce_per_index.md
 :::
 

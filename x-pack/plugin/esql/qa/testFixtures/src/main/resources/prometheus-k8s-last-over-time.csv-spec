@@ -67,7 +67,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
 
-PROMQL index=prometheus-k8s step=1m clients=(avg by (cluster) (network.eth0.currently_connected_clients))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1m index=prometheus-k8s step=1m clients=(avg by (cluster) (network.eth0.currently_connected_clients))
 | SORT step, cluster | LIMIT 10;
 
 clients:double | step:datetime            | cluster:keyword
@@ -109,7 +110,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
 
-PROMQL index=prometheus-k8s step=1m bytes=(avg by (cluster) (network.bytes_in))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1m index=prometheus-k8s step=1m bytes=(avg by (cluster) (network.bytes_in))
 | SORT step, cluster | LIMIT 10;
 
 bytes:double | step:datetime            | cluster:keyword
@@ -150,7 +152,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
 
-PROMQL index=prometheus-k8s step=10m tx=(sum by (cluster) (network.bytes_in{pod="one"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=10m index=prometheus-k8s step=10m tx=(sum by (cluster) (network.bytes_in{pod="one"}))
 | SORT step, cluster | LIMIT 10;
 
 tx:double | step:datetime            | cluster:keyword
@@ -170,7 +173,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
 
-PROMQL index=prometheus-k8s step=10m tx=(sum by (cluster) (network.bytes_in{pod="one"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=10m index=prometheus-k8s step=10m tx=(sum by (cluster) (network.bytes_in{pod="one"}))
 | SORT step, cluster | LIMIT 10;
 
 tx:double | step:datetime            | cluster:keyword

@@ -159,6 +159,9 @@ A range selector with a duration, such as `x[5m]` or `x[1h30m]`.
 **Supported**
 
 A selector without a range, such as `http_requests_total`, returns the latest sample of each series within the lookback window at each evaluation time.
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` The lookback is independent of `step` in both instant and range
+queries. It defaults to five minutes and can be overridden with `lookback_delta`, or configured with the dynamic cluster
+setting `esql.query.settings.promql_lookback_delta`. A selected sample can repeat at later evaluation times until it expires.
 
 **Behaves differently**
 
@@ -167,7 +170,7 @@ A selector without a range, such as `http_requests_total`, returns the latest sa
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 11 | Lookback in instant queries | `/api/v1/query` | Five minutes, fixed | Five minutes by default, configurable with `lookback_delta` | [#149939]({{es-issue}}149939) |
-| 12 | Lookback in range queries | `/api/v1/query_range` | One `step`. A series disappears at the first step without its own sample | Five minutes. The last sample repeats until then | - |
+| 11 | Lookback in instant queries {applies_to}`stack: ga 9.5-9.6` | `/api/v1/query` | Five minutes, fixed | Five minutes by default, configurable with `lookback_delta` | [#149939]({{es-issue}}149939) |
+| 12 | Lookback in range queries {applies_to}`stack: ga 9.5-9.6` | `/api/v1/query_range` | One `step`. A series disappears at the first step without its own sample | Five minutes. The last sample repeats until then | - |
 | 13 | Staleness markers | - | Ignored. A series disappears once its samples leave the lookback window | A series disappears at its staleness marker | - |
 :::

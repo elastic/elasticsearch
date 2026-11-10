@@ -12,6 +12,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -823,7 +824,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             context.pageSize(ts, ts.estimatedRowSize()),
             targetChunkRows,
             pragmas.partialAggregationEmitKeysThreshold(plannerSettings.partialEmitKeysThreshold()),
-            parallelConfig
+            parallelConfig,
+            ts.timeBucket() != null
+                && ts.timeBucket().roundingConfiguration() == Rounding.RoundingConvention.UP
+                && ts.timeBucket().to() != null ? ts.timeBucket().rangeToMillis(context.foldCtx()) : null
         );
     }
 

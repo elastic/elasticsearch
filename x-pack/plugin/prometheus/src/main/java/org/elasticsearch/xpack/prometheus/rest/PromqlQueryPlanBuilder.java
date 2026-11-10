@@ -77,13 +77,26 @@ class PromqlQueryPlanBuilder {
         int limit,
         QueryMode mode
     ) {
+        return buildStatement(query, index, startStr, endStr, stepStr, limit, null, mode);
+    }
+
+    static PromqlStatementResult buildStatement(
+        String query,
+        String index,
+        String startStr,
+        String endStr,
+        String stepStr,
+        int limit,
+        Duration lookbackDelta,
+        QueryMode mode
+    ) {
         Instant startInstant = PromqlParserUtils.parseDate(Source.EMPTY, startStr);
         Instant endInstant = PromqlParserUtils.parseDate(Source.EMPTY, endStr);
         Duration stepDuration = parseDuration(stepStr);
         Literal startLiteral = Literal.dateTime(Source.EMPTY, startInstant);
         Literal endLiteral = Literal.dateTime(Source.EMPTY, endInstant);
         Literal stepLiteral = Literal.timeDuration(Source.EMPTY, stepDuration);
-        return buildStatement(query, index, startLiteral, endLiteral, stepLiteral, Literal.NULL, limit, mode);
+        return buildStatement(query, index, startLiteral, endLiteral, stepLiteral, Literal.NULL, limit, lookbackDelta, mode);
     }
 
     static PromqlStatementResult buildStatement(
@@ -97,12 +110,16 @@ class PromqlQueryPlanBuilder {
         Literal startLiteral = Literal.dateTime(Source.EMPTY, startInstant);
         Literal endLiteral = Literal.dateTime(Source.EMPTY, endInstant);
         Literal stepLiteral = Literal.timeDuration(Source.EMPTY, stepDuration);
-        return buildStatement(query, index, startLiteral, endLiteral, stepLiteral, Literal.NULL, 0, mode);
+        return buildStatement(query, index, startLiteral, endLiteral, stepLiteral, Literal.NULL, 0, null, mode);
     }
 
     static PromqlStatementResult buildStatement(String query, String index, Instant at, QueryMode mode) {
+        return buildStatement(query, index, at, null, mode);
+    }
+
+    static PromqlStatementResult buildStatement(String query, String index, Instant at, Duration lookbackDelta, QueryMode mode) {
         Literal timeLiteral = Literal.dateTime(Source.EMPTY, at);
-        return buildStatement(query, index, timeLiteral, timeLiteral, Literal.NULL, Literal.NULL, 0, mode);
+        return buildStatement(query, index, timeLiteral, timeLiteral, Literal.NULL, Literal.NULL, 0, lookbackDelta, mode);
     }
 
     private static PromqlStatementResult buildStatement(
@@ -113,6 +130,7 @@ class PromqlQueryPlanBuilder {
         Literal stepLiteral,
         Literal bucketsLiteral,
         int limit,
+        Duration lookbackDelta,
         QueryMode mode
     ) {
         IndexPattern indexPattern = new IndexPattern(Source.EMPTY, index);
@@ -145,6 +163,7 @@ class PromqlQueryPlanBuilder {
             stepLiteral,
             bucketsLiteral,
             Literal.timeDuration(Source.EMPTY, DEFAULT_SCRAPE_INTERVAL),
+            lookbackDelta == null ? Literal.NULL : Literal.timeDuration(Source.EMPTY, lookbackDelta),
             PrometheusQueryResponseListener.VALUE_COLUMN,
             new UnresolvedTimestamp(Source.EMPTY)
         );

@@ -1,3 +1,4 @@
+// Hourly selector fixtures explicitly retain the hour of data their assertions exercise.
 // The PromQL tests of `k8s-timeseries-promql.csv-spec` over `index=k8s`, run on `prometheus-k8s`: the same samples in the Prometheus
 // remote-write layout (one document per sample, `labels.*` dimensions including `__name__`, one
 // `metrics.<name>` field per metric). Queries are identical up to the index name; `_timeseries` carries
@@ -97,7 +98,8 @@ not_equals_filter
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!="prod"}))
 | SORT cluster;
 
 cost:double | step:datetime            | cluster:keyword
@@ -110,7 +112,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: ts_collapse
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" cost=(max by (cluster) (network.total_bytes_in{cluster!="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" cost=(max by (cluster) (network.total_bytes_in{cluster!="prod"}))
 | TS_COLLAPSE
 | SORT cluster;
 
@@ -123,7 +126,8 @@ equals_filter
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster="prod"}))
 | SORT cluster;
 
 cost:double | step:datetime            | cluster:keyword
@@ -134,7 +138,8 @@ equals_filter_case_sensitive
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster="PROD"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster="PROD"}))
 | SORT cluster;
 
 cost:double | step:datetime            | cluster:keyword
@@ -144,7 +149,8 @@ not_regex_filter
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!~"pr.d"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!~"pr.d"}))
 | SORT cluster;
 
 cost:double | step:datetime            | cluster:keyword
@@ -156,7 +162,8 @@ regex_filter
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster=~"pr.d"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster=~"pr.d"}))
 | SORT cluster;
 
 cost:double | step:datetime            | cluster:keyword
@@ -168,7 +175,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: ts_collapse
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" cost=(max by (cluster) (network.total_bytes_in{cluster=~"pr.d"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" cost=(max by (cluster) (network.total_bytes_in{cluster=~"pr.d"}))
 | TS_COLLAPSE
 | SORT cluster;
 
@@ -180,7 +188,8 @@ filter_same_label_multiple_times
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!="prod",cluster!="qa"}));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!="prod",cluster!="qa"}));
 
 cost:double | step:datetime            | cluster:keyword
 7403.0      | 2024-05-10T01:00:00.000Z | staging
@@ -191,7 +200,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: ts_collapse
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" cost=(max by (cluster) (network.total_bytes_in{cluster!="prod",cluster!="qa"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" cost=(max by (cluster) (network.total_bytes_in{cluster!="prod",cluster!="qa"}))
 | TS_COLLAPSE;
 
 cost:double | step:datetime              | cluster:keyword
@@ -730,7 +740,8 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: fix_promql_quantile_scale
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(quantile(1.0, max by (cluster) (network.bytes_in)));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(quantile(1.0, max by (cluster) (network.bytes_in)));
 
 result:double | step:datetime
 972.0         | 2024-05-10T01:00:00.000Z
@@ -741,7 +752,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(max(max by (cluster) (network.bytes_in)));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(max(max by (cluster) (network.bytes_in)));
 
 result:double | step:datetime
 972.0         | 2024-05-10T01:00:00.000Z
@@ -1094,7 +1106,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_time
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(time() - network.cost);
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(time() - network.cost);
 
 result:double          | step:datetime            | cluster:keyword | pod:keyword
 0.0                    | 2024-05-10T00:00:00.000Z | prod             | one
@@ -1105,7 +1118,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_post_processing_stats
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h bytes=(max by (cluster) (network.bytes_in))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h bytes=(max by (cluster) (network.bytes_in))
 | STATS max_bytes=MAX(bytes);
 
 max_bytes:double
@@ -1117,7 +1131,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_post_processing_stats
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h bytes=(max by (cluster) (network.bytes_in))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h bytes=(max by (cluster) (network.bytes_in))
 | STATS max_bytes=MAX(bytes) BY cluster
 | SORT cluster;
 
@@ -1133,7 +1148,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_binary_comparison_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h bytes=(max by (cluster) (network.bytes_in))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h bytes=(max by (cluster) (network.bytes_in))
 | SORT cluster;
 
 bytes:double | step:datetime            | cluster:keyword
@@ -1147,7 +1163,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_binary_comparison_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h bytes=(max by (cluster) (network.bytes_in) < 900)
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h bytes=(max by (cluster) (network.bytes_in) < 900)
 | SORT cluster;
 
 bytes:double | step:datetime            | cluster:keyword
@@ -1160,7 +1177,8 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_binary_comparison_v0
 required_capability: ts_collapse
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" bytes=(max by (cluster) (network.bytes_in) < 900)
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" bytes=(max by (cluster) (network.bytes_in) < 900)
 | TS_COLLAPSE
 | SORT cluster;
 
@@ -1173,7 +1191,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_binary_comparison_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h bytes=(max by (cluster) (network.bytes_in) > 900)
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h bytes=(max by (cluster) (network.bytes_in) > 900)
 | SORT cluster;
 
 bytes:double | step:datetime            | cluster:keyword
@@ -1187,7 +1206,8 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_binary_comparison_v0
 required_capability: ts_collapse
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" bytes=(max by (cluster) (network.bytes_in) > 900)
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" bytes=(max by (cluster) (network.bytes_in) > 900)
 | TS_COLLAPSE
 | SORT cluster;
 
@@ -1211,7 +1231,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_unmapped_fields_filter_nulls
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(network.cost{unmapped.label="value"}) | SORT result;
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(network.cost{unmapped.label="value"}) | SORT result;
 
 result:double | step:datetime | _timeseries:keyword
 ;
@@ -1231,7 +1252,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_unmapped_fields_filter_nulls
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(sum by (unmapped.label) (network.cost)) | SORT result;
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(sum by (unmapped.label) (network.cost)) | SORT result;
 
 result:double | step:datetime
 61.0          | 2024-05-10T01:00:00.000Z
@@ -1243,7 +1265,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_unmapped_fields_filter_nulls
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(sum (network.cost)) | SORT result;
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(sum (network.cost)) | SORT result;
 
 result:double | step:datetime
 61.0          | 2024-05-10T01:00:00.000Z
@@ -1254,7 +1277,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_unmapped_fields_filter_nulls
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(sum by (cluster, unmapped.label) (network.cost)) | SORT result;
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(sum by (cluster, unmapped.label) (network.cost)) | SORT result;
 
 result:double | step:datetime            | cluster:keyword
 15.875        | 2024-05-10T01:00:00.000Z | staging
@@ -1268,7 +1292,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_unmapped_fields_filter_nulls
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(sum by (cluster) (network.cost)) | SORT result;
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(sum by (cluster) (network.cost)) | SORT result;
 
 result:double | step:datetime            | cluster:keyword
 15.875        | 2024-05-10T01:00:00.000Z | staging
@@ -1305,7 +1330,8 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_unmapped_fields_filter_nulls
 required_capability: fix_ts_block_loader_passthrough_aliasing
 SET unmapped_fields="nullify"\;
-PROMQL index=prometheus-k8s step=1h result=(sum by (unmapped.label) (network.cost)) | SORT result
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(sum by (unmapped.label) (network.cost)) | SORT result
 ;
 
 result:double | step:datetime
@@ -1319,7 +1345,8 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: optional_fields_nullify_tech_preview
 required_capability: fix_ts_block_loader_passthrough_aliasing
 SET unmapped_fields="nullify"\;
-PROMQL index=prometheus-k8s step=1h result=(sum by (cluster) (network.cost)) | SORT result
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(sum by (cluster) (network.cost)) | SORT result
 ;
 
 result:double | step:datetime            | cluster:keyword
@@ -1336,7 +1363,8 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_unmapped_fields_filter_nulls
 required_capability: promql_absent_label_matching
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(sum(network.cost{unmapped.label=""}));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(sum(network.cost{unmapped.label=""}));
 
 result:double | step:datetime
 61.0          | 2024-05-10T01:00:00.000Z
@@ -1349,7 +1377,8 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_unmapped_fields_filter_nulls
 required_capability: promql_absent_label_matching
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(sum(network.cost{unmapped.label!="foo"}));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(sum(network.cost{unmapped.label!="foo"}));
 
 result:double | step:datetime
 61.0          | 2024-05-10T01:00:00.000Z
@@ -1362,7 +1391,8 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_unmapped_fields_filter_nulls
 required_capability: promql_absent_label_matching
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(sum(network.cost{unmapped.label!=""}));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(sum(network.cost{unmapped.label!=""}));
 
 result:double | step:datetime
 ;
@@ -1394,7 +1424,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_scalar
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(scalar(sum(network.bytes_in)));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(scalar(sum(network.bytes_in)));
 
 result:double | step:datetime
 4852.0        | 2024-05-10T01:00:00.000Z
@@ -1406,7 +1437,8 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_scalar
 required_capability: fix_ts_block_loader_passthrough_aliasing
 // produces 3 results, scalar returns NaN
-PROMQL index=prometheus-k8s step=1h result=(scalar(sum by (cluster) (network.bytes_in)));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(scalar(sum by (cluster) (network.bytes_in)));
 
 result:double | step:datetime
 NaN           | 2024-05-10T01:00:00.000Z
@@ -1418,7 +1450,8 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_scalar
 required_capability: fix_ts_block_loader_passthrough_aliasing
 // counter field produces 3 results, scalar returns NaN
-PROMQL index=prometheus-k8s step=1h result=(scalar(sum by (cluster) (network.total_bytes_in)));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(scalar(sum by (cluster) (network.total_bytes_in)));
 
 result:double | step:datetime
 NaN           | 2024-05-10T01:00:00.000Z
@@ -1430,7 +1463,8 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_scalar
 required_capability: fix_ts_block_loader_passthrough_aliasing
 // counter field produces exactly 1 result
-PROMQL index=prometheus-k8s step=1h result=(scalar(sum by (cluster) (network.total_bytes_in{cluster="prod"})));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(scalar(sum by (cluster) (network.total_bytes_in{cluster="prod"})));
 
 result:double | step:datetime
 21193.0       | 2024-05-10T01:00:00.000Z
@@ -1442,7 +1476,8 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_scalar
 required_capability: fix_ts_block_loader_passthrough_aliasing
 // produces exactly 1 result
-PROMQL index=prometheus-k8s step=1h result=(scalar(sum by (cluster) (network.bytes_in{cluster="prod"})));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(scalar(sum by (cluster) (network.bytes_in{cluster="prod"})));
 
 result:double | step:datetime
 2517.0        | 2024-05-10T01:00:00.000Z
@@ -1454,7 +1489,8 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_scalar
 required_capability: fix_ts_block_loader_passthrough_aliasing
 // raw instant vector has multiple time series, scalar returns NaN
-PROMQL index=prometheus-k8s step=1h result=(scalar(network.cost));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(scalar(network.cost));
 
 result:double | step:datetime
 NaN           | 2024-05-10T01:00:00.000Z
@@ -1491,7 +1527,8 @@ required_capability: promql_scalar
 required_capability: promql_nested_aggregates
 required_capability: fix_ts_block_loader_passthrough_aliasing
 // count of 3 grouped sums produces 1 result, scalar returns it
-PROMQL index=prometheus-k8s step=1h result=(scalar(count(sum by (cluster) (network.cost))));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(scalar(count(sum by (cluster) (network.cost))));
 
 result:double | step:datetime
 3.0           | 2024-05-10T01:00:00.000Z
@@ -1502,7 +1539,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_scalar
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(scalar(sum(network.cost)) + 1);
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(scalar(sum(network.cost)) + 1);
 
 result:double | step:datetime
 62.0          | 2024-05-10T01:00:00.000Z
@@ -1937,7 +1975,8 @@ required_capability: promql_command_v0
 required_capability: promql_set_operator_union
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (cluster) (network.total_bytes_in))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (cluster) (network.total_bytes_in))
 | SORT cluster;
 
 set_union:double | step:datetime            | cluster:keyword
@@ -1953,7 +1992,8 @@ required_capability: promql_command_v0
 required_capability: promql_set_operator_union
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or sum by (cluster) (network.total_bytes_in{cluster="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or sum by (cluster) (network.total_bytes_in{cluster="prod"}))
 | SORT cluster;
 
 set_union:double | step:datetime            | cluster:keyword
@@ -1966,7 +2006,8 @@ required_capability: promql_command_v0
 required_capability: promql_set_operator_union
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="does_not_exist"}) or vector(0));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="does_not_exist"}) or vector(0));
 
 set_union:double | step:datetime            | cluster:keyword
 0.0              | 2024-05-10T01:00:00.000Z | null
@@ -2012,7 +2053,8 @@ required_capability: promql_command_v0
 required_capability: promql_set_operator_union
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (pod) (network.total_bytes_in{cluster="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (pod) (network.total_bytes_in{cluster="prod"}))
 | SORT cluster, pod;
 
 set_union:double | step:datetime            | cluster:keyword | pod:keyword
@@ -2029,7 +2071,8 @@ required_capability: promql_command_v0
 required_capability: promql_set_operator_union
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (cluster) (network.total_bytes_in{cluster="qa"}) or sum by (cluster) (network.total_bytes_in))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (cluster) (network.total_bytes_in{cluster="qa"}) or sum by (cluster) (network.total_bytes_in))
 | SORT cluster;
 
 set_union:double | step:datetime            | cluster:keyword
@@ -2047,7 +2090,8 @@ required_capability: promql_set_operator_union
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h set_union=(topk(2, max by (cluster) (network.total_bytes_in)) or max by (cluster) (network.total_bytes_in))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h set_union=(topk(2, max by (cluster) (network.total_bytes_in)) or max by (cluster) (network.total_bytes_in))
 | SORT cluster;
 
 set_union:double | step:datetime            | cluster:keyword
@@ -2064,7 +2108,8 @@ required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(topk(2, network.total_bytes_in{cluster="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(topk(2, network.total_bytes_in{cluster="prod"}))
 | SORT result DESC;
 
 result:double | step:datetime            | _timeseries:keyword
@@ -2078,7 +2123,8 @@ required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(topk(5, network.total_bytes_in{cluster="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(topk(5, network.total_bytes_in{cluster="prod"}))
 | SORT result DESC;
 
 result:double | step:datetime            | _timeseries:keyword
@@ -2110,7 +2156,8 @@ required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(topk(0, network.total_bytes_in{cluster="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(topk(0, network.total_bytes_in{cluster="prod"}))
 | SORT result DESC;
 
 result:double | step:datetime | _timeseries:keyword
@@ -2124,7 +2171,8 @@ required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(topk(100000, network.total_bytes_in{cluster="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(topk(100000, network.total_bytes_in{cluster="prod"}))
 | SORT result DESC;
 
 result:double | step:datetime            | _timeseries:keyword
@@ -2141,7 +2189,8 @@ required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(topk(2, network.total_bytes_in) by (pod));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(topk(2, network.total_bytes_in) by (pod));
 
 result:double | step:datetime            | _timeseries:keyword
 10797.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""qa"",""pod"":""three""}}"
@@ -2160,7 +2209,8 @@ required_capability: promql_topk
 required_capability: fix_promql_topk_over_aggregate
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(topk(2, sum by (pod) (network.total_bytes_in{cluster="prod"})))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(topk(2, sum by (pod) (network.total_bytes_in{cluster="prod"})))
 | SORT result DESC;
 
 result:double | step:datetime            | pod:keyword
@@ -2174,7 +2224,8 @@ required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(bottomk(2, network.total_bytes_in{cluster="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(bottomk(2, network.total_bytes_in{cluster="prod"}))
 | SORT result ASC;
 
 result:double | step:datetime            | _timeseries:keyword
@@ -2188,7 +2239,8 @@ required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(bottomk(5, network.total_bytes_in{cluster="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(bottomk(5, network.total_bytes_in{cluster="prod"}))
 | SORT result ASC;
 
 result:double | step:datetime            | _timeseries:keyword
@@ -2206,11 +2258,12 @@ required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_lookback_delta
 PROMQL index=prometheus-k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" result=(bottomk(1, network.total_bytes_in{cluster="prod"}))
 | SORT step, result ASC;
 
 result:double | step:datetime            | _timeseries:keyword
-9969.0        | 2024-05-10T00:20:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
+8031.0        | 2024-05-10T00:20:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}}"
 947.0         | 2024-05-10T00:25:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
 ;
 
@@ -2220,7 +2273,8 @@ required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(bottomk(0, network.total_bytes_in{cluster="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(bottomk(0, network.total_bytes_in{cluster="prod"}))
 | SORT result ASC;
 
 result:double | step:datetime | _timeseries:keyword
@@ -2232,7 +2286,8 @@ required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(bottomk(2, network.total_bytes_in) by (pod));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(bottomk(2, network.total_bytes_in) by (pod));
 
 result:double | step:datetime            | _timeseries:keyword
 947.0         | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
@@ -2251,7 +2306,8 @@ required_capability: promql_bottomk
 required_capability: fix_promql_topk_over_aggregate
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(bottomk(2, sum by (pod) (network.total_bytes_in{cluster="prod"})))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(bottomk(2, sum by (pod) (network.total_bytes_in{cluster="prod"})))
 | SORT result ASC;
 
 result:double | step:datetime            | pod:keyword

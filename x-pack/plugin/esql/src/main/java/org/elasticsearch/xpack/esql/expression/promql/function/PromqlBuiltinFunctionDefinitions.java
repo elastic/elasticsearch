@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateUnitCount;
@@ -475,28 +477,34 @@ public class PromqlBuiltinFunctionDefinitions {
 
     /**
      * Resolves the timestamp expression for {@code timestamp(v)}.
-     * Instant-selector {@link LastOverTime} (no window) preserves scrape timestamps; otherwise the evaluation
+     * Instant-selector {@link LastOverTime} preserves scrape timestamps; otherwise the evaluation
      * step/timestamp is used, matching Prometheus sample stamping after aggregations and range functions.
      */
     private static Expression sampleTimestamp(Source source, Expression target, PromqlFunctionRegistry.PromqlContext ctx) {
-        LastOverTime instantLast = findInstantSelectorLastOverTime(target);
+        LastOverTime instantLast = ctx.preservesSampleTimestamp() ? findInstantSelectorLastOverTime(target) : null;
         if (instantLast != null) {
             Expression metricPresent = new IsNotNull(source, instantLast.field());
             Expression filter = Literal.TRUE.equals(instantLast.filter())
                 ? metricPresent
                 : new And(source, instantLast.filter(), metricPresent);
-            return new LastOverTime(source, instantLast.timestamp(), instantLast.timestamp(), filter, instantLast.window());
+            Expression sampleTime = ctx.originalTimestamp();
+            if (isDateNanos(sampleTime.dataType())) {
+                sampleTime = new ToDatetime(source, sampleTime, ctx.configuration());
+            }
+            return new LastOverTime(source, sampleTime, instantLast.timestamp(), filter, instantLast.window());
         }
         if (isDateTime(target.dataType()) || isDateNanos(target.dataType())) {
             return target;
         }
         Expression step = ctx.step();
-        return (step == null || isNull(step.dataType())) ? ctx.timestamp() : step;
+        Expression evaluation = (step == null || isNull(step.dataType())) ? ctx.timestamp() : step;
+        // A computed vector uses evaluation timestamps, but only where the input vector has an element.
+        return new Case(source, new IsNotNull(source, target), List.of(evaluation, Literal.NULL));
     }
 
-    /** Finds the windowless {@link LastOverTime} produced for an instant selector, possibly under value transforms. */
+    /** Finds the {@link LastOverTime} produced for an instant selector, possibly under value transforms. */
     private static LastOverTime findInstantSelectorLastOverTime(Expression expression) {
-        if (expression instanceof LastOverTime lastOverTime && lastOverTime.hasWindow() == false) {
+        if (expression instanceof LastOverTime lastOverTime) {
             return lastOverTime;
         }
         for (Expression child : expression.children()) {

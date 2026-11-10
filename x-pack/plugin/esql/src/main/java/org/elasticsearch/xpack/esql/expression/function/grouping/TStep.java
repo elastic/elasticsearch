@@ -212,16 +212,22 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
      */
     @Override
     public Expression surrogate() {
+        return surrogate(true);
+    }
+
+    /** Retain explicit evaluation bounds for window expansion; unbounded queries use the data-derived end. */
+    public Expression surrogate(boolean retainBounds) {
         var ctx = FoldContext.small();
         Expression step = stepOrBuckets.dataType() == DataType.TIME_DURATION
             ? stepOrBuckets
             : Literal.timeDuration(source(), Duration.ofMillis(stepToLong(ctx)));
+        // Keep the evaluation bounds so windowed aggregates can emit trailing steps after the last sample.
         return new Bucket(
             source(),
             timestamp,
             step,
-            null,
-            null,
+            retainBounds ? from : null,
+            retainBounds ? to : null,
             null,
             configuration.withSetting(QuerySettings.TIME_ZONE, ZoneOffset.UTC),
             offsetToLong(ctx),

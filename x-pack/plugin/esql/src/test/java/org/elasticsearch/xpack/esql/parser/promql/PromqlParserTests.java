@@ -51,6 +51,22 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class PromqlParserTests extends ESTestCase {
 
+    public void testLookbackDeltaParameter() {
+        assertThat(
+            parse("PROMQL index=test time=\"2026-01-01T00:00:00Z\" lookback_delta=2m (foo)").lookback(),
+            equalTo(Duration.ofMinutes(2))
+        );
+        assertThat(parse("PROMQL index=test step=30s lookback_delta=\"1.5\" (foo)").lookback(), equalTo(Duration.ofMillis(1500)));
+        assertThat(
+            parse("PROMQL index=test step=30s (foo)").lookbackDelta(),
+            equalTo(org.elasticsearch.xpack.esql.core.expression.Literal.NULL)
+        );
+        for (String invalid : List.of("NaN", "Inf", "1e100", "wrong")) {
+            expectThrows(ParsingException.class, () -> parse("PROMQL index=test step=30s lookback_delta=\"" + invalid + "\" (foo)"));
+        }
+        expectThrows(ParsingException.class, () -> parse("PROMQL index=test step=1m lookback_delta=1m lookback_delta=2m (foo)"));
+    }
+
     public void testNoParenthesis() {
         Stream.of(
             parse("PROMQL index=test step=5m avg(foo)"),

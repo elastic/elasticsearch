@@ -30,6 +30,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -60,6 +61,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
      * @param targetChunkRows target number of rows per output page when chunking output. The operator slices its emitted
      *        result into pages of about this many rows. The same target applies to both partial/intermediate and final
      *        output.
+     * @param windowEndMillis inclusive evaluation end for window expansion; null uses the last input bucket
      */
     public record Factory(
         Rounding.Prepared timeBucket,
@@ -70,8 +72,35 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         int aggregationBatchSize,
         int targetChunkRows,
         int partialEmitKeysThreshold,
-        ParallelConfig parallelConfig
+        ParallelConfig parallelConfig,
+        @Nullable Long windowEndMillis
     ) implements OperatorFactory {
+        /** Construct an aggregation without an explicit evaluation end, preserving data-bounded TS windows. */
+        public Factory(
+            Rounding.Prepared timeBucket,
+            boolean dateNanos,
+            List<BlockHash.GroupSpec> groups,
+            AggregatorMode aggregatorMode,
+            List<GroupingAggregator.Factory> aggregators,
+            int aggregationBatchSize,
+            int targetChunkRows,
+            int partialEmitKeysThreshold,
+            ParallelConfig parallelConfig
+        ) {
+            this(
+                timeBucket,
+                dateNanos,
+                groups,
+                aggregatorMode,
+                aggregators,
+                aggregationBatchSize,
+                targetChunkRows,
+                partialEmitKeysThreshold,
+                parallelConfig,
+                null
+            );
+        }
+
         @Override
         public Operator get(DriverContext driverContext) {
             final boolean outputFinal = aggregatorMode.isOutputPartial() == false;
@@ -97,6 +126,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 targetChunkRows,
                 partialEmitKeysThreshold,
                 parallelConfig,
+                windowEndMillis,
                 driverContext
             );
         }
@@ -114,10 +144,14 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
     private final Rounding.Prepared timeBucket;
     private final DateFieldMapper.Resolution timeResolution;
     private final int targetChunkRows;
+    @Nullable
+    private final Long windowEndMillis;
     private final ParallelConfig parallelConfig;
     private ExpandingGroups expandingGroups = null;
     private int numGroupsBeforeExpanding = -1;
+    private long expandedMaxTimestampMillis = Long.MIN_VALUE;
 
+    /** Construct a data-bounded time-series aggregation. */
     public TimeSeriesAggregationOperator(
         Rounding.Prepared timeBucket,
         DateFieldMapper.Resolution timeResolution,
@@ -127,6 +161,33 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         int targetChunkRows,
         int partialEmitKeysThreshold,
         ParallelConfig parallelConfig,
+        DriverContext driverContext
+    ) {
+        this(
+            timeBucket,
+            timeResolution,
+            aggregatorMode,
+            aggregators,
+            blockHash,
+            targetChunkRows,
+            partialEmitKeysThreshold,
+            parallelConfig,
+            null,
+            driverContext
+        );
+    }
+
+    /** Construct a time-series aggregation whose window expansion may continue through an explicit evaluation end. */
+    public TimeSeriesAggregationOperator(
+        Rounding.Prepared timeBucket,
+        DateFieldMapper.Resolution timeResolution,
+        AggregatorMode aggregatorMode,
+        List<GroupingAggregator.Factory> aggregators,
+        Function<DriverContext, BlockHash> blockHash,
+        int targetChunkRows,
+        int partialEmitKeysThreshold,
+        ParallelConfig parallelConfig,
+        @Nullable Long windowEndMillis,
         DriverContext driverContext
     ) {
         // Time-series keys (_tsid, timestamp) are sorted per segment, so the uniqueness ratio is not a
@@ -144,6 +205,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             false
         );
         this.timeBucket = timeBucket;
+        this.windowEndMillis = windowEndMillis;
         this.timeResolution = timeResolution;
         this.targetChunkRows = targetChunkRows;
         this.parallelConfig = parallelConfig;
@@ -169,6 +231,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 targetChunkRows,
                 partialEmitKeysThreshold,
                 parallelConfig,
+                windowEndMillis,
                 workerDriverContext
             ) {
                 @Override
@@ -276,6 +339,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         Releasables.close(expandingGroups);
         expandingGroups = null;
         numGroupsBeforeExpanding = -1;
+        expandedMaxTimestampMillis = Long.MIN_VALUE;
         if (aggregatorMode.isOutputPartial()) {
             return;
         }
@@ -295,7 +359,9 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         // The hash keys are in the time resolution of the timestamp field (nanoseconds for date_nanos), while the
         // roundings operate on milliseconds. Iterate the buckets in the millisecond domain and convert the resulting
         // labels back to the hash resolution when creating groups.
-        long maxBoundMillis = timeResolution.roundDownToMillis(tsBlockHash.maxTimestamp());
+        // TSTEP carries an explicit evaluation end. Continue through empty trailing steps up to that end;
+        // ordinary TS queries without bounds retain their data-derived end.
+        long maxBoundMillis = windowEndMillis == null ? timeResolution.roundDownToMillis(tsBlockHash.maxTimestamp()) : windowEndMillis;
         this.numGroupsBeforeExpanding = Math.toIntExact(numGroups);
         // the extra groups have not been seen by any aggregator; tell them so a group whose window turns out to be
         // completely empty evaluates to null instead of the aggregator's default value
@@ -307,16 +373,21 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         for (long groupId = 0; groupId < numGroups; groupId++) {
             int tsid = tsBlockHash.tsidForGroup(groupId);
             long startMillis = timeResolution.roundDownToMillis(tsBlockHash.timestampForGroup(groupId));
-            long effectiveEndMillis = Math.min(startMillis + windowMillis, maxBoundMillis + 1);
+            long effectiveEndMillis = Math.min(saturatedAdd(startMillis, windowMillis), saturatedAdd(maxBoundMillis, 1));
             long bucketMillis = optimizedTimeBucket.nextRoundingValue(startMillis);
             // Fill the missing buckets between (timestamp - window, timestamp).
             while (bucketMillis < effectiveEndMillis) {
                 if (tsBlockHash.addExtraGroup(tsid, timeResolution.convert(bucketMillis)) >= 0) {
                     expandingGroups.addGroup(Math.toIntExact(groupId));
+                    expandedMaxTimestampMillis = Math.max(expandedMaxTimestampMillis, bucketMillis);
                 }
                 bucketMillis = optimizedTimeBucket.nextRoundingValue(bucketMillis);
             }
         }
+    }
+
+    private static long saturatedAdd(long timestamp, long positiveDuration) {
+        return timestamp > Long.MAX_VALUE - positiveDuration ? Long.MAX_VALUE : timestamp + positiveDuration;
     }
 
     @Override
@@ -482,7 +553,9 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
     private Rounding.Prepared optimizeRoundingForTimeRange(long minTimestamp, long maxTimestamp) {
         if (minTimestamp <= maxTimestamp) {
             long startMillis = timeResolution.roundDownToMillis(minTimestamp);
-            long endMillis = timeResolution.roundUpToMillis(maxTimestamp);
+            // Prepared roundings may cache only this interval. Include synthetic buckets: upper-bound
+            // rounding needs their true preceding boundary when merging a partial window.
+            long endMillis = Math.max(timeResolution.roundUpToMillis(maxTimestamp), expandedMaxTimestampMillis);
             return timeBucket.getUnprepared().prepare(startMillis, endMillis);
         } else {
             return timeBucket;

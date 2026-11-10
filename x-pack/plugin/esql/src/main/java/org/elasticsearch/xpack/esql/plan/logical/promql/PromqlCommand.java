@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryCom
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
@@ -68,10 +69,11 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     public static final String STEP = "step";
     public static final String BUCKETS = "buckets";
     public static final String SCRAPE_INTERVAL = "scrape_interval";
+    public static final String LOOKBACK_DELTA = "lookback_delta";
     public static final String RANGE = "range";
     public static final String INDEX = "index";
     public static final String DEFAULT_PROMQL_INDEX_PATTERN = "metrics-*";
-    public static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP, BUCKETS, SCRAPE_INTERVAL, INDEX);
+    public static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP, BUCKETS, SCRAPE_INTERVAL, LOOKBACK_DELTA, INDEX);
 
     /** Synthetic column tagging each merge branch with its position, used for left-preferring dedup. */
     private static final String BRANCH_COLUMN = "_branch";
@@ -79,7 +81,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     /** Synthetic column name for the materialised {@code @timestamp + offset} expression. */
     private static final String TIMESTAMP_COLUMN = "_timestamp";
 
-    // TODO make configurable via lookback_delta parameter and (cluster?) setting
     // Prometheus selector lookback delta for plain instant selectors without an explicit [range].
     public static final Duration DEFAULT_LOOKBACK = Duration.ofMinutes(5);
     public static final int DEFAULT_PROMQL_BUCKETS = 100;
@@ -90,6 +91,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     private final Literal step;
     private final Literal buckets;
     private final Literal scrapeInterval;
+    private final Literal lookbackDelta;
     // TODO: this should be made available through the planner
     private final Expression timestamp;
     private final String valueColumnName;
@@ -110,7 +112,52 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         String valueColumnName,
         Expression timestamp
     ) {
-        this(source, child, promqlPlan, start, end, step, buckets, scrapeInterval, valueColumnName, new NameId(), new NameId(), timestamp);
+        this(
+            source,
+            child,
+            promqlPlan,
+            start,
+            end,
+            step,
+            buckets,
+            scrapeInterval,
+            Literal.NULL,
+            valueColumnName,
+            new NameId(),
+            new NameId(),
+            timestamp
+        );
+    }
+
+    /** Constructs a command with a per-query selector lookback; null leaves the cluster default in control. */
+    public PromqlCommand(
+        Source source,
+        LogicalPlan child,
+        LogicalPlan promqlPlan,
+        Literal start,
+        Literal end,
+        Literal step,
+        Literal buckets,
+        Literal scrapeInterval,
+        Literal lookbackDelta,
+        String valueColumnName,
+        Expression timestamp
+    ) {
+        this(
+            source,
+            child,
+            promqlPlan,
+            start,
+            end,
+            step,
+            buckets,
+            scrapeInterval,
+            lookbackDelta,
+            valueColumnName,
+            new NameId(),
+            new NameId(),
+            timestamp
+        );
     }
 
     // Full constructor
@@ -123,6 +170,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         Literal step,
         Literal buckets,
         Literal scrapeInterval,
+        Literal lookbackDelta,
         String valueColumnName,
         NameId valueId,
         NameId stepId,
@@ -135,6 +183,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         this.step = step;
         this.buckets = buckets;
         this.scrapeInterval = scrapeInterval;
+        this.lookbackDelta = lookbackDelta;
         this.valueColumnName = valueColumnName;
         this.valueId = valueId;
         this.stepId = stepId;
@@ -153,6 +202,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             step(),
             buckets(),
             scrapeInterval(),
+            lookbackDelta(),
             valueColumnName(),
             valueId(),
             stepId(),
@@ -171,6 +221,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             step(),
             buckets(),
             scrapeInterval(),
+            lookbackDelta(),
             valueColumnName(),
             valueId(),
             stepId(),
@@ -191,6 +242,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             step(),
             buckets(),
             scrapeInterval(),
+            lookbackDelta(),
             valueColumnName(),
             valueId(),
             stepId(),
@@ -219,6 +271,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             step(),
             buckets(),
             scrapeInterval(),
+            lookbackDelta(),
             valueColumnName(),
             valueId(),
             stepId(),
@@ -274,6 +327,38 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
      */
     public Literal scrapeInterval() {
         return scrapeInterval;
+    }
+
+    /** The explicit lookback, or null until the cluster default has been resolved during analysis. */
+    public Literal lookbackDelta() {
+        return lookbackDelta;
+    }
+
+    /** Resolve a missing query override once, so every translated branch uses the same default. */
+    public PromqlCommand withDefaultLookback(Duration defaultLookback) {
+        if (lookbackDelta.value() != null) {
+            return this;
+        }
+        return new PromqlCommand(
+            source(),
+            child(),
+            promqlPlan(),
+            start(),
+            end(),
+            step(),
+            buckets(),
+            scrapeInterval(),
+            Literal.timeDuration(source(), defaultLookback),
+            valueColumnName(),
+            valueId(),
+            stepId(),
+            timestamp()
+        );
+    }
+
+    /** The effective selector lookback; the built-in fallback also supports plans constructed outside a session. */
+    public Duration lookback() {
+        return lookbackDelta.value() == null ? DEFAULT_LOOKBACK : foldDuration(lookbackDelta, LOOKBACK_DELTA);
     }
 
     public boolean hasTimeRange() {
@@ -341,7 +426,20 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), promqlPlan, start, end, step, buckets, scrapeInterval, valueColumnName, valueId, stepId, timestamp);
+        return Objects.hash(
+            child(),
+            promqlPlan,
+            start,
+            end,
+            step,
+            buckets,
+            scrapeInterval,
+            lookbackDelta,
+            valueColumnName,
+            valueId,
+            stepId,
+            timestamp
+        );
     }
 
     @Override
@@ -356,6 +454,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                 && Objects.equals(step, other.step)
                 && Objects.equals(buckets, other.buckets)
                 && Objects.equals(scrapeInterval, other.scrapeInterval)
+                && Objects.equals(lookbackDelta, other.lookbackDelta)
                 && Objects.equals(valueColumnName, other.valueColumnName)
                 && Objects.equals(valueId, other.valueId)
                 && Objects.equals(stepId, other.stepId)
@@ -1006,12 +1105,12 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     /**
      * Returns the source-side timestamp lookback window.
      * Explicit and implicit range selectors contribute their requested window.
-     * Instant queries extend that window to at least the Prometheus lookback delta.
+     * The window is extended to at least the effective selector lookback, independently of the evaluation step.
      */
     public Duration sourceFilterWindow() {
         Duration window = maxRangeSelectorWindow();
-        if (isInstantQuery() && DEFAULT_LOOKBACK.compareTo(window) > 0) {
-            window = DEFAULT_LOOKBACK;
+        if (promqlPlan().anyMatch(InstantSelector.class::isInstance) && lookback().compareTo(window) > 0) {
+            window = lookback();
         }
         return window;
     }
@@ -1038,14 +1137,16 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     }
 
     /**
-     * Returns the TSTEP bucket step for instant queries: the max range-selector window,
-     * falling back to {@link #DEFAULT_LOOKBACK} only when no range selectors are present.
-     * Unlike {@link #sourceFilterWindow()}, this does not floor explicit windows up to
-     * DEFAULT_LOOKBACK.
+     * Returns the instant-query bucket width needed to hold every selector's window. Plain selectors contribute
+     * their lookback; explicit ranges contribute only their own width, so a short range is not widened to lookback.
      */
     public Duration resolveInstantQueryWindow() {
         Duration window = maxRangeSelectorWindow();
-        return window.isZero() ? DEFAULT_LOOKBACK : window;
+        if (promqlPlan().anyMatch(InstantSelector.class::isInstance)) {
+            window = window.compareTo(lookback()) < 0 ? lookback() : window;
+        }
+        window = window.isZero() ? lookback() : window;
+        return window.toMillis() == 0 ? Duration.ofMillis(1) : window;
     }
 
     /**
@@ -1070,7 +1171,9 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         if (isRangeQuery()) {
             return Literal.timeDuration(source(), PromqlLogicalPlanBuilder.foldStep(timestamp(), start(), end(), step(), buckets()));
         }
-        return Literal.timeDuration(source(), DEFAULT_LOOKBACK);
+        // Physical bucket widths are at least one millisecond; selector filtering retains the requested lookback.
+        Duration width = lookback();
+        return Literal.timeDuration(source(), width.toMillis() == 0 ? Duration.ofMillis(1) : width);
     }
 
     private Duration maxRangeSelectorWindow() {

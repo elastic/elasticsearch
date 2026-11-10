@@ -109,7 +109,8 @@ implicit_last_over_time_of_integer_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 
-PROMQL index=k8s step=1m clients=(avg by (cluster) (network.eth0.currently_connected_clients))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1m index=k8s step=1m clients=(avg by (cluster) (network.eth0.currently_connected_clients))
 | SORT step, cluster | LIMIT 10;
 
 clients:double | step:datetime            | cluster:keyword
@@ -183,7 +184,8 @@ implicit_last_over_time_of_long_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 
-PROMQL index=k8s step=1m bytes=(avg by (cluster) (network.bytes_in))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1m index=k8s step=1m bytes=(avg by (cluster) (network.bytes_in))
 | SORT step, cluster | LIMIT 10;
 
 bytes:double | step:datetime            | cluster:keyword
@@ -255,7 +257,8 @@ implicit_last_over_time_with_filtering_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 
-PROMQL index=k8s step=10m tx=(sum by (cluster) (network.bytes_in{pod="one"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=10m index=k8s step=10m tx=(sum by (cluster) (network.bytes_in{pod="one"}))
 | SORT step, cluster | LIMIT 10;
 
 tx:double | step:datetime            | cluster:keyword
@@ -290,7 +293,8 @@ implicit_last_over_time_with_inline_filtering_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 
-PROMQL index=k8s step=10m tx=(sum by (cluster) (network.bytes_in{pod="one"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=10m index=k8s step=10m tx=(sum by (cluster) (network.bytes_in{pod="one"}))
 | SORT step, cluster | LIMIT 10;
 
 tx:double | step:datetime            | cluster:keyword

@@ -57,6 +57,14 @@ The options are inspired by the {{prom}} [HTTP API](https://prometheus.io/docs/p
     Mutually exclusive with `start`, `end`, `step`, and `buckets`.
     Example: `PROMQL time="2026-04-01T01:00:00Z" http_rate=(sum(rate(http_requests_total)))`
 
+`lookback_delta`
+:   {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` Maximum age of the latest sample selected by a plain
+    selector, such as `up`, at each evaluation time. Independent of `step`, in both instant and range queries.
+    Defaults to `5m`, or to the dynamic cluster setting `esql.query.settings.promql_lookback_delta` when configured.
+    Accepts a {{promql}} duration or a number of seconds, including fractional seconds, at millisecond resolution.
+    A non-positive value uses the default. Explicit ranges such as `rate(x[1m])` keep their own windows.
+    Example: `PROMQL step=30s lookback_delta=2m result=(up)`
+
 `scrape_interval`
 :   The expected metric collection interval.
     Defaults to `1m`. Used to determine implicit range selector windows as `max(step, scrape_interval)`.

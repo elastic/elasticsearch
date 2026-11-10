@@ -82,7 +82,7 @@ public class CacheFileReaderTests extends ESTestCase {
             CacheFileReader cacheFileReader = new CacheFileReader(
                 service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
-                createBlobFileRanges(1L, 0L, 0, blob.length),
+                createBlobFileRanges(1L, 1L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
                 true
@@ -127,7 +127,7 @@ public class CacheFileReaderTests extends ESTestCase {
             CacheFileReader cacheFileReader = new CacheFileReader(
                 service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
-                createBlobFileRanges(1L, 0L, 0, blob.length),
+                createBlobFileRanges(1L, 1L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
                 true
@@ -157,7 +157,7 @@ public class CacheFileReaderTests extends ESTestCase {
             CacheFileReader cacheFileReader = new CacheFileReader(
                 service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
-                createBlobFileRanges(1L, 0L, 0, blob.length),
+                createBlobFileRanges(1L, 1L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
                 true
@@ -192,7 +192,7 @@ public class CacheFileReaderTests extends ESTestCase {
             CacheFileReader cacheFileReader = new CacheFileReader(
                 service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
-                createBlobFileRanges(1L, 0L, 0, blob.length),
+                createBlobFileRanges(1L, 1L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
                 true
@@ -224,7 +224,7 @@ public class CacheFileReaderTests extends ESTestCase {
             CacheFileReader cacheFileReader = new CacheFileReader(
                 service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
-                createBlobFileRanges(1L, 0L, 0, blob.length),
+                createBlobFileRanges(1L, 1L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
                 true
@@ -256,7 +256,7 @@ public class CacheFileReaderTests extends ESTestCase {
             CacheFileReader cacheFileReader = new CacheFileReader(
                 service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
-                createBlobFileRanges(1L, 0L, 0, blob.length),
+                createBlobFileRanges(1L, 1L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
                 true
@@ -289,7 +289,7 @@ public class CacheFileReaderTests extends ESTestCase {
             CacheFileReader cacheFileReader = new CacheFileReader(
                 service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
-                createBlobFileRanges(1L, 0L, 0, blob.length),
+                createBlobFileRanges(1L, 1L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
                 true
@@ -334,7 +334,7 @@ public class CacheFileReaderTests extends ESTestCase {
             CacheFileReader cacheFileReader = new CacheFileReader(
                 service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
-                createBlobFileRanges(1L, 0L, 0, blob.length),
+                createBlobFileRanges(1L, 1L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
                 true
@@ -377,7 +377,7 @@ public class CacheFileReaderTests extends ESTestCase {
             CacheFileReader cacheFileReader = new CacheFileReader(
                 service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
-                createBlobFileRanges(1L, 0L, 0, blob.length),
+                createBlobFileRanges(1L, 1L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
                 true
@@ -408,7 +408,7 @@ public class CacheFileReaderTests extends ESTestCase {
             CacheFileReader cacheFileReader = new CacheFileReader(
                 service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
-                createBlobFileRanges(1L, 0L, 0, blob.length),
+                createBlobFileRanges(1L, 1L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
                 false
@@ -453,7 +453,7 @@ public class CacheFileReaderTests extends ESTestCase {
             CacheFileReader cacheFileReader = new CacheFileReader(
                 service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 blobReader,
-                createBlobFileRanges(1L, 0L, 0, blob.length),
+                createBlobFileRanges(1L, 1L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
                 true

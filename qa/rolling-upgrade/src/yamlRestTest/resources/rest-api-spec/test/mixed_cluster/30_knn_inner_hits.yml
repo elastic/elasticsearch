@@ -1,0 +1,43 @@
+---
+"knn inner_hits on nested int8_hnsw segments written by the old cluster in a mixed cluster":
+  # Regression test for #163972: knn inner_hits failed with "Sub-iterators of ConjunctionDISI are not on the same
+  # document!" for hits in pre-9.2 int8_hnsw segments.
+  - do:
+      cluster.health:
+        index: knn_inner_hits
+        wait_for_status: green
+
+  - do:
+      search:
+        index: knn_inner_hits
+        body:
+          _source: false
+          knn:
+            field: chunks.embedding
+            query_vector: [0.1, 0.2, 0.3, 0.4]
+            k: 5
+            num_candidates: 10
+            inner_hits: { size: 2, _source: false }
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits.0.inner_hits.chunks.hits.hits: 2 }
+  - length: { hits.hits.1.inner_hits.chunks.hits.hits: 2 }
+  - length: { hits.hits.2.inner_hits.chunks.hits.hits: 2 }
+  - length: { hits.hits.3.inner_hits.chunks.hits.hits: 2 }
+  - length: { hits.hits.4.inner_hits.chunks.hits.hits: 2 }
+
+  - do:
+      search:
+        index: knn_inner_hits
+        body:
+          _source: false
+          knn:
+            field: chunks.embedding
+            query_vector: [0.1, 0.2, 0.3, 0.4]
+            k: 5
+            num_candidates: 10
+            filter: { term: { domain: example.com } }
+            inner_hits: { size: 2, _source: false }
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits.0.inner_hits.chunks.hits.hits: 2 }
+  - length: { hits.hits.1.inner_hits.chunks.hits.hits: 2 }
+  - length: { hits.hits.2.inner_hits.chunks.hits.hits: 2 }

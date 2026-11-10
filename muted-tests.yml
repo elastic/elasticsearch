@@ -566,26 +566,6 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: test {csv-spec:unmapped-type-conflicts.typeConflictPartiallyUnmappedTextFieldNotLoadedWithDrop}
   issue: https://github.com/elastic/elasticsearch/issues/165306
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecExemplarsSmokeInSubqueryWithTsSourceIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  method: test {csv-spec:in_subquery_with_ts_source.mainTsInSubqueryTsInInlineStatsWhereWithAggAfter}
-  issue: https://github.com/elastic/elasticsearch/issues/165315
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecExemplarsSmokeInSubqueryWithTsSourceIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  method: test {csv-spec:in_subquery_with_ts_source.mainTsInSubqueryTsMainByPodSubqueryByCluster}
-  issue: https://github.com/elastic/elasticsearch/issues/165331
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecExemplarsSmokeInSubqueryWithTsSourceIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  method: test {csv-spec:in_subquery_with_ts_source.mainTsInSubqueryTsInEquals}
-  issue: https://github.com/elastic/elasticsearch/issues/165333
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecExemplarsSmokeInSubqueryWithTsSourceIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  method: test {csv-spec:in_subquery_with_ts_source.inSubqueryInInlineStatsWhereWithRate}
-  issue: https://github.com/elastic/elasticsearch/issues/165337
 - class: org.elasticsearch.xpack.stateless.objectstore.gc.StaleIndicesGCIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest

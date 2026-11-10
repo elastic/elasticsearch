@@ -16,8 +16,7 @@ import java.io.IOException;
 import java.util.Locale;
 
 import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.blobNameFromGeneration;
-import static org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGenerationTests.mutatePrimaryTermAndGeneration;
-import static org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGenerationTests.randomPrimaryTermAndGeneration;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomNonZeroPositiveLong;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -33,33 +32,33 @@ public class BlobFileTests extends AbstractWireSerializingTestCase<BlobFile> {
     }
 
     private BlobFile randomBlobFile() {
-        var termAndGen = randomPrimaryTermAndGeneration();
+        var termAndGen = randomTermAndGeneration();
         return new BlobFile(blobNameFromGeneration(termAndGen.generation()), termAndGen);
     }
 
     @Override
     protected BlobFile mutateInstance(BlobFile instance) throws IOException {
-        var mutatedTermAndGen = mutatePrimaryTermAndGeneration(instance.termAndGeneration());
+        var mutatedTermAndGen = mutateTermAndGeneration(instance.termAndGeneration());
         return new BlobFile(blobNameFromGeneration(mutatedTermAndGen.generation()), mutatedTermAndGen);
     }
 
     public void testRejectsUnrecognizedBlobName() {
         var exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new BlobFile("foo_" + randomNonNegativeInt(), randomPrimaryTermAndGeneration())
+            () -> new BlobFile("foo_" + randomNonNegativeInt(), randomTermAndGeneration())
         );
         assertThat(exception.getMessage(), containsString("unrecognized blob name"));
     }
 
     public void testRejectsMergeBlobName() {
         var blobName = "stateless_merge_" + randomNonNegativeInt() + "_1b_9f3a1c7e5b2d4068";
-        var exception = expectThrows(IllegalArgumentException.class, () -> new BlobFile(blobName, randomPrimaryTermAndGeneration()));
+        var exception = expectThrows(IllegalArgumentException.class, () -> new BlobFile(blobName, randomTermAndGeneration()));
         assertThat(exception.getMessage(), containsString("unrecognized blob name"));
     }
 
     public void testRejectsNonNumericGeneration() {
         var blobName = BatchedCompoundCommit.PREFIX + randomAlphaOfLengthBetween(1, 10);
-        var exception = expectThrows(IllegalArgumentException.class, () -> new BlobFile(blobName, randomPrimaryTermAndGeneration()));
+        var exception = expectThrows(IllegalArgumentException.class, () -> new BlobFile(blobName, randomTermAndGeneration()));
         assertThat(exception.getMessage(), containsString("malformed blob name [" + blobName + ']'));
         assertThat(exception.getCause(), instanceOf(NumberFormatException.class));
     }
@@ -101,8 +100,8 @@ public class BlobFileTests extends AbstractWireSerializingTestCase<BlobFile> {
     }
 
     public void testRejectsGenerationMismatch() {
-        var termAndGen = randomPrimaryTermAndGeneration();
-        var blobName = blobNameFromGeneration(termAndGen.generation() + randomLongBetween(1, 100));
+        var termAndGen = randomTermAndGeneration();
+        var blobName = blobNameFromGeneration(randomValueOtherThan(termAndGen.generation(), () -> randomNonZeroPositiveLong()));
         var exception = expectThrows(IllegalArgumentException.class, () -> new BlobFile(blobName, termAndGen));
         assertThat(exception.getMessage(), containsString("generation mismatch"));
     }
@@ -110,7 +109,7 @@ public class BlobFileTests extends AbstractWireSerializingTestCase<BlobFile> {
     public void testReadRejectsUnrecognizedBlobName() {
         var exception = expectThrows(
             IOException.class,
-            () -> readInvalidBlob("foo_" + randomNonNegativeInt(), randomPrimaryTermAndGeneration())
+            () -> readInvalidBlob("foo_" + randomNonNegativeInt(), randomTermAndGeneration())
         );
         assertThat(exception.getMessage(), containsString("unrecognized blob name"));
     }
@@ -123,18 +122,18 @@ public class BlobFileTests extends AbstractWireSerializingTestCase<BlobFile> {
             + '_'
             + randomAlphaOfLength(2).toLowerCase(Locale.ROOT)
             + "_9f3a1c7e5b2d4068";
-        var exception = expectThrows(IOException.class, () -> readInvalidBlob(blobName, randomPrimaryTermAndGeneration()));
+        var exception = expectThrows(IOException.class, () -> readInvalidBlob(blobName, randomTermAndGeneration()));
         assertThat(exception.getMessage(), containsString("unrecognized blob name"));
     }
 
     public void testReadRejectsMalformedGeneration() {
         var blobName = BatchedCompoundCommit.PREFIX + randomAlphaOfLengthBetween(1, 10);
-        var exception = expectThrows(IOException.class, () -> readInvalidBlob(blobName, randomPrimaryTermAndGeneration()));
+        var exception = expectThrows(IOException.class, () -> readInvalidBlob(blobName, randomTermAndGeneration()));
         assertThat(exception.getMessage(), containsString("malformed blob name"));
     }
 
     public void testReadRejectsTermAndGenerationMismatch() {
-        var termAndGen = randomPrimaryTermAndGeneration();
+        var termAndGen = randomTermAndGeneration();
         var otherGeneration = termAndGen.generation() + randomLongBetween(1, 100);
         var blobName = blobNameFromGeneration(otherGeneration);
         var exception = expectThrows(IOException.class, () -> readInvalidBlob(blobName, termAndGen));
@@ -150,5 +149,24 @@ public class BlobFileTests extends AbstractWireSerializingTestCase<BlobFile> {
         };
         Writeable.Reader<Writeable> reader = in -> Blob.reader(BlobFile.class).read(in);
         copyWriteable(invalidBlob, writableRegistry(), reader, TransportVersionUtils.randomCompatibleVersion());
+    }
+
+    /// Unlike [org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGenerationTests#randomPrimaryTermAndGeneration()], the generation is
+    /// always positive, as a [BlobFile] cannot have a generation of 0.
+    private static PrimaryTermAndGeneration randomTermAndGeneration() {
+        return new PrimaryTermAndGeneration(randomNonNegativeLong(), randomNonZeroPositiveLong());
+    }
+
+    private static PrimaryTermAndGeneration mutateTermAndGeneration(PrimaryTermAndGeneration instance) {
+        if (randomBoolean()) {
+            return new PrimaryTermAndGeneration(
+                randomValueOtherThan(instance.primaryTerm(), () -> randomNonNegativeLong()),
+                instance.generation()
+            );
+        }
+        return new PrimaryTermAndGeneration(
+            instance.primaryTerm(),
+            randomValueOtherThan(instance.generation(), () -> randomNonZeroPositiveLong())
+        );
     }
 }

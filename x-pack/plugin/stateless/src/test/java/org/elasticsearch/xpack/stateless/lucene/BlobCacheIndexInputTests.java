@@ -474,7 +474,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         ) {
             final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
             final long primaryTerm = randomNonNegativeLong();
-            final long generation = randomNonNegativeLong();
+            final long generation = randomNonZeroPositiveLong();
             final String blobName = BatchedCompoundCommit.blobNameFromGeneration(generation);
             // Create a blob with data span from 2 to 4 regions
             final int numberRegions = between(2, 4);

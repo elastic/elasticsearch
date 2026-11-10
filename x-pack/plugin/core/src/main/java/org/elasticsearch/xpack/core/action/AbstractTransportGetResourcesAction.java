@@ -123,6 +123,7 @@ public abstract class AbstractTransportGetResourcesAction<
                         }
                     } catch (IOException e) {
                         l.onFailure(e);
+                        return;
                     }
                 }
                 ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, request.isAllowNoResources());

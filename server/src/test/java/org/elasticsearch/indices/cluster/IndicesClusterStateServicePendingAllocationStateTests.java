@@ -286,6 +286,31 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         assertFalse(isFailureReported(shardRouting));
     }
 
+    public void testFailureReportedClearedWhenAllocationIdChanges() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        indicesClusterStateService.handleRecoveryFailure(
+            shardRouting,
+            FAIL_SEND,
+            primaryTerm(shardRouting),
+            new Exception("already failed to master"),
+            currentInFlight(shardRouting)
+        );
+        assertTrue(isFailureReported(shardRouting));
+
+        // A fresh allocation for the same shardId (e.g. a close/reopen this node observes as a single
+        // batched jump) must evict the old allocation's FailureReported via evictOrResendFailure's
+        // allocation-id-mismatch branch, not just its primary-term-bump one.
+        ShardRouting newAllocation = TestShardRouting.newShardRouting(
+            shardRouting.shardId(),
+            shardRouting.currentNodeId(),
+            true,
+            ShardRoutingState.INITIALIZING
+        );
+        applyState(stateWithShardRouting(newAllocation));
+
+        assertFalse(isFailureReported(shardRouting));
+    }
+
     public void testInFlightTicketResetWhenPrimaryTermBumpedDuringLockWait() throws Exception {
         ClusterState initial = ClusterStateCreationUtils.state(randomIndexName(), true, ShardRoutingState.INITIALIZING);
         ShardRouting shardRouting = initial.getRoutingNodes().node(initial.nodes().getLocalNodeId()).iterator().next();

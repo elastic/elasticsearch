@@ -114,6 +114,11 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
         );
     }
 
+    @Override
+    public void testToQueryChargesBreakerOnce() {
+        assumeTrue("Needs a non-null IndexReader, like testToQuery, and builds no sub-queries", false);
+    }
+
     /**
      * Overridden to ensure that {@link SearchExecutionContext} has a non-null {@link IndexReader}
      */

@@ -338,4 +338,9 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
             }
         }
     }
+
+    @Override
+    public void testToQueryChargesBreakerOnce() {
+        assumeTrue("Needs a reader holding the scored documents, like testToQuery, and builds no sub-queries", false);
+    }
 }

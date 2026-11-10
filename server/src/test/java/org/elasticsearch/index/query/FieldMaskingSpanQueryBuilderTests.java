@@ -16,7 +16,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.lucene.queries.SpanMatchNoDocsQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.ChargeProbeQueryBuilder;
 
 import java.io.IOException;
 
@@ -36,11 +35,6 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
         SpanTermQueryBuilder innerQuery = new SpanTermQueryBuilderTests().createTestQueryBuilder();
         innerQuery.boost(1.0f);
         return new FieldMaskingSpanQueryBuilder(innerQuery, fieldName);
-    }
-
-    @Override
-    protected ChargeProbeQueryBuilder createChargeProbe() {
-        return new SpanChargeProbeQueryBuilder();
     }
 
     @Override

@@ -157,6 +157,12 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
 
     @Override
+    protected List<QueryBuilder> subQueriesHiddenFromVisit(QueryBuilder builder) {
+        // the inner query is built when the query is built, but LateParsingQuery is a leaf that hides it from the visitor
+        return builder instanceof HasChildQueryBuilder q ? List.of(q.query()) : List.of();
+    }
+
+    @Override
     protected HasChildQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
         return new HasChildQueryBuilder(CHILD_DOC, queryBuilder, ScoreMode.None);
     }

@@ -176,15 +176,6 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
     }
 
     @Override
-    public void testInnerQueriesChargeBreakerOnce() {
-        assumeTrue(
-            "The CB is not applicable because WrapperQueryBuilder is rewritten to a different query builder type when the inner query"
-                + "is parsed",
-            false
-        );
-    }
-
-    @Override
     public void testMaxNestedDepth() throws IOException {
         BoolQueryBuilderTests boolQueryBuilderTests = new BoolQueryBuilderTests();
         BoolQueryBuilder boolQuery = boolQueryBuilderTests.createQueryWithInnerQuery(createInnerQuery());

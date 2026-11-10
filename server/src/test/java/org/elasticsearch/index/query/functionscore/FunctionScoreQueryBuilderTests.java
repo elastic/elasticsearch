@@ -112,18 +112,32 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     @Override
+    protected List<QueryBuilder> subQueriesHiddenFromVisit(QueryBuilder builder) {
+        if (builder instanceof FunctionScoreQueryBuilder functionScore) {
+            // Only the filters that are built are charged, a match_all filter is not
+            return Arrays.stream(functionScore.filterFunctionBuilders())
+                .map(FilterFunctionBuilder::getFilter)
+                .filter(filter -> filter instanceof MatchAllQueryBuilder == false)
+                .toList();
+        }
+        return List.of();
+    }
+
+    @Override
     protected FunctionScoreQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
         if (randomBoolean()) {
             return new FunctionScoreQueryBuilder(queryBuilder);
         }
+
         int iters = randomIntBetween(1, 3);
         FilterFunctionBuilder[] filterFunctionBuilders = new FilterFunctionBuilder[iters];
         for (int i = 0; i < iters; i++) {
-            filterFunctionBuilders[i] = new FilterFunctionBuilder(queryBuilder, new RandomScoreFunctionBuilder());
+            filterFunctionBuilders[i] = new FilterFunctionBuilder(createInnerQuery(), new RandomScoreFunctionBuilder());
         }
         if (randomBoolean()) {
             return new FunctionScoreQueryBuilder(filterFunctionBuilders);
         }
+
         return new FunctionScoreQueryBuilder(queryBuilder, filterFunctionBuilders);
     }
 

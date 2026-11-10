@@ -123,6 +123,7 @@ public class PromqlFunctionRegistry {
         PromqlBuiltinFunctionDefinitions.BOTTOMK,
         PromqlBuiltinFunctionDefinitions.LIMITK,
         PromqlBuiltinFunctionDefinitions.LIMIT_RATIO,
+        PromqlBuiltinFunctionDefinitions.COUNT_VALUES,
         //
         PromqlBuiltinFunctionDefinitions.LABEL_REPLACE,
         PromqlBuiltinFunctionDefinitions.LABEL_JOIN,
@@ -207,7 +208,6 @@ public class PromqlFunctionRegistry {
     private static final Set<String> NOT_IMPLEMENTED = Set.of(
         // Across-series aggregations (not yet available in ESQL)
         "group",
-        "count_values",
         // Range vector functions (not yet implemented)
         // Prometheus 3.x replacement for holt_winters; requires smoothing factors applied over a range vector.
         "double_exponential_smoothing",

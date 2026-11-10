@@ -51,10 +51,11 @@ public class PromqlBuiltinFunctionDefinitions {
             + "column of the `PROMQL` command, aren't supported yet.\n\n"
             + "{applies_to}`stack: ga =9.6` A call over an aggregation, such as `label_replace(sum by (job) (x), ...)`, "
             + "isn't supported yet.\n\n"
-            + "{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over anything other than a `by(...)` aggregation, "
-            + "such as `sum(x)`, a `without(...)` aggregation, `topk`, or a binary operator, and a call that overwrites a "
-            + "grouping label, such as `label_replace(sum by (job) (x), \"job\", \"$1\", \"job\", \"(.*)\")`, aren't "
-            + "supported yet. Write a new label instead.\n\n";
+            + "{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over anything other than a `by(...)` aggregation "
+            + "or `count_values`, such as `sum(x)`, a `without(...)` aggregation, `topk`, or a binary operator, and a call that "
+            + "overwrites a grouping label or the `count_values` label, such as "
+            + "`label_replace(sum by (job) (x), \"job\", \"$1\", \"job\", \"(.*)\")`, aren't supported yet. Write a new label "
+            + "instead.\n\n";
 
     private static final String SORT_DIVERGENCE =
         "A call below the top level of the query, such as `abs(sort(x))`, isn't supported yet. {{prom}} applies the "
@@ -142,6 +143,33 @@ public class PromqlBuiltinFunctionDefinitions {
         .name("limit_ratio");
 
     /**
+     * {@code count_values(label, v)} counts the elements sharing each distinct sample value and exposes that value as the
+     * label {@code label}. The value label is minted and the two-level grouping is built by {@code CountValuesAggregate},
+     * which translates the call directly, so the builder here is never called.
+     */
+    public static final PromqlFunctionDefinition COUNT_VALUES = PromqlFunctionDefinition.def()
+        .acrossSeriesBinary(
+            PromqlFunctionDefinition.PromqlParamInfo.of("label", PromqlDataType.SCALAR, "Name of the label holding each sample value."),
+            (source, field, filter, window, label) -> {
+                throw new UnsupportedOperationException("count_values is translated directly, not built via the generic function builder");
+            }
+        )
+        .description(
+            "Counts the elements that have the same sample value, returning one series per distinct value with the value as "
+                + "the label `label`. When used with `by`, `count_values` counts independently within each group."
+        )
+        .example("count_values(\"version\", build_version)")
+        .stack(PromqlFunctionDefinition.STACK_GA_9_7)
+        .stdDivergence(
+            "`without(...)`, such as `count_values without (instance) (\"v\", x)`, and native histogram samples aren't "
+                + "supported yet. A label named `step` or `_timeseries`, or with the same name as the value column (set by "
+                + "`name=(...)`), such as `value=(count_values(\"value\", x))`, isn't supported: the `PROMQL` command reserves "
+                + "these names for its own columns. A binary operator between `count_values` and a vector that isn't "
+                + "aggregated, such as `count_values(\"v\", vector(1)) / x`, isn't supported yet."
+        )
+        .name("count_values");
+
+    /**
      * {@code label_replace(v, dst_label, replacement, src_label, regex)} matches {@code regex} (fully anchored) against the
      * value of {@code src_label} and, on a match, sets {@code dst_label} to the expanded {@code replacement}. It manipulates
      * only labels/identity, never sample values, so it has no ES|QL function to build: it resolves into a dedicated node and
@@ -180,7 +208,8 @@ public class PromqlBuiltinFunctionDefinitions {
                 + "expressions use the RE2 engine (RE2 syntax including `(?P<name>)`, `$1`/`$name`/`${name}` replacement "
                 + "expansion, no backreferences, fully anchored as `^(?s:regex)$`), matching Prometheus.\n\n"
                 + "{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over a `by(...)` aggregation, directly or under "
-                + "`topk`, `bottomk`, `limitk`, or `limit_ratio`, is supported when the destination is a new label, such as "
+                + "`topk`, `bottomk`, `limitk`, or `limit_ratio`, or over `count_values`, is supported when the destination is a "
+                + "new label, such as "
                 + "`label_replace(sum by (job) (x), \"dst\", \"$1\", \"job\", \"(.*)\")`."
         )
         .stdDivergence(
@@ -220,7 +249,8 @@ public class PromqlBuiltinFunctionDefinitions {
         .extendedDescription(
             "The destination can be a new label or an existing stored label (a dimension or `__name__`).\n\n"
                 + "{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over a `by(...)` aggregation, directly or under "
-                + "`topk`, `bottomk`, `limitk`, or `limit_ratio`, is supported when the destination is a new label, such as "
+                + "`topk`, `bottomk`, `limitk`, or `limit_ratio`, or over `count_values`, is supported when the destination is a "
+                + "new label, such as "
                 + "`label_replace(sum by (job) (x), \"dst\", \"$1\", \"job\", \"(.*)\")`."
         )
         .stdDivergence(

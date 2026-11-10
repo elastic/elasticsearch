@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
+import org.elasticsearch.xpack.esql.plan.logical.promql.CountValuesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
@@ -298,8 +299,10 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             boolean scalarOperand = left().resolved() && getType(left()) == SCALAR || right().resolved() && getType(right()) == SCALAR;
             boolean nestedMatch = anyMatchVectorBinaryOperator(left()) || anyMatchVectorBinaryOperator(right());
             // Operands over one label set fold into a shared aggregate. Different concrete label sets match like
-            // Prometheus does, pair by pair on the actual labels, which only the join expresses.
-            if (scalarOperand || (nestedMatch == false && hasMismatchedLabelSets() == false)) {
+            // Prometheus does, pair by pair on the actual labels, which only the join expresses. A count_values operand
+            // aggregates twice, so it cannot share a single aggregate with the other operand either.
+            boolean countValues = CountValuesAggregate.usesCountValues(left()) || CountValuesAggregate.usesCountValues(right());
+            if (scalarOperand || (nestedMatch == false && countValues == false && hasMismatchedLabelSets() == false)) {
                 return translateAggregate(context);
             }
         }

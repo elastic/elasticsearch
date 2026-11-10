@@ -2659,3 +2659,214 @@ result:double | step:datetime            | pod:keyword
 947.0         | 2024-05-10T01:00:00.000Z | one
 9969.0        | 2024-05-10T01:00:00.000Z | three
 ;
+
+// === count_values ===
+// The last network.bytes_in per series at step=1h: prod 931, 774, 812; qa 206, 972, 913; staging 238, 3, 3.
+
+count_values_by_cluster
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_count_values
+PROMQL index=k8s step=1h result=(count_values by (cluster) ("v", network.bytes_in))
+| SORT cluster, v;
+
+result:double | step:datetime            | cluster:keyword | v:keyword
+1.0           | 2024-05-10T01:00:00.000Z | prod            | 774
+1.0           | 2024-05-10T01:00:00.000Z | prod            | 812
+1.0           | 2024-05-10T01:00:00.000Z | prod            | 931
+1.0           | 2024-05-10T01:00:00.000Z | qa              | 206
+1.0           | 2024-05-10T01:00:00.000Z | qa              | 913
+1.0           | 2024-05-10T01:00:00.000Z | qa              | 972
+1.0           | 2024-05-10T01:00:00.000Z | staging         | 238
+2.0           | 2024-05-10T01:00:00.000Z | staging         | 3
+;
+
+// The last network.cost per series at step=1h: prod 7.875, 0.0, 10.75; qa 6.25, 10.875, 9.375; staging 4.625, 9.5, 1.75.
+count_values_fractional
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_count_values
+PROMQL index=k8s step=1h result=(count_values("v", network.cost))
+| SORT v;
+
+result:double | step:datetime            | v:keyword
+1.0           | 2024-05-10T01:00:00.000Z | 0
+1.0           | 2024-05-10T01:00:00.000Z | 1.75
+1.0           | 2024-05-10T01:00:00.000Z | 10.75
+1.0           | 2024-05-10T01:00:00.000Z | 10.875
+1.0           | 2024-05-10T01:00:00.000Z | 4.625
+1.0           | 2024-05-10T01:00:00.000Z | 6.25
+1.0           | 2024-05-10T01:00:00.000Z | 7.875
+1.0           | 2024-05-10T01:00:00.000Z | 9.375
+1.0           | 2024-05-10T01:00:00.000Z | 9.5
+;
+
+// Each step counts its own values. The range starts at 00:20, so step 00:20 only sees staging pod three (1 at 00:20:00);
+// step 00:25 sees the last staging network.bytes_in per series in (00:20, 00:25]: one 238, two 3, three 3.
+count_values_per_step
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+required_capability: promql_count_values
+PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" result=(count_values("v", network.bytes_in{cluster="staging"}))
+| SORT step, v;
+
+result:double | step:datetime            | v:keyword
+1.0           | 2024-05-10T00:20:00.000Z | 1
+1.0           | 2024-05-10T00:25:00.000Z | 238
+2.0           | 2024-05-10T00:25:00.000Z | 3
+;
+
+// The value label replaces the grouping label of the same name, so equal values merge across clusters.
+count_values_overwrites_grouping_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_count_values
+PROMQL index=k8s step=1h result=(count_values by (cluster) ("cluster", network.bytes_in))
+| SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+1.0           | 2024-05-10T01:00:00.000Z | 206
+1.0           | 2024-05-10T01:00:00.000Z | 238
+2.0           | 2024-05-10T01:00:00.000Z | 3
+1.0           | 2024-05-10T01:00:00.000Z | 774
+1.0           | 2024-05-10T01:00:00.000Z | 812
+1.0           | 2024-05-10T01:00:00.000Z | 913
+1.0           | 2024-05-10T01:00:00.000Z | 931
+1.0           | 2024-05-10T01:00:00.000Z | 972
+;
+
+// An enclosing by (pod) binds to the value label, not to the stored pod label it replaces.
+sum_by_value_label_replacing_stored_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_count_values
+PROMQL index=k8s step=1h result=(sum by (pod) (count_values("pod", network.bytes_in)))
+| SORT pod;
+
+result:double | step:datetime            | pod:keyword
+1.0           | 2024-05-10T01:00:00.000Z | 206
+1.0           | 2024-05-10T01:00:00.000Z | 238
+2.0           | 2024-05-10T01:00:00.000Z | 3
+1.0           | 2024-05-10T01:00:00.000Z | 774
+1.0           | 2024-05-10T01:00:00.000Z | 812
+1.0           | 2024-05-10T01:00:00.000Z | 913
+1.0           | 2024-05-10T01:00:00.000Z | 931
+1.0           | 2024-05-10T01:00:00.000Z | 972
+;
+
+// Only the series the label matcher selects are counted.
+// The matcher filters on the stored cluster label, which the output then replaces with the values.
+count_values_label_named_like_matched_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_count_values
+PROMQL index=k8s step=1h result=(count_values("cluster", network.bytes_in{cluster="staging"}))
+| SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+1.0           | 2024-05-10T01:00:00.000Z | 238
+2.0           | 2024-05-10T01:00:00.000Z | 3
+;
+
+count_values_nan
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_count_values
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(count_values("v", sqrt(0 - network.bytes_in)));
+
+result:double | step:datetime            | v:keyword
+9.0           | 2024-05-10T01:00:00.000Z | NaN
+;
+
+// For a value below 500, 0 * (value - 500) is -0, which Prometheus counts apart from 0.
+count_values_signed_zeros
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_count_values
+PROMQL index=k8s step=1h result=(count_values("v", 0 * (network.bytes_in - 500)))
+| SORT v;
+
+result:double | step:datetime            | v:keyword
+4.0           | 2024-05-10T01:00:00.000Z | -0
+5.0           | 2024-05-10T01:00:00.000Z | 0
+;
+
+count_values_constant
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_count_values
+PROMQL index=k8s step=1h result=(count_values("v", vector(1)));
+
+result:double | step:datetime            | v:keyword
+1.0           | 2024-05-10T01:00:00.000Z | 1
+;
+
+count_values_divided_by_itself
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_count_values
+PROMQL index=k8s step=1h result=(count_values("v", network.bytes_in) / count_values("v", network.bytes_in))
+| SORT v;
+
+result:double | step:datetime            | v:keyword
+1.0           | 2024-05-10T01:00:00.000Z | 206
+1.0           | 2024-05-10T01:00:00.000Z | 238
+1.0           | 2024-05-10T01:00:00.000Z | 3
+1.0           | 2024-05-10T01:00:00.000Z | 774
+1.0           | 2024-05-10T01:00:00.000Z | 812
+1.0           | 2024-05-10T01:00:00.000Z | 913
+1.0           | 2024-05-10T01:00:00.000Z | 931
+1.0           | 2024-05-10T01:00:00.000Z | 972
+;
+
+count_values_over_aggregated_child
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_count_values
+PROMQL index=k8s step=1h result=(count_values("v", sum by (cluster) (network.bytes_in)))
+| SORT v;
+
+result:double | step:datetime            | v:keyword
+1.0           | 2024-05-10T01:00:00.000Z | 2091
+1.0           | 2024-05-10T01:00:00.000Z | 244
+1.0           | 2024-05-10T01:00:00.000Z | 2517
+;
+
+count_values_times_number
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_count_values
+PROMQL index=k8s step=1h result=(count_values("v", network.bytes_in) * 2)
+| SORT v;
+
+result:double | step:datetime            | v:keyword
+2.0           | 2024-05-10T01:00:00.000Z | 206
+2.0           | 2024-05-10T01:00:00.000Z | 238
+4.0           | 2024-05-10T01:00:00.000Z | 3
+2.0           | 2024-05-10T01:00:00.000Z | 774
+2.0           | 2024-05-10T01:00:00.000Z | 812
+2.0           | 2024-05-10T01:00:00.000Z | 913
+2.0           | 2024-05-10T01:00:00.000Z | 931
+2.0           | 2024-05-10T01:00:00.000Z | 972
+;
+
+count_values_group_left
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_count_values
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=1h result=(count_values by (cluster) ("v", network.bytes_in) * on (cluster) group_left sum by (cluster) (network.bytes_in))
+| SORT cluster, v;
+
+result:double | step:datetime            | cluster:keyword | v:keyword
+2517.0        | 2024-05-10T01:00:00.000Z | prod            | 774
+2517.0        | 2024-05-10T01:00:00.000Z | prod            | 812
+2517.0        | 2024-05-10T01:00:00.000Z | prod            | 931
+2091.0        | 2024-05-10T01:00:00.000Z | qa              | 206
+2091.0        | 2024-05-10T01:00:00.000Z | qa              | 913
+2091.0        | 2024-05-10T01:00:00.000Z | qa              | 972
+244.0         | 2024-05-10T01:00:00.000Z | staging         | 238
+488.0         | 2024-05-10T01:00:00.000Z | staging         | 3
+;

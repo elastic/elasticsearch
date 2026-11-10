@@ -9,6 +9,9 @@
 * [`count`](/reference/query-languages/promql/functions/aggregation.md#promql-fn-count) {applies_to}`stack: preview 9.4, ga 9.5`
   :::{include} ../brief-summary/count.md
   :::
+* [`count_values`](/reference/query-languages/promql/functions/aggregation.md#promql-fn-count_values) {applies_to}`stack: ga 9.7`
+  :::{include} ../brief-summary/count_values.md
+  :::
 * [`limit_ratio`](/reference/query-languages/promql/functions/aggregation.md#promql-fn-limit_ratio) {applies_to}`stack: ga 9.6`
   :::{include} ../brief-summary/limit_ratio.md
   :::

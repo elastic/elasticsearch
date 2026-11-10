@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.CountValuesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
@@ -130,6 +133,9 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
         if (metadata == PromqlBuiltinFunctionDefinitions.LIMIT_RATIO) {
             validateLimitRatio(unresolved, extraParams);
         }
+        if (metadata == PromqlBuiltinFunctionDefinitions.COUNT_VALUES) {
+            validateCountValues(unresolved, extraParams);
+        }
         if (grouping != null) {
             if (metadata.functionType() != FunctionType.ACROSS_SERIES_AGGREGATION
                 && metadata.functionType() != FunctionType.ACROSS_SERIES_REDUCTION) {
@@ -147,11 +153,11 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
             if (metadata.functionType() == FunctionType.ACROSS_SERIES_REDUCTION) {
                 return new AcrossSeriesReduction(unresolved.source(), child, metadata, extraParams, grouping, unresolved.groupingKeys());
             }
-            return new AcrossSeriesAggregate(unresolved.source(), child, metadata, extraParams, grouping, unresolved.groupingKeys());
+            return acrossSeriesAggregate(unresolved.source(), child, metadata, extraParams, grouping, unresolved.groupingKeys());
         }
 
         return switch (metadata.functionType()) {
-            case ACROSS_SERIES_AGGREGATION -> new AcrossSeriesAggregate(
+            case ACROSS_SERIES_AGGREGATION -> acrossSeriesAggregate(
                 unresolved.source(),
                 child,
                 metadata,
@@ -186,6 +192,19 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
                 List.of(Failure.fail(unresolved, "Unsupported function type [{}] for function [{}]", metadata.functionType(), name))
             );
         };
+    }
+
+    private static AcrossSeriesAggregate acrossSeriesAggregate(
+        Source source,
+        LogicalPlan child,
+        PromqlFunctionDefinition metadata,
+        List<Expression> params,
+        AcrossSeriesAggregate.Grouping grouping,
+        List<Attribute> groupings
+    ) {
+        return metadata == PromqlBuiltinFunctionDefinitions.COUNT_VALUES
+            ? new CountValuesAggregate(source, child, metadata, params, grouping, groupings)
+            : new AcrossSeriesAggregate(source, child, metadata, params, grouping, groupings);
     }
 
     /**
@@ -326,6 +345,34 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
         if (folded instanceof Number == false) {
             throw new VerificationException(
                 List.of(Failure.fail(unresolved, "expected numeric ratio in call to function [{}], got [{}]", name, folded))
+            );
+        }
+    }
+
+    /**
+     * Validates the {@code label} argument of {@code count_values(label, v)} like Prometheus: it must be a string literal
+     * holding a valid label name. A number literal passes the generic parameter check, which types every literal as a
+     * scalar, so the string type is checked here.
+     */
+    private static void validateCountValues(UnresolvedPromqlFunction unresolved, List<Expression> extraParams) {
+        String name = unresolved.functionName();
+        Expression label = extraParams.getFirst();
+        if (label.resolved() == false || DataType.isString(label.dataType()) == false) {
+            throw new VerificationException(
+                List.of(
+                    Failure.fail(
+                        unresolved,
+                        "expected a string literal as the label name in call to function [{}], got [{}]",
+                        name,
+                        label.sourceText()
+                    )
+                )
+            );
+        }
+        String labelName = literalString(label);
+        if (PromqlLabels.isValidLabelName(labelName) == false) {
+            throw new VerificationException(
+                List.of(Failure.fail(unresolved, "invalid label name [{}] in call to function [{}]", labelName, name))
             );
         }
     }

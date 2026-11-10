@@ -139,7 +139,7 @@
  * {@link org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus#UNASSIGNED_QUEUED} for all but one snapshot. The order of
  * operations on a single shard is given by the order in which the snapshots were started.
  * As soon as all shards for a given snapshot have finished, it will be finalized as explained above. Finalization will happen one snapshot
- * at a time, working in the order in which snapshots had their shards completed.
+ * at a time, picking the first ready-to-finalize snapshot in the repository (in the order in which the snapshots were started).
  *
  * <h3>Concurrent Snapshot Deletes</h3>
  *

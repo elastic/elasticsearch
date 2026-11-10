@@ -27,10 +27,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFol
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-/**
- * Shared type validation and transport for operations on a label container. Internal: only PromQL translation builds
- * these, so they have no ES|QL function name.
- */
+/** Internal function that evaluates expressions on metadata container {@link DataType#TSMD_DATA_TYPE}. */
 public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunction {
     protected AbstractTimeSeriesMetadataFunction(Source source, List<Expression> arguments) {
         super(source, arguments);
@@ -38,10 +35,6 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
 
     protected AbstractTimeSeriesMetadataFunction(StreamInput in) throws IOException {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteableCollectionAsList(Expression.class));
-    }
-
-    public Expression labelContainer() {
-        return children().getFirst();
     }
 
     @Override
@@ -54,29 +47,38 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
     /** Writes the arguments that are not expressions, after the children; a subclass reads them back in the same order. */
     protected void writeArguments(StreamOutput out) throws IOException {}
 
+    /** The dimension names this function reads or writes: every argument after the metadata container by default. */
+    public List<Expression> labels() {
+        return children().subList(1, children().size());
+    }
+
     @Override
-    protected final TypeResolution resolveType() {
+    protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        // A null label container is the empty one.
-        return isType(labelContainer(), type -> type == DataType.TSMD_DATA_TYPE, sourceText(), ParamOrdinal.FIRST, "_timeseries").and(
-            resolveArguments()
+        // A null metadata container is the empty one.
+        TypeResolution resolution = isType(
+            children().getFirst(),
+            type -> type == DataType.TSMD_DATA_TYPE,
+            sourceText(),
+            ParamOrdinal.FIRST,
+            "_timeseries"
         );
+        for (Expression label : labels()) {
+            resolution = resolution.and(labelName(label, ParamOrdinal.fromIndex(children().indexOf(label))));
+        }
+        return resolution;
     }
 
-    protected abstract TypeResolution resolveArguments();
-
-    protected final TypeResolution labelName(int index) {
-        Expression name = children().get(index);
-        ParamOrdinal ordinal = ParamOrdinal.fromIndex(index);
+    private TypeResolution labelName(Expression name, ParamOrdinal ordinal) {
         TypeResolution resolution = isString(name, sourceText(), ordinal).and(isFoldable(name, sourceText(), ordinal));
         if (resolution.unresolved()) {
             return resolution;
         }
         return name.fold(FoldContext.small()) instanceof BytesRef bytes && bytes.length > 0
             ? TypeResolution.TYPE_RESOLVED
-            : new TypeResolution("label names in [" + sourceText() + "] must be non-empty, single-valued strings");
+            : new TypeResolution("dimension names in [" + sourceText() + "] must be non-empty, single-valued strings");
     }
 
     @Override

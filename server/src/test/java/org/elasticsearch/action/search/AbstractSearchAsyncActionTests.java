@@ -41,6 +41,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.store.CacheMissWaitMetrics;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.index.store.DirectoryMetricsTests;
 import org.elasticsearch.index.store.StoreMetrics;
@@ -1125,25 +1126,19 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
 
     public void testRecordStoreMetricsReportsCacheMissWaitInMilliseconds() {
         // 3.5 ms: a fractional millisecond must survive, a long histogram would have recorded 3
-        List<Measurement> measurements = recordCacheMissWait(cacheMissWait("3500000"));
+        List<Measurement> measurements = recordCacheMissWait(cacheMissWait(1, 3_500_000));
         assertThat(measurements, hasSize(1));
         assertTrue(measurements.get(0).isDouble());
         assertThat(measurements.get(0).getDouble(), equalTo(3.5));
     }
 
-    public void testRecordStoreMetricsSkipsCacheMissWaitWhenAbsent() {
-        // the blob store cache omits the entry when the request did not wait, and an entry of another metric is not a wait
-        assertThat(
-            recordCacheMissWait(
-                directoryMetricsOf(new DirectoryMetricsTests.Counter()),
-                directoryMetricsOf(new DirectoryMetricsTests.MetricWithEntry("other", "some_other_entry", "3500000"))
-            ),
-            empty()
-        );
+    public void testRecordStoreMetricsSkipsCacheMissWaitWhenThereWasNone() {
+        // no blob store cache metric at all, as on a stateful node, and a blob store cache metric that recorded no waits
+        assertThat(recordCacheMissWait(directoryMetricsOf(new DirectoryMetricsTests.Counter()), cacheMissWait(0, 0)), empty());
     }
 
     public void testRecordStoreMetricsRecordsCacheMissWaitOfZeroNanos() {
-        List<Measurement> measurements = recordCacheMissWait(cacheMissWait("0"));
+        List<Measurement> measurements = recordCacheMissWait(cacheMissWait(1, 0));
         assertThat(measurements, hasSize(1));
         assertThat(measurements.get(0).getDouble(), equalTo(0.0));
     }
@@ -1151,7 +1146,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     public void testRecordStoreMetricsRecordsCacheMissWaitWithSearchRequestAttributes() {
         // the attributes the other search response metrics carry, so the wait can be broken down the same way
         searchRequestAttributes = Map.of("query_type", "match_all", "target", "datastream");
-        List<Measurement> measurements = recordCacheMissWait(cacheMissWait("1000000"));
+        List<Measurement> measurements = recordCacheMissWait(cacheMissWait(1, 1_000_000));
         assertThat(measurements, hasSize(1));
         assertThat(measurements.get(0).attributes(), equalTo(searchRequestAttributes));
     }
@@ -1176,14 +1171,38 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         }
     }
 
+    private static DirectoryMetrics cacheMissWait(long waits, long waitNanos) {
+        return directoryMetricsOf(new CacheMissWait(waits, waitNanos));
+    }
+
     /**
-     * Metrics that report a cache miss wait the way the blob store cache of the stateless plugin does, which is not on the classpath
-     * of this module.
+     * Stands in for the blob store cache metric of the stateless plugin, which is not on the classpath of this module. It is
+     * registered under the same name and implements the same interface.
      */
-    private static DirectoryMetrics cacheMissWait(String waitNanos) {
-        return directoryMetricsOf(
-            new DirectoryMetricsTests.MetricWithEntry("blob_store_cache", DirectoryMetrics.CACHE_MISS_WAIT_NANOS_ENTRY_KEY, waitNanos)
-        );
+    private static class CacheMissWait extends DirectoryMetricsTests.Counter implements CacheMissWaitMetrics {
+        private final long waits;
+        private final long waitNanos;
+
+        CacheMissWait(long waits, long waitNanos) {
+            super(0);
+            this.waits = waits;
+            this.waitNanos = waitNanos;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return DirectoryMetrics.BLOB_STORE_CACHE_METRICS_NAME;
+        }
+
+        @Override
+        public long getWaits() {
+            return waits;
+        }
+
+        @Override
+        public long getWaitTime() {
+            return waitNanos;
+        }
     }
 
     private static DirectoryMetrics directoryMetricsOf(DirectoryMetricsTests.Counter metric) {

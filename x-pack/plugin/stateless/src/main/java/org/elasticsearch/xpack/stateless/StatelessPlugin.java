@@ -1927,7 +1927,8 @@ public class StatelessPlugin extends Plugin
 
     @Override
     public void registerDirectoryMetrics(BiConsumer<String, PluggableDirectoryMetricsHolder<?>> registrator) {
-        registrator.accept(StatelessPlugin.NAME, metricHolder);
+        // the same name the metric is deserialized under on the coordinator, so that local and remote shards merge into one entry
+        registrator.accept(BlobStoreCacheDirectoryMetrics.NAME, metricHolder);
     }
 
     protected CodecProvider getCodecProvider(EngineConfig engineConfig) {

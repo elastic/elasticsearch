@@ -33,6 +33,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.CacheMissWaitMetrics;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
@@ -759,10 +760,9 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
         if (storeMetrics != null) {
             searchResponseMetrics.recordStoreBytesRead(storeMetrics.cast(StoreMetrics.class).getBytesRead(), searchRequestAttributes);
         }
-        // the entry is absent when the request did not wait, so only requests that waited are recorded
-        String waitNanos = directoryMetrics.entries().get(DirectoryMetrics.CACHE_MISS_WAIT_NANOS_ENTRY_KEY);
-        if (waitNanos != null) {
-            searchResponseMetrics.recordCacheMissWait(Long.parseLong(waitNanos), searchRequestAttributes);
+        if (directoryMetrics.metrics(DirectoryMetrics.BLOB_STORE_CACHE_METRICS_NAME) instanceof CacheMissWaitMetrics cacheMissWait
+            && cacheMissWait.getWaits() > 0) {
+            searchResponseMetrics.recordCacheMissWait(cacheMissWait.getWaitTime(), searchRequestAttributes);
         }
     }
 

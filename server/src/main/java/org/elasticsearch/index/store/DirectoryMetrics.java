@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
 public class DirectoryMetrics implements ToXContentFragment, Writeable {
     public static final DirectoryMetrics EMPTY = new DirectoryMetrics(Map.of());
 
-    public static final String CACHE_MISS_WAIT_NANOS_ENTRY_KEY = "cache_miss_wait_nanos";
+    public static final String BLOB_STORE_CACHE_METRICS_NAME = "blob_store_cache";
 
     public interface PluggableMetrics<T extends PluggableMetrics<T>> extends ToXContentObject, NamedWriteable {
         /**

@@ -12,15 +12,11 @@ package org.elasticsearch.telemetry.apm.internal.tracing;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.context.Context;
 
-import org.apache.lucene.util.automaton.Automata;
-import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.apm.internal.export.otelsdk.PatternAutomata;
 import org.elasticsearch.telemetry.tracing.Span;
 import org.elasticsearch.telemetry.tracing.Tracer;
 
@@ -41,13 +37,7 @@ public class APMTracer implements Tracer {
     private final AtomicBoolean enabled;
     private final AtomicBoolean recordExceptionStacks;
 
-    private List<String> includeNames = List.of();
-    private List<String> excludeNames = List.of();
-    /** Built using {@link #includeNames} and {@link #excludeNames}, and filters out spans based on their name. */
-    private volatile CharacterRunAutomaton filterAutomaton = buildAutomaton(List.of(), List.of());
-    private volatile CharacterRunAutomaton labelFilterAutomaton = buildAutomaton(List.of(), List.of());
-    private volatile int maxTraceDepth;
-    private volatile int maxSpans;
+    private volatile CharacterRunAutomaton labelFilterAutomaton = PatternAutomata.compile(List.of(), List.of());
     private volatile String clusterName;
     private volatile String nodeName;
 
@@ -95,26 +85,8 @@ public class APMTracer implements Tracer {
         return enabled.get();
     }
 
-    public synchronized void setIncludeNames(List<String> includeNames) {
-        this.includeNames = includeNames;
-        this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
-    }
-
-    public synchronized void setExcludeNames(List<String> excludeNames) {
-        this.excludeNames = excludeNames;
-        this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
-    }
-
     public void setLabelFilters(List<String> labelFilters) {
-        this.labelFilterAutomaton = buildAutomaton(labelFilters, List.of());
-    }
-
-    public void setMaxTraceDepth(int maxTraceDepth) {
-        this.maxTraceDepth = maxTraceDepth;
-    }
-
-    public void setMaxSpans(int maxSpans) {
-        this.maxSpans = maxSpans;
+        this.labelFilterAutomaton = PatternAutomata.compile(labelFilters, List.of());
     }
 
     public void setClusterName(String clusterName) {
@@ -133,19 +105,6 @@ public class APMTracer implements Tracer {
         return nodeName;
     }
 
-    /** Whether the name of a span is excluded from tracing by the configured include and exclude patterns. */
-    boolean isFilteredOut(String spanName) {
-        return filterAutomaton.run(spanName) == false;
-    }
-
-    int maxTraceDepth() {
-        return maxTraceDepth;
-    }
-
-    int maxSpans() {
-        return maxSpans;
-    }
-
     /** Whether the value of an attribute with the given key is sensitive and must be redacted. */
     boolean isRedacted(String attributeKey) {
         return labelFilterAutomaton.run(attributeKey);
@@ -153,34 +112,5 @@ public class APMTracer implements Tracer {
 
     boolean recordExceptionStacks() {
         return recordExceptionStacks.get();
-    }
-
-    private static CharacterRunAutomaton buildAutomaton(List<String> includePatterns, List<String> excludePatterns) {
-        Automaton includeAutomaton = patternsToAutomaton(includePatterns);
-        Automaton excludeAutomaton = patternsToAutomaton(excludePatterns);
-
-        if (includeAutomaton == null) {
-            includeAutomaton = Automata.makeAnyString();
-        }
-
-        final Automaton finalAutomaton = excludeAutomaton == null
-            ? includeAutomaton
-            : Operations.minus(includeAutomaton, excludeAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-
-        return new CharacterRunAutomaton(MinimizationOperations.minimize(finalAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
-    }
-
-    private static Automaton patternsToAutomaton(List<String> patterns) {
-        final List<Automaton> automata = patterns.stream().map(s -> {
-            final String regex = s.replace(".", "\\.").replace("*", ".*");
-            return new RegExp(regex, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton();
-        }).toList();
-        if (automata.isEmpty()) {
-            return null;
-        }
-        if (automata.size() == 1) {
-            return automata.get(0);
-        }
-        return Operations.union(automata);
     }
 }

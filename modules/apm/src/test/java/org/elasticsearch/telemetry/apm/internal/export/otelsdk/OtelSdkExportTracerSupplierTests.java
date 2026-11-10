@@ -11,6 +11,7 @@ package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.MeterProvider;
+import io.opentelemetry.context.Context;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.data.MetricData;
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
@@ -19,6 +20,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.telemetry.apm.internal.tracing.LocalSpanCount;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -74,7 +76,7 @@ public class OtelSdkExportTracerSupplierTests extends ESTestCase {
             .build();
         try (var supplier = new OtelSdkExportTracerSupplier(settings, () -> meterProvider)) {
             // Start and end a span so BatchSpanProcessor registers its queue metrics.
-            var span = supplier.get().getTracer("test").spanBuilder("test").startSpan();
+            var span = supplier.get().getTracer("test").spanBuilder("test").setParent(contextWithSpanCount()).startSpan();
             span.end();
 
             var metricNames = reader.collectAllMetrics().stream().map(MetricData::getName).toList();
@@ -163,10 +165,14 @@ public class OtelSdkExportTracerSupplierTests extends ESTestCase {
             .put(OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE.getKey(), 1.0)
             .build();
         try (var supplier = new OtelSdkExportTracerSupplier(settings, MeterProvider::noop)) {
-            var span = supplier.get().getTracer("test").spanBuilder("root").startSpan();
+            var span = supplier.get().getTracer("test").spanBuilder("root").setParent(contextWithSpanCount()).startSpan();
             assertThat(span.getSpanContext().getTraceState().get("ot"), equalTo("p:0"));
             span.end();
         }
     }
 
+    /** The sampler relies on the counter, which is always there for the spans that are started by the span builder of the tracer. */
+    private static Context contextWithSpanCount() {
+        return Context.root().with(new LocalSpanCount());
+    }
 }

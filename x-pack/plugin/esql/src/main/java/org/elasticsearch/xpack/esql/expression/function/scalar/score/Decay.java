@@ -129,47 +129,69 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
 
     @FunctionInfo(
         returnType = "double",
-        preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.7.0") },
         briefSummary = "Calculates a relevance score that decays with distance from a target origin.",
         description = "Calculates a relevance score that decays based on the distance of a numeric, spatial or date type value "
             + "from a target origin, using configurable decay functions.",
         detailedDescription = """
-            `DECAY` calculates a score between 0 and 1 based on how far a field value is from a specified origin point (called distance).
-            The distance can be a numeric distance, spatial distance or temporal distance depending on the specific data type.
+            `DECAY` calculates a score between 0 and 1 based on how far a value is from an origin (called distance).
+            The distance is numeric, spatial or temporal depending on the type of the value.
+            Up to `offset` from the origin the score is 1. At `offset` plus `scale` the score equals `decay`,
+            and further away it keeps decreasing towards 0 along the `linear`, `exp` or `gauss` curve.
 
-            `DECAY` can use <<esql-function-named-params,function named parameters>> to specify additional `options`
-            for the decay function.
+            `DECAY` uses <<esql-function-named-params,function named parameters>> for the optional `type` (defaults to `linear`),
+            `decay` (defaults to `0.5`) and `offset` (defaults to `0`). `origin` and `scale` must be constants.
+            `scale` must be greater than 0, `decay` must be greater than 0 and less than 1, and `offset` must not be negative.
+            Any other value is an error.
 
-            For spatial queries, scale and offset for geo points use distance units (e.g., "10km", "5mi"),
-            while cartesian points use numeric values. For date queries, scale and offset use time_duration values,
-            or date_period values made only of days and weeks.
-            For numeric queries you also use numeric values.
+            The unit of `scale` and `offset` depends on the type of the value:
+
+            * numeric values and `cartesian_point` use numbers.
+            * `geo_point` uses distance strings such as `"200km"` or `"5mi"`. The origin is a point such as `TO_GEOPOINT("POINT(lon lat)")`.
+            * `date` and `date_nanos` use time durations such as `12 hours`, or periods of days and weeks such as `7 days`.
+              Months and years have no fixed length and are rejected.
+
+            A `null` value scores `null`. A multivalued value scores `null` and adds a warning.
+            To score the nearest of several values, `MV_EXPAND` the field and take the `MAX` of `DECAY` for each document.
+
+            To boost relevance, combine `DECAY` with `_score`, for example `_score * DECAY(...)`, `_score + DECAY(...)`
+            or `GREATEST(_score, DECAY(...))`. Use `COALESCE(DECAY(...), 0.5)` to give documents without the field a fixed score.
+
+            Compared to the decay functions of the `function_score` query, a missing value scores `null` instead of 1,
+            there is no `multi_value_mode`, and `origin` has no default of `now`.
 
             :::{tip}
             Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
             :::
             """,
-        examples = { @Example(file = "decay", tag = "decay") }
+        examples = {
+            @Example(file = "decay", tag = "decay"),
+            @Example(
+                description = "Boost the relevance score of recent books, giving books without a year half the score:",
+                file = "decay",
+                tag = "decay-score"
+            ) }
     )
     public Decay(
         Source source,
         @Param(
             name = "value",
             type = { "double", "integer", "long", "unsigned_long", "date", "date_nanos", "geo_point", "cartesian_point" },
-            description = "The input value to apply decay scoring to."
+            description = "The value to score. A `null` value scores `null`, and a multivalued value scores `null` with a warning."
         ) Expression value,
         @Param(
             name = ORIGIN,
             type = { "double", "integer", "long", "unsigned_long", "date", "date_nanos", "geo_point", "cartesian_point" },
             hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
-            description = "Central point from which the distances are calculated."
+            description = "Central point from which the distances are calculated. Must be a constant."
         ) Expression origin,
         @Param(
             name = SCALE,
             type = { "double", "integer", "long", "unsigned_long", "time_duration", "date_period", "keyword", "text" },
             hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
-            description = "Distance from the origin where the function returns the decay value."
+            description = "Distance beyond `offset` at which the score equals `decay`. Must be a constant greater than 0."
         ) Expression scale,
         @MapParam(
             name = "options",
@@ -178,12 +200,12 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
                 @MapParam.MapParamEntry(
                     name = OFFSET,
                     type = { "double", "integer", "long", "unsigned_long", "time_duration", "date_period", "keyword", "text" },
-                    description = "Distance from the origin where no decay occurs."
+                    description = "Distance from the origin within which the score is 1. Must not be negative. Defaults to 0."
                 ),
                 @MapParam.MapParamEntry(
                     name = DECAY,
                     type = { "double" },
-                    description = "Multiplier value returned at the scale distance from the origin."
+                    description = "Score at `scale` beyond `offset`. Must be greater than 0 and less than 1. Defaults to 0.5."
                 ),
                 @MapParam.MapParamEntry(
                     name = TYPE,

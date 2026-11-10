@@ -588,7 +588,7 @@ public final class CsvTestUtils {
         return mvCompressedEntries.toArray(String[]::new);
     }
 
-    public record ExpectedResults(List<String> columnNames, List<Type> columnTypes, List<List<Object>> values) {}
+    public record TestResults(List<String> columnNames, List<Type> columnTypes, List<List<Object>> values) {}
 
     /**
      * The method loads a section of a .csv-spec file representing the results of executing the query of that section.
@@ -599,7 +599,7 @@ public final class CsvTestUtils {
      * @param csv a string representing the header and row values of a single query execution result
      * @return data structure with column names, their types and values
      */
-    public static ExpectedResults loadCsvSpecValues(String csv) {
+    public static TestResults loadCsvSpecValues(String csv) {
         List<String> columnNames;
         List<Type> columnTypes;
 
@@ -682,7 +682,7 @@ public final class CsvTestUtils {
                 values.add(rowValues);
             }
 
-            return new ExpectedResults(columnNames, columnTypes, values);
+            return new TestResults(columnNames, columnTypes, values);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

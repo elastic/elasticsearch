@@ -60,7 +60,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/** Drives {@link JobConfigProvider#validateDatafeedJob} end to end: job lookup, required-columns probe, source-time-field probe. */
+/** Drives {@link JobConfigProvider#validateDatafeedJobAndEsqlQuery}: job lookup, required-columns probe, source-time-field probe. */
 public class JobConfigProviderTests extends ESTestCase {
 
     private static final String ESQL_QUERY = "FROM logs-* | STATS c = COUNT(*) BY time = BUCKET(@timestamp, 1h)";
@@ -151,7 +151,7 @@ public class JobConfigProviderTests extends ESTestCase {
     private Exception validateExpectingFailure(JobConfigProvider provider, DatafeedConfig config) {
         AtomicInteger calls = new AtomicInteger();
         AtomicReference<Exception> failure = new AtomicReference<>();
-        provider.validateDatafeedJob(config, HEADERS, ActionListener.wrap(r -> fail("expected failure"), e -> {
+        provider.validateDatafeedJobAndEsqlQuery(config, HEADERS, ActionListener.wrap(r -> fail("expected failure"), e -> {
             calls.incrementAndGet();
             failure.set(e);
         }));
@@ -161,7 +161,7 @@ public class JobConfigProviderTests extends ESTestCase {
 
     private void validateExpectingSuccess(JobConfigProvider provider, DatafeedConfig config) {
         AtomicInteger calls = new AtomicInteger();
-        provider.validateDatafeedJob(config, HEADERS, ActionTestUtils.assertNoFailureListener(ok -> {
+        provider.validateDatafeedJobAndEsqlQuery(config, HEADERS, ActionTestUtils.assertNoFailureListener(ok -> {
             assertThat(ok, equalTo(Boolean.TRUE));
             calls.incrementAndGet();
         }));
@@ -169,8 +169,13 @@ public class JobConfigProviderTests extends ESTestCase {
     }
 
     public void testValidateDatafeedJobWhenDatafeedIsDslShouldNotProbe() {
-        validateExpectingSuccess(newProvider(false), new DatafeedConfig.Builder("df", "job").setIndices(List.of("logs-*")).build());
-
+        DatafeedConfig dsl = new DatafeedConfig.Builder("df", "job").setIndices(List.of("logs-*")).build();
+        AtomicInteger calls = new AtomicInteger();
+        newProvider(false).validateDatafeedJob(dsl, ActionTestUtils.assertNoFailureListener(ok -> {
+            assertThat(ok, equalTo(Boolean.TRUE));
+            calls.incrementAndGet();
+        }));
+        assertThat(calls.get(), equalTo(1));
         verifyNoInteractions(queryValidator, credentialManager);
     }
 
@@ -204,6 +209,7 @@ public class JobConfigProviderTests extends ESTestCase {
         InOrder inOrder = inOrder(queryValidator);
         inOrder.verify(queryValidator)
             .validateQuery(same(client), eq(HEADERS), eq(ESQL_QUERY), eq(null), eq("time"), eq("c"), any(), eq("df"));
+        verify(queryValidator, never()).validateQuery(any(), any(), anyString(), any(), anyString(), any(), any());
         inOrder.verify(queryValidator)
             .validateSourceTimeField(same(client), eq(HEADERS), eq(ESQL_QUERY), eq(null), eq("@timestamp"), any(), eq("df"));
         inOrder.verifyNoMoreInteractions();

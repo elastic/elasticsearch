@@ -635,6 +635,23 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
     }
 
     /**
+     * Returns {@code true} when an ES|QL datafeed update changes inputs that affect put-time ES|QL column probes.
+     */
+    public static boolean changesEsqlProbeInputs(DatafeedConfig current, DatafeedUpdate update) {
+        if (current.getEsqlQuery() == null) {
+            return false;
+        }
+        if (update.getProjectRouting() != null && Objects.equals(update.getProjectRouting(), current.getProjectRouting()) == false) {
+            return true;
+        }
+        if (update.getDelayedDataCheckConfig() != null
+            && Objects.equals(update.getDelayedDataCheckConfig(), current.getDelayedDataCheckConfig()) == false) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Returns {@code true} when this update changes index routing inputs that can alter whether a datafeed
      * participates in cross-project search and therefore whether an internal cloud credential is required.
      */

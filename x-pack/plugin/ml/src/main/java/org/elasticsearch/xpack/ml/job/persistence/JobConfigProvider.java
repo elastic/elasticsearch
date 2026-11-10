@@ -766,16 +766,23 @@ public class JobConfigProvider {
         );
     }
 
+    /** Validates {@code config} against its job; ES|QL query probes are not run. */
+    public void validateDatafeedJob(DatafeedConfig config, ActionListener<Boolean> listener) {
+        getJob(config.getJobId(), null, ActionListener.wrap(jobBuilder -> {
+            try {
+                Job job = jobBuilder.build();
+                DatafeedJobValidator.validate(config, job, xContentRegistry);
+                listener.onResponse(Boolean.TRUE);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        }, listener::onFailure));
+    }
+
     /**
-     * Get the job reference by the datafeed and validate the datafeed config against it.
-     * For ES|QL datafeeds, also probes the query with {@code | LIMIT 0} (required output columns) and then
-     * the {@code source_time_field}, both executed with the caller's security headers.
-     *
-     * @param config   Datafeed config
-     * @param headers  Security headers of the caller
-     * @param listener Validation listener
+     * Validates against the job and runs ES|QL {@code LIMIT 0} probes as {@code headers} under the config's cloud credential.
      */
-    public void validateDatafeedJob(DatafeedConfig config, Map<String, String> headers, ActionListener<Boolean> listener) {
+    public void validateDatafeedJobAndEsqlQuery(DatafeedConfig config, Map<String, String> headers, ActionListener<Boolean> listener) {
         getJob(config.getJobId(), null, ActionListener.wrap(jobBuilder -> {
             try {
                 Job job = jobBuilder.build();
@@ -787,14 +794,7 @@ public class JobConfigProvider {
         }, listener::onFailure));
     }
 
-    /**
-     * Probes an ES|QL datafeed's query ({@code LIMIT 0} required columns, then {@code source_time_field}); DSL datafeeds pass.
-     * <p>
-     * The probes mirror what the datafeed will do at runtime ({@code DatafeedJobBuilder} and {@code DataExtractorFactory}): the
-     * config is normalised for the current cross-project mode and the client is wrapped with the datafeed's own cloud credential.
-     * Callers invoke validation after any credential mint, so {@code config} already carries that credential when one is needed;
-     * a datafeed without one searches origin-only, exactly as it will at runtime.
-     */
+    /** ES|QL probes only; DSL configs complete without searching. */
     private void validateEsqlProbes(DatafeedConfig config, Job job, Map<String, String> headers, ActionListener<Boolean> listener) {
         if (config.getEsqlQuery() == null) {
             listener.onResponse(Boolean.TRUE);

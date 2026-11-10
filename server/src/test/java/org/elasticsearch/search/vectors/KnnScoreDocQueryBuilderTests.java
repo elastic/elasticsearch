@@ -73,6 +73,20 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
         );
     }
 
+    /**
+     * The query needs a non-null {@link IndexReader}.
+     * {@link KnnScoreDocQuery} reads the reader's segments to locate the scored documents.
+     */
+    @Override
+    protected IndexReaderManager getIndexReaderManager() {
+        return new IndexReaderManager() {
+            @Override
+            protected void initIndexWriter(RandomIndexWriter indexWriter) throws IOException {
+                indexWriter.addDocument(new Document());
+            }
+        };
+    }
+
     @Override
     public void testValidOutput() {
         KnnScoreDocQueryBuilder query = new KnnScoreDocQueryBuilder(
@@ -337,10 +351,5 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
                 }
             }
         }
-    }
-
-    @Override
-    public void testToQueryChargesBreakerOnce() {
-        assumeTrue("Needs a reader holding the scored documents, like testToQuery, and builds no sub-queries", false);
     }
 }

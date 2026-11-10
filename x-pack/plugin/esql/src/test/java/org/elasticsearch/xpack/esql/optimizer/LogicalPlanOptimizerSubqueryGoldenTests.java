@@ -939,6 +939,23 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """).stages(STAGES).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
     }
 
+    /**
+     * A column with conflicting types in a nested union, next to a sibling branch of the outer union that produces it as
+     * {@code keyword} ({@code first_name}) or as another type ({@code avg_worked_seconds}). Under {@code unmapped_fields} with an
+     * unmapped reference, the nested union's conflict is null-filled as {@code keyword}, so the outer union sees {@code first_name} as
+     * {@code keyword} in every branch and returns the sibling's values, while {@code avg_worked_seconds} conflicts. This pins the
+     * behaviour from before merge branches were left unaligned until the optimizer; see the TODO in
+     * {@code ResolveUnionTypesInUnionAll}, which expects this to change once {@code UNSUPPORTED} columns are no longer null-filled as
+     * {@code keyword}.
+     */
+    public void testNestedUnionTypeConflictNextToSiblingWithUnmappedReference() {
+        builder("""
+            SET unmapped_fields="nullify";
+            FROM (FROM (FROM employees), (FROM employees, employees_incompatible) | EVAL x = 1), (FROM employees)
+            | KEEP first_name, avg_worked_seconds, does_not_exist
+            """).stages(STAGES).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
+    }
+
     public void testSameConversionResolvedOnLaterPassOverViewAndMultiTypedBranch() {
         builder("""
             SET unmapped_fields="nullify";

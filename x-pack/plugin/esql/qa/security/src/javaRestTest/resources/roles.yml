@@ -595,3 +595,13 @@ fls_unmapped_container_except_k:
       field_security:
         grant: [ '*' ]
         except: [ 'k' ]
+
+# Hides one key of a flattened field and keeps the others.
+fls_flattened_except_key:
+  cluster: []
+  indices:
+    - names: [ 'index-flattened-keys*' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ 'attrs.bar' ]

@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 
 import java.io.IOException;
@@ -36,7 +37,7 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
         setCommonPropertiesOnRandomBuilder(testBuilder);
         maybeSet(testBuilder::maxErrors, Math.max(randomFloat(), Float.MIN_NORMAL));
         maybeSet(testBuilder::separator, randomAlphaOfLengthBetween(1, 10));
-        maybeSet(testBuilder::realWordErrorLikelihood, randomFloat());
+        maybeSet(testBuilder::realWordErrorLikelihood, Math.max(randomFloat(), Float.MIN_NORMAL));
         maybeSet(testBuilder::confidence, randomFloat());
         maybeSet(testBuilder::collateQuery, randomAlphaOfLengthBetween(3, 20));
         // collate query prune and parameters will only be used when query is set
@@ -82,9 +83,11 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
     @Override
     protected void mutateSpecificParameters(PhraseSuggestionBuilder builder) throws IOException {
         switch (randomIntBetween(0, 12)) {
-            case 0 -> builder.maxErrors(randomValueOtherThan(builder.maxErrors(), () -> randomFloat()));
-            case 1 -> builder.realWordErrorLikelihood(randomValueOtherThan(builder.realWordErrorLikelihood(), () -> randomFloat()));
-            case 2 -> builder.confidence(randomValueOtherThan(builder.confidence(), () -> randomFloat()));
+            case 0 -> builder.maxErrors(randomValueOtherThan(builder.maxErrors(), () -> Math.max(randomFloat(), Float.MIN_NORMAL)));
+            case 1 -> builder.realWordErrorLikelihood(
+                randomValueOtherThan(builder.realWordErrorLikelihood(), () -> Math.max(randomFloat(), Float.MIN_NORMAL))
+            );
+            case 2 -> builder.confidence(randomValueOtherThan(builder.confidence(), ESTestCase::randomFloat));
             case 3 -> builder.gramSize(randomValueOtherThan(builder.gramSize(), () -> randomIntBetween(1, 5)));
             case 4 -> builder.tokenLimit(randomValueOtherThan(builder.tokenLimit(), () -> randomIntBetween(1, 20)));
             case 5 -> builder.separator(randomValueOtherThan(builder.separator(), () -> randomAlphaOfLengthBetween(1, 10)));

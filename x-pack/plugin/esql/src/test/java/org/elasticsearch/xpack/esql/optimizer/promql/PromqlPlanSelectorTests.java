@@ -160,6 +160,21 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(as(as(in.list().getFirst(), Literal.class).value(), BytesRef.class).utf8ToString(), equalTo("foo"));
     }
 
+    /** A label matcher filters on its own label wherever the {@code __name__} matcher sits among the matchers. */
+    public void testLabelSelectorWithNameMatcherInBraces() {
+        for (String selector : List.of(
+            "network.bytes_in{pod!=\"foo\"}",
+            "{__name__=\"network.bytes_in\",pod!=\"foo\"}",
+            "{pod!=\"foo\",__name__=\"network.bytes_in\"}",
+            "{\"network.bytes_in\",pod!=\"foo\"}"
+        )) {
+            var plan = planPromql("PROMQL index=k8s step=1m avg(" + selector + ")");
+            var not = collectInnermostSelectorFilter(plan, Not.class);
+            var in = as(not.field(), In.class);
+            assertThat(selector, as(in.value(), FieldAttribute.class).name(), equalTo("pod"));
+        }
+    }
+
     public void testLabelSelectorRegexNegation() {
         var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!~\"f.o\"})");
         var not = collectInnermostSelectorFilter(plan, Not.class);

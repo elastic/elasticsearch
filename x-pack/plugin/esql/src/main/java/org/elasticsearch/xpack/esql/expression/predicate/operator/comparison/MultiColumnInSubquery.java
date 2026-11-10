@@ -54,7 +54,7 @@ public class MultiColumnInSubquery extends Expression {
 
     @Override
     public Nullability nullable() {
-        return Nullability.UNKNOWN;
+        return Nullability.TRUE;
     }
 
     @Override

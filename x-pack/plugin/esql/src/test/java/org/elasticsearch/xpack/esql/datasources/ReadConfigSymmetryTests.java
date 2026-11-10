@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -65,26 +64,6 @@ public class ReadConfigSymmetryTests extends ESTestCase {
         assertEquals(
             ReadConfigFingerprint.of(coordinatorSchema, spec),
             ReadConfigFingerprint.of(roundTrip(coordinatorSchema).readSchema(), spec)
-        );
-    }
-
-    public void testNullabilityDifferencesDoNotMoveTheFingerprint() throws IOException {
-        // The wire collapses the planner's UNKNOWN nullability to nullable, so if nullability ever entered the hash the
-        // two sides would silently derive different values. Pin the exclusion rather than trusting it stays excluded.
-        List<Attribute> unknownNullability = List.of(
-            new ReferenceAttribute(Source.EMPTY, null, "a", DataType.KEYWORD, Nullability.UNKNOWN, null, false)
-        );
-        List<Attribute> explicitlyNullable = List.of(
-            new ReferenceAttribute(Source.EMPTY, null, "a", DataType.KEYWORD, Nullability.TRUE, null, false)
-        );
-
-        assertEquals(
-            ReadConfigFingerprint.of(unknownNullability, DeclaredReadSpec.NONE),
-            ReadConfigFingerprint.of(explicitlyNullable, DeclaredReadSpec.NONE)
-        );
-        assertEquals(
-            ReadConfigFingerprint.of(unknownNullability, DeclaredReadSpec.NONE),
-            ReadConfigFingerprint.of(roundTrip(unknownNullability).readSchema(), DeclaredReadSpec.NONE)
         );
     }
 

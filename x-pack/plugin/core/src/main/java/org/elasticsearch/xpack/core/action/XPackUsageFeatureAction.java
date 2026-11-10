@@ -69,6 +69,7 @@ public final class XPackUsageFeatureAction {
     public static final ActionType<XPackUsageFeatureResponse> LOGGING = xpackUsageFeatureAction(XPackField.LOGGING);
     public static final ActionType<XPackUsageFeatureResponse> VECTORDB_DOCUMENT = xpackUsageFeatureAction(XPackField.VECTORDB_DOCUMENT);
     public static final ActionType<XPackUsageFeatureResponse> COLUMNAR = xpackUsageFeatureAction(XPackField.COLUMNAR);
+    public static final ActionType<XPackUsageFeatureResponse> VECTORDB_COLUMNAR = xpackUsageFeatureAction(XPackField.VECTORDB_COLUMNAR);
 
     static final List<ActionType<XPackUsageFeatureResponse>> ALL = List.of(
         AGGREGATE_METRIC,
@@ -105,7 +106,8 @@ public final class XPackUsageFeatureAction {
         GPU_VECTOR_INDEXING,
         LOGGING,
         VECTORDB_DOCUMENT,
-        COLUMNAR
+        COLUMNAR,
+        VECTORDB_COLUMNAR
     );
 
     public static ActionType<XPackUsageFeatureResponse> xpackUsageFeatureAction(String suffix) {

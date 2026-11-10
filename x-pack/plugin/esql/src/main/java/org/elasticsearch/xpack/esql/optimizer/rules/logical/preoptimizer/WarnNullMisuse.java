@@ -8,14 +8,17 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.preoptimizer;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NullMisuseSuggestion;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
@@ -70,7 +73,7 @@ public class WarnNullMisuse implements LogicalPlanPreOptimizerRule {
             in.children().forEach(WarnNullMisuse::check);
             return;
         }
-        if (FoldNull.foldsToNull(e, ConvertFunction::isExplicitNull)) {
+        if (foldsToNull(e)) {
             warnNullLiteral(e);
         }
         // Keep descending: other children may misuse their own, different NULL literal.
@@ -78,7 +81,19 @@ public class WarnNullMisuse implements LogicalPlanPreOptimizerRule {
     }
 
     private static boolean isNullComparison(Expression e) {
-        return (e instanceof Equals || e instanceof InsensitiveEquals) && FoldNull.foldsToNull(e, ConvertFunction::isExplicitNull);
+        return (e instanceof Equals || e instanceof InsensitiveEquals) && foldsToNull(e);
+    }
+
+    private static boolean foldsToNull(Expression e) {
+        if (e instanceof In in) {
+            return ConvertFunction.isExplicitNull(in.value());
+        }
+        if (e instanceof FilteredExpression fe) {
+            return ConvertFunction.isExplicitNull(fe.filter()) && fe.delegate().nullable() == Nullability.TRUE;
+        }
+        return e instanceof EvaluatorMapper
+            && e instanceof AnyNullIsNull
+            && e.children().stream().anyMatch(ConvertFunction::isExplicitNull);
     }
 
     private static boolean hasExplicitNullInList(In in) {

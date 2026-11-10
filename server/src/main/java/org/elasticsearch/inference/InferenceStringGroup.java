@@ -23,8 +23,11 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -43,6 +46,14 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  */
 public final class InferenceStringGroup implements Accountable, Writeable, ToXContentObject {
     public static final String CONTENT_FIELD = "content";
+
+    /**
+     * The {@link DataType}s that can be used as embedding inputs. {@link DataType#HTML} is excluded, as it is only meant to be used as a
+     * {@link TaskType#DOCUMENT_EXTRACTION} input.
+     */
+    public static final Set<DataType> SUPPORTED_EMBEDDING_DATA_TYPES = Collections.unmodifiableSet(
+        EnumSet.of(DataType.TEXT, DataType.IMAGE, DataType.AUDIO, DataType.VIDEO, DataType.PDF)
+    );
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<InferenceStringGroup, Void> PARSER = new ConstructingObjectParser<>(
@@ -68,14 +79,31 @@ public final class InferenceStringGroup implements Accountable, Writeable, ToXCo
 
     /**
      * @param inferenceStrings the list of {@link InferenceString} which should result in generating a single embedding vector
+     * @throws IllegalArgumentException if the list is empty or any input has a {@link DataType} outside
+     *                                  {@link #SUPPORTED_EMBEDDING_DATA_TYPES}
      */
     public InferenceStringGroup(List<InferenceString> inferenceStrings) {
         this.inferenceStrings = Objects.requireNonNull(inferenceStrings);
         if (this.inferenceStrings.isEmpty()) {
             throw new IllegalArgumentException("InferenceStringGroup constructor argument cannot be an empty list");
         }
-        containsNonTextEntry = inferenceStrings.stream().anyMatch(InferenceString::isNonText);
-        containsPdfEntry = inferenceStrings.stream().anyMatch(InferenceString::isPdf);
+        boolean nonTextEntryFound = false;
+        boolean pdfEntryFound = false;
+        for (InferenceString inferenceString : inferenceStrings) {
+            if (SUPPORTED_EMBEDDING_DATA_TYPES.contains(inferenceString.dataType()) == false) {
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "Data type [%s] is not supported for embedding inputs, supported data types are %s",
+                        inferenceString.dataType(),
+                        SUPPORTED_EMBEDDING_DATA_TYPES
+                    )
+                );
+            }
+            nonTextEntryFound |= inferenceString.isNonText();
+            pdfEntryFound |= inferenceString.isPdf();
+        }
+        containsNonTextEntry = nonTextEntryFound;
+        containsPdfEntry = pdfEntryFound;
     }
 
     public InferenceStringGroup(StreamInput in) throws IOException {

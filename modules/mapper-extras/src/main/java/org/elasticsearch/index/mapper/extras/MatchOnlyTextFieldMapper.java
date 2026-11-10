@@ -48,6 +48,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.escf.ColumnarPayloadColumn;
 import org.elasticsearch.escf.EscfColumn;
@@ -122,7 +123,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
-import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentString;
@@ -176,14 +176,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         private Builder(String name, IndexAnalyzers indexAnalyzers, boolean isWithinMultiField, IndexSettings indexSettings) {
             super(name, indexSettings.getIndexVersionCreated(), isWithinMultiField);
 
-            this.indexed = Parameter.indexParam(m -> ((MatchOnlyTextFieldMapper) m).indexed(), true);
+            this.indexed = Parameter.indexParam(true);
 
-            this.analyzers = new TextParams.Analyzers(
-                indexAnalyzers,
-                m -> ((MatchOnlyTextFieldMapper) m).indexAnalyzer,
-                m -> ((MatchOnlyTextFieldMapper) m).positionIncrementGap,
-                indexSettings.getIndexVersionCreated()
-            );
+            this.analyzers = new TextParams.Analyzers(indexAnalyzers, indexSettings.getIndexVersionCreated());
             this.storedFieldInBinaryFormat = isSyntheticSourceStoredFieldInBinaryFormat(indexSettings.getIndexVersionCreated());
             this.usesBinaryDocValuesForFallbackFields = usesBinaryDocValuesForFallbackFields(indexSettings);
             this.indexSettings = indexSettings;
@@ -195,8 +190,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
                     IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
                 ),
-                m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters,
-                indexSettings.getMode().isStrictColumnar()
+                indexSettings
             );
         }
 
@@ -209,6 +203,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             List<Parameter<?>> params = new ArrayList<>();
             params.add(meta);
             params.add(docValuesParameters);
+            params.add(docValuesParameters.multiValue());
+            params.add(docValuesParameters.nullability());
+            params.add(docValuesParameters.onFailure());
             params.add(indexed);
             return params.toArray(Parameter[]::new);
         }
@@ -1099,9 +1096,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     private final IndexVersion indexCreatedVersion;
-    private final IndexAnalyzers indexAnalyzers;
     private final NamedAnalyzer indexAnalyzer;
-    private final int positionIncrementGap;
     private final FieldType fieldType;
     private final boolean storedFieldInBinaryFormat;
     private final boolean usesBinaryDocValuesForFallbackFields;
@@ -1127,9 +1122,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.indexCreatedVersion = builder.indexCreatedVersion();
-        this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
-        this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.storedFieldInBinaryFormat = builder.storedFieldInBinaryFormat;
         this.usesBinaryDocValuesForFallbackFields = builder.usesBinaryDocValuesForFallbackFields;
         this.docValuesParameters = builder.docValuesParameters.getValue();
@@ -1174,11 +1167,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         return Map.of(mappedFieldType.name(), indexAnalyzer);
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexAnalyzers, fieldType().isWithinMultiField(), indexSettings).init(this);
-    }
-
     public boolean indexed() {
         return indexed;
     }
@@ -1211,15 +1199,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 || docValuesParameters.multiValue() == false);
     }
 
-    // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
-    private static EscfColumnBuilder mergeStringColumn() {
-        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private static EscfColumnBuilder mergeStringColumn(Recycler<BytesRef> recycler) {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, recycler);
         b.lockScalar(EscfColumnKind.STRING);
         return b;
     }
 
-    private static EscfColumnBuilder mergeLongColumn() {
-        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private static EscfColumnBuilder mergeLongColumn(Recycler<BytesRef> recycler) {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, recycler);
         b.lockScalar(EscfColumnKind.LONG);
         return b;
     }
@@ -1252,9 +1239,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         // A columnar field's payload carries its own count, so it needs no companion column.
         final boolean columnar = fieldType().usesColumnarPayload();
         try (
-            EscfColumnBuilder terms = emitTerms ? mergeStringColumn() : null;
-            EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn() : null;
-            EscfColumnBuilder dvCounts = emitDvs && columnar == false ? mergeLongColumn() : null
+            EscfColumnBuilder terms = emitTerms ? mergeStringColumn(ctx.recycler()) : null;
+            EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn(ctx.recycler()) : null;
+            EscfColumnBuilder dvCounts = emitDvs && columnar == false ? mergeLongColumn(ctx.recycler()) : null
         ) {
             final StringBinaryPayload.Builder payload = emitDvs && columnar ? new StringBinaryPayload.Builder() : null;
             int currentDoc = -1;
@@ -1345,7 +1332,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             // Attach output columns. Terms, binary-dv blob, and counts are each emitted independently.
             // All-null docs emit counts but no binary blob, so binaryDvs and dvCounts are decoupled.
             // Each builder owns its buffers, so every finished column is registered for release with the batch.
-            if (terms != null && terms.isEmpty() == false) {
+            if (ColumnarPayloadColumn.shouldEmitTermsColumn(terms, valuelessDocs)) {
                 final EscfColumnData termsData = terms.finish(docCount);
                 ctx.addColumn(LuceneBinaryColumn.of(termsData, fieldType().name(), fieldType), termsData);
             }
@@ -1381,7 +1368,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
         try (
             EscfColumnBuilder values = source.leafValueKind() != EscfColumnKind.STRING && (emitTerms || emitDvs)
-                ? mergeStringColumn()
+                ? mergeStringColumn(ctx.recycler())
                 : null
         ) {
             int currentDoc = -1;
@@ -1443,7 +1430,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
                 }
             } else if (recordOffsets) {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+                context.getOffSetContext().recordNull(offsetsFieldName, TextFieldMapper.OFFSETS_FALLBACK);
             }
             return;
         }
@@ -1502,7 +1489,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         if (recordOffsets) {
-            context.getOffSetContext().recordOffset(offsetsFieldName, new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length()));
+            context.getOffSetContext()
+                .recordOffset(
+                    offsetsFieldName,
+                    new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length()),
+                    TextFieldMapper.OFFSETS_FALLBACK
+                );
         }
 
         // match only text isn't stored, so if synthetic source needs to be supported, we must find an alternative way of loading the field

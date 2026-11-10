@@ -860,6 +860,8 @@ CASE:
         body:
           mappings:
             properties:
+              a:
+                type: long
               f:
                 type: keyword
   - do:
@@ -868,6 +870,8 @@ CASE:
         body:
           mappings:
             properties:
+              a:
+                type: long
               f:
                 type: boolean
   - do:

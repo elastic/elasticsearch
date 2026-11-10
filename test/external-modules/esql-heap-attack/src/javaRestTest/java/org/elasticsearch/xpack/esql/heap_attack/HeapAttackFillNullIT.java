@@ -27,8 +27,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Checks that {@code FILLNULL <value> ON *} stays correct and releases every block when it expands into a thousand {@code COALESCE}s,
- * and that one wider than {@code esql.query.max_fillnull_fields} is rejected instead of slowing down quadratically
- * (see {@link HeapAttackFillNullSweepIT}).
+ * and that one wider than {@code esql.query.max_fillnull_fields} is rejected instead of slowing down quadratically.
  */
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class HeapAttackFillNullIT extends HeapAttackFillNullTestCase {

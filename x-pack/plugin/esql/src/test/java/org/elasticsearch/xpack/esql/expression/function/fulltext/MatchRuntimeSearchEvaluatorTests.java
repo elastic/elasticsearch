@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -33,11 +34,21 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToUnsignedLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToVersion;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -272,6 +283,69 @@ public class MatchRuntimeSearchEvaluatorTests extends AbstractRuntimeSearchEvalu
             }
         });
         assertArrayEquals(new Boolean[] { true, false, false }, result);
+    }
+
+    public void testIp() {
+        Boolean[] result = evaluate(runtimeMatch(IP, new BytesRef("10.0.0.2"), KEYWORD), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(stringToIP("10.0.0.1"));
+            builder.beginPositionEntry();
+            builder.appendBytesRef(stringToIP("10.0.0.1"));
+            builder.appendBytesRef(stringToIP("10.0.0.2"));
+            builder.endPositionEntry();
+            builder.appendNull();
+        }));
+        assertArrayEquals(new Boolean[] { false, true, false }, result);
+    }
+
+    public void testVersion() {
+        Boolean[] result = evaluate(runtimeMatch(VERSION, new BytesRef("1.2.3"), KEYWORD), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(stringToVersion("1.2.3"));
+            builder.appendBytesRef(stringToVersion("1.2.30"));
+        }));
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testDatetime() {
+        long match = dateTimeToLong("2024-01-02T00:00:00Z");
+        Boolean[] result = evaluate(runtimeMatch(DATETIME, new BytesRef("2024-01-02T00:00:00Z"), KEYWORD), factory -> {
+            try (var builder = factory.newLongBlockBuilder(3)) {
+                builder.appendLong(dateTimeToLong("2024-01-01T00:00:00Z"));
+                builder.appendLong(match);
+                builder.appendNull();
+                return builder.build();
+            }
+        });
+        assertArrayEquals(new Boolean[] { false, true, false }, result);
+    }
+
+    public void testDateNanos() {
+        long match = dateNanosToLong("2024-01-02T00:00:00.000000001Z");
+        Boolean[] result = evaluate(runtimeMatch(DATE_NANOS, new BytesRef("2024-01-02T00:00:00.000000001Z"), KEYWORD), factory -> {
+            try (var builder = factory.newLongBlockBuilder(2)) {
+                builder.appendLong(match);
+                builder.appendLong(match + 1);
+                return builder.build();
+            }
+        });
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testUnsignedLong() {
+        // a value above Long.MAX_VALUE, so it only matches if the query and the block use the same encoding
+        long match = stringToUnsignedLong("18446744073709551615");
+        Boolean[] result = evaluate(runtimeMatch(UNSIGNED_LONG, new BytesRef("18446744073709551615"), KEYWORD), factory -> {
+            try (var builder = factory.newLongBlockBuilder(2)) {
+                builder.appendLong(stringToUnsignedLong("42"));
+                builder.appendLong(match);
+                return builder.build();
+            }
+        });
+        assertArrayEquals(new Boolean[] { false, true }, result);
+    }
+
+    public void testNonTextNonLenientUnconvertibleValueThrows() {
+        Match match = runtimeMatchWithOptions(LONG, new BytesRef("not_a_number"), KEYWORD, mapOptions("lenient", "false"));
+        expectThrows(InvalidArgumentException.class, () -> match.toEvaluator(toEvaluator()));
     }
 
     public void testTextWithZeroTermsQueryUsesConstantBlock() {

@@ -31,6 +31,8 @@ import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -39,15 +41,17 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -93,6 +97,12 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
 
     public static final EnrichShardMultiSearchAction INSTANCE = new EnrichShardMultiSearchAction();
     private static final String NAME = "indices:data/read/shard_multi_search";
+
+    /** Breaker label for the hit sources held in the response; maps to {@link ChildMemoryCircuitBreaker#CATEGORY_MSEARCH}. */
+    static final String BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_MSEARCH + "[enrich]";
+
+    /** Hit source bytes that may build up before they are charged, so that small lookups make few breaker calls. */
+    static final long BREAKER_CHARGE_THRESHOLD_BYTES = ByteSizeValue.ofMb(1).getBytes();
 
     private EnrichShardMultiSearchAction() {
         super(NAME);
@@ -174,6 +184,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
     public static class TransportAction extends TransportSingleShardAction<Request, MultiSearchResponse> {
 
         private final IndicesService indicesService;
+        private final CircuitBreaker circuitBreaker;
 
         @Inject
         public TransportAction(
@@ -183,7 +194,8 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
             ActionFilters actionFilters,
             ProjectResolver projectResolver,
             IndexNameExpressionResolver indexNameExpressionResolver,
-            IndicesService indicesService
+            IndicesService indicesService,
+            CircuitBreakerService circuitBreakerService
         ) {
             super(
                 NAME,
@@ -197,6 +209,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                 threadPool.executor(ThreadPool.Names.SEARCH)
             );
             this.indicesService = indicesService;
+            this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         }
 
         @Override
@@ -222,58 +235,55 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                 .getFirst();
         }
 
+        /**
+         * Builds the response while charging the hit sources to the request breaker, so that large lookups fail instead of exhausting
+         * the heap. Every search response in it holds the charge until it is freed: after serialization for a remote caller, and once
+         * the caller has consumed it for a local one.
+         */
         @Override
         protected MultiSearchResponse shardOperation(Request request, ShardId shardId) throws IOException {
-            final IndexService indexService = indicesService.indexService(shardId.getIndex());
-            final IndexShard indexShard = indicesService.getShardOrNull(shardId);
-            try (Engine.Searcher searcher = indexShard.acquireSearcher("enrich_msearch")) {
-                final FieldsVisitor visitor = new FieldsVisitor(true);
-                /*
-                 * Enrich doesn't support defining runtime fields in its
-                 * configuration. We could add support for that if we'd
-                 * like it but, for now at least, you can't configure any
-                 * runtime fields so it is safe to build the context without
-                 * any.
-                 */
-                Map<String, Object> runtimeFields = emptyMap();
-                final SearchExecutionContext context = indexService.newSearchExecutionContext(shardId.id(), 0, searcher, () -> {
-                    throw new UnsupportedOperationException();
-                }, null, runtimeFields, null, null);
-                final MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[request.multiSearchRequest.requests().size()];
-                StoredFields storedFields = searcher.storedFields();
-                for (int i = 0; i < request.multiSearchRequest.requests().size(); i++) {
-                    final SearchSourceBuilder searchSourceBuilder = request.multiSearchRequest.requests().get(i).source();
-
-                    final QueryBuilder queryBuilder = searchSourceBuilder.query();
-                    final int from = searchSourceBuilder.from();
-                    final int size = searchSourceBuilder.size();
-                    final FetchSourceContext fetchSourceContext = searchSourceBuilder.fetchSource();
-
-                    final Query luceneQuery = queryBuilder.rewrite(context).toQuery(context);
-                    final int n = from + size;
-                    final TopDocs topDocs = searcher.search(luceneQuery, n, new Sort(SortField.FIELD_DOC));
-
-                    final SearchHit[] hits = new SearchHit[topDocs.scoreDocs.length];
-                    for (int j = 0; j < topDocs.scoreDocs.length; j++) {
-                        final ScoreDoc scoreDoc = topDocs.scoreDocs[j];
-                        visitor.reset();
-                        storedFields.document(scoreDoc.doc, visitor);
-                        visitor.postProcess(field -> {
-                            if (context.isFieldMapped(field) == false) {
-                                throw new IllegalStateException("Field [" + field + "] exists in the index but not in mappings");
-                            }
-                            return context.getFieldType(field);
-                        });
-                        final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id());
-                        hit.sourceRef(filterSource(fetchSourceContext, visitor.source()));
-                        hits[j] = hit;
-                    }
-                    items[i] = new MultiSearchResponse.Item(createSearchResponse(topDocs, hits), null);
-                }
-                return new MultiSearchResponse(items, 1L);
+            final SourceBytesReservation reservation = new SourceBytesReservation(circuitBreaker);
+            try {
+                return buildResponse(request, shardId, reservation);
+            } finally {
+                // the search responses hold their own references
+                reservation.decRef();
             }
         }
 
+        private MultiSearchResponse buildResponse(Request request, ShardId shardId, SourceBytesReservation reservation) throws IOException {
+            final IndexService indexService = indicesService.indexService(shardId.getIndex());
+            final IndexShard indexShard = indicesService.getShardOrNull(shardId);
+            try (Engine.Searcher searcher = indexShard.acquireSearcher("enrich_msearch")) {
+                final ShardLookup lookup = new ShardLookup(
+                    searcher,
+                    newSearchExecutionContext(indexService, shardId, searcher),
+                    searcher.storedFields(),
+                    new FieldsVisitor(true),
+                    reservation
+                );
+                final List<SearchRequest> searches = request.multiSearchRequest.requests();
+                final MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[searches.size()];
+                boolean success = false;
+                try {
+                    for (int i = 0; i < searches.size(); i++) {
+                        SearchResponse response = createSearchResponse(searches.get(i).source(), lookup);
+                        items[i] = new MultiSearchResponse.Item(response, null);
+                    }
+                    reservation.reserveRemaining();
+                    success = true;
+                    return new MultiSearchResponse(items, 1L);
+                } finally {
+                    if (success == false) {
+                        for (MultiSearchResponse.Item item : items) {
+                            if (item != null) {
+                                item.getResponse().decRef();
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private static BytesReference filterSource(FetchSourceContext fetchSourceContext, BytesReference source) throws IOException {
@@ -301,28 +311,134 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
         return BytesReference.bytes(builder);
     }
 
-    private static SearchResponse createSearchResponse(TopDocs topDocs, SearchHit[] hits) {
+    private static SearchExecutionContext newSearchExecutionContext(IndexService indexService, ShardId shardId, Engine.Searcher searcher) {
+        // enrich policies can't define runtime fields (support could be added later), so the context is built without any
+        Map<String, Object> runtimeFields = emptyMap();
+        return indexService.newSearchExecutionContext(
+            shardId.id(),
+            0,
+            searcher,
+            () -> { throw new UnsupportedOperationException(); },
+            null,
+            runtimeFields,
+            null,
+            null
+        );
+    }
+
+    private static SearchResponse createSearchResponse(SearchSourceBuilder source, ShardLookup lookup) throws IOException {
+        Query query = source.query().rewrite(lookup.context()).toQuery(lookup.context());
+        TopDocs topDocs = lookup.searcher().search(query, source.from() + source.size(), new Sort(SortField.FIELD_DOC));
+        SearchHit[] hits = loadHits(topDocs.scoreDocs, source.fetchSource(), lookup);
         SearchHits searchHits = new SearchHits(hits, topDocs.totalHits, 0);
         try {
-            return new SearchResponse(
-                searchHits,
-                null,
-                null,
-                false,
-                null,
-                null,
-                0,
-                null,
-                1,
-                1,
-                0,
-                1L,
-                ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY
-            );
+            return new ChargedSearchResponse(searchHits, lookup.reservation());
         } finally {
             searchHits.decRef();
         }
     }
 
+    /**
+     * Loads and charges the source of every doc before creating any hits, so that a breaker trip leaves no hits to release.
+     */
+    private static SearchHit[] loadHits(ScoreDoc[] scoreDocs, FetchSourceContext fetchSourceContext, ShardLookup lookup)
+        throws IOException {
+        FieldsVisitor visitor = lookup.visitor();
+        SearchExecutionContext context = lookup.context();
+        String[] ids = new String[scoreDocs.length];
+        BytesReference[] sources = new BytesReference[scoreDocs.length];
+        for (int i = 0; i < scoreDocs.length; i++) {
+            visitor.reset();
+            lookup.storedFields().document(scoreDocs[i].doc, visitor);
+            visitor.postProcess(field -> {
+                if (context.isFieldMapped(field) == false) {
+                    throw new IllegalStateException("Field [" + field + "] exists in the index but not in mappings");
+                }
+                return context.getFieldType(field);
+            });
+            ids[i] = visitor.id();
+            sources[i] = filterSource(fetchSourceContext, visitor.source());
+            lookup.reservation().add(sources[i].length());
+        }
+
+        SearchHit[] hits = new SearchHit[scoreDocs.length];
+        for (int i = 0; i < scoreDocs.length; i++) {
+            hits[i] = new SearchHit(scoreDocs[i].doc, ids[i]);
+            hits[i].sourceRef(sources[i]);
+        }
+        return hits;
+    }
+
+    /** Created once per request, so that all of its searches reuse one stored fields reader and visitor. */
+    private record ShardLookup(
+        Engine.Searcher searcher,
+        SearchExecutionContext context,
+        StoredFields storedFields,
+        FieldsVisitor visitor,
+        SourceBytesReservation reservation
+    ) {}
+
+    /**
+     * The hit source bytes of one response, charged to the breaker in steps of at least {@link #BREAKER_CHARGE_THRESHOLD_BYTES}.
+     * The builder and every search response it creates hold a reference, so the charge is released when the last response is freed,
+     * possibly on another thread. The counters need no synchronization: the building thread writes them before it hands the response
+     * over, and the ref count orders that before the release.
+     */
+    static final class SourceBytesReservation extends AbstractRefCounted {
+        private final CircuitBreaker circuitBreaker;
+        private long loadedBytes;
+        private long reservedBytes;
+
+        SourceBytesReservation(CircuitBreaker circuitBreaker) {
+            this.circuitBreaker = circuitBreaker;
+        }
+
+        /** Records that {@code bytes} more were loaded, and charges them once enough has built up. */
+        void add(long bytes) {
+            loadedBytes += bytes;
+            if (loadedBytes - reservedBytes >= BREAKER_CHARGE_THRESHOLD_BYTES) {
+                reserveRemaining();
+            }
+        }
+
+        /** Charges everything loaded so far that is not charged yet. */
+        void reserveRemaining() {
+            final long unreserved = loadedBytes - reservedBytes;
+            if (unreserved > 0) {
+                circuitBreaker.addEstimateBytesAndMaybeBreak(unreserved, BREAKER_LABEL);
+                reservedBytes += unreserved;
+            }
+        }
+
+        @Override
+        protected void closeInternal() {
+            if (reservedBytes > 0) {
+                circuitBreaker.addWithoutBreaking(-reservedBytes, BREAKER_LABEL);
+            }
+        }
+    }
+
+    /**
+     * A search response that holds a reference on the reservation, so that its hits stay charged until the response is freed. The
+     * reference is per item rather than on the multi-search response, because when a batch spans several enrich indices, the
+     * coordinator frees the response of the index that answered first before the processors have used its items.
+     */
+    private static final class ChargedSearchResponse extends SearchResponse {
+        private final SourceBytesReservation reservation;
+
+        ChargedSearchResponse(SearchHits hits, SourceBytesReservation reservation) {
+            super(hits, null, null, false, null, null, 0, null, 1, 1, 0, 1L, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+            reservation.mustIncRef();
+            this.reservation = reservation;
+        }
+
+        @Override
+        public boolean decRef() {
+            if (super.decRef()) {
+                reservation.decRef();
+                return true;
+            }
+            return false;
+        }
+    }
 }

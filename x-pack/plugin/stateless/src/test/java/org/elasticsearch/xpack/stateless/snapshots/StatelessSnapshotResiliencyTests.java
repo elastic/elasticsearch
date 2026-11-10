@@ -109,6 +109,7 @@ import org.elasticsearch.xpack.stateless.allocation.StatelessShardRoutingRoleStr
 import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
+import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherMetrics;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
@@ -263,7 +264,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
     }
 
     @Override
-    protected void disconnectOrRestartMasterNode() {
+    protected void disruptMasterNode() {
         testClusterNodes.randomMasterNode().ifPresent(masterNode -> {
             final String electedMasterId = masterNode.clusterService().state().nodes().getMasterNodeId();
             if (masterNode.node().getId().equals(electedMasterId)) {
@@ -401,6 +402,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             final var res = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             res.add(SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING);
             res.add(SearchCommitPrefetcherDynamicSettings.PREFETCH_SEARCH_IDLE_TIME_SETTING);
+            res.add(SearchCommitPrefetcherDynamicSettings.PREFETCH_METRICS_ENABLED_SETTING);
             res.add(SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING);
             res.add(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING);
             res.add(SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING);
@@ -418,7 +420,12 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING);
+            res.add(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING);
+            res.add(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING);
+            res.add(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TOTAL_TIMEOUT_CAP_SETTING);
+            res.add(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_IGNORE_NON_SEARCH_NODE_SHUTDOWNS_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING);
+            res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_FILTER_SOURCE_SHARDS_BY_TARGET_SETTING);
             res.add(DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING);
             res.add(TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING);
             res.add(TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING);
@@ -434,6 +441,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING);
             res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING);
             res.add(StatelessPrimaryRelocationSourceService.PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING);
+            res.add(StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING);
             res.add(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING);
             res.add(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING);
             return Set.copyOf(res);
@@ -442,6 +450,11 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
         @Override
         protected PluginsService createPluginsService(Settings settings, Environment environment) {
             return new MockPluginsService(settings, environment, List.of(TestStatelessPlugin.class));
+        }
+
+        @Override
+        public boolean canUsurpCurrentMaster() {
+            return false;
         }
 
         class StatelessNode extends TestClusterNodes.TestClusterNode {
@@ -854,6 +867,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 cacheService,
                 threadPool,
                 clusterService.getClusterSettings(),
+                clusterService.getSettings(),
                 ByteSizeValue.ZERO
             );
             this.cacheWarmingService = new SharedBlobCacheWarmingService(
@@ -964,7 +978,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             if (hasMasterRole) {
                 return List.of(new RemoveRefreshClusterBlockService(settings, clusterService, threadPool));
             }
-            warmingRatioProviderFactory = clusterSettings -> mock(WarmingRatioProvider.class);
+            warmingRatioProviderFactory = shardId -> mock(WarmingRatioProvider.class);
             return List.of();
         }
 
@@ -1222,7 +1236,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         new SearchCommitPrefetcherDynamicSettings(clusterService.getClusterSettings()),
                         NoopCircuitBreaker.INSTANCE,
                         StatelessReaderHeapMetrics.NOOP,
-                        new ReshardSearchFilters(Settings.EMPTY)
+                        new ReshardSearchFilters(Settings.EMPTY),
+                        SearchCommitPrefetcherMetrics.NOOP
                     );
                 }
             });

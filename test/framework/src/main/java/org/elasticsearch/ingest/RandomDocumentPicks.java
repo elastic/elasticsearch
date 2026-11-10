@@ -121,7 +121,10 @@ public final class RandomDocumentPicks {
      */
     public static boolean canAddField(String path, IngestDocument ingestDocument) {
         String[] pathElements = path.split("\\.");
-        Map<String, Object> innerMap = ingestDocument.getCtxMap();
+        if (ingestDocument.getMetadata().isAvailable(pathElements[0])) {
+            return false;
+        }
+        Map<String, Object> innerMap = ingestDocument.getSource();
         if (pathElements.length > 1) {
             for (int i = 0; i < pathElements.length - 1; i++) {
                 Object currentLevel = innerMap.get(pathElements[i]);

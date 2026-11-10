@@ -14,10 +14,12 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -77,8 +80,14 @@ public class WildcardAutomatonBreakerIT extends ESIntegTestCase {
         return List.of(Wildcard.class, BreakerObservingPlugin.class);
     }
 
-    public void testAutomatonStaysChargedUntilSearchContextReleased() {
-        assertAcked(indicesAdmin().prepareCreate("test").setSettings(indexSettings(1, 0)).setMapping("wildcard", "type=wildcard"));
+    public void testAutomatonStaysChargedUntilSearchContextReleased() throws Exception {
+        // Async translog durability keeps the last unsynced translog buffer page charged to the request breaker (in tests) until the
+        // next periodic sync, which would leak into the baseline.
+        assertAcked(
+            indicesAdmin().prepareCreate("test")
+                .setSettings(indexSettings(1, 0).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST))
+                .setMapping("wildcard", "type=wildcard")
+        );
         for (int i = 0; i < 20; i++) {
             prepareIndex("test").setSource("wildcard", "xxa" + GAP + "bzzc" + i).get();
         }
@@ -109,7 +118,7 @@ public class WildcardAutomatonBreakerIT extends ESIntegTestCase {
      * size of {@code automaton}, the same automaton built independently. The fixed gap in the pattern makes the automaton large enough
      * that the rest of the query could not account for that much on its own.
      */
-    private void assertAutomatonChargedForQueryLifetime(QueryBuilder query, ByteRunAutomaton automaton) {
+    private void assertAutomatonChargedForQueryLifetime(QueryBuilder query, ByteRunAutomaton automaton) throws Exception {
         usedAfterQueryExecuted.set(-1);
         constructionMemoryAfterQueryExecuted.set(-1);
         final long automatonBytes = automaton.ramBytesUsed();
@@ -123,8 +132,9 @@ public class WildcardAutomatonBreakerIT extends ESIntegTestCase {
 
         assertThat(constructionMemoryAfterQueryExecuted.get(), greaterThanOrEqualTo(automatonBytes));
         assertThat(usedAfterQueryExecuted.get(), greaterThanOrEqualTo(baseline + automatonBytes));
-        // Releasing the search context hands everything back.
-        assertThat(requestBreakerUsed(), equalTo(baseline));
+        // Releasing the search context hands everything back. Putting assertBusy on it just in case some other thread
+        // doesn't release in time.
+        assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(baseline)), 5, TimeUnit.SECONDS);
     }
 
     private static long requestBreakerUsed() {

@@ -18,6 +18,7 @@ import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
+import org.elasticsearch.gpu.codec.ES97GpuHnswBBQVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.license.License;
@@ -184,7 +185,9 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         if (elementType != DenseVectorFieldMapper.ElementType.FLOAT) {
             return false;
         }
-        return type == DenseVectorFieldMapper.VectorIndexType.HNSW || type == DenseVectorFieldMapper.VectorIndexType.INT8_HNSW;
+        return type == DenseVectorFieldMapper.VectorIndexType.HNSW
+            || type == DenseVectorFieldMapper.VectorIndexType.INT8_HNSW
+            || type == DenseVectorFieldMapper.VectorIndexType.BBQ_HNSW;
     }
 
     private KnnVectorsFormat getVectorsFormat(
@@ -222,6 +225,18 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
                 int8HnswIndexOptions.confidenceInterval(),
                 7,
                 false
+            );
+        } else if (indexOptions.getType() == DenseVectorFieldMapper.VectorIndexType.BBQ_HNSW) {
+            DenseVectorFieldMapper.BBQHnswIndexOptions bbqHnswIndexOptions = (DenseVectorFieldMapper.BBQHnswIndexOptions) indexOptions;
+            int m = bbqHnswIndexOptions.m();
+            int efConstruction = bbqHnswIndexOptions.efConstruction();
+            return new ES97GpuHnswBBQVectorsFormat(
+                gpuSupport.getTotalGpuMemory(),
+                ES92GpuHnswVectorsFormat.cagraGraphDegree(m),
+                ES92GpuHnswVectorsFormat.cagraIntermediateGraphDegree(m, efConstruction),
+                bbqHnswIndexOptions.onDiskRescore(),
+                bbqHnswIndexOptions.flatIndexThreshold(),
+                bbqHnswIndexOptions.isOnDiskMerge()
             );
         } else {
             throw new IllegalArgumentException(

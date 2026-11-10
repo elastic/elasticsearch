@@ -26,7 +26,7 @@ import Expression,
        Promql;
 
 statements
-    : setCommand* singleStatement EOF
+    : setCommand* letCommand* singleStatement EOF
     ;
 
 singleStatement
@@ -84,6 +84,7 @@ processingCommand
     | {this.isDevVersion()}? lookupCommand
     | dedupCommand
     | {this.isDevVersion()}? fillNullCommand
+    | {this.isDevVersion()}? describeCommand
     ;
 
 whereCommand
@@ -393,6 +394,10 @@ tsCollapseCommand
     : TS_COLLAPSE
     ;
 
+describeCommand
+    : DEV_DESCRIBE
+    ;
+
 //
 // In development
 //
@@ -442,6 +447,14 @@ setCommand
 
 setField
     : identifier ASSIGN ( constant | mapExpression )
+    ;
+
+letCommand
+    : DEV_LET letBinding SEMICOLON
+    ;
+
+letBinding
+    : UNQUOTED_IDENTIFIER ASSIGN subquery
     ;
 
 mmrCommand

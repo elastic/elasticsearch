@@ -99,6 +99,19 @@ public abstract class SortableBinaryDocValues {
     public abstract BytesRef nextValue() throws IOException;
 
     /**
+     * The most heap, in bytes, that one decode of the underlying doc values can allocate (for example a binary block
+     * decompression buffer), or {@code -1} when no estimate is available. See
+     * {@link org.elasticsearch.index.mapper.BlockLoader.OptionalDecodeMemoryUsageEstimator}.
+     *
+     * <p>Each live instance owns its own decoder state, so a caller that holds many of these at once — one per field a
+     * script reads, per leaf, per clause — can use this to account for the retained buffers in a circuit breaker. The
+     * default returns {@code -1}; subclasses backed by a buffering binary doc-values reader override it.
+     */
+    public long maxDecodeBytes() {
+        return -1L;
+    }
+
+    /**
      * Indicates the sparsity of the values for this field.
      */
     public Sparsity getSparsity() {

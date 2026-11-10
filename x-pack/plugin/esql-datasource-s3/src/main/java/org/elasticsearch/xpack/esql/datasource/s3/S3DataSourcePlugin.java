@@ -89,7 +89,8 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
             cfg -> {
                 checkEndpointAgainstCurrentAllowlist(cfg, allowedByOperator);
                 return new S3StorageProvider(cfg, sources.webIdentity(), sources.containerCredentials(), maxConnections);
-            }
+            },
+            services.credentialPolicy()
         );
         StorageProviderFactory s3Factory = StorageProviderFactory.withTestConnection(s3Base, config -> {
             S3Configuration cfg = S3Configuration.fromQueryConfig(config).value();

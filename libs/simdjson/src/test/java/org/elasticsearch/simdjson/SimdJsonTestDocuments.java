@@ -32,6 +32,7 @@ public final class SimdJsonTestDocuments {
             docs,
             """
                 {}""","""
+                { }""","""
                 {"a":1}""", """
                 {"s":"hello"}""", """
                 {"b":true}""", """
@@ -41,6 +42,12 @@ public final class SimdJsonTestDocuments {
                 {"sci":1.5e10}""",  """
                 {"neg":-42}""", """
                 {"arr":[1,"s",true,null,3.14]}""", """
+                {"a":[]}""", """
+                {"a":{}}""", """
+                {"a":[ ]}""", """
+                {"a":[[]]}""", """
+                {"a":[{}]}""", """
+                {"a":[[],{},[1],{"b":[]}],"c":{}}""", """
                 {"o":{"inner":"val"}}""", """
                 {"esc":"line1\\nline2"}""", """
                 {"q":"say \\"hi\\""}""", """
@@ -119,13 +126,21 @@ public final class SimdJsonTestDocuments {
                 {"a":[9223372036854775807,-9223372036854775808,9223372036854775808,-9223372036854775809,99999999999999999999]}""",
                 // DoubleParser code paths (see that class's own comments): fast path,
                 // Eisel-Lemire (main, round-to-even, underflow, overflow, subnormal), and the
-                // slow path (>19 significant digits).
+                // slow path (>19 significant digits). Explicit exponents of 20+ digits (past 2^64) must
+                // saturate to infinity or zero like Jackson, not wrap.
                 """
                 {"d":1e22}""", """
                 {"d":1e23}""", """
                 {"d":9007199254740993e0}""", """
                 {"d":1e-400}""", """
                 {"d":-1e400}""", """
+                {"d":1e18446744073709551616}""", """
+                {"d":1e18446744073709551617}""", """
+                {"d":-1E+18446744073709551626}""", """
+                {"d":1e-18446744073709551617}""", """
+                {"d":1e99999999999999999999}""", """
+                {"d":0e99999999999999999999}""", """
+                {"a":[1e18446744073709551617,1e-18446744073709551617,0e99999999999999999999]}""", """
                 {"d":5e-324}""", """
                 {"d":2.2250738585072013e-308}""", """
                 {"d":100000000000000000000.000000}""",
@@ -196,13 +211,57 @@ public final class SimdJsonTestDocuments {
                 {"a":1,,"b":2}""", """
                 {"a":1:"b":2}""", """
                 {"a":[1,2}""",
+            // Trailing commas: a comma must be followed by another member or element.
+            """
+                {"a":1,}""", """
+                {"a":[1,]}""", """
+                {"a":{"b":1,}}""", """
+                {"a":[{"b":1,}]}""", """
+                {"a":[{"b":1},]}""", """
+                {"a":[[1,2,]]}""", """
+                {"a":[1,],"b":2}""", """
+                {"a":1,"b":2,}""", """
+                {"a":["x",]}""", """
+                {"a":[{},]}""", """
+                {"a":[[],]}""",
             // Non-standard number tokens (JsonReadFeature-gated in Jackson; simdjson has no
             // equivalent opt-in).
             """
                 {"a":NaN}""", """
                 {"a":Infinity}""", """
                 {"a":+1}""", """
-                {"a":0x1A}"""
+                {"a":0x1A}""",
+            // ':' to '?' have a zero high nibble after subtracting 0x30, so the SWAR check must
+            // test every byte against 0..9: after 1, 7 and 8 digits (word edges), and in arrays.
+            """
+                {"n":1;}""", """
+                {"n":1;,"m":2}""", """
+                {"n":12<}""", """
+                {"n":1234567;}""", """
+                {"n":1234567=,"m":2}""", """
+                {"n":12345678>}""", """
+                {"n":-1234567?}""", """
+                {"n":1234567:}""", """
+                {"a":[1234567;]}""", """
+                {"a":[1,12345678<]}""",
+            // Truncated documents: input ends where the grammar still requires more tokens. These
+            // leave the structural index window exhausted mid-walk (see BitIndexes#getAndAdvance).
+            "{",
+            "{\"a\"",
+            "{\"a\":",
+            "{\"a\":1",
+            "{\"a\":1,",
+            "{\"a\":\"x",
+            "{\"a\":[",
+            "{\"a\":[1",
+            "{\"a\":[1,",
+            "{\"a\":{",
+            "{\"a\":{\"b\":1}",
+            "{\"a\":[{\"b\":1}",
+            "{\"a\":[{\"b\":1},",
+            // Truncated after a string containing structural characters, so the document's own
+            // structural indexes are not a prefix of what a shorter document would produce.
+            "{\"s\":\"}}}}}}}}}}\",\"y\":"
         );
         // end::noformat
         return List.copyOf(docs);

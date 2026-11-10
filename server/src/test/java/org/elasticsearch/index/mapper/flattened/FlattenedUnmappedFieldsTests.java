@@ -10,12 +10,14 @@
 package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
@@ -25,7 +27,9 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.Before;
 
@@ -35,6 +39,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -46,18 +51,33 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
     private static final String KEYED = FlattenedFieldMapper.UNMAPPED_SINK_NAME + FlattenedFieldMapper.KEYED_FIELD_SUFFIX;
 
     private static Settings columnarSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true)
-            .build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
     }
 
+    /** A strict columnar index whose root sets {@code dynamic: flattened}, with {@code mapping} as its properties. */
     private MapperService columnarService(CheckedConsumer<XContentBuilder, IOException> mapping) throws IOException {
-        return createMapperService(columnarSettings(), mapping(mapping));
+        return columnarService(columnarSettings(), mapping);
     }
 
+    private MapperService columnarService(Settings settings, CheckedConsumer<XContentBuilder, IOException> mapping) throws IOException {
+        return createMapperService(settings, dynamicFlattenedMapping(mapping));
+    }
+
+    /** A strict columnar index whose root sets {@code dynamic: flattened}, with {@code mapping} as further root parameters. */
     private MapperService columnarServiceTop(CheckedConsumer<XContentBuilder, IOException> mapping) throws IOException {
-        return createMapperService(columnarSettings(), topMapping(mapping));
+        return createMapperService(columnarSettings(), topMapping(b -> {
+            b.field("dynamic", "flattened");
+            mapping.accept(b);
+        }));
+    }
+
+    private static XContentBuilder dynamicFlattenedMapping(CheckedConsumer<XContentBuilder, IOException> properties) throws IOException {
+        return topMapping(b -> {
+            b.field("dynamic", "flattened");
+            b.startObject("properties");
+            properties.accept(b);
+            b.endObject();
+        });
     }
 
     private static boolean isUnmappedSink(MapperService mapperService) {
@@ -85,23 +105,150 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
         assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
     }
 
-    public void testSettingRejectedOutsideColumnarMode() {
+    public void testDynamicFlattenedRejectedOutsideStrictColumnar() {
         Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.getName())
-            .put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true)
+            .put(IndexSettings.MODE.getKey(), randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB).getName())
             .build();
-        var scoped = new IndexScopedSettings(settings, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
-        var e = expectThrows(IllegalArgumentException.class, () -> scoped.validate(settings, true));
-        assertThat(e.getMessage(), containsString("only permitted in strict columnar index modes"));
+        var e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, dynamicFlattenedMapping(b -> {})));
+        assertThat(e.getMessage(), containsString("dynamic [flattened] is only supported in strict columnar mode"));
     }
 
-    public void testSettingAcceptedInColumnarMode() {
+    public void testDynamicFlattenedRejectedBeforeGateVersion() {
+        IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.UNMAPPED_SINK_ON_STRICT_COLUMNAR);
+        var e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(version, columnarSettings(), dynamicFlattenedMapping(b -> {}))
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "dynamic [flattened] is not supported on indices created before ["
+                    + IndexVersions.UNMAPPED_SINK_ON_STRICT_COLUMNAR.toReleaseVersion()
+                    + "]"
+            )
+        );
+    }
+
+    /**
+     * In strict columnar mode a sub-object's {@code dynamic} is kept in {@code prefix_properties}, which cannot hold {@code flattened}, so
+     * only the root accepts it, whatever the kind of object.
+     */
+    public void testDynamicFlattenedRejectedBelowRoot() {
+        String type = randomFrom("object", "nested", "passthrough");
+        var e = expectThrows(MapperParsingException.class, () -> createMapperService(columnarSettings(), mapping(b -> {
+            b.startObject(randomAlphaOfLength(5)).field("type", type).field("dynamic", "flattened");
+            if (type.equals("passthrough")) {
+                b.field("priority", 0);
+            }
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("dynamic [flattened] is only supported on the root object"));
+    }
+
+    /**
+     * Every new index in any strict columnar mode has the sink, but it absorbs nothing until the root sets {@code dynamic: flattened}: with
+     * {@code dynamic} unset, unmapped fields are mapped dynamically, document after document, and no sink field is written. This holds
+     * for an index created without any mapping too, whose mapper is built by {@link DocumentMapper#createEmpty}.
+     */
+    public void testSinkStaysEmptyWhenDynamicUnset() throws IOException {
+        IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR, IndexMode.VECTORDB_COLUMNAR);
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            if (mode == IndexMode.LOGSDB_COLUMNAR) {
+                b.startObject("@timestamp").field("type", "date").endObject();
+            }
+        }));
+        DocumentMapper mapper = randomBoolean() ? mapperService.documentMapper() : DocumentMapper.createEmpty(mapperService);
+        assertTrue(mapper.mappers().getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME) instanceof UnmappedSinkFieldMapper);
+        for (int i = 0; i < 3; i++) {
+            String field = randomAlphaOfLength(5) + i;
+            ParsedDocument doc = mapper.parse(source(b -> {
+                if (mode == IndexMode.LOGSDB_COLUMNAR) {
+                    b.field("@timestamp", randomMillisUpToYear9999());
+                }
+                b.field(field, randomAlphanumericOfLength(6));
+            }));
+            assertThat(doc.dynamicMappingsUpdate().toString(), containsString(field));
+            for (IndexableField indexed : doc.rootDoc()) {
+                assertThat(indexed.name(), not(startsWith(FlattenedFieldMapper.UNMAPPED_SINK_NAME)));
+            }
+        }
+    }
+
+    /** An index created before the gate version has no sink, so a user field named {@code _unmapped} is an ordinary field. */
+    public void testNoSinkBeforeGateVersion() throws IOException {
+        IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.UNMAPPED_SINK_ON_STRICT_COLUMNAR);
+        MapperService mapperService = createMapperService(
+            version,
+            columnarSettings(),
+            mapping(b -> b.startObject(FlattenedFieldMapper.UNMAPPED_SINK_NAME).field("type", "keyword").endObject())
+        );
+        assertFalse(isUnmappedSink(mapperService));
+        String value = randomAlphanumericOfLength(6);
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(FlattenedFieldMapper.UNMAPPED_SINK_NAME, value)));
+        assertFalse(doc.rootDoc().getFields(FlattenedFieldMapper.UNMAPPED_SINK_NAME).isEmpty());
+    }
+
+    /**
+     * The root serializes {@code dynamic: flattened}, and the stored mapping is parsed again on recovery, which must still accept it and
+     * absorb.
+     */
+    public void testDynamicFlattenedSurvivesReparse() throws IOException {
+        Settings settings = columnarSettings();
+        MapperService original = columnarService(settings, b -> b.startObject("mapped").field("type", "keyword").endObject());
+        String stored = original.documentMapper().mappingSource().string();
+        assertThat(stored, containsString("\"dynamic\":\"flattened\""));
+
+        MapperService recovered = createMapperService(IndexVersion.current(), settings, () -> true);
+        merge(recovered, MapperService.MergeReason.MAPPING_RECOVERY, stored);
+        String value = randomAlphanumericOfLength(6);
+        ParsedDocument doc = recovered.documentMapper().parse(source(b -> b.field("absorbed", value)));
+        assertNull(doc.dynamicMappingsUpdate());
+        assertTrue(hasKeyedSlot(doc, "absorbed\0" + value));
+    }
+
+    /**
+     * {@code dynamic} stays updatable. Turned to {@code flattened}, new names are absorbed while already mapped names keep their mappers.
+     * Turned back to {@code true}, new names get mappers again, and the values absorbed meanwhile stay readable from synthetic
+     * {@code _source} and through ES|QL's {@code SET unmapped_fields}.
+     */
+    public void testDynamicUpdatesBetweenTrueAndFlattened() throws IOException {
+        // Prefixes keep the two names in a known order in the rendered source.
+        String mapped = "mapped_" + randomAlphaOfLength(5);
+        // The master records this setting when the mapping turns flattened, and keeps it after dynamic turns back to true.
         Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR).getName())
-            .put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true)
+            .put(columnarSettings())
+            .put(IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.getKey(), true)
             .build();
-        var scoped = new IndexScopedSettings(settings, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
-        scoped.validate(settings, true); // no throw
+        MapperService mapperService = createMapperService(
+            settings,
+            mapping(b -> b.startObject(mapped).field("type", "keyword").endObject())
+        );
+
+        merge(mapperService, topMapping(b -> b.field("dynamic", "flattened")));
+        String absorbed = "absorbed_" + randomAlphaOfLength(5);
+        String absorbedValue = randomAlphanumericOfLength(6);
+        String mappedValue = randomAlphanumericOfLength(6);
+        ParsedDocument second = mapperService.documentMapper()
+            .parse(source(b -> b.field(mapped, mappedValue).field(absorbed, absorbedValue)));
+        assertNull(second.dynamicMappingsUpdate());
+        assertTrue(hasKeyedSlot(second, absorbed + "\0" + absorbedValue));
+        assertFalse(second.rootDoc().getFields(mapped).isEmpty());
+
+        merge(mapperService, topMapping(b -> b.field("dynamic", "true")));
+        String later = "later_" + randomAlphaOfLength(5);
+        ParsedDocument third = mapperService.documentMapper().parse(source(b -> b.field(later, randomAlphanumericOfLength(6))));
+        assertThat(third.dynamicMappingsUpdate().toString(), containsString(later));
+        assertTrue(third.rootDoc().getFields(KEYED).isEmpty());
+
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(second.docs()), reader -> {
+            assertEquals(
+                "{\"" + absorbed + "\":\"" + absorbedValue + "\",\"" + mapped + "\":\"" + mappedValue + "\"}",
+                syntheticSource(mapperService.documentMapper(), reader, 0)
+            );
+            var unmappedFields = createSearchExecutionContext(mapperService, newSearcher(reader)).unmappedFields();
+            assertTrue(unmappedFields.mayExist());
+        });
     }
 
     public void testSinkPresentButNotSerialized() throws IOException {
@@ -174,9 +321,10 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
     }
 
     /**
-     * The sink answers metadata columnar support through its wrapped flattened mapper, so the batch path falls back for a shape that mapper
-     * cannot batch, such as the inverted index being enabled through {@code index.mapping.index_disabled_by_default: false}. The sink never
-     * maps a column of its own, so its field-level columnar support is always {@code false}.
+     * The sink never turns off the batch path for the whole index, since every new strict columnar index has one. Whether absorbed leaves
+     * can be batched follows its wrapped flattened mapper, which cannot batch a shape such as the inverted index being enabled through
+     * {@code index.mapping.index_disabled_by_default: false}. The sink never maps a column of its own, so its field-level columnar support
+     * is always {@code false}.
      */
     public void testSinkColumnarSupportFollowsDelegate() throws IOException {
         boolean indexDisabled = randomBoolean();
@@ -186,7 +334,8 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
             .build();
         MapperService mapperService = createMapperService(settings, mapping(b -> {}));
         var sink = (UnmappedSinkFieldMapper) mapperService.mappingLookup().getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
-        assertEquals(indexDisabled, sink.supportsColumnarMetadataParse(mapperService.getIndexSettings()));
+        assertTrue(sink.supportsColumnarMetadataParse(mapperService.getIndexSettings()));
+        assertEquals(indexDisabled, sink.supportsColumnarAbsorb(mapperService.getIndexSettings()));
         assertFalse(sink.supportsColumnarParse(mapperService.getIndexSettings()));
     }
 
@@ -240,16 +389,94 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
         assertTrue(hasKeyedSlot(doc, outer + "." + FlattenedFieldMapper.UNMAPPED_SINK_NAME + "\0" + value));
     }
 
-    public void testAbsentWhenSettingOff() throws IOException {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
-        assertNull(mapperService.mappingLookup().getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME));
+    /** Arrays keep document order, duplicates and nulls; the sink stores keywords, so numbers and booleans come back as strings. */
+    public void testSyntheticSourceKeepsAbsorbedArraysAndStringifiesValues() throws IOException {
+        DocumentMapper mapper = columnarService(b -> {}).documentMapper();
+        long n = randomLongBetween(0, 1000);
 
-        // With no sink, an unmapped field is dynamically mapped as usual, emitting a mapping update rather than being absorbed.
-        String field = randomAlphanumericOfLength(8);
-        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(field, randomAlphanumericOfLength(6))));
-        assertNotNull(doc.dynamicMappingsUpdate());
-        assertTrue(doc.rootDoc().getFields(KEYED).isEmpty());
+        // Keys are written in sorted order: the sink's blob keeps slots in document order across keys, so the harness's re-index of the
+        // (key-sorted) synthetic source only reproduces the same blob when the input order is already sorted.
+        String source = syntheticSource(mapper, b -> {
+            b.array("flags", true, false, true);
+            b.nullField("nothing");
+            b.startArray("nums").value(n).value(n).nullValue().value(n + 1).endArray();
+        });
+
+        assertEquals(
+            "{\"flags\":[\"true\",\"false\",\"true\"],\"nothing\":null,\"nums\":[\"" + n + "\",\"" + n + "\",null,\"" + (n + 1) + "\"]}",
+            source
+        );
+    }
+
+    /**
+     * Fields absorbed inside a nested object are stored on that object's own Lucene document, so they render inside the nested element they
+     * came from, relative to it, including in an element that holds nothing mapped. They are filtered by their full path, like the mapped
+     * fields beside them.
+     */
+    public void testSyntheticSourceRendersAbsorbedFieldsInsideNestedObjects() throws IOException {
+        DocumentMapper mapper = columnarService(
+            b -> b.startObject("n")
+                .field("type", "nested")
+                .startObject("properties")
+                .startObject("k")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+        ).documentMapper();
+        String k = randomAlphanumericOfLength(6);
+        String u1 = randomAlphanumericOfLength(6);
+        String u2 = randomAlphanumericOfLength(6);
+        String top = randomAlphanumericOfLength(6);
+        CheckedConsumer<XContentBuilder, IOException> doc = b -> {
+            b.startArray("n");
+            b.startObject().field("k", k).field("u", u1).endObject();
+            b.startObject().field("u", u2).endObject();
+            b.endArray();
+            b.field("top", top);
+        };
+
+        assertEquals(
+            "{\"n\":[{\"k\":\"" + k + "\",\"u\":\"" + u1 + "\"},{\"u\":\"" + u2 + "\"}],\"top\":\"" + top + "\"}",
+            syntheticSource(mapper, doc)
+        );
+        assertEquals(
+            "{\"n\":[{\"u\":\"" + u1 + "\"},{\"u\":\"" + u2 + "\"}]}",
+            syntheticSource(mapper, new SourceFilter(new String[] { "n.u" }, null), doc)
+        );
+        assertEquals("{\"top\":\"" + top + "\"}", syntheticSource(mapper, new SourceFilter(new String[] { "top" }, null), doc));
+    }
+
+    /**
+     * Synthetic source renders absorbed fields as if they had never been absorbed: at the root, under their full dotted paths (the same
+     * flat shape subobjects: false gives mapped fields), sorted among the mapped fields, with no {@code _unmapped} object. Source filtering
+     * applies to each absorbed key's own path, not to the sink's name. ES|QL's source fallback for an unmapped field relies on this: it
+     * loads source with only that field's name included.
+     */
+    public void testSyntheticSourceRendersAndFiltersAbsorbedFieldsPerKey() throws IOException {
+        DocumentMapper mapper = columnarService(b -> b.startObject("m").field("type", "keyword").endObject()).documentMapper();
+        String a = randomAlphanumericOfLength(6);
+        String leaf = randomAlphanumericOfLength(6);
+        String m = randomAlphanumericOfLength(6);
+        CheckedConsumer<XContentBuilder, IOException> doc = b -> {
+            b.field("a", a);
+            b.field("m", m);
+            b.startObject("outer").startObject("inner").field("leaf", leaf).endObject().endObject();
+        };
+
+        assertEquals("{\"a\":\"" + a + "\",\"m\":\"" + m + "\",\"outer.inner.leaf\":\"" + leaf + "\"}", syntheticSource(mapper, doc));
+        assertEquals("{\"a\":\"" + a + "\"}", syntheticSource(mapper, new SourceFilter(new String[] { "a" }, null), doc));
+        assertEquals(
+            "{\"outer.inner.leaf\":\"" + leaf + "\"}",
+            syntheticSource(mapper, new SourceFilter(new String[] { "outer" }, null), doc)
+        );
+        assertEquals(
+            "{\"m\":\"" + m + "\",\"outer.inner.leaf\":\"" + leaf + "\"}",
+            syntheticSource(mapper, new SourceFilter(null, new String[] { "a" }), doc)
+        );
+        assertEquals("{\"m\":\"" + m + "\"}", syntheticSource(mapper, new SourceFilter(new String[] { "m" }, null), doc));
+        // The sink's own name is not a path in the rendered source, so filtering on it selects nothing.
+        assertEquals("{}", syntheticSource(mapper, new SourceFilter(new String[] { FlattenedFieldMapper.UNMAPPED_SINK_NAME }, null), doc));
     }
 
     public void testAbsorbsUnmappedLeafWithFullDottedKey() throws IOException {
@@ -277,24 +504,6 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
         assertNull(doc.dynamicMappingsUpdate());
         assertTrue(hasKeyedSlot(doc, "outer.inner.leaf\0" + v1));
         assertTrue(hasKeyedSlot(doc, "outer.other\0" + v2));
-    }
-
-    /**
-     * Pins the current synthetic source rendering of absorbed fields under an {@code _unmapped} object. That rendering cannot be
-     * re-indexed, since {@code _unmapped} is a reserved document key, which is why this test does not round-trip it.
-     */
-    public void testAbsorbedFieldsInSyntheticSource() throws IOException {
-        MapperService mapperService = columnarService(b -> b.startObject("mapped").field("type", "keyword").endObject());
-        DocumentMapper mapper = mapperService.documentMapper();
-        String mapped = randomAlphanumericOfLength(6);
-        String absorbed = randomAlphanumericOfLength(6);
-        ParsedDocument doc = mapper.parse(source(b -> b.field("mapped", mapped).field("other", absorbed)));
-        String expected = "{\"_unmapped\":{\"other\":\"" + absorbed + "\"},\"mapped\":\"" + mapped + "\"}";
-        withLuceneIndex(
-            mapperService,
-            iw -> iw.addDocuments(doc.docs()),
-            reader -> assertEquals(expected, syntheticSource(mapper, reader, 0))
-        );
     }
 
     public void testArraysAbsorbPerElementIncludingNull() throws IOException {
@@ -331,7 +540,7 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
 
     public void testExplicitSubObjectDynamicOverridesAbsorption() throws IOException {
         // A sub-object declared dynamic:false becomes a prefix property resolving to FALSE, so unmapped fields under it are
-        // dropped rather than absorbed; unmapped fields elsewhere still fall back to the FLATTENED sink.
+        // dropped rather than absorbed; unmapped fields elsewhere still inherit the root's FLATTENED.
         DocumentMapper mapper = columnarService(b -> {
             b.startObject("attributes");
             b.field("dynamic", "false");
@@ -364,8 +573,8 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
         assertTrue(hasKeyedSlot(doc, "afterMerge\0" + value));
     }
 
-    public void testUserUnmappedFieldNotSinkWhenFeatureOff() throws IOException {
-        // A flattened field literally named _unmapped on an index without the feature is an ordinary field, not the sink.
+    public void testUserUnmappedFieldNotSinkOutsideStrictColumnar() throws IOException {
+        // A flattened field literally named _unmapped on an index that is not strict columnar is an ordinary field, not the sink.
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.getName()).build();
         MapperService mapperService = createMapperService(
             settings,
@@ -379,13 +588,48 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
     }
 
     public void testDynamicFlattenedNotUserSettableInPrefixProperties() {
-        // Dynamic.FLATTENED is an internal resolved value; prefix_properties uses Dynamic.valueOf, so it must be rejected explicitly.
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        var e = expectThrows(Exception.class, () -> createMapperService(settings, topMapping(b -> {
+        // Dynamic.FLATTENED is accepted only at the root; prefix_properties uses Dynamic.valueOf, so it must be rejected explicitly.
+        var e = expectThrows(Exception.class, () -> createMapperService(columnarSettings(), topMapping(b -> {
             b.startObject("prefix_properties");
             b.startObject("attributes").field("dynamic", "flattened").endObject();
             b.endObject();
         })));
         assertThat(e.getMessage(), containsString("does not support [flattened]"));
+    }
+
+    /**
+     * An absorbed field is the key of its name in the sink, unless it is below a nested object, where it is read from {@code _source}.
+     */
+    public void testSinkFieldType() throws IOException {
+        MapperService mapperService = columnarService(b -> b.startObject("n").field("type", "nested").endObject());
+        assertThat(
+            UnmappedSinkFieldMapper.unmappedFieldType(mapperService.mappingLookup(), randomFrom("absorbed", "obj.absorbed")),
+            instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class)
+        );
+        assertNull(UnmappedSinkFieldMapper.unmappedFieldType(mapperService.mappingLookup(), "n.u"));
+        assertNull(UnmappedSinkFieldMapper.unmappedFieldType(createMapperService(mapping(b -> {})).mappingLookup(), "absorbed"));
+    }
+
+    /**
+     * A columnar_stored root is written from the {@code _source} precomputed at index time, which holds the absorbed fields, so it doesn't
+     * load the sink: with no mapped field, nothing reads doc values. The absorbed fields still come back from the precomputed
+     * {@code _source}.
+     */
+    public void testColumnarStoredRootSkipsSink() throws IOException {
+        Settings settings = Settings.builder()
+            .put(columnarSettings())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "columnar_stored")
+            .build();
+        MapperService mapperService = columnarService(settings, b -> {});
+        String bare = randomAlphanumericOfLength(6);
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("bare", bare)));
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
+            LeafReader leaf = getOnlyLeafReader(reader);
+            assertNull(mapperService.mappingLookup().getMapping().syntheticFieldLoader(null, true).docValuesLoader(leaf, null));
+            assertEquals(
+                "{\"bare\":\"" + bare + "\"}",
+                syntheticSource(mapperService.documentMapper(), new SourceFilter(new String[] { "bare" }, null), reader, 0)
+            );
+        });
     }
 }

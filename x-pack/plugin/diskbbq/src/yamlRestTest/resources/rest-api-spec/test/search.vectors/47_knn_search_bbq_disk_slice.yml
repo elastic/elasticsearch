@@ -133,8 +133,16 @@ setup:
   - contains: { hits.hits: { _id: "4" } }
 
 ---
-"KNN search with _all":
+"KNN search with _all is rejected":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ knn_requires_slice_selection ]
+      test_runner_features: [ capabilities ]
+      reason: "knn search requires the slices to be selected by name on a slice-enabled index"
   - do:
+      catch: /to perform knn search on field \[vector\], the slices to search must be selected by name/
       search:
         index: bbq_disk_slice
         _slice: _all
@@ -145,14 +153,8 @@ setup:
             k: 4
             num_candidates: 10
 
-  - match: { hits.total.value: 4 }
-  - length: { hits.hits: 4 }
-  - contains: { hits.hits: { _id: "1" } }
-  - contains: { hits.hits: { _id: "2" } }
-  - contains: { hits.hits: { _id: "3" } }
-  - contains: { hits.hits: { _id: "4" } }
 ---
-"Search without slice defaults to _all on slice-enabled index":
+"Search without slice reads every slice of a slice-enabled index":
   - do:
       search:
         index: bbq_disk_slice
@@ -163,8 +165,16 @@ setup:
   - match: { hits.total.value: 4 }
 
 ---
-"KNN search without slice defaults to _all on slice-enabled index":
+"KNN search without slice is rejected on slice-enabled index":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ knn_requires_slice_selection ]
+      test_runner_features: [ capabilities ]
+      reason: "knn search requires the slices to be selected by name on a slice-enabled index"
   - do:
+      catch: /to perform knn search on field \[vector\], the slices to search must be selected by name/
       search:
         index: bbq_disk_slice
         body:
@@ -173,9 +183,6 @@ setup:
             query_vector: [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
             k: 1
             num_candidates: 10
-
-  - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._id: "2" }
 
 ---
 "Index requires slice when slice indexing is enabled":

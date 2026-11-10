@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -138,6 +139,34 @@ public class ClusterStateTests extends ESTestCase {
         final Map<String, ClusterState.Custom> customs = new HashMap<>();
         customs.put(key, null);
         assertThat(expectThrows(NullPointerException.class, () -> builder.customs(customs)).getMessage(), containsString(key));
+    }
+
+    /** Adding a project rebuilds the routing table, so the previous state's cached {@link RoutingNodes} must not be reused. */
+    public void testRoutingNodesNotReusedWhenAddingProjectWithUnassignedShards() {
+        final Metadata.Builder metadataBuilder = Metadata.builder();
+        final int projectCount = randomIntBetween(2, 5);
+        for (int p = 0; p < projectCount; p++) {
+            metadataBuilder.put(
+                ProjectMetadata.builder(randomUniqueProjectId())
+                    .put(
+                        IndexMetadata.builder("idx")
+                            .settings(indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()))
+                    )
+            );
+        }
+        final Metadata metadata = metadataBuilder.build();
+        final ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .build();
+        // A published state already has RoutingNodes built; the reuse decision only matters then.
+        final RoutingNodes previousRoutingNodes = state.getRoutingNodes();
+
+        final ProjectId newProjectId = randomValueOtherThanMany(metadata::hasProject, ESTestCase::randomUniqueProjectId);
+        final ClusterState newState = ClusterState.builder(state).putProjectMetadata(ProjectMetadata.builder(newProjectId)).build();
+
+        assertThat(newState.getRoutingNodes(), not(sameInstance(previousRoutingNodes)));
+        assertThat(newState.getRoutingNodes(), equalTo(RoutingNodes.immutable(newState.globalRoutingTable(), newState.nodes())));
     }
 
     public void testCopyAndUpdate() throws IOException {

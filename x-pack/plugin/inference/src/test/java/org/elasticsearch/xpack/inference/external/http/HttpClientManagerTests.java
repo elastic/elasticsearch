@@ -7,15 +7,16 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.protocol.HttpClientContext;
-import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
@@ -29,15 +30,21 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.InetAddress;
+import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.SSLPeerUnverifiedException;
+import javax.net.ssl.SSLServerSocket;
+import javax.net.ssl.SSLSocket;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
@@ -47,6 +54,7 @@ import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenc
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -98,12 +106,43 @@ public class HttpClientManagerTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.response().getStatusLine().getStatusCode(), equalTo(responseCode));
+            assertThat(result.response().getCode(), equalTo(responseCode));
             assertThat(new String(result.body(), StandardCharsets.UTF_8), is(body));
             assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().get(0).getUri().getPath(), equalTo(httpPost.httpRequestBase().getURI().getPath()));
+            assertThat(webServer.requests().get(0).getUri().getPath(), equalTo(httpPost.httpRequest().getUri().getPath()));
             assertThat(webServer.requests().get(0).getUri().getQuery(), equalTo(paramKey + "=" + paramValue));
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+        }
+    }
+
+    /**
+     * {@code xpack.inference.http.socket_timeout} must reach the pool's default {@code ConnectionConfig}. The pool exposes no
+     * getter for it, so this asserts behaviorally: a server that accepts the connection and never responds must fail the
+     * request with a {@link SocketTimeoutException} instead of hanging until the test times out.
+     */
+    public void testSocketTimeoutSetting_ReachesConnectionPool() throws Exception {
+        try (var server = new HttpClientTests.RawHttpServer((socket, serverDone) -> {
+            // accept and never respond; hold the socket open until the test finishes
+            serverDone.await(TEST_REQUEST_TIMEOUT.seconds(), TimeUnit.SECONDS);
+        })) {
+            // 1s is the setting's minimum; short enough to keep the test fast, long enough to be unambiguous
+            var settings = Settings.builder().put(HttpSettings.SOCKET_TIMEOUT.getKey(), TimeValue.timeValueSeconds(1)).build();
+            var manager = HttpClientManager.create(
+                settings,
+                threadPool,
+                mockClusterService(settings),
+                mock(ThrottlerManager.class),
+                new TestCircuitBreaker()
+            );
+            try (var httpClient = manager.getHttpClient()) {
+                httpClient.start();
+
+                PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
+                httpClient.send(createHttpPost(server.port(), "a", "b"), HttpClientContext.create(), listener);
+
+                var exception = expectThrows(UncategorizedExecutionException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+                assertThat(exception.getCause().getCause(), instanceOf(SocketTimeoutException.class));
+            }
         }
     }
 
@@ -114,6 +153,59 @@ public class HttpClientManagerTests extends ESTestCase {
                 settings.put(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX + "verification_mode", "full");
             }
             assertHttpsRequestSucceeds(tlsServer, settings);
+        }
+    }
+
+    /**
+     * The client does not send a {@code Content-Length} header over HTTP/2, which the 4.x client (HTTP/1.1 only) always sent for byte
+     * array bodies. This runs a TLS server that prefers {@code h2} via ALPN and verifies the client still ends up on HTTP/1.1.
+     */
+    public void testCreateWithSslServiceDoesNotNegotiateHttp2() throws Exception {
+        var serverSettings = Settings.builder()
+            .put("ssl.certificate", sslResource("server", ".crt"))
+            .put("ssl.key", sslResource("server", ".key"))
+            .put("ssl.client_authentication", "none");
+        var sslContext = SslSettingsLoader.load(serverSettings.build(), "ssl.", newEnvironment()).createSslContext();
+
+        try (
+            var serverSocket = (SSLServerSocket) sslContext.getServerSocketFactory()
+                .createServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))
+        ) {
+            var sslParameters = serverSocket.getSSLParameters();
+            sslParameters.setApplicationProtocols(new String[] { "h2", "http/1.1" });
+            serverSocket.setSSLParameters(sslParameters);
+
+            var negotiatedProtocol = new CompletableFuture<String>();
+            threadPool.generic().execute(() -> {
+                try (var socket = (SSLSocket) serverSocket.accept()) {
+                    socket.startHandshake();
+                    negotiatedProtocol.complete(socket.getApplicationProtocol());
+                    // Only HTTP/1.1 is spoken here, so the response is only understood if the client did not pick h2
+                    var reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+                    for (var line = reader.readLine(); line != null && line.isEmpty() == false; line = reader.readLine()) {
+                        // consume the request head
+                    }
+                    socket.getOutputStream().write("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n".getBytes(StandardCharsets.UTF_8));
+                    socket.getOutputStream().flush();
+                } catch (Exception e) {
+                    negotiatedProtocol.completeExceptionally(e);
+                }
+            });
+
+            var manager = createWithSslService(eisSslSettings());
+            try (var httpClient = manager.getHttpClient()) {
+                httpClient.start();
+
+                var request = new HttpRequest(
+                    SimpleRequestBuilder.get("https://127.0.0.1:" + serverSocket.getLocalPort() + "/").build(),
+                    "inferenceEntityId"
+                );
+                PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
+                httpClient.send(request, HttpClientContext.create(), listener);
+
+                assertThat(listener.actionGet(TIMEOUT).response().getCode(), equalTo(200));
+                assertThat(negotiatedProtocol.get(TIMEOUT.seconds(), TimeUnit.SECONDS), equalTo("http/1.1"));
+            }
         }
     }
 
@@ -129,9 +221,8 @@ public class HttpClientManagerTests extends ESTestCase {
                 var exception = expectThrows(Exception.class, () -> listener.actionGet(TIMEOUT));
                 var unverified = ExceptionsHelper.unwrap(exception, SSLPeerUnverifiedException.class);
                 assertThat(unverified, notNullValue());
-                assertThat(unverified.getMessage(), containsString("[" + tlsServer.getHostName() + "]"));
+                assertThat(unverified.getMessage(), containsString("<" + tlsServer.getHostName() + ">"));
                 assertThat(unverified.getMessage(), containsString("subject alternative names"));
-                assertThat(unverified.getMessage(), containsString("CN=server-no-san"));
                 assertThat(tlsServer.requests(), hasSize(0));
             }
         }
@@ -177,7 +268,7 @@ public class HttpClientManagerTests extends ESTestCase {
     }
 
     public void test_DoesNotStartANewEvictor_WithNewEvictionMaxIdle() {
-        var mockConnectionManager = mock(PoolingNHttpClientConnectionManager.class);
+        var mockConnectionManager = mock(PoolingAsyncClientConnectionManager.class);
 
         Settings settings = Settings.builder()
             .put(HttpClientManager.CONNECTION_EVICTION_THREAD_INTERVAL_SETTING.getKey(), TimeValue.timeValueNanos(1))
@@ -209,7 +300,7 @@ public class HttpClientManagerTests extends ESTestCase {
             httpClient.send(createHttpsGet(tlsServer), HttpClientContext.create(), listener);
 
             var result = listener.actionGet(TIMEOUT);
-            assertThat(result.response().getStatusLine().getStatusCode(), equalTo(200));
+            assertThat(result.response().getCode(), equalTo(200));
             assertThat(new String(result.body(), StandardCharsets.UTF_8), is(body));
             assertThat(tlsServer.requests(), hasSize(1));
         }
@@ -265,7 +356,10 @@ public class HttpClientManagerTests extends ESTestCase {
         return file;
     }
 
-    private static HttpRequest createHttpsGet(MockWebServer tlsServer) throws Exception {
-        return new HttpRequest(new HttpGet("https://" + tlsServer.getHostName() + ":" + tlsServer.getPort() + "/"), "inferenceEntityId");
+    private static HttpRequest createHttpsGet(MockWebServer tlsServer) {
+        return new HttpRequest(
+            SimpleRequestBuilder.get("https://" + tlsServer.getHostName() + ":" + tlsServer.getPort() + "/").build(),
+            "inferenceEntityId"
+        );
     }
 }

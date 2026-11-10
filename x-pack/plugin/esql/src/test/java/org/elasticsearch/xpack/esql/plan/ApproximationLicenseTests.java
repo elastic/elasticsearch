@@ -33,7 +33,6 @@ public class ApproximationLicenseTests extends ESTestCase {
     private static final SettingsValidationContext CTX = new SettingsValidationContext(false, true);
     private static final String KEY = QuerySettingDef.CLUSTER_SETTING_PREFIX + "approximation";
     private static final Settings OPERATOR_DEFAULT = Settings.builder().put(KEY, "true").build();
-    private static final int LOAD_ALL_MAX_FIELDS = 1000;
 
     private static XPackLicenseState licensed() {
         return new XPackLicenseState(System::currentTimeMillis, new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null));
@@ -48,7 +47,7 @@ public class ApproximationLicenseTests extends ESTestCase {
         Map<QuerySettingDef<?>, Object> requestParams,
         XPackLicenseState licenseState
     ) {
-        return QuerySettings.resolve(clusterState, Settings.EMPTY, requestParams, null, CTX, licenseState, LOAD_ALL_MAX_FIELDS);
+        return QuerySettings.resolve(clusterState, Settings.EMPTY, requestParams, null, CTX, licenseState);
     }
 
     public void testOperatorDefaultIsDroppedOnAnUnlicensedCluster() {

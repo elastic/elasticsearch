@@ -279,6 +279,7 @@ public class InternalUsersTests extends ESTestCase {
             ".fleet-fileds*",
             ".workflows*",
             ".kibana_change_history*",
+            ".kibana-notifications*",
             ".serverless-recovery-history"
         );
         for (var group : role.indices().groups()) {

@@ -27,6 +27,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -212,8 +213,13 @@ final class DefaultSearchContext extends SearchContext {
                     lowLevelCancellation
                 );
             } else {
+                // the tasks searching segments in parallel work for this shard
+                Executor shardExecutor = TaskLoadAttribution.charging(
+                    executor,
+                    readerContext.indexShard().shardSearchStats().searchLoadTarget()
+                );
                 // Always wrap: cache and directory metrics must be collected on worker threads.
-                this.metricsAwareExecutor = new DirectoryMetricsAwareExecutor(executor, currentThreadDirectoryMetricsCapture);
+                this.metricsAwareExecutor = new DirectoryMetricsAwareExecutor(shardExecutor, currentThreadDirectoryMetricsCapture);
                 executor = this.metricsAwareExecutor;
 
                 this.searcher = new ContextIndexSearcher(
@@ -245,9 +251,8 @@ final class DefaultSearchContext extends SearchContext {
             );
             searchExecutionContext = circuitBreaker != null ? new SearchExecutionContext(baseContext, circuitBreaker) : baseContext;
             if (searchExecutionContext != null) {
-                final SliceSelection slices = SliceSelection.fromSearchSlice(request.sliceRouting());
-                // a search request that names no slice reads every slice
-                searchExecutionContext.setSliceSelection(slices.isSpecified() ? slices : SliceSelection.ALL);
+                // The slices the request names, for the field mappers that build its queries.
+                searchExecutionContext.setSliceSelection(SliceSelection.fromSearchSlice(request.sliceRouting()));
             }
             queryBoost = request.indexBoost();
             this.lowLevelCancellation = lowLevelCancellation;

@@ -62,7 +62,10 @@ public final class ColumnarStringAnyOfQuery extends Query {
      */
     public ColumnarStringAnyOfQuery(String field, Collection<BytesRef> terms, boolean singleValued, ScanBudget budget) {
         this.field = Objects.requireNonNull(field);
-        this.terms = new TreeSet<>(Objects.requireNonNull(terms));
+        this.terms = new TreeSet<>();
+        for (final BytesRef term : Objects.requireNonNull(terms)) {
+            this.terms.add(BytesRef.deepCopyOf(term));
+        }
         this.membership = Set.copyOf(this.terms);
         this.singleValued = singleValued;
         this.budget = Objects.requireNonNull(budget);

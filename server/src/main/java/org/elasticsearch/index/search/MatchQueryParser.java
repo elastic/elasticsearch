@@ -42,7 +42,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.PlaceHolderFieldMapper;
@@ -149,9 +148,6 @@ public class MatchQueryParser {
 
     protected ZeroTermsQueryOption zeroTermsQuery = DEFAULT_ZERO_TERMS_QUERY;
 
-    @Nullable
-    protected String minimumShouldMatch;
-
     protected boolean autoGenerateSynonymsPhraseQuery = true;
 
     protected final QueryVisitor queryVisitor;
@@ -207,11 +203,6 @@ public class MatchQueryParser {
 
     public void setLenient(boolean lenient) {
         this.lenient = lenient;
-    }
-
-    /** How many of a clause's terms a document has to answer, which a field reading its values asks of them itself. */
-    public void setMinimumShouldMatch(@Nullable String minimumShouldMatch) {
-        this.minimumShouldMatch = minimumShouldMatch;
     }
 
     public void setZeroTermsQuery(ZeroTermsQueryOption zeroTermsQuery) {
@@ -298,9 +289,6 @@ public class MatchQueryParser {
             case PHRASE_PREFIX -> builder.createPhrasePrefixQuery(resolvedFieldName, stringValue, phraseSlop);
         };
         if (query != null && answersFromValues(fieldType)) {
-            // How many of the clauses a document has to answer is asked of them here: the wrapper is not a boolean
-            // query, so a caller asking it of what this returns would leave it unasked.
-            query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
             // One wrap for the whole clause, so every term it holds is answered from one read of a document's
             // values. A phrase the field built has wrapped itself already, which this leaves alone.
             query = ((TextFamilyFieldType) fieldType).toReanalyzingQuery(query, context);

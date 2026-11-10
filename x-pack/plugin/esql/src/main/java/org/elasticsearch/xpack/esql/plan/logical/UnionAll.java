@@ -106,7 +106,7 @@ public class UnionAll extends MergePlan {
         if (output().size() != other.output().size()) {
             return false;
         }
-        // LOAD_ALL alignment can rewrite output without changing children. Default UnionAll identity is children-only.
+        // LOAD_ALL's _unmapped_fields can rewrite output without changing children. Default UnionAll identity is children-only.
         return (hasUnmappedFieldsAttribute() || other.hasUnmappedFieldsAttribute()) == false || Objects.equals(output(), other.output());
     }
 

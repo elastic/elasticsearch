@@ -264,7 +264,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
     }
 
     @Override
-    protected void disconnectOrRestartMasterNode() {
+    protected void disruptMasterNode() {
         testClusterNodes.randomMasterNode().ifPresent(masterNode -> {
             final String electedMasterId = masterNode.clusterService().state().nodes().getMasterNodeId();
             if (masterNode.node().getId().equals(electedMasterId)) {

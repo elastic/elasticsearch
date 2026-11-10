@@ -372,7 +372,7 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
         indexDocs(indexName, randomIntBetween(10, 20));
         flush(indexName);
 
-        // dot not `flush` here, so the preflush (during relocation) is the one that performs the flush and is what
+        // do not `flush` here, so the preflush (during relocation) is the one that performs the flush and is what
         // the target node will prewarm
         indexDocs(indexName, randomIntBetween(10, 20));
 

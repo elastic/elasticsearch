@@ -164,7 +164,7 @@ public class PrimaryReplicaSyncer {
         ResyncRequest request = new ResyncRequest(shardId, primaryAllocationId);
         final TaskManager taskManager = transportService.getTaskManager();
 
-        try (var ignored = transportService.getThreadPool().getThreadContext().newTraceContext()) {
+        try (var ignored = transportService.getThreadPool().getThreadContext().newStoredContextPreservingResponseHeaders()) {
             doResync(
                 shardId,
                 primaryAllocationId,

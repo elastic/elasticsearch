@@ -9,12 +9,14 @@
 
 package org.elasticsearch.telemetry.apm.internal.instrumentation;
 
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public final class HttpServerInstrumentations implements HttpServerInstrumentation {
@@ -26,10 +28,17 @@ public final class HttpServerInstrumentations implements HttpServerInstrumentati
     }
 
     @Override
-    public void start(RestRequest request, String matchedRoute) {
+    public ThreadContext.StoredContext start(RestRequest request, String matchedRoute) {
+        final List<ThreadContext.StoredContext> storedContexts = new ArrayList<>(instrumentations.size());
         for (HttpServerInstrumentation instrumentation : instrumentations) {
-            instrumentation.start(request, matchedRoute);
+            storedContexts.add(instrumentation.start(request, matchedRoute));
         }
+        // each of them restores the state it found, which includes what the ones that started before it set up, so undo them backwards
+        return () -> {
+            for (ThreadContext.StoredContext storedContext : storedContexts.reversed()) {
+                storedContext.close();
+            }
+        };
     }
 
     @Override

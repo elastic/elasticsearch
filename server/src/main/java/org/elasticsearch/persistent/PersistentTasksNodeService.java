@@ -198,7 +198,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
             : "inconsistent project-id [" + projectId + "] and task scope [" + executor.scope() + "]";
 
         final var request = new PersistentTaskAwareRequest<>(taskInProgress, executor);
-        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+        try (var ignored = threadPool.getThreadContext().newStoredContextPreservingResponseHeaders()) {
             if (projectId != null) {
                 @FixForMultiProject(
                     description = "Replace with ProjectResolver#executeOnProject once "

@@ -94,7 +94,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
             return;
         }
         final SearchRequest searchRequest = createSearchRequest(request, submitTask, keepAlive);
-        try (var ignored = threadContext.newTraceContext()) {
+        try (var ignored = threadContext.newStoredContextPreservingResponseHeaders()) {
             AsyncSearchTask searchTask = (AsyncSearchTask) taskManager.register(
                 "transport",
                 TransportSearchAction.TYPE.name(),

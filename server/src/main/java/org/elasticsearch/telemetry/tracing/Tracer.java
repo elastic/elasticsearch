@@ -9,6 +9,8 @@
 
 package org.elasticsearch.telemetry.tracing;
 
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+
 import java.util.Map;
 
 /**
@@ -87,6 +89,20 @@ public interface Tracer {
     void setAttribute(Traceable traceable, String key, String value);
 
     /**
+     * Makes the span of the given activity the current one in the {@link ThreadContext} of the calling thread: it is what the spans that
+     * are started afterwards in this thread context are parented to, and what is propagated to other nodes in the trace context request
+     * headers. Starting a span with {@link #startTrace} does not do that on its own.
+     * <p>
+     * The returned {@link ThreadContext.StoredContext} restores the thread context to what it was before, and must be closed (or restored)
+     * once the span is no longer meant to be the current one. If the activity is not traced, the thread context is left as it is; if
+     * tracing is disabled, the trace context is dropped from it, so that nothing is propagated.
+     *
+     * @param traceable provides an identifier for the span
+     * @return the stored context that restores the thread context
+     */
+    ThreadContext.StoredContext storeSpanInThreadContext(Traceable traceable);
+
+    /**
      * A Tracer implementation that does nothing. This is used when no tracer is configured,
      * in order to avoid null checks everywhere.
      */
@@ -111,6 +127,11 @@ public interface Tracer {
 
         @Override
         public void setAttribute(Traceable traceable, String key, String value) {}
+
+        @Override
+        public ThreadContext.StoredContext storeSpanInThreadContext(Traceable traceable) {
+            return () -> {};
+        }
     };
 
     interface AttributeKeys {

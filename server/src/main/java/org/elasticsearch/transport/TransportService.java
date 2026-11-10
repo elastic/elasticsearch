@@ -1256,7 +1256,7 @@ public class TransportService extends AbstractLifecycleComponent
             }
             final Executor executor = reg.getExecutor();
             if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
-                try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+                try (var ignored = threadPool.getThreadContext().newStoredContextPreservingResponseHeaders()) {
                     try {
                         reg.processMessageReceived(request, channel);
                     } catch (Exception e) {
@@ -1267,7 +1267,7 @@ public class TransportService extends AbstractLifecycleComponent
                 boolean success = false;
                 request.mustIncRef();
                 try {
-                    executor.execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
+                    executor.execute(threadPool.getThreadContext().preserveContext(new AbstractRunnable() {
                         @Override
                         protected void doRun() throws Exception {
                             reg.processMessageReceived(request, channel);

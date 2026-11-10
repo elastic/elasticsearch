@@ -84,6 +84,7 @@ import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DummyBlockLoaderContext;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
@@ -1370,8 +1371,8 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
     }
 
     /**
-     * ES|QL loads an unmapped field from the {@code _unmapped} field one key at a time. A hidden field loads as null without reading any
-     * document, and a granted one is read from the slots as they are stored, sorted and deduplicated.
+     * ES|QL loads an unmapped field from the {@code _unmapped} field as the key of its name there. A hidden field loads as null without
+     * reading any document, and a granted one is read from the slots as they are stored, sorted and deduplicated.
      */
     public void testUnmappedFieldsBlockLoader() throws Exception {
         assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
@@ -1381,7 +1382,6 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         String second = randomValueOtherThan(first, () -> randomAlphanumericOfLength(8));
         String only = randomAlphanumericOfLength(8);
         DocumentMapper mapper = unmappedFieldsMapper();
-        UnmappedSinkFieldMapper sink = mapper.mappers().getMapping().getMetadataMapperByClass(UnmappedSinkFieldMapper.class);
         try (Directory directory = newDirectory()) {
             indexUnmappedFields(
                 mapper,
@@ -1395,12 +1395,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             try (DirectoryReader reader = wrapUnmappedFields(directory, filter)) {
                 LeafReaderContext leaf = reader.leaves().get(0);
                 assertThat(
-                    sink.blockLoader("k").columnAtATimeReader(leaf).apply(newLimitedBreaker(ByteSizeValue.ofMb(1))),
+                    sinkKeyLoader(mapper, "k").columnAtATimeReader(leaf).apply(newLimitedBreaker(ByteSizeValue.ofMb(1))),
                     sameInstance(ConstantNull.COLUMN_READER)
                 );
                 try (
-                    BlockLoader.ColumnAtATimeReader visible = sink.blockLoader("visible")
-                        .columnAtATimeReader(leaf)
+                    BlockLoader.ColumnAtATimeReader visible = sinkKeyLoader(mapper, "visible").columnAtATimeReader(leaf)
                         .apply(newLimitedBreaker(ByteSizeValue.ofMb(1)))
                 ) {
                     TestBlock block = (TestBlock) visible.read(TestBlock.factory(), TestBlock.docs(0, 1, 2), 0, false);
@@ -1418,23 +1417,15 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
      */
     public void testUnmappedFieldsInsideNestedObjects() throws Exception {
         assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
-        Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true)
-            .build();
-        DocumentMapper mapper = createMapperService(
-            settings,
-            mapping(
-                b -> b.startObject("n")
-                    .field("type", "nested")
-                    .startObject("properties")
-                    .startObject("k")
-                    .field("type", "keyword")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
-        ).documentMapper();
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(settings, topMapping(b -> {
+            b.field("dynamic", "flattened");
+            b.startObject("properties");
+            b.startObject("n").field("type", "nested");
+            b.startObject("properties").startObject("k").field("type", "keyword").endObject().endObject();
+            b.endObject();
+            b.endObject();
+        })).documentMapper();
         var filter = new CharacterRunAutomaton(
             FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "n.secret", "top_secret" })
         );
@@ -1554,12 +1545,16 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         }
     }
 
+    private static BlockLoader sinkKeyLoader(DocumentMapper mapper, String name) {
+        return UnmappedSinkFieldMapper.unmappedFieldType(mapper.mappers(), name).blockLoader(new DummyBlockLoaderContext("test"));
+    }
+
     private DocumentMapper unmappedFieldsMapper() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true)
-            .build();
-        return createMapperService(settings, mapping(b -> b.startObject("name").field("type", "keyword").endObject())).documentMapper();
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        return createMapperService(settings, topMapping(b -> {
+            b.field("dynamic", "flattened");
+            b.startObject("properties").startObject("name").field("type", "keyword").endObject().endObject();
+        })).documentMapper();
     }
 
     /** The keys of the {@code count} slots of {@code slots}, in the order they are stored. */

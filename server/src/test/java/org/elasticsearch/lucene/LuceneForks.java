@@ -108,6 +108,14 @@ public final class LuceneForks {
             0,
             "Remove the lazy initialisation of bulkScorer in DenseVectorScorer."
         ),
+        workaround(
+            "org.elasticsearch.index.store.FsDirectoryFactory",
+            "apache/lucene#16970",
+            10,
+            6,
+            1,
+            "Remove FsDirectoryFactory.HybridDirectory#confineTempStoredFieldsIndex and its test."
+        ),
         permanent("org.elasticsearch.lucene.comparators.XNumericComparator", "Elasticsearch-specific sort skipping behaviour"),
         permanent("org.elasticsearch.lucene.comparators.XLongComparator", "Elasticsearch-specific sort skipping behaviour"),
         permanent("org.elasticsearch.lucene.comparators.XUpdateableDocIdSetIterator", "Elasticsearch-specific sort skipping behaviour"),

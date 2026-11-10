@@ -846,6 +846,18 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         index("test2", """
             {"file": {"raw": "o2"}}""");
 
+        var capsName = EsqlCapabilities.Cap.OBJECTS_ARE_NOT_FIELDS.name().toLowerCase(Locale.ROOT);
+        if (clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false)) {
+            // An object is not a leaf, so the column is the keyword
+            Map<String, Object> result = runEsql("FROM test* | SORT file, file.raw | LIMIT 3");
+            assertResultMap(
+                result,
+                List.of(columnInfo("file", "keyword"), columnInfo("file.raw", "keyword")),
+                List.of(matchesList().item("f1").item(null), matchesList().item(null).item("o2"))
+            );
+            return;
+        }
+
         ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM test* | SORT file, file.raw | LIMIT 3"));
         String err = EntityUtils.toString(e.getResponse().getEntity());
         assertThat(
@@ -861,6 +873,36 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             result,
             List.of(unsupportedColumnInfo("file", "keyword", "object"), columnInfo("file.raw", "keyword")),
             List.of(matchesList().item(null).item("o2"), matchesList().item(null).item(null))
+        );
+    }
+
+    /**
+     * A key of a {@code flattened} field fills the column of the field another index maps there. Where a node does not read keys,
+     * that index reads {@code null}.
+     */
+    public void testMergeKeywordAndFlattenedKey() throws IOException {
+        createIndex("test1", index -> {
+            index.startObject("properties");
+            index.startObject("attrs").field("type", "flattened").endObject();
+            index.endObject();
+        });
+        index("test1", """
+            {"attrs": {"bar": "a"}}""");
+        createIndex("test2", index -> {
+            index.startObject("properties");
+            index.startObject("attrs.bar").field("type", "keyword").endObject();
+            index.endObject();
+        });
+        index("test2", """
+            {"attrs": {"bar": "c"}}""");
+
+        var capsName = EsqlCapabilities.Cap.FLATTENED_KEYS.name().toLowerCase(Locale.ROOT);
+        boolean keys = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
+        Map<String, Object> result = runEsql("FROM test* | KEEP attrs.bar | SORT attrs.bar | LIMIT 2");
+        assertResultMap(
+            result,
+            List.of(columnInfo("attrs.bar", "keyword")),
+            keys ? List.of(matchesList().item("a"), matchesList().item("c")) : List.of(matchesList().item("c"), matchesList().item(null))
         );
     }
 

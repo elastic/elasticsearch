@@ -129,6 +129,7 @@ esqlCsvSpecTests {
     variant 'EsqlSpecApproximation', 'AbstractEsqlSpecApproximationIT'
     variant 'EsqlSpecForceStoredLoading', 'AbstractEsqlSpecForceStoredLoadingIT'
     variant 'EsqlSpecFork', 'AbstractEsqlSpecForkIT'
+    variant 'EsqlSpecExemplarsSmoke', 'AbstractEsqlSpecExemplarsSmokeIT'
 }
 
 restResources {

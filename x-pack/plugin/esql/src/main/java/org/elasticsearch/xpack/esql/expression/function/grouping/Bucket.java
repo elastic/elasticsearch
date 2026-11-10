@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -100,7 +101,8 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         PostOptimizationVerificationAware,
         ThreeOptionalArguments,
         ConfigurationFunction,
-        AnyNullIsNull {
+        AnyNullIsNull,
+        UnitAware.PreservesUnit {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Bucket.class)
@@ -1061,6 +1063,11 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     }
 
     public Expression field() {
+        return field;
+    }
+
+    @Override
+    public Expression unitSource() {
         return field;
     }
 

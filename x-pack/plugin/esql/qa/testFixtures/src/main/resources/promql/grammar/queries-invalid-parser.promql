@@ -256,6 +256,8 @@ foo[5s%0d];
 |modulo by zero;
 foo offset 9.5e10;
 |duration out of range;
+foo offset "5m";
+|unexpected string in offset, expected number or duration;
 foo[9.5e10];
 |duration out of range;
 

@@ -61,7 +61,17 @@ public final class RemoveProcessor extends AbstractProcessor {
     private void fieldsToRemoveProcessor(IngestDocument document) {
         // micro-optimization note: actual for-each loop here rather than a .forEach because it happens to be ~5% faster in benchmarks
         for (TemplateScript.Factory field : fieldsToRemove) {
-            document.removeField(document.renderTemplate(field), ignoreMissing);
+            String path = document.renderTemplate(field);
+            // an empty field is treated as one that is missing (rather than as an invalid path), just like it is in the kv and rename
+            // processors, which matters for a template that renders as nothing when the document doesn't have something that it
+            // refers to
+            if (path.isEmpty()) {
+                if (ignoreMissing) {
+                    continue;
+                }
+                throw new IllegalArgumentException("field [] doesn't exist");
+            }
+            document.removeField(path, ignoreMissing);
         }
     }
 

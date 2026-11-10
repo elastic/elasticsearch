@@ -178,8 +178,12 @@ public final class ColumnarTestUtils {
      * companion field the columnar format does not write, such as one to sort the index on.
      */
     public static Codec columnarCodecForField(final String field, final ColumnarFieldType type) {
+        return columnarCodecForField(field, new ColumNARDocValuesFormat(f -> type));
+    }
+
+    /** As above, with {@code columnar} as the format {@code field} is written in, for a test that configures or wraps it. */
+    public static Codec columnarCodecForField(final String field, final DocValuesFormat columnar) {
         final Codec base = TestUtil.getDefaultCodec();
-        final DocValuesFormat columnar = new ColumNARDocValuesFormat(f -> type);
         final DocValuesFormat fallback = new Lucene90DocValuesFormat();
         return new FilterCodec(base.getName(), base) {
             private final DocValuesFormat perField = new PerFieldDocValuesFormat() {

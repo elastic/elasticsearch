@@ -1913,17 +1913,17 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
-     * The MVP allow-list of {@link Verifier#checkLoadAllModeSupportedCommands} rejects commands not yet supported, naming the one it found.
+     * The commands that read or add columns of their own and so do not interact with {@code _unmapped_fields} are allowed, and the column
+     * passes through them.
      */
-    public void testLoadAllModeRejectsUnsupportedCommands() {
-        for (var commandAndLabel : List.of(
-            Tuple.tuple("| RERANK \"food\" ON first_name WITH { \"inference_id\" : \"reranking-inference-id\" }", "RERANK")
+    public void testLoadAllModeAllowsInferenceCommands() {
+        for (String command : List.of(
+            "| RERANK \"food\" ON first_name WITH { \"inference_id\" : \"reranking-inference-id\" }",
+            "| COMPLETION CONCAT(\"x\", first_name) WITH { \"inference_id\" : \"completion-inference-id\" }"
         )) {
-            test().addAnalysisTestsInferenceResolution()
-                .statementError(
-                    setUnmappedLoadAll("FROM test METADATA _score " + commandAndLabel.v1()),
-                    containsString(Verifier.loadAllUnsupportedCommandMessage(commandAndLabel.v2()))
-                );
+            LogicalPlan plan = test().addAnalysisTestsInferenceResolution()
+                .statement(setUnmappedLoadAll("FROM test METADATA _score " + command));
+            assertThat(command, Expressions.names(plan.output()), hasItem("_unmapped_fields"));
         }
     }
 

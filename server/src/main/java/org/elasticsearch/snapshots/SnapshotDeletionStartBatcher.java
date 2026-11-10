@@ -478,11 +478,13 @@ final class SnapshotDeletionStartBatcher {
                 return (ignoredUuid, listener) -> listener.onFailure(exception);
             }
 
-            @Nullable // if no STARTED snapshot deletion running
-            private static String resolveStartedDeletionSnapshots(ClusterState clusterState, Set<SnapshotId> startedDeletionSnapshots) {
-                assert startedDeletionSnapshots.isEmpty(); // only one STARTED deletion at once
+            @Nullable // if no STARTED snapshot deletion running for this repository
+            private String resolveStartedDeletionSnapshots(ClusterState clusterState, Set<SnapshotId> startedDeletionSnapshots) {
+                assert startedDeletionSnapshots.isEmpty(); // only one STARTED deletion per repository
                 for (var snapshotDeletionInProgress : SnapshotDeletionsInProgress.get(clusterState).getEntries()) {
-                    if (snapshotDeletionInProgress.state() == SnapshotDeletionsInProgress.State.STARTED) {
+                    if (snapshotDeletionInProgress.state() == SnapshotDeletionsInProgress.State.STARTED
+                        && projectId.equals(snapshotDeletionInProgress.projectId())
+                        && repositoryName.equals(snapshotDeletionInProgress.repository())) {
                         startedDeletionSnapshots.addAll(snapshotDeletionInProgress.snapshots());
                         return snapshotDeletionInProgress.uuid();
                     }

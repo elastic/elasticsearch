@@ -23,12 +23,17 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.coordination.Coordinator;
+import org.elasticsearch.cluster.coordination.JoinHelper;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
@@ -58,6 +63,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -1316,6 +1322,95 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(repositoryData.getSnapshotIds(), hasSize(countOtherRepo + 2));
     }
 
+    /** Verifies that a finalization failing while masterless does not forget another write that survives re-election. */
+    public void testNotMasterDuringFinalizationDoesNotClearOtherRepositorySlot() throws Exception {
+        final String master = internalCluster().startMasterOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
+        internalCluster().startDataOnlyNode();
+        createIndexWithContent("test-index");
+        final String healthyRepository = "healthy-repo";
+        final String failingRepository = "failing-repo";
+        createRepository(healthyRepository, "mock");
+        createRepository(failingRepository, "mock");
+
+        final var masterClusterService = internalCluster().getInstance(ClusterService.class, master);
+        final long originalTerm = masterClusterService.state().term();
+        final var masterTransportService = MockTransportService.getInstance(master);
+        final SubscribableListener<Void> allowElection = new SubscribableListener<>();
+        masterTransportService.addRequestHandlingBehavior(
+            JoinHelper.JOIN_ACTION_NAME,
+            (handler, request, channel, task) -> allowElection.addListener(
+                ActionTestUtils.assertNoFailureListener(ignored -> handler.messageReceived(request, channel, task))
+            )
+        );
+
+        blockMasterOnWriteIndexFile(healthyRepository);
+        blockMasterOnWriteIndexFile(failingRepository);
+        try {
+            // Do not register a completion listener: losing mastership fails listeners even when the write survives re-election.
+            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, healthyRepository, "blocked-snapshot")
+                .setWaitForCompletion(false)
+                .get();
+            waitForBlock(master, healthyRepository);
+            final BlobStoreRepository healthyRepo = getRepositoryOnMaster(healthyRepository);
+            final var indexContainers = healthyRepo.blobStore()
+                .blobContainer(healthyRepo.basePath().add("indices"))
+                .children(OperationPurpose.SNAPSHOT_METADATA);
+            assertThat(indexContainers.keySet(), hasSize(1));
+            final var indexContainer = indexContainers.values().iterator().next();
+            final var indexMetadataBlobs = Set.copyOf(
+                indexContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT_METADATA, BlobStoreRepository.METADATA_PREFIX).keySet()
+            );
+            assertThat(indexMetadataBlobs, hasSize(1));
+
+            final var failingSnapshot = startFullSnapshot(failingRepository, "failing-snapshot");
+            waitForBlock(master, failingRepository);
+
+            // Hold joins so that finalization encounters a genuinely masterless node before the next election can finish.
+            internalCluster().getInstance(Coordinator.class, master).startInitialJoin();
+            awaitClusterState(master, state -> state.nodes().isLocalNodeElectedMaster() == false);
+            unblockNode(failingRepository, master);
+            final var failure = expectThrows(SnapshotException.class, () -> failingSnapshot.actionGet(10, TimeUnit.SECONDS));
+            assertThat(ExceptionsHelper.unwrap(failure, NotMasterException.class), instanceOf(NotMasterException.class));
+
+            allowElection.onResponse(null);
+            masterTransportService.clearAllRules();
+            ensureStableCluster(2);
+            assertEquals(master, internalCluster().getMasterName());
+            assertThat(masterClusterService.state().term(), greaterThan(originalTerm));
+
+            // Add more work after re-election while the original write is still blocked, then verify that both snapshots complete.
+            final var queuedSnapshot = startFullSnapshot(healthyRepository, "queued-snapshot");
+            awaitClusterState(state -> {
+                final var entries = SnapshotsInProgress.get(state).forRepo(healthyRepository);
+                return entries.size() == 2 && entries.get(1).state().completed();
+            });
+
+            unblockNode(healthyRepository, master);
+            assertThat(queuedSnapshot.actionGet(10, TimeUnit.SECONDS).getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+            assertThat(
+                getRepositoryData(healthyRepository).getSnapshotIds().stream().map(SnapshotId::getName).toList(),
+                containsInAnyOrder("blocked-snapshot", "queued-snapshot")
+            );
+
+            awaitNoMoreRunningOperations();
+            assertThat(
+                getRepositoryData(failingRepository).getSnapshotIds().stream().map(SnapshotId::getName).toList(),
+                contains("failing-snapshot")
+            );
+            // Restarting the blocked finalization would upload another index metadata blob, since its first upload was not yet
+            // recorded in RepositoryData. The queued snapshot reuses that metadata once the original finalization completes.
+            assertEquals(
+                indexMetadataBlobs,
+                indexContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT_METADATA, BlobStoreRepository.METADATA_PREFIX).keySet()
+            );
+        } finally {
+            allowElection.onResponse(null);
+            masterTransportService.clearAllRules();
+            unblockNode(healthyRepository, master);
+            unblockNode(failingRepository, master);
+        }
+    }
+
     public void testConcurrentOperationsLimit() throws Exception {
         final String masterName = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
@@ -1662,6 +1757,74 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .getSnapshots(),
             hasSize(1)
         );
+    }
+
+    /** Verifies that queued finalizations follow snapshot start order regardless of when their shards complete. */
+    public void testQueuedFinalizationsFollowStartOrder() throws Exception {
+        final String master = internalCluster().startMasterOnlyNode();
+        final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        createIndexWithContent("index-0", dataNodes.get(0), dataNodes.get(1));
+        createIndexWithContent("index-1", dataNodes.get(0), dataNodes.get(1));
+        createIndexWithContent("index-2", dataNodes.get(1), dataNodes.get(0));
+
+        final String repository = "test-repo";
+        createRepository(repository, "mock");
+        final List<String> finalizationOrder = new CopyOnWriteArrayList<>();
+        final ClusterStateListener listener = event -> {
+            final var snapshots = SnapshotsInProgress.get(event.state());
+            for (final var entry : SnapshotsInProgress.get(event.previousState()).forRepo(repository)) {
+                if (snapshots.snapshot(entry.snapshot()) == null) {
+                    finalizationOrder.add(entry.snapshot().getSnapshotId().getName());
+                }
+            }
+        };
+        final ClusterService masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        masterClusterService.addListener(listener);
+        try {
+            blockMasterOnWriteIndexFile(repository);
+            final ActionFuture<CreateSnapshotResponse> firstSnapshot = clusterAdmin().prepareCreateSnapshot(
+                TEST_REQUEST_TIMEOUT,
+                repository,
+                "snapshot-0"
+            ).setIndices("index-0").setWaitForCompletion(true).execute();
+            waitForBlock(master, repository);
+
+            blockDataNode(repository, dataNodes.get(0));
+            blockDataNode(repository, dataNodes.get(1));
+            final List<ActionFuture<CreateSnapshotResponse>> queuedSnapshots = new ArrayList<>();
+            for (int i = 1; i <= 2; i++) {
+                queuedSnapshots.add(
+                    clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repository, "snapshot-" + i)
+                        .setIndices("index-" + i)
+                        .setWaitForCompletion(true)
+                        .execute()
+                );
+                awaitNumberOfSnapshotsInProgress(i + 1);
+            }
+
+            // Both snapshots must be ready before the running finalization is released, in either readiness order.
+            final List<Integer> readinessOrder = randomBoolean() ? List.of(1, 2) : List.of(2, 1);
+            for (final int snapshotNumber : readinessOrder) {
+                unblockNode(repository, dataNodes.get(snapshotNumber - 1));
+                awaitClusterState(state -> {
+                    final var entries = SnapshotsInProgress.get(state).forRepo(repository);
+                    return entries.size() == 3 && entries.get(snapshotNumber).state().completed();
+                });
+            }
+            assertThat(finalizationOrder, empty());
+
+            unblockNode(repository, master);
+            assertSuccessful(firstSnapshot);
+            for (final var queuedSnapshot : queuedSnapshots) {
+                assertSuccessful(queuedSnapshot);
+            }
+            assertThat(finalizationOrder, contains("snapshot-0", "snapshot-1", "snapshot-2"));
+            awaitNoMoreRunningOperations();
+        } finally {
+            masterClusterService.removeListener(listener);
+            unblockNode(repository, master);
+            unblockAllDataNodes(repository);
+        }
     }
 
     public void testOutOfOrderFinalizationWithConcurrentClone() throws Exception {

@@ -84,6 +84,45 @@ bytes_in:double | step:datetime            | cluster:keyword
 5.0             | 2024-05-10T00:30:00.000Z | qa
 ;
 
+// A counter field counts like a gauge: Prometheus does not distinguish sample types here.
+count_over_time_of_counter
+required_capability: ts_command_v0
+required_capability: count_present_absent_counter_support
+TS k8s | STATS bytes_in = sum(count_over_time(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp,10minute) | SORT bytes_in DESC, cluster, time_bucket | LIMIT 10;
+
+bytes_in:long | cluster:keyword | time_bucket:datetime
+39            | qa              | 2024-05-10T00:10:00.000Z
+37            | qa              | 2024-05-10T00:00:00.000Z
+31            | prod            | 2024-05-10T00:10:00.000Z
+24            | staging         | 2024-05-10T00:00:00.000Z
+23            | prod            | 2024-05-10T00:00:00.000Z
+23            | staging         | 2024-05-10T00:10:00.000Z
+10            | staging         | 2024-05-10T00:20:00.000Z
+7             | prod            | 2024-05-10T00:20:00.000Z
+6             | qa              | 2024-05-10T00:20:00.000Z
+;
+
+// A counter field counts like a gauge: Prometheus does not distinguish sample types here.
+count_over_time_of_counter_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: count_present_absent_counter_support
+
+PROMQL index=k8s step=10m bytes_in=(sum by (cluster) (count_over_time(network.total_bytes_in[10m])))
+| SORT bytes_in DESC, cluster, step | LIMIT 10;
+
+bytes_in:double | step:datetime            | cluster:keyword
+40.0            | 2024-05-10T00:20:00.000Z | qa
+37.0            | 2024-05-10T00:10:00.000Z | qa
+32.0            | 2024-05-10T00:20:00.000Z | prod
+24.0            | 2024-05-10T00:10:00.000Z | staging
+24.0            | 2024-05-10T00:20:00.000Z | staging
+23.0            | 2024-05-10T00:10:00.000Z | prod
+9.0             | 2024-05-10T00:30:00.000Z | staging
+6.0             | 2024-05-10T00:30:00.000Z | prod
+5.0             | 2024-05-10T00:30:00.000Z | qa
+;
+
 count_over_time_with_window
 required_capability: ts_command_v0
 required_capability: time_series_window_v1

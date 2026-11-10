@@ -24,7 +24,7 @@ import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD
  *
  * @param <Context> Specific logger context
  */
-public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
+public interface ActivityLogProducer<Context extends QueryCaptureContext> {
 
     String X_OPAQUE_ID_FIELD = "http.request.headers.x_opaque_id";
     String EVENT_OUTCOME_FIELD = "event.outcome";

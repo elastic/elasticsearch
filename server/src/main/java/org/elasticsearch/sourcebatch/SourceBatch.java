@@ -45,6 +45,20 @@ public interface SourceBatch extends Releasable, Accountable {
     SourceRow row(int docIndex);
 
     /**
+     * Returns {@link SourceRow#sizeInBytes()} of every row, indexed by row, computed for the whole batch at
+     * once. The default sizes the rows one at a time through {@link #row(int)}, which touches every column
+     * for every document; a column-major implementation overrides it to touch each column once, which is
+     * what the batch indexing path needs when it sizes every document of a batch.
+     */
+    default int[] rowSizesInBytes() {
+        final int[] sizes = new int[docCount()];
+        for (int d = 0; d < sizes.length; d++) {
+            sizes[d] = row(d).sizeInBytes();
+        }
+        return sizes;
+    }
+
+    /**
      * Returns a view of this batch covering rows {@code [from, to)}.
      *
      * <p>The returned batch does not own the underlying buffers; closing it is a no-op.

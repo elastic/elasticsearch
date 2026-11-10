@@ -208,42 +208,29 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> indexed;
         private final DocValuesParameter docValuesParameters;
-        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType.stored(), false);
+        private final Parameter<Boolean> stored = Parameter.storeParam(false);
 
-        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).fieldType().nullValue, null)
-            .acceptsNull();
+        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, null).acceptsNull();
 
-        private final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam(
-            "eager_global_ordinals",
-            true,
-            m -> toType(m).fieldType().eagerGlobalOrdinals(),
-            false
-        );
+        private final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam("eager_global_ordinals", true, false);
         private final Parameter<Integer> ignoreAbove;
-        private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> toType(m).indexOptions);
-        private final Parameter<Boolean> hasNorms = Parameter.normsParam(m -> toType(m).fieldType.omitNorms() == false, false);
-        private final Parameter<SimilarityProvider> similarity = TextParams.similarity(
-            m -> toType(m).fieldType().getTextSearchInfo().similarity()
-        );
+        private final Parameter<String> indexOptions = TextParams.keywordIndexOptions();
+        private final Parameter<Boolean> hasNorms = Parameter.normsParam(false);
+        private final Parameter<SimilarityProvider> similarity = TextParams.similarity();
 
         private final Parameter<String> normalizer;
         private final Parameter<Boolean> normalizerSkipStoreOriginalValue;
 
-        private final Parameter<Boolean> splitQueriesOnWhitespace = Parameter.boolParam(
-            "split_queries_on_whitespace",
-            true,
-            m -> toType(m).splitQueriesOnWhitespace,
-            false
-        );
+        private final Parameter<Boolean> splitQueriesOnWhitespace = Parameter.boolParam("split_queries_on_whitespace", true, false);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
-        private final Parameter<OnScriptError> onScriptError = Parameter.onScriptErrorParam(
-            m -> toType(m).builderParams.onScriptError(),
-            script
-        );
+        private final Parameter<Script> script = Parameter.scriptParam();
+        private final Parameter<OnScriptError> onScriptError = Parameter.onScriptErrorParam(script);
         private final Parameter<Boolean> dimension;
+        // A dimension inherited from a parent object has always been applied after the layout of the field was decided, so it
+        // takes no part in choosing between postings and a doc values skipper.
+        private boolean dimensionInherited;
 
         private final IndexAnalyzers indexAnalyzers;
         private final ScriptCompiler scriptCompiler;
@@ -279,16 +266,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.indexAnalyzers = indexAnalyzers;
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
-            this.normalizer = Parameter.stringParam(
-                "normalizer",
-                indexCreatedVersion.isLegacyIndexVersion(),
-                m -> toType(m).normalizerName,
-                null
-            ).acceptsNull();
+            this.normalizer = Parameter.stringParam("normalizer", indexCreatedVersion.isLegacyIndexVersion(), null).acceptsNull();
             this.normalizerSkipStoreOriginalValue = Parameter.boolParam(
                 "normalizer_skip_store_original_value",
                 false,
-                m -> ((KeywordFieldMapper) m).isNormalizerSkipStoreOriginalValue(),
                 () -> "lowercase".equals(normalizer.getValue())
                     && indexAnalyzers.getNormalizer(normalizer.getValue()).analyzer() instanceof LowercaseNormalizer
             );
@@ -301,18 +282,15 @@ public final class KeywordFieldMapper extends FieldMapper {
                     DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
                     DocValuesParameter.Values.Cardinality.HIGH
                 ),
-                m -> toType(m).docValuesParameters(),
                 indexSettings
             );
 
-            this.dimension = TimeSeriesParams.dimensionParam(
-                m -> toType(m).fieldType().isDimension(),
-                () -> docValuesParameters.getValue().enabled()
-            ).precludesParameters(normalizer);
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings, dimension);
+            this.dimension = TimeSeriesParams.dimensionParam(() -> docValuesParameters.getValue().enabled())
+                .precludesParameters(normalizer);
+            this.indexed = Parameter.indexParam(indexSettings, dimension);
             addScriptValidation(script, indexed, () -> docValuesParameters.getValue().enabled());
 
-            this.ignoreAbove = Parameter.ignoreAboveParam(m -> toType(m).fieldType().ignoreAbove().get(), indexSettings.getIgnoreAbove());
+            this.ignoreAbove = Parameter.ignoreAboveParam(indexSettings.getIgnoreAbove());
             this.forceDocValuesSkipper = forceDocValuesSkipper;
             this.isWithinMultiField = isWithinMultiField;
             this.indexSettings = indexSettings;
@@ -628,7 +606,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             if (fieldtype.equals(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES) == false) {
                 // NOTE: override index options only if we are not using a sparse doc values index (and we use an inverted index)
-                fieldtype.setIndexOptions(TextParams.toIndexOptions(this.indexed.getValue(), this.indexOptions.getValue()));
+                fieldtype.setIndexOptions(TextParams.toIndexOptions(indexedForLayout(), this.indexOptions.getValue()));
             }
             if (fieldtype.equals(Defaults.FIELD_TYPE)) {
                 // deduplicate in the common default case to save some memory
@@ -642,8 +620,24 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private boolean shouldUseTimeSeriesSkipper() {
             return docValuesParameters.getValue().enabled()
-                && indexed.get() == false
-                && useTimeSeriesDocValuesSkippers(indexSettings, dimension.get());
+                && indexedForLayout() == false
+                && useTimeSeriesDocValuesSkippers(indexSettings, dimension.get() && dimensionInherited == false);
+        }
+
+        private boolean indexedForLayout() {
+            return indexed.isSet()
+                ? indexed.getValue()
+                : Parameter.defaultIndexed(indexSettings, dimension.get() && dimensionInherited == false);
+        }
+
+        @Override
+        public void normalize(MapperBuilderContext context) {
+            // super.normalize() sets the inherited dimension, so we need to check it here
+            // before we call the super method.
+            if (dimension.get() == false && inheritDimensionParameterFromParentObject(context)) {
+                dimensionInherited = true;
+            }
+            super.normalize(context);
         }
 
         // TODO: for columnar the default should be based on the soon the built skipper mapping attribute.
@@ -658,7 +652,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private boolean shouldUseStandardSkipper() {
             return docValuesParameters().enabled()
-                && indexed.get() == false
+                && indexedForLayout() == false
                 && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)
                 && indexSettings.useDocValuesSkipper();
         }
@@ -2046,7 +2040,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             // Without the codec, all-null docs emit counts but no binary blob, so binaryDvs and dvCounts are decoupled;
             // a columnar field writes a payload for every shape and emits no counts column at all.
             // Each builder owns its buffers, so every finished column is registered for release with the batch.
-            if (terms != null && terms.isEmpty() == false) {
+            if (ColumnarPayloadColumn.shouldEmitTermsColumn(terms, valuelessDocs)) {
                 addOwnedBinaryColumn(ctx, terms, docCount, fieldType().name(), fieldType);
             }
             if (binaryDvs != null && binaryDvs.isEmpty() == false) {
@@ -2534,18 +2528,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Map.of(mappedFieldType.name(), fieldType().normalizer);
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            indexAnalyzers,
-            scriptCompiler,
-            indexSettings,
-            forceDocValuesSkipper,
-            fieldType().isWithinMultiField()
-        ).dimension(fieldType().isDimension()).init(this);
     }
 
     // Uses this mapper's frozen FieldType; for high-cardinality doc values that type has DocValuesType.NONE because binary doc values

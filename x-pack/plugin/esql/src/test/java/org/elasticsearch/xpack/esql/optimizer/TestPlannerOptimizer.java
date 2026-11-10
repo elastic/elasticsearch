@@ -113,7 +113,10 @@ public class TestPlannerOptimizer {
     }
 
     private PhysicalPlan physicalPlan(String query, Analyzer analyzer) {
-        LogicalPlan logical = logicalOptimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query)));
+        var optimizer = analyzer.context().minimumVersion().equals(this.analyzer.context().minimumVersion())
+            ? logicalOptimizer
+            : new LogicalPlanOptimizer(logicalOptimizerContext(config, FoldContext.small(), analyzer.context().minimumVersion()));
+        LogicalPlan logical = optimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query)));
         // System.out.println("Logical\n" + logical);
         return mapper.map(new Versioned<>(logical, analyzer.context().minimumVersion()));
     }

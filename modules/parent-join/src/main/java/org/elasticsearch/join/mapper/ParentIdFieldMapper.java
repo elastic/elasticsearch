@@ -115,8 +115,4 @@ public final class ParentIdFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
-    @Override
-    public Builder getMergeBuilder() {
-        return null;    // always constructed by ParentJoinFieldMapper, not through type parsers
-    }
 }

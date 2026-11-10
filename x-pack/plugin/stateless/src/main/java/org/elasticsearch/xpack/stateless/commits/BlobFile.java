@@ -14,15 +14,26 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.IOException;
 
-/**
- * Represents a file (typically a {@link BatchedCompoundCommit}) stored in the blobstore.
- */
+/// Represents a [BatchedCompoundCommit] blob stored in the object store.
 public record BlobFile(String blobName, PrimaryTermAndGeneration termAndGeneration) implements Writeable {
 
+    /// @throws IllegalArgumentException if the blob name does not start with [BatchedCompoundCommit#PREFIX], if the generation in the blob
+    /// name is not a number, or if it differs from the generation of the given term and generation
     public BlobFile {
-        assert (BatchedCompoundCommit.startsWithBlobPrefix(blobName) == false && termAndGeneration.generation() == -1)
-            || termAndGeneration.generation() == BatchedCompoundCommit.parseGenerationFromBlobName(blobName)
-            : "generation mismatch: " + termAndGeneration + " vs " + blobName;
+        if (termAndGeneration.generation() != parseGenerationOrThrow(blobName)) {
+            throw new IllegalArgumentException("generation mismatch: " + termAndGeneration + " vs " + blobName);
+        }
+    }
+
+    /// Creates a [BatchedCompoundCommit] blob from its name and the primary term of the container it is stored in, the generation being
+    /// deduced from the name.
+    ///
+    /// @param blobName the name of the blob, which must start with [BatchedCompoundCommit#PREFIX]
+    /// @param primaryTerm the primary term of the container the blob is stored in
+    /// @throws IllegalArgumentException if the blob name does not start with [BatchedCompoundCommit#PREFIX] or if the generation in the
+    /// blob name is not a number
+    public BlobFile(String blobName, long primaryTerm) {
+        this(blobName, new PrimaryTermAndGeneration(primaryTerm, parseGenerationOrThrow(blobName)));
     }
 
     public BlobFile(StreamInput in) throws IOException {
@@ -39,16 +50,36 @@ public record BlobFile(String blobName, PrimaryTermAndGeneration termAndGenerati
         return termAndGeneration.primaryTerm();
     }
 
-    /**
-     * The generation of the blob file in case it is a stateless compound commit file, otherwise it is -1.
-     */
+    /// The generation of the batched compound commit, deduced from the blob name.
     public long generation() {
         return termAndGeneration.generation();
     }
 
     @Override
     public String toString() {
-        return "BlobFile{" + "primaryTerm=" + primaryTerm() + ", blobName='" + blobName + '\'' + '}';
+        return "BlobFile[term=" + primaryTerm() + ", name=" + blobName() + ']';
     }
 
+    /// Parses the generation from the name of a [BatchedCompoundCommit] blob, and throws an [IllegalArgumentException] if the blob name is
+    /// invalid.
+    ///
+    /// @param blobName the name of the blob
+    /// @return the generation deduced from the blob name
+    /// @throws IllegalArgumentException if the blob name does not start with [BatchedCompoundCommit#PREFIX] or if the generation in the
+    /// blob name is not a number
+    private static long parseGenerationOrThrow(String blobName) {
+        if (BatchedCompoundCommit.startsWithBlobPrefix(blobName) == false) {
+            throw new IllegalArgumentException("unrecognized blob name [" + blobName + ']');
+        }
+        final long generation;
+        try {
+            generation = BatchedCompoundCommit.parseGenerationFromBlobName(blobName);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("malformed blob name [" + blobName + "]: the generation is not a number", e);
+        }
+        if (generation <= 0) {
+            throw new IllegalArgumentException("malformed blob name [" + blobName + "]: the generation must be positive");
+        }
+        return generation;
+    }
 }

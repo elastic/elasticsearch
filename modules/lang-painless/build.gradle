@@ -42,11 +42,11 @@ dependencies {
     clusterModules project(':modules:ingest-common')
     clusterModules project(':modules:apm')
     api "org.antlr:antlr4-runtime:${versions.antlr4}"
-    api 'org.ow2.asm:asm-util:9.10.1'
-    api 'org.ow2.asm:asm-tree:9.10.1'
-    api 'org.ow2.asm:asm-commons:9.10.1'
-    api 'org.ow2.asm:asm-analysis:9.10.1'
-    api 'org.ow2.asm:asm:9.10.1'
+    api 'org.ow2.asm:asm-util:9.11.1'
+    api 'org.ow2.asm:asm-tree:9.11.1'
+    api 'org.ow2.asm:asm-commons:9.11.1'
+    api 'org.ow2.asm:asm-analysis:9.11.1'
+    api 'org.ow2.asm:asm:9.11.1'
     spi project('spi')
     clusterModules project(':modules:mapper-extras')
 }

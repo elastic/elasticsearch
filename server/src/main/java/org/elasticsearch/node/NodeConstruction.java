@@ -136,7 +136,6 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.TokenCountingMetrics;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.DefaultRootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -250,6 +249,7 @@ import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer.NoOpRestoreTr
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.SnapshotGlobalStateTransformer;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -922,8 +922,7 @@ class NodeConstruction {
             telemetryProvider.getMeterRegistry(),
             threadPool::relativeTimeInMillis
         );
-        TokenCountingMetrics tokenCountingMetrics = new TokenCountingMetrics(telemetryProvider.getMeterRegistry());
-        MapperMetrics mapperMetrics = new MapperMetrics(sourceFieldMetrics, tokenCountingMetrics);
+        MapperMetrics mapperMetrics = new MapperMetrics(sourceFieldMetrics);
 
         MergeMetrics mergeMetrics = new MergeMetrics(telemetryProvider.getMeterRegistry());
 
@@ -1278,6 +1277,10 @@ class NodeConstruction {
             systemIndices,
             projectResolver.supportsMultipleProjects(),
             snapshotMetrics
+        );
+
+        snapshotsService.setSnapshotGlobalStateTransformer(
+            pluginsService.loadSingletonServiceProvider(SnapshotGlobalStateTransformer.class, () -> SnapshotGlobalStateTransformer.NOOP)
         );
 
         SnapshotShardsService snapshotShardsService = new SnapshotShardsService(

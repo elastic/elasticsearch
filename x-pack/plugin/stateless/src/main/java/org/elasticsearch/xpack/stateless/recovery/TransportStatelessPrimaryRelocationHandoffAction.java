@@ -57,6 +57,8 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
         "stateless_primary_handoff_latest_blobs"
     );
 
+    public static final TransportVersion HOLLOW_SHARD_RECOVERY_STATE = TransportVersion.fromName("hollow_shard_recovery_state");
+
     /// Legacy name from before the transport action split for backward compatibility.
     public static final String PRIMARY_CONTEXT_HANDOFF_ACTION_NAME = StatelessPrimaryRelocationAction.TYPE.name()
         + "/primary_context_handoff";
@@ -159,6 +161,8 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
         @Nullable
         private final Set<BlobFile> lastCommitBlobs;
         private final boolean lastCommitIsHollow;
+        @Nullable
+        private final HollowShardRecoveryState hollowRecoveryState;
 
         Request(
             long recoveryId,
@@ -170,7 +174,8 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
             Set<BlobFile> otherBlobFiles,
             boolean hasRecentIdLookup,
             Set<BlobFile> lastCommitBlobs,
-            boolean lastCommitIsHollow
+            boolean lastCommitIsHollow,
+            @Nullable HollowShardRecoveryState hollowRecoveryState
         ) {
             this.recoveryId = recoveryId;
             this.shardId = shardId;
@@ -182,6 +187,7 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
             this.hasRecentIdLookup = hasRecentIdLookup;
             this.lastCommitBlobs = lastCommitBlobs;
             this.lastCommitIsHollow = lastCommitIsHollow;
+            this.hollowRecoveryState = hollowRecoveryState;
         }
 
         Request(StreamInput in) throws IOException {
@@ -198,6 +204,9 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
                 ? in.readCollectionAsImmutableSet(BlobFile::new)
                 : Set.of();
             lastCommitIsHollow = in.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS) && in.readBoolean();
+            hollowRecoveryState = in.getTransportVersion().supports(HOLLOW_SHARD_RECOVERY_STATE)
+                ? in.readOptionalWriteable(HollowShardRecoveryState::new)
+                : null;
         }
 
         @Override
@@ -218,6 +227,9 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
             if (out.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS)) {
                 out.writeCollection(lastCommitBlobs);
                 out.writeBoolean(lastCommitIsHollow);
+            }
+            if (out.getTransportVersion().supports(HOLLOW_SHARD_RECOVERY_STATE)) {
+                out.writeOptionalWriteable(hollowRecoveryState);
             }
         }
 
@@ -266,7 +278,7 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
                     otherBlobFiles
                 );
             }
-            return new RecoveryInfoFromSource(sourceBlobsInfo, lastCommitBlobs, lastCommitIsHollow, hasRecentIdLookup);
+            return new RecoveryInfoFromSource(sourceBlobsInfo, lastCommitBlobs, lastCommitIsHollow, hasRecentIdLookup, hollowRecoveryState);
         }
     }
 }

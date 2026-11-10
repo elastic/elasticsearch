@@ -1701,6 +1701,11 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
+        public Releasable reserveResponseBytes(int bytes) {
+            return delegate.reserveResponseBytes(bytes);
+        }
+
+        @Override
         public String toString() {
             return getClass().getSimpleName() + "[" + delegate.toString() + "]";
         }
@@ -1917,6 +1922,11 @@ public class TransportService extends AbstractLifecycleComponent
         @Override
         public Executor executor() {
             return handler.executor();
+        }
+
+        @Override
+        public Releasable reserveResponseBytes(int bytes) {
+            return handler.reserveResponseBytes(bytes);
         }
 
         @Override

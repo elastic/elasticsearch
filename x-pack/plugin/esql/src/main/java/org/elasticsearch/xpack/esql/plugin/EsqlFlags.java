@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.List;
 import java.util.Objects;
@@ -120,6 +121,32 @@ public class EsqlFlags {
         Setting.Property.OperatorDynamic
     );
 
+    /**
+     * Cap on how far back {@code METRICS_INFO} and {@code TS_INFO} scan data. When specified, the time range of
+     * these commands is narrowed to the most recent part of the range of the request filter: {@code [max(t1, t2 - cap), t2]} for a
+     * request filter with the range {@code [t1, t2]}, and {@code [now - cap, now]} when the request filter has no complete range.
+     * A warning is returned if the time range is narrowed. Defaults to uncapped.
+     */
+    public static final Setting<TimeValue> ESQL_METRICS_INFO_MAX_TIME_RANGE = Setting.timeSetting(
+        "esql.query.metrics_info_max_time_range",
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * When enabled, time-series aggregates are reduced separately in each index before results are combined. This uses less memory and can
+     * improve query performance, but results may be approximate for time buckets that overlap index rollover boundaries and for windowed
+     * aggregates whose windows reach across those boundaries.
+     */
+    public static final Setting<Boolean> ESQL_TIME_SERIES_REDUCE_PER_INDEX = Setting.boolSetting(
+        "esql.query.time_series.reduce_per_index",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     // this is only used for testing purposes right now
     public static List<Setting<?>> ALL_ESQL_FLAGS_SETTINGS = List.of(
         ESQL_STRING_LIKE_ON_INDEX,
@@ -128,7 +155,9 @@ public class EsqlFlags {
         ESQL_MAX_COMMAND_COUNT,
         ESQL_MAX_BRANCH_LEVEL,
         ESQL_MAX_BRANCH_COUNT_PER_MERGE,
-        ESQL_MAX_FILLNULL_FIELDS
+        ESQL_MAX_FILLNULL_FIELDS,
+        ESQL_METRICS_INFO_MAX_TIME_RANGE,
+        ESQL_TIME_SERIES_REDUCE_PER_INDEX
     );
 
     /**
@@ -142,7 +171,9 @@ public class EsqlFlags {
         ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
         ESQL_MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY),
         ESQL_MAX_FILLNULL_FIELDS.getDefault(Settings.EMPTY),
-        ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY)
+        ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY),
+        ESQL_METRICS_INFO_MAX_TIME_RANGE.getDefault(Settings.EMPTY),
+        ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY)
     );
 
     private final boolean stringLikeOnIndex;
@@ -158,6 +189,10 @@ public class EsqlFlags {
     private final int maxFillNullFields;
 
     private final int maxCommandCount;
+
+    private final TimeValue metricsInfoMaxTimeRange;
+
+    private final boolean timeSeriesReducePerIndex;
 
     /**
      * Constructor for tests.
@@ -262,7 +297,9 @@ public class EsqlFlags {
             maxBranchLevel,
             maxBranchCountPerMerge,
             maxFillNullFields,
-            ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY)
+            ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY),
+            ESQL_METRICS_INFO_MAX_TIME_RANGE.getDefault(Settings.EMPTY),
+            ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY)
         );
     }
 
@@ -273,7 +310,32 @@ public class EsqlFlags {
         int maxBranchLevel,
         int maxBranchCountPerMerge,
         int maxFillNullFields,
-        int maxCommandCount
+        int maxCommandCount,
+        TimeValue metricsInfoMaxTimeRange
+    ) {
+        this(
+            stringLikeOnIndex,
+            roundToPushdownThreshold,
+            maxBranchCount,
+            maxBranchLevel,
+            maxBranchCountPerMerge,
+            maxFillNullFields,
+            maxCommandCount,
+            metricsInfoMaxTimeRange,
+            ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY)
+        );
+    }
+
+    private EsqlFlags(
+        boolean stringLikeOnIndex,
+        int roundToPushdownThreshold,
+        int maxBranchCount,
+        int maxBranchLevel,
+        int maxBranchCountPerMerge,
+        int maxFillNullFields,
+        int maxCommandCount,
+        TimeValue metricsInfoMaxTimeRange,
+        boolean timeSeriesReducePerIndex
     ) {
         this.stringLikeOnIndex = stringLikeOnIndex;
         this.roundToPushdownThreshold = roundToPushdownThreshold;
@@ -282,6 +344,8 @@ public class EsqlFlags {
         this.maxBranchCountPerMerge = maxBranchCountPerMerge;
         this.maxFillNullFields = maxFillNullFields;
         this.maxCommandCount = maxCommandCount;
+        this.metricsInfoMaxTimeRange = metricsInfoMaxTimeRange;
+        this.timeSeriesReducePerIndex = timeSeriesReducePerIndex;
     }
 
     public EsqlFlags(ClusterSettings settings) {
@@ -292,7 +356,26 @@ public class EsqlFlags {
             settings.get(ESQL_MAX_BRANCH_LEVEL),
             settings.get(ESQL_MAX_BRANCH_COUNT_PER_MERGE),
             settings.get(ESQL_MAX_FILLNULL_FIELDS),
-            settings.get(ESQL_MAX_COMMAND_COUNT)
+            settings.get(ESQL_MAX_COMMAND_COUNT),
+            settings.get(ESQL_METRICS_INFO_MAX_TIME_RANGE),
+            settings.get(ESQL_TIME_SERIES_REDUCE_PER_INDEX)
+        );
+    }
+
+    /**
+     * Test helper that leaves the other flags at their defaults.
+     */
+    public static EsqlFlags withTimeSeriesReducePerIndex(boolean enabled) {
+        return new EsqlFlags(
+            ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY),
+            ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_COUNT.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY),
+            ESQL_MAX_FILLNULL_FIELDS.getDefault(Settings.EMPTY),
+            ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY),
+            ESQL_METRICS_INFO_MAX_TIME_RANGE.getDefault(Settings.EMPTY),
+            enabled
         );
     }
 
@@ -329,6 +412,14 @@ public class EsqlFlags {
         return maxCommandCount;
     }
 
+    public TimeValue metricsInfoMaxTimeRange() {
+        return metricsInfoMaxTimeRange;
+    }
+
+    public boolean timeSeriesReducePerIndex() {
+        return timeSeriesReducePerIndex;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -340,7 +431,9 @@ public class EsqlFlags {
             && maxBranchLevel == that.maxBranchLevel
             && maxBranchCountPerMerge == that.maxBranchCountPerMerge
             && maxFillNullFields == that.maxFillNullFields
-            && maxCommandCount == that.maxCommandCount;
+            && maxCommandCount == that.maxCommandCount
+            && timeSeriesReducePerIndex == that.timeSeriesReducePerIndex
+            && Objects.equals(metricsInfoMaxTimeRange, that.metricsInfoMaxTimeRange);
     }
 
     @Override
@@ -352,7 +445,9 @@ public class EsqlFlags {
             maxBranchLevel,
             maxBranchCountPerMerge,
             maxFillNullFields,
-            maxCommandCount
+            maxCommandCount,
+            metricsInfoMaxTimeRange,
+            timeSeriesReducePerIndex
         );
     }
 
@@ -372,6 +467,10 @@ public class EsqlFlags {
             + maxFillNullFields
             + ", maxCommandCount="
             + maxCommandCount
+            + ", metricsInfoMaxTimeRange="
+            + metricsInfoMaxTimeRange
+            + ", timeSeriesReducePerIndex="
+            + timeSeriesReducePerIndex
             + ']';
     }
 }

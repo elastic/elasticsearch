@@ -55,6 +55,7 @@ public class SimdVecLibraryInt7uTests extends SimdVecLibraryTests {
         }
 
         final int loopTimes = 1000;
+        var bulkScoreSeg = arena.allocate(Float.BYTES);
         for (int i = 0; i < loopTimes; i++) {
             int first = randomInt(numVecs - 1);
             int second = randomInt(numVecs - 1);
@@ -64,12 +65,16 @@ public class SimdVecLibraryInt7uTests extends SimdVecLibraryTests {
             float expected = ScalarOperations.similarity(function, values[first], values[second]);
             assertEquals(expected, similarity(nativeSeg1, nativeSeg2, dims), 0f);
             var heapSeg1 = MemorySegment.ofArray(values[first]);
-            assertEquals(expected, similarity(nativeSeg2, heapSeg1, dims), 0f);
+            // only the dot product binding is @Critical; the others reject heap segments
+            if (function == SimdVecLibrary.SimilarityFunction.DOT_PRODUCT) {
+                assertEquals(expected, similarity(nativeSeg2, heapSeg1, dims), 0f);
+            } else {
+                assertRejectsHeapSegments(() -> similarity(nativeSeg2, heapSeg1, dims));
+            }
 
             // trivial bulk with a single vector
-            float[] bulkScore = new float[1];
-            similarityBulk(nativeSeg1, nativeSeg2, dims, 1, MemorySegment.ofArray(bulkScore));
-            assertEquals(expected, bulkScore[0], 0f);
+            similarityBulk(nativeSeg1, nativeSeg2, dims, 1, bulkScoreSeg);
+            assertScoresEquals(new float[] { expected }, bulkScoreSeg);
         }
     }
 
@@ -93,8 +98,13 @@ public class SimdVecLibraryInt7uTests extends SimdVecLibraryTests {
         assertScoresEquals(expectedScores, bulkScoresSeg);
 
         float[] bulkScores = new float[numVecs];
-        similarityBulk(segment, nativeQuerySeg, dims, numVecs, MemorySegment.ofArray(bulkScores));
-        assertArrayEquals(expectedScores, bulkScores, 0f);
+        // only the dot product binding is @Critical; the others reject heap segments
+        if (function == SimdVecLibrary.SimilarityFunction.DOT_PRODUCT) {
+            similarityBulk(segment, nativeQuerySeg, dims, numVecs, MemorySegment.ofArray(bulkScores));
+            assertArrayEquals(expectedScores, bulkScores, 0f);
+        } else {
+            assertRejectsHeapSegments(() -> similarityBulk(segment, nativeQuerySeg, dims, numVecs, MemorySegment.ofArray(bulkScores)));
+        }
     }
 
     public void testInt7uBulkMasked() {
@@ -110,7 +120,7 @@ public class SimdVecLibraryInt7uTests extends SimdVecLibraryTests {
         doTestInt7uBulkMasked(Float.BYTES, false);
     }
 
-    public void testInt7uBulkMaskedHeapSegments() {
+    public void testInt7uBulkMaskedRejectsHeapSegments() {
         assumeTrue(notSupportedMsg(), supported());
         assumeTrue("bulk masked is only implemented for dot product", function == SimdVecLibrary.SimilarityFunction.DOT_PRODUCT);
         doTestInt7uBulkMasked(0, true);
@@ -136,8 +146,17 @@ public class SimdVecLibraryInt7uTests extends SimdVecLibraryTests {
 
         if (heapQueryAndScores) {
             float[] bulkScores = unselectedScores(count);
-            similarityBulkMasked(vectorsSegment, MemorySegment.ofArray(query), dims, pitch, mask, count, MemorySegment.ofArray(bulkScores));
-            assertArrayEquals(expectedScores, bulkScores, 0f);
+            assertRejectsHeapSegments(
+                () -> similarityBulkMasked(
+                    vectorsSegment,
+                    MemorySegment.ofArray(query),
+                    dims,
+                    pitch,
+                    mask,
+                    count,
+                    MemorySegment.ofArray(bulkScores)
+                )
+            );
         } else {
             var nativeQuerySeg = arena.allocate(dims);
             MemorySegment.copy(query, 0, nativeQuerySeg, ValueLayout.JAVA_BYTE, 0L, dims);

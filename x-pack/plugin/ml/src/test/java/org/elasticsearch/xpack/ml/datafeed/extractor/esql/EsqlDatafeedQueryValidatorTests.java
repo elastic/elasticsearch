@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
@@ -31,6 +34,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.ml.datafeed.crossproject.NoMatchingProjectTestMessages;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -261,7 +265,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             "_alias:_origin",
             ActionListener.wrap(ignored -> succeeded.set(true), e -> {
                 throw new AssertionError(e);
-            })
+            }),
+            null
         );
 
         assertThat(succeeded.get(), is(true));
@@ -279,14 +284,22 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             null,
             ActionListener.wrap(ignored -> {}, e -> {
                 throw new AssertionError(e);
-            })
+            }),
+            null
         );
 
         assertThat(harness.capturedQuery, equalTo("FROM logs | WHERE a > 1 // filter\n | LIMIT 0"));
     }
 
-    public void testMintAccessWithNoMatchingProjectShouldDefer() {
-        ValidatorHarness harness = new ValidatorHarness(new NoMatchingProjectException("_alias:*"));
+    public void testNoProjectAfterRoutingMessageMatchesServerText() {
+        NoMatchingProjectException fromServer = NoMatchingProjectTestMessages.noProjectAfterRouting("_alias:*");
+        assertThat(fromServer.getMessage(), containsString(EsqlDatafeedQueryValidator.NO_PROJECT_AFTER_ROUTING_MESSAGE));
+        NoMatchingProjectException explicitMissing = NoMatchingProjectTestMessages.explicitMissingQualifiedProject();
+        assertThat(explicitMissing.getMessage(), containsString("No such project"));
+    }
+
+    public void testMintAccessWithNoProjectAfterRoutingShouldDefer() {
+        ValidatorHarness harness = new ValidatorHarness(NoMatchingProjectTestMessages.noProjectAfterRouting("_alias:*"));
 
         AtomicBoolean succeeded = new AtomicBoolean(false);
         harness.validator.validateAccessForMint(
@@ -294,9 +307,84 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             Collections.emptyMap(),
             ESQL_QUERY,
             "_alias:*",
-            ActionListener.wrap(ignored -> succeeded.set(true), e -> {
-                throw new AssertionError("expected deferral", e);
-            })
+            ActionTestUtils.assertNoFailureListener(ignored -> succeeded.set(true)),
+            null
+        );
+
+        assertThat(succeeded.get(), is(true));
+    }
+
+    public void testMintAccessSuccessShouldNotReleaseBorrowedResponse() {
+        RefCountedMintProbeResponse response = refCountedEmptyMintProbeResponse();
+        ValidatorHarness harness = new ValidatorHarness(response);
+
+        assertThat(response.hasReferences(), is(true));
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        harness.validator.validateAccessForMint(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            ActionTestUtils.assertNoFailureListener(ignored -> succeeded.set(true)),
+            null
+        );
+
+        assertThat(succeeded.get(), is(true));
+        assertThat(response.hasReferences(), is(false));
+    }
+
+    public void testMintAccessWithExplicitMissingProjectShouldFailBeforeMint() {
+        NoMatchingProjectException noMatchingProject = NoMatchingProjectTestMessages.explicitMissingQualifiedProject();
+        ValidatorHarness harness = new ValidatorHarness(noMatchingProject);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        harness.validator.validateAccessForMint(
+            null,
+            Collections.emptyMap(),
+            "FROM project-a:logs | LIMIT 10",
+            "_alias:*",
+            ActionListener.wrap(ignored -> fail("an explicit missing project must not be deferred"), failure::set),
+            null
+        );
+
+        assertThat(failure.get(), equalTo(noMatchingProject));
+    }
+
+    public void testMintAccessWithNoProjectAfterRoutingShouldDeferRegardlessOfQueryShape() {
+        NoMatchingProjectException noProjectAfterRouting = NoMatchingProjectTestMessages.noProjectAfterRouting("_alias:*");
+        List<String> queriesWithNonQualifierColons = List.of(
+            "FROM project-a:logs-* | LIMIT 10",
+            "FROM logs | WHERE message : \"error\"",
+            "FROM logs | MATCH(f, \"q\", {\"fuzziness\": 1})",
+            "FROM logs | LOOKUP JOIN idx ON k",
+            "FROM (FROM logs) | LIMIT 10"
+        );
+        for (String query : queriesWithNonQualifierColons) {
+            ValidatorHarness harness = new ValidatorHarness(noProjectAfterRouting);
+            AtomicBoolean deferred = new AtomicBoolean(false);
+            harness.validator.validateAccessForMint(
+                null,
+                Collections.emptyMap(),
+                query,
+                "_alias:*",
+                ActionTestUtils.assertNoFailureListener(ignored -> deferred.set(true)),
+                null
+            );
+            assertThat("query [" + query + "]", deferred.get(), is(true));
+        }
+    }
+
+    public void testMintAccessWithQualifiedSourceAndIndexNotFoundShouldDefer() {
+        ValidatorHarness harness = new ValidatorHarness(new IndexNotFoundException("project-a:logs"));
+
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        harness.validator.validateAccessForMint(
+            null,
+            Collections.emptyMap(),
+            "FROM project-a:logs | LIMIT 10",
+            "_alias:*",
+            ActionTestUtils.assertNoFailureListener(ignored -> succeeded.set(true)),
+            null
         );
 
         assertThat(succeeded.get(), is(true));
@@ -313,7 +401,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             null,
             ActionListener.wrap(ignored -> succeeded.set(true), e -> {
                 throw new AssertionError("expected deferral", e);
-            })
+            }),
+            null
         );
 
         assertThat(succeeded.get(), is(true));
@@ -330,7 +419,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             null,
             ActionListener.wrap(ignored -> succeeded.set(true), e -> {
                 throw new AssertionError("expected deferral", e);
-            })
+            }),
+            null
         );
 
         assertThat(succeeded.get(), is(true));
@@ -346,7 +436,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             Collections.emptyMap(),
             ESQL_QUERY,
             null,
-            ActionListener.wrap(ignored -> fail("expected failure"), failure::set)
+            ActionListener.wrap(ignored -> fail("expected failure"), failure::set),
+            null
         );
 
         assertThat(failure.get(), equalTo(securityFailure));
@@ -1031,10 +1122,65 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
                 capturedParams = params;
                 if (failure != null) {
                     listener.onFailure(failure);
+                } else if (response instanceof RefCounted refCounted) {
+                    @SuppressWarnings("unchecked")
+                    ActionListener<RefCounted> refCountedListener = (ActionListener<RefCounted>) (ActionListener<?>) listener;
+                    ActionListener.respondAndRelease(refCountedListener, refCounted);
                 } else {
                     listener.onResponse(response);
                 }
             });
+        }
+    }
+
+    private static RefCountedMintProbeResponse refCountedEmptyMintProbeResponse() {
+        return new RefCountedMintProbeResponse();
+    }
+
+    private static final class RefCountedMintProbeResponse extends EsqlQueryResponse implements RefCounted {
+
+        private final AbstractRefCounted counted = AbstractRefCounted.of(() -> {});
+        private final EsqlResponse esqlResponse = mock(EsqlResponse.class);
+
+        @Override
+        protected EsqlResponse responseInternal() {
+            return esqlResponse;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+            throw new UnsupportedOperationException("not needed in tests");
+        }
+
+        @Override
+        public void incRef() {
+            counted.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return counted.tryIncRef();
+        }
+
+        @Override
+        public void mustIncRef() {
+            counted.mustIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return counted.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return counted.hasReferences();
+        }
+
+        @Override
+        public void close() {
+            super.close();
+            decRef();
         }
     }
 

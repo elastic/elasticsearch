@@ -4,6 +4,7 @@
 
 | field | window | result |
 | --- | --- | --- |
+| boolean {applies_to}`stack: ga 9.7.0` | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
 | counter_double | time_duration {applies_to}`stack: preview 9.3.0` | double |
 | counter_integer | time_duration {applies_to}`stack: preview 9.3.0` | integer |
 | counter_long | time_duration {applies_to}`stack: preview 9.3.0` | long |

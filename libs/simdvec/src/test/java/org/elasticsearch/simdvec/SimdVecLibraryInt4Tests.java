@@ -83,7 +83,7 @@ public class SimdVecLibraryInt4Tests extends SimdVecLibraryTests {
             assertEquals(expected, similarity(nativeUnpacked, nativePacked, packedLen));
 
             var heapUnpacked = MemorySegment.ofArray(unpackedValues[first]);
-            assertEquals(expected, similarity(heapUnpacked, nativePacked, packedLen));
+            assertRejectsHeapSegments(() -> similarity(heapUnpacked, nativePacked, packedLen));
 
             // trivial bulk with a single vector
             float[] bulkScore = new float[1];
@@ -133,7 +133,7 @@ public class SimdVecLibraryInt4Tests extends SimdVecLibraryTests {
         doTestInt4BulkMasked(Float.BYTES, false);
     }
 
-    public void testInt4BulkMaskedHeapSegments() {
+    public void testInt4BulkMaskedRejectsHeapSegments() {
         assumeTrue(notSupportedMsg(), supported());
         doTestInt4BulkMasked(0, true);
     }
@@ -160,16 +160,17 @@ public class SimdVecLibraryInt4Tests extends SimdVecLibraryTests {
 
         if (heapQueryAndScores) {
             float[] bulkScores = unselectedScores(count);
-            similarityBulkMasked(
-                packedSegment,
-                MemorySegment.ofArray(unpackedQuery),
-                packedLen,
-                pitch,
-                mask,
-                count,
-                MemorySegment.ofArray(bulkScores)
+            assertRejectsHeapSegments(
+                () -> similarityBulkMasked(
+                    packedSegment,
+                    MemorySegment.ofArray(unpackedQuery),
+                    packedLen,
+                    pitch,
+                    mask,
+                    count,
+                    MemorySegment.ofArray(bulkScores)
+                )
             );
-            assertArrayEquals(expectedScores, bulkScores, 0f);
         } else {
             var nativeQuerySeg = arena.allocate(dims);
             MemorySegment.copy(unpackedQuery, 0, nativeQuerySeg, ValueLayout.JAVA_BYTE, 0L, dims);

@@ -101,7 +101,6 @@ import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Delayed;
@@ -1846,7 +1845,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
     public void testNotifyDoneRelocatesWhenRequestedAndNodeAvailableWithScrollSearch() {
         configurePitOrScroll(false);
         testTask.requestRelocation();
-        worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        worker.setHasNodeToRelocateToSupplier(() -> true);
 
         final String expectedScrollId = scrollId();
         final AtomicBoolean cleanedUp = new AtomicBoolean();
@@ -1910,7 +1909,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
     public void testNotifyDoneRelocatesWhenRequestedAndNodeAvailableWithPITSearch() {
         configurePitOrScroll(true);
         testTask.requestRelocation();
-        worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        worker.setHasNodeToRelocateToSupplier(() -> true);
 
         final Object[] expectedSearchAfter = new Object[] { "search_after" };
         final AtomicBoolean cleanedUp = new AtomicBoolean();
@@ -1974,7 +1973,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
     public void testNotifyDoneContinuesWhenRelocationRequestedButNoNodeWithScrollSearch() throws Exception {
         configurePitOrScroll(false);
         testTask.requestRelocation();
-        worker.setNodeToRelocateToSupplier(Optional::empty);
+        worker.setHasNodeToRelocateToSupplier(() -> false);
 
         final String expectedScrollId = scrollId();
         final DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction();
@@ -2006,7 +2005,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
     public void testNotifyDoneContinuesWhenRelocationRequestedButNoNodeWithPITSearch() throws Exception {
         configurePitOrScroll(true);
         testTask.requestRelocation();
-        worker.setNodeToRelocateToSupplier(Optional::empty);
+        worker.setHasNodeToRelocateToSupplier(() -> false);
 
         final Object[] expectedSearchAfter = new Object[] { "search_after" };
         final DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction();
@@ -2037,7 +2036,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
      */
     public void testNotifyDoneIgnoresRelocationWhenNotRequestedWithScrollSearch() throws Exception {
         configurePitOrScroll(false);
-        worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        worker.setHasNodeToRelocateToSupplier(() -> true);
 
         final String expectedScrollId = scrollId();
         final DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction();
@@ -2068,7 +2067,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
      */
     public void testNotifyDoneIgnoresRelocationWhenNotRequestedWithPITSearch() throws Exception {
         configurePitOrScroll(true);
-        worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        worker.setHasNodeToRelocateToSupplier(() -> true);
 
         final Object[] expectedSearchAfter = new Object[] { "search_after" };
         final DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction();
@@ -2100,7 +2099,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
     public void testNotifyDoneConsumesRemainingHitsBeforeRelocatingWithScrollSearch() {
         configurePitOrScroll(false);
         testTask.requestRelocation();
-        worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        worker.setHasNodeToRelocateToSupplier(() -> true);
 
         final String expectedScrollId = scrollId();
         final AtomicBoolean onScrollResponseCalled = new AtomicBoolean();
@@ -2146,7 +2145,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
     public void testNotifyDoneConsumesRemainingHitsBeforeRelocatingWithPITSearch() {
         configurePitOrScroll(true);
         testTask.requestRelocation();
-        worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        worker.setHasNodeToRelocateToSupplier(() -> true);
 
         final Object[] expectedSearchAfter = new Object[] { "search_after" };
         final AtomicBoolean onScrollResponseCalled = new AtomicBoolean();
@@ -2192,7 +2191,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
     public void testNotifyDoneRelocationWithPITFailsWhenSearchAfterMissing() {
         configurePitOrScroll(true);
         testTask.requestRelocation();
-        worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        worker.setHasNodeToRelocateToSupplier(() -> true);
 
         final DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction();
         final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(
@@ -2249,7 +2248,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         assertTrue(testTask.isRelocatedTask());
 
         testTask.requestRelocation();
-        worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        worker.setHasNodeToRelocateToSupplier(() -> true);
 
         final DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction(TimeValue.timeValueHours(1));
 
@@ -2279,7 +2278,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         final BulkByPaginatedSearchTask.Status status = randomStatus();
 
         final WorkerBulkByPaginatedSearchTaskState workerState = mock(WorkerBulkByPaginatedSearchTaskState.class);
-        when(workerState.getNodeToRelocateTo()).thenReturn(Optional.of("target-node"));
+        when(workerState.hasNodeToRelocateTo()).thenReturn(true);
         when(workerState.getStatus()).thenReturn(status);
 
         final BulkByPaginatedSearchTask task = mock(BulkByPaginatedSearchTask.class);
@@ -2320,7 +2319,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
     public void testNotifyDoneCooldownDoesNotApplyToNonRelocatedTask() {
         // Use a non-relocated task (the default testTask has null relocationOrigin)
         testTask.requestRelocation();
-        worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        worker.setHasNodeToRelocateToSupplier(() -> true);
 
         final String expectedScrollId = scrollId();
         // Large cooldown, but task is not relocated so it should not apply

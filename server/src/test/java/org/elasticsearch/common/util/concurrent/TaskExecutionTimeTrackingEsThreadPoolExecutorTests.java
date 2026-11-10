@@ -22,8 +22,11 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
@@ -32,6 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -251,6 +255,179 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         }
     }
 
+    /**
+     * A task is charged to the first target it sets, less what it charged elsewhere. The time of the tasks that set a target
+     * or charge themselves counts as attributed.
+     */
+    public void testTaskLoadAttribution() throws Exception {
+        var executor = attributingExecutor();
+        try {
+            AtomicLong first = new AtomicLong();
+            AtomicLong second = new AtomicLong();
+            TaskLoadAttribution.Target firstTarget = (nanos, finishNanos) -> first.addAndGet(nanos);
+            TaskLoadAttribution.Target secondTarget = (nanos, finishNanos) -> second.addAndGet(nanos);
+            // outside a pool task, attributing does nothing
+            TaskLoadAttribution.attribute(secondTarget);
+
+            runTask(executor, 1, () -> {
+                TaskLoadAttribution.attribute(firstTarget);
+                TaskLoadAttribution.attribute(secondTarget);
+            });
+            assertThat(first.get(), greaterThan(0L));
+            assertThat(second.get(), equalTo(0L));
+            assertThat(executor.getAttributedTaskExecutionTime(), equalTo(first.get()));
+
+            long attributed = executor.getAttributedTaskExecutionTime();
+            long total = executor.getTotalTaskExecutionTime();
+            runTask(executor, 2, () -> TaskLoadAttribution.attribute(TaskLoadAttribution.CHARGED_BY_TASK));
+            assertThat(executor.getAttributedTaskExecutionTime() - attributed, equalTo(executor.getTotalTaskExecutionTime() - total));
+            assertThat(second.get(), equalTo(0L));
+
+            attributed = executor.getAttributedTaskExecutionTime();
+            total = executor.getTotalTaskExecutionTime();
+            runTask(executor, 3, () -> {});
+            assertThat(executor.getAttributedTaskExecutionTime(), equalTo(attributed));
+            assertThat(executor.getTotalTaskExecutionTime(), greaterThan(total));
+
+            // a part of a task charged elsewhere is not charged to its target again
+            first.set(0);
+            attributed = executor.getAttributedTaskExecutionTime();
+            total = executor.getTotalTaskExecutionTime();
+            runTask(executor, 4, () -> {
+                TaskLoadAttribution.attribute(firstTarget);
+                TaskLoadAttribution.charge(secondTarget, 1, System.nanoTime());
+            });
+            long taskNanos = executor.getTotalTaskExecutionTime() - total;
+            assertThat(second.get(), equalTo(1L));
+            assertThat(first.get(), equalTo(taskNanos - 1));
+            assertThat(executor.getAttributedTaskExecutionTime() - attributed, equalTo(taskNanos));
+        } finally {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    /**
+     * The tasks of a charging executor are charged to its target, and run, fail or are rejected as they would be without it.
+     */
+    public void testChargingExecutor() throws Exception {
+        var executor = attributingExecutor();
+        AtomicLong charged = new AtomicLong();
+        Executor charging = TaskLoadAttribution.charging(executor, (nanos, finishNanos) -> charged.addAndGet(nanos));
+        AtomicInteger ran = new AtomicInteger();
+        AtomicInteger failed = new AtomicInteger();
+        AtomicInteger rejected = new AtomicInteger();
+        AtomicInteger completed = new AtomicInteger();
+        try {
+            boolean fails = randomBoolean();
+            charging.execute(countingTask(fails, ran, failed, rejected, completed));
+            assertBusy(() -> assertThat(executor.getCompletedTaskCount(), equalTo(1L)));
+            assertThat(ran.get(), equalTo(1));
+            assertThat(failed.get(), equalTo(fails ? 1 : 0));
+            assertThat(completed.get(), equalTo(1));
+            assertBusy(() -> assertThat(charged.get(), equalTo(executor.getTotalTaskExecutionTime())));
+            assertThat(executor.getAttributedTaskExecutionTime(), equalTo(executor.getTotalTaskExecutionTime()));
+        } finally {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        }
+
+        // the executor is shut down, so the task is rejected
+        ran.set(0);
+        completed.set(0);
+        charging.execute(countingTask(false, ran, failed, rejected, completed));
+        assertThat(rejected.get(), equalTo(1));
+        assertThat(completed.get(), equalTo(1));
+        assertThat(ran.get(), equalTo(0));
+    }
+
+    /**
+     * A task whose failure handling throws is failed once, and completed once.
+     */
+    public void testChargingExecutorFailsTaskOnce() {
+        Executor charging = TaskLoadAttribution.charging(EsExecutors.DIRECT_EXECUTOR_SERVICE, (nanos, finishNanos) -> {});
+        AtomicInteger failed = new AtomicInteger();
+        AtomicInteger completed = new AtomicInteger();
+        var thrown = expectThrows(IllegalArgumentException.class, () -> charging.execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() {
+                throw new IllegalStateException("simulated");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failed.incrementAndGet();
+                throw new IllegalArgumentException("simulated failure handling", e);
+            }
+
+            @Override
+            public void onAfter() {
+                completed.incrementAndGet();
+            }
+        }));
+        assertThat(thrown.getCause(), instanceOf(IllegalStateException.class));
+        assertThat(failed.get(), equalTo(1));
+        assertThat(completed.get(), equalTo(1));
+    }
+
+    private static AbstractRunnable countingTask(
+        boolean fails,
+        AtomicInteger ran,
+        AtomicInteger failed,
+        AtomicInteger rejected,
+        AtomicInteger completed
+    ) {
+        return new AbstractRunnable() {
+            @Override
+            protected void doRun() {
+                ran.incrementAndGet();
+                if (fails) {
+                    throw new IllegalStateException("simulated");
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failed.incrementAndGet();
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                rejected.incrementAndGet();
+            }
+
+            @Override
+            public void onAfter() {
+                completed.incrementAndGet();
+            }
+        };
+    }
+
+    private TaskExecutionTimeTrackingEsThreadPoolExecutor attributingExecutor() {
+        return buildExecutor(
+            randomIdentifier(),
+            1,
+            TimedRunnable::new,
+            EsExecutors.TaskTrackingConfig.builder()
+                .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
+                .attributeTaskLoad()
+                .build()
+        );
+    }
+
+    /**
+     * Runs {@code task} for at least a microsecond, so its measured time is never zero, and waits until it is the
+     * {@code completed}th task of the executor to complete.
+     */
+    private static void runTask(TaskExecutionTimeTrackingEsThreadPoolExecutor executor, long completed, Runnable task) throws Exception {
+        executor.execute(() -> {
+            long start = System.nanoTime();
+            while (System.nanoTime() - start < 1_000) {
+                Thread.onSpinWait();
+            }
+            task.run();
+        });
+        assertBusy(() -> assertThat(executor.getCompletedTaskCount(), equalTo(completed)));
+    }
+
     /** Use a runnable wrapper that simulates a task with unknown failures. */
     public void testExceptionThrowingTask() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
@@ -356,6 +533,28 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         }
     }
 
+    /**
+     * A pool that does not attribute its task load charges nothing, even for tasks that set a target.
+     */
+    public void testNoAttributionUnlessConfigured() throws Exception {
+        final var threadPoolName = randomIdentifier();
+        var executor = buildExecutor(
+            threadPoolName,
+            1,
+            TimedRunnable::new,
+            EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST).build()
+        );
+        try {
+            AtomicLong charged = new AtomicLong();
+            runTask(executor, 1, () -> TaskLoadAttribution.attribute((nanos, finishNanos) -> charged.addAndGet(nanos)));
+            assertThat(executor.getTotalTaskExecutionTime(), greaterThan(0L));
+            assertThat(executor.getAttributedTaskExecutionTime(), equalTo(0L));
+            assertThat(charged.get(), equalTo(0L));
+        } finally {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        }
+    }
+
     public void testEwmrUtilizationMetricNotPublishedWhenDisabled() {
         final var threadPoolName = randomIdentifier();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
@@ -396,7 +595,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             TimeUnit.MILLISECONDS,
             ConcurrentCollections.newBlockingQueue(),
             wrapper,
-            TestEsExecutors.testOnlyDaemonThreadFactory("test-" + threadPoolName),
+            EsExecutors.daemonThreadFactory("test", "test-" + threadPoolName),
             new EsAbortPolicy(),
             new ThreadContext(Settings.EMPTY),
             config,

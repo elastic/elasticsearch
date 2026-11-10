@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -651,7 +652,7 @@ public class SearchableSnapshotDirectoryFactory {
                 ""
             ),
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+            RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         ).initialize("node1", "existingAllocationId", ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
         DiscoveryNode targetNode = new DiscoveryNode(

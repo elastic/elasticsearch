@@ -287,6 +287,32 @@ public final class MultiRowTestCaseSupplier {
         return cases;
     }
 
+    /**
+     * Cases for {@code counter_integer}, {@code counter_long} and {@code counter_double}. Counter types share the block
+     * representation of their numeric counterparts, so these reuse the numeric cases with the counter type.
+     */
+    public static List<TypedDataSupplier> counterCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        intCases(minRows, maxRows, Integer.MIN_VALUE, Integer.MAX_VALUE, true).forEach(s -> cases.add(asType(s, DataType.COUNTER_INTEGER)));
+        longCases(minRows, maxRows, Long.MIN_VALUE, Long.MAX_VALUE, true).forEach(s -> cases.add(asType(s, DataType.COUNTER_LONG)));
+        doubleCases(minRows, maxRows, -Double.MAX_VALUE, Double.MAX_VALUE, true).forEach(
+            s -> cases.add(asType(s, DataType.COUNTER_DOUBLE))
+        );
+        return cases;
+    }
+
+    private static TypedDataSupplier asType(TypedDataSupplier supplier, DataType type) {
+        return new TypedDataSupplier(
+            supplier.name() + " as " + type.typeName(),
+            supplier.supplier(),
+            type,
+            supplier.forceLiteral(),
+            supplier.multiRow(),
+            supplier.appliesTo(),
+            supplier.preview()
+        );
+    }
+
     public static List<TypedDataSupplier> dateCases(int minRows, int maxRows) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 

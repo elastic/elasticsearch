@@ -11,8 +11,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Map;
 
@@ -28,6 +30,22 @@ public interface SearchStats {
     boolean isIndexed(FieldName field);
 
     boolean hasDocValues(FieldName field);
+
+    /**
+     * Whether every shard here can query {@code field}, read as {@code type}: see
+     * {@link SearchContextStats#isQueryable(SearchExecutionContext, String, DataType, boolean)}. At least one must hold the field.
+     */
+    default boolean isQueryable(FieldName field, DataType type, boolean comparesValuesAsRead) {
+        return hasDocValues(field);
+    }
+
+    /**
+     * Whether a shard here reads {@code field} as the key of a {@code flattened} field, a {@code keyword} whatever the type of the
+     * field other indices map.
+     */
+    default boolean readsKey(FieldName field) {
+        return false;
+    }
 
     boolean hasExactSubfield(FieldName field);
 

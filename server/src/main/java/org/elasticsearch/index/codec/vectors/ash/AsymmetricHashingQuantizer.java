@@ -61,6 +61,7 @@ public final class AsymmetricHashingQuantizer {
     }
 
     private final float projectedDimsFraction;
+    private final int maxProjectedDims;
     private final Method method;
     private final int bitsPerDim;
     private final int nTrainingIterations;
@@ -102,18 +103,20 @@ public final class AsymmetricHashingQuantizer {
      * Creates an ASH quantizer with the given configuration.
      *
      * @param projectedDimsFraction fraction of original dimensions to project to (e.g. 0.5 for half)
+     * @param maxProjectedDims
+     *        maximum number of projected dims
+     *        (calculated as {@code min(maxProjectedDims, originalDim * projectedDimsFraction)}
      * @param bitsPerDim bits per projected dimension in the body
      * @param method training method for W
      * @param nTrainingIterations number of Procrustes iterations refining the rotation of the PCA subspace (for LEARNED);
      *        zero keeps the rotation random
      * @param trainingFactor multiplier on dimension for training sample size
      * @param seed random seed
-     * @throws IllegalArgumentException if {@code nTrainingIterations} is negative, {@code bitsPerDim} is not a
-     *         {@linkplain IvfSegmentConfig.AshConfig#isValidBitsPerDim(int) valid ASH bit width} or
-     *         {@code projectedDimsFraction} is not in (0, 1]
+     * @throws IllegalArgumentException if any argument is outside its valid range
      */
     public AsymmetricHashingQuantizer(
         float projectedDimsFraction,
+        int maxProjectedDims,
         int bitsPerDim,
         Method method,
         int nTrainingIterations,
@@ -124,11 +127,15 @@ public final class AsymmetricHashingQuantizer {
         if (projectedDimsFraction <= 0 || projectedDimsFraction > 1.0f) {
             throw new IllegalArgumentException("projectedDimsFraction must be in (0, 1]");
         }
+        if (maxProjectedDims <= 0) {
+            throw new IllegalArgumentException("maxProjectedDims must be > 0");
+        }
         IvfSegmentConfig.AshConfig.validateBitsPerDim(bitsPerDim);
         if (nTrainingIterations < 0) {
             throw new IllegalArgumentException("nTrainingIterations must not be negative");
         }
         this.projectedDimsFraction = projectedDimsFraction;
+        this.maxProjectedDims = maxProjectedDims;
         this.method = method;
         this.bitsPerDim = bitsPerDim;
         this.nTrainingIterations = nTrainingIterations;
@@ -145,7 +152,7 @@ public final class AsymmetricHashingQuantizer {
      * @return the number of projected dimensions
      */
     public int nDims(int originalDim) {
-        return (int) (originalDim * projectedDimsFraction);
+        return Math.min(maxProjectedDims, (int) (originalDim * projectedDimsFraction));
     }
 
     /**
@@ -366,11 +373,6 @@ public final class AsymmetricHashingQuantizer {
 
         for (int start = 0; start < trainingSize; start += blockRows) {
             int rows = Math.min(blockRows, trainingSize - start);
-            if (rows != blockRows) {
-                // the final, partial block: the multiply needs exactly-sized arrays
-                block = new float[rows * originalDim];
-                blockT = new float[rows * originalDim];
-            }
             for (int i = 0; i < rows; i++) {
                 int srcIdx = sampleIndices[start + i];
                 float[] centroid = centroids.apply(srcIdx);
@@ -578,10 +580,10 @@ public final class AsymmetricHashingQuantizer {
 
         @Override
         protected void project() {
-            // The multiply doesn't have offsets, so the full matrix is calculated
-            // Although this means that partial blocks multiply whatever is left in 'centered' after the tail,
-            // only 'size' rows are read back
-            ESVectorUtil.matrixMultiply(centered, w, maxBlockSize, originalDim, nDims, latent, executor);
+            // round the rows up to next multiple of 8 so the matrix multiply doesn't have to deal with row tails
+            // maxBlockSize can vary in tests
+            int roundedSize = Math.min(maxBlockSize, (size + 7) & ~7);
+            ESVectorUtil.matrixMultiply(centered, w, roundedSize, originalDim, nDims, latent, executor);
         }
     }
 
@@ -669,8 +671,9 @@ public final class AsymmetricHashingQuantizer {
 
         @Override
         protected void project() {
-            // As in FloatBlockEncoder, rows past 'size' hold stale data and are never read back
-            ESVectorUtil.matrixMultiplyI8(centeredQ, wq, maxBlockSize, originalDim, nDims, product, executor);
+            // round the rows up to nearest 8, same as floats
+            int roundedSize = Math.min(maxBlockSize, (size + 7) & ~7);
+            ESVectorUtil.matrixMultiplyI8(centeredQ, wq, roundedSize, originalDim, nDims, product, executor);
 
             // scale the multiply results back to floats
             // copy to an array, then iterate through the array for speed

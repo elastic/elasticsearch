@@ -15,15 +15,23 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -285,6 +293,87 @@ public class IVFKnnVectorQueryCalibratedMergeTests extends ESTestCase {
                 TopDocs hits = searcher.search(rewritten, k);
                 assertThat(hits.scoreDocs.length, lessThanOrEqualTo(k));
             }
+        }
+    }
+
+    /**
+     * Only a leaf at the largest collector budget may publish the shared cutoff. Overspill duplicates can leave a smaller
+     * queue with fewer than mergeK unique docs, so its cutoff would let other leaves prune candidates that still belong in
+     * the merge window. A calibrated segment shares the shard with an uncalibrated one that falls back to the mapping
+     * oversample (10, budget 200), so the merge budget is 100. The calibrated segment is checked below the merge budget
+     * (oversample 1.25, budget 25) and above it (oversample 6, budget 120, possibly only 60 unique docs).
+     */
+    public void testLeafBelowMaxLeafBudgetDoesNotPublishSharedCutoff() throws IOException {
+        final int k = 10;
+        final float mappingOversample = 10f;
+        IvfSegmentConfig uncalibrated = IvfSegmentConfig.fromCodecDefaults(
+            CentroidIndexFormat.FLAT,
+            new IvfSegmentConfig.OsqConfig(QuantEncoding.ONE_BIT_4BIT_QUERY),
+            false
+        );
+        assertThat(IvfSegmentConfig.shardMergeBudget(k, mappingOversample), equalTo(100));
+
+        CheckedConsumer<Float, IOException> assertOnlyMaxBudgetLeafPublishes = calibratedOversample -> {
+            IvfSegmentConfig calibrated = IvfSegmentConfig.of(
+                CentroidIndexFormat.FLAT,
+                new IvfSegmentConfig.OsqConfig(QuantEncoding.ONE_BIT_4BIT_QUERY),
+                false,
+                calibratedOversample
+            );
+            try (Directory dir = newDirectory()) {
+                try (
+                    DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildTwoCommitsTwoSegments(
+                        dir,
+                        4,
+                        64,
+                        calibrated,
+                        uncalibrated,
+                        IvfMergeConfigResolver.useCodecDefault()
+                    )
+                ) {
+                    assertThat(reader.leaves(), hasSize(2));
+                    float[] queryVector = new float[4];
+                    for (int i = 0; i < queryVector.length; i++) {
+                        queryVector[i] = randomFloat();
+                    }
+                    VectorUtil.l2normalize(queryVector);
+
+                    var resolver = IvfQueryConfigResolver.from(true, false, 4, mappingOversample, null);
+                    List<CollectorManagerArgs> captured = Collections.synchronizedList(new ArrayList<>());
+                    new CollectorManagerCapturingQuery(queryVector, k, resolver, captured).rewrite(newSearcher(reader));
+
+                    assertThat(
+                        Set.copyOf(captured.stream().map(args -> Map.entry(args.k(), args.sharedScore().canPublish())).toList()),
+                        equalTo(
+                            Set.of(
+                                Map.entry(IvfSegmentConfig.leafCollectorBudget(k, calibratedOversample), false),
+                                Map.entry(IvfSegmentConfig.leafCollectorBudget(k, mappingOversample), true)
+                            )
+                        )
+                    );
+                }
+            }
+        };
+
+        assertOnlyMaxBudgetLeafPublishes.accept(1.25f);
+        assertOnlyMaxBudgetLeafPublishes.accept(6f);
+    }
+
+    private record CollectorManagerArgs(int k, SharedMinCompetitiveScore sharedScore) {}
+
+    /** Records the arguments {@code rewrite()} passes to each leaf's collector manager. */
+    private static class CollectorManagerCapturingQuery extends IVFKnnFloatVectorQuery {
+        private final List<CollectorManagerArgs> captured;
+
+        CollectorManagerCapturingQuery(float[] query, int k, IvfQueryConfigResolver resolver, List<CollectorManagerArgs> captured) {
+            super(ESNextRescoreOversampleTestFixture.FIELD_NAME, query, k, 500, null, 1f, resolver);
+            this.captured = captured;
+        }
+
+        @Override
+        protected IVFCollectorManager getKnnCollectorManager(int k, SharedMinCompetitiveScore sharedScore) {
+            captured.add(new CollectorManagerArgs(k, sharedScore));
+            return super.getKnnCollectorManager(k, sharedScore);
         }
     }
 }

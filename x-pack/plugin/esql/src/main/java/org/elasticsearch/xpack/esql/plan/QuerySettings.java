@@ -283,6 +283,17 @@ public final class QuerySettings {
         .build();
 
     @Param(
+        name = "time_series_reduce_per_index",
+        type = { "boolean" },
+        description = "When enabled, time-series aggregates are reduced separately in each index before results are combined. This uses "
+            + "less memory and can improve query performance, but results may be approximate for time buckets that overlap index rollover "
+            + "boundaries and for windowed aggregates whose windows reach across those boundaries. Defaults to `false`."
+    )
+    public static final QuerySettingDef<Boolean> TIME_SERIES_REDUCE_PER_INDEX = QuerySettingDef.bool("time_series_reduce_per_index")
+        .withTelemetryLabels(List.of("false", "true"), value -> Boolean.toString(Boolean.TRUE.equals(value)))
+        .build();
+
+    @Param(
         name = "exemplars",
         type = { "boolean", "map_param" },
         description = "When enabled, the provided `TS ... | STATS` or `PROMQL` query is not executed. Instead, exemplars considered"
@@ -327,6 +338,7 @@ public final class QuerySettings {
         WILDCARDS_MATCH_VIEWS,
         PROJECT_ROUTING,
         TIME_ZONE,
+        TIME_SERIES_REDUCE_PER_INDEX,
         UNMAPPED_FIELDS
     );
 

@@ -14,6 +14,9 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -34,6 +37,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.test.TestSearchContext;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -42,6 +46,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
 
 public class ShardSearchStatsTests extends IndexShardTestCase {
 
@@ -54,6 +60,52 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
         ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
         SearchStatsSettings searchStatsSettings = new SearchStatsSettings(clusterSettings);
         this.shardSearchStatsListener = new ShardSearchStats(searchStatsSettings);
+    }
+
+    /**
+     * A phase run by a task whose pool charges its time does not charge its took time to the shard on top, even when it completes
+     * on another thread, but still charges it to its groups.
+     */
+    public void testPhasesOfChargedTasksDoNotChargeTheirTookTime() {
+        EsThreadPoolExecutor pool = EsExecutors.newFixed(
+            "charging",
+            1,
+            -1,
+            EsExecutors.daemonThreadFactory("test", "charging"),
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.builder()
+                .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
+                .attributeTaskLoad()
+                .build()
+        );
+        try (SearchContext sc = createSearchContext(false)) {
+            safeGet(pool.submit(() -> {
+                shardSearchStatsListener.onPreDfsPhase(sc);
+                shardSearchStatsListener.onDfsPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
+                shardSearchStatsListener.onPreQueryPhase(sc);
+                shardSearchStatsListener.onQueryPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
+                shardSearchStatsListener.onPreFetchPhase(sc);
+            }));
+            shardSearchStatsListener.onFetchPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
+            assertEquals(0, shardSearchStatsListener.totalSearchLoadNanos());
+            assertEquals(1, shardSearchStatsListener.stats().getTotal().getQueryCount());
+            SearchStats.Stats group = Objects.requireNonNull(shardSearchStatsListener.stats("_all").getGroupStats()).get("group1");
+            assertTrue(group.getSearchLoadRate() > 0.0);
+        } finally {
+            ThreadPool.terminate(pool, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    /**
+     * Time charged to several shards is shared between them without losing any.
+     */
+    public void testChargingShardsKeepsAllTheTime() {
+        SearchStatsSettings searchStatsSettings = new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings());
+        List<ShardSearchStats> shards = randomList(1, 5, () -> new ShardSearchStats(searchStatsSettings));
+        long nanos = randomLongBetween(0, 1000);
+        ShardSearchStats.charge(List.of(), nanos, System.nanoTime());
+        ShardSearchStats.charge(shards, nanos, System.nanoTime());
+        assertEquals(nanos, shards.stream().mapToLong(ShardSearchStats::totalSearchLoadNanos).sum());
     }
 
     public void testDfsPhase() {

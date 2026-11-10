@@ -895,6 +895,11 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return circuitBreaker;
     }
 
+    @Override
+    protected CircuitBreaker parsedContentBreaker() {
+        return circuitBreaker;
+    }
+
     /**
      * Adds memory usage to the request circuit breaker, accumulating against this SEC's pool drained by
      * {@link #releaseQueryConstructionMemory()}; the rewrite-phase clone in {@code SearchService} must not charge here.

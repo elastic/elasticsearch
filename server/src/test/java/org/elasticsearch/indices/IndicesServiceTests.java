@@ -229,23 +229,15 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         protected void parseCreateField(DocumentParserContext context) {}
 
         @Override
-        public Builder getMergeBuilder() {
-            return new DeprecatedParameterMapper.TypeBuilder(leafName()).init(this);
-        }
-
-        @Override
         protected String contentType() {
             return CONTENT_TYPE;
         }
 
         static class TypeBuilder extends FieldMapper.Builder {
 
-            private final Parameter<String> deprecatedParam = Parameter.stringParam(
-                "deprecated_field",
-                true,
-                m -> ((DeprecatedParameterFieldType) m.fieldType()).deprecatedField,
-                null
-            ).acceptsNull().deprecated();
+            private final Parameter<String> deprecatedParam = Parameter.stringParam("deprecated_field", true, null)
+                .acceptsNull()
+                .deprecated();
 
             TypeBuilder(String name) {
                 super(name);

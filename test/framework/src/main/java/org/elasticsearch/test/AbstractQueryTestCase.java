@@ -106,10 +106,17 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * Create an inner query supported by {@link #createQueryWithInnerQuery}. Defaults to a match_all query.
+     */
+    protected QueryBuilder createInnerQuery() {
+        return new MatchAllQueryBuilder();
+    }
+
     public void testMaxNestedDepth() throws IOException {
         QB query = null;
         try {
-            query = createQueryWithInnerQuery(new MatchAllQueryBuilder());
+            query = createQueryWithInnerQuery(createInnerQuery());
         } catch (UnsupportedOperationException e) {
             assumeNoException("Runs only for queries that support nesting", e);
         }

@@ -395,7 +395,8 @@ public record TranslationContext(
             aggregates(value, input.step(), outKeys),
             null,
             time,
-            TimeSeriesAggregate.Origin.PROMQL_COMMAND
+            TimeSeriesAggregate.Origin.PROMQL_COMMAND,
+            false
         );
     }
 

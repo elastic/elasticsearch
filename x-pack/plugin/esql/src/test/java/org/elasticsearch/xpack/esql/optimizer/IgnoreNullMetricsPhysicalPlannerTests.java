@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -42,6 +43,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
@@ -103,6 +105,21 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends AbstractLocalPhysical
 
         QueryBuilder expected = unscore(existsQuery("network.eth0.tx"));
         assertThat(queryExec.query().toString(), is(expected.toString()));
+    }
+
+    /**
+     * PromQL count and presence functions read a counter directly, so only documents with a value of the counter are read.
+     */
+    public void testPushdownOfPromqlCountAndPresenceOverCounter() {
+        assumeTrue("requires PROMQL command", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+        for (String function : List.of("present_over_time", "absent_over_time", "count_over_time")) {
+            String query = "PROMQL index=k8s step=1h result=(" + function + "(network.total_bytes_in[1h]))";
+            PhysicalPlan actualPlan = plannerOptimizerTimeSeries.plan(query);
+            EsQueryExec queryExec = (EsQueryExec) actualPlan.collect(node -> node instanceof EsQueryExec).get(0);
+
+            assertNotNull(function, queryExec.query());
+            assertThat(function, queryExec.query().toString(), containsString(unscore(existsQuery("network.total_bytes_in")).toString()));
+        }
     }
 
     public void testPushdownOfMixedAggregateMetricDoubleAndDoubleMetric() {

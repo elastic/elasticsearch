@@ -10,8 +10,12 @@ package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
+import io.opentelemetry.proto.metrics.v1.Metric;
 import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
 
+import org.elasticsearch.cluster.routing.TsidLayout;
+import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
@@ -45,6 +49,36 @@ public class DataPointGroupingContextTests extends ESTestCase {
         MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
     );
     private final long nowUnixNanos = System.currentTimeMillis() * 1_000_000L;
+
+    /** Metric order can change between scrapes without changing the identity of the time series. */
+    public void testMetricNamesHashIgnoresMetricOrder() throws Exception {
+        Metric a = createGaugeMetric("a", "", List.of(createDoubleDataPoint(nowUnixNanos)));
+        Metric b = createGaugeMetric("b", "", List.of(createDoubleDataPoint(nowUnixNanos)));
+        Metric c = createGaugeMetric("c", "", List.of(createDoubleDataPoint(nowUnixNanos)));
+        List<List<Metric>> permutations = List.of(
+            List.of(a, b, c),
+            List.of(c, b, a),
+            List.of(a, c, b),
+            List.of(b, a, c),
+            List.of(b, c, a),
+            List.of(c, a, b)
+        );
+        var groups = new ArrayList<DataPointGroupingContext.DataPointGroup>();
+        for (List<Metric> metrics : permutations) {
+            context.groupDataPoints(createMetricsRequest(metrics));
+            context.consume(groups::add);
+        }
+        assertEquals(permutations.size(), groups.size());
+        var hasher = new BufferedMurmur3Hasher(0);
+        String expectedHash = groups.getFirst().getMetricNamesHash(hasher);
+        var layout = TsidLayout.forVersion(IndexVersion.current());
+        var expectedTsid = groups.getFirst().buildMetricTsid(expectedHash, layout);
+        for (var group : groups) {
+            String hash = group.getMetricNamesHash(hasher);
+            assertEquals(expectedTsid, group.buildMetricTsid(hash, layout));
+            assertEquals(expectedHash, hash);
+        }
+    }
 
     public void testGroupingSameGroup() throws Exception {
         ExportMetricsServiceRequest metricsRequest = createMetricsRequest(

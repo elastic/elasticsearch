@@ -84,6 +84,7 @@ processingCommand
     | {this.isDevVersion()}? lookupCommand
     | dedupCommand
     | {this.isDevVersion()}? fillNullCommand
+    | {this.isDevVersion()}? describeCommand
     ;
 
 whereCommand
@@ -391,6 +392,10 @@ tsInfoCommand
 
 tsCollapseCommand
     : TS_COLLAPSE
+    ;
+
+describeCommand
+    : DEV_DESCRIBE
     ;
 
 //

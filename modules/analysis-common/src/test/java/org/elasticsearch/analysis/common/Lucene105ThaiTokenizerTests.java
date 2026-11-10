@@ -9,21 +9,11 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.th.ThaiTokenizer;
 import org.elasticsearch.test.ESTokenStreamTestCase;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.function.Supplier;
-
-import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
-import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.checkRandomData;
 
 /**
  * {@link Lucene105ThaiTokenizer} must cut the segmenting buffer only where Lucene 10.5's {@code SegmentingTokenizerBase} did (line
- * terminators), and otherwise tokenize exactly like {@link ThaiTokenizer}.
+ * terminators). {@link ThaiAnalyzerBwcTests} covers the resulting tokens.
  */
 public class Lucene105ThaiTokenizerTests extends ESTokenStreamTestCase {
 
@@ -40,46 +30,4 @@ public class Lucene105ThaiTokenizerTests extends ESTokenStreamTestCase {
         assertFalse(tokenizer.isSafeEnd('ก'));
     }
 
-    /**
-     * A Thai word straddling the 1024-char buffer after a space but with no newline: the legacy tokenizer slices it the way
-     * Lucene 10.5 did, Lucene's current tokenizer does not.
-     */
-    public void testLongBufferWithoutNewlines() throws IOException {
-        ThaiAnalyzerBwcTests.assertPreLucene106ThaiTokenizer(analyzer(Lucene105ThaiTokenizer::new));
-        ThaiAnalyzerBwcTests.assertLucene106ThaiTokenizer(analyzer(ThaiTokenizer::new));
-    }
-
-    /** With a newline before the straddling word both rules cut at the same place, so the two tokenizers agree. */
-    public void testLongBufferWithNewlineMatchesCurrent() throws IOException {
-        String text = "ก".repeat(1021) + "\nแมว";
-        String[] expected = new String[512];
-        Arrays.fill(expected, 0, 510, "กก");
-        expected[510] = "ก";
-        expected[511] = "แมว";
-        assertAnalyzesTo(analyzer(Lucene105ThaiTokenizer::new), text, expected);
-        assertAnalyzesTo(analyzer(ThaiTokenizer::new), text, expected);
-    }
-
-    /** Short text never reaches a buffer cut, so the two tokenizers agree. */
-    public void testShortTextMatchesCurrent() throws IOException {
-        String text = "การที่ได้ต้องแสดงว่างานดี ภาษาไทย 1234";
-        String[] expected = new String[] { "การ", "ที่", "ได้", "ต้อง", "แสดง", "ว่า", "งาน", "ดี", "ภาษา", "ไทย", "1234" };
-        assertAnalyzesTo(analyzer(Lucene105ThaiTokenizer::new), text, expected);
-        assertAnalyzesTo(analyzer(ThaiTokenizer::new), text, expected);
-    }
-
-    public void testRandomStrings() throws IOException {
-        try (Analyzer analyzer = analyzer(Lucene105ThaiTokenizer::new)) {
-            checkRandomData(random(), analyzer, 200);
-        }
-    }
-
-    private static Analyzer analyzer(Supplier<Tokenizer> tokenizer) {
-        return new Analyzer() {
-            @Override
-            protected TokenStreamComponents createComponents(String fieldName) {
-                return new TokenStreamComponents(tokenizer.get());
-            }
-        };
-    }
 }

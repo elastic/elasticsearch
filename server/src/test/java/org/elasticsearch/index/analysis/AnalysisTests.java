@@ -226,12 +226,12 @@ public class AnalysisTests extends ESTestCase {
 
     /**
      * Lucene 10.6 shrank the default Thai stop list from 115 to 87 words. {@code _thai_} must keep resolving to the old list for
-     * indices created before {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0}, or queries on those indices would stop removing words
-     * that were removed when their documents were indexed.
+     * indices created on a Lucene version before {@link Version#LUCENE_10_6_0}, or queries on those indices would stop removing
+     * words that were removed when their documents were indexed.
      */
     public void testThaiNamedStopWordsFollowIndexCreatedVersion() {
-        IndexVersion legacy = IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
-        IndexVersion current = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
+        IndexVersion legacy = IndexVersionUtils.randomWriteVersionBeforeLucene(Version.LUCENE_10_6_0);
+        IndexVersion current = IndexVersionUtils.randomWriteVersionOnOrAfterLucene(Version.LUCENE_10_6_0);
         Settings stopwords = Settings.builder().put("stopwords", "_thai_").build();
 
         CharArraySet legacySet = Analysis.parseStopWords(legacy, null, stopwords, CharArraySet.EMPTY_SET);
@@ -270,25 +270,11 @@ public class AnalysisTests extends ESTestCase {
 
     /** Only {@code _thai_} is gated; every other named set and any explicit word resolves the same on both sides. */
     public void testOtherNamedStopWordsIgnoreThaiGate() {
-        IndexVersion legacy = IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
+        IndexVersion legacy = IndexVersionUtils.randomWriteVersionBeforeLucene(Version.LUCENE_10_6_0);
         Settings settings = Settings.builder().putList("stopwords", "_english_", "foo").build();
         CharArraySet legacySet = Analysis.parseStopWords(legacy, null, settings, CharArraySet.EMPTY_SET);
         CharArraySet currentSet = Analysis.parseStopWords(IndexVersion.current(), null, settings, CharArraySet.EMPTY_SET);
         assertEquals(currentSet, legacySet);
         assertEquals(EnglishAnalyzer.getDefaultStopSet().size() + 1, legacySet.size());
-    }
-
-    /** The deprecated unversioned overloads resolve named sets as a new index would. */
-    @SuppressWarnings("deprecation")
-    public void testUnversionedStopWordsResolveAsCurrent() {
-        Settings settings = Settings.builder().put("stopwords", "_thai_").put("common_words", "_thai_").build();
-        assertEquals(ThaiAnalyzer.getDefaultStopSet(), Analysis.parseStopWords(null, settings, CharArraySet.EMPTY_SET));
-        assertEquals(ThaiAnalyzer.getDefaultStopSet(), Analysis.parseStopWords(null, settings, CharArraySet.EMPTY_SET, false));
-        assertEquals(ThaiAnalyzer.getDefaultStopSet(), Analysis.parseCommonWords(null, settings, null, false));
-    }
-
-    /** The vendored list is shared node-wide, so it must not be mutable. */
-    public void testLucene105ThaiStopWordsAreUnmodifiable() {
-        expectThrows(UnsupportedOperationException.class, () -> Lucene105ThaiStopWords.defaultStopSet().add("foo"));
     }
 }

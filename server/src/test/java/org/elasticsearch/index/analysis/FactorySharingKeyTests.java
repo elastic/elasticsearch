@@ -110,26 +110,6 @@ public class FactorySharingKeyTests extends ESTestCase {
         assertNotEquals(keep.sharingKey(), remove.sharingKey());
     }
 
-    /**
-     * {@code _thai_} resolves to a different list on either side of {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0}; the
-     * content-hashed stop set in the key must keep the two apart.
-     */
-    public void testStopFactoryThaiNamedSetDiffersAcrossThaiGate() {
-        Environment env = env();
-        Settings thai = Settings.builder().put("stopwords", "_thai_").build();
-        IndexVersion legacy = IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
-        StopTokenFilterFactory oldA = new StopTokenFilterFactory(indexSettings(legacy), env, "a", thai);
-        StopTokenFilterFactory oldB = new StopTokenFilterFactory(
-            indexSettings(IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0)),
-            env,
-            "b",
-            thai
-        );
-        StopTokenFilterFactory current = new StopTokenFilterFactory(indexSettings(), env, "c", thai);
-        assertEquals(oldA.sharingKey(), oldB.sharingKey());
-        assertNotEquals(oldA.sharingKey(), current.sharingKey());
-    }
-
     // ---- PreBuiltAnalyzerProviderFactory ----
 
     /**

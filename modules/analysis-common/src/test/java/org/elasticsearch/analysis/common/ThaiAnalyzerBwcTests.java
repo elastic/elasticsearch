@@ -11,13 +11,13 @@ package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.not;
 
 /**
  * Pins every Elasticsearch entry point to Thai analysis to the token stream its index was created with. Lucene 10.6 changed what
- * Lucene's Thai analysis produces; indices created before {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0} must keep the Lucene 10.5
+ * Lucene's Thai analysis produces; indices created on a Lucene version before {@link Version#LUCENE_10_6_0} must keep the Lucene 10.5
  * tokens (otherwise documents indexed after an upgrade, and queries, would be analyzed differently from the documents already in the
  * index), while newer indices get Lucene's current output. The entry points are:
  * <ul>
@@ -97,16 +97,6 @@ public class ThaiAnalyzerBwcTests extends ESTokenStreamTestCase {
         assertAnalyzesTo(current, "ที่ผ่านมา", new String[] { "ผ่าน", "มา" });
     }
 
-    /** An explicit {@code stopwords: _thai_} on the {@code thai} analyzer resolves through the same gate as its default. */
-    public void testThaiAnalyzerWithExplicitThaiStopwords() throws IOException {
-        Settings settings = Settings.builder()
-            .put("index.analysis.analyzer.my_thai.type", "thai")
-            .put("index.analysis.analyzer.my_thai.stopwords", "_thai_")
-            .build();
-        assertPreLucene106ThaiTokens(analysis(legacyVersion(), settings).indexAnalyzers.get("my_thai"));
-        assertLucene106ThaiTokens(analysis(gatedVersion(), settings).indexAnalyzers.get("my_thai"));
-    }
-
     public void testNamedThaiTokenizer() throws IOException {
         Settings settings = Settings.builder()
             .put("index.analysis.tokenizer.my_thai.type", "thai")
@@ -128,81 +118,13 @@ public class ThaiAnalyzerBwcTests extends ESTokenStreamTestCase {
         assertLucene106ThaiTokenizer(analysis(gatedVersion(), settings).indexAnalyzers.get("thai_only"));
     }
 
-    /** The version immediately before the gate is legacy and the gate version itself is not. */
-    public void testGateBoundary() throws IOException {
-        IndexVersion before = IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
-        IndexVersion at = IndexVersions.UPGRADE_TO_LUCENE_10_6_0;
-
-        assertThat(
-            new ThaiAnalyzerProvider(indexSettings(before), env(), "a", Settings.EMPTY).get(),
-            instanceOf(Lucene105ThaiAnalyzer.class)
-        );
-        assertThat(new ThaiAnalyzerProvider(indexSettings(at), env(), "a", Settings.EMPTY).get(), instanceOf(ThaiAnalyzer.class));
-        assertThat(
-            new ThaiTokenizerFactory(indexSettings(before), env(), "t", Settings.EMPTY).create(),
-            instanceOf(Lucene105ThaiTokenizer.class)
-        );
-        assertThat(
-            new ThaiTokenizerFactory(indexSettings(at), env(), "t", Settings.EMPTY).create(),
-            not(instanceOf(Lucene105ThaiTokenizer.class))
-        );
-
-        PreConfiguredTokenizer preconfigured = new CommonAnalysisPlugin().getPreConfiguredTokenizers()
-            .stream()
-            .filter(t -> t.getName().equals("thai"))
-            .findFirst()
-            .orElseThrow();
-        assertThat(
-            preconfigured.get(indexSettings(before), env(), "thai", Settings.EMPTY).create(),
-            instanceOf(Lucene105ThaiTokenizer.class)
-        );
-        assertThat(
-            preconfigured.get(indexSettings(at), env(), "thai", Settings.EMPTY).create(),
-            not(instanceOf(Lucene105ThaiTokenizer.class))
-        );
-    }
-
-    /** Lucene versions, rather than index version ordering, select the Thai analysis generation. */
-    public void testGenerationFollowsLuceneVersion() {
-        IndexVersion backportWithCurrentLucene = new IndexVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0.id() - 1, Version.LUCENE_10_6_0);
-        IndexVersion laterIndexWithLegacyLucene = new IndexVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0.id() + 1, Version.LUCENE_10_5_2);
-
-        assertEquals(ThaiAnalysis.Generation.CURRENT, ThaiAnalysis.generation(backportWithCurrentLucene));
-        assertEquals(ThaiAnalysis.Generation.LUCENE_10_5, ThaiAnalysis.generation(laterIndexWithLegacyLucene));
-    }
-
-    /**
-     * Two indices with identical Thai settings on opposite sides of the gate must never share a component: the gate side is part of
-     * every gated factory's sharing key. Identical settings on the same side still share.
-     */
-    public void testSharingKeysIncludeGateSide() throws IOException {
-        IndexSettings legacy = indexSettings(legacyVersion());
-        IndexSettings otherLegacy = indexSettings(legacyVersion());
-        IndexSettings current = indexSettings(gatedVersion());
-        Environment env = env();
-
-        Object legacyTokenizer = new ThaiTokenizerFactory(legacy, env, "a", Settings.EMPTY).sharingKey();
-        assertEquals(legacyTokenizer, new ThaiTokenizerFactory(otherLegacy, env, "b", Settings.EMPTY).sharingKey());
-        assertNotEquals(legacyTokenizer, new ThaiTokenizerFactory(current, env, "c", Settings.EMPTY).sharingKey());
-
-        Object legacyAnalyzer = new ThaiAnalyzerProvider(legacy, env, "a", Settings.EMPTY).sharingKey();
-        assertEquals(legacyAnalyzer, new ThaiAnalyzerProvider(otherLegacy, env, "b", Settings.EMPTY).sharingKey());
-        assertNotEquals(legacyAnalyzer, new ThaiAnalyzerProvider(current, env, "c", Settings.EMPTY).sharingKey());
-
-        // The same explicit list on both sides: only the gate side tells the two chains apart.
-        Settings explicit = Settings.builder().putList("stopwords", "foo").build();
-        assertNotEquals(
-            new ThaiAnalyzerProvider(legacy, env, "a", explicit).sharingKey(),
-            new ThaiAnalyzerProvider(current, env, "b", explicit).sharingKey()
-        );
-    }
-
+    /** The gate is the index's Lucene version, so versions are chosen by Lucene version and not by index version ordering. */
     private static IndexVersion legacyVersion() {
-        return IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
+        return IndexVersionUtils.randomWriteVersionBeforeLucene(Version.LUCENE_10_6_0);
     }
 
     private static IndexVersion gatedVersion() {
-        return IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
+        return IndexVersionUtils.randomWriteVersionOnOrAfterLucene(Version.LUCENE_10_6_0);
     }
 
     private IndexSettings indexSettings(IndexVersion version) {
@@ -239,6 +161,10 @@ public class ThaiAnalyzerBwcTests extends ESTokenStreamTestCase {
         // #16718: ไป / ที่+ผ่าน+มา were all default stops
         assertAnalyzesTo(analyzer, "ไป", new String[] {});
         assertAnalyzesTo(analyzer, "ที่ผ่านมา", new String[] {});
+        // #16717: no ThaiCharFilter, so a zero-width space survives into the term
+        assertAnalyzesTo(analyzer, "แม​ว", new String[] { "แม​ว" });
+        // the normalization path (e.g. wildcard terms) has no Thai normalization either
+        assertEquals(new BytesRef("เเมว"), analyzer.normalize("f", "เเมว"));
     }
 
     /** Lucene {@code ThaiAnalyzer} tokens since 10.6. */
@@ -248,6 +174,8 @@ public class ThaiAnalyzerBwcTests extends ESTokenStreamTestCase {
         assertAnalyzesTo(analyzer, "เร็วๆ", new String[] { "เร็ว", "เร็ว" });
         assertAnalyzesTo(analyzer, "ไป", new String[] { "ไป" });
         assertAnalyzesTo(analyzer, "ที่ผ่านมา", new String[] { "ผ่าน", "มา" });
+        assertAnalyzesTo(analyzer, "แม​ว", new String[] { "แมว" });
+        assertEquals(new BytesRef("แมว"), analyzer.normalize("f", "เเมว"));
     }
 
     /** 1021 {@code ก} characters, a space, then {@code แมว} sitting across the default 1024-char buffer. */

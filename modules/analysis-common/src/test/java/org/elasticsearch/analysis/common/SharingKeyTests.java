@@ -11,6 +11,7 @@ package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -345,14 +346,16 @@ public class SharingKeyTests extends ESTestCase {
     }
 
     /**
-     * Every Thai entry point changed output in Lucene 10.6 and is gated on {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0}, so
-     * indices on opposite sides of the gate must never share an analyzer built from it, while indices on the same side still do.
+     * Every Thai entry point changed output in Lucene 10.6 and is gated on the index's Lucene version, so indices on opposite
+     * sides of the gate must never share an analyzer built from it, while indices on the same side still do.
      */
     public void testThaiAnalysisDoesNotShareAcrossThaiGate() throws IOException {
-        IndexVersion legacy = IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
+        IndexVersion legacy = IndexVersionUtils.randomWriteVersionBeforeLucene(Version.LUCENE_10_6_0);
         IndexVersion current = IndexVersion.current();
         List<Settings> recipes = List.of(
             Settings.builder().put("index.analysis.analyzer.a.type", "thai").build(),
+            // the same explicit stop list on both sides: only the gate tells the two chains apart
+            Settings.builder().put("index.analysis.analyzer.a.type", "thai").putList("index.analysis.analyzer.a.stopwords", "foo").build(),
             Settings.builder().put("index.analysis.analyzer.a.tokenizer", "thai").build(),
             Settings.builder().put("index.analysis.tokenizer.t.type", "thai").put("index.analysis.analyzer.a.tokenizer", "t").build(),
             Settings.builder()
@@ -375,7 +378,7 @@ public class SharingKeyTests extends ESTestCase {
      * The prebuilt {@code thai} analyzer is version-sensitive too; its default name-based sharing key would collapse the two sides.
      */
     public void testPrebuiltThaiAnalyzerDoesNotShareAcrossThaiGate() throws IOException {
-        IndexVersion legacyVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
+        IndexVersion legacyVersion = IndexVersionUtils.randomWriteVersionBeforeLucene(Version.LUCENE_10_6_0);
         Analyzer legacy = buildPrebuilt(legacyVersion, "thai");
         Analyzer current = buildPrebuilt(IndexVersion.current(), "thai");
         assertThat(legacy, instanceOf(Lucene105ThaiAnalyzer.class));

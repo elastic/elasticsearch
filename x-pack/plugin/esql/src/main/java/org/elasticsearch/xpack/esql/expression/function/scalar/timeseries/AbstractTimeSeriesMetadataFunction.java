@@ -31,12 +31,12 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * Shared type validation and transport for operations on a label container. Internal: only PromQL translation builds
  * these, so they have no ES|QL function name.
  */
-public abstract class AbstractTimeSeriesFunction extends EsqlScalarFunction {
-    protected AbstractTimeSeriesFunction(Source source, List<Expression> arguments) {
+public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunction {
+    protected AbstractTimeSeriesMetadataFunction(Source source, List<Expression> arguments) {
         super(source, arguments);
     }
 
-    protected AbstractTimeSeriesFunction(StreamInput in) throws IOException {
+    protected AbstractTimeSeriesMetadataFunction(StreamInput in) throws IOException {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteableCollectionAsList(Expression.class));
     }
 
@@ -48,7 +48,11 @@ public abstract class AbstractTimeSeriesFunction extends EsqlScalarFunction {
     public final void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteableCollection(children());
+        writeArguments(out);
     }
+
+    /** Writes the arguments that are not expressions, after the children; a subclass reads them back in the same order. */
+    protected void writeArguments(StreamOutput out) throws IOException {}
 
     @Override
     protected final TypeResolution resolveType() {

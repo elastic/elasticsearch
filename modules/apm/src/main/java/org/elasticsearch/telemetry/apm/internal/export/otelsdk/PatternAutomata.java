@@ -19,7 +19,7 @@ import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import java.util.List;
 
 /** Compiles the wildcard patterns of the tracing settings, in which {@code *} matches any sequence of characters. */
-public final class PatternAutomata {
+final class PatternAutomata {
 
     private PatternAutomata() {}
 
@@ -27,7 +27,7 @@ public final class PatternAutomata {
      * Matches what is matched by any of the {@code includePatterns} (anything if there are none), unless it is also matched by any of the
      * {@code excludePatterns}.
      */
-    public static CharacterRunAutomaton compile(List<String> includePatterns, List<String> excludePatterns) {
+    static CharacterRunAutomaton compile(List<String> includePatterns, List<String> excludePatterns) {
         Automaton includeAutomaton = patternsToAutomaton(includePatterns);
         Automaton excludeAutomaton = patternsToAutomaton(excludePatterns);
 

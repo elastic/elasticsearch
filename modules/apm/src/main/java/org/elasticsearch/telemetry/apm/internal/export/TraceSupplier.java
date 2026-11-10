@@ -12,9 +12,11 @@ package org.elasticsearch.telemetry.apm.internal.export;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.trace.SpanProcessor;
+import io.opentelemetry.sdk.trace.export.SpanExporter;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
 
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 /**
  * Analogous to {@link MeterSupplier} but for traces. Supplies an {@link OpenTelemetry} instance
@@ -36,6 +38,6 @@ public interface TraceSupplier extends Supplier<OpenTelemetry>, AutoCloseable {
     @FunctionalInterface
     interface Factory {
 
-        TraceSupplier create(SpanProcessor spanProcessor, Sampler sampler);
+        TraceSupplier create(UnaryOperator<SpanExporter> exporterDecorator, SpanProcessor spanProcessor, Sampler sampler);
     }
 }

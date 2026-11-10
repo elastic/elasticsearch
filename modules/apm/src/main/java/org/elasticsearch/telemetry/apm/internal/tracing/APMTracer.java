@@ -12,15 +12,12 @@ package org.elasticsearch.telemetry.apm.internal.tracing;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.context.Context;
 
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.telemetry.apm.internal.export.otelsdk.PatternAutomata;
 import org.elasticsearch.telemetry.tracing.Span;
 import org.elasticsearch.telemetry.tracing.Tracer;
 
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -36,8 +33,6 @@ public class APMTracer implements Tracer {
     private final Supplier<OpenTelemetry> openTelemetry;
     private final AtomicBoolean enabled; // instance shared with sampler
     private final AtomicBoolean recordExceptionStacks;
-
-    private volatile CharacterRunAutomaton labelFilterAutomaton = PatternAutomata.compile(List.of(), List.of());
 
     public APMTracer(
         ThreadContext threadContext,
@@ -81,15 +76,6 @@ public class APMTracer implements Tracer {
 
     boolean isEnabled() {
         return enabled.get();
-    }
-
-    public void setLabelFilters(List<String> labelFilters) {
-        this.labelFilterAutomaton = PatternAutomata.compile(labelFilters, List.of());
-    }
-
-    /** Whether the value of an attribute with the given key is sensitive and must be redacted. */
-    boolean isRedacted(String attributeKey) {
-        return labelFilterAutomaton.run(attributeKey);
     }
 
     boolean recordExceptionStacks() {

@@ -30,8 +30,6 @@ public class APMSpanBuilder implements SpanBuilder {
 
     private static final Logger logger = LogManager.getLogger(APMSpanBuilder.class);
 
-    private static final String REDACTED = "[REDACTED]";
-
     private final APMTracer tracer;
     private final String name;
 
@@ -49,31 +47,19 @@ public class APMSpanBuilder implements SpanBuilder {
 
     @Override
     public SpanBuilder setAttribute(String key, boolean value) {
-        if (tracer.isRedacted(key)) {
-            attributesBuilder().put(key, REDACTED);
-        } else {
-            attributesBuilder().put(key, value);
-        }
+        attributesBuilder().put(key, value);
         return this;
     }
 
     @Override
     public SpanBuilder setAttribute(String key, double value) {
-        if (tracer.isRedacted(key)) {
-            attributesBuilder().put(key, REDACTED);
-        } else {
-            attributesBuilder().put(key, value);
-        }
+        attributesBuilder().put(key, value);
         return this;
     }
 
     @Override
     public SpanBuilder setAttribute(String key, long value) {
-        if (tracer.isRedacted(key)) {
-            attributesBuilder().put(key, REDACTED);
-        } else {
-            attributesBuilder().put(key, value);
-        }
+        attributesBuilder().put(key, value);
         return this;
     }
 
@@ -83,11 +69,7 @@ public class APMSpanBuilder implements SpanBuilder {
             assert false : "attribute " + key + " is null";
             return this;
         }
-        if (tracer.isRedacted(key)) {
-            attributesBuilder().put(key, REDACTED);
-        } else {
-            attributesBuilder().put(key, value);
-        }
+        attributesBuilder().put(key, value);
         return this;
     }
 

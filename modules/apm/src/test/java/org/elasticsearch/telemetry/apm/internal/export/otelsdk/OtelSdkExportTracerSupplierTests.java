@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -183,6 +184,7 @@ public class OtelSdkExportTracerSupplierTests extends ESTestCase {
         return new OtelSdkExportTracerSupplier(
             settings,
             meterProvider,
+            UnaryOperator.identity(),
             SpanProcessor.composite(),
             new ElasticTracestateSampler(new AtomicBoolean(true), settings)
         );

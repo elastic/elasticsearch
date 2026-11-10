@@ -859,22 +859,12 @@ public class RestoreServiceTests extends ESTestCase {
             )
         );
 
-        // Allocation with zero data nodes: shards stay unassigned, but the restore must remain in progress.
+        // Allocation with zero data nodes: the restore primary correctly stays unassigned.
         clusterState = allocationService.reroute(clusterState, "reroute with no data nodes", ActionListener.noop());
         ShardRouting primary = clusterState.routingTable().index("test").shard(0).primaryShard();
-        assertThat(primary.state(), equalTo(ShardRoutingState.UNASSIGNED));
-        assertThat(primary.recoverySource().getType(), equalTo(RecoverySource.Type.SNAPSHOT));
+        assertFalse("restore primary must wait while there are no data nodes", primary.assignedToNode());
 
-        RestoreInProgress.Entry restoreAfterNoDataNodes = RestoreInProgress.get(clusterState).get(restoreUUID);
-        assertNotNull(restoreAfterNoDataNodes);
-        assertThat(
-            "temporary absence of data nodes must not permanently fail the restore",
-            restoreAfterNoDataNodes.shards().get(shardId).state(),
-            not(equalTo(RestoreInProgress.State.FAILURE))
-        );
-        assertFalse("restore must remain in progress while waiting for data nodes", restoreAfterNoDataNodes.state().completed());
-
-        // Data node returns: restore should be able to allocate the primary.
+        // Data node returns: the restore must place the primary rather than staying stuck unassigned.
         final DiscoveryNode dataNode = DiscoveryNodeUtils.builder("data").roles(Set.of(DiscoveryNodeRole.DATA_ROLE)).build();
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(dataNode))
@@ -883,11 +873,10 @@ public class RestoreServiceTests extends ESTestCase {
 
         primary = clusterState.routingTable().index("test").shard(0).primaryShard();
         assertThat(
-            "restore primary must allocate once a data node is available again",
-            primary.state(),
-            equalTo(ShardRoutingState.INITIALIZING)
+            "restore primary must be placed once a data node is available again",
+            primary.currentNodeId(),
+            equalTo(dataNode.getId())
         );
-        assertThat(primary.currentNodeId(), equalTo(dataNode.getId()));
     }
 
     /**

@@ -30,7 +30,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
+import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
@@ -55,9 +58,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class DatafeedJobBuilderTests extends ESTestCase {
@@ -289,6 +295,90 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             jobBuilder.build(),
             new RestartTimeInfo(8 * hour, recordStamp, true),
             new DatafeedTimingStats(jobBuilder.getId())
+        );
+
+        buildDatafeedJob(newDatafeedTask("datafeed1"), datafeedContext, datafeedJobHandler);
+        assertBusy(() -> assertTrue(wasHandlerCalled.get()));
+    }
+
+    public void testBuildGivenEsqlDatafeedShouldRestorePersistedCheckpointSourceEnd() throws Exception {
+        assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Detector.Builder detector = new Detector.Builder("count", null);
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
+        analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
+        Job.Builder jobBuilder = new Job.Builder("esql-job");
+        jobBuilder.setAnalysisConfig(analysisConfig);
+        jobBuilder.setDataDescription(dataDescription);
+        jobBuilder.setCreateTime(new Date());
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", jobBuilder.getId()).setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
+            .build();
+        String fingerprint = EsqlDatafeedSourceCheckpoint.computeFingerprint(datafeed, "time");
+        EsqlDatafeedSourceCheckpoint checkpoint = new EsqlDatafeedSourceCheckpoint(
+            jobBuilder.getId(),
+            datafeed.getId(),
+            3_600_000L,
+            fingerprint
+        );
+
+        AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
+        ActionListener<DatafeedJob> datafeedJobHandler = ActionTestUtils.assertNoFailureListener(datafeedJob -> {
+            assertThat(datafeedJob.esqlSourceEndMs(), equalTo(3_600_000L));
+            wasHandlerCalled.set(true);
+        });
+
+        DatafeedContext datafeedContext = new DatafeedContext(
+            datafeed,
+            jobBuilder.build(),
+            new RestartTimeInfo(7_200_000L, 7_200_000L, true),
+            new DatafeedTimingStats(jobBuilder.getId()),
+            checkpoint
+        );
+
+        buildDatafeedJob(newDatafeedTask("esql-datafeed"), datafeedContext, datafeedJobHandler);
+
+        assertBusy(() -> assertTrue(wasHandlerCalled.get()));
+        verify(jobResultsPersister, never()).persistEsqlDatafeedSourceCheckpoint(any());
+    }
+
+    public void testBuildGivenEsqlDatafeedAndDiscardedCheckpointShouldNotUseStaleSourceEnd() throws Exception {
+        assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+        jobBuilder.setCreateTime(new Date());
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId()).setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
+            .build();
+        Job job = jobBuilder.build();
+        EsqlDatafeedSourceCheckpoint staleCheckpoint = new EsqlDatafeedSourceCheckpoint(
+            job.getId(),
+            datafeed.getId(),
+            999_000L,
+            "stale-fingerprint"
+        );
+        EsqlDatafeedSourceCheckpoint validatedCheckpoint = DatafeedContextProvider.validateLoadedCheckpoint(datafeed, job, staleCheckpoint);
+        assertThat(validatedCheckpoint, nullValue());
+
+        AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
+        ActionListener<DatafeedJob> datafeedJobHandler = ActionTestUtils.assertNoFailureListener(datafeedJob -> {
+            assertThat(datafeedJob.esqlSourceEndMs(), nullValue());
+            wasHandlerCalled.set(true);
+        });
+
+        DatafeedContext datafeedContext = new DatafeedContext(
+            datafeed,
+            job,
+            new RestartTimeInfo(8 * TimeValue.timeValueHours(1).millis(), 9 * TimeValue.timeValueHours(1).millis(), true),
+            new DatafeedTimingStats(job.getId()),
+            validatedCheckpoint
         );
 
         buildDatafeedJob(newDatafeedTask("datafeed1"), datafeedContext, datafeedJobHandler);

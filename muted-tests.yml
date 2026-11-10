@@ -467,3 +467,8 @@ tests:
   - :server:internalClusterTest
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/165284
+- class: org.elasticsearch.xpack.stateless.cache.CacheMissWaitTimeHeaderIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testCacheMissWaitTimeHeader
+  issue: https://github.com/elastic/elasticsearch/issues/165322

@@ -283,8 +283,10 @@ class DatafeedJob {
         Long resumeFromMs = sourceResumeFromMs();
         if (resumeFromMs != null) {
             if (resumeFromMs > startTime) {
+                // start time is before last checkpoint, thus continue from checkpoint
                 return resumeFromMs;
             }
+            // start time is after last checkpoint, thus we need to skip time
             FlushJobAction.Request request = new FlushJobAction.Request(jobId);
             request.setSkipTime(String.valueOf(startTime));
             request.setRefreshRequired(false);

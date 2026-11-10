@@ -101,6 +101,24 @@ public class DynamicMultiFieldTests extends MapperServiceTestCase {
         assertThat(added.get(0).leafName(), equalTo("obj.my.field"));
     }
 
+    public void testSeveralParentsUpdatedInOneContext() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("one").field("type", "text").endObject();
+            b.startObject("two").field("type", "text").endObject();
+        }));
+        DocumentParserContext context = new TestDocumentParserContext(mapperService.parserContext(), mapperService.mappingLookup());
+
+        context.updateMapping("one", builder -> ((FieldMapper.Builder) builder).addMultiField(keyword(mapperService, "raw")));
+        context.updateMapping("two", builder -> ((FieldMapper.Builder) builder).addMultiField(keyword(mapperService, "raw")));
+        context.updateMapping("one", builder -> ((FieldMapper.Builder) builder).addMultiField(keyword(mapperService, "other")));
+
+        assertThat(context.getDynamicMappers("one"), hasSize(1));
+        assertThat(context.getDynamicMappers("two"), hasSize(1));
+        String restated = Strings.toString(context.getDynamicMappers("one").get(0));
+        assertThat(restated, containsString("\"raw\":{\"type\":\"keyword\"}"));
+        assertThat(restated, containsString("\"other\":{\"type\":\"keyword\"}"));
+    }
+
     public void testUnmappedParent() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "text")));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> addMultiField(mapperService, "missing", "raw"));

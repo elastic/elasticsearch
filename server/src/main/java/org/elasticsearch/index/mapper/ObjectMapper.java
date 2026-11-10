@@ -860,7 +860,7 @@ public class ObjectMapper extends Mapper {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
                 FieldPathFilter fieldFilter = parserContext.fieldPathFilter();
-                if (fieldFilter != null && fieldFilter.enter(fieldName) == false) {
+                if (fieldFilter != null && fieldFilter.enter(fieldName, entry.getValue()) == false) {
                     iterator.remove();
                     continue;
                 }

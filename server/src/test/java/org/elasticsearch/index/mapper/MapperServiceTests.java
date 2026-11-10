@@ -241,7 +241,10 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat(collectedPaths(mapperService, source, "text.raw"), containsInAnyOrder("text", "text.raw"));
         assertThat(collectedPaths(mapperService, source, "obj.x"), containsInAnyOrder("obj.x"));
         assertThat(collectedPaths(mapperService, source, "obj.*"), containsInAnyOrder("obj.x", "obj.y"));
-        assertThat(collectedPaths(mapperService, source, "o*.y"), containsInAnyOrder("obj.x", "obj.y"));
+        assertThat(collectedPaths(mapperService, source, "o*.y"), containsInAnyOrder("obj.y"));
+        assertThat(collectedPaths(mapperService, source, "*.y"), containsInAnyOrder("obj.y"));
+        assertThat(collectedPaths(mapperService, source, "*.raw"), containsInAnyOrder("text", "text.raw"));
+        assertThat(collectedPaths(mapperService, source, "*.missing"), empty());
         assertThat(collectedPaths(mapperService, source, "a", "text"), containsInAnyOrder("a", "text", "text.raw"));
         assertThat(collectedPaths(mapperService, source, "missing"), empty());
         assertThat(collectedPaths(mapperService, source, "*"), containsInAnyOrder("a", "text", "text.raw", "obj.x", "obj.y"));

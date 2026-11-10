@@ -13,7 +13,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
@@ -27,6 +26,7 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.ScriptCompiler;
 
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -63,10 +63,10 @@ public class MappingParserContext {
     private final FieldPathFilter fieldPathFilter;
 
     /**
-     * Parses the source of a stored mapping into builders, optionally applying a filter
+     * Parses the source of a stored mapping into builders that was decoded to a map, optionally applying a filter
      */
     @FunctionalInterface
-    public interface StoredMappingParser extends BiFunction<CompressedXContent, FieldPathFilter, MappingBuilder> {}
+    public interface StoredMappingParser extends BiFunction<Map<String, Object>, FieldPathFilter, MappingBuilder> {}
 
     // Package-private: used by MapperService (to pass ParseFieldLimits and the stored mapping parser directly) and by inner subcontexts.
     MappingParserContext(
@@ -258,13 +258,15 @@ public class MappingParserContext {
     /**
      * Parses the source of a mapping that is already stored into builders.  If a
      * {@link FieldPathFilter} is defined in this context, only fields that match
-     * the filter are parsed.
+     * the filter are parsed. The root is the stored mapping decoded to a map, without its type name, which can be shared between calls: parsing
+     * consumes the map, so it is the copy that is parsed.
      */
-    MappingBuilder parseStoredMapping(CompressedXContent source) {
+    MappingBuilder parseStoredMapping(Map<String, Object> decodedRoot) {
         if (storedMappingParser == null) {
             throw new IllegalStateException("this context has no parser for stored mappings");
         }
-        return storedMappingParser.apply(source, fieldPathFilter);
+        FieldPathFilter copyFilter = fieldPathFilter != null ? fieldPathFilter : FieldPathFilter.matchAll();
+        return storedMappingParser.apply(copyFilter.filteredCopy(decodedRoot), fieldPathFilter);
     }
 
     public Supplier<SearchExecutionContext> searchExecutionContext() {

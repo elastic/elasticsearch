@@ -314,7 +314,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             mapperRegistry.getNamespaceValidator(),
             projectMetadataSupplier,
             ParseFieldLimits.parseFieldLimits(reason, indexSettings),
-            (source, fieldFilter) -> parseMappings(source, MergeReason.MAPPING_RECOVERY, fieldFilter),
+            this::parseStoredMappings,
             null
         );
         this.documentParser = new DocumentParser(
@@ -698,6 +698,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public MappingBuilder parseMappings(CompressedXContent mappingSource, MergeReason reason, @Nullable FieldPathFilter fieldFilter) {
         return mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, reason, MappingParser.convertToMap(mappingSource), fieldFilter);
+    }
+
+    private MappingBuilder parseStoredMappings(Map<String, Object> decodedMappings, @Nullable FieldPathFilter fieldFilter) {
+        return mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, MergeReason.MAPPING_RECOVERY, decodedMappings, fieldFilter);
     }
 
     private DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {

@@ -16,7 +16,6 @@ import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -27,18 +26,15 @@ public class DelayErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     }
 
     @Override
-    protected Stream<List<DataType>> testCandidates(List<TestCaseSupplier> cases, Set<List<DataType>> valid) {
-        // TODO DELAY(null) resolves, but fails when building the evaluator
-        return super.testCandidates(cases, valid).filter(signature -> signature.contains(DataType.NULL) == false);
-    }
-
-    @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Delay(source, args.get(0));
     }
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
+        if (signature.getFirst() == DataType.NULL) {
+            return equalTo("first argument of [" + sourceForSignature(signature) + "] cannot be null, received []");
+        }
         return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, p) -> "time_duration"));
     }
 }

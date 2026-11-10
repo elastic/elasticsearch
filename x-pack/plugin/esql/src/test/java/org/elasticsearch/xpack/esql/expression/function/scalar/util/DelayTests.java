@@ -11,7 +11,10 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
@@ -23,6 +26,8 @@ import java.time.Duration;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DelayTests extends AbstractScalarFunctionTestCase {
@@ -63,6 +68,22 @@ public class DelayTests extends AbstractScalarFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Delay(source, args.get(0));
+    }
+
+    public void testTypedNullFailsVerification() {
+        Delay delay = new Delay(Source.EMPTY, new Literal(Source.EMPTY, null, DataType.TIME_DURATION));
+        assertThat(postOptimizationFailures(delay), contains("first argument of [] cannot be null, received []"));
+    }
+
+    public void testNonConstantFailsVerification() {
+        Delay delay = new Delay(Source.EMPTY, referenceAttribute("ms", DataType.TIME_DURATION));
+        assertThat(postOptimizationFailures(delay), contains("first argument of [] must be a constant, received [ms]"));
+    }
+
+    private static List<String> postOptimizationFailures(Delay delay) {
+        Failures failures = new Failures();
+        delay.postOptimizationVerification(failures);
+        return failures.failures().stream().map(Failure::message).toList();
     }
 
     @Override

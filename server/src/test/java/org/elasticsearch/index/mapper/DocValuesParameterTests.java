@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -25,6 +26,8 @@ import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,6 +35,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -1376,7 +1380,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             assertWarnings(docValuesIgnoredWarning("event.original"), docValuesIgnoredWarning("count"));
             assertTrue(mapperService.fieldType("event.original").hasDocValues());
             assertTrue(mapperService.fieldType("count").hasDocValues());
-            assertThat(Strings.toString(mapperService.documentMapper().mapping()), not(containsString("doc_values")));
+            assertThat(mapperService.documentMapper().mappingSource().string(), not(containsString("doc_values")));
         }
     }
 
@@ -1389,7 +1393,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         // doc_values: true is accepted silently: only an explicit false is worth warning about.
         ensureNoWarnings();
         assertTrue(mapperService.fieldType("field").hasDocValues());
-        assertThat(Strings.toString(mapperService.documentMapper().mapping()), not(containsString("doc_values")));
+        assertThat(mapperService.documentMapper().mappingSource().string(), not(containsString("doc_values")));
     }
 
     public void testColumnarDocValuesFalseWithMultiValueFalse() throws Exception {
@@ -1402,7 +1406,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(mapper.docValuesParameters().enabled(), equalTo(true));
         assertThat(mapper.docValuesParameters().multiValue(), equalTo(false));
-        String serialized = Strings.toString(mapperService.documentMapper().mapping());
+        String serialized = mapperService.documentMapper().mappingSource().string();
         assertThat(serialized, containsString("\"multi_value\":false"));
         assertThat(serialized, not(containsString("\"doc_values\"")));
     }
@@ -1431,7 +1435,13 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         assertWarnings(docValuesIgnoredWarning("__dynamic__no_dv"), docValuesIgnoredWarning("tmpl_a"));
         assertTrue(mapperService.fieldType("tmpl_a").hasDocValues());
         // The field mapped from the template does not persist doc_values.
-        assertThat(Strings.toString(mapperService.documentMapper().mappers().getMapper("tmpl_a")), not(containsString("doc_values")));
+        // The dynamic template itself still carries doc_values, so inspect only the mapped field.
+        ObjectPath mapping = ObjectPath.createFromXContent(
+            JsonXContent.jsonXContent,
+            new BytesArray(mapperService.documentMapper().mappingSource().string())
+        );
+        Map<String, Object> tmplA = mapping.evaluate("_doc.properties.tmpl_a");
+        assertThat(tmplA.keySet(), not(hasItem("doc_values")));
     }
 
     public void testColumnarDocValuesNonBooleanStillRejected() {

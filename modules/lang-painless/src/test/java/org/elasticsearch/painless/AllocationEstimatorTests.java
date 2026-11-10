@@ -315,6 +315,15 @@ public class AllocationEstimatorTests extends AllocationTestCase {
             allocatedBytes("DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT); return 'x';")
         );
         assertEquals(TimeAllocationEstimators.TWO_REFERENCE_BYTES, allocatedBytes("DateTimeFormatter.ISO_DATE.toFormat(); return 'x';"));
+        // The combined pattern is joined into a new string on every call.
+        assertEquals(
+            TimeAllocationEstimators.localizedPatternBytes(null, null, null, null),
+            allocatedBytes(
+                "DateTimeFormatterBuilder.getLocalizedDateTimePattern(FormatStyle.SHORT, FormatStyle.SHORT, "
+                    + "IsoChronology.INSTANCE, Locale.ROOT);"
+                    + " return 'x';"
+            )
+        );
     }
 
     public void testParseBestChargesTheSameAsParseWithAQuery() {

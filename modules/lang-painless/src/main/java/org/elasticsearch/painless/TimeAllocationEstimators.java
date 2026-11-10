@@ -179,17 +179,24 @@ public final class TimeAllocationEstimators {
 
     // ---- Flat values, 24 bytes. ----
 
-    /** {@code Instant.from(TemporalAccessor)}. */
+    /**
+     * {@code Instant.from}, {@code LocalDate.from}, {@code LocalTime.from}, {@code MonthDay.from}, {@code Year.from},
+     * {@code YearMonth.from}.
+     */
     public static long flatValueBytes(TemporalAccessor temporal) {
         return FLAT_VALUE_BYTES;
     }
 
-    /** {@code Instant.ofEpochSecond(long)} and {@code Instant.ofEpochMilli(long)}. */
+    /**
+     * {@code Duration.ofDays}, {@code Duration.ofHours}, {@code Duration.ofMillis}, {@code Duration.ofMinutes}, {@code
+     * Duration.ofNanos}, {@code Duration.ofSeconds}, {@code Instant.ofEpochSecond}, {@code Instant.ofEpochMilli},
+     * {@code LocalDate.ofEpochDay}, {@code LocalTime.ofNanoOfDay}, {@code LocalTime.ofSecondOfDay}.
+     */
     public static long flatValueBytes(long value) {
         return FLAT_VALUE_BYTES;
     }
 
-    /** {@code Instant.ofEpochSecond(long, long)}. */
+    /** {@code Duration.ofSeconds}, {@code Instant.ofEpochSecond}. */
     public static long flatValueBytes(long epochSecond, long nanoAdjustment) {
         return FLAT_VALUE_BYTES;
     }
@@ -251,12 +258,12 @@ public final class TimeAllocationEstimators {
         return ZONED_DATE_TIME_BYTES;
     }
 
-    /** {@code ZonedDateTime.of(LocalDateTime, ZoneId)}. */
+    /** {@code LocalDateTime.atZone}, {@code ZonedDateTime.of}. */
     public static long zonedDateTimeBytes(LocalDateTime dateTime, ZoneId zone) {
         return ZONED_DATE_TIME_BYTES;
     }
 
-    /** {@code ZonedDateTime.ofInstant(LocalDateTime, ZoneOffset, ZoneId)} and {@code ofStrict(LocalDateTime, ZoneOffset, ZoneId)}. */
+    /** {@code ZonedDateTime.ofInstant}, {@code ZonedDateTime.ofStrict}. */
     public static long zonedDateTimeBytes(LocalDateTime dateTime, ZoneOffset offset, ZoneId zone) {
         return ZONED_DATE_TIME_BYTES;
     }
@@ -288,12 +295,12 @@ public final class TimeAllocationEstimators {
         return ZONED_DATE_TIME_BYTES;
     }
 
-    /** {@code ZonedDateTime.plus(TemporalAmount)} and {@code minus(TemporalAmount)}. */
+    /** {@code ZonedDateTime.minus}, {@code ZonedDateTime.plus}. */
     public static long zonedDateTimeBytes(ZonedDateTime receiver, TemporalAmount amount) {
         return ZONED_DATE_TIME_BYTES;
     }
 
-    /** {@code ZonedDateTime.plus(long, TemporalUnit)} and {@code minus(long, TemporalUnit)}. */
+    /** {@code ZonedDateTime.minus}, {@code ZonedDateTime.plus}. */
     public static long zonedDateTimeBytes(ZonedDateTime receiver, long amount, TemporalUnit unit) {
         return ZONED_DATE_TIME_BYTES;
     }
@@ -326,14 +333,17 @@ public final class TimeAllocationEstimators {
         return ZONED_DATE_TIME_BYTES;
     }
 
-    /** {@code ZonedDateTime.withZoneSameLocal(ZoneId)} and {@code withZoneSameInstant(ZoneId)}. */
+    /** {@code ZonedDateTime.withZoneSameLocal}, {@code ZonedDateTime.withZoneSameInstant}. */
     public static long zonedDateTimeBytes(ZonedDateTime receiver, ZoneId zone) {
         return ZONED_DATE_TIME_BYTES;
     }
 
     // ---- Text: parse state and new strings, sized from the text when we have it. ----
 
-    /** {@code Instant.parse(CharSequence)}: the parse state plus the flat value. */
+    /**
+     * {@code Instant.parse(CharSequence)}, and the same form on {@code Duration}, {@code LocalDate}, {@code LocalTime},
+     * {@code MonthDay}, {@code Period}, {@code Year} and {@code YearMonth}: the parse state plus the flat value.
+     */
     public static long parseFlatValueBytes(CharSequence text) {
         return AllocSizes.addSat(parseTextBytes(text), FLAT_VALUE_BYTES);
     }
@@ -404,10 +414,9 @@ public final class TimeAllocationEstimators {
     /**
      * {@code Duration.dividedBy}, {@code Duration.minusDays}, {@code Duration.minusHours}, {@code
      * Duration.minusMinutes}, {@code Duration.minusSeconds}, {@code Duration.minusMillis}, {@code
-     * Duration.minusNanos}, {@code Duration.multipliedBy}, {@code Duration.ofDays}, {@code Duration.ofHours}, {@code
-     * Duration.ofMillis}, {@code Duration.ofMinutes}, {@code Duration.ofNanos}, {@code Duration.ofSeconds}, {@code
-     * Duration.plusDays}, {@code Duration.plusHours}, {@code Duration.plusMinutes}, {@code Duration.plusSeconds},
-     * {@code Duration.plusMillis}, {@code Duration.plusNanos}, {@code Duration.withSeconds}.
+     * Duration.minusNanos}, {@code Duration.multipliedBy}, {@code Duration.plusDays}, {@code Duration.plusHours},
+     * {@code Duration.plusMinutes}, {@code Duration.plusSeconds}, {@code Duration.plusMillis}, {@code
+     * Duration.plusNanos}, {@code Duration.withSeconds}.
      */
     public static long flatValueBytes(Duration receiver, long amount) {
         return FLAT_VALUE_BYTES;
@@ -450,8 +459,8 @@ public final class TimeAllocationEstimators {
 
     /**
      * {@code LocalDate.minusYears}, {@code LocalDate.minusMonths}, {@code LocalDate.minusWeeks}, {@code
-     * LocalDate.minusDays}, {@code LocalDate.ofEpochDay}, {@code LocalDate.plusYears}, {@code LocalDate.plusMonths},
-     * {@code LocalDate.plusWeeks}, {@code LocalDate.plusDays}.
+     * LocalDate.minusDays}, {@code LocalDate.plusYears}, {@code LocalDate.plusMonths}, {@code LocalDate.plusWeeks},
+     * {@code LocalDate.plusDays}.
      */
     public static long flatValueBytes(LocalDate receiver, long amount) {
         return FLAT_VALUE_BYTES;
@@ -502,8 +511,8 @@ public final class TimeAllocationEstimators {
 
     /**
      * {@code LocalTime.minusHours}, {@code LocalTime.minusMinutes}, {@code LocalTime.minusNanos}, {@code
-     * LocalTime.minusSeconds}, {@code LocalTime.ofNanoOfDay}, {@code LocalTime.ofSecondOfDay}, {@code
-     * LocalTime.plusHours}, {@code LocalTime.plusMinutes}, {@code LocalTime.plusNanos}, {@code LocalTime.plusSeconds}.
+     * LocalTime.minusSeconds}, {@code LocalTime.plusHours}, {@code LocalTime.plusMinutes}, {@code
+     * LocalTime.plusNanos}, {@code LocalTime.plusSeconds}.
      */
     public static long flatValueBytes(LocalTime receiver, long amount) {
         return FLAT_VALUE_BYTES;
@@ -555,8 +564,8 @@ public final class TimeAllocationEstimators {
     }
 
     /**
-     * {@code Period.ofYears}, {@code Period.ofMonths}, {@code Period.ofWeeks}, {@code Period.ofDays}, {@code
-     * Period.multipliedBy}, {@code Period.withDays}, {@code Period.withMonths}, {@code Period.withYears}.
+     * {@code Period.ofYears}, {@code Period.ofMonths}, {@code Period.ofWeeks}, {@code Period.ofDays}, {@code Year.of},
+     * {@code ZoneOffset.ofHours}, {@code ZoneOffset.ofTotalSeconds}.
      */
     public static long flatValueBytes(int value) {
         return FLAT_VALUE_BYTES;
@@ -671,11 +680,6 @@ public final class TimeAllocationEstimators {
     /** {@code ZoneId.ofOffset}. */
     public static long zoneIdBytes(String prefix, ZoneOffset offset) {
         return TWO_REFERENCE_BYTES;
-    }
-
-    /** {@code ZoneId.normalized}. */
-    public static long flatValueBytes(ZoneId receiver) {
-        return FLAT_VALUE_BYTES;
     }
 
     /**
@@ -1161,6 +1165,17 @@ public final class TimeAllocationEstimators {
         return LOCALIZED_FORMATTER_BYTES;
     }
 
+    /** Characters allowed for a localized pattern string. */
+    private static final long LOCALIZED_PATTERN_CHARACTERS = 64;
+
+    /**
+     * {@code DateTimeFormatterBuilder.getLocalizedDateTimePattern}: the date and time patterns are cached, but each call builds
+     * a cache key string and, when both styles are given, joins the two patterns into a new string.
+     */
+    public static long localizedPatternBytes(FormatStyle dateStyle, FormatStyle timeStyle, Chronology chrono, Locale locale) {
+        return 2 * newStringBytes(LOCALIZED_PATTERN_CHARACTERS);
+    }
+
     // ---- Format adapters. ----
 
     /** {@code DateTimeFormatter.toFormat}: an adapter holding the formatter and a query. */
@@ -1175,7 +1190,7 @@ public final class TimeAllocationEstimators {
 
     // ---- Formatter builder: the builder, one step per appended element, and the built formatter. ----
 
-    /** {@code new DateTimeFormatterBuilder}. */
+    /** {@code new DateTimeFormatterBuilder()}. */
     public static long formatterBuilderBytes() {
         return BUILDER_BYTES;
     }
@@ -1198,8 +1213,8 @@ public final class TimeAllocationEstimators {
     }
 
     /**
-     * {@code DateTimeFormatterBuilder.appendChronologyText}, {@code DateTimeFormatterBuilder.appendLocalizedOffset}, {@code
-     * DateTimeFormatterBuilder.appendZoneText}.
+     * {@code DateTimeFormatterBuilder.appendChronologyText}, {@code DateTimeFormatterBuilder.appendLocalizedOffset},
+     * {@code DateTimeFormatterBuilder.appendZoneText}.
      */
     public static long builderStepBytes(DateTimeFormatterBuilder receiver, TextStyle style) {
         return PATTERN_BYTES_PER_CHARACTER;

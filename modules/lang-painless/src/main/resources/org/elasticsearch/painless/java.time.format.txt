@@ -86,7 +86,7 @@ class java.time.format.DateTimeFormatterBuilder {
   DateTimeFormatterBuilder appendZoneRegionId() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
   DateTimeFormatterBuilder appendZoneText(TextStyle) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
   DateTimeFormatterBuilder appendZoneText(TextStyle,Set) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
-  String getLocalizedDateTimePattern(FormatStyle,FormatStyle,Chronology,Locale)
+  String getLocalizedDateTimePattern(FormatStyle,FormatStyle,Chronology,Locale) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localizedPatternBytes"]
   DateTimeFormatterBuilder optionalEnd() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
   DateTimeFormatterBuilder optionalStart() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
   DateTimeFormatterBuilder padNext(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]

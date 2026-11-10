@@ -941,6 +941,7 @@ decayBoostsMatchScore
 required_capability: decay_function
 required_capability: metadata_score
 required_capability: match_function
+required_capability: routing_function_update
 
 FROM books METADATA _score
 | WHERE MATCH(author, "Faulkner") AND year IS NOT NULL

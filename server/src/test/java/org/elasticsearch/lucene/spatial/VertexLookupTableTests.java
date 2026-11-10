@@ -33,12 +33,30 @@ public class VertexLookupTableTests extends ESTestCase {
         int[] ys = { -5, 0, 300 };
         Extent extent = new Extent();
         extent.addRectangle(x, -5, x, 300);
-        // VInt count + layout byte + 3 vertices * (0 + 2 bytes)
-        assertRoundTrip(xs, ys, extent, 1 + 1 + 3 * 2);
+        // VInt count + layout byte + directory entry (no block minimum bytes, 2 bit widths) + 3 vertices * (0 + 9 bits)
+        assertRoundTrip(xs, ys, extent, 1 + 1 + 2 + 4);
+    }
+
+    /** Each block only pays for its own span, however far apart the blocks are. */
+    public void testBlocksAreLocal() throws IOException {
+        int numVertices = 3 * VertexLookupTable.BLOCK_SIZE;
+        int[] xs = new int[numVertices];
+        int[] ys = new int[numVertices];
+        for (int i = 0; i < numVertices; i++) {
+            int block = i / VertexLookupTable.BLOCK_SIZE;
+            xs[i] = (block << 24) + (i % VertexLookupTable.BLOCK_SIZE);
+            ys[i] = (block << 24) + (i % VertexLookupTable.BLOCK_SIZE);
+        }
+        Extent extent = new Extent();
+        extent.addRectangle(0, 0, xs[numVertices - 1], ys[numVertices - 1]);
+        // VInt count + layout byte + offset width byte
+        // + 3 directory entries * (4 + 4 bytes of block minimum + 2 bit widths + 1 byte offset)
+        // + 3 blocks * 32 vertices * (5 + 5 bits)
+        assertRoundTrip(xs, ys, extent, 1 + 1 + 1 + 3 * 11 + 3 * 40);
     }
 
     public void testRandomSpans() throws IOException {
-        int numVertices = randomIntBetween(1, 200);
+        int numVertices = randomIntBetween(1, 1000);
         long span = randomFrom(0L, 0xFFL, 0xFFFFL, 0xFFFFFFL, 0xFFFFFFFFL, randomLongBetween(0, 0xFFFFFFFFL));
         int minX = (int) randomLongBetween(Integer.MIN_VALUE, Integer.MAX_VALUE - span);
         int minY = (int) randomLongBetween(Integer.MIN_VALUE, Integer.MAX_VALUE - span);
@@ -61,8 +79,9 @@ public class VertexLookupTableTests extends ESTestCase {
         int[] ys = { 10, 20, 30 };
         Extent extent = new Extent();
         extent.addRectangle(10, 10, 20, 30);
-        // VInt count + layout byte + 3 vertices * (4 + 1 bytes)
-        assertRoundTrip(xs, ys, extent, 1 + 1 + 3 * 5);
+        // VInt count + layout byte + directory entry (4 bytes absolute x minimum, no y minimum bytes, 2 bit widths)
+        // + 3 vertices * (4 + 5 bits)
+        assertRoundTrip(xs, ys, extent, 1 + 1 + 6 + 4);
     }
 
     public void testDuplicatesKeepPositionsAndDeduplicateTreeLookups() throws IOException {
@@ -94,6 +113,28 @@ public class VertexLookupTableTests extends ESTestCase {
         for (int i = 0; i < xs.length; i++) {
             assertThat("x of vertex " + i, table.getX(i), equalTo(xs[i]));
             assertThat("y of vertex " + i, table.getY(i), equalTo(ys[i]));
+        }
+        // geometry reconstruction decodes consecutive ranges, which may start and end inside blocks
+        if (xs.length > 0) {
+            int from = randomIntBetween(0, xs.length - 1);
+            int count = randomIntBetween(0, xs.length - from);
+            int offset = randomIntBetween(0, 3);
+            double[] decodedX = new double[offset + count];
+            double[] decodedY = new double[offset + count];
+            table.decode(from, count, CoordinateEncoder.GEO, decodedX, decodedY, offset);
+            for (int i = 0; i < count; i++) {
+                assertThat("decoded x of vertex " + (from + i), decodedX[offset + i], equalTo(CoordinateEncoder.GEO.decodeX(xs[from + i])));
+                assertThat("decoded y of vertex " + (from + i), decodedY[offset + i], equalTo(CoordinateEncoder.GEO.decodeY(ys[from + i])));
+            }
+        }
+        // the tree reads ordinals in arbitrary order, across blocks
+        for (int n = 0; n < xs.length; n++) {
+            int i = randomIntBetween(0, xs.length - 1);
+            assertThat("x of vertex " + i, table.getX(i), equalTo(xs[i]));
+            assertThat("y of vertex " + i, table.getY(i), equalTo(ys[i]));
+            long xy = table.getXY(i);
+            assertThat("packed x of vertex " + i, (int) (xy >>> 32), equalTo(xs[i]));
+            assertThat("packed y of vertex " + i, (int) xy, equalTo(ys[i]));
         }
     }
 }

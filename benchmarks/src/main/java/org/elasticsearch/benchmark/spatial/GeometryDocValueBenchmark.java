@@ -49,6 +49,7 @@ import java.nio.ByteOrder;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -76,7 +77,7 @@ public class GeometryDocValueBenchmark {
         LogConfigurator.configureESLogging();
     }
 
-    @Param({ "point", "multiPoint", "simpleLine", "complexLine", "simplePoly", "complexPoly", "largePoly" })
+    @Param({ "point", "multiPoint", "simpleLine", "complexLine", "routeLine", "simplePoly", "complexPoly", "largePoly" })
     public String geometryType;
 
     private Geometry geometry;
@@ -234,6 +235,7 @@ public class GeometryDocValueBenchmark {
             case "multiPoint" -> createMultiPoint(100);
             case "simpleLine" -> new Line(new double[] { 0, 5, 10, 15, 20 }, new double[] { 0, 5, 0, 5, 0 });
             case "complexLine" -> createComplexLine(500);
+            case "routeLine" -> createRouteLine(3000);
             case "simplePoly" -> new Polygon(new LinearRing(new double[] { 0, 10, 10, 0, 0 }, new double[] { 0, 0, 10, 10, 0 }));
             case "complexPoly" -> createStarPolygon(500);
             case "largePoly" -> createCoastlinePolygon(2000);
@@ -248,6 +250,27 @@ public class GeometryDocValueBenchmark {
             double t = (double) i / (numPoints - 1);
             lons[i] = -170.0 + 340.0 * t;
             lats[i] = 30.0 * Math.sin(t * 10.0 * Math.PI);
+        }
+        return new Line(lons, lats);
+    }
+
+    /**
+     * Simulates a GPS route: a random walk of short (~100 m) steps with a slowly drifting heading, like the
+     * routes in the rally geoshape-large track. Unlike {@link #createComplexLine}, consecutive vertices are close
+     * together while the whole line spans a few degrees.
+     */
+    private static Line createRouteLine(int numPoints) {
+        Random random = new Random(42);
+        double[] lons = new double[numPoints];
+        double[] lats = new double[numPoints];
+        double heading = 0;
+        lons[0] = 2.35;
+        lats[0] = 48.85;
+        for (int i = 1; i < numPoints; i++) {
+            heading += random.nextGaussian() * 0.3;
+            double step = 0.0005 + random.nextDouble() * 0.001;
+            lons[i] = lons[i - 1] + step * Math.cos(heading);
+            lats[i] = lats[i - 1] + step * Math.sin(heading);
         }
         return new Line(lons, lats);
     }

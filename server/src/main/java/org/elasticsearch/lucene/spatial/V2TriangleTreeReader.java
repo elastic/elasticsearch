@@ -47,8 +47,9 @@ class V2TriangleTreeReader {
         int thisMinY;
         if ((metadata & POINT) == POINT) {
             int ord = input.readVInt();
-            int x = vertexTable.getX(ord);
-            int y = vertexTable.getY(ord);
+            long xy = vertexTable.getXY(ord);
+            int x = (int) (xy >>> 32);
+            int y = (int) xy;
             visitor.visitPoint(x, y);
             if (visitor.push() == false) {
                 return false;
@@ -65,10 +66,12 @@ class V2TriangleTreeReader {
             } else {
                 bOrd = input.readVInt();
             }
-            int aX = vertexTable.getX(aOrd);
-            int aY = vertexTable.getY(aOrd);
-            int bX = vertexTable.getX(bOrd);
-            int bY = vertexTable.getY(bOrd);
+            long aXY = vertexTable.getXY(aOrd);
+            int aX = (int) (aXY >>> 32);
+            int aY = (int) aXY;
+            long bXY = vertexTable.getXY(bOrd);
+            int bX = (int) (bXY >>> 32);
+            int bY = (int) bXY;
             visitor.visitLine(aX, aY, bX, bY, (byte) (metadata & ~(LINE_NEXT_ORDINAL | LINE_PREVIOUS_ORDINAL)));
             if (visitor.push() == false) {
                 return false;
@@ -79,12 +82,15 @@ class V2TriangleTreeReader {
             int aOrd = input.readVInt();
             int bOrd = input.readVInt();
             int cOrd = input.readVInt();
-            int aX = vertexTable.getX(aOrd);
-            int aY = vertexTable.getY(aOrd);
-            int bX = vertexTable.getX(bOrd);
-            int bY = vertexTable.getY(bOrd);
-            int cX = vertexTable.getX(cOrd);
-            int cY = vertexTable.getY(cOrd);
+            long aXY = vertexTable.getXY(aOrd);
+            int aX = (int) (aXY >>> 32);
+            int aY = (int) aXY;
+            long bXY = vertexTable.getXY(bOrd);
+            int bX = (int) (bXY >>> 32);
+            int bY = (int) bXY;
+            long cXY = vertexTable.getXY(cOrd);
+            int cX = (int) (cXY >>> 32);
+            int cY = (int) cXY;
             visitor.visitTriangle(aX, aY, bX, bY, cX, cY, metadata);
             if (visitor.push() == false) {
                 return false;

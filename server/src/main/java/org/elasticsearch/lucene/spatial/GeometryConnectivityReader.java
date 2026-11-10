@@ -121,11 +121,9 @@ public class GeometryConnectivityReader {
     }
 
     private void readCoordinates(double[] x, double[] y, int from, int numVertices) {
-        for (int i = from; i < numVertices; i++) {
-            int ordinal = nextOrdinal++;
-            x[i] = encoder.decodeX(vertexTable.getX(ordinal));
-            y[i] = encoder.decodeY(vertexTable.getY(ordinal));
-        }
+        int count = numVertices - from;
+        vertexTable.decode(nextOrdinal, count, encoder, x, y, from);
+        nextOrdinal += count;
     }
 
     private Polygon readPolygon() throws IOException {

@@ -55,6 +55,7 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
@@ -62,6 +63,8 @@ import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
+import org.elasticsearch.xpack.esql.analysis.ColumnSemantics;
+import org.elasticsearch.xpack.esql.analysis.ColumnUnits;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.IpLocationResolution;
@@ -106,6 +109,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadata;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.FieldSemantics;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -235,6 +239,18 @@ public class EsqlSession {
     private static final TransportVersion LOOKUP_JOIN_CCS = TransportVersion.fromName("lookup_join_ccs");
 
     private final String sessionId;
+    /**
+     * Semantics of the mapped field each analyzed column reads, collected from every analysis of this query
+     * and reported as {@code _meta.field}.
+     */
+    private final Map<NameId, FieldSemantics> columnSemantics = new HashMap<>();
+    /** Unit of every analyzed column whose unit is known, reported as {@code _meta.unit}. */
+    private final Map<NameId, String> columnUnits = new HashMap<>();
+    /**
+     * Output of the analyzed plan. Optimization keeps the output schema but may replace attributes, so result
+     * columns are matched to their semantics by position rather than by id.
+     */
+    private List<Attribute> analyzedOutput = List.of();
     private final TransportVersion localClusterMinimumVersion;
     private final AnalyzerSettings analyzerSettings;
     private final IndexResolver indexResolver;
@@ -667,6 +683,7 @@ public class EsqlSession {
                     assert planningCpu.isMeteringCurrentThread() : "analyzed-plan callback reached on an unmetered thread";
 
                     TransportVersion minimumVersion = analyzedPlan.minimumVersion();
+                    analyzedOutput = analyzedPlan.inner().output();
 
                     if (request.analyzeOnly()) {
                         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
@@ -925,9 +942,16 @@ public class EsqlSession {
     ) {
         // TODO we need to enforce NameId do not change during optimization.
         // Otherwise metadata might not be found when redering result.
-        Map<NameId, Map<String, Object>> bucketMetadata = columnMetadataEnabled
-            ? BucketColumnMetadata.createColumnMetadata(optimizedPlan, foldContext)
-            : Map.of();
+        Map<NameId, Map<String, Object>> bucketMetadata = Map.of();
+        if (columnMetadataEnabled) {
+            bucketMetadata = BucketColumnMetadata.createColumnMetadata(optimizedPlan, foldContext);
+            // _meta.field and _meta.unit are reported in snapshot builds only for now.
+            if (EsqlCapabilities.Cap.COLUMN_METADATA_FIELD_SEMANTICS.isEnabled()) {
+                bucketMetadata = Maps.merge(bucketMetadata, fieldColumnMetadata(optimizedPlan), (a, b) -> Maps.merge(a, b, (m1, m2) -> {
+                    throw new IllegalStateException("Should not produce metadata with the same key");
+                }));
+            }
+        }
         return Maps.merge(
             bucketMetadata,
             ApproximationPlan.createColumnMetadata(optimizedPlan.output()),
@@ -935,6 +959,36 @@ public class EsqlSession {
                 throw new IllegalStateException("Should not produce metadata with the same key");
             })
         );
+    }
+
+    /**
+     * {@code _meta.field} for every output column that reads a mapped field, and {@code _meta.unit} for every
+     * output column whose unit is known, including computed ones.
+     */
+    private Map<NameId, Map<String, Object>> fieldColumnMetadata(LogicalPlan optimizedPlan) {
+        Map<NameId, Map<String, Object>> metadata = new HashMap<>();
+        List<Attribute> output = optimizedPlan.output();
+        boolean samePositions = output.size() == analyzedOutput.size();
+        for (int i = 0; samePositions && i < output.size(); i++) {
+            samePositions = output.get(i).name().equals(analyzedOutput.get(i).name());
+        }
+        for (int i = 0; i < output.size(); i++) {
+            Attribute attribute = output.get(i);
+            NameId analyzedId = samePositions ? analyzedOutput.get(i).id() : attribute.id();
+            Map<String, Object> columnMetadata = new HashMap<>();
+            FieldSemantics semantics = columnSemantics.get(analyzedId);
+            if (semantics != null) {
+                columnMetadata.put("field", semantics.toColumnMetadata());
+            }
+            String unit = columnUnits.get(analyzedId);
+            if (unit != null) {
+                columnMetadata.put("unit", unit);
+            }
+            if (columnMetadata.isEmpty() == false) {
+                metadata.put(attribute.id(), columnMetadata);
+            }
+        }
+        return metadata;
     }
 
     private Versioned<Result> attachAdditionalData(
@@ -1856,7 +1910,12 @@ public class EsqlSession {
         assert planningCpu.isMeteringCurrentThread() : "analyzedPlanAfterDatasetResolution reached on an unmetered thread";
         TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
         preAnalysisProfile.start();
-        PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
+        PreAnalyzer.PreAnalysis parsedPreAnalysis = preAnalyzer.preAnalyze(parsed);
+        // Field semantics for column_metadata, in snapshot builds only for now.
+        PreAnalyzer.PreAnalysis preAnalysis = EsqlCapabilities.Cap.COLUMN_METADATA_FIELD_SEMANTICS.isEnabled()
+            && QuerySettings.COLUMN_METADATA.get(configuration.resolvedSettings())
+                ? parsedPreAnalysis.withFieldSemantics()
+                : parsedPreAnalysis;
         preAnalysisProfile.stop();
         // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also
         // in case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with
@@ -2032,7 +2091,14 @@ public class EsqlSession {
             }
         })
             .<PreAnalysisResult>andThen(
-                (l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), parsed, r, executionInfo, l)
+                (l, r) -> preAnalyzeLookupIndices(
+                    preAnalysis.lookupIndices().iterator(),
+                    parsed,
+                    preAnalysis.needsFieldSemantics(),
+                    r,
+                    executionInfo,
+                    l
+                )
             )
             .andThenApply(r -> {
                 executionInfo.queryProfile().indicesResolutionMarker().stop();
@@ -2105,6 +2171,7 @@ public class EsqlSession {
     private void preAnalyzeLookupIndices(
         Iterator<PreAnalyzer.LookupIndexPattern> lookupIndices,
         LogicalPlan plan,
+        boolean needsFieldSemantics,
         PreAnalysisResult preAnalysisResult,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
@@ -2112,7 +2179,7 @@ public class EsqlSession {
         forAll(
             lookupIndices,
             preAnalysisResult,
-            (lookupIndex, r, l) -> preAnalyzeLookupIndex(lookupIndex, plan, r, executionInfo, l),
+            (lookupIndex, r, l) -> preAnalyzeLookupIndex(lookupIndex, plan, needsFieldSemantics, r, executionInfo, l),
             listener
         );
     }
@@ -2120,6 +2187,7 @@ public class EsqlSession {
     private void preAnalyzeLookupIndex(
         PreAnalyzer.LookupIndexPattern lookupIndexPattern,
         LogicalPlan plan,
+        boolean needsFieldSemantics,
         PreAnalysisResult result,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
@@ -2179,6 +2247,7 @@ public class EsqlSession {
         indexResolver.resolveLookupIndices(
             qualifiedPattern,
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
+            needsFieldSemantics,
             // We use the minimum version determined in the main index resolution, because for remote LOOKUP JOIN, we're only considering
             // remote lookup indices in the field caps request - but the coordinating cluster must be considered, too!
             // The main index resolution should already have taken the version of the coordinating cluster into account and this should
@@ -2609,7 +2678,8 @@ public class EsqlSession {
                 lookupIndexResolution.get().mapping(),
                 Map.of(indexName, new IndexProperties(IndexMode.LOOKUP, 0)),
                 lookupIndexResolution.get().originalIndices(),
-                lookupIndexResolution.get().concreteIndices()
+                lookupIndexResolution.get().concreteIndices(),
+                lookupIndexResolution.get().fieldSemantics()
             );
             return IndexResolution.valid(newIndex, newIndex.concreteQualifiedIndices(), lookupIndexResolution.failures());
         }
@@ -2876,6 +2946,7 @@ public class EsqlSession {
                 preAnalysis.useDenseVectorWhenNotSupported(),
                 preAnalysis.hasTimeSeriesAggregation(),
                 preAnalysis.needsAnalyzerGroups(),
+                preAnalysis.needsFieldSemantics(),
                 trackUnmappedFieldIndices,
                 indicesExpressionGrouper,
                 mergedCapsSink,
@@ -2893,6 +2964,7 @@ public class EsqlSession {
                             preAnalysis.useDenseVectorWhenNotSupported(),
                             false,
                             preAnalysis.needsAnalyzerGroups(),
+                            preAnalysis.needsFieldSemantics(),
                             trackUnmappedFieldIndices,
                             indicesExpressionGrouper,
                             mergedCapsSink,
@@ -2995,6 +3067,7 @@ public class EsqlSession {
             preAnalysis.useDenseVectorWhenNotSupported(),
             preAnalysis.hasTimeSeriesAggregation(),
             preAnalysis.needsAnalyzerGroups(),
+            preAnalysis.needsFieldSemantics(),
             trackUnmappedFieldIndices,
             null,
             result.indexViewOrigins(),
@@ -3034,6 +3107,7 @@ public class EsqlSession {
             preAnalysis.useDenseVectorWhenNotSupported(),
             preAnalysis.hasTimeSeriesAggregation(),
             preAnalysis.needsAnalyzerGroups(),
+            preAnalysis.needsFieldSemantics(),
             trackUnmappedFieldIndices,
             routingInfoCapture,
             result.indexViewOrigins(),
@@ -3056,6 +3130,7 @@ public class EsqlSession {
                         preAnalysis.useDenseVectorWhenNotSupported(),
                         false,
                         preAnalysis.needsAnalyzerGroups(),
+                        preAnalysis.needsFieldSemantics(),
                         trackUnmappedFieldIndices,
                         null,
                         result.indexViewOrigins(),
@@ -3283,6 +3358,11 @@ public class EsqlSession {
             );
         }
         plan.setAnalyzed();
+        List<IndexResolution> semanticSources = new ArrayList<>(indexResolutions);
+        semanticSources.addAll(r.lookupIndices().values());
+        Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(plan, semanticSources);
+        columnSemantics.putAll(semantics);
+        columnUnits.putAll(ColumnUnits.collect(plan, semantics));
         return plan;
     }
 

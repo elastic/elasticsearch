@@ -1637,7 +1637,11 @@ public class ComputeService {
                     }
                 }
                 // starts computes on remote clusters
-                final var remoteClusters = clusterComputeHandler.getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices);
+                final var remoteClusters = clusterComputeHandler.getRemoteClusters(
+                    clusterToConcreteIndices,
+                    clusterToOriginalIndices,
+                    execInfo
+                );
                 for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
                     String clusterAlias = cluster.clusterAlias();
                     // Check the initial cluster status set by planning phase before executing the data node plan on remote clusters,

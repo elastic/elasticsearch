@@ -211,7 +211,8 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
 
     List<RemoteCluster> getRemoteClusters(
         Map<String, OriginalIndices> clusterToConcreteIndices,
-        Map<String, OriginalIndices> clusterToOriginalIndices
+        Map<String, OriginalIndices> clusterToOriginalIndices,
+        EsqlExecutionInfo executionInfo
     ) {
         List<RemoteCluster> remoteClusters = new ArrayList<>(clusterToConcreteIndices.size());
         RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
@@ -224,8 +225,16 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                 throw new IllegalStateException("can't find original indices for cluster " + clusterAlias);
             }
             if (concreteIndices.indices().length > 0) {
-                Transport.Connection connection = remoteClusterService.getConnection(clusterAlias);
-                remoteClusters.add(new RemoteCluster(clusterAlias, connection, concreteIndices.indices(), originalIndices));
+                try {
+                    Transport.Connection connection = remoteClusterService.getConnection(clusterAlias);
+                    remoteClusters.add(new RemoteCluster(clusterAlias, connection, concreteIndices.indices(), originalIndices));
+                } catch (RuntimeException ex) {
+                    if (executionInfo.shouldSkipOnFailure(clusterAlias)) {
+                        ComputeService.markClusterAfterRuntimeBranchFailure(executionInfo, clusterAlias, false, ex);
+                    } else {
+                        throw ex;
+                    }
+                }
             }
         }
         return remoteClusters;

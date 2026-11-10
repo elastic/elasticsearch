@@ -32,30 +32,17 @@ public final class DecayGeoPointEvaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator value;
 
-  private final BytesRef origin;
-
-  private final BytesRef scale;
-
-  private final BytesRef offset;
-
-  private final double decay;
-
-  private final Decay.DecayFunction decayFunction;
+  private final DecayScorers.GeoScorer scorer;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public DecayGeoPointEvaluator(Source source, ExpressionEvaluator value, BytesRef origin,
-      BytesRef scale, BytesRef offset, double decay, Decay.DecayFunction decayFunction,
-      DriverContext driverContext) {
+  public DecayGeoPointEvaluator(Source source, ExpressionEvaluator value,
+      DecayScorers.GeoScorer scorer, DriverContext driverContext) {
     this.source = source;
     this.value = value;
-    this.origin = origin;
-    this.scale = scale;
-    this.offset = offset;
-    this.decay = decay;
-    this.decayFunction = decayFunction;
+    this.scorer = scorer;
     this.driverContext = driverContext;
   }
 
@@ -94,7 +81,7 @@ public final class DecayGeoPointEvaluator implements ExpressionEvaluator {
               continue position;
         }
         BytesRef value = valueBlock.getBytesRef(valueBlock.getFirstValueIndex(p), valueScratch);
-        result.appendDouble(Decay.process(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
+        result.appendDouble(Decay.process(value, this.scorer));
       }
       return result.build();
     }
@@ -105,7 +92,7 @@ public final class DecayGeoPointEvaluator implements ExpressionEvaluator {
       BytesRef valueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef value = valueVector.getBytesRef(p, valueScratch);
-        result.appendDouble(p, Decay.process(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
+        result.appendDouble(p, Decay.process(value, this.scorer));
       }
       return result.build();
     }
@@ -113,7 +100,7 @@ public final class DecayGeoPointEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "DecayGeoPointEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", decayFunction=" + decayFunction + "]";
+    return "DecayGeoPointEvaluator[" + "value=" + value + ", scorer=" + scorer + "]";
   }
 
   @Override
@@ -133,35 +120,23 @@ public final class DecayGeoPointEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory value;
 
-    private final BytesRef origin;
+    private final DecayScorers.GeoScorer scorer;
 
-    private final BytesRef scale;
-
-    private final BytesRef offset;
-
-    private final double decay;
-
-    private final Decay.DecayFunction decayFunction;
-
-    public Factory(Source source, ExpressionEvaluator.Factory value, BytesRef origin,
-        BytesRef scale, BytesRef offset, double decay, Decay.DecayFunction decayFunction) {
+    public Factory(Source source, ExpressionEvaluator.Factory value,
+        DecayScorers.GeoScorer scorer) {
       this.source = source;
       this.value = value;
-      this.origin = origin;
-      this.scale = scale;
-      this.offset = offset;
-      this.decay = decay;
-      this.decayFunction = decayFunction;
+      this.scorer = scorer;
     }
 
     @Override
     public DecayGeoPointEvaluator get(DriverContext context) {
-      return new DecayGeoPointEvaluator(source, value.get(context), origin, scale, offset, decay, decayFunction, context);
+      return new DecayGeoPointEvaluator(source, value.get(context), scorer, context);
     }
 
     @Override
     public String toString() {
-      return "DecayGeoPointEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", decayFunction=" + decayFunction + "]";
+      return "DecayGeoPointEvaluator[" + "value=" + value + ", scorer=" + scorer + "]";
     }
   }
 }

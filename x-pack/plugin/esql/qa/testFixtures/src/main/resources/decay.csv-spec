@@ -686,3 +686,282 @@ ROW value = TO_DATETIME(9223372036854775807)
 decay_result:double
 0.5
 ;
+
+###############################################
+# exp and gauss: with decay 0.5, exp is 0.5 ^ (d / scale) and gauss is 0.5 ^ ((d / scale) ^ 2)
+#
+
+longExp
+required_capability: decay_function
+
+// d / scale = 15 / 10, so 0.5 ^ 1.5
+ROW value = 25::long
+| EVAL decay_result = round(decay(value, 10::long, 10::long, {"type": "exp"}), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.3535534
+;
+
+longGauss
+required_capability: decay_function
+
+// d / scale = 15 / 10, so 0.5 ^ 2.25
+ROW value = 25::long
+| EVAL decay_result = round(decay(value, 10::long, 10::long, {"type": "gauss"}), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.2102241
+;
+
+unsignedLongAboveLongRangeExp
+required_capability: decay_function_unsigned_long
+
+// d / scale = 2e18 / 1e18, so 0.5 ^ 2; every value is exact as a double
+ROW value = 12000000000000000000::unsigned_long
+| EVAL decay_result = round(decay(value, 10000000000000000000::unsigned_long, 1000000000000000000, {"type": "exp"}), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.25
+;
+
+unsignedLongAboveLongRangeGauss
+required_capability: decay_function_unsigned_long
+
+// d / scale = 2e18 / 1e18, so 0.5 ^ 4
+ROW value = 12000000000000000000::unsigned_long
+| EVAL decay_result = round(decay(value, 10000000000000000000::unsigned_long, 1000000000000000000, {"type": "gauss"}), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.0625
+;
+
+cartesianPointExp
+required_capability: decay_function
+
+// distance 5, d / scale = 0.5, so 0.5 ^ 0.5
+ROW value = TO_CARTESIANPOINT("POINT(3 4)")
+| EVAL decay_result = round(decay(value, TO_CARTESIANPOINT("POINT(0 0)"), 10.0, {"type": "exp"}), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.7071068
+;
+
+cartesianPointGauss
+required_capability: decay_function
+
+// distance 5, d / scale = 0.5, so 0.5 ^ 0.25
+ROW value = TO_CARTESIANPOINT("POINT(3 4)")
+| EVAL decay_result = round(decay(value, TO_CARTESIANPOINT("POINT(0 0)"), 10.0, {"type": "gauss"}), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.8408964
+;
+
+datetimeExp
+required_capability: decay_function
+
+// d / scale = 12 hours / 24 hours, so 0.5 ^ 0.5
+ROW value = TO_DATETIME("2023-01-01T12:00:00Z")
+| EVAL decay_result = round(decay(value, TO_DATETIME("2023-01-01T00:00:00Z"), 24 hours, {"type": "exp"}), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.7071068
+;
+
+datetimeGauss
+required_capability: decay_function
+
+// d / scale = 12 hours / 24 hours, so 0.5 ^ 0.25
+ROW value = TO_DATETIME("2023-01-01T12:00:00Z")
+| EVAL decay_result = round(decay(value, TO_DATETIME("2023-01-01T00:00:00Z"), 24 hours, {"type": "gauss"}), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.8408964
+;
+
+dateNanosExp
+required_capability: decay_function
+
+// d / scale = 12 hours / 24 hours, so 0.5 ^ 0.5
+ROW value = TO_DATE_NANOS("2023-01-01T12:00:00Z")
+| EVAL decay_result = round(decay(value, TO_DATE_NANOS("2023-01-01T00:00:00Z"), 24 hours, {"type": "exp"}), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.7071068
+;
+
+dateNanosGauss
+required_capability: decay_function
+
+// d / scale = 12 hours / 24 hours, so 0.5 ^ 0.25
+ROW value = TO_DATE_NANOS("2023-01-01T12:00:00Z")
+| EVAL decay_result = round(decay(value, TO_DATE_NANOS("2023-01-01T00:00:00Z"), 24 hours, {"type": "gauss"}), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.8408964
+;
+
+###############################################
+# geo_point with an origin away from the value. The distance Paris to London is 343530.338 m, the haversine
+# distance on a sphere of radius 6371008.7714 m, the same arc distance the function_score geo decay uses.
+#
+
+geoPointLinearParisToLondon
+required_capability: decay_geo_point_origin_lat_lon_fix
+
+// 1 - 0.5 * d / 500km
+ROW value = TO_GEOPOINT("POINT(-0.1276 51.5072)")
+| EVAL decay_result = round(decay(value, TO_GEOPOINT("POINT(2.3522 48.8566)"), "500km"), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.6564697
+;
+
+geoPointExpParisToLondon
+required_capability: decay_geo_point_origin_lat_lon_fix
+
+// 0.5 ^ (d / 500km)
+ROW value = TO_GEOPOINT("POINT(-0.1276 51.5072)")
+| EVAL decay_result = round(decay(value, TO_GEOPOINT("POINT(2.3522 48.8566)"), "500km", {"type": "exp"}), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.621118
+;
+
+geoPointGaussParisToLondon
+required_capability: decay_geo_point_origin_lat_lon_fix
+
+// 0.5 ^ ((d / 500km) ^ 2)
+ROW value = TO_GEOPOINT("POINT(-0.1276 51.5072)")
+| EVAL decay_result = round(decay(value, TO_GEOPOINT("POINT(2.3522 48.8566)"), "500km", {"type": "gauss"}), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.7209383
+;
+
+###############################################
+# nulls and multivalues
+#
+
+nullValue
+required_capability: decay_function
+
+ROW value = null::integer
+| EVAL decay_result = decay(value, 10, 10)
+| KEEP decay_result;
+
+decay_result:double
+null
+;
+
+multivaluedValue
+required_capability: decay_function
+
+ROW value = [1, 2, 3]
+| EVAL decay_result = decay(value, 0, 10)
+| KEEP decay_result;
+warning:Line 2:23: evaluation of [decay(value, 0, 10)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:23: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+decay_result:double
+null
+;
+
+###############################################
+# indexed fields
+#
+
+geoPointField
+required_capability: decay_geo_point_origin_lat_lon_fix
+
+// haversine distances from Manhattan POINT(-74.0060 40.7128): LGA 13214 m, EWR 14639 m, JFK 19960 m
+FROM airports
+| WHERE abbrev IN ("LGA", "JFK", "EWR")
+| EVAL decay_result = round(decay(location, TO_GEOPOINT("POINT(-74.0060 40.7128)"), "50km"), 4)
+| SORT decay_result DESC
+| KEEP abbrev, decay_result;
+
+abbrev:keyword | decay_result:double
+LGA            | 0.8679
+EWR            | 0.8536
+JFK            | 0.8004
+;
+
+dateNanosField
+required_capability: decay_function
+
+// distances 0, 65.710135802 s and 126.527335578 s from the origin; linear with a 1 minute scale reaches 0 at 2 minutes
+FROM date_nanos
+| WHERE millis > "2020-01-01"
+| EVAL decay_result = round(decay(nanos, TO_DATE_NANOS("2023-10-23T13:55:01.543123456Z"), 1 minute), 7)
+| SORT nanos DESC
+| KEEP nanos, decay_result
+| LIMIT 3;
+
+nanos:date_nanos               | decay_result:double
+2023-10-23T13:55:01.543123456Z | 1.0
+2023-10-23T13:53:55.832987654Z | 0.4524155
+2023-10-23T13:52:55.015787878Z | 0.0
+;
+
+unsignedLongField
+required_capability: decay_function_unsigned_long
+
+// 0.5 ^ (d / 5e18) for distances 0, 6705771456519921819 and 2890622158700996657
+FROM ul_logs
+| WHERE id <= 3
+| EVAL decay_result = round(decay(bytes_in, 4348801185987554667, 5000000000000000000, {"type": "exp"}), 7)
+| SORT id
+| KEEP id, bytes_in, decay_result;
+
+id:integer | bytes_in:unsigned_long | decay_result:double
+1          | 4348801185987554667    | 1.0
+2          | 11054572642507476486   | 0.3947047
+3          | 7239423344688551324    | 0.669834
+;
+
+###############################################
+# combining with relevance
+#
+
+decayBoostsMatchScore
+required_capability: decay_function
+required_capability: metadata_score
+required_capability: match_function
+
+FROM books METADATA _score
+| WHERE MATCH(author, "Faulkner") AND year IS NOT NULL
+| EVAL boosted = _score * decay(year, 2011, 10)
+| SORT boosted DESC, book_no ASC
+| KEEP book_no, year
+| LIMIT 3;
+
+book_no:keyword | year:integer
+4724            | 2011
+4977            | 2011
+5119            | 2011
+;
+
+maxDecayOverRows
+required_capability: decay_function
+
+// the salary closest to 50000 is 50064: 1 - 0.5 * 64 / 10000
+FROM employees
+| STATS max_decay = round(MAX(decay(salary, 50000, 10000)), 7);
+
+max_decay:double
+0.9968
+;

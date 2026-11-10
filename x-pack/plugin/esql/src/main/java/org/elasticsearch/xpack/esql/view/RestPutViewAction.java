@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
@@ -60,7 +61,12 @@ public class RestPutViewAction extends BaseRestHandler {
             return channel -> SubscribableListener.<Void>newForked(l -> {
                 if (validate) {
                     // validation runs on current node, actual update below performed on elected master only
-                    client.execute(ValidateViewAction.INSTANCE, new ValidateViewAction.Request(view), l.map(ignored -> null));
+                    client.execute(ValidateViewAction.INSTANCE, new ValidateViewAction.Request(view), l.map(response -> {
+                        if (response.warning() != null) {
+                            HeaderWarning.addWarning("{}", response.warning());
+                        }
+                        return null;
+                    }));
                 } else {
                     l.onResponse(null);
                 }

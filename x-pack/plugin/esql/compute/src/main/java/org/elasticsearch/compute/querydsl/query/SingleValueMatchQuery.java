@@ -40,6 +40,7 @@ import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -246,7 +247,9 @@ public final class SingleValueMatchQuery extends Query {
                 ScoreMode scoreMode
             ) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
-                SortedDocValues sdv = DocValues.unwrapSingleton(DocValues.getSortedSet(context.reader(), fieldData.getFieldName()));
+                SortedDocValues sdv = readsFieldDocValues()
+                    ? DocValues.unwrapSingleton(DocValues.getSortedSet(context.reader(), fieldData.getFieldName()))
+                    : null;
                 if (sdv != null && sdv.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     sdv = DocValues.unwrapSingleton(DocValues.getSortedSet(context.reader(), fieldData.getFieldName()));
                     return new DocIdSetIteratorScorerSupplier(boost, scoreMode, sdv);
@@ -327,6 +330,9 @@ public final class SingleValueMatchQuery extends Query {
                 }
                 return super.rewrite(indexSearcher);
             } else if (lfd instanceof LeafOrdinalsFieldData) {
+                if (readsFieldDocValues() == false) {
+                    return super.rewrite(indexSearcher);
+                }
                 SortedDocValues singleton = DocValues.unwrapSingleton(DocValues.getSortedSet(reader, fieldData.getFieldName()));
                 if (singleton != null) {
                     singleton.nextDoc();
@@ -350,6 +356,14 @@ public final class SingleValueMatchQuery extends Query {
             }
         }
         return Queries.ALL_DOCS_INSTANCE;
+    }
+
+    /**
+     * Whether the values of {@link #fieldData} are the doc values and terms of the field it names. Those of the key of a
+     * {@code flattened} field are the values of that key alone, in the field that holds every key.
+     */
+    private boolean readsFieldDocValues() {
+        return fieldData instanceof FlattenedFieldMapper.KeyedFlattenedFieldData == false;
     }
 
     @Override

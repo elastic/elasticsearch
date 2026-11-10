@@ -563,6 +563,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
+    @Nullable
     private static ShardRouting getCurrentRouting(ShardAllocationKey key, ClusterState state) {
         RoutingNode localRoutingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
         return localRoutingNode == null ? null : localRoutingNode.getByShardId(key.shardId());

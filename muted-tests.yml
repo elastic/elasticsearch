@@ -423,19 +423,10 @@ tests:
   - :x-pack:plugin:yamlRestCompatTest
   method: test {yaml=deprecation/10_basic/Test Deprecations}
   issue: https://github.com/elastic/elasticsearch/issues/163655
-- class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testBinaryWithDifferentSelectors
-  issue: https://github.com/elastic/elasticsearch/issues/163941
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   tasks:
   - :x-pack:plugin:inference:internalClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/158224
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  issue: https://github.com/elastic/elasticsearch/issues/163299
 - class: org.elasticsearch.xpack.esql.qa.single_node.ExternalSchemaMaxFieldsRestIT
   tasks:
   - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
@@ -456,18 +447,18 @@ tests:
   - :x-pack:plugin:searchable-snapshots:internalClusterTest
   method: testRetryPointInTimeAfterNodeDrop
   issue: https://github.com/elastic/elasticsearch/issues/164396
-- class: org.elasticsearch.xpack.searchablesnapshots.AzureSearchableSnapshotsIT
-  tasks:
-  - :x-pack:plugin:searchable-snapshots:qa:azure:javaRestTest
-  method: testSearchResults
-  issue: https://github.com/elastic/elasticsearch/issues/165070
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyWithEnabledTests
   tasks:
   - :x-pack:plugin:stateless:test
   method: testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates
   issue: https://github.com/elastic/elasticsearch/issues/154731
-- class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorScoringTests
+- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   tasks:
-  - :x-pack:plugin:esql:compute:test
-  method: testTheResultsAreEmittedWhenTheLastSliceEndsAfterTheStatusInterval
-  issue: https://github.com/elastic/elasticsearch/issues/165110
+  - :server:internalClusterTest
+  method: testSearchWithRandomDisconnects
+  issue: https://github.com/elastic/elasticsearch/issues/165284
+- class: org.elasticsearch.xpack.stateless.cache.CacheMissWaitTimeHeaderIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testCacheMissWaitTimeHeader
+  issue: https://github.com/elastic/elasticsearch/issues/165322

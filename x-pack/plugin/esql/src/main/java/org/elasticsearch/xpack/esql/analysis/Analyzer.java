@@ -1879,14 +1879,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     || (subPlanColumns.equals(forkColumns) == false
                         && subqueryReferencingIndexWithEmptyMapping(fork, logicalPlan, forkColumns) == false)) {
                     changed = true;
-                    List<Attribute> newOutput = new ArrayList<>();
-                    for (String attrName : forkColumns) {
-                        for (Attribute subAttr : logicalPlan.output()) {
-                            if (attrName.equals(subAttr.name())) {
-                                newOutput.add(subAttr);
-                            }
-                        }
-                    }
+                    List<Attribute> newOutput = alignToMergeColumns(forkColumns, logicalPlan.output());
                     if (forkColumns.isEmpty()) {
                         // When forkColumns is empty (all branches only have no-fields), resolveKeep with empty
                         // projections would resolve to all child output including no-fields. Create a Project with
@@ -1913,6 +1906,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return fork.replaceSubPlansAndOutput(newSubPlans, toReferenceAttributesPreservingIds(outputUnion, fork.output()));
+        }
+
+        /**
+         * Picks the attributes of a merge branch's output in {@code mergeColumns} order. The branch output is indexed by name once
+         * so the cost is linear in the schema width: a merge over thousands of columns would otherwise rescan the branch output for
+         * every merge column, saturating the analysis thread pool (#163560). A plan's output never repeats a name, so each merge
+         * column matches at most one branch attribute.
+         */
+        static List<Attribute> alignToMergeColumns(List<String> mergeColumns, List<Attribute> branchOutput) {
+            Map<String, Attribute> branchAttributesByName = HashMap.newHashMap(branchOutput.size());
+            for (Attribute attr : branchOutput) {
+                Attribute previous = branchAttributesByName.put(attr.name(), attr);
+                assert previous == null : "duplicate attribute name [" + attr.name() + "] in merge branch output " + branchOutput;
+            }
+            List<Attribute> aligned = new ArrayList<>(mergeColumns.size());
+            for (String name : mergeColumns) {
+                Attribute match = branchAttributesByName.get(name);
+                if (match != null) {
+                    aligned.add(match);
+                }
+            }
+            return aligned;
         }
 
         /*

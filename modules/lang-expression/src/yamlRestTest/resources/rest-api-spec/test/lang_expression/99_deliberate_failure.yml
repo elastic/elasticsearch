@@ -1,0 +1,7 @@
+# TEMPORARY: deliberate failure so CI uploads a build archive (test cluster logs + failed report). Do not merge.
+---
+"Deliberate failure to exercise CI build archive upload":
+  - do:
+      cluster.health: {}
+
+  - match: { cluster_name: "this-is-not-the-cluster-name" }

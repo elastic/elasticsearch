@@ -10,7 +10,7 @@
 #   GITHUB_PR_TARGET_BRANCH          PR target branch used to find the merge base.
 #   GH_TOKEN or GITHUB_TOKEN         GitHub token for release asset downloads.
 #   GRADLEW                          CI Gradle command from the pre-command hook; its options are reused.
-# Shared release, corpus, and startup timeout defaults live in promcheck-common.sh.
+# Shared release, corpus, and startup timeout are supplied by .buildkite/pipelines/pull-request-validate-prometheus-compliance.yml.
 # Optional environment:
 #   PROMCHECK_CONCURRENCY            Cases and seeding writes promcheck keeps in flight (default: the CPU count).
 #   PROMETHEUS_COMPLIANCE_TMPDIR     Scratch/artifact parent directory (default /tmp).
@@ -19,7 +19,7 @@
 # When buildkite-agent is available, the report is annotated and saved as PR-comment
 # metadata for the build bot (the pipeline enables ELASTIC_PR_COMMENTS_ENABLED).
 # With the argument notify, it only posts the running note as an early PR comment and exits;
-# that needs only the shared release configuration.
+# that needs only PROMCHECK_VER from the shared YAML configuration.
 
 # Requires Bash 4.4+ (the Buildkite agent runs Linux).
 set -euo pipefail

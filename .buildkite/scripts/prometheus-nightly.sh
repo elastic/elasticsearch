@@ -42,7 +42,7 @@ jq -n --slurpfile counts "$OUTPUT_DIR/counts.json" \
   --arg timestamp "$started_at" --arg commit "$revision" --arg branch "${BUILDKITE_BRANCH:-}" \
   --arg version "$PROMCHECK_VER" --arg corpus "$PROMCHECK_CORPUS" --arg namespace "$PROMCHECK_RESULTS_NAMESPACE" \
   --arg build_id "$BUILDKITE_BUILD_ID" --arg build_url "${BUILDKITE_BUILD_URL:-}" \
-  --arg pipeline "${BUILDKITE_PIPELINE_SLUG:-elastic-prometheus-nightly}" \
+  --arg pipeline "${BUILDKITE_PIPELINE_SLUG:-elasticsearch-pull-request-validate-prometheus-compliance}" \
   --argjson build_number "${BUILDKITE_BUILD_NUMBER:-0}" \
   '$counts[0] as $c | {
     "@timestamp": $timestamp, status: "ok", dataset: $corpus,

@@ -3,7 +3,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "os";
 import { join, resolve } from "path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { parse } from "yaml";
 
+const PROMCHECK_ENV = parse(readFileSync(resolve(import.meta.dirname, "../pipelines/pull-request-validate-prometheus-compliance.yml"), "utf8")).env;
 const SCRIPT = resolve(import.meta.dirname, "prometheus-nightly.sh");
 const COUNTS = { type: "summary", total: 6, inspected: 6, match: 1, mismatch: 1, es_4xx: 1, es_5xx: 1, error: 1, request_filtered: 0, response_filtered: 0, flaky: 1 };
 const VERDICT = JSON.stringify(COUNTS);
@@ -47,6 +49,7 @@ esac
       env: {
         ...process.env,
         PATH: `${join(dir, "bin")}:${process.env.PATH}`,
+        ...PROMCHECK_ENV,
         GH_TOKEN: "fake-github-token",
         GRADLEW: "./gradlew --build-cache --scan",
         PROMCHECK_RESULTS_NAMESPACE: "experimental",
@@ -63,7 +66,7 @@ esac
         TEST_UPLOAD_RC: "0",
         TEST_HTTP_STATUS: "201",
         BUILDKITE_BUILD_NUMBER: "123",
-        BUILDKITE_PIPELINE_SLUG: "elastic-prometheus-nightly",
+        BUILDKITE_PIPELINE_SLUG: "elasticsearch-pull-request-validate-prometheus-compliance",
         ...overrides,
       },
     });
@@ -77,8 +80,8 @@ esac
     expect(result).toMatchObject({
       status: "ok", dataset: "grafanalabs-top100",
       data_stream: { type: "synthetics", dataset: "promql.support", namespace: "experimental" },
-      git: { branch: "main" }, promcheck: { version: "0.11.0+prometheus-3.13.1" },
-      buildkite: { build_id: "build-123", build_number: 123, pipeline: "elastic-prometheus-nightly" },
+      git: { branch: "main" }, promcheck: { version: PROMCHECK_ENV.PROMCHECK_VER },
+      buildkite: { build_id: "build-123", build_number: 123, pipeline: "elasticsearch-pull-request-validate-prometheus-compliance" },
       compliance: { input_total: 6, executed_total: 6, executed_success: 1, executed_failure: 1, executed_error: 3, executed_skip: 1, success_pct: 16.7 },
     });
     expect(result.git.commit).toMatch(/^[a-f0-9]{40}$/);

@@ -40,30 +40,35 @@ You should always make changes to the template files, and run the above command 
 
 Node (technically `bun`), TypeScript, and related files are currently used to generate pipelines for pull request CI. See [scripts/pull-request](scripts/pull-request) for details.
 
-## Shared promcheck runner
+## Shared promcheck pipeline
 
-The PR comparison and nightly pipelines source
-[`scripts/promcheck-common.sh`](scripts/promcheck-common.sh), following the shared
-shell-helper pattern used by other Buildkite scripts. It is the single source for
-the pinned release (`PROMCHECK_VER`), startup timeout
-(`PROMCHECK_TEST_INSTANCE_TIMEOUT`), and corpus (`PROMCHECK_CORPUS`). Environment
-overrides are supported; neither YAML pipeline repeats those defaults.
+The existing
+[`pull-request-validate-prometheus-compliance.yml`](pipelines/pull-request-validate-prometheus-compliance.yml)
+defines PR comparisons and nightly metrics in one YAML pipeline. Its top-level
+`env` block is the single source for `PROMCHECK_VER`,
+`PROMCHECK_TEST_INSTANCE_TIMEOUT`, and `PROMCHECK_CORPUS`. YAML anchors share the
+worker agents and job timeout. Bash contains execution and reporting routines,
+without configuration defaults.
 
-The module downloads the binary and corpus together, reuses the agent's `GRADLEW`
-cache/scan options, sizes Elasticsearch and query concurrency for the agent, and
-runs promcheck with `--output json`. JSONL stdout and diagnostics have separate
-artifacts. A shared summary reader validates complete, consistent counts before
-reporting. The two entry points retain their own behavior: the PR compares the
-merge base and PR and publishes a regression report; nightly records one run in
-Overview. Their YAML files describe the steps, agents, and artifact destinations.
+The existing Buildkite pipeline and catalog resource retain their identity,
+teams, and permissions. The daily schedule in
+[`catalog-info.yaml`](../catalog-info.yaml) runs on `main` and selects the
+`elastic / prometheus / nightly` step through `build.source == "schedule"`.
+Ordinary PR builds run the early notification and merge-base comparison instead.
+For a manual nightly build, set `PROMCHECK_MODE=nightly` on that same pipeline.
+The conditions are complementary, so nightly builds skip PR notifications and
+comparisons. The schedule becomes active when CI reconciles the catalog change.
+
+Both job commands use
+[`scripts/promcheck-common.sh`](scripts/promcheck-common.sh) for release downloads,
+CI Gradle cache/scan options, agent-sized Elasticsearch/query concurrency, JSONL
+execution, and summary validation. Each command retains its reporting policy:
+PRs publish a regression comparison; nightly records one run in Overview.
 
 ## Prometheus nightly
 
-[`prometheus-nightly.yml`](pipelines/prometheus-nightly.yml) runs the pinned promcheck
-release against the checked-out Elasticsearch revision using the `grafanalabs-top100`
-release corpus. The pipeline and its daily `main` schedule are declared in
-[`catalog-info.yaml`](../catalog-info.yaml); the schedule becomes active when the
-CI pipeline configuration is reconciled from that catalog.
+The nightly step runs the YAML-pinned release and `grafanalabs-top100` corpus
+against the checked-out Elasticsearch revision.
 
 The destination is the existing Overview Elasticsearch cluster at
 `https://overview-elastic-cloud-com.es.us-east-1.aws.found.io`, data stream
@@ -110,7 +115,7 @@ For dashboard filtering, use the existing mapped field `data_stream.namespace`:
 
 - Only experimental runs: `data_stream.namespace: "experimental"`
 - Exclude experimental runs: `NOT data_stream.namespace: "experimental"`
-- Narrow to this source: `buildkite.pipeline: "elastic-prometheus-nightly"`
+- Narrow to this source: `buildkite.pipeline: "elasticsearch-pull-request-validate-prometheus-compliance"`
 
 To compare namespaces, the Kibana data view must include
 `synthetics-promql.support-*`. A data view restricted to
@@ -132,5 +137,5 @@ services, use a Linux host with Bash 4.4+ (the PR reporter uses Bash namerefs):
 
 ```bash
 cd .buildkite
-node node_modules/vitest/vitest.mjs run scripts/prometheus-nightly.test.ts scripts/validate-prometheus-compliance.test.ts
+node node_modules/vitest/vitest.mjs run scripts/promcheck-pipeline.test.ts scripts/prometheus-nightly.test.ts scripts/validate-prometheus-compliance.test.ts
 ```

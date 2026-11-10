@@ -3,11 +3,13 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "os";
 import { join, resolve } from "path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { parse } from "yaml";
 
+const PROMCHECK_ENV = parse(readFileSync(resolve(import.meta.dirname, "../pipelines/pull-request-validate-prometheus-compliance.yml"), "utf8")).env;
 const SCRIPT = resolve(`${import.meta.dirname}/validate-prometheus-compliance.sh`);
-const CORPUS = "grafanalabs-top100";
+const CORPUS = PROMCHECK_ENV.PROMCHECK_CORPUS;
 const JQ = execFileSync("sh", ["-c", "command -v jq"], { encoding: "utf8" }).trim();
-const VERSION = "0.11.0+prometheus-3.13.1";
+const VERSION = PROMCHECK_ENV.PROMCHECK_VER;
 
 type Status = "match" | "mismatch" | "error" | "error4xx" | "error5xx" | "flaky" | "filtered";
 type Case = [id: string, status: Status, expr: string];
@@ -134,8 +136,7 @@ esac
         PATH: `${join(dir, "bin")}:${process.env.PATH}`,
         PROMETHEUS_COMPLIANCE_TMPDIR: join(dir, "tmp"),
         GH_TOKEN: "token",
-        PROMCHECK_VER: VERSION,
-        PROMCHECK_TEST_INSTANCE_TIMEOUT: "900",
+        ...PROMCHECK_ENV,
         GRADLEW: GRADLEW,
         GITHUB_PR_TARGET_BRANCH: "main",
         BUILDKITE_BUILD_URL: "",

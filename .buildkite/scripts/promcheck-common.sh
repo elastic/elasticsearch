@@ -1,10 +1,8 @@
 #!/bin/bash
 
-# Shared release configuration and runner for PR comparisons and nightly metrics.
+# Execution helpers for PR comparisons and nightly metrics.
+# Pipeline configuration lives in .buildkite/pipelines/pull-request-validate-prometheus-compliance.yml.
 # Callers own their reporting policy: these functions return failures rather than exiting the job.
-: "${PROMCHECK_VER=0.11.0+prometheus-3.13.1}"
-: "${PROMCHECK_TEST_INSTANCE_TIMEOUT=900}"
-: "${PROMCHECK_CORPUS=grafanalabs-top100}"
 
 promcheck_error() {
   printf '%s\n' "$*" >&2

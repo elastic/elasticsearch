@@ -10,6 +10,29 @@ Prior to version *8.16.0*, the connector release notes were published as part of
 ====
 
 [discrete]
+[[es-connectors-release-notes-8-19-25]]
+=== 8.19.25
+
+[discrete]
+[[es-connectors-release-notes-8-19-25-bug-fixes]]
+===== Bug fixes
+
+* Fixed the GraphQL connector rejecting valid queries that use fragments or aliases during configuration validation, sometimes with a crash. Fields are now matched by their response key, so aliased objects also validate and paginate correctly.
+See: https://github.com/elastic/connectors/pull/4850[*PR 4850*]
+* Fixed the Slack connector requesting the wrong page, or stopping a sync partway through a large workspace, when a pagination cursor contained `+`, `/`, or `=`. Cursors are now URL-encoded.
+See: https://github.com/elastic/connectors/pull/4871[*PR 4871*]
+* Fixed the Oracle connector skipping tables configured with a lowercase or mixed-case name as having no primary key.
+See: https://github.com/elastic/connectors/pull/4875[*PR 4875*]
+* Fixed the OneDrive connector silently skipping users, groups, permissions, and files that came after an empty page of Microsoft Graph results. The connector now keeps following `@odata.nextLink` until no more pages are returned.
+See: https://github.com/elastic/connectors/pull/4900[*PR 4900*]
+* Fixed the Zoom connector overwriting meeting documents with recording documents, and keeping only one recording of a recurring meeting. Recordings are now keyed by the meeting instance UUID. The first full sync after upgrading re-indexes recordings and restores the meeting documents.
+See: https://github.com/elastic/connectors/pull/4906[*PR 4906*]
+* Fixed MySQL advanced sync rule queries skipping or repeating rows between pages when their only `ORDER BY` was in a subquery, a window function, a string literal, or a comment. These queries are now paged in primary key order.
+See: https://github.com/elastic/connectors/pull/4910[*PR 4910*]
+* Fixed Salesforce SOQL advanced sync rules being cut off at 2,200 records, or failing, when a query contained `fields`, `limit`, or `offset` outside a keyword, such as in a custom field name. `FIELDS()`, `LIMIT`, and `OFFSET` are now matched as whole, case-insensitive keywords.
+See: https://github.com/elastic/connectors/pull/4914[*PR 4914*]
+
+[discrete]
 [[es-connectors-release-notes-8-19-24]]
 === 8.19.24
 

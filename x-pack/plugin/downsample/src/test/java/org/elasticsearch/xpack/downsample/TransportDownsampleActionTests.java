@@ -71,11 +71,16 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests.randomSamplingMethod;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -335,6 +340,66 @@ public class TransportDownsampleActionTests extends ESTestCase {
         );
         safeGet(listener);
         verifyIndexFinalisation();
+    }
+
+    public void testDownsamplingFailsWhenTargetIndexIsOfAnotherSource() throws InterruptedException {
+        var projectMetadata = ProjectMetadata.builder(projectId)
+            .put(createSourceIndexMetadata(sourceIndex, primaryShards, replicaShards))
+            .put(
+                IndexMetadata.builder(targetIndex)
+                    .settings(
+                        indexSettings(IndexVersion.current(), randomUUID(), primaryShards, replicaShards).put(
+                            IndexSettings.MODE.getKey(),
+                            IndexMode.TIME_SERIES.getName()
+                        )
+                            .put("index.routing_path", "dimensions")
+                            .put("index.time_series.start_time", "2021-01-01T00:00:00Z")
+                            .put("index.time_series.end_time", "2022-01-01T00:00:00Z")
+                            .put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY, sourceIndex)
+                            .put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID_KEY, randomUUID())
+                            .put(
+                                IndexMetadata.INDEX_DOWNSAMPLE_STATUS_KEY,
+                                randomFrom(IndexMetadata.DownsampleTaskStatus.STARTED, IndexMetadata.DownsampleTaskStatus.SUCCESS)
+                            )
+                    )
+            )
+            .build();
+
+        var clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(projectMetadata)
+            .blocks(ClusterBlocks.builder().addIndexBlock(projectId, sourceIndex, IndexMetadata.INDEX_WRITE_BLOCK))
+            .build();
+
+        when(projectResolver.getProjectMetadata(any(ClusterState.class))).thenReturn(projectMetadata);
+        CountDownLatch completedRequest = new CountDownLatch(1);
+        AtomicReference<String> errorMessage = new AtomicReference<>();
+        ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                fail("Downsampling a target of a different source index shouldn't succeed.");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                errorMessage.set(e.getMessage());
+                completedRequest.countDown();
+            }
+        };
+        action.masterOperation(
+            task,
+            new DownsampleAction.Request(
+                ESTestCase.TEST_REQUEST_TIMEOUT,
+                sourceIndex,
+                targetIndex,
+                TimeValue.ONE_HOUR,
+                new DownsampleConfig(new DateHistogramInterval("5m"), randomSamplingMethod())
+            ),
+            clusterState,
+            listener
+        );
+        completedRequest.await(30, TimeUnit.SECONDS);
+        assertThat(errorMessage.get(), notNullValue());
+        assertThat(errorMessage.get(), containsString("the downsample index already exists and was created for another source index"));
     }
 
     public void testDownsamplingWhenTargetIndexGetsDeleted() {

@@ -116,7 +116,7 @@ public class DecayErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     private static boolean validOriginType(DataType valueDataType, DataType originDataType) {
         if (DataType.isSpatialPoint(valueDataType)) {
-            return DataType.isSpatialPoint(originDataType);
+            return originDataType == valueDataType;
         }
         if (DataType.isMillisOrNanos(valueDataType)) {
             return DataType.isMillisOrNanos(originDataType);
@@ -136,7 +136,7 @@ public class DecayErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     private static String originTypeDescription(DataType valueDataType) {
         if (DataType.isSpatialPoint(valueDataType)) {
-            return "spatial point";
+            return valueDataType.typeName();
         }
         if (DataType.isMillisOrNanos(valueDataType)) {
             return "datetime or date_nanos";

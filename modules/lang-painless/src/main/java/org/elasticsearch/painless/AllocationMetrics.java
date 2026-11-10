@@ -197,16 +197,21 @@ public final class AllocationMetrics {
          * sharing a row cannot lose a count.
          */
         public void recordExecutionAllocation(long totalBytes) {
-            long[] row = rows[(int) (Thread.currentThread().threadId() & (STRIPES - 1))];
+            long[] row = row();
 
             SLOT.getAndAdd(row, bucketIndex(totalBytes), 1L);
         }
 
         /** Counts one tripped execution, from the generated {@code $checkAllocBytes} just before it throws. */
         public void recordLimitExceeded() {
-            long[] row = rows[(int) (Thread.currentThread().threadId() & (STRIPES - 1))];
+            long[] row = row();
 
             SLOT.getAndAdd(row, LIMIT_EXCEEDED_SLOT, 1L);
+        }
+
+        /** The row for the current thread. */
+        private long[] row() {
+            return rows[(int) (Thread.currentThread().threadId() & (STRIPES - 1))];
         }
 
         /** Tripped executions so far, summed across rows. */

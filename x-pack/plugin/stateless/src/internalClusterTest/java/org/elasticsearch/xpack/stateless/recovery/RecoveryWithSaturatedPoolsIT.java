@@ -15,7 +15,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
@@ -58,8 +58,8 @@ public class RecoveryWithSaturatedPoolsIT extends AbstractStatelessPluginIntegTe
     public void testPeerRecoveryCompletesWhilePrewarmPoolIsFullyOccupied() throws Exception {
         // Override random cache sizing from settingsForRoles; must fit multiple regions so warming runs populate.
         assertPeerRecoveryCompletesWhilePoolIsFullyOccupied(
-            StatelessPlugin.PREWARM_THREAD_POOL,
-            StatelessPlugin.PREWARM_THREAD_POOL_SETTING,
+            StatelessThreadPools.PREWARM_THREAD_POOL,
+            StatelessThreadPools.PREWARM_THREAD_POOL_SETTING,
             ByteSizeValue.ofBytes(PAGE_SIZE),
             ByteSizeValue.ofMb(8)
         );
@@ -72,8 +72,8 @@ public class RecoveryWithSaturatedPoolsIT extends AbstractStatelessPluginIntegTe
      */
     public void testPeerRecoveryCompletesWhileShardReadPoolIsFullyOccupied() throws Exception {
         assertPeerRecoveryCompletesWhilePoolIsFullyOccupied(
-            StatelessPlugin.SHARD_READ_THREAD_POOL,
-            StatelessPlugin.SHARD_READ_THREAD_POOL_SETTING,
+            StatelessThreadPools.SHARD_READ_THREAD_POOL,
+            StatelessThreadPools.SHARD_READ_THREAD_POOL_SETTING,
             ByteSizeValue.ofMb(16),
             ByteSizeValue.ofMb(128)
         );

@@ -25,10 +25,22 @@ import org.elasticsearch.core.Nullable;
  *                    back-store them as long.
  * @param metricRole  the {@link MetricRole} of the field, or {@code null} when the
  *                    field is not a time-series metric
+ * @param isDimension {@code true} when the field is a time-series dimension; the run-table
+ *                    ordinal layout is only attempted for dimensions
  */
 public record FieldContext(
     int blockSize,
     String fieldName,
     @Nullable PipelineDescriptor.DataType dataType,
-    @Nullable MetricRole metricRole
-) {}
+    @Nullable MetricRole metricRole,
+    boolean isDimension
+) {
+
+    /**
+     * Creates a context for a field that is not a time-series dimension, for callers that only drive
+     * numeric pipeline selection.
+     */
+    public FieldContext(int blockSize, String fieldName, @Nullable PipelineDescriptor.DataType dataType, @Nullable MetricRole metricRole) {
+        this(blockSize, fieldName, dataType, metricRole, false);
+    }
+}

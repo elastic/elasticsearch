@@ -456,6 +456,7 @@ class S3BlobContainer extends AbstractBlobContainer {
      * @param blobSize            The size of the source blob in bytes (needed because some object stores use different implementations
      *                            for very large blobs)
      * @param executor            Executor for concurrent part copies, {@code null} means parts are copied serially
+     * @param cancellationCheck   Invoked before each part of a multipart copy to check for cancellation
      * @throws IOException        If the operation fails on the server side
      */
     @Override
@@ -465,7 +466,8 @@ class S3BlobContainer extends AbstractBlobContainer {
         final String sourceBlobName,
         final String blobName,
         final long blobSize,
-        @Nullable final Executor executor
+        @Nullable final Executor executor,
+        final Runnable cancellationCheck
     ) throws IOException {
         assert BlobContainer.assertPurposeConsistency(purpose, sourceBlobName);
         assert BlobContainer.assertPurposeConsistency(purpose, blobName);
@@ -477,7 +479,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
         try {
             if (blobSize > getMaxCopySizeBeforeMultipart()) {
-                executeMultipartCopy(purpose, s3SourceBlobContainer, sourceBlobName, blobName, blobSize, executor);
+                executeMultipartCopy(purpose, s3SourceBlobContainer, sourceBlobName, blobName, blobSize, executor, cancellationCheck);
             } else {
                 // metadata is inherited from source, but not canned ACL or storage class
                 final var blobKey = buildKey(blobName);
@@ -732,6 +734,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     // for copy, blobName and s3BlobStore are the destination
     // when executor is not null, parts are executed concurrently, and partOperation must be thread-safe
+    // cancellationCheck is run before each part and may throw to abort
     private void executeMultipart(
         final OperationPurpose purpose,
         final Operation operation,
@@ -741,7 +744,8 @@ class S3BlobContainer extends AbstractBlobContainer {
         final long blobSize,
         final PartOperation partOperation,
         final ConditionalOperation condition,
-        @Nullable final Executor executor
+        @Nullable final Executor executor,
+        final Runnable cancellationCheck
     ) throws IOException {
 
         ensureMultiPartUploadSize(blobSize);
@@ -760,11 +764,13 @@ class S3BlobContainer extends AbstractBlobContainer {
                 final long lastPartSize = blobSize - (long) (nbParts - 1) * partSize;
                 for (int i = 1; i <= nbParts; i++) {
                     final boolean lastPart = i == nbParts;
+                    cancellationCheck.run();
                     completedParts[i - 1] = partOperation.doPart(uploadId, i, lastPart ? lastPartSize : partSize, lastPart);
                 }
             } else {
                 final String finalUploadId = uploadId;
                 ConcurrentMultipartHelper.runConcurrentParts(blobSize, partSize, executor, (partNum0, offset, curPartSize, lastPart) -> {
+                    cancellationCheck.run();
                     completedParts[partNum0] = partOperation.doPart(finalUploadId, partNum0 + 1, curPartSize, lastPart);
                 });
             }
@@ -827,7 +833,8 @@ class S3BlobContainer extends AbstractBlobContainer {
                 }
             },
             condition,
-            null
+            null,
+            () -> {}
         );
     }
 
@@ -841,7 +848,8 @@ class S3BlobContainer extends AbstractBlobContainer {
      * as the copy part size, because that minimizes the number of requests needed.
      * Smaller part sizes might improve throughput when downloading from multiple parts at once, but we have no measurements
      * indicating this would be helpful so we optimize for request count.
-     * When {@code executor} is not null, parts are copied concurrently
+     * When {@code executor} is not null, parts are copied concurrently.
+     * {@code cancellationCheck} is run before each part.
      */
     void executeMultipartCopy(
         OperationPurpose purpose,
@@ -849,7 +857,8 @@ class S3BlobContainer extends AbstractBlobContainer {
         final String sourceBlobName,
         final String destinationBlobName,
         final long blobSize,
-        @Nullable final Executor executor
+        @Nullable final Executor executor,
+        final Runnable cancellationCheck
     ) throws IOException {
         final long copyPartSize = getMaxCopySizeBeforeMultipart();
         final var destinationKey = buildKey(destinationBlobName);
@@ -879,7 +888,8 @@ class S3BlobContainer extends AbstractBlobContainer {
                 }
             },
             ConditionalOperation.NONE,
-            executor
+            executor,
+            cancellationCheck
         );
     }
 

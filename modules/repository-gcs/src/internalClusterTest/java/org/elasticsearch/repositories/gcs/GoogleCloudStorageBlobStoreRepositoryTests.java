@@ -319,7 +319,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             sourceBlobName,
             destinationBlobName,
             blobBytes.length(),
-            null
+            null,
+            () -> {}
         );
         assertThat(readFully(destinationBlobContainer.readBlob(randomRetryingPurpose(), destinationBlobName)), equalBytes(blobBytes));
 

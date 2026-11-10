@@ -145,7 +145,8 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
         final String sourceBlobName,
         final String blobName,
         final long blobSize,
-        @Nullable final Executor executor
+        @Nullable final Executor executor,
+        final Runnable cancellationCheck
     ) throws IOException {
         assert BlobContainer.assertPurposeConsistency(purpose, sourceBlobName);
         assert BlobContainer.assertPurposeConsistency(purpose, blobName);
@@ -157,7 +158,7 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
         BlobId blobId = BlobId.of(blobStore.bucketName, buildKey(blobName));
         BlobInfo targetBlobInfo = blobStore.applyStorageClass(BlobInfo.newBuilder(blobId), purpose).build();
         try {
-            blobStore.client().copy(purpose, sourceBlobId, targetBlobInfo, blobStore.getMegabytesCopiedPerChunk());
+            blobStore.client().copy(purpose, sourceBlobId, targetBlobInfo, blobStore.getMegabytesCopiedPerChunk(), cancellationCheck);
         } catch (StorageException e) {
             if (e.getCode() == RestStatus.NOT_FOUND.getStatus()) {
                 throw new NoSuchFileException("Copy source [" + sourceBlobName + "] not found: " + e.getMessage());

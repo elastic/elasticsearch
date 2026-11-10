@@ -1030,7 +1030,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         String sourceBlobName,
                         String blobName,
                         long blobSize,
-                        @Nullable Executor executor
+                        @Nullable Executor executor,
+                        Runnable cancellationCheck
                     ) throws IOException {
                         blobCopyCount.updateAndGet(count -> {
                             count++;
@@ -1109,7 +1110,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         String sourceBlobName,
                         String blobName,
                         long blobSize,
-                        @Nullable Executor executor
+                        @Nullable Executor executor,
+                        Runnable cancellationCheck
                     ) throws IOException {
                         // always fail last blob
                         if (blobsToCopy.decrementAndGet() == 0 || randomBoolean()) {
@@ -1119,7 +1121,15 @@ public class ObjectStoreServiceTests extends ESTestCase {
                                 throw new RuntimeException("Fail copy");
                             }
                         }
-                        innerContainer.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor);
+                        innerContainer.copyBlob(
+                            purpose,
+                            sourceBlobContainer,
+                            sourceBlobName,
+                            blobName,
+                            blobSize,
+                            executor,
+                            cancellationCheck
+                        );
                     }
                 };
             }

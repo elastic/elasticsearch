@@ -18,10 +18,6 @@ teardown:
       indices.delete:
         index: test-composite-columnar
         ignore_unavailable: true
-  - do:
-      indices.delete:
-        index: test-composite-columnar-multi
-        ignore_unavailable: true
 
 ---
 # Muted in muted-tests.yml: collapse groups by ordinal and columnar keyword doc values are BINARY,

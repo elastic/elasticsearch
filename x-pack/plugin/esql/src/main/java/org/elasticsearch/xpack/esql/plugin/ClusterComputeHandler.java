@@ -30,14 +30,12 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceAuthorizer;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceDatasets;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
@@ -103,20 +101,13 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                 l.onFailure(e);
             }
         });
-        final Releasable serializedPlan;
-        try {
-            serializedPlan = computeService.reserveSerializedPlan(PlannerUtils.localDataBytes(plan), "serialize cluster compute request");
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
-        }
         ExchangeService.openExchange(
             transportService,
             cluster.connection,
             childSessionId,
             queryPragmas.exchangeBufferSize(),
             searchExecutor,
-            ActionListener.releaseBefore(serializedPlan, listener).delegateFailure((l, unused) -> {
+            listener.delegateFailure((l, unused) -> {
                 final CancellableTask groupTask;
                 final Runnable onGroupFailure;
                 boolean failFast = executionInfo.shouldSkipOnFailure(clusterAlias) == false && configuration.allowPartialResults() == false;
@@ -149,7 +140,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         ComputeService.CLUSTER_ACTION_NAME,
                         clusterRequest,
                         groupTask,
-                        TransportRequestOptions.EMPTY,
+                        computeService.planRequestOptions(),
                         new ActionListenerResponseHandler<>(clusterListener, in -> new ComputeResponse(in, threadContext), searchExecutor)
                     );
                     var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);

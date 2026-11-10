@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
@@ -67,6 +66,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -292,17 +292,12 @@ public class ComputeService {
     }
 
     /**
-     * Charges the request breaker for the copy of a plan's local data that the transport layer serializes into a request to
-     * another node and holds in its outbound buffers, which no breaker tracks. Release the returned reservation once that
-     * node has responded.
+     * Options for a request that carries a plan to another node. The plan can hold large local data, such as the result of an
+     * INLINE STATS sub-plan, and the transport layer keeps one serialized copy per target until it has been written, so that
+     * copy is charged to the request breaker and a trip fails the request instead of running the node out of memory.
      */
-    Releasable reserveSerializedPlan(long localDataBytes, String label) {
-        if (localDataBytes == 0) {
-            return () -> {};
-        }
-        CircuitBreaker breaker = blockFactory.breaker();
-        breaker.addEstimateBytesAndMaybeBreak(localDataBytes, label);
-        return Releasables.releaseOnce(() -> breaker.addWithoutBreaking(-localDataBytes));
+    TransportRequestOptions planRequestOptions() {
+        return TransportRequestOptions.of(null, TransportRequestOptions.Type.REG, blockFactory.breaker());
     }
 
     FormatReaderRegistry formatReaderRegistry() {

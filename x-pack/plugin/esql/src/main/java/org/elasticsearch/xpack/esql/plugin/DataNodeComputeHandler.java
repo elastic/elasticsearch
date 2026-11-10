@@ -65,7 +65,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -186,7 +185,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         ActionListener<ComputeResponse> outListener
     ) {
         Integer maxConcurrentNodesPerCluster = PlanConcurrencyCalculator.INSTANCE.calculateNodesConcurrency(dataNodePlan, configuration);
-        long localDataBytes = PlannerUtils.localDataBytes(dataNodePlan);
 
         new DataNodeRequestSender(
             clusterService,
@@ -217,10 +215,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 final AtomicLong pagesFetched = new AtomicLong();
                 var listener = ActionListener.wrap(nodeListener::onResponse, e -> nodeListener.onFailure(e, pagesFetched.get() > 0));
                 final Transport.Connection connection;
-                final Releasable serializedPlan;
                 try {
                     connection = transportService.getConnection(node);
-                    serializedPlan = reserveSerializedPlan(connection.getNode(), localDataBytes);
                 } catch (Exception e) {
                     listener.onFailure(e);
                     return;
@@ -235,7 +231,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     childSessionId,
                     queryPragmas.exchangeBufferSize(),
                     searchExecutor,
-                    ActionListener.releaseBefore(serializedPlan, listener).delegateFailureAndWrap((l, unused) -> {
+                    listener.delegateFailureAndWrap((l, unused) -> {
                         final Runnable onGroupFailure;
                         final CancellableTask groupTask;
                         if (configuration.allowPartialResults()) {
@@ -283,7 +279,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 ComputeService.DATA_ACTION_NAME,
                                 dataNodeRequest,
                                 groupTask,
-                                TransportRequestOptions.EMPTY,
+                                computeService.planRequestOptions(),
                                 new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
                                     nodeResponseRef.set(r);
                                     return r.completionInfo();
@@ -306,19 +302,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             runOnTaskFailure,
             ActionListener.releaseAfter(outListener, exchangeSource.addEmptySink())
         );
-    }
-
-    /**
-     * Charges the request breaker for the copy of the plan's local data that the transport layer serializes for a remote
-     * data node and holds in its outbound buffers, which no breaker tracks. Requests to the local node are not serialized.
-     * The reservation is held until the data node responds, which outlasts the buffers but is the first point the
-     * coordinator can observe.
-     */
-    private Releasable reserveSerializedPlan(DiscoveryNode node, long bytes) {
-        if (node.getId().equals(transportService.getLocalNode().getId())) {
-            return () -> {};
-        }
-        return computeService.reserveSerializedPlan(bytes, "serialize data node request");
     }
 
     void startExternalComputeOnDataNodes(
@@ -371,7 +354,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             // worker that has applied a lower version and cannot bind a dataset of the plan is behind rather than missing it.
             final long requiredClusterStateVersion = clusterService.state().version();
             final List<ExternalDispatchResolution.ResolvedExternalNode> workers = resolution.resolved();
-            final long localDataBytes = PlannerUtils.localDataBytes(dataNodePlan);
             for (int i = 0; i < workers.size(); i++) {
                 ExternalDispatchResolution.ResolvedExternalNode target = workers.get(i);
                 // Should this worker not have applied the cluster state its splits were planned from, they walk the other
@@ -382,15 +364,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 Transport.Connection connection = target.connection();
                 List<ExternalSplit> nodeSplits = target.splits();
 
-                // One reservation covers the whole walk: a hop resends the plan only after the previous worker responded,
-                // and a walk that starts on the local node, which reserves nothing, never hops as that node planned the splits.
-                final Releasable serializedPlan;
-                try {
-                    serializedPlan = reserveSerializedPlan(node, localDataBytes);
-                } catch (Exception e) {
-                    parentComputeListener.acquireAvoid().onFailure(e);
-                    continue;
-                }
                 var childSessionId = computeService.newChildSession(sessionId);
                 keepAlive.track();
                 final AtomicBoolean nodeDone = new AtomicBoolean(false);
@@ -399,10 +372,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         keepAlive.done();
                     }
                 };
-                ActionListener<Void> openExchangeListener = ActionListener.releaseBefore(
-                    serializedPlan,
-                    parentComputeListener.acquireAvoid()
-                ).delegateFailureAndWrap((l, unused) -> {
+                ActionListener<Void> openExchangeListener = parentComputeListener.acquireAvoid().delegateFailureAndWrap((l, unused) -> {
                     l = ActionListener.runAfter(l, finishNode);
                     // The node the splits currently run on: the target, or the worker of the latest hop of their walk.
                     final AtomicReference<DiscoveryNode> currentNode = new AtomicReference<>(node);
@@ -465,7 +435,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             ComputeService.DATA_ACTION_NAME,
                             walk.request(childSessionId, 0),
                             groupTask,
-                            TransportRequestOptions.EMPTY,
+                            computeService.planRequestOptions(),
                             new ActionListenerResponseHandler<>(
                                 walk.attemptListener(0),
                                 in -> new DataNodeComputeResponse(in, threadContext),
@@ -875,7 +845,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     ComputeService.DATA_ACTION_NAME,
                     request(childSessionId, attempt),
                     groupTask,
-                    TransportRequestOptions.EMPTY,
+                    computeService.planRequestOptions(),
                     new ActionListenerResponseHandler<>(
                         attemptListener(attempt),
                         in -> new DataNodeComputeResponse(in, threadContext),

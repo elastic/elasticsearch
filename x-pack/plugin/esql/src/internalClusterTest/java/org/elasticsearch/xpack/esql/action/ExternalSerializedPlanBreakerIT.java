@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
@@ -18,11 +17,13 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -31,13 +32,14 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.KEY_PADDING;
 import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.NUM_DOCS;
 import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.QUERY_TAIL;
+import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.SERIALIZED_REQUEST_LABEL;
 import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.assertTrippedOn;
-import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.fillBreakerOnOpenExchange;
+import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.fillBreakerAfterNthSend;
 
 /**
- * The coordinator charges its request breaker for the sub-plan result it serializes into the request to each external
- * worker. A dedicated coordinator is never a worker, and the breaker is filled after the first worker's reservation so only
- * the second one trips.
+ * The coordinator charges its request breaker for each serialized request that carries the sub-plan result to an external
+ * worker, until that request has been written. A dedicated coordinator is never a worker, and the breaker is filled once the
+ * first worker's main-plan request has been written, so only the second one trips.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class ExternalSerializedPlanBreakerIT extends AbstractExternalDataSourceIT {
@@ -51,7 +53,10 @@ public class ExternalSerializedPlanBreakerIT extends AbstractExternalDataSourceI
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(MockTransportService.TestPlugin.class);
+        plugins.add(InternalExchangePlugin.class);
+        return plugins;
     }
 
     @Override
@@ -59,6 +64,7 @@ public class ExternalSerializedPlanBreakerIT extends AbstractExternalDataSourceI
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(SerializedPlanBreakerIT.memoryRequestBreaker())
+            .put(SerializedPlanBreakerIT.reapUnusedExchanges())
             .build();
     }
 
@@ -74,9 +80,10 @@ public class ExternalSerializedPlanBreakerIT extends AbstractExternalDataSourceI
         request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "round_robin").build()));
         request.acceptedPragmaRisks(true);
         try (
-            Releasable filled = fillBreakerOnOpenExchange(
+            Releasable filled = fillBreakerAfterNthSend(
                 (MockTransportService) internalCluster().getInstance(TransportService.class, coordinator),
                 internalCluster().getInstance(CircuitBreakerService.class, coordinator).getBreaker(CircuitBreaker.REQUEST),
+                ComputeService.DATA_ACTION_NAME,
                 3
             )
         ) {
@@ -84,7 +91,7 @@ public class ExternalSerializedPlanBreakerIT extends AbstractExternalDataSourceI
                 Exception.class,
                 () -> client(coordinator).execute(EsqlQueryAction.INSTANCE, request).actionGet(TIMEOUT).close()
             );
-            assertTrippedOn(e, "serialize data node request");
+            assertTrippedOn(e, SERIALIZED_REQUEST_LABEL);
         }
     }
 

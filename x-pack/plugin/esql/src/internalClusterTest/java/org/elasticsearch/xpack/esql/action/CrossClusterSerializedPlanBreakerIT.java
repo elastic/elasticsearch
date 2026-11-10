@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
@@ -17,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -28,26 +26,28 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.HEADROOM;
 import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.KEY_PADDING;
 import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.NUM_DOCS;
 import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.QUERY_TAIL;
+import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.SERIALIZED_REQUEST_LABEL;
 import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.assertReleased;
 import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.assertTrippedOn;
-import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.cancelQuery;
-import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.fillBreakerOnOpenExchange;
+import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.fillBreakerAfterNthSend;
 import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.holdNthRequest;
+import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.recordUsageBeforeNthSend;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * The coordinator charges its request breaker for the sub-plan result it serializes into the request to each remote cluster,
- * until that request completes. The trip tests fill the breaker after the first remote cluster's reservation so only the
- * second one trips.
+ * The coordinator charges its request breaker for each serialized request that carries the sub-plan result to a remote
+ * cluster, until that request has been written. The trip tests fill the breaker once the first remote cluster's main-plan
+ * request has been written, so only the second one trips.
  */
 public class CrossClusterSerializedPlanBreakerIT extends AbstractCrossClusterTestCase {
 
@@ -69,7 +69,7 @@ public class CrossClusterSerializedPlanBreakerIT extends AbstractCrossClusterTes
         String coordinator = cluster(LOCAL_CLUSTER).getRandomNodeName();
         try (Releasable filled = fillCoordinatorBreaker(coordinator)) {
             Exception e = expectThrows(Exception.class, () -> run(coordinator, false).close());
-            assertTrippedOn(e, "serialize cluster compute request");
+            assertTrippedOn(e, SERIALIZED_REQUEST_LABEL);
         }
     }
 
@@ -84,18 +84,21 @@ public class CrossClusterSerializedPlanBreakerIT extends AbstractCrossClusterTes
             for (String alias : List.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2)) {
                 failures.append(resp.getExecutionInfo().getCluster(alias).getFailures());
             }
-            assertThat(failures.toString(), containsString("data for [serialize cluster compute request]"));
+            assertThat(failures.toString(), containsString("data for [" + SERIALIZED_REQUEST_LABEL + "]"));
         }
     }
 
-    public void testCancellationReleasesReservations() throws Exception {
+    public void testChargeReleasedOnceWritten() throws Exception {
         populateRemotes();
         String coordinator = cluster(LOCAL_CLUSTER).getRandomNodeName();
         CircuitBreaker breaker = coordinatorBreaker(coordinator);
         long before = breaker.getUsed();
+        MockTransportService coordinatorTransport = coordinatorTransport(coordinator);
+        AtomicLong usedBeforeMainPlan = recordUsageBeforeNthSend(coordinatorTransport, breaker, ComputeService.CLUSTER_ACTION_NAME, 3);
         CountDownLatch received = new CountDownLatch(2);
         CountDownLatch resume = new CountDownLatch(1);
         List<Releasable> held = new ArrayList<>();
+        held.add(coordinatorTransport::clearAllRules);
         for (String alias : List.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2)) {
             List<MockTransportService> nodes = Arrays.stream(cluster(alias).getNodeNames())
                 .map(node -> (MockTransportService) cluster(alias).getInstance(TransportService.class, node))
@@ -115,17 +118,15 @@ public class CrossClusterSerializedPlanBreakerIT extends AbstractCrossClusterTes
             ActionFuture<EsqlQueryResponse> future = start(coordinator, false);
             try {
                 safeAwait(received);
-                cancelQuery(cluster(LOCAL_CLUSTER).client(coordinator));
+                assertBusy(() -> assertThat(breaker.getUsed(), lessThan(usedBeforeMainPlan.get() + HEADROOM.getBytes())));
             } finally {
                 resume.countDown();
             }
-            Exception e = expectThrows(Exception.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT).close());
-            assertThat(e.toString(), ExceptionsHelper.unwrap(e, TaskCancelledException.class), notNullValue());
+            try (EsqlQueryResponse resp = future.actionGet(TEST_REQUEST_TIMEOUT)) {
+                assertThat(((Number) EsqlTestUtils.getValuesList(resp).get(0).get(0)).longValue(), equalTo((long) NUM_DOCS));
+            }
         }
         assertReleased(breaker, before);
-        try (EsqlQueryResponse resp = run(coordinator, false)) {
-            assertThat(((Number) EsqlTestUtils.getValuesList(resp).get(0).get(0)).longValue(), equalTo((long) NUM_DOCS));
-        }
     }
 
     private void populateRemotes() {
@@ -141,11 +142,16 @@ public class CrossClusterSerializedPlanBreakerIT extends AbstractCrossClusterTes
     }
 
     private Releasable fillCoordinatorBreaker(String coordinator) {
-        return fillBreakerOnOpenExchange(
-            (MockTransportService) cluster(LOCAL_CLUSTER).getInstance(TransportService.class, coordinator),
+        return fillBreakerAfterNthSend(
+            coordinatorTransport(coordinator),
             coordinatorBreaker(coordinator),
+            ComputeService.CLUSTER_ACTION_NAME,
             3
         );
+    }
+
+    private MockTransportService coordinatorTransport(String coordinator) {
+        return (MockTransportService) cluster(LOCAL_CLUSTER).getInstance(TransportService.class, coordinator);
     }
 
     private CircuitBreaker coordinatorBreaker(String coordinator) {

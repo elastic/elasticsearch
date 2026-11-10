@@ -9,30 +9,28 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
@@ -48,14 +46,13 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * The coordinator charges its request breaker for the sub-plan result it serializes into each request to a remote data node,
- * until that request completes. A dedicated coordinator sends every request remotely, and the trip tests fill the breaker
- * after the first reservation so only the second one trips.
+ * The coordinator charges its request breaker for each serialized request that carries the sub-plan result to a remote data
+ * node, until that request has been written. A dedicated coordinator sends every request remotely, and the trip tests fill
+ * the breaker once the first main-plan request has been written, so only the second one trips.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 0, supportsDedicatedMasters = false)
 public class SerializedPlanBreakerIT extends AbstractEsqlIntegTestCase {
@@ -63,17 +60,37 @@ public class SerializedPlanBreakerIT extends AbstractEsqlIntegTestCase {
     static final int NUM_DOCS = 15_000;
     static final String KEY_PADDING = "x".repeat(200);
     static final String QUERY_TAIL = " | INLINE STATS c = COUNT(*) BY k | STATS n = COUNT(*), s = SUM(c)";
+    /** The breaker label of the transport's serialized outbound messages. */
+    static final String SERIALIZED_REQUEST_LABEL = "RecyclerBytesStreamOutput";
     /** Well below the sub-plan result of {@link #NUM_DOCS} padded keys, and above what the rest of the query allocates. */
-    private static final ByteSizeValue HEADROOM = ByteSizeValue.ofMb(1);
+    static final ByteSizeValue HEADROOM = ByteSizeValue.ofMb(1);
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(MockTransportService.TestPlugin.class);
+        plugins.add(InternalExchangePlugin.class);
+        return plugins;
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put(memoryRequestBreaker()).build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(memoryRequestBreaker())
+            .put(reapUnusedExchanges())
+            .build();
+    }
+
+    /**
+     * A trip fails a request after the exchange it feeds was opened on the target. The target never runs the request, so
+     * nothing there finishes that exchange, and once the trip cancels the request's task the coordinator cannot tell the
+     * target to finish it either. The target reaps it once it has been inactive for this interval.
+     */
+    static Settings reapUnusedExchanges() {
+        return Settings.builder()
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
+            .build();
     }
 
     /** The test cluster sometimes picks the {@code noop} request breaker, which never trips. */
@@ -91,25 +108,72 @@ public class SerializedPlanBreakerIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Fills {@code breaker} when the {@code n}th exchange is opened, leaving less headroom than a reservation of the sub-plan
-     * result. INLINE STATS opens one exchange per target for its sub-plan, then one per target for the main plan, each right
-     * after that target's reservation, so filling on the first main-plan open trips the reservation of the next target.
+     * Fills {@code breaker} once the {@code n}th {@code action} request has been written, leaving less headroom than the
+     * sub-plan result. INLINE STATS sends one request per target for its sub-plan, which carries no local data, then one per
+     * target for the main plan. The requests are serialized one at a time, and the fill waits until the {@code n}th is
+     * written, when its own charge is gone, so the next request is the one that trips.
      */
-    static Releasable fillBreakerOnOpenExchange(MockTransportService transportService, CircuitBreaker breaker, int n) {
-        AtomicInteger opens = new AtomicInteger();
+    static Releasable fillBreakerAfterNthSend(MockTransportService transportService, CircuitBreaker breaker, String action, int n) {
+        AtomicInteger sends = new AtomicInteger();
+        AtomicLong nthRequestId = new AtomicLong(-1);
+        CountDownLatch nthWritten = new CountDownLatch(1);
         AtomicLong filled = new AtomicLong();
-        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (ExchangeService.OPEN_EXCHANGE_ACTION_NAME.equals(action) && opens.incrementAndGet() == n) {
+        TransportMessageListener writtenListener = new TransportMessageListener() {
+            @Override
+            public void onRequestSent(
+                DiscoveryNode node,
+                long requestId,
+                String sentAction,
+                TransportRequest request,
+                TransportRequestOptions options,
+                int networkMessageSize
+            ) {
+                if (requestId == nthRequestId.get()) {
+                    nthWritten.countDown();
+                }
+            }
+        };
+        transportService.addMessageListener(writtenListener);
+        Object serializeOneAtATime = new Object();
+        transportService.addSendBehavior((connection, requestId, sentAction, request, options) -> {
+            if (action.equals(sentAction) == false) {
+                connection.sendRequest(requestId, sentAction, request, options);
+                return;
+            }
+            synchronized (serializeOneAtATime) {
+                if (sends.incrementAndGet() != n) {
+                    connection.sendRequest(requestId, sentAction, request, options);
+                    return;
+                }
+                nthRequestId.set(requestId);
+                connection.sendRequest(requestId, sentAction, request, options);
+                safeAwait(nthWritten);
                 long fill = breaker.getLimit() - breaker.getUsed() - HEADROOM.getBytes();
                 breaker.addWithoutBreaking(fill);
                 filled.set(fill);
             }
-            connection.sendRequest(requestId, action, request, options);
         });
         return () -> {
             transportService.clearAllRules();
+            transportService.removeMessageListener(writtenListener);
             breaker.addWithoutBreaking(-filled.getAndSet(0));
         };
+    }
+
+    /**
+     * Records the usage of {@code breaker} just before the {@code n}th {@code action} request is sent, which for the first
+     * main-plan request includes the sub-plan result the coordinator holds but none of the serialized copies.
+     */
+    static AtomicLong recordUsageBeforeNthSend(MockTransportService transportService, CircuitBreaker breaker, String action, int n) {
+        AtomicInteger sends = new AtomicInteger();
+        AtomicLong used = new AtomicLong(-1);
+        transportService.addSendBehavior((connection, requestId, sentAction, request, options) -> {
+            if (action.equals(sentAction) && sends.incrementAndGet() == n) {
+                used.set(breaker.getUsed());
+            }
+            connection.sendRequest(requestId, sentAction, request, options);
+        });
+        return used;
     }
 
     static void assertTrippedOn(Exception e, String label) {
@@ -121,8 +185,7 @@ public class SerializedPlanBreakerIT extends AbstractEsqlIntegTestCase {
 
     /**
      * Holds the {@code n}th {@code action} request any of {@code transportServices} receives until {@code resume} opens, then
-     * hands it to {@code then}. A held request has been received in full, so the coordinator has reserved for it and written
-     * it, and holds that reservation until the request completes.
+     * hands it to {@code then}. A held request has been received in full, so the coordinator has written it.
      */
     static Releasable holdNthRequest(
         List<MockTransportService> transportServices,
@@ -147,15 +210,6 @@ public class SerializedPlanBreakerIT extends AbstractEsqlIntegTestCase {
         return () -> transportServices.forEach(MockTransportService::clearAllRules);
     }
 
-    static void cancelQuery(Client client) {
-        List<TaskInfo> tasks = client.admin().cluster().prepareListTasks().setActions(EsqlQueryAction.NAME).get().getTasks();
-        assertThat(tasks, hasSize(1));
-        client.execute(
-            TransportCancelTasksAction.TYPE,
-            new CancelTasksRequest().setTargetTaskId(tasks.getFirst().taskId()).setReason("test cancel")
-        ).actionGet();
-    }
-
     static void assertReleased(CircuitBreaker breaker, long before) throws Exception {
         assertBusy(() -> assertThat(breaker.getUsed(), equalTo(before)));
     }
@@ -164,7 +218,7 @@ public class SerializedPlanBreakerIT extends AbstractEsqlIntegTestCase {
         String coordinator = setupCoordinatorAndIndex();
         try (Releasable filled = fillCoordinatorBreaker(coordinator)) {
             Exception e = expectThrows(Exception.class, () -> run(coordinator, false).close());
-            assertTrippedOn(e, "serialize data node request");
+            assertTrippedOn(e, SERIALIZED_REQUEST_LABEL);
         }
     }
 
@@ -176,52 +230,38 @@ public class SerializedPlanBreakerIT extends AbstractEsqlIntegTestCase {
             assertThat(((Number) rows.get(0).get(0)).longValue(), lessThan((long) NUM_DOCS));
             EsqlExecutionInfo.Cluster local = resp.getExecutionInfo().getCluster(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY);
             assertThat(local.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
-            assertThat(local.getFailures().toString(), containsString("data for [serialize data node request]"));
+            assertThat(local.getFailures().toString(), containsString("data for [" + SERIALIZED_REQUEST_LABEL + "]"));
         }
     }
 
-    public void testCancellationReleasesReservations() throws Exception {
+    /**
+     * While both data nodes hold the main-plan request they received, the coordinator no longer charges the copies it
+     * serialized for them: only what it charged before sending them, plus the small allocations of the rest of the query.
+     */
+    public void testChargeReleasedOnceWritten() throws Exception {
         String coordinator = setupCoordinatorAndIndex();
         CircuitBreaker breaker = coordinatorBreaker(coordinator);
         long before = breaker.getUsed();
-        CountDownLatch received = new CountDownLatch(2);
-        CountDownLatch resume = new CountDownLatch(1);
-        try (Releasable held = holdMainPlanRequests(received, resume, (h, r, channel, task) -> h.messageReceived(r, channel, task))) {
-            ActionFuture<EsqlQueryResponse> future = start(coordinator, false);
-            try {
-                safeAwait(received);
-                cancelQuery(client(coordinator));
-            } finally {
-                resume.countDown();
-            }
-            Exception e = expectThrows(Exception.class, () -> future.actionGet(DEFAULT_REQUEST_TIMEOUT).close());
-            assertThat(e.toString(), ExceptionsHelper.unwrap(e, TaskCancelledException.class), notNullValue());
-        }
-        assertReleased(breaker, before);
-        assertCountsAllDocs(coordinator);
-    }
-
-    public void testDataNodeFailureReleasesReservations() throws Exception {
-        String coordinator = setupCoordinatorAndIndex();
-        CircuitBreaker breaker = coordinatorBreaker(coordinator);
-        long before = breaker.getUsed();
+        MockTransportService coordinatorTransport = coordinatorTransport(coordinator);
+        AtomicLong usedBeforeMainPlan = recordUsageBeforeNthSend(coordinatorTransport, breaker, ComputeService.DATA_ACTION_NAME, 3);
         CountDownLatch received = new CountDownLatch(2);
         CountDownLatch resume = new CountDownLatch(1);
         try (
-            Releasable held = holdMainPlanRequests(
-                received,
-                resume,
-                (h, r, channel, task) -> channel.sendResponse(new RuntimeException("simulated data node failure"))
-            )
+            Releasable recording = coordinatorTransport::clearAllRules;
+            Releasable held = holdMainPlanRequests(received, resume, (h, r, channel, task) -> h.messageReceived(r, channel, task))
         ) {
             ActionFuture<EsqlQueryResponse> future = start(coordinator, false);
-            safeAwait(received);
-            resume.countDown();
-            Exception e = expectThrows(Exception.class, () -> future.actionGet(DEFAULT_REQUEST_TIMEOUT).close());
-            assertThat(e.getMessage(), containsString("simulated data node failure"));
+            try {
+                safeAwait(received);
+                assertBusy(() -> assertThat(breaker.getUsed(), lessThan(usedBeforeMainPlan.get() + HEADROOM.getBytes())));
+            } finally {
+                resume.countDown();
+            }
+            try (EsqlQueryResponse resp = future.actionGet(DEFAULT_REQUEST_TIMEOUT)) {
+                assertThat(((Number) EsqlTestUtils.getValuesList(resp).get(0).get(0)).longValue(), equalTo((long) NUM_DOCS));
+            }
         }
         assertReleased(breaker, before);
-        assertCountsAllDocs(coordinator);
     }
 
     private Releasable holdMainPlanRequests(
@@ -235,12 +275,6 @@ public class SerializedPlanBreakerIT extends AbstractEsqlIntegTestCase {
             held.add(holdNthRequest(List.of(transportService), ComputeService.DATA_ACTION_NAME, 2, received, resume, then));
         }
         return Releasables.wrap(held);
-    }
-
-    private void assertCountsAllDocs(String coordinator) {
-        try (EsqlQueryResponse resp = run(coordinator, false)) {
-            assertThat(((Number) EsqlTestUtils.getValuesList(resp).get(0).get(0)).longValue(), equalTo((long) NUM_DOCS));
-        }
     }
 
     private String setupCoordinatorAndIndex() {
@@ -260,11 +294,16 @@ public class SerializedPlanBreakerIT extends AbstractEsqlIntegTestCase {
     }
 
     private Releasable fillCoordinatorBreaker(String coordinator) {
-        return fillBreakerOnOpenExchange(
-            (MockTransportService) internalCluster().getInstance(TransportService.class, coordinator),
+        return fillBreakerAfterNthSend(
+            coordinatorTransport(coordinator),
             coordinatorBreaker(coordinator),
+            ComputeService.DATA_ACTION_NAME,
             3
         );
+    }
+
+    private MockTransportService coordinatorTransport(String coordinator) {
+        return (MockTransportService) internalCluster().getInstance(TransportService.class, coordinator);
     }
 
     private CircuitBreaker coordinatorBreaker(String coordinator) {

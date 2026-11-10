@@ -29,16 +29,20 @@ class DelegationActions {
 
     @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
     static boolean fileWatcherCreatedByPlugin() throws IOException {
-        AtomicBoolean initialized = new AtomicBoolean();
-        FileWatcher watcher = new FileWatcher(FileCheckActions.readFile());
+        Path watchedDir = FileCheckActions.readDir().resolve("watched_dir");
+        AtomicBoolean fileInitialized = new AtomicBoolean();
+        // checking file contents makes the watcher read the files it finds in the directory
+        FileWatcher watcher = new FileWatcher(watchedDir, true);
         watcher.addListener(new FileChangesListener() {
             @Override
             public void onFileInit(Path file) {
-                initialized.set(true);
+                if (file.equals(watchedDir.resolve("watched_file"))) {
+                    fileInitialized.set(true);
+                }
             }
         });
         watcher.init();
-        return initialized.get();
+        return fileInitialized.get();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IllegalArgumentException.class)

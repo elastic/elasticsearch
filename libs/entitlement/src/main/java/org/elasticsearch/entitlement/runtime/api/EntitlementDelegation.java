@@ -29,7 +29,8 @@ import static java.lang.StackWalker.Option.RETAIN_CLASS_REFERENCE;
  * class ({@link #asCaller()}), or of the class that created an instance of it ({@link #asCreator()}).
  * <p>
  * Checks are delegated for the class that obtains the {@code EntitlementDelegation} and for the classes declared
- * inside it and their lambdas. Only server code may delegate.
+ * inside it and their lambdas. Only classes in the server layer may delegate (see {@code PolicyManager#canDelegate}). In
+ * production this package is exported only to the server module, so no other code can use this API.
  * <p>
  * Delegation is transitive: if the class whose entitlements would be used is itself running under delegation, the
  * entitlements of that delegation are used instead.
@@ -48,7 +49,9 @@ public abstract sealed class EntitlementDelegation permits EntitlementDelegation
      * Creates a delegation to the caller: on each {@link #call}, the checks use the entitlements of the class that calls the
      * delegating class. Usually stored in a {@code private static final} field.
      *
-     * @throws IllegalCallerException if the calling class may not delegate
+     * @throws IllegalCallerException if the calling class is not in the server layer. Possible only when Java modules are
+     * not active (e.g. in tests): when this code runs modularized, the module export already prevents other classes
+     * from calling this method.
      */
     public static EntitlementDelegation asCaller() {
         Class<?> delegatingClass = WALKER.getCallerClass().getNestHost();
@@ -62,9 +65,16 @@ public abstract sealed class EntitlementDelegation permits EntitlementDelegation
     /**
      * Creates a delegation to the creator: on each {@link #call}, the checks use the entitlements of the class that created the instance.
      * It must be stored in an instance field, initialized in a constructor or a field initializer.
+     * <p>
+     * The creator is the first class on the stack outside the delegating class when the instance is constructed.
+     * Typically, this is the class calling the constructor.
+     * Beware of subclasses: when a subclass declared outside the delegating class is constructed, its own constructor
+     * is that first frame, so the subclass is the creator. Avoid using this mechanism with complex class hierarchies.
      *
      * @throws IllegalStateException if it is not called from a constructor
-     * @throws IllegalCallerException if the calling class may not delegate
+     * @throws IllegalCallerException if the calling class is not in the server layer. Possible only when Java modules are
+     * not active (e.g. in tests): when this code runs modularized, the module export already prevents other classes
+     * from calling this method.
      */
     public static EntitlementDelegation asCreator() {
         return WALKER.walk(frames -> {

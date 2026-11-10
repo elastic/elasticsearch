@@ -82,6 +82,9 @@ An entitlement check uses the entitlements of the class that calls the instrumen
 Server code can make its checks use the entitlements of the plugin instead, with `EntitlementDelegation`:
 - `EntitlementDelegation.asCaller()`, when the work happens during the plugin's call: the checks use the entitlements of the class that called the server code. Keep it in a `private static final` field. `Analysis` is an example.
 - `EntitlementDelegation.asCreator()`, when the work continues after the plugin's call returns, for example on a background thread: the checks use the entitlements of the class that created the instance. Keep it in an instance field. `FileWatcher` is an example.
+  - The creator is the first class on the stack outside the delegating class when the instance is constructed: typically, this is the class calling the constructor. Beware of subclasses: when a subclass declared outside the delegating class is constructed, its own constructor is that first frame, so the subclass will appear as the creator. Avoid using this mechanism with complex class hierarchies.
+
+Only classes in the server layer can delegate. The "server layer" consist of the modules of the boot layer outside the trusted JDK modules (i.e. server, its libraries and their dependencies, plus `java.desktop` and `java.xml`). In production, `EntitlementDelegation` is exported only to the server module.
 
 In both cases, wrap sensitive operations in `delegation.call(() -> { ... })`.
 

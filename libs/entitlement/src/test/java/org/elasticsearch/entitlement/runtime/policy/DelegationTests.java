@@ -163,9 +163,12 @@ public class DelegationTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("[" + TestPluginCode.class.getName() + "] may not delegate"));
     }
 
-    public void testActiveDelegationOfCodeThatCannotDelegateIsIgnored() {
+    public void testActiveDelegationOfCodeThatCanDelegateApplies() {
         var serverDelegation = new ActiveDelegation(TestServerCode.class, TestPluginCode.class);
         assertEquals(TestPluginCode.class, DelegationHolder.call(serverDelegation, () -> TestServerCode.requestingClass(checker)));
+    }
+
+    public void testActiveDelegationOfCodeThatCannotDelegateIsIgnored() {
         var pluginDelegation = new ActiveDelegation(TestPluginCode.class, TestServerCode.class);
         assertEquals(TestPluginCode.class, DelegationHolder.call(pluginDelegation, () -> TestPluginCode.requestingClass(checker)));
     }

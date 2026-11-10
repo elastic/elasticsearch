@@ -412,7 +412,8 @@ public class PolicyManager {
     /**
      * Whether the entitlement checks made by the code of {@code type} may use the entitlements of another class, through
      * {@link org.elasticsearch.entitlement.runtime.api.EntitlementDelegation}.
-     * Only server code can delegate; other code gets an {@link IllegalCallerException}.
+     * Only classes in the server layer can delegate: the modules of the boot layer outside the trusted JDK modules
+     * (server, its libraries and their dependencies, and {@link MODULES_EXCLUDED_FROM_SYSTEM_MODULES}).
      */
     protected boolean canDelegate(Class<?> type) {
         return SERVER_LAYER_MODULES.contains(type.getModule());

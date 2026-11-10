@@ -30,6 +30,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceSchema;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.function.IntPredicate;
@@ -149,6 +150,8 @@ public final class ShardBatchMapper {
         // Full paths of leaves bound to a per-leaf mapper, used to detect dotted/nested aliasing. Allocated lazily
         // because most batches resolve every leaf to a group or to nothing at all.
         HashSet<String> mappedPaths = null;
+        // Owner path → the one schema object a group that needs a single source object takes its leaves from.
+        HashMap<String, Integer> groupObjects = null;
 
         for (int leaf = 0; leaf < leafCount; leaf++) {
             final String fullPath = schema.getFullPath(leaf);
@@ -189,6 +192,30 @@ public final class ShardBatchMapper {
                             owned.mapper().typeName()
                         );
                         return null;
+                    }
+                    if (owned.mapper().resolvesColumnGroup() == FieldMapper.ColumnGroup.SINGLE_OBJECT) {
+                        if (ColumnGroupResolver.isDirectlyInOwnerObject(schema, leaf, fullPath, owned.ownerPath()) == false) {
+                            logger.debug(
+                                "batch indexing disabled: leaf [{}] is not directly in an object at the [{}] group mapper's path [{}]",
+                                fullPath,
+                                owned.mapper().typeName(),
+                                owned.ownerPath()
+                            );
+                            return null;
+                        }
+                        if (groupObjects == null) {
+                            groupObjects = new HashMap<>();
+                        }
+                        final int parent = schema.getLeafParent(leaf);
+                        final Integer groupObject = groupObjects.putIfAbsent(owned.ownerPath(), parent);
+                        if (groupObject != null && groupObject != parent) {
+                            logger.debug(
+                                "batch indexing disabled: the [{}] group mapper at [{}] is spelled as more than one object in this batch",
+                                owned.mapper().typeName(),
+                                owned.ownerPath()
+                            );
+                            return null;
+                        }
                     }
                     if (groupBuilder == null) {
                         groupBuilder = new ColumnGroupResolver.Builder();

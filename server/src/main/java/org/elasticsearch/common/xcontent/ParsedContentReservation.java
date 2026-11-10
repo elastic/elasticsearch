@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -30,10 +31,8 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class ParsedContentReservation implements Releasable {
 
-    /**
-     * The label a circuit breaker exception reports for these charges.
-     */
-    public static final String LABEL = "<parsed_request>";
+    /** The label of these charges and releases. A circuit breaker exception reports it, and it is their breaker metrics category. */
+    public static final String LABEL = ChildMemoryCircuitBreaker.CATEGORY_PARSED_REQUEST;
 
     /**
      * The thread context transient that carries the reservation of the REST request being handled, see
@@ -99,7 +98,7 @@ public final class ParsedContentReservation implements Releasable {
             if (canTrip) {
                 breaker.addEstimateBytesAndMaybeBreak(bytes, LABEL);
             } else {
-                breaker.addWithoutBreaking(bytes);
+                breaker.addWithoutBreaking(bytes, LABEL);
             }
         } catch (CircuitBreakingException e) {
             unchecked.addAndGet(priorUnchecked);
@@ -116,7 +115,7 @@ public final class ParsedContentReservation implements Releasable {
         if (reserved.get() == CLOSED) {
             return;
         }
-        breaker.addWithoutBreaking(bytes);
+        breaker.addWithoutBreaking(bytes, LABEL);
         unchecked.addAndGet(bytes);
         record(bytes);
     }
@@ -131,7 +130,7 @@ public final class ParsedContentReservation implements Releasable {
     private void record(long bytes) {
         // A forked parser can still charge after its request completed. A charge that raced with close is released at once.
         if (reserved.getAndUpdate(r -> r == CLOSED ? CLOSED : r + bytes) == CLOSED) {
-            breaker.addWithoutBreaking(-bytes);
+            breaker.addWithoutBreaking(-bytes, LABEL);
         }
     }
 
@@ -150,7 +149,7 @@ public final class ParsedContentReservation implements Releasable {
     public void close() {
         final long toRelease = reserved.getAndSet(CLOSED);
         if (toRelease > 0) {
-            breaker.addWithoutBreaking(-toRelease);
+            breaker.addWithoutBreaking(-toRelease, LABEL);
         }
     }
 }

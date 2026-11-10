@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.util.List;
@@ -32,7 +33,7 @@ import static java.util.Collections.emptyList;
 /**
  * Similar to {@link StdDev}, but it is used to calculate the standard deviation over a time series of values from the given field.
  */
-public class StddevOverTime extends TimeSeriesAggregateFunction implements ToAggregator, AnyNullIsNull {
+public class StddevOverTime extends TimeSeriesAggregateFunction implements ToAggregator, AnyNullIsNull, UnitAware.PreservesUnit {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StddevOverTime.class)
         .binary(StddevOverTime::new)
         .name("stddev_over_time");

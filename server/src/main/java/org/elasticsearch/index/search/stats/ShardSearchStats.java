@@ -223,6 +223,35 @@ public final class ShardSearchStats implements SearchOperationListener {
     }
 
     /**
+     * Charges {@code nanos} to {@code shards} in proportion to the first {@code shards.size()} {@code weights}, or equally
+     * when they are all 0.
+     */
+    public static void charge(List<ShardSearchStats> shards, long[] weights, long nanos, long finishNanos) {
+        assert nanos >= 0 : nanos;
+        assert weights.length >= shards.size() : weights.length + " < " + shards.size();
+        double totalWeight = 0;
+        for (int i = 0; i < shards.size(); i++) {
+            assert weights[i] >= 0 : weights[i];
+            totalWeight += weights[i];
+        }
+        if (totalWeight == 0) {
+            charge(shards, nanos, finishNanos);
+            return;
+        }
+        // rounds the cumulative share, so the shares add up to nanos
+        double weightSoFar = 0;
+        long charged = 0;
+        for (int i = 0; i < shards.size(); i++) {
+            weightSoFar += weights[i];
+            long upTo = Math.min(nanos, Math.round(nanos * (weightSoFar / totalWeight)));
+            if (upTo > charged) {
+                shards.get(i).accumulateSearchLoad(upTo - charged, finishNanos);
+                charged = upTo;
+            }
+        }
+    }
+
+    /**
      * The total time charged to the search load of this shard, in nanoseconds.
      */
     public long totalSearchLoadNanos() {

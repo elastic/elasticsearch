@@ -184,6 +184,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FROM_ATTRIBUTE;
@@ -3252,10 +3253,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Charges the time of tasks equally to those of {@code shardIds} still on this node when a task completes.
+     * Charges the time of tasks to those of {@code shardIds} still on this node when a task completes, in proportion to
+     * their {@code weight} at that time, or equally when they are all 0.
      */
-    public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds) {
-        return indicesService.searchLoad(shardIds);
+    public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds, ToLongFunction<ShardId> weight) {
+        return indicesService.searchLoad(shardIds, weight);
     }
 
     /**

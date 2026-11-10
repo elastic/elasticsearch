@@ -202,6 +202,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -644,18 +645,26 @@ public class IndicesService extends AbstractLifecycleComponent
      * Charges the time of tasks equally to those of {@code shardIds} still on this node when a task completes.
      */
     public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds) {
+        return searchLoad(shardIds, shardId -> 0);
+    }
+
+    /**
+     * Charges the time of tasks to those of {@code shardIds} still on this node when a task completes, in proportion to
+     * their {@code weight} at that time, or equally when they are all 0.
+     */
+    public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds, ToLongFunction<ShardId> weight) {
         return (nanos, finishNanos) -> {
             List<ShardSearchStats> shards = new ArrayList<>(shardIds.size());
+            long[] weights = new long[shardIds.size()];
             for (ShardId shardId : shardIds) {
                 IndexService indexService = indexService(shardId.getIndex());
                 IndexShard shard = indexService == null ? null : indexService.getShardOrNull(shardId.id());
                 if (shard != null) {
+                    weights[shards.size()] = weight.applyAsLong(shardId);
                     shards.add(shard.shardSearchStats());
                 }
             }
-            if (shards.isEmpty() == false) {
-                ShardSearchStats.charge(shards, nanos, finishNanos);
-            }
+            ShardSearchStats.charge(shards, weights, nanos, finishNanos);
         };
     }
 

@@ -36,6 +36,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
@@ -98,6 +99,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -413,6 +415,32 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             indicesService.canDeleteShardContent(notAllocated, test.getIndexSettings()),
             ShardDeletionCheckResult.NO_FOLDER_FOUND
         );
+    }
+
+    /**
+     * The search load of tasks is charged to the shards still on the node by their weight when a task completes, or equally
+     * when none has any.
+     */
+    public void testSearchLoadByWeight() {
+        IndicesService indicesService = getIndicesService();
+        IndexService indexService = createIndex("test", indexSettings(2, 0).build());
+        ShardId first = indexService.getShard(0).shardId();
+        ShardId second = indexService.getShard(1).shardId();
+        ShardId missing = new ShardId("missing", "_na_", 0);
+        Map<ShardId, Long> weights = new HashMap<>();
+        TaskLoadAttribution.Target target = indicesService.searchLoad(List.of(first, second, missing), id -> weights.getOrDefault(id, 0L));
+
+        target.charge(100, System.nanoTime());
+        assertEquals(50, indexService.getShard(0).shardSearchStats().totalSearchLoadNanos());
+        assertEquals(50, indexService.getShard(1).shardSearchStats().totalSearchLoadNanos());
+
+        // the weights are read when the task completes
+        weights.put(first, 3L);
+        weights.put(second, 1L);
+        weights.put(missing, 10L);
+        target.charge(100, System.nanoTime());
+        assertEquals(125, indexService.getShard(0).shardSearchStats().totalSearchLoadNanos());
+        assertEquals(75, indexService.getShard(1).shardSearchStats().totalSearchLoadNanos());
     }
 
     public void testHasShardPredicate() {

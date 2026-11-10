@@ -129,6 +129,8 @@ public class SplitSourceService {
     // Used to abort merges that complete just before handoff so that we don't block indexing waiting for them to upload
     // Also used to throttle handoffs
     private final Set<ShardId> shardsPreparingForHandoff = ConcurrentHashMap.newKeySet();
+    // Used to make checking handoff slot availability and adding to shardsPreparingForHandoff in awaitHandoffSlot atomic
+    private final Object handoffSlotLock = new Object();
     // ES-12460 for testing purposes, until pre-handoff logic (flush etc) is built out
     @Nullable
     private Runnable preHandoffHook;
@@ -368,8 +370,11 @@ public class SplitSourceService {
                         // and there will be no new commits.
                         // We explicitly swallow this exception since the contract of `delegateResponse` is to not throw.
                     }
-                    // Take the lock so the shard doesn't get added again if the task gets cancelled
-                    synchronized (shardsPreparingForHandoff) {
+                    // We need to synchronize this with awaitHandoffSlot for the task cancellation check, otherwise there could be a race:
+                    // - awaitHandoffSlot sees task isn't cancelled
+                    // - task gets cancelled and this runs, removing nothing from shardsPreparingForHandoff
+                    // - awaitHandoffSlot proceeds and adds the entry
+                    synchronized (handoffSlotLock) {
                         shardsPreparingForHandoff.remove(sourceShard.shardId());
                     }
                     activeTargetRequests.remove(sourceShard);
@@ -462,9 +467,9 @@ public class SplitSourceService {
     }
 
     /**
-     * Throttles handoff for offline warming of the search shards, only allow {@link #RESHARD_SPLIT_MAX_CONCURRENT_HANDOFF_PERCENTAGE}
-     * of the split's target shards to be in state HANDOFF.
-     * Timeout of 1 hour and fails if the task is cancelled.
+     * Throttles handoff for offline warming of the search shards, only allow {@link #RESHARD_SPLIT_MAX_CONCURRENT_HANDOFF_PERCENTAGE} of
+     * the split's target shards to be in or preparing for state HANDOFF. This is best-effort since {@link #shardsPreparingForHandoff} is
+     * local to each node. Proceeds after a 1 hour timeout and fails if the task is cancelled.
      */
     void awaitHandoffSlot(CancellableTask task, ActionListener<Void> listener, ShardId sourceShardId, ShardId targetShardId) {
         final var threadPool = clusterService.threadPool();
@@ -488,7 +493,7 @@ public class SplitSourceService {
             public void onTimeout(TimeValue timeout) {
                 logger.debug("timed out waiting for handoff slot for {}, proceeding anyway", targetShardId);
                 threadPool.generic().execute(() -> {
-                    synchronized (shardsPreparingForHandoff) {
+                    synchronized (handoffSlotLock) {
                         if (task.isCancelled() == false) {
                             shardsPreparingForHandoff.add(sourceShardId);
                         }
@@ -511,7 +516,7 @@ public class SplitSourceService {
                 return true;
             }
             var split = reshardingMetadata.getSplit();
-            synchronized (shardsPreparingForHandoff) {
+            synchronized (handoffSlotLock) {
                 if (task.isCancelled()) {
                     return true;
                 }
@@ -833,7 +838,10 @@ public class SplitSourceService {
     /// We rely on this fact in [#setupSourceShardStateMachine(IndexShard)] to handle the possible race
     /// of this function and adding a new state machine to the `activeSourceShards` map.
     public void cancelSplits(IndexShard indexShard) {
-        activeTargetRequests.remove(indexShard);
+        final var currentSplit = activeTargetRequests.remove(indexShard);
+        if (currentSplit != null && currentSplit.setUncancellable()) {
+            taskManager.cancelTaskAndDescendants(currentSplit.task, "source shard closed", false, ActionListener.noop());
+        }
         shardsPreparingForHandoff.remove(indexShard.shardId());
         var stateMachine = activeSourceShards.remove(indexShard);
         if (stateMachine != null) {

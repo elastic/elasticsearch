@@ -60,7 +60,7 @@ public class TsAggregateMetricDoubleConflictTests extends AnalyzerTestCase {
 
     public void testPublishedFunctionsResolveOverTypeConflict() {
         var cast = ImplicitUnionCastKibanaDefinitionTests.implicitUnionCasts().get(AGGREGATE_METRIC_DOUBLE.esNameIfPossible());
-        assertTrue(cast.unionWith().contains(DOUBLE.esNameIfPossible()));
+        assertTrue(cast.compatibleTypes().contains(DOUBLE.esNameIfPossible()));
         for (String function : cast.functions()) {
             LogicalPlan plan = typeConflictedTsdb().query("TS idx | STATS " + function + "(metric)");
             assertTrue("expected [" + function + "] to resolve over the conflict", plan.resolved());

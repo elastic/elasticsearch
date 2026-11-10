@@ -43,10 +43,10 @@ import static org.hamcrest.Matchers.not;
 public class ImplicitUnionCastKibanaDefinitionTests extends ESTestCase {
 
     /**
-     * A conflict containing the keyed type resolves when every other leg is in {@code unionWith}, under
+     * A conflict containing the keyed type resolves when every other leg is in {@code compatibleTypes}, under
      * {@code functions} and, if {@code comparisons} is set, in binary comparisons.
      */
-    public record UnionCast(List<String> unionWith, List<String> functions, boolean comparisons) {}
+    public record UnionCast(List<String> compatibleTypes, List<String> functions, boolean comparisons) {}
 
     /**
      * The casts the {@code ImplicitCastAggregateMetricDoubles} rule applies, by the type that makes a conflict castable.
@@ -73,10 +73,10 @@ public class ImplicitUnionCastKibanaDefinitionTests extends ESTestCase {
         UnionCast cast = implicitUnionCasts().get(AGGREGATE_METRIC_DOUBLE.esNameIfPossible());
         assertNotNull(cast);
         // the conflict from the issue: raw (double) versus downsampled (aggregate_metric_double) legs
-        assertThat(cast.unionWith(), hasItems("double", "integer", "long"));
+        assertThat(cast.compatibleTypes(), hasItems("double", "integer", "long"));
         // non-numeric legs never reconcile
         for (String rejected : new String[] { "keyword", "boolean", "date", "aggregate_metric_double" }) {
-            assertThat(cast.unionWith(), not(hasItems(rejected)));
+            assertThat(cast.compatibleTypes(), not(hasItems(rejected)));
         }
     }
 
@@ -91,7 +91,7 @@ public class ImplicitUnionCastKibanaDefinitionTests extends ESTestCase {
             builder.startObject("types");
             for (Map.Entry<String, UnionCast> entry : implicitUnionCasts().entrySet()) {
                 builder.startObject(entry.getKey());
-                builder.stringListField("unionWith", entry.getValue().unionWith());
+                builder.stringListField("compatibleTypes", entry.getValue().compatibleTypes());
                 builder.stringListField("functions", entry.getValue().functions());
                 builder.field("comparisons", entry.getValue().comparisons());
                 builder.endObject();

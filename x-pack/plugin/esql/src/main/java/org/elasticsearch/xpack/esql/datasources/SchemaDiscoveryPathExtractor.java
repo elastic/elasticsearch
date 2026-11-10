@@ -41,7 +41,7 @@ public final class SchemaDiscoveryPathExtractor {
     /**
      * Returns the literal {@code tablePath} of every {@link UnresolvedExternalRelation} whose occurrences all
      * sit below a {@link Limit} of literal zero. Path keys are derived as {@code PreAnalyzer} and
-     * {@code EsqlSession#extractExternalConfigs} derive them, so they line up with the resolver's paths.
+     * {@code EsqlSession#extractExternalReads} derive them, so they line up with the resolver's paths.
      *
      * @param unresolvedPlan the root of the unresolved logical plan
      * @return the set of literal path strings whose resolution needs no rows read
@@ -97,7 +97,7 @@ public final class SchemaDiscoveryPathExtractor {
 
     /**
      * Path-key derivation kept in lockstep with {@code PreAnalyzer#externalSourcePaths} and
-     * {@code EsqlSession#extractExternalConfigs}. Returns {@code null} for a non-literal
+     * {@code EsqlSession#extractExternalReads}. Returns {@code null} for a non-literal
      * {@code tablePath} so detection never throws; that path is then absent from the set and
      * resolves as a reading query.
      */

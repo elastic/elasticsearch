@@ -67,7 +67,7 @@ public final class ExternalStatsRequirementExtractor {
      * Returns the literal {@code tablePath} of every {@link UnresolvedExternalRelation} that has an
      * <b>ungrouped</b> {@link Aggregate} ancestor with no {@link Filter}, {@link Limit}, or
      * {@link Sample} on the walk from that aggregate down to the relation. The path-key derivation
-     * is identical to {@code PreAnalyzer} and {@code EsqlSession#extractExternalConfigs}
+     * is identical to {@code PreAnalyzer} and {@code EsqlSession#extractExternalReads}
      * ({@code BytesRefs.toString(literal.value())}), so the keys match the resolver's
      * {@code externalSourcePaths} by construction.
      *
@@ -127,11 +127,11 @@ public final class ExternalStatsRequirementExtractor {
 
     /**
      * Path-key derivation kept in lockstep with {@code PreAnalyzer#externalSourcePaths} and
-     * {@code EsqlSession#extractExternalConfigs}: a non-null {@link Literal} {@code tablePath}
+     * {@code EsqlSession#extractExternalReads}: a non-null {@link Literal} {@code tablePath}
      * rendered via {@code BytesRefs.toString}. Returns {@code null} for a non-literal {@code tablePath}
      * so detection never throws; that path is then absent from the set and, since the resolver
      * receives a non-null set, would <em>defer</em> rather than aggregate eagerly. In practice this
-     * branch is unreachable: {@code EsqlSession#extractExternalConfigs} runs first on the same plan
+     * branch is unreachable: {@code EsqlSession#extractExternalReads} runs first on the same plan
      * and throws on a non-literal {@code tablePath}, so resolution never reaches a path this method
      * could fail to key.
      */

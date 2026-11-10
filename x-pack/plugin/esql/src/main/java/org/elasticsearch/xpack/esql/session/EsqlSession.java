@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.data.Block;
@@ -74,6 +75,7 @@ import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
@@ -84,6 +86,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalRead;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
@@ -130,6 +133,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
@@ -880,7 +884,7 @@ public class EsqlSession {
      * string. The UUID feeds the HMAC key used by the anonymizer; an empty key still produces a
      * deterministic HMAC, only the token namespace is shared across affected sessions (test only).
      */
-    private static String resolveClusterUuid(org.elasticsearch.cluster.service.ClusterService clusterService) {
+    private static String resolveClusterUuid(ClusterService clusterService) {
         try {
             var state = clusterService.state();
             return state != null ? state.metadata().clusterUUID() : "";
@@ -2318,24 +2322,51 @@ public class EsqlSession {
             return;
         }
 
-        Map<String, Map<String, Object>> pathConfigs = extractExternalConfigs(plan);
+        List<ExternalRead> reads = extractExternalReads(plan);
         Map<String, DatasetMapping> declaredMappings = extractDeclaredMappings(plan);
 
         LogicalPlan listingPlan = FoldDateFunctionFiltersForListing.fold(plan, configuration, functionRegistry);
-        // QueryDslTimestampBoundsExtractor parses both ends with roundUp=false, so
-        // `lte now/y` is start-of-year. Including that Instant in year IN is safe
-        // only while listing is year grain.
-        var withBounds = PartitionSpec.addTimestampBounds(
-            PartitionFilterHintExtractor.extract(listingPlan),
-            pathConfigs,
-            listingBounds == null ? null : listingBounds.start(),
-            listingBounds == null ? null : listingBounds.end()
-        );
-        // Folder-range from the TEMPORAL extract before projectListingHints drops @timestamp / NOW().
-        // Strict, union_by_name, and eager-stats listings are unbounded and reused as the scan set;
-        // without this, listForQuery never runs and one-sided filters do not prune before the cap.
-        Map<String, FolderRangePredicate> folderRanges = folderRangePredicates(withBounds, pathConfigs);
-        var filterHints = projectPartitionSpecs(withBounds, pathConfigs);
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> hintsByPath = PartitionFilterHintExtractor.extract(listingPlan);
+        // Per read, not per resource: both of these are projected through the read's own partition_spec, which is a
+        // dataset setting. One resource read under two specs would otherwise have both listings narrowed by whichever
+        // spec was found first, pruning folders the other read needs.
+        //
+        // The hints themselves stay per resource. PartitionFilterHintExtractor intersects them across every
+        // occurrence of a path, which is conservative - it keeps only what every occurrence excludes - so one value
+        // is correct for every read of that path.
+        Map<ExternalRead, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints = new HashMap<>();
+        Map<ExternalRead, FolderRangePredicate> folderRanges = new HashMap<>();
+        for (ExternalRead read : reads) {
+            List<PartitionFilterHintExtractor.PartitionFilterHint> hints = hintsByPath.get(read.path());
+            Map<String, Map<String, Object>> oneConfig = Map.of(read.path(), read.config());
+            // QueryDslTimestampBoundsExtractor parses both ends with roundUp=false, so
+            // `lte now/y` is start-of-year. Including that Instant in year IN is safe
+            // only while listing is year grain.
+            //
+            // Called even when the query produced no hints for this path, because addTimestampBounds reads
+            // pathConfigs rather than hints: a spec binding @timestamp earns the request's bounds with no WHERE
+            // in the query at all. Skipping the call on a null would lose that pruning.
+            var withBounds = PartitionSpec.addTimestampBounds(
+                hints == null ? Map.<String, List<PartitionFilterHintExtractor.PartitionFilterHint>>of() : Map.of(read.path(), hints),
+                oneConfig,
+                listingBounds == null ? null : listingBounds.start(),
+                listingBounds == null ? null : listingBounds.end()
+            );
+            if (withBounds.get(read.path()) == null) {
+                continue;
+            }
+            // Folder-range from the TEMPORAL extract before projectListingHints drops @timestamp / NOW().
+            // Strict, union_by_name, and eager-stats listings are unbounded and reused as the scan set;
+            // without this, listForQuery never runs and one-sided filters do not prune before the cap.
+            FolderRangePredicate folderRange = folderRangePredicates(withBounds, oneConfig).get(read.path());
+            if (folderRange != null) {
+                folderRanges.put(read, folderRange);
+            }
+            var projected = projectPartitionSpecs(withBounds, oneConfig).get(read.path());
+            if (projected != null) {
+                filterHints.put(read, projected);
+            }
+        }
 
         // Always non-null (empty when no ungrouped aggregate is present). A non-null set switches the
         // resolver to selective eager stats: only the listed paths read every file's footer at
@@ -2349,8 +2380,7 @@ public class EsqlSession {
         Set<String> pathsReadingNoRows = SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan);
 
         externalSourceResolver.resolve(
-            preAnalysis.externalSourcePaths(),
-            pathConfigs,
+            reads,
             filterHints.isEmpty() ? null : filterHints,
             declaredMappings.isEmpty() ? null : declaredMappings,
             pathsRequiringStats,
@@ -2365,17 +2395,19 @@ public class EsqlSession {
      * that carry one ({@code FROM <dataset>} where the dataset declared a mapping). Paths without a declared
      * schema are absent — the resolver infers them as before.
      *
-     * <p>Resolution is per-path, so one path gets exactly one schema. Two datasets over the same resource with
-     * <em>different</em> declared mappings in one query — or one mapped and one unmapped — would silently share
-     * whichever resolution won; that is a wrong-schema answer, so it is rejected loudly here instead.
+     * <p>Resolution is per-read, so one resource read two ways resolves twice. This map is not: it is still keyed
+     * by path, and the resolver looks a declared mapping up by path. So two datasets over one resource with
+     * <em>different</em> declared mappings — or one mapped and one unmapped — still cannot be told apart here, and
+     * are refused rather than silently given whichever mapping was found first. Keying this by {@link ExternalRead}
+     * too would let them through, and is tracked separately.
      */
     // package-private for testing
     static Map<String, DatasetMapping> extractDeclaredMappings(LogicalPlan plan) {
         Map<String, DatasetMapping> declaredMappings = new HashMap<>();
         Set<String> unmappedPaths = new HashSet<>();
-        plan.forEachUp(org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation.class, p -> {
-            if (p.tablePath() instanceof org.elasticsearch.xpack.esql.core.expression.Literal literal && literal.value() != null) {
-                String path = org.elasticsearch.common.lucene.BytesRefs.toString(literal.value());
+        plan.forEachUp(UnresolvedExternalRelation.class, p -> {
+            if (p.tablePath() instanceof Literal literal && literal.value() != null) {
+                String path = BytesRefs.toString(literal.value());
                 if (p.mapping() != null) {
                     DatasetMapping previous = declaredMappings.putIfAbsent(path, p.mapping());
                     if (previous != null && previous.equals(p.mapping()) == false) {
@@ -2397,31 +2429,20 @@ public class EsqlSession {
     }
 
     /**
-     * Map from table path to config across all {@code UnresolvedExternalRelation} nodes. Every
-     * {@code tablePath} is a non-null {@code Literal} post-parsing; non-Literal here is a
-     * precondition violation and throws.
+     * Every read the plan performs: a resource, and the configuration it is read under. In plan order, without
+     * duplicates.
+     * <p>
+     * Keyed by the read rather than by the resource because resolution produces a file listing and a schema, and
+     * both depend on the configuration — a CSV listing and a TSV listing of one prefix are different file sets with
+     * different schemas. Two relations reading one resource differently are two reads and resolve separately; two
+     * reading it identically are one read and share, which is what collapses a resource reached twice through one
+     * plan.
      */
     // package-private for testing
-    static Map<String, Map<String, Object>> extractExternalConfigs(LogicalPlan plan) {
-        Map<String, Map<String, Object>> pathConfigs = new HashMap<>();
-        plan.forEachUp(org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation.class, p -> {
-            org.elasticsearch.xpack.esql.core.expression.Expression tablePath = p.tablePath();
-            if (tablePath instanceof org.elasticsearch.xpack.esql.core.expression.Literal literal && literal.value() != null) {
-                String path = org.elasticsearch.common.lucene.BytesRefs.toString(literal.value());
-                // If two UnresolvedExternalRelation nodes share the same literal path the later config
-                // overwrites the earlier one. Today the dataset-rewrite pipeline produces at most one
-                // UER per concrete path, so this is benign; if plan shapes evolve to allow per-call
-                // config divergence at the same path this needs to become a merge or a verifier check.
-                pathConfigs.put(path, p.config());
-            } else {
-                throw new IllegalStateException(
-                    "UnresolvedExternalRelation tablePath is not a non-null Literal: ["
-                        + (tablePath == null ? "null" : tablePath.sourceText())
-                        + "]"
-                );
-            }
-        });
-        return pathConfigs;
+    static List<ExternalRead> extractExternalReads(LogicalPlan plan) {
+        Set<ExternalRead> reads = new LinkedHashSet<>();
+        plan.forEachUp(UnresolvedExternalRelation.class, p -> reads.add(ExternalRead.of(p)));
+        return List.copyOf(reads);
     }
 
     /**

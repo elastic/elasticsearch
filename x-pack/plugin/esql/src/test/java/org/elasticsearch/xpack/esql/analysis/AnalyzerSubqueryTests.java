@@ -73,6 +73,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.externalResolutionFor;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
@@ -2087,7 +2088,8 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             // These cases name their datasets exactly, which reaches them at the wildcards_match_datasets default.
             false
         );
-        ExternalSourceResolution resolution = new ExternalSourceResolution(
+        ExternalSourceResolution resolution = externalResolutionFor(
+            projectMetadata,
             Map.of(
                 SALARIES_INT_RESOURCE,
                 externalSource(SALARIES_INT_RESOURCE, INTEGER),

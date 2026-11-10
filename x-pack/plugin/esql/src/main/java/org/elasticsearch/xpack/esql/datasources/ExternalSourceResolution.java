@@ -25,12 +25,12 @@ import java.util.Map;
  *                 so {@code TransportEsqlQueryAction#toResponse} can emit them as client {@code Warning}
  *                 headers. Empty when nothing was shadowed.
  */
-public record ExternalSourceResolution(Map<String, ResolvedSource> resolved, List<String> warnings) {
+public record ExternalSourceResolution(Map<ExternalRead, ResolvedSource> resolved, List<String> warnings) {
 
     public static final ExternalSourceResolution EMPTY = new ExternalSourceResolution(Map.of());
 
     /** Compact overload defaulting {@link #warnings} to empty. */
-    public ExternalSourceResolution(Map<String, ResolvedSource> resolved) {
+    public ExternalSourceResolution(Map<ExternalRead, ResolvedSource> resolved) {
         this(resolved, List.of());
     }
 
@@ -62,8 +62,43 @@ public record ExternalSourceResolution(Map<String, ResolvedSource> resolved, Lis
         warnings = warnings == null || warnings.isEmpty() ? List.of() : List.copyOf(warnings);
     }
 
-    public ResolvedSource resolvedSource(String path) {
-        return resolved.get(path);
+    /**
+     * The resolution for one read, or {@code null} when nothing resolved it. Keyed by the read rather than by its
+     * resource: two relations reading one resource under different configurations are two reads, and sharing one
+     * listing between them would resolve one of them against the other's settings.
+     */
+    public ResolvedSource resolvedSource(ExternalRead read) {
+        return resolved.get(read);
+    }
+
+    /**
+     * The resolution of the <b>only</b> read of {@code path}, or {@code null} when nothing resolved it. The read dual
+     * of {@code ExternalSourceResolver#resolve(paths, pathConfigs, listener)}: a caller that resolved one path under
+     * one configuration gets it back by that path, with no key to rebuild.
+     * <p>
+     * Never a stand-in for {@link #resolvedSource(ExternalRead)} when resolving a plan. Two relations can read one
+     * path under two configurations, and then the path alone does not say which resolution a relation wants — so this
+     * throws rather than return the one it happens to reach first, which is the defect {@link ExternalRead} exists to
+     * close.
+     *
+     * No production caller: resolution of a plan goes through {@link #resolvedSource(ExternalRead)}. This is the
+     * accessor for the path-keyed {@code resolve} forms, which are themselves test entry points.
+     *
+     * @throws IllegalStateException if more than one read of {@code path} resolved
+     */
+    public ResolvedSource soleResolvedSource(String path) {
+        ResolvedSource found = null;
+        for (Map.Entry<ExternalRead, ResolvedSource> entry : resolved.entrySet()) {
+            if (entry.getKey().path().equals(path)) {
+                if (found != null) {
+                    throw new IllegalStateException(
+                        "path [" + path + "] was read more than one way; ask for a ResolvedSource by its ExternalRead"
+                    );
+                }
+                found = entry.getValue();
+            }
+        }
+        return found;
     }
 
     public boolean isEmpty() {

@@ -90,6 +90,7 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
+import org.elasticsearch.xpack.esql.datasources.ExternalRead;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -895,8 +896,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan;
             }
 
-            // Get pre-resolved source (metadata + file set) from context
-            var resolvedSource = context.externalSourceResolution().resolvedSource(tablePath);
+            // Get pre-resolved source (metadata + file set) from context. Keyed by the read rather than by the
+            // resource, and rebuilt here from the relation's own two halves rather than carried on it: a field would
+            // have to travel to data nodes, and resolution is finished before a plan is serialized. Through
+            // ExternalRead.of, the same factory EsqlSession collected the reads with, so the two cannot derive a
+            // key differently.
+            var resolvedSource = context.externalSourceResolution().resolvedSource(ExternalRead.of(plan));
             if (resolvedSource == null) {
                 // Still unresolved - return as-is to keep the error message
                 return plan;

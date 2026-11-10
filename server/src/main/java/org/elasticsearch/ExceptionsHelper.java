@@ -9,15 +9,17 @@
 
 package org.elasticsearch;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -79,6 +81,9 @@ public final class ExceptionsHelper {
 
     public static RestStatus status(Throwable t) {
         if (t != null) {
+            if (isWrappedCircuitBreakingException(t)) {
+                return RestStatus.TOO_MANY_REQUESTS;
+            }
             if (t instanceof ElasticsearchException) {
                 return ((ElasticsearchException) t).status();
             } else if (t instanceof IllegalArgumentException) {
@@ -90,6 +95,20 @@ public final class ExceptionsHelper {
             }
         }
         return RestStatus.INTERNAL_SERVER_ERROR;
+    }
+
+    /**
+     * Whether {@code t} is a circuit breaker trip wrapped only in parse exceptions, so that it is a 429 rather than a 400. A trip while a
+     * request is parsed is wrapped by {@code ObjectParser} once per level of nesting, and some parsers wrap it again.
+     */
+    private static boolean isWrappedCircuitBreakingException(Throwable t) {
+        Throwable cause = t;
+        while (cause instanceof XContentParseException
+            || cause instanceof ParsingException
+            || cause instanceof ElasticsearchParseException) {
+            cause = cause.getCause();
+        }
+        return cause != t && cause instanceof CircuitBreakingException;
     }
 
     public static Throwable unwrapCause(Throwable t) {
@@ -622,5 +641,40 @@ public final class ExceptionsHelper {
         public int hashCode() {
             return Objects.hash(reason, index, causeType);
         }
+    }
+
+    private static final Logger bugLogger = LogManager.getLogger("org.elasticsearch.BugLogger");
+
+    /**
+     * Unwraps the given exception, and if the real cause happens to indicate a bug in Elasticsearch, log it at {@code ERROR} level on the
+     * dedicated {@code org.elasticsearch.BugLogger} logger. Otherwise, do nothing.
+     * <p>
+     * The list of exceptions treated as bugs is as follows:
+     * <ul>
+     *     <li>{@link NullPointerException}
+     *     <li>{@link IndexOutOfBoundsException} and the exceptions that extend it
+     *     <li>{@link ClassCastException}
+     *     <li>{@link UnsupportedOperationException}
+     * </ul>
+     * Unwrapping the exception and logging the actual cause fills the {@code error.type} attribute with the real exception class name,
+     * allowing to set up alerts on it reliably.
+     *
+     * @param t the exception to check
+     */
+    public static void logIfUnexpectedBug(Throwable t) {
+        if (bugLogger.isErrorEnabled() == false) {
+            return;
+        }
+        t = unwrapCause(t);
+        if (isUnexpectedBug(t)) {
+            bugLogger.error("Exception indicating a bug was thrown: {} with message: {}", t.getClass().getSimpleName(), t.getMessage(), t);
+        }
+    }
+
+    private static boolean isUnexpectedBug(Throwable t) {
+        return t instanceof NullPointerException
+            || t instanceof IndexOutOfBoundsException
+            || t instanceof ClassCastException
+            || t instanceof UnsupportedOperationException;
     }
 }

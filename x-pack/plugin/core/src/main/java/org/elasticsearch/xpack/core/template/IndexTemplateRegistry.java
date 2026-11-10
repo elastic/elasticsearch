@@ -127,7 +127,11 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         MapperFeatures.TSDB_METRIC_TEMPORALITY_SUPPORT,
         template -> template != null
             && template.settings() != null
-            && template.settings().hasValue(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey())
+            && template.settings().hasValue(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey()),
+        MapperFeatures.TSDB_TSID_PREFIXED_DIMENSIONS,
+        template -> template != null
+            && template.settings() != null
+            && template.settings().hasValue(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey())
     );
     private final Map<NodeFeature, Predicate<Template>> nodeFeatureFilters;
     // This flag short-circuits the node feature check, if all node features are supported.

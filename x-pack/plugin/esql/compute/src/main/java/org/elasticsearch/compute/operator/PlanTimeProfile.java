@@ -22,6 +22,26 @@ import java.util.Objects;
  *
  */
 public final class PlanTimeProfile implements Writeable, ToXContentObject {
+    public static final ProfileSchema<PlanTimeProfile> PROFILE_SCHEMA = ProfileSchema.fragment(
+        PlanTimeProfile.class,
+        (builder, value, params) -> {
+            if (value.logicalOptimizationNanos > 0) {
+                builder.field("logical_optimization_nanos", value.logicalOptimizationNanos);
+            }
+            if (value.physicalOptimizationNanos > 0) {
+                builder.field("physical_optimization_nanos", value.physicalOptimizationNanos);
+            }
+            if (value.reductionPlanNanos > 0) {
+                builder.field("reduction_nanos", value.reductionPlanNanos);
+            }
+            return builder;
+        }
+    )
+        .optional("logical_optimization_nanos", ProfileSchema.integer())
+        .optional("physical_optimization_nanos", ProfileSchema.integer())
+        .optional("reduction_nanos", ProfileSchema.integer())
+        .build();
+
     private long reductionPlanNanos;
     private long logicalOptimizationNanos;
     private long physicalOptimizationNanos;
@@ -56,16 +76,7 @@ public final class PlanTimeProfile implements Writeable, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (logicalOptimizationNanos > 0) {
-            builder.field("logical_optimization_nanos", logicalOptimizationNanos);
-        }
-        if (physicalOptimizationNanos > 0) {
-            builder.field("physical_optimization_nanos", physicalOptimizationNanos);
-        }
-        if (reductionPlanNanos > 0) {
-            builder.field("reduction_nanos", reductionPlanNanos);
-        }
-        return builder;
+        return PROFILE_SCHEMA.write(builder, this, params);
     }
 
     public void addLogicalOptimizationPlanTime(long logicalOptimizationPlanTime) {

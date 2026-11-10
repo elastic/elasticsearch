@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -86,17 +87,12 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         indicesAdmin().prepareRefresh().get();
         assertHitCount(prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()), 100);
 
-        List<ShardRouting.RecoveryPriority> shardRecoveryPriorities = retrieveShardRecoveryPriorities("test");
+        List<RecoveryPriority> shardRecoveryPriorities = retrieveShardRecoveryPriorities("test");
         assertThat(
             shardRecoveryPriorities,
             // The shards which were initially assigned to node_0 should have been recovered there with priority UNASSIGNED_NEW_PRIMARY.
             // Those which were initially assigned to node_1 should have been recovered on node_0 with priority RELOCATION_CAN_REMAIN_NO.
-            everyItem(
-                anyOf(
-                    equalTo(ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY),
-                    equalTo(ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO)
-                )
-            )
+            everyItem(anyOf(equalTo(RecoveryPriority.UNASSIGNED_NEW_PRIMARY), equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NO)))
         );
     }
 
@@ -148,11 +144,11 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         indicesAdmin().prepareRefresh().get();
         assertHitCount(prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()), 100);
 
-        List<ShardRouting.RecoveryPriority> shardRecoveryPriorities = retrieveShardRecoveryPriorities("test");
+        List<RecoveryPriority> shardRecoveryPriorities = retrieveShardRecoveryPriorities("test");
         assertThat(
             shardRecoveryPriorities,
             // The shards should all have been recovered with priority UNASSIGNED_EXPECTED when the index was reopened.
-            everyItem(equalTo(ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED))
+            everyItem(equalTo(RecoveryPriority.UNASSIGNED_EXPECTED))
         );
     }
 
@@ -343,7 +339,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         }
     }
 
-    private static List<ShardRouting.RecoveryPriority> retrieveShardRecoveryPriorities(String index) {
+    private static List<RecoveryPriority> retrieveShardRecoveryPriorities(String index) {
         return admin().indices()
             .prepareRecoveries(index)
             .get()

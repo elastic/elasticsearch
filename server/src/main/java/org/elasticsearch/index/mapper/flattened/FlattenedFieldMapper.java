@@ -30,21 +30,26 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOBooleanSupplier;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.common.lucene.search.SharedAutomatonQuery;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
@@ -101,6 +106,7 @@ import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.query.AutomatonKey;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -111,6 +117,8 @@ import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
+import org.elasticsearch.lucene.search.FuzzyQueries;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.FlattenedDocValuesField;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
@@ -136,7 +144,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.function.Function;
+import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType.toSubFieldLoaders;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -197,48 +206,28 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         }
     }
 
-    private static Builder builder(Mapper in) {
-        return ((FlattenedFieldMapper) in).builder;
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
-        final Parameter<Integer> depthLimit = Parameter.intParam(
-            "depth_limit",
-            true,
-            m -> builder(m).depthLimit.get(),
-            Defaults.DEPTH_LIMIT
-        ).addValidator(v -> {
+        final Parameter<Integer> depthLimit = Parameter.intParam("depth_limit", true, Defaults.DEPTH_LIMIT).addValidator(v -> {
             if (v < 0) {
                 throw new IllegalArgumentException("[depth_limit] must be positive, got [" + v + "]");
             }
         });
 
         private final Parameter<Boolean> indexed;
-        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
+        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(true);
 
-        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> builder(m).nullValue.get(), null)
-            .acceptsNull();
+        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, null).acceptsNull();
 
-        private final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam(
-            "eager_global_ordinals",
-            true,
-            m -> builder(m).eagerGlobalOrdinals.get(),
-            false
-        );
+        private final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam("eager_global_ordinals", true, false);
         private final int ignoreAboveDefault;
         private final Parameter<Integer> ignoreAbove;
         private final boolean indexDisabledByDefault;
 
-        private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> builder(m).indexOptions.get());
-        private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.get());
+        private final Parameter<String> indexOptions = TextParams.keywordIndexOptions();
+        private final Parameter<SimilarityProvider> similarity = TextParams.similarity();
 
-        private final Parameter<Boolean> splitQueriesOnWhitespace = Parameter.boolParam(
-            "split_queries_on_whitespace",
-            true,
-            m -> builder(m).splitQueriesOnWhitespace.get(),
-            false
-        );
+        private final Parameter<Boolean> splitQueriesOnWhitespace = Parameter.boolParam("split_queries_on_whitespace", true, false);
 
         private final Parameter<List<String>> dimensions;
 
@@ -259,16 +248,14 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 throw new MapperParsingException("[passthrough] requires a [priority] field");
             }
             return map;
-        }, m -> builder(m).passthrough.get(), (b, n, v) -> { if (v != null) b.field(n, v); }, Objects::toString).acceptsNull()
-            .addValidator(v -> {
-                if (v != null) {
-                    int priority = XContentMapValues.nodeIntegerValue(v.get("priority"));
-                    if (priority < 0) {
-                        throw new IllegalArgumentException("[passthrough.priority] must be non-negative, got [" + priority + "]");
-                    }
+        }, (b, n, v) -> { if (v != null) b.field(n, v); }, Objects::toString).acceptsNull().addValidator(v -> {
+            if (v != null) {
+                int priority = XContentMapValues.nodeIntegerValue(v.get("priority"));
+                if (priority < 0) {
+                    throw new IllegalArgumentException("[passthrough.priority] must be non-negative, got [" + priority + "]");
                 }
-            })
-            .setSerializerCheck((includeDefaults, isConfigured, v) -> v != null);
+            }
+        }).setSerializerCheck((includeDefaults, isConfigured, v) -> v != null);
 
         private final IndexSettings indexSettings;
         private final boolean usesBinaryDocValues;
@@ -276,19 +263,16 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         private final boolean forceStoreRootDocValues;
         private final boolean storeIgnoredFieldsInBinaryDocValues;
 
-        public static FieldMapper.Parameter<List<String>> dimensionsParam(Function<FieldMapper, List<String>> initializer) {
-            return FieldMapper.Parameter.stringArrayParam(TIME_SERIES_DIMENSIONS_ARRAY_PARAM, false, initializer);
+        public static FieldMapper.Parameter<List<String>> dimensionsParam() {
+            return FieldMapper.Parameter.stringArrayParam(TIME_SERIES_DIMENSIONS_ARRAY_PARAM, false);
         }
 
-        private static Parameter<Map<String, FieldMapper.Builder>> propertiesParam(
-            Function<FieldMapper, Map<String, FieldMapper.Builder>> initializer
-        ) {
-            var parameter = new Parameter<>(
+        private static Parameter<Map<String, FieldMapper.Builder>> propertiesParam() {
+            Parameter<Map<String, FieldMapper.Builder>> parameter = new Parameter<>(
                 "properties",
                 true,
                 TreeMap::new,
                 FlattenedFieldMapper.Builder::parseProperties,
-                initializer,
                 (b, n, v) -> {},
                 Objects::toString
             );
@@ -354,8 +338,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             boolean indexDisabledByDefault
         ) {
             super(name);
-            this.indexed = Parameter.indexParam(m -> builder(m).indexed.get(), indexDisabledByDefault == false);
-            this.dimensions = dimensionsParam(m -> builder(m).dimensions.get()).addValidator(v -> {
+            this.indexed = Parameter.indexParam(indexDisabledByDefault == false);
+            this.dimensions = dimensionsParam().addValidator(v -> {
                 if (v.isEmpty() == false && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
                     throw new IllegalArgumentException(
                         "Field ["
@@ -370,18 +354,17 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             });
             this.ignoreAboveDefault = ignoreAboveDefault;
             this.indexSettings = indexSettings;
-            this.ignoreAbove = Parameter.ignoreAboveParam(m -> builder(m).ignoreAbove.get(), ignoreAboveDefault);
+            this.ignoreAbove = Parameter.ignoreAboveParam(ignoreAboveDefault);
             this.dimensions.precludesParameters(ignoreAbove);
             this.usesBinaryDocValues = usesBinaryDocValues;
             this.isLegacyIndexWithRootValues = isLegacyIndexWithRootValues;
             this.forceStoreRootDocValues = forceStoreRootDocValues;
-            this.properties = propertiesParam(m -> builder(m).properties.getValue());
+            this.properties = propertiesParam();
             this.storeIgnoredFieldsInBinaryDocValues = storeIgnoredFieldsInBinaryDocValues;
 
             preserveLeafArrays = Parameter.enumParam(
                 "preserve_leaf_arrays",
                 false,
-                m -> builder(m).preserveLeafArrays.get(),
                 indexSettings.getValue(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING) == SourceKeepMode.NONE
                     && indexSettings.getMode().isStrictColumnar() == false ? PreserveLeafArrays.LOSSY : PreserveLeafArrays.EXACT,
                 PreserveLeafArrays.class
@@ -423,6 +406,41 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         @Override
         public String contentType() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public void collectFieldBuilders(@Nullable String parentPath, BiConsumer<String, Mapper.Builder> consumer) {
+            super.collectFieldBuilders(parentPath, consumer);
+            String fullPath = fullPath(parentPath);
+            for (FieldMapper.Builder propertyBuilder : properties.getValue().values()) {
+                propertyBuilder.collectFieldBuilders(fullPath, consumer);
+            }
+        }
+
+        @Override
+        public void normalize(MapperBuilderContext context) {
+            super.normalize(context);
+            MapperBuilderContext childContext = context.createChildContext(leafName(), null);
+            for (FieldMapper.Builder propertyBuilder : properties.getValue().values()) {
+                propertyBuilder.normalize(childContext);
+            }
+        }
+
+        /**
+         * The {@code properties} parameter is never serialized with the others, so that its block follows the
+         * multi-fields.
+         */
+        @Override
+        protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            super.doXContentBody(builder, params);
+            Map<String, FieldMapper.Builder> propertyBuilders = properties.getValue();
+            if (propertyBuilders.isEmpty() == false) {
+                builder.startObject("properties");
+                for (FieldMapper.Builder propertyBuilder : new TreeMap<>(propertyBuilders).values()) {
+                    propertyBuilder.toXContent(builder, params);
+                }
+                builder.endObject();
+            }
         }
 
         @Override
@@ -856,7 +874,44 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             SearchExecutionContext context,
             @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
-            throw new IllegalArgumentException("[fuzzy] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields.");
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException(
+                    "[fuzzy] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+                );
+            }
+            failIfNotSearchable();
+            // The edits apply to the value only: the key and the separator are a prefix that must match exactly
+            String keyPrefix = FlattenedFieldParser.createKeyedValue(key, "");
+            int keyedPrefixLength = keyPrefix.codePointCount(0, keyPrefix.length()) + prefixLength;
+            BytesRef term = indexedValueForSearch(value);
+            int maxEdits = fuzziness.asDistance(BytesRefs.toString(value));
+            if (indexType.hasTerms() == false && usesBinaryDocValues) {
+                if (usesArrayOrderBinaryDocValues) {
+                    // The automaton matches the key and the separator exactly, as the prefix it does not edit
+                    Automaton fuzzy = FuzzyQueries.create(
+                        new Term(name(), term),
+                        maxEdits,
+                        keyedPrefixLength,
+                        1,
+                        transpositions,
+                        null,
+                        null,
+                        name()
+                    ).getAutomata().automaton;
+                    return new KeyedArrayOrderInlineNullAutomatonQuery(name(), fuzzy, "fuzzy=" + term.utf8ToString());
+                }
+                return binaryQueries().fuzzy(name(), term.utf8ToString(), maxEdits, keyedPrefixLength, transpositions);
+            }
+            return FuzzyQueries.create(
+                new Term(name(), term),
+                maxEdits,
+                keyedPrefixLength,
+                maxExpansions,
+                transpositions,
+                indexType.hasTerms() ? rewriteMethod : MultiTermQuery.DOC_VALUES_REWRITE,
+                context,
+                name()
+            );
         }
 
         @Override
@@ -868,19 +923,66 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             MultiTermQuery.RewriteMethod method,
             SearchExecutionContext context
         ) {
-            throw new IllegalArgumentException("[regexp] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields.");
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException(
+                    "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+                );
+            }
+            failIfNotSearchable();
+            String pattern = AutomatonQueries.collapseConsecutiveQuantifiers(value);
+            CircuitBreaker circuitBreaker = context.getCircuitBreaker();
+            if (circuitBreaker != null) {
+                return keyedQuery(
+                    pattern,
+                    new AutomatonKey.Regexp(pattern, syntaxFlags, matchFlags, maxDeterminizedStates),
+                    () -> AutomatonQueries.toRegexpAutomaton(
+                        new Term(name(), pattern),
+                        syntaxFlags,
+                        matchFlags,
+                        maxDeterminizedStates,
+                        circuitBreaker
+                    ),
+                    maxDeterminizedStates,
+                    method,
+                    context
+                );
+            }
+            Automaton automaton = new RegExp(pattern, syntaxFlags, matchFlags).toAutomaton();
+            return keyedQuery(pattern, automaton, maxDeterminizedStates, method);
         }
 
         @Override
-        public Query wildcardQuery(
+        protected Query wildcardQuery(
             String value,
             MultiTermQuery.RewriteMethod method,
             boolean caseInsensitive,
+            boolean shouldNormalize,
             SearchExecutionContext context
         ) {
-            throw new IllegalArgumentException(
-                "[wildcard] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields."
-            );
+            failIfNotSearchable();
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException(
+                    "[wildcard] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+                );
+            }
+            Term pattern = new Term(name(), value);
+            CircuitBreaker circuitBreaker = context.getCircuitBreaker();
+            if (circuitBreaker != null) {
+                return keyedQuery(
+                    value,
+                    new AutomatonKey.Wildcard(value, caseInsensitive),
+                    () -> caseInsensitive
+                        ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(pattern, circuitBreaker)
+                        : AutomatonQueries.toWildcardAutomaton(pattern, circuitBreaker),
+                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                    method,
+                    context
+                );
+            }
+            Automaton automaton = caseInsensitive
+                ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(pattern)
+                : WildcardQuery.toAutomaton(pattern, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            return keyedQuery(value, automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
         }
 
         @Override
@@ -905,34 +1007,100 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             Automaton prefix = caseInsensitive
                 ? AutomatonQueries.caseInsensitivePrefix(value)
                 : Operations.concatenate(List.of(Automata.makeString(value), Automata.makeAnyString()));
-            return keyedQuery(value + "*", prefix, method);
+            return keyedQuery(value + "*", prefix, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
         }
 
         @Override
         public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
+            failIfNotSearchable();
             String text = BytesRefs.toString(value);
             Automaton automaton = Operations.concatenate(text.codePoints().mapToObj(Automata::makeCaseInsensitiveChar).toList());
-            return keyedQuery(text, automaton, null);
+            return keyedQuery(text, automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, null);
+        }
+
+        @Override
+        public Query automatonQuery(
+            Supplier<Automaton> automatonSupplier,
+            Supplier<CharacterRunAutomaton> characterRunAutomatonSupplier,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            SearchExecutionContext context,
+            String description
+        ) {
+            failIfNotSearchable();
+            return keyedQuery(description, automatonSupplier.get(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
         }
 
         /**
-         * A query for the values of this key that {@code value} accepts. Only the value is matched by {@code value}: the key
-         * matches exactly, so a case-insensitive query does not match the other keys of the field.
+         * The terms of this key whose value {@code value} accepts, the way {@code pattern} reads, from the terms of the field or,
+         * without them, from its doc values.
          */
-        private Query keyedQuery(String pattern, Automaton value, @Nullable MultiTermQuery.RewriteMethod method) {
-            Automaton keyed = Operations.concatenate(List.of(Automata.makeString(FlattenedFieldParser.createKeyedValue(key, "")), value));
-            Automaton automaton = Operations.determinize(keyed, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        private Query keyedQuery(String pattern, Automaton value, int determinizeWorkLimit, @Nullable MultiTermQuery.RewriteMethod method) {
+            Automaton automaton = Operations.determinize(Operations.concatenate(List.of(keyAutomaton(), value)), determinizeWorkLimit);
             Term term = new Term(name(), FlattenedFieldParser.createKeyedValue(key, pattern));
-            if (indexType.hasOnlyDocValues() == false) {
+            if (indexType.hasTerms()) {
                 return method == null ? new AutomatonQuery(term, automaton) : new AutomatonQuery(term, automaton, false, method);
             }
             if (usesArrayOrderBinaryDocValues) {
                 return new KeyedArrayOrderInlineNullAutomatonQuery(name(), automaton, term.text());
             }
             if (usesBinaryDocValues) {
-                return BinaryDocValuesQueries.forFormat(BinaryDocValuesFormat.SEPARATE_COUNT).automaton(name(), automaton, term.text());
+                return binaryQueries().automaton(name(), automaton, term.text());
             }
             return new AutomatonQuery(term, automaton, false, MultiTermQuery.DOC_VALUES_REWRITE);
+        }
+
+        /**
+         * {@link #keyedQuery(String, Automaton, int, MultiTermQuery.RewriteMethod)} with a circuit breaker: the automaton is built
+         * while the breaker guards its construction, charged once, and shared by every clause of the request that builds the same
+         * one, as for a {@code keyword} field.
+         */
+        private Query keyedQuery(
+            String pattern,
+            AutomatonKey valueKey,
+            Supplier<Automaton> value,
+            int determinizeWorkLimit,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            SearchExecutionContext context
+        ) {
+            CircuitBreaker circuitBreaker = context.getCircuitBreaker();
+            Term term = new Term(name(), FlattenedFieldParser.createKeyedValue(key, pattern));
+            Supplier<Automaton> keyed = () -> CircuitBreakingOperations.determinize(
+                Operations.concatenate(List.of(keyAutomaton(), value.get())),
+                determinizeWorkLimit,
+                circuitBreaker,
+                valueKey.category() + ":" + name()
+            );
+            if (usesArrayOrderBinaryDocValues && indexType.hasTerms() == false) {
+                return new KeyedArrayOrderInlineNullAutomatonQuery(name(), keyed.get(), term.text());
+            }
+            if (usesBinaryDocValues && indexType.hasTerms() == false) {
+                return binaryQueries().automaton(name(), keyed.get(), term.text());
+            }
+            return sharedAutomatonQuery(
+                term,
+                new AutomatonKey.Keyed(key, valueKey),
+                keyed,
+                SharedAutomatonQuery.fieldPrefixed(term, ""),
+                indexType.hasTerms() ? method : MultiTermQuery.DOC_VALUES_REWRITE,
+                context
+            );
+        }
+
+        /** The key and the separator every term of this key starts with, matched exactly. */
+        private Automaton keyAutomaton() {
+            return Automata.makeString(FlattenedFieldParser.createKeyedValue(key, ""));
+        }
+
+        /** The queries this key answers from binary doc values that hold one {@code key\0value} entry each. */
+        private static BinaryDocValuesQueries binaryQueries() {
+            return BinaryDocValuesQueries.forFormat(BinaryDocValuesFormat.SEPARATE_COUNT);
+        }
+
+        /** Fails unless this key has terms or doc values to search. */
+        private void failIfNotSearchable() {
+            if (indexType.hasTerms() == false && hasDocValues() == false) {
+                failIfNotIndexed();
+            }
         }
 
         @Override
@@ -1727,13 +1895,16 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     }
 
     private final FlattenedFieldParser fieldParser;
-    private final Builder builder;
     private final Map<String, FieldMapper> mappedSubFields;
     private final int passthroughPriority; // -1 means passthrough disabled
     private final boolean passthrough;
     private final PreserveLeafArrays preserveLeafArrays;
     private final boolean writeDimensionRouting;
     private final int maxKeyedValueLength;
+    private final int depthLimit;
+    private final String nullValue;
+    private final boolean usesBinaryDocValues;
+    private final boolean storeIgnoredFieldsInBinaryDocValues;
 
     private FlattenedFieldMapper(
         String leafName,
@@ -1743,8 +1914,11 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         Map<String, FieldMapper> mappedSubFields
     ) {
         super(leafName, mappedFieldType, builderParams);
-        this.builder = builder;
         this.mappedSubFields = Collections.unmodifiableSortedMap(new TreeMap<>(mappedSubFields));
+        this.depthLimit = builder.depthLimit.get();
+        this.nullValue = builder.nullValue.get();
+        this.usesBinaryDocValues = builder.usesBinaryDocValues;
+        this.storeIgnoredFieldsInBinaryDocValues = builder.storeIgnoredFieldsInBinaryDocValues;
         Map<String, Object> passthroughConfig = builder.passthrough.getValue();
         this.passthroughPriority = passthroughConfig != null ? XContentMapValues.nodeIntegerValue(passthroughConfig.get("priority")) : -1;
         this.passthrough = this.passthroughPriority >= 0;
@@ -1758,13 +1932,13 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             mappedFieldType.name() + KEYED_FIELD_SUFFIX,
             mappedFieldType.name() + KEYED_IGNORED_VALUES_FIELD_SUFFIX,
             mappedFieldType,
-            builder.depthLimit.get(),
+            depthLimit,
             ((RootFlattenedFieldType) mappedFieldType).ignoreAbove().limit(),
-            builder.nullValue.get(),
-            builder.usesBinaryDocValues,
+            nullValue,
+            usesBinaryDocValues,
             builder.hasRootDocValues(),
             mappedSubFields,
-            builder.storeIgnoredFieldsInBinaryDocValues,
+            storeIgnoredFieldsInBinaryDocValues,
             builder.preserveLeafArrays.get(),
             builder.indexSettings.getIndexVersionCreated(),
             this.writeDimensionRouting,
@@ -1789,7 +1963,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     }
 
     int depthLimit() {
-        return builder.depthLimit.get();
+        return depthLimit;
     }
 
     @Override
@@ -1990,7 +2164,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             cursorDocs[k] = cursor.nextDoc();
         }
 
-        final BytesRef nullValueBytes = builder.nullValue.get() != null ? new BytesRef(builder.nullValue.get()) : null;
+        final BytesRef nullValueBytes = nullValue != null ? new BytesRef(nullValue) : null;
 
         try (EscfColumnBuilder keyed = mergeStringColumn(ctx.recycler()); EscfColumnBuilder counts = mergeLongColumn(ctx.recycler())) {
             final BytesRefBuilder docBlob = new BytesRefBuilder();
@@ -2103,42 +2277,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder xContentBuilder, Params params) throws IOException {
-        super.doXContentBody(xContentBuilder, params);
-        if (mappedSubFields.isEmpty() == false) {
-            xContentBuilder.startObject("properties");
-            for (Map.Entry<String, FieldMapper> entry : mappedSubFields.entrySet()) {
-                entry.getValue().toXContent(xContentBuilder, params);
-            }
-            xContentBuilder.endObject();
-        }
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        Builder b = new Builder(
-            leafName(),
-            builder.ignoreAboveDefault,
-            builder.indexSettings,
-            builder.usesBinaryDocValues,
-            builder.isLegacyIndexWithRootValues,
-            builder.forceStoreRootDocValues,
-            builder.storeIgnoredFieldsInBinaryDocValues,
-            builder.indexDisabledByDefault
-        );
-        b.init(this);
-        Map<String, FieldMapper.Builder> propBuilders = new TreeMap<>();
-        for (Map.Entry<String, FieldMapper> entry : mappedSubFields.entrySet()) {
-            FieldMapper.Builder propMergeBuilder = entry.getValue().getMergeBuilder();
-            if (propMergeBuilder != null) {
-                propBuilders.put(entry.getKey(), propMergeBuilder);
-            }
-        }
-        b.properties.setValue(propBuilders);
-        return b;
-    }
-
-    @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType().hasDocValues()) {
             return new SyntheticSourceSupport.Native(
@@ -2147,9 +2285,9 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                     fullPath() + KEYED_FIELD_SUFFIX,
                     fieldType().ignoreAbove.valuesPotentiallyIgnored() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
                     leafName(),
-                    builder.usesBinaryDocValues,
+                    usesBinaryDocValues,
                     toSubFieldLoaders(mappedSubFields),
-                    builder.storeIgnoredFieldsInBinaryDocValues,
+                    storeIgnoredFieldsInBinaryDocValues,
                     preserveLeafArrays,
                     fieldType().usesArrayOrderBinaryDocValues()
                 )
@@ -2167,8 +2305,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         return new UnmappedSinkSyntheticFieldLoader(
             fullPath(),
             fieldType().ignoreAbove.valuesPotentiallyIgnored() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
-            builder.usesBinaryDocValues,
-            builder.storeIgnoredFieldsInBinaryDocValues,
+            usesBinaryDocValues,
+            storeIgnoredFieldsInBinaryDocValues,
             preserveLeafArrays,
             fieldType().usesArrayOrderBinaryDocValues()
         );

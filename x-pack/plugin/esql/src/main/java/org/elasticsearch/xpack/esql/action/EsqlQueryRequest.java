@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
@@ -195,15 +196,23 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         EsqlParser parser,
         SettingsValidationContext settingsValidationCtx,
         InferenceSettings inferenceSettings,
-        int maxCommandCount
+        EsqlFlags flags
     ) {
-        EsqlStatement statement = parser.parse(query(), params(), inferenceSettings, maxCommandCount);
+        EsqlStatement statement = parser.parse(query(), params(), inferenceSettings, pragmas(), flags);
         QuerySettings.validate(statement, settingsValidationCtx);
         return statement;
     }
 
     public boolean async() {
         return async;
+    }
+
+    /**
+     * Whether execution stops once the query is analyzed. Such a request returns the analyzed columns and no rows, and does not
+     * count towards query logs or metrics. Only {@link PreparedEsqlQueryRequest} can request this.
+     */
+    public boolean analyzeOnly() {
+        return false;
     }
 
     public EsqlQueryRequest columnar(boolean columnar) {

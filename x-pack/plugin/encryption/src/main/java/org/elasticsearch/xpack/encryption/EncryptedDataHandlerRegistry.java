@@ -6,19 +6,62 @@
  */
 package org.elasticsearch.xpack.encryption;
 
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandlerProvider;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Component-bound wrapper around the {@link EncryptedDataHandler}s contributed via the {@link EncryptedDataHandlerProvider} SPI. Built
  * once by {@link EncryptionPlugin} and injected into {@link TransportEncryptionResetAction} for dropping handler-owned customs during a
  * destructive reset. Wrapping the list keeps Guice's component graph explicit.
+ *
+ * <p>The class also maintains a static slot ({@link #INSTANCE}) so that SPI-instantiated components (e.g.
+ * {@link EncryptingSnapshotGlobalStateTransformer}) that are created outside Guice can obtain the handlers
+ * lazily without requiring a separate registry in the SPI jar.
  */
 public record EncryptedDataHandlerRegistry(List<EncryptedDataHandler<?>> handlers) {
 
+    static final AtomicReference<EncryptedDataHandlerRegistry> INSTANCE = new AtomicReference<>();
+
     public EncryptedDataHandlerRegistry(List<EncryptedDataHandler<?>> handlers) {
         this.handlers = List.copyOf(handlers);
+    }
+
+    /**
+     * Called by {@link EncryptionPlugin} from {@code createComponents}.
+     */
+    static void setInstance(EncryptedDataHandlerRegistry registry) {
+        INSTANCE.set(registry);
+    }
+
+    /**
+     * Returns the singleton instance registered by the encryption plugin's {@code createComponents}, or {@code null} if the plugin has
+     * not wired one. The SPI transformer can be discovered without the plugin being installed (e.g. when plugins share a classpath in
+     * internal cluster tests), so callers must treat {@code null} as "no encrypted data handlers".
+     */
+    @Nullable
+    static EncryptedDataHandlerRegistry getInstance() {
+        return INSTANCE.get();
+    }
+
+    /**
+     * Returns {@code true} if the handler's custom in {@code project} holds data encrypted under the project encryption key.
+     */
+    static <T extends Metadata.ProjectCustom> boolean hasData(EncryptedDataHandler<T> handler, ProjectMetadata project) {
+        T current = project.custom(handler.customName());
+        return handler.hasData(current);
+    }
+
+    /**
+     * Returns {@code true} if a snapshot of {@code project} writes the handler's encrypted values, so a snapshot password protects them.
+     */
+    static boolean writtenToSnapshot(EncryptedDataHandler<?> handler, ProjectMetadata project) {
+        Metadata.ProjectCustom custom = project.custom(handler.customName());
+        return custom != null && handler.includedInSnapshots() && custom.context().contains(Metadata.XContentContext.SNAPSHOT);
     }
 }

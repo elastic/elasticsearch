@@ -24,7 +24,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -514,7 +513,7 @@ public class LeaderBulkByPaginatedSearchTaskStateTests extends ESTestCase {
         );
         task.setWorkerCount(sliceCount, Float.POSITIVE_INFINITY);
         task.requestRelocation();
-        task.getLeaderState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        task.getLeaderState().setHasNodeToRelocateToSupplier(() -> true);
         return task;
     }
 

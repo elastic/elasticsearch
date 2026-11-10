@@ -29,6 +29,7 @@ import java.io.Reader;
 public class IcuNormalizerCharFilterFactory extends AbstractCharFilterFactory implements NormalizingCharFilterFactory {
 
     private final Normalizer2 normalizer;
+    private final Object sharingKey;
 
     public IcuNormalizerCharFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
@@ -43,6 +44,7 @@ public class IcuNormalizerCharFilterFactory extends AbstractCharFilterFactory im
             "compose".equals(mode) ? Normalizer2.Mode.COMPOSE : Normalizer2.Mode.DECOMPOSE
         );
         this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(normalizerInstance, settings);
+        this.sharingKey = new Key(method, mode, settings.get("unicode_set_filter"));
     }
 
     @Override
@@ -50,4 +52,10 @@ public class IcuNormalizerCharFilterFactory extends AbstractCharFilterFactory im
         return new ICUNormalizer2CharFilter(reader, normalizer);
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(String method, String mode, String unicodeSetFilter) {}
 }

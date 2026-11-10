@@ -1902,3 +1902,118 @@ null   | 1                 | null
 null   | 2                 | null
 null   | 3                 | null
 ;
+
+fillNullAllColumnsBeforeKeepOnUnmappedSourceIndicesUnderNullify
+required_capability: optional_fields_nullify_tech_preview
+required_capability: optional_fields_load_all_fillnull
+required_capability: fix_parsing_subobjects_false_dynamic_false
+required_capability: fillnull_late_loaded_columns
+
+SET unmapped_fields="nullify"\;
+FROM unmapped_source_stored, unmapped_source_mapped METADATA _index, _source
+| FILLNULL "none" ON *
+| KEEP _index, id, a, a.b, deep.l1.l2.l3, arr, objarr, objarr.j, objarr.k, nest.inner.leaf, _source
+| WHERE id::long IN (6,7,8)
+| SORT id::long, _index
+;
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [a, objarr]
+
+_index:keyword         | id:keyword | a:null | a.b:keyword | deep.l1.l2.l3:keyword | arr:keyword | objarr:null | objarr.j:keyword | objarr.k:keyword | nest.inner.leaf:keyword | _source:_source
+unmapped_source_mapped | 6          | null   | none        | none                  | none        | null        | none             | [p, q]           | none                    | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"
+unmapped_source_stored | 6          | null   | none        | none                  | none        | null        | none             | none             | none                    | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"
+unmapped_source_mapped | 7          | null   | none        | none                  | none        | null        | s                | r                | none                    | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"
+unmapped_source_stored | 7          | null   | none        | none                  | none        | null        | none             | none             | none                    | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"
+unmapped_source_mapped | 8          | null   | none        | none                  | none        | null        | none             | none             | [t, u]                  | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"
+unmapped_source_stored | 8          | null   | none        | none                  | none        | null        | none             | none             | none                    | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"
+;
+
+fillNullNullifyModeAllFieldsNoValuePreservesNullTyped
+required_capability: fillnull
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, message, unmapped_message
+| FILLNULL DEFAULT ON *
+| SORT @timestamp DESC
+| LIMIT 3
+;
+warning:Line 4:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [@timestamp, unmapped_message]; provide an explicit value
+
+@timestamp:date          | message:keyword        | unmapped_message:null
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | null
+2024-10-23T13:53:55.832Z | Connection error?      | null
+2024-10-23T13:52:55.015Z | Connection error?      | null
+;
+
+fillNullNullifyModeAllFieldsWithStringValue
+required_capability: fillnull
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, event_duration, message, unmapped_message
+| FILLNULL "missing" ON *
+| SORT @timestamp DESC
+| LIMIT 2
+;
+warning:Line 4:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [@timestamp, event_duration, unmapped_message]
+
+@timestamp:date          | event_duration:long | message:keyword        | unmapped_message:null
+2024-10-23T13:55:01.543Z | 1756466             | Connected to 10.1.0.1! | null
+2024-10-23T13:53:55.832Z | 5033754             | Connection error?      | null
+;
+
+fillNullNullifyModePatternReportsAFieldNullifiedForALaterCommand
+required_capability: fillnull_late_loaded_columns
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| FILLNULL "x" ON m*
+| KEEP @timestamp, message, missing_field
+| SORT @timestamp DESC
+| LIMIT 2
+;
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [missing_field]
+
+@timestamp:date          | message:keyword        | missing_field:null
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | null
+2024-10-23T13:53:55.832Z | Connection error?      | null
+;
+
+fillNullNullifyModeExplicitTargetOnNullTypedUnmappedField
+required_capability: fillnull
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, unmapped_message
+| FILLNULL "missing" ON unmapped_message
+| SORT @timestamp DESC
+| LIMIT 2
+;
+warning:Line 4:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [unmapped_message]
+
+@timestamp:date          | unmapped_message:null
+2024-10-23T13:55:01.543Z | null
+2024-10-23T13:53:55.832Z | null
+;
+
+fillNullNullifyModeExplicitTargetOnMappedField
+required_capability: fillnull
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| EVAL message = CASE(message == "Connected to 10.1.0.1!", null, message)
+| FILLNULL "missing" ON message
+| KEEP @timestamp, message
+| SORT @timestamp DESC
+| LIMIT 2
+;
+
+@timestamp:date          | message:keyword
+2024-10-23T13:55:01.543Z | missing
+2024-10-23T13:53:55.832Z | Connection error?
+;

@@ -11,7 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.activity.QueryLoggerContext;
+import org.elasticsearch.common.logging.activity.QueryCaptureContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 
@@ -20,7 +20,7 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class SearchLogContext extends QueryLoggerContext {
+public class SearchCaptureContext extends QueryCaptureContext {
     public static final String TYPE = "dsl";
     private final SearchRequest request;
     private final @Nullable SearchResponse response;
@@ -28,7 +28,7 @@ public class SearchLogContext extends QueryLoggerContext {
     // Cached index names
     private String[] indexNames = null;
 
-    private SearchLogContext(
+    private SearchCaptureContext(
         Task task,
         NamedWriteableRegistry namedWriteableRegistry,
         SearchRequest request,
@@ -42,7 +42,7 @@ public class SearchLogContext extends QueryLoggerContext {
         this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
-    SearchLogContext(
+    SearchCaptureContext(
         Task task,
         NamedWriteableRegistry namedWriteableRegistry,
         SearchRequest request,
@@ -52,7 +52,13 @@ public class SearchLogContext extends QueryLoggerContext {
         this(task, namedWriteableRegistry, request, response, tookInNanos, null);
     }
 
-    SearchLogContext(Task task, NamedWriteableRegistry namedWriteableRegistry, SearchRequest request, long tookInNanos, Exception error) {
+    SearchCaptureContext(
+        Task task,
+        NamedWriteableRegistry namedWriteableRegistry,
+        SearchRequest request,
+        long tookInNanos,
+        Exception error
+    ) {
         this(task, namedWriteableRegistry, request, null, tookInNanos, error);
     }
 

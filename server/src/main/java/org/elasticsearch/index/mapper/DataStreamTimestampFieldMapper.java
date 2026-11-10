@@ -73,13 +73,9 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private static DataStreamTimestampFieldMapper toType(FieldMapper in) {
-        return (DataStreamTimestampFieldMapper) in;
-    }
-
     public static class Builder extends MetadataFieldMapper.Builder {
 
-        private final Parameter<Boolean> enabled = Parameter.boolParam("enabled", true, m -> toType(m).enabled, false)
+        private final Parameter<Boolean> enabled = Parameter.boolParam("enabled", true, false)
             // this field mapper may be enabled but once enabled, may not be disabled
             .setMergeValidator((previous, current, ignored) -> (previous == current) || (previous == false && current));
 
@@ -179,11 +175,6 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     private DataStreamTimestampFieldMapper(boolean enabled) {
         super(TimestampFieldType.INSTANCE);
         this.enabled = enabled;
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder().init(this);
     }
 
     @Override

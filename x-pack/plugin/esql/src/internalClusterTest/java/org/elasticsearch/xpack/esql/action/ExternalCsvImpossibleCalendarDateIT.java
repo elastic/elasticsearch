@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,8 +33,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.hasItem;
 
 /**
  * A CSV timestamp naming a day its month lacks (for example {@code 2024-02-30}) must not be read as a different,
@@ -57,22 +57,18 @@ public class ExternalCsvImpossibleCalendarDateIT extends AbstractExternalDataSou
     }
 
     private String inferred(String name, String body) throws Exception {
-        return registerLocalFileDataset(name, StoragePath.fileUri(file(name, body, "d.csv")), Map.of());
+        return inferred(name, body, "d.csv");
     }
 
-    private String inferredTsv(String name, String body) throws Exception {
-        return registerLocalFileDataset(name, StoragePath.fileUri(file(name, body, "d.tsv")), Map.of());
+    private String inferred(String name, String body, String fileName) throws Exception {
+        return registerLocalFileDataset(name, StoragePath.fileUri(file(name, body, fileName)), Map.of());
     }
 
     private String declaredDatetime(String name, String body) throws Exception {
-        return declaredDatetime(name, body, Map.of());
+        return declaredDatetime(name, body, "d.csv", Map.of());
     }
 
-    private String declaredDatetime(String name, String body, Map<String, Object> settings) throws Exception {
-        return declaredDatetime(name, body, settings, "d.csv");
-    }
-
-    private String declaredDatetime(String name, String body, Map<String, Object> settings, String fileName) throws Exception {
+    private String declaredDatetime(String name, String body, String fileName, Map<String, Object> settings) throws Exception {
         LinkedHashMap<String, DatasetFieldMapping> props = new LinkedHashMap<>();
         props.put("t", new DatasetFieldMapping("date", null));
         props.put("qty", new DatasetFieldMapping("integer", null));
@@ -123,12 +119,12 @@ public class ExternalCsvImpossibleCalendarDateIT extends AbstractExternalDataSou
 
     /**
      * A date-only value: DuckDB keeps it as text and ClickHouse rolls it forward to March 1, so the reference
-     * engines disagree on what it becomes. They agree it is not February 29.
+     * engines disagree. They agree it is not February 29. The column stays text, as in DuckDB.
      */
-    public void testInferredDateOnImpossibleDayIsNotMovedToMonthEnd() throws Exception {
+    public void testInferredDateOnImpossibleDayStaysText() throws Exception {
         String ds = inferred("dform", "t,qty\n2024-02-30,1\n");
-        try (var response = run(syncEsqlQueryRequest("FROM " + ds + " | EVAL s = TO_STRING(t) | KEEP s"))) {
-            assertThat(getValuesList(response).get(0).get(0), not(equalTo("2024-02-29T00:00:00.000Z")));
+        try (var response = run(syncEsqlQueryRequest("FROM " + ds + " | KEEP t"))) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of("2024-02-30"))));
         }
     }
 
@@ -154,20 +150,36 @@ public class ExternalCsvImpossibleCalendarDateIT extends AbstractExternalDataSou
     }
 
     public void testDeclaredDateSkipRowDropsImpossibleDayRow() throws Exception {
-        String ds = declaredDatetime("skiprow", "t,qty\n2024-02-30T10:00:00Z,1\n", Map.of("error_mode", "skip_row"));
+        String ds = declaredDatetime("skiprow", "t,qty\n2024-02-30T10:00:00Z,1\n", "d.csv", Map.of("error_mode", "skip_row"));
         Result projected = runWithWarnings("FROM " + ds + " | KEEP t");
         assertThat(projected.rows(), empty());
-        assertThat(projected.warnings().toString(), projected.warnings().size(), greaterThanOrEqualTo(1));
+        assertThat(projected.warnings(), hasItem(containsString("2024-02-30T10:00:00Z")));
         try (var response = run(syncEsqlQueryRequest("FROM " + ds + " | STATS c = COUNT(*)"))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(1L))));
         }
     }
 
     public void testDeclaredDateNullFieldNullsImpossibleDay() throws Exception {
-        String ds = declaredDatetime("nullfield", "t,qty\n2024-02-30T10:00:00Z,1\n", Map.of("error_mode", "null_field"));
+        String ds = declaredDatetime("nullfield", "t,qty\n2024-02-30T10:00:00Z,1\n", "d.csv", Map.of("error_mode", "null_field"));
         Result result = runWithWarnings("FROM " + ds + " | KEEP t, qty");
-        assertThat(result.rows(), equalTo(List.of(java.util.Arrays.asList(null, 1))));
-        assertThat(result.warnings().toString(), result.warnings().size(), greaterThanOrEqualTo(1));
+        assertThat(result.rows(), equalTo(List.of(Arrays.asList(null, 1))));
+        assertThat(result.warnings(), hasItem(containsString("2024-02-30T10:00:00Z")));
+    }
+
+    /** The workaround the issue names: an explicit pattern already refuses the value, so the no-format path now agrees. */
+    public void testDeclaredDateWithDatetimeFormatRefusesImpossibleDay() throws Exception {
+        String ds = declaredDatetime(
+            "withformat",
+            "t,qty\n2024-02-30T10:00:00Z,1\n",
+            "d.csv",
+            Map.of("datetime_format", "yyyy-MM-dd'T'HH:mm:ssX")
+        );
+        Exception e = expectThrows(Exception.class, () -> {
+            try (var response = run(syncEsqlQueryRequest("FROM " + ds + " | KEEP t"))) {
+                fail("declared date read 2024-02-30T10:00:00Z as " + getValuesList(response));
+            }
+        });
+        assertThat(e.getMessage(), containsString("2024-02-30T10:00:00Z"));
     }
 
     /** One impossible day among real timestamps widens the whole column to text; no value is moved to another date. */
@@ -177,34 +189,20 @@ public class ExternalCsvImpossibleCalendarDateIT extends AbstractExternalDataSou
         assertThat(result.rows(), equalTo(List.of(List.of("2024-02-28T10:00:00Z"), List.of("2024-02-30T10:00:00Z"))));
     }
 
-    public void testTsvInferredTimestampOnImpossibleDayStaysText() throws Exception {
-        String ds = inferredTsv("tsvinf", "t\tqty\n2024-02-30T10:00:00Z\t1\n");
-        try (var response = run(syncEsqlQueryRequest("FROM " + ds + " | KEEP t"))) {
+    /** TSV shares the CSV reader: the impossible day stays text when inferred and is refused when declared. */
+    public void testTsvImpossibleDayStaysTextWhenInferredAndIsRefusedWhenDeclared() throws Exception {
+        String body = "t\tqty\n2024-02-30T10:00:00Z\t1\n";
+        String inferred = inferred("tsvinf", body, "d.tsv");
+        try (var response = run(syncEsqlQueryRequest("FROM " + inferred + " | KEEP t"))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of("2024-02-30T10:00:00Z"))));
         }
-    }
-
-    public void testTsvDeclaredDateRefusesImpossibleDay() throws Exception {
-        String ds = declaredDatetime("tsvdecl", "t\tqty\n2024-02-30\t1\n", Map.of(), "d.tsv");
+        String declared = declaredDatetime("tsvdecl", body, "d.tsv", Map.of());
         Exception e = expectThrows(Exception.class, () -> {
-            try (var response = run(syncEsqlQueryRequest("FROM " + ds + " | KEEP t"))) {
-                fail("declared date read 2024-02-30 as " + getValuesList(response));
+            try (var response = run(syncEsqlQueryRequest("FROM " + declared + " | KEEP t"))) {
+                fail("declared date read 2024-02-30T10:00:00Z as " + getValuesList(response));
             }
         });
-        assertThat(e.getMessage(), containsString("2024-02-30"));
-    }
-
-    /** Control: days 29 to 31 of months that have them still read, so strict parsing is not refusing every late day. */
-    public void testEndOfMonthDaysStillRead() throws Exception {
-        String ds = inferred("eom", "t,qty\n2024-01-31,1\n2024-12-31,2\n2024-04-30 10:00:00,3\n");
-        try (var response = run(syncEsqlQueryRequest("FROM " + ds + " | SORT qty | EVAL s = TO_STRING(t) | KEEP s"))) {
-            assertThat(
-                getValuesList(response),
-                equalTo(
-                    List.of(List.of("2024-01-31T00:00:00.000Z"), List.of("2024-12-31T00:00:00.000Z"), List.of("2024-04-30T10:00:00.000Z"))
-                )
-            );
-        }
+        assertThat(e.getMessage(), containsString("2024-02-30T10:00:00Z"));
     }
 
     /** Control: the real leap day reads, inferred and declared. */

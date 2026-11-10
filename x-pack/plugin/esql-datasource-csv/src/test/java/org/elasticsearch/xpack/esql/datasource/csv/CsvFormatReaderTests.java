@@ -5921,10 +5921,10 @@ public class CsvFormatReaderTests extends ESTestCase {
         // Regression for the Stage 1 catch path: an ISO-shaped but calendar-invalid input like
         // 2021-02-30T10:00:00 succeeds in Iso8601Parser's lexical parse but fails inside
         // DateFormatters.from(...) with a generic DateTimeException (not DateTimeParseException).
-        // Without the catch, the batch would abort with an uncaught exception. The catch routes
-        // the row through Stage 3, whose strict resolver refuses Feb 30, so the cell is an invalid field
-        // handled by error_mode instead of being read as another date. This test and the two that follow
-        // pin one error_mode each: fail_fast, null_field and skip_row.
+        // The Stage 1 catch routes the row to Stage 3, whose strict resolver refuses Feb 30, so the cell is an
+        // invalid field handled by error_mode instead of being read as another date. Without the catch, the
+        // batch would abort with an uncaught exception. This test and the two that follow pin one error_mode
+        // each: fail_fast, null_field and skip_row.
         String csv = "ts:datetime\n2021-02-30T10:00:00\n2021-01-01T00:00:00Z\n";
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "fail_fast"));

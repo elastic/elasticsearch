@@ -31,9 +31,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 public class RangeTests extends ESTestCase {
 
     /**
-     * A string bound naming a day the month lacks is not a plain date, so it takes the "could be date math" branch
-     * instead of being clamped to the month's last day. Clamped, 2024-02-30 would read as 2024-02-29 and the bounds below
-     * would be reported as inverted.
+     * A string bound naming a day the month lacks is not a plain date, so it is not compared here and is left for the
+     * lower level, instead of being clamped to the month's last day. Clamped, 2024-02-30 would read as 2024-02-29 and
+     * the bounds below would be reported as inverted.
      */
     public void testAreBoundariesInvalidWithImpossibleDayBound() {
         Range range = new Range(

@@ -11,6 +11,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 
 import java.sql.Timestamp;
+import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalTime;
@@ -212,16 +213,26 @@ public class DateUtils {
         // The formatters resolve strictly, so a day the month lacks (2024-02-30) is refused instead of clamped, but strict
         // resolution also refuses the ISO end-of-day hour 24. Keep reading 24:00 as the next day's midnight: validate the
         // date with the hour replaced by 00, require that time to be exactly midnight, and only then add the day.
-        boolean endOfDay = separatorIdx + 2 < dateFormat.length() && dateFormat.startsWith("24", separatorIdx + 1);
+        int hourIdx = separatorIdx + 1;
+        int afterHourIdx = hourIdx + 2;
+        boolean endOfDay = afterHourIdx < dateFormat.length() && dateFormat.startsWith("24", hourIdx);
         if (endOfDay == false) {
             return DateFormatters.from(formatter.parse(dateFormat)).withZoneSameInstant(UTC);
         }
-        String midnight = dateFormat.substring(0, separatorIdx + 1) + "00" + dateFormat.substring(separatorIdx + 3);
+        String midnight = dateFormat.substring(0, hourIdx) + "00" + dateFormat.substring(afterHourIdx);
         ZonedDateTime parsed = DateFormatters.from(formatter.parse(midnight));
         if (parsed.toLocalTime().equals(LocalTime.MIDNIGHT) == false) {
-            throw new DateTimeParseException("Invalid end-of-day time", dateFormat, separatorIdx + 1);
+            throw new DateTimeParseException(
+                "Text '" + dateFormat + "' could not be parsed: hour 24 is only valid as 24:00[:00]",
+                dateFormat,
+                hourIdx
+            );
         }
-        return parsed.plusDays(1).withZoneSameInstant(UTC);
+        try {
+            return parsed.plusDays(1).withZoneSameInstant(UTC);
+        } catch (DateTimeException e) {
+            throw new DateTimeParseException("Text '" + dateFormat + "' could not be parsed: " + e.getMessage(), dateFormat, hourIdx, e);
+        }
     }
 
     public static String toString(ZonedDateTime dateTime) {

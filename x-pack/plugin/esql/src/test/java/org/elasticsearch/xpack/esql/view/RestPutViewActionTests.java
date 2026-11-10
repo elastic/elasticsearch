@@ -59,19 +59,23 @@ public class RestPutViewActionTests extends ESTestCase {
      * and must still be on the response when it is sent.
      */
     public void testValidationWarningIsOnResponseWhenActionsCompleteOnAnotherThread() throws Exception {
-        assertWarnings(true, true);
+        assertWarnings(true);
     }
 
     public void testValidationWarningIsOnResponseWhenActionsCompleteSynchronously() throws Exception {
-        assertWarnings(false, true);
+        assertWarnings(false);
     }
 
     public void testNoWarningWithoutValidationWarning() throws Exception {
         assertThat(sendPut(true, true, null), nullValue());
     }
 
-    private void assertWarnings(boolean async, boolean validate) throws Exception {
-        List<String> warnings = sendPut(async, validate, WARNING);
+    public void testNoWarningWhenValidationIsDisabled() throws Exception {
+        assertThat(sendPut(randomBoolean(), false, WARNING), nullValue());
+    }
+
+    private void assertWarnings(boolean async) throws Exception {
+        List<String> warnings = sendPut(async, true, WARNING);
         assertThat(warnings, notNullValue());
         assertThat(warnings, hasSize(1));
         assertThat(warnings.get(0), containsString(WARNING));

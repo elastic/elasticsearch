@@ -168,14 +168,14 @@ public class ViewService {
             final var threadPool = clusterService.threadPool();
             // The analysis completes on another thread. Go back to the request context, so that the warnings of the analysis itself
             // do not end up on the response.
-            final ActionListener<String> warningOnFailure = ActionListener.wrap(listener::onResponse, e -> {
+            final ActionListener<String> warningOnFailure = listener.delegateResponse((l, e) -> {
                 final Throwable cause = ExceptionsHelper.unwrapCause(e);
                 if (cause instanceof VerificationException || cause instanceof ResourceNotFoundException) {
                     // HeaderWarning percent-encodes newlines, which makes the multi-line verification message unreadable.
                     final String message = String.valueOf(cause.getMessage()).replace('\n', ' ');
-                    listener.onResponse(Strings.format("view [%s] query is not valid: %s", view.name(), message));
+                    l.onResponse(Strings.format("view [%s] query is not valid: %s", view.name(), message));
                 } else {
-                    listener.onResponse(null);
+                    l.onResponse(null);
                 }
             });
             final ActionListener<String> analyzed = ListenerTimeouts.wrapWithTimeout(

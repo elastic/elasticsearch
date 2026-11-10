@@ -89,6 +89,10 @@ public class ValidateViewAction extends ActionType<ValidateViewAction.Response> 
     /**
      * Carries what is wrong with the query of the view, or {@code null} if nothing is. It is returned in the response, instead of
      * written to the response headers where it is created, because the analysis completes on another thread.
+     * <p>
+     * This action is only executed on the node that received the REST request, so the response is never sent to a node of another
+     * version. Executing it remotely would require a {@code TransportVersion} guard, as the wire format differs from
+     * {@link ActionResponse.Empty}.
      */
     public static class Response extends ActionResponse {
         @Nullable

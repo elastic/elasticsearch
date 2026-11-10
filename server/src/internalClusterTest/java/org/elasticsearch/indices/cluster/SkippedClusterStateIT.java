@@ -108,7 +108,7 @@ public class SkippedClusterStateIT extends ESIntegTestCase {
             // Wait for the first localShardFailed to reach the master.
             safeAwait(masterReceivedShardFailedRequest);
 
-            // Wait for ICSS to finish all processing.
+            // Wait for the stale FailureReported left behind by the first failure to be evicted
             final var icss = internalCluster().getInstance(IndicesClusterStateService.class, primaryNodeName);
             assertBusy(
                 () -> assertTrue(

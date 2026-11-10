@@ -338,11 +338,11 @@ public class EsField implements Writeable {
     }
 
     /**
-     * Whether the mapping of every index that has this field guarantees at most one value per document, as the ES|QL field loaders
-     * read it; see {@code MappedFieldType#isStaticallySingleValued}. It comes from the mapping, not from segment statistics like
-     * {@code SearchStats#isSingleValue}, so it holds on every shard.
+     * Whether the mapping of every index that has this field guarantees at most one value per document
+     * (does not apply to reads from {@code _source}); see {@code MappedFieldType#isStaticallySingleValued}. It comes from the
+     * mapping, not from segment statistics like {@code SearchStats#isSingleValue}, so it holds on every shard.
      * <p>
-     * {@code false} means "no guarantee", not "multi-valued". A node that cannot read this flag reports {@code false}.
+     * {@code false} means "no guarantee", not "multi-valued".
      */
     public boolean isStaticallySingleValued() {
         return isStaticallySingleValued;

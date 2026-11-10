@@ -16,7 +16,7 @@
 * [`ENDS_WITH`](../../functions-operators/string-functions/ends_with.md)
   :::{include} ../generated/x-pack-esql/functions/briefSummary/ends_with.md
   :::
-* [`FIELD_EXTRACT`](../../functions-operators/string-functions/field_extract.md) {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
+* [`FIELD_EXTRACT`](../../functions-operators/string-functions/field_extract.md) {applies_to}`stack: preview 9.5, ga 9.6`
   :::{include} ../generated/x-pack-esql/functions/briefSummary/field_extract.md
   :::
 * [`FROM_BASE64`](../../functions-operators/string-functions/from_base64.md)

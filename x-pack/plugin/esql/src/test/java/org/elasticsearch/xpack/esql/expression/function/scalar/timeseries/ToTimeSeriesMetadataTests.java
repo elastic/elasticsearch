@@ -31,8 +31,8 @@ import static org.hamcrest.Matchers.equalTo;
  * by name, each with its non-empty values in source order. Equal label sets get equal bytes, so the result can key joins
  * and groups.
  */
-public class ToTimeSeriesTests extends AbstractScalarFunctionTestCase {
-    public ToTimeSeriesTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class ToTimeSeriesMetadataTests extends AbstractScalarFunctionTestCase {
+    public ToTimeSeriesMetadataTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -67,7 +67,7 @@ public class ToTimeSeriesTests extends AbstractScalarFunctionTestCase {
             List.of(DataType.KEYWORD),
             () -> new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(source), DataType.KEYWORD, "source")),
-                "ToTimeSeriesFromKeywordEvaluator[in=Attribute[channel=0]]",
+                "ToTimeSeriesMetadataFromKeywordEvaluator[in=Attribute[channel=0]]",
                 DataType.TSMD_DATA_TYPE,
                 equalTo(new BytesRef(expected))
             )
@@ -76,13 +76,13 @@ public class ToTimeSeriesTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToTimeSeries(source, args.getFirst());
+        return new ToTimeSeriesMetadata(source, args.getFirst());
     }
 
     /** Only the keyword source converts: other values are not a series' dimensions. */
     public void testSourceMustBeKeyword() {
         for (DataType type : List.of(DataType.TSMD_DATA_TYPE, DataType.INTEGER, DataType.BOOLEAN)) {
-            assertTrue(type.toString(), new ToTimeSeries(Source.EMPTY, field("source", type)).typeResolved().unresolved());
+            assertTrue(type.toString(), new ToTimeSeriesMetadata(Source.EMPTY, field("source", type)).typeResolved().unresolved());
         }
     }
 
@@ -95,7 +95,9 @@ public class ToTimeSeriesTests extends AbstractScalarFunctionTestCase {
 
     private void convert(BytesRef source) {
         try (
-            ExpressionEvaluator eval = evaluator(new ToTimeSeries(Source.EMPTY, field("source", DataType.KEYWORD))).get(driverContext());
+            ExpressionEvaluator eval = evaluator(new ToTimeSeriesMetadata(Source.EMPTY, field("source", DataType.KEYWORD))).get(
+                driverContext()
+            );
             Block block = eval.eval(row(List.of(source)))
         ) {
             fail("expected a failure, got " + toJavaObject(block, 0));

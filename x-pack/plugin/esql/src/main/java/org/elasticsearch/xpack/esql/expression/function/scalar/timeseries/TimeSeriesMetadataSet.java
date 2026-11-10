@@ -23,18 +23,18 @@ import java.util.List;
  * Writes one label: the value replaces the label's values, and a missing or empty value removes the label, as PromQL has no
  * empty label. Several values write a multi-valued label. The label keeps its sorted position, so the result stays canonical.
  */
-public final class TimeSeriesSet extends AbstractTimeSeriesFunction {
+public final class TimeSeriesMetadataSet extends AbstractTimeSeriesMetadataFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "TimeSeriesSet",
-        TimeSeriesSet::new
+        "TimeSeriesMetadataSet",
+        TimeSeriesMetadataSet::new
     );
 
-    public TimeSeriesSet(Source source, Expression labelContainer, Expression label, Expression value) {
+    public TimeSeriesMetadataSet(Source source, Expression labelContainer, Expression label, Expression value) {
         super(source, List.of(labelContainer, label, value));
     }
 
-    private TimeSeriesSet(StreamInput in) throws IOException {
+    private TimeSeriesMetadataSet(StreamInput in) throws IOException {
         super(in);
     }
 
@@ -58,7 +58,7 @@ public final class TimeSeriesSet extends AbstractTimeSeriesFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return TimeSeriesEvaluator.factory(TimeSeriesEvaluator.Operation.SET, children(), toEvaluator);
+        return TimeSeriesMetadataFunctionEvaluator.factory(TimeSeriesMetadataFunctionEvaluator.Operation.SET, children(), toEvaluator);
     }
 
     @Override
@@ -67,12 +67,12 @@ public final class TimeSeriesSet extends AbstractTimeSeriesFunction {
     }
 
     @Override
-    public TimeSeriesSet replaceChildren(List<Expression> children) {
-        return new TimeSeriesSet(source(), children.get(0), children.get(1), children.get(2));
+    public TimeSeriesMetadataSet replaceChildren(List<Expression> children) {
+        return new TimeSeriesMetadataSet(source(), children.get(0), children.get(1), children.get(2));
     }
 
     @Override
-    protected NodeInfo<TimeSeriesSet> info() {
-        return NodeInfo.create(this, TimeSeriesSet::new, labelContainer(), label(), value());
+    protected NodeInfo<TimeSeriesMetadataSet> info() {
+        return NodeInfo.create(this, TimeSeriesMetadataSet::new, labelContainer(), label(), value());
     }
 }

@@ -26,8 +26,8 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TimeSeriesSetTests extends AbstractScalarFunctionTestCase {
-    public TimeSeriesSetTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
+    public TimeSeriesMetadataSetTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -75,7 +75,9 @@ public class TimeSeriesSetTests extends AbstractScalarFunctionTestCase {
     }
 
     private static String evaluator(String label) {
-        return "TimeSeriesEvaluator[operation=SET, names=[" + label + "], labelContainer=Attribute[channel=0], value=Attribute[channel=1]]";
+        return "TimeSeriesMetadataFunctionEvaluator[operation=SET, names=["
+            + label
+            + "], labelContainer=Attribute[channel=0], value=Attribute[channel=1]]";
     }
 
     private static TestCaseSupplier set(String name, String labelContainer, String label, String value, String expected) {
@@ -91,7 +93,7 @@ public class TimeSeriesSetTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new TimeSeriesSet(source, args.get(0), args.get(1), args.get(2));
+        return new TimeSeriesMetadataSet(source, args.get(0), args.get(1), args.get(2));
     }
 
     /** A missing label container is the empty one and a missing value removes the label: the result is the empty container. */
@@ -110,7 +112,7 @@ public class TimeSeriesSetTests extends AbstractScalarFunctionTestCase {
             Literal.NULL,
             field("label", DataType.KEYWORD)
         )) {
-            assertTrue(label.toString(), new TimeSeriesSet(Source.EMPTY, labelContainer, label, value).typeResolved().unresolved());
+            assertTrue(label.toString(), new TimeSeriesMetadataSet(Source.EMPTY, labelContainer, label, value).typeResolved().unresolved());
         }
     }
 }

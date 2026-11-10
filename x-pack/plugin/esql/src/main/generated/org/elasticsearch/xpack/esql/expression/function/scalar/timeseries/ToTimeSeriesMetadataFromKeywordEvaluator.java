@@ -23,17 +23,17 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 
 /**
- * {@link ExpressionEvaluator} implementation for {@link ToTimeSeries}.
+ * {@link ExpressionEvaluator} implementation for {@link ToTimeSeriesMetadata}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
-public final class ToTimeSeriesFromKeywordEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToTimeSeriesFromKeywordEvaluator.class);
+public final class ToTimeSeriesMetadataFromKeywordEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToTimeSeriesMetadataFromKeywordEvaluator.class);
 
   private final ExpressionEvaluator in;
 
   private final BreakingBytesRefBuilder scratch;
 
-  public ToTimeSeriesFromKeywordEvaluator(Source source, ExpressionEvaluator in,
+  public ToTimeSeriesMetadataFromKeywordEvaluator(Source source, ExpressionEvaluator in,
       BreakingBytesRefBuilder scratch, DriverContext driverContext) {
     super(driverContext, source);
     this.in = in;
@@ -67,7 +67,7 @@ public final class ToTimeSeriesFromKeywordEvaluator extends AbstractConvertFunct
 
   private BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToTimeSeries.fromKeyword(value, this.scratch);
+    return ToTimeSeriesMetadata.fromKeyword(value, this.scratch);
   }
 
   @Override
@@ -103,7 +103,7 @@ public final class ToTimeSeriesFromKeywordEvaluator extends AbstractConvertFunct
 
   private BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToTimeSeries.fromKeyword(value, this.scratch);
+    return ToTimeSeriesMetadata.fromKeyword(value, this.scratch);
   }
 
   private Block evalOrdinals(OrdinalBytesRefVector v) {
@@ -121,7 +121,7 @@ public final class ToTimeSeriesFromKeywordEvaluator extends AbstractConvertFunct
 
   @Override
   public String toString() {
-    return "ToTimeSeriesFromKeywordEvaluator[" + "in=" + in + "]";
+    return "ToTimeSeriesMetadataFromKeywordEvaluator[" + "in=" + in + "]";
   }
 
   @Override
@@ -151,13 +151,13 @@ public final class ToTimeSeriesFromKeywordEvaluator extends AbstractConvertFunct
     }
 
     @Override
-    public ToTimeSeriesFromKeywordEvaluator get(DriverContext context) {
-      return new ToTimeSeriesFromKeywordEvaluator(source, in.get(context), scratch.apply(context), context);
+    public ToTimeSeriesMetadataFromKeywordEvaluator get(DriverContext context) {
+      return new ToTimeSeriesMetadataFromKeywordEvaluator(source, in.get(context), scratch.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToTimeSeriesFromKeywordEvaluator[" + "in=" + in + "]";
+      return "ToTimeSeriesMetadataFromKeywordEvaluator[" + "in=" + in + "]";
     }
   }
 }

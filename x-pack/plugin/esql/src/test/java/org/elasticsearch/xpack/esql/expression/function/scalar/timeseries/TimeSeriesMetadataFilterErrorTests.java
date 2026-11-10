@@ -18,29 +18,26 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
-public class TimeSeriesSetErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+public class TimeSeriesMetadataFilterErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
-        return paramsToSuppliers(TimeSeriesSetTests.parameters());
+        // Only the one-label signatures: error generation permutes every argument position, which longer signatures explode.
+        return paramsToSuppliers(TimeSeriesMetadataFilterTests.parameters()).stream().filter(c -> c.types().size() == 2).toList();
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new TimeSeriesSet(source, args.get(0), args.get(1), args.get(2));
+        return new TimeSeriesMetadataFilter(source, args.getFirst(), args.subList(1, args.size()), false);
     }
 
     @Override
     protected Stream<List<DataType>> testCandidates(List<TestCaseSupplier> cases, Set<List<DataType>> valid) {
-        // A null label container is the empty one and a null value removes the label; the label rules have their own test.
-        return super.testCandidates(cases, valid).filter(
-            types -> types.get(0) != DataType.NULL && types.get(1) == DataType.KEYWORD && types.get(2) != DataType.NULL
-        );
+        // A null label container is the empty one, so only the label can be wrong there; the label rules have their own test.
+        return super.testCandidates(cases, valid).filter(types -> types.getFirst() != DataType.NULL);
     }
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return signature.getFirst() == DataType.TSMD_DATA_TYPE
-            ? typeErrorMessage(signature, 2, "string")
-            : typeErrorMessage(signature, 0, "_timeseries");
+        return typeErrorMessage(signature, 0, "_timeseries");
     }
 }

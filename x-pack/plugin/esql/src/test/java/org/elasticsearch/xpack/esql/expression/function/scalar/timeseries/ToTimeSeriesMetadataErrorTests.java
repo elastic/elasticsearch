@@ -19,15 +19,15 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ToTimeSeriesErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+public class ToTimeSeriesMetadataErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
-        return paramsToSuppliers(ToTimeSeriesTests.parameters());
+        return paramsToSuppliers(ToTimeSeriesMetadataTests.parameters());
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToTimeSeries(source, args.getFirst());
+        return new ToTimeSeriesMetadata(source, args.getFirst());
     }
 
     @Override

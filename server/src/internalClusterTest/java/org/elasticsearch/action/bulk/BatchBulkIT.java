@@ -64,6 +64,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
@@ -548,6 +549,118 @@ public class BatchBulkIT extends ESIntegTestCase {
         // Spot-check a specific doc by id.
         var getResponse = client().get(new org.elasticsearch.action.get.GetRequest(index).id("doc-0")).actionGet();
         assertTrue(getResponse.isExists());
+    }
+
+    /**
+     * A {@code vectordb_columnar} index with a {@code dense_vector} field is indexed through the batch path, not only accepted by it
+     * and then sent down the row path, and the vectors it indexes are searchable.
+     */
+    public void testVectordbColumnarDenseVectorBatchMode() throws IOException {
+        final String index = "test-vectordb-columnar";
+        final int dims = 8;
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("title").field("type", "text").endObject();
+                    mapping.startObject("vector").field("type", "dense_vector").field("dims", dims);
+                    // cosine, the default similarity, also writes the ._magnitude doc values of normalized vectors
+                    String similarity = randomFrom("l2_norm", "cosine", null);
+                    if (similarity != null) {
+                        mapping.field("similarity", similarity);
+                    }
+                    mapping.field("element_type", randomFrom("float", "bfloat16"));
+                    mapping.endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.VECTORDB_COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        String coordinatingNode = findCoordinatingNode();
+
+        int numDocs = randomIntBetween(20, 100);
+        float[][] vectors = new float[numDocs][];
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            vectors[i] = new float[dims];
+            for (int d = 0; d < dims; d++) {
+                vectors[i][d] = randomFloatBetween(-100f, 100f, true);
+            }
+            bulkRequest.add(
+                new IndexRequest(index).id("doc-" + i)
+                    .source(XContentType.JSON, "title", "title " + i, "vector", vectors[i])
+                    .opType(DocWriteRequest.OpType.CREATE)
+            );
+        }
+
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class, ShardBatchMapper.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+            // A chunk the mappers refuse is logged and re-indexed by the row path, which would hide a broken batch path.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no batch mapping fallback",
+                    ShardBatchMapper.class.getName(),
+                    Level.WARN,
+                    "columnar batch mapping failed*"
+                )
+            );
+
+            BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+            assertNoFailures(bulkResponse);
+            assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        refresh(index);
+
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
+        });
+
+        // Every document must be its own nearest neighbour: its vector was indexed by the batch path.
+        int target = randomIntBetween(0, numDocs - 1);
+        assertResponse(
+            prepareSearch(index).setQuery(new KnnVectorQueryBuilder("vector", vectors[target], 1, numDocs, null, null, null)).setSize(1),
+            searchResponse -> {
+                assertNoFailures(searchResponse);
+                assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+                assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("doc-" + target));
+            }
+        );
     }
 
     public void testBulkIndexingViaBatchMode() throws IOException {

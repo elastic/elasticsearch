@@ -30,6 +30,26 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
 public class RangeTests extends ESTestCase {
 
+    /**
+     * A string bound naming a day the month lacks is not a plain date, so it takes the "could be date math" branch
+     * instead of being clamped to the month's last day. Clamped, 2024-02-30 would read as 2024-02-29 and the bounds below
+     * would be reported as inverted.
+     */
+    public void testAreBoundariesInvalidWithImpossibleDayBound() {
+        Range range = new Range(
+            Source.EMPTY,
+            l(ZonedDateTime.parse("2024-02-15T00:00:00Z"), DATETIME),
+            l("2024-02-30", KEYWORD),
+            true,
+            l("2024-03-31", KEYWORD),
+            true,
+            ZoneOffset.UTC
+        );
+        assertFalse(range.areBoundariesInvalid("2024-02-30", "2024-02-15"));
+        assertFalse(range.areBoundariesInvalid("2024-03-01", "2024-02-30"));
+        assertTrue(range.areBoundariesInvalid("2024-02-29", "2024-02-28"));
+    }
+
     public void testAreBoundariesInvalid() {
         // value, value type, lower, lower type, lower included, higher, higher type, higher included, boundaries invalid
         Object[][] tests = {

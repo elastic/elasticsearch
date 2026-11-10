@@ -13,12 +13,15 @@ import org.elasticsearch.common.time.DateFormatters;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalTime;
 import java.time.OffsetTime;
 import java.time.Period;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -44,6 +47,7 @@ public class DateUtils {
         .appendZoneOrOffsetId()
         .optionalEnd()
         .toFormatter(Locale.ROOT)
+        .withResolverStyle(ResolverStyle.STRICT)
         .withZone(UTC);
     private static final DateTimeFormatter DATE_OPTIONAL_TIME_FORMATTER_WHITESPACE = new DateTimeFormatterBuilder().append(ISO_LOCAL_DATE)
         .optionalStart()
@@ -53,6 +57,7 @@ public class DateUtils {
         .appendZoneOrOffsetId()
         .optionalEnd()
         .toFormatter(Locale.ROOT)
+        .withResolverStyle(ResolverStyle.STRICT)
         .withZone(UTC);
 
     public static final String EMPTY = "";
@@ -201,11 +206,22 @@ public class DateUtils {
         separatorIdx = dateFormat.indexOf('-', separatorIdx + 1) + 3;
 
         // Avoid index out of bounds - it will lead to DateTimeParseException anyways
-        if (separatorIdx >= dateFormat.length() || dateFormat.charAt(separatorIdx) == 'T') {
-            return DateFormatters.from(DATE_OPTIONAL_TIME_FORMATTER_T_LITERAL.parse(dateFormat)).withZoneSameInstant(UTC);
-        } else {
-            return DateFormatters.from(DATE_OPTIONAL_TIME_FORMATTER_WHITESPACE.parse(dateFormat)).withZoneSameInstant(UTC);
+        DateTimeFormatter formatter = separatorIdx >= dateFormat.length() || dateFormat.charAt(separatorIdx) == 'T'
+            ? DATE_OPTIONAL_TIME_FORMATTER_T_LITERAL
+            : DATE_OPTIONAL_TIME_FORMATTER_WHITESPACE;
+        // The formatters resolve strictly, so a day the month lacks (2024-02-30) is refused instead of clamped, but strict
+        // resolution also refuses the ISO end-of-day hour 24. Keep reading 24:00 as the next day's midnight: validate the
+        // date with the hour replaced by 00, require that time to be exactly midnight, and only then add the day.
+        boolean endOfDay = separatorIdx + 2 < dateFormat.length() && dateFormat.startsWith("24", separatorIdx + 1);
+        if (endOfDay == false) {
+            return DateFormatters.from(formatter.parse(dateFormat)).withZoneSameInstant(UTC);
         }
+        String midnight = dateFormat.substring(0, separatorIdx + 1) + "00" + dateFormat.substring(separatorIdx + 3);
+        ZonedDateTime parsed = DateFormatters.from(formatter.parse(midnight));
+        if (parsed.toLocalTime().equals(LocalTime.MIDNIGHT) == false) {
+            throw new DateTimeParseException("Invalid end-of-day time", dateFormat, separatorIdx + 1);
+        }
+        return parsed.plusDays(1).withZoneSameInstant(UTC);
     }
 
     public static String toString(ZonedDateTime dateTime) {

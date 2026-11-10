@@ -507,7 +507,7 @@ public final class DateFieldMapper extends FieldMapper {
                 scriptValues(),
                 meta.getValue(),
                 readInArrayOrder,
-                docValuesParameters.getValue().multiValue() == false
+                script.get() == null && docValuesParameters.getValue().multiValue() == false
             );
 
             Long nullTimestamp = parseNullValue(ft);

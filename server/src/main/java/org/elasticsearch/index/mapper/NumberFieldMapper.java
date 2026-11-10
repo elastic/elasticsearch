@@ -2416,7 +2416,8 @@ public class NumberFieldMapper extends FieldMapper {
                     && builder.docValuesParameters.getValue().multiValue()
                     && builder.indexSettings.getMode().isStrictColumnar(),
                 builder.indexTerms.getValue(),
-                builder.allowMultipleValues == false || builder.docValuesParameters.getValue().multiValue() == false
+                builder.allowMultipleValues == false
+                    || (builder.script.get() == null && builder.docValuesParameters.getValue().multiValue() == false)
             );
         }
 

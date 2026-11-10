@@ -379,7 +379,7 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public boolean isStaticallySingleValued() {
-            return docValuesParams != null && docValuesParams.multiValue() == false;
+            return scriptValues == null && docValuesParams != null && docValuesParams.multiValue() == false;
         }
 
         public IpFieldType(String name) {

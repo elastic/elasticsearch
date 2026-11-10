@@ -771,4 +771,9 @@ public class IpFieldMapperTests extends MapperTestCase {
     public void testOnFailureIgnoreDivertedValueIsNotLoaded() throws IOException {
         assertDivertedValueIsNotLoaded(getSampleValueForDocument());
     }
+
+    public void testScriptedFieldIsNotStaticallySingleValued() throws IOException {
+        assertScriptedFieldIsNotStaticallySingleValued("non-empty");
+    }
+
 }

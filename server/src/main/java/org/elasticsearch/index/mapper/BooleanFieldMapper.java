@@ -219,7 +219,7 @@ public class BooleanFieldMapper extends FieldMapper {
                 dimension.getValue(),
                 context.isSourceSynthetic(),
                 readInArrayOrder,
-                docValuesParameters.getValue().multiValue() == false
+                script.get() == null && docValuesParameters.getValue().multiValue() == false
             );
             hasScript = script.get() != null;
             onScriptError = onScriptErrorParam.getValue();

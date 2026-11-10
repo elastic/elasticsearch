@@ -599,6 +599,9 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             plan = new Filter(source(), plan, binaryExpr);
             // A filter keeps the vector's value, wherever the scalar sits, as Prometheus does.
             binaryExpr = PromqlPlan.returnsScalar(left()) ? rightExpr : leftExpr;
+        } else if (this instanceof VectorBinaryComparison) {
+            // bool yields 1 or 0: a number, which an enclosing aggregate reads like any other value
+            binaryExpr = new ToDouble(source(), binaryExpr);
         }
         IntermediateResult vector = PromqlPlan.returnsScalar(left()) ? right : left;
         IntermediateResult result = new IntermediateResult(plan, null, resultLabels(vector.labels(), null), step, filter, kind);

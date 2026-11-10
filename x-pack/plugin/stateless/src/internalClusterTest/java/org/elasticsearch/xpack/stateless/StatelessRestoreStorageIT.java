@@ -76,18 +76,7 @@ public class StatelessRestoreStorageIT extends AbstractStatelessPluginIntegTestC
         startIndexNode();
         internalCluster().stopNode(smallNode);
 
-        assertBusy(
-            () -> assertTrue(
-                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
-                    .get()
-                    .getState()
-                    .routingTable()
-                    .index("source")
-                    .shard(0)
-                    .primaryShard()
-                    .started()
-            )
-        );
+        awaitClusterState(state -> state.routingTable().index("source").shard(0).primaryShard().started());
         ensureGreen("source");
         assertResponse(prepareSearch("source"), response -> {
             assertNoFailures(response);

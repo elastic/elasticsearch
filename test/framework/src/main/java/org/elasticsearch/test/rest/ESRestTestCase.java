@@ -1140,7 +1140,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         return null;
     }
 
-    private String getHotThreads() {
+    protected String getHotThreads() {
         try {
             Response response = adminClient().performRequest(
                 new Request("GET", "/_nodes/hot_threads?ignore_idle_threads=false&threads=9999")

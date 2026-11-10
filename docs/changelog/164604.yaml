@@ -1,0 +1,6 @@
+area: Infra/Core
+issues:
+ - 164473
+pr: 164604
+summary: Fix race when reading reindex data stream status
+type: bug

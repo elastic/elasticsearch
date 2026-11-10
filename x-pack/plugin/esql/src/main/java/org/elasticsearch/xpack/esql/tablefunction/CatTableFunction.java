@@ -19,6 +19,7 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.cat.RestShardsAction;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelationBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -56,7 +57,7 @@ public class CatTableFunction extends CoordinatorRowsFunction {
     );
 
     /** A row per shard copy, not per document. Past it the read is refused rather than materialized. */
-    private static final int MAX_ROWS = 10_000;
+    static final int MAX_ROWS = 10_000;
 
     /** Bounds waiting for the master, not the work; {@code _cat/shards} passes the same one. */
     private static final TimeValue MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
@@ -103,7 +104,12 @@ public class CatTableFunction extends CoordinatorRowsFunction {
      * name they cannot see is refused rather than omitted. No test covers this; see the PR body.
      */
     @Override
-    protected void write(TableFunctionInvocation call, ProjectMetadata projectMetadata, TableRows rows, ActionListener<Void> listener) {
+    protected void write(
+        TableFunctionInvocation call,
+        ProjectMetadata projectMetadata,
+        LocalRelationBuilder rows,
+        ActionListener<Void> listener
+    ) {
         String[] indices = Strings.splitStringByCommaToArray(call.name(1));
         ClusterStateRequest stateRequest = new ClusterStateRequest(MASTER_NODE_TIMEOUT);
         stateRequest.clear().nodes(true).routingTable(true).indices(indices).indicesOptions(IndicesOptions.strictExpandHidden());
@@ -127,7 +133,7 @@ public class CatTableFunction extends CoordinatorRowsFunction {
      * {@code "227b"} rather than as a number. Written over a {@link Table} rather than over the two responses, so
      * it can be driven without a cluster.
      */
-    static void write(String pattern, Table table, TableRows rows) {
+    static void write(String pattern, Table table, LocalRelationBuilder rows) {
         if (table.getRows().size() > MAX_ROWS) {
             // An IllegalArgumentException so this reaches the user as a 400: too many shards is their input and
             // their fix.
@@ -143,7 +149,7 @@ public class CatTableFunction extends CoordinatorRowsFunction {
                     + "] it will return - narrow the index pattern"
             );
         }
-        List<TableRows.Keyword> columns = new ArrayList<>(table.getHeaders().size());
+        List<LocalRelationBuilder.Keyword> columns = new ArrayList<>(table.getHeaders().size());
         for (Table.Cell header : table.getHeaders()) {
             columns.add(rows.keyword(String.valueOf(header.value)));
         }

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.test.ESTestCase;
@@ -36,6 +37,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -82,6 +85,31 @@ public class RestShardsActionTests extends ESTestCase {
             assertThat(row.get(71).value, equalTo(shardStats.getDataPath()));
             assertThat(row.get(72).value, equalTo(shardStats.getStatePath()));
         }
+    }
+
+    /**
+     * The V_8 header and its trailing cell, which no {@link FakeRestRequest} reports: the version is now an argument,
+     * so the arm is reachable without a request at all. A row one cell short of its header would misalign every
+     * reader of the table.
+     */
+    public void testTheV8TableCarriesSyncId() {
+        mockShardStats(randomBoolean());
+
+        List<String> v8 = headerNames(RestShardsAction.getTableWithHeader(RestApiVersion.V_8));
+        List<String> current = headerNames(RestShardsAction.getTableWithHeader(RestApiVersion.current()));
+        assertThat(v8, hasItem("sync_id"));
+        assertThat(current, not(hasItem("sync_id")));
+        assertThat(v8.size(), equalTo(current.size() + 1));
+
+        Table table = RestShardsAction.buildTable(RestApiVersion.V_8, clusterStateResponse, indicesStatsResponse);
+        assertThat(table.getHeaders().size(), equalTo(v8.size()));
+        for (List<Table.Cell> row : table.getRows()) {
+            assertThat(row.size(), equalTo(v8.size()));
+        }
+    }
+
+    private static List<String> headerNames(Table table) {
+        return table.getHeaders().stream().map(cell -> String.valueOf(cell.value)).toList();
     }
 
     public void testShardStatsForIndexing() {

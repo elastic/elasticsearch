@@ -68,12 +68,10 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
         topValueSet = true;
     }
 
-    @Override
     public void setSingleSort() {
         singleSort = true;
     }
 
-    @Override
     public void disableSkipping() {
         pruning = Pruning.NONE;
     }

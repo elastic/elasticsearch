@@ -905,7 +905,6 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
 
         for (SortMode sortMode : SortMode.values()) {
             SortField sortField = new FieldSortBuilder("custom-integer").sortMode(sortMode).build(context).field();
-            assertFalse(sortField.getOptimizeSortWithPoints());
             if (sortMode == SortMode.MIN || sortMode == SortMode.MAX) {
                 assertThat(sortField, instanceOf(SortedNumericSortField.class));
                 SortedNumericSortField numericSortField = (SortedNumericSortField) sortField;
@@ -927,7 +926,6 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             MappedFieldType.FielddataOperation.SEARCH
         );
         SortField indexSort = fieldData.indexSort(oldVersion, null, MultiValueMode.MAX, true);
-        assertFalse(indexSort.getOptimizeSortWithPoints());
         assertThat(indexSort, instanceOf(SortedNumericSortField.class));
         SortedNumericSortField numericIndexSort = (SortedNumericSortField) indexSort;
         assertThat(numericIndexSort.getNumericType(), equalTo(SortField.Type.LONG));

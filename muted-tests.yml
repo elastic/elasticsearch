@@ -566,3 +566,8 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: test {csv-spec:unmapped-type-conflicts.typeConflictPartiallyUnmappedTextFieldNotLoadedWithDrop}
   issue: https://github.com/elastic/elasticsearch/issues/165306
+- class: org.elasticsearch.xpack.stateless.objectstore.gc.StaleIndicesGCIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testIsolatedNodeRunningGCDoesNotDeleteNewIndexData
+  issue: https://github.com/elastic/elasticsearch/issues/165370

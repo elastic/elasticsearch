@@ -10,6 +10,13 @@ setup:
           parameters: []
           capabilities: [ flattened_datatype, fix_flattened_subkey_pushdown ]
       reason: "Predicates on a dotted field must treat a flattened sub-key with the same name as missing"
+  - skip:
+      reason: "A name under a flattened field is a field: see 266_flattened_keys"
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_keys ]
   - do:
       indices.create:
         index: kw

@@ -195,7 +195,6 @@ public class DataNodeRequestDatasetRebindIT extends AbstractExternalDataSourceIT
         ExchangeSinkExec plan = new ExchangeSinkExec(Source.EMPTY, exec.output(), false, exec);
         return new DataNodeRequest(
             sessionId,
-            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             configuration,
             RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             shards,

@@ -68,7 +68,7 @@ public final class QueryScheduler {
     /**
      * Returns an executor that submits the tasks of the query {@code queryId} to {@code delegate}. The tasks work on
      * {@code shards}, each listed once, which accumulate the waiting into {@link ShardSearchStats#accumulateSearchWaiting}.
-     * A query is identified by the task of its coordinator in this cluster, the same on every node.
+     * The tasks submitted with the same {@code queryId} on this node are tracked as one query.
      */
     public QueryExecutor executor(TaskId queryId, Executor delegate, List<SearchedShard> shards) {
         List<Shard> searched = new ArrayList<>(shards.size());

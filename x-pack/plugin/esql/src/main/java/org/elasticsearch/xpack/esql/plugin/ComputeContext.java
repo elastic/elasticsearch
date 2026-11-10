@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import java.util.function.Supplier;
 
 /**
- * @param queryId the task of the query's coordinator in this cluster
+ * @param queryId the id the drivers are tracked under on this node, as one query
  */
 record ComputeContext(
     String sessionId,

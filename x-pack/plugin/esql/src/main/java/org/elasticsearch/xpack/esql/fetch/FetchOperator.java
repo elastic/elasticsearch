@@ -28,6 +28,7 @@ import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.compute.operator.ResponseHeadersCollector;
 import org.elasticsearch.compute.operator.fetch.FetchGather;
 import org.elasticsearch.core.Releasable;
@@ -1037,6 +1038,31 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
             "fetch",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(Status.class, (builder, status, params) -> {
+            builder.startObject();
+            status.innerToXContent(builder);
+            builder.field("rows_received", status.rowsReceived);
+            builder.field("documents", status.documents);
+            builder.field("pages_emitted", status.pagesEmitted);
+            nanos(builder, "plan", status.planNanos);
+            nanos(builder, "gather", status.gatherNanos);
+            builder.startArray("requests");
+            for (NodeRequest request : status.requests) {
+                NodeRequest.PROFILE_SCHEMA.write(builder, request, params);
+            }
+            builder.endArray();
+            return builder.endObject();
+        })
+            .include(AsyncOperator.Status.PROFILE_SCHEMA)
+            .required("rows_received", ProfileSchema.integer())
+            .required("documents", ProfileSchema.integer())
+            .required("pages_emitted", ProfileSchema.integer())
+            .required("plan_nanos", ProfileSchema.integer())
+            .optional("plan_time", ProfileSchema.string())
+            .required("gather_nanos", ProfileSchema.integer())
+            .optional("gather_time", ProfileSchema.string())
+            .required("requests", ProfileSchema.array(NodeRequest.PROFILE_SCHEMA.schema()))
+            .build();
 
         private final long rowsReceived;
         private final long documents;
@@ -1125,19 +1151,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            innerToXContent(builder);
-            builder.field("rows_received", rowsReceived);
-            builder.field("documents", documents);
-            builder.field("pages_emitted", pagesEmitted);
-            nanos(builder, "plan", planNanos);
-            nanos(builder, "gather", gatherNanos);
-            builder.startArray("requests");
-            for (NodeRequest request : requests) {
-                request.toXContent(builder, params);
-            }
-            builder.endArray();
-            return builder.endObject();
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         @Override
@@ -1182,6 +1196,27 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
             Writeable,
             ToXContentObject {
 
+        static final ProfileSchema<NodeRequest> PROFILE_SCHEMA = ProfileSchema.of(NodeRequest.class, (builder, request, params) -> {
+            builder.startObject();
+            builder.field("node", request.node);
+            builder.field("shards", request.shards);
+            builder.field("documents", request.documents);
+            nanos(builder, "request", request.requestNanos);
+            nanos(builder, "took", request.tookNanos);
+            nanos(builder, "setup", request.setupNanos);
+            return builder.endObject();
+        })
+            .required("node", ProfileSchema.string())
+            .required("shards", ProfileSchema.integer())
+            .required("documents", ProfileSchema.integer())
+            .required("request_nanos", ProfileSchema.integer())
+            .optional("request_time", ProfileSchema.string())
+            .required("took_nanos", ProfileSchema.integer())
+            .optional("took_time", ProfileSchema.string())
+            .required("setup_nanos", ProfileSchema.integer())
+            .optional("setup_time", ProfileSchema.string())
+            .build();
+
         NodeRequest(StreamInput in) throws IOException {
             this(in.readString(), in.readVInt(), in.readVInt(), in.readVLong(), in.readVLong(), in.readVLong());
         }
@@ -1198,14 +1233,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("node", node);
-            builder.field("shards", shards);
-            builder.field("documents", documents);
-            nanos(builder, "request", requestNanos);
-            nanos(builder, "took", tookNanos);
-            nanos(builder, "setup", setupNanos);
-            return builder.endObject();
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
     }
 

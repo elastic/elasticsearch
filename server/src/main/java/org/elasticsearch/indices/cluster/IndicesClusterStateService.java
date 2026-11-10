@@ -1584,6 +1584,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     ) {
         final ShardAllocationKey key = ShardAllocationKey.fromRouting(shardRouting);
         if (pendingAllocationStates.get(key) != inFlightTicket) {
+            // If our inFlightTicket has been removed it means that the shard has been removed as well.
+            // One case that might not be obvious: updatePendingAllocationTracker evicts the InFlight ticket when the primary
+            // term advances, even though the allocation id is the same. The shard isn’t orphaned in that case, because
+            // removeIndicesAndShards closes it in the same applyClusterState, via the “primary term bumped” branch.
+            // So this failure has nothing left to fail, and ignoring it also stops it touching the new attempt’s ticket.
             logger.debug("{} ignoring stale recovery failure; no longer the current attempt", key);
             return;
         }

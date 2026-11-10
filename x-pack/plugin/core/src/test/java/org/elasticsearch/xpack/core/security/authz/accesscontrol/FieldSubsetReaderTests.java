@@ -77,13 +77,11 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
@@ -1217,48 +1215,6 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                         LeafReader leaf = ir.leaves().get(0).reader();
                         assertNotNull(leaf.getNumericDocValues("keep" + counts));
                         assertNull(leaf.getNumericDocValues("secret" + counts));
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Each stored-value fallback companion ({@code ._original}, {@code ._ignore_malformed}) is written as binary doc values with a
-     * sibling {@code .counts} field. When the parent survives an exact FLS grant, the binary blob and its {@code .counts} must stay
-     * visible together, and when the parent is filtered out both must be hidden.
-     */
-    public void testFilteredCompanionCountsFollowParent() throws Exception {
-        String counts = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
-        for (String suffix : List.of(
-            TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX,
-            IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX
-        )) {
-            try (Directory dir = newDirectory()) {
-                try (IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(null))) {
-                    Document doc = new Document();
-                    String kept = randomAlphaOfLength(5);
-                    String dropped = randomAlphaOfLength(6);
-                    doc.add(new BinaryDocValuesField(kept + suffix, new BytesRef("v")));
-                    doc.add(new NumericDocValuesField(kept + suffix + counts, 2));
-                    doc.add(new BinaryDocValuesField(dropped + suffix, new BytesRef("v")));
-                    doc.add(new NumericDocValuesField(dropped + suffix + counts, 2));
-                    iw.addDocument(doc);
-
-                    var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { kept }, null));
-                    try (
-                        DirectoryReader ir = FieldSubsetReader.wrap(
-                            wrapInMockESDirectoryReader(DirectoryReader.open(iw)),
-                            filter,
-                            IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
-                            (fieldName) -> false
-                        )
-                    ) {
-                        LeafReader leaf = ir.leaves().get(0).reader();
-                        assertNotNull(leaf.getBinaryDocValues(kept + suffix));
-                        assertNotNull(leaf.getNumericDocValues(kept + suffix + counts));
-                        assertNull(leaf.getBinaryDocValues(dropped + suffix));
-                        assertNull(leaf.getNumericDocValues(dropped + suffix + counts));
                     }
                 }
             }

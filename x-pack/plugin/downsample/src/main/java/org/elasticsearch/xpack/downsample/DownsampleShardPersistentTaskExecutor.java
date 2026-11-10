@@ -175,7 +175,12 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         DownsampleShardTask downsampleShardTask = (DownsampleShardTask) task;
         client.execute(
             DelegatingAction.INSTANCE,
-            new DelegatingAction.Request(downsampleShardTask, lastDownsampleTsid, params),
+            new DelegatingAction.Request(
+                new PersistentTaskShardReporter(downsampleShardTask),
+                lastDownsampleTsid,
+                params,
+                persistentTaskCompletion(downsampleShardTask)
+            ),
             ActionListener.wrap(empty -> {}, e -> {
                 LOGGER.error("error while delegating", e);
                 markAsFailed(downsampleShardTask, e);
@@ -188,18 +193,26 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         return indexRoutingTable.map(routingTable -> routingTable.shard(shardId.getId())).orElse(null);
     }
 
-    static void realNodeOperation(
+    /**
+     * Runs the indexer of one shard on the downsample thread pool and reports the outcome to {@code listener}: a response when the
+     * shard is complete, otherwise the failure (a {@link DownsampleShardIndexerException} says whether it is retriable). Shared by
+     * the persistent task path and the system index orchestration, which handle the outcome differently.
+     * <p>
+     * Must be called from {@link DelegatingAction}, see there why.
+     */
+    static void runShardIndexer(
         Client client,
         IndicesService indicesService,
         DownsampleMetrics downsampleMetrics,
-        DownsampleShardTask task,
+        ShardTaskReporter reporter,
         DownsampleShardTaskParams params,
-        BytesRef lastDownsampledTsid
+        BytesRef lastDownsampledTsid,
+        ActionListener<Void> listener
     ) {
         client.threadPool().executor(Downsample.DOWNSAMPLE_TASK_THREAD_POOL_NAME).execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
-                markAsFailed(task, e);
+                listener.onFailure(e);
             }
 
             @Override
@@ -208,40 +221,45 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
                     DownsampleShardIndexerStatus.INITIALIZED,
                     lastDownsampledTsid
                 );
-                try {
-                    final var downsampleShardIndexer = new DownsampleShardIndexer(
-                        task,
-                        client,
-                        indicesService.indexServiceSafe(params.shardId().getIndex()),
-                        downsampleMetrics,
-                        params.shardId(),
-                        params.downsampleIndex(),
-                        params.downsampleConfig(),
-                        params.metrics(),
-                        params.labels(),
-                        params.dimensions(),
-                        params.multiFieldSources() == null ? Map.of() : params.multiFieldSources(),
-                        initialState
-                    );
-                    downsampleShardIndexer.execute();
-                    task.markAsCompleted();
-                } catch (final DownsampleShardIndexerException e) {
-                    if (e.isRetriable()) {
-                        LOGGER.warn("Downsampling task [" + task.getPersistentTaskId() + " retriable failure [" + e.getMessage() + "]");
-                        task.markAsLocallyAborted(e.getMessage());
-                    } else {
-                        LOGGER.error(
-                            "Downsampling task [" + task.getPersistentTaskId() + " non retriable failure [" + e.getMessage() + "]"
-                        );
-                        markAsFailed(task, e);
-                    }
-                } catch (IndexNotFoundException e) {
-                    LOGGER.error("Downsampling task [" + task.getPersistentTaskId() + " failing because source index not assigned");
-                    markAsFailed(task, e);
-                } catch (final Exception e) {
-                    LOGGER.error("Downsampling task [" + task.getPersistentTaskId() + " non-retriable failure [" + e.getMessage() + "]");
+                final var downsampleShardIndexer = new DownsampleShardIndexer(
+                    reporter,
+                    client,
+                    indicesService.indexServiceSafe(params.shardId().getIndex()),
+                    downsampleMetrics,
+                    params.shardId(),
+                    params.downsampleIndex(),
+                    params.downsampleConfig(),
+                    params.metrics(),
+                    params.labels(),
+                    params.dimensions(),
+                    params.multiFieldSources() == null ? Map.of() : params.multiFieldSources(),
+                    initialState
+                );
+                downsampleShardIndexer.execute();
+                listener.onResponse(null);
+            }
+        });
+    }
+
+    /**
+     * Maps the outcome of {@link #runShardIndexer} to the lifecycle of the persistent task.
+     */
+    private static ActionListener<Void> persistentTaskCompletion(DownsampleShardTask task) {
+        return ActionListener.wrap(ignored -> task.markAsCompleted(), e -> {
+            if (e instanceof DownsampleShardIndexerException indexerException) {
+                if (indexerException.isRetriable()) {
+                    LOGGER.warn("Downsampling task [" + task.getPersistentTaskId() + " retriable failure [" + e.getMessage() + "]");
+                    task.markAsLocallyAborted(e.getMessage());
+                } else {
+                    LOGGER.error("Downsampling task [" + task.getPersistentTaskId() + " non retriable failure [" + e.getMessage() + "]");
                     markAsFailed(task, e);
                 }
+            } else if (e instanceof IndexNotFoundException) {
+                LOGGER.error("Downsampling task [" + task.getPersistentTaskId() + " failing because source index not assigned");
+                markAsFailed(task, e);
+            } else {
+                LOGGER.error("Downsampling task [" + task.getPersistentTaskId() + " non-retriable failure [" + e.getMessage() + "]");
+                markAsFailed(task, e);
             }
         });
     }
@@ -269,12 +287,22 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
 
         public static class Request extends UntypedActionRequest implements IndicesRequest.RemoteClusterShardRequest {
 
-            private final DownsampleShardTask task;
+            private final ShardTaskReporter reporter;
             private final BytesRef lastDownsampleTsid;
             private final DownsampleShardTaskParams params;
+            private final ActionListener<Void> completion;
 
-            public Request(DownsampleShardTask task, BytesRef lastDownsampleTsid, DownsampleShardTaskParams params) {
-                this.task = task;
+            /**
+             * @param completion notified when the indexer completes or fails, see {@link #runShardIndexer}
+             */
+            public Request(
+                ShardTaskReporter reporter,
+                BytesRef lastDownsampleTsid,
+                DownsampleShardTaskParams params,
+                ActionListener<Void> completion
+            ) {
+                this.reporter = reporter;
+                this.completion = completion;
                 this.lastDownsampleTsid = lastDownsampleTsid;
                 this.params = params;
             }
@@ -301,7 +329,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
 
             @Override
             public Collection<ShardId> shards() {
-                return Collections.singletonList(task.shardId());
+                return Collections.singletonList(params.shardId());
             }
         }
 
@@ -319,7 +347,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
                 IndicesService indicesService,
                 DownsampleMetrics downsampleMetrics
             ) {
-                // TODO: consider moving to Downsample.DOWSAMPLE_TASK_THREAD_POOL_NAME and simplify realNodeOperation
+                // TODO: consider moving to Downsample.DOWSAMPLE_TASK_THREAD_POOL_NAME and simplify runShardIndexer
                 super(NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
                 this.client = client;
                 this.indicesService = indicesService;
@@ -328,7 +356,15 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
 
             @Override
             protected void doExecute(Task t, Request request, ActionListener<ActionResponse.Empty> listener) {
-                realNodeOperation(client, indicesService, downsampleMetrics, request.task, request.params, request.lastDownsampleTsid);
+                runShardIndexer(
+                    client,
+                    indicesService,
+                    downsampleMetrics,
+                    request.reporter,
+                    request.params,
+                    request.lastDownsampleTsid,
+                    request.completion
+                );
                 listener.onResponse(ActionResponse.Empty.INSTANCE);
             }
 

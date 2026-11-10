@@ -26,6 +26,9 @@ public class DownsampleWithSecurityRestIT extends ESClientYamlSuiteTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("x-pack-downsample")
+        // downsampling runs through the system index: poll and reconcile often to keep the tests fast
+        .setting("xpack.downsample.store.poll_interval", "1s")
+        .setting("xpack.downsample.store.reconcile_interval", "100ms")
         .module("x-pack-analytics")     // for histogram
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")

@@ -107,6 +107,9 @@ import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
+import org.elasticsearch.xpack.downsample.orchestration.DownsampleOrchestrator;
+import org.elasticsearch.xpack.downsample.orchestration.DownsampleStateIndex;
+import org.elasticsearch.xpack.downsample.orchestration.ShardTaskPoller;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -176,6 +179,19 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     private long startTime;
     private int docCount, numOfShards, numOfReplicas;
     private List<String> dimensionValues;
+
+    /**
+     * Downsampling runs through the system index: nodes poll for their shard tasks and the master reconciles periodically, so
+     * keep both intervals short (the poll interval is at its minimum) to keep the tests fast.
+     */
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder()
+            .put(super.nodeSettings())
+            .put(ShardTaskPoller.POLL_INTERVAL_SETTING.getKey(), "1s")
+            .put(DownsampleOrchestrator.RECONCILE_INTERVAL_SETTING.getKey(), "100ms")
+            .build();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -1873,6 +1889,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
      * {@code _tsid} already present in the target index rather than downsample the whole shard again.
      */
     public void testDownsampleResumesAfterPersistentTaskRemoved() throws Exception {
+        assumePersistentTaskPath();
         DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         // One bucket per document, so the shard task has to send more than one bulk request.
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
@@ -1910,6 +1927,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
      * None of them may be indexed a second time, each one must be skipped as a version conflict.
      */
     public void testDownsampleResumeDoesNotReindexAlreadyIndexedBuckets() throws Exception {
+        assumePersistentTaskPath();
         DateHistogramInterval interval = new DateHistogramInterval("1h");
         DownsampleConfig config = new DownsampleConfig(interval, randomSamplingMethod());
         // One document per bucket, all in the same time series. This is more than the DOWNSAMPLE_BULK_ACTIONS of a single bulk.
@@ -1950,6 +1968,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
      * resumed target must be identical to a downsample that ran uninterrupted, without indexing any document twice.
      */
     public void testDownsampleResumesAfterNonLastBulkFails() throws Exception {
+        assumePersistentTaskPath();
         DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         // One time series per document and one bucket per time series, so consecutive bulk requests hold disjoint _tsid ranges
         // and the shard task has to send at least three of them.
@@ -2040,6 +2059,17 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
      *
      * @return the number of documents the interrupted run managed to write to the target index
      */
+    /**
+     * Skips tests that inspect or remove the shard persistent tasks: when the cluster runs downsample operations through the system
+     * index (the default with the feature flag) there are none. The system index path has its own tests in the orchestration package.
+     */
+    private void assumePersistentTaskPath() {
+        assumeFalse(
+            "downsample runs through the system index, there are no shard persistent tasks",
+            DownsampleStateIndex.FEATURE_FLAG.isEnabled()
+        );
+    }
+
     private long downsampleAndInterruptAfterFirstBulk(DownsampleConfig config) throws Exception {
         BulkInterceptorPlugin.interceptedIndex = downsampleIndex;
         // 1. Kick off downsampling. The tiny wait timeout makes this request fail right after it has created the

@@ -34,6 +34,7 @@ import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.xpack.downsample.orchestration.DownsampleOrchestrator;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -42,6 +43,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.metadata.ClusterChangedEventUtils.indicesCreated;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
@@ -55,7 +57,14 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
     public static final int DOC_COUNT = 25_000;
-    private final DownsamplingOperationsMonitor monitor = new DownsamplingOperationsMonitor();
+    // sees both paths: the persistent tasks, and the operations the current master orchestrates through the system index
+    // No client call to find the master: the monitor is used in cluster state predicates, which run on the applier thread.
+    private final DownsamplingOperationsMonitor monitor = new DownsamplingOperationsMonitor(
+        () -> StreamSupport.stream(internalCluster().getInstances(DownsampleOrchestrator.class).spliterator(), false)
+            .filter(DownsampleOrchestrator::isMaster)
+            .findFirst()
+            .orElse(null)
+    );
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {

@@ -19,7 +19,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 
-/** Defines the two behaviorally distinct generations of Thai analysis and the preconfigured components cached by generation. */
+/** Defines the two behaviorally distinct generations of Thai analysis and the preconfigured components that select between them. */
 final class ThaiAnalysis {
 
     enum Generation {
@@ -56,16 +56,20 @@ final class ThaiAnalysis {
     }
 
     static Generation generation(IndexVersion indexVersion) {
+        return generation(indexVersion.luceneVersion());
+    }
+
+    static Generation generation(Version luceneVersion) {
         // Keep this gate aligned with the _thai_ stopword gate in Analysis.namedStopWords.
-        return indexVersion.luceneVersion().onOrAfter(Version.LUCENE_10_6_0) ? Generation.CURRENT : Generation.LEGACY;
+        return luceneVersion.onOrAfter(Version.LUCENE_10_6_0) ? Generation.CURRENT : Generation.LEGACY;
     }
 
     static PreBuiltAnalyzerProviderFactory preBuiltAnalyzerFactory() {
-        return PreBuiltAnalyzerProviderFactory.versioned("thai", ThaiAnalysis::generation, Generation::newAnalyzer);
+        return PreBuiltAnalyzerProviderFactory.luceneVersion("thai", luceneVersion -> generation(luceneVersion).newAnalyzer());
     }
 
     static PreConfiguredTokenizer preConfiguredTokenizer() {
-        return PreConfiguredTokenizer.versioned("thai", ThaiAnalysis::generation, Generation::newTokenizer);
+        return PreConfiguredTokenizer.luceneVersion("thai", luceneVersion -> generation(luceneVersion).newTokenizer());
     }
 
     private ThaiAnalysis() {}

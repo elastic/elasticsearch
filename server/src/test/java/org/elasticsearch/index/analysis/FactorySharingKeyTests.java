@@ -132,49 +132,25 @@ public class FactorySharingKeyTests extends ESTestCase {
 
     // ---- PreBuiltAnalyzerProviderFactory ----
 
-    /** A custom version key shares one provider across index and Lucene versions with equivalent behavior. */
-    public void testCustomVersionPrebuiltAnalyzerSharesByVersionKey() throws IOException {
+    /**
+     * A Lucene-versioned prebuilt analyzer keeps one provider per Lucene version, and providers for different Lucene versions have
+     * different sharing keys so indices created on them never share an analyzer.
+     */
+    public void testLuceneVersionPrebuiltAnalyzerDoesNotShareAcrossLuceneVersions() throws IOException {
         Environment env = env();
-        IndexVersion firstLegacy = IndexVersions.UPGRADE_TO_LUCENE_10_4_0;
-        IndexVersion secondLegacy = IndexVersions.UPGRADE_TO_LUCENE_10_5_2;
-        assertNotEquals(firstLegacy.luceneVersion(), secondLegacy.luceneVersion());
+        IndexVersion old = IndexVersions.UPGRADE_TO_LUCENE_10_4_0;
+        assertNotEquals(old.luceneVersion(), IndexVersion.current().luceneVersion());
         try (
-            PreBuiltAnalyzerProviderFactory factory = PreBuiltAnalyzerProviderFactory.versioned(
+            PreBuiltAnalyzerProviderFactory factory = PreBuiltAnalyzerProviderFactory.luceneVersion(
                 "versioned",
-                version -> version.before(IndexVersions.UPGRADE_TO_LUCENE_10_6_0),
-                legacy -> new StandardAnalyzer()
+                luceneVersion -> new StandardAnalyzer()
             )
         ) {
-            AnalyzerProvider<?> firstProvider = factory.get(indexSettings(firstLegacy), env, "versioned", Settings.EMPTY);
-            AnalyzerProvider<?> secondProvider = factory.get(indexSettings(secondLegacy), env, "versioned", Settings.EMPTY);
+            AnalyzerProvider<?> oldProvider = factory.get(indexSettings(old), env, "versioned", Settings.EMPTY);
             AnalyzerProvider<?> currentProvider = factory.get(indexSettings(), env, "versioned", Settings.EMPTY);
-            assertSame(firstProvider, secondProvider);
-            assertNotSame(firstProvider, currentProvider);
-            assertSame(firstProvider, firstProvider.sharingKey());
-            assertEquals(firstProvider.sharingKey(), secondProvider.sharingKey());
-            assertNotEquals(firstProvider.sharingKey(), currentProvider.sharingKey());
+            assertSame(oldProvider, factory.get(indexSettings(old), env, "versioned", Settings.EMPTY));
             assertSame(currentProvider, factory.get(indexSettings(), env, "versioned", Settings.EMPTY));
-        }
-    }
-
-    /** The current provider participates in custom version caching instead of occupying a separate slot. */
-    public void testCustomVersionPrebuiltAnalyzerSharesCurrentProvider() throws IOException {
-        Environment env = env();
-        try (
-            PreBuiltAnalyzerProviderFactory factory = PreBuiltAnalyzerProviderFactory.versioned(
-                "versioned",
-                version -> true,
-                ignored -> new StandardAnalyzer()
-            )
-        ) {
-            AnalyzerProvider<?> currentProvider = factory.get(indexSettings(), env, "versioned", Settings.EMPTY);
-            AnalyzerProvider<?> previousProvider = factory.get(
-                indexSettings(IndexVersionUtils.getPreviousVersion()),
-                env,
-                "versioned",
-                Settings.EMPTY
-            );
-            assertSame(currentProvider, previousProvider);
+            assertNotEquals(oldProvider.sharingKey(), currentProvider.sharingKey());
         }
     }
 

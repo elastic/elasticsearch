@@ -10,6 +10,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -65,18 +66,14 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
     }
 
     /**
-     * For analyzers whose behavior is grouped into caller-defined versions. The version key determines both cache identity and the
-     * value passed to {@code create}, so behaviorally equivalent index versions share one provider.
+     * For analyzers whose behavior depends on the Lucene version the index was created with. One provider is cached per Lucene
+     * version, and providers for different Lucene versions are never shared between indices.
      */
-    public static <V> PreBuiltAnalyzerProviderFactory versioned(
-        String name,
-        Function<IndexVersion, V> version,
-        Function<V, Analyzer> create
-    ) {
+    public static PreBuiltAnalyzerProviderFactory luceneVersion(String name, Function<Version, Analyzer> create) {
         return new PreBuiltAnalyzerProviderFactory(
             name,
-            PreBuiltCacheFactory.getCache(version),
-            indexVersion -> create.apply(version.apply(indexVersion)),
+            PreBuiltCacheFactory.getCache(PreBuiltCacheFactory.CachingStrategy.LUCENE),
+            create.compose(IndexVersion::luceneVersion),
             false
         );
     }
@@ -115,9 +112,10 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
     }
 
     /**
-     * The versioned cache canonicalizes each behavior key to one provider, so provider identity is also the analyzer sharing key.
-     * Keeping this behavior on a distinct provider type matches {@link AnalysisRegistry.FactoryKey}, which isolates sharing keys by
-     * their provider class.
+     * {@link PreBuiltAnalyzerProvider#sharingKey()} compares by analyzer name only, which would let indices created on different
+     * Lucene versions share one analyzer. The cache holds one provider per Lucene version, so provider identity is the sharing key
+     * here. Keeping this behavior on a distinct provider type matches {@link AnalysisRegistry.FactoryKey}, which isolates sharing
+     * keys by their provider class.
      */
     private static final class CacheKeyedPreBuiltAnalyzerProvider extends PreBuiltAnalyzerProvider {
 

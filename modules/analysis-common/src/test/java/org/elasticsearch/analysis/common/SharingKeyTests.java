@@ -350,8 +350,6 @@ public class SharingKeyTests extends ESTestCase {
      */
     public void testThaiAnalysisDoesNotShareAcrossThaiGate() throws IOException {
         IndexVersion legacy = IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
-        IndexVersion otherLegacy = IndexVersions.UPGRADE_TO_LUCENE_10_4_0;
-        assertNotEquals(legacy.luceneVersion(), otherLegacy.luceneVersion());
         IndexVersion current = IndexVersion.current();
         List<Settings> recipes = List.of(
             Settings.builder().put("index.analysis.analyzer.a.type", "thai").build(),
@@ -367,7 +365,6 @@ public class SharingKeyTests extends ESTestCase {
         for (Settings recipe : recipes) {
             Analyzer legacyAnalyzer = build(legacy, recipe);
             assertSame(recipe.toString(), legacyAnalyzer, build(legacy, recipe));
-            assertSame(recipe.toString(), legacyAnalyzer, build(otherLegacy, recipe));
             Analyzer currentAnalyzer = build(current, recipe);
             assertSame(recipe.toString(), currentAnalyzer, build(current, recipe));
             assertNotSame(recipe.toString(), legacyAnalyzer, currentAnalyzer);
@@ -376,19 +373,13 @@ public class SharingKeyTests extends ESTestCase {
 
     /**
      * The prebuilt {@code thai} analyzer is version-sensitive too; its default name-based sharing key would collapse the two sides.
-     * Distinct legacy Lucene versions should still share the same analyzer instance because they select the same Thai generation.
      */
-    public void testPrebuiltThaiAnalyzerCachesByGeneration() throws IOException {
-        IndexVersion firstLegacyVersion = IndexVersions.UPGRADE_TO_LUCENE_10_4_0;
-        IndexVersion secondLegacyVersion = IndexVersions.UPGRADE_TO_LUCENE_10_5_2;
-        assertNotEquals(firstLegacyVersion, secondLegacyVersion);
-        assertNotEquals(firstLegacyVersion.luceneVersion(), secondLegacyVersion.luceneVersion());
-
-        Analyzer legacy = buildPrebuilt(firstLegacyVersion, "thai");
-        Analyzer otherLegacy = buildPrebuilt(secondLegacyVersion, "thai");
+    public void testPrebuiltThaiAnalyzerDoesNotShareAcrossThaiGate() throws IOException {
+        IndexVersion legacyVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
+        Analyzer legacy = buildPrebuilt(legacyVersion, "thai");
         Analyzer current = buildPrebuilt(IndexVersion.current(), "thai");
         assertThat(legacy, instanceOf(LegacyThaiAnalyzer.class));
-        assertSame(legacy, otherLegacy);
+        assertSame(legacy, buildPrebuilt(legacyVersion, "thai"));
         assertThat(current, instanceOf(ThaiAnalyzer.class));
         assertNotSame(legacy, current);
         assertSame(current, buildPrebuilt(IndexVersion.current(), "thai"));

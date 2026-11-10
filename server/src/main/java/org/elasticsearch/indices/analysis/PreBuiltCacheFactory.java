@@ -14,7 +14,6 @@ import org.elasticsearch.index.IndexVersion;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.function.Function;
 
 public class PreBuiltCacheFactory {
 
@@ -49,11 +48,6 @@ public class PreBuiltCacheFactory {
             case LUCENE -> new PreBuiltCacheStrategyLucene<>();
             case INDEX -> new PreBuiltCacheStrategyElasticsearch<>();
         };
-    }
-
-    /** Creates a cache whose entries are grouped by a caller-defined version key. */
-    public static <K, T> PreBuiltCache<T> getCache(Function<IndexVersion, K> cacheKey) {
-        return new PreBuiltCacheStrategyKeyed<>(cacheKey);
     }
 
     /**
@@ -117,31 +111,6 @@ public class PreBuiltCacheFactory {
         @Override
         public void put(IndexVersion version, T model) {
             mapModel.put(version.luceneVersion(), model);
-        }
-
-        @Override
-        public Collection<T> values() {
-            return mapModel.values();
-        }
-    }
-
-    private static class PreBuiltCacheStrategyKeyed<K, T> implements PreBuiltCache<T> {
-
-        private final Function<IndexVersion, K> cacheKey;
-        private final Map<K, T> mapModel = Maps.newMapWithExpectedSize(2);
-
-        private PreBuiltCacheStrategyKeyed(Function<IndexVersion, K> cacheKey) {
-            this.cacheKey = cacheKey;
-        }
-
-        @Override
-        public T get(IndexVersion version) {
-            return mapModel.get(cacheKey.apply(version));
-        }
-
-        @Override
-        public void put(IndexVersion version, T model) {
-            mapModel.put(cacheKey.apply(version), model);
         }
 
         @Override

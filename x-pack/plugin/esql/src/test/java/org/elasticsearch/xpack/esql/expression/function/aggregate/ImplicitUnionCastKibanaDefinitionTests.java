@@ -16,22 +16,21 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItem;
 
 /**
  * Generates the Kibana definition file describing the implicit union casts applied by the
  * {@code ImplicitCastAggregateMetricDoubles} analyzer rule: when a field is mapped as {@code aggregate_metric_double}
  * in some indices and as a numeric in the others (the shape raw-versus-downsampled indices produce), each listed
- * function or operator reads every original type converted as in its type map, so the query runs even though field
- * discovery reports the column as {@code unsupported}. Kibana uses this file to type-check those functions against
- * the converted types instead of rejecting the field.
+ * function or operator reads the field as {@code unionType}, so the query runs even though field discovery reports
+ * the column as {@code unsupported}. Kibana uses this file to type-check those functions against the union type
+ * instead of rejecting the field.
  * <p>
  * Run with:
  * <pre>
@@ -40,21 +39,19 @@ import static org.hamcrest.Matchers.hasEntry;
  */
 public class ImplicitUnionCastKibanaDefinitionTests extends ESTestCase {
 
+    public record Conversion(String function, DataType inputType, DataType unionType) {}
+
     /**
-     * The conversions the {@code ImplicitCastAggregateMetricDoubles} rule applies, by function or operator and then by
-     * original field type. A conflicted field is accepted under a function when every original type is a key in that
-     * function's map and one of them is {@code aggregate_metric_double}. Each entry is checked against the analyzer in
-     * {@code TsAggregateMetricDoubleConflictTests}.
+     * The conversions the {@code ImplicitCastAggregateMetricDoubles} rule applies. Each entry is checked against the
+     * analyzer in {@code TsAggregateMetricDoubleConflictTests}.
      */
-    public static Map<String, Map<String, DataType>> implicitConversions() {
-        Map<String, DataType> toDouble = legConversions(DOUBLE);
-        Map<String, DataType> toInteger = legConversions(INTEGER);
-        Map<String, Map<String, DataType>> byFunction = new TreeMap<>();
-        byFunction.put("avg", toDouble);
-        byFunction.put("count", toInteger);
-        byFunction.put("max", toDouble);
-        byFunction.put("min", toDouble);
-        byFunction.put("sum", toDouble);
+    public static List<Conversion> implicitConversions() {
+        List<Conversion> conversions = new ArrayList<>();
+        DataType amd = AGGREGATE_METRIC_DOUBLE;
+        for (String function : List.of("avg", "max", "min", "sum")) {
+            conversions.add(new Conversion(function, amd, DOUBLE));
+        }
+        conversions.add(new Conversion("count", amd, INTEGER));
         for (String comparison : List.of(
             "equals",
             "not_equals",
@@ -63,30 +60,17 @@ public class ImplicitUnionCastKibanaDefinitionTests extends ESTestCase {
             "less_than",
             "less_than_or_equal"
         )) {
-            byFunction.put(comparison, toDouble);
+            conversions.add(new Conversion(comparison, amd, DOUBLE));
         }
-        return byFunction;
-    }
-
-    private static Map<String, DataType> legConversions(DataType converted) {
-        Map<String, DataType> legs = new TreeMap<>();
-        legs.put(AGGREGATE_METRIC_DOUBLE.esNameIfPossible(), converted);
-        for (DataType dataType : DataType.values()) {
-            if (dataType.isNumeric()) {
-                legs.put(dataType.esNameIfPossible(), converted);
-            }
-        }
-        return legs;
+        return conversions;
     }
 
     public void testImplicitConversions() {
-        Map<String, Map<String, DataType>> byFunction = implicitConversions();
+        List<Conversion> conversions = implicitConversions();
         // the conversions from the issue: a downsampled field averages as double, and count sums the value counts
-        assertThat(byFunction.get("avg"), hasEntry("aggregate_metric_double", DOUBLE));
-        assertThat(byFunction.get("avg"), hasEntry("double", DOUBLE));
-        assertThat(byFunction.get("count"), hasEntry("aggregate_metric_double", INTEGER));
-        assertThat(byFunction.get("count"), hasEntry("long", INTEGER));
-        assertThat(byFunction.get("greater_than"), hasEntry("integer", DOUBLE));
+        assertThat(conversions, hasItem(new Conversion("avg", AGGREGATE_METRIC_DOUBLE, DOUBLE)));
+        assertThat(conversions, hasItem(new Conversion("count", AGGREGATE_METRIC_DOUBLE, INTEGER)));
+        assertThat(conversions, hasItem(new Conversion("greater_than", AGGREGATE_METRIC_DOUBLE, DOUBLE)));
     }
 
     public void testGenerateKibanaDefinition() throws Exception {
@@ -96,20 +80,19 @@ public class ImplicitUnionCastKibanaDefinitionTests extends ESTestCase {
                 "comment",
                 "This is generated by ESQL's ImplicitUnionCastKibanaDefinitionTests. "
                     + "Do not edit it. See docs/reference/query-languages/esql/README.md for how to regenerate it. "
-                    + "A function or operator entry applies when the field's original types include "
-                    + "aggregate_metric_double and at least one other key from that entry's type map, and every "
-                    + "original type is a key in the map. Each key is the original type; its value is the type "
-                    + "the field is read as under that function."
+                    + "An entry applies when its function is called on a field whose original types include "
+                    + "inputType (aggregate_metric_double) and at least one numeric type; the field is then read as "
+                    + "unionType."
             );
-            builder.startObject("functions");
-            for (Map.Entry<String, Map<String, DataType>> function : implicitConversions().entrySet()) {
-                builder.startObject(function.getKey());
-                for (Map.Entry<String, DataType> type : function.getValue().entrySet()) {
-                    builder.field(type.getKey(), type.getValue().esNameIfPossible());
-                }
+            builder.startArray("conversions");
+            for (Conversion conversion : implicitConversions()) {
+                builder.startObject();
+                builder.field("function", conversion.function());
+                builder.field("inputType", conversion.inputType().esNameIfPossible());
+                builder.field("unionType", conversion.unionType().esNameIfPossible());
                 builder.endObject();
             }
-            builder.endObject();
+            builder.endArray();
             rendered = Strings.toString(builder.endObject());
         }
         DocsV3Support.Callbacks callbacks = DocsV3Support.callbacksFromSystemProperty();

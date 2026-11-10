@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ImplicitUnionCastKibanaDefinitionTests;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.ImplicitUnionCastKibanaDefinitionTests.Conversion;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -75,9 +76,9 @@ public class TsAggregateMetricDoubleConflictTests extends AnalyzerTestCase {
     }
 
     /**
-     * Kibana type-checks each published function as if every original type were converted to the mapped type, so over
-     * every {@code aggregate_metric_double}/numeric conflict the function must resolve, and return the same type as it
-     * does over a plain field of that converted type.
+     * Kibana type-checks each published function as if the field were {@code unionType}, so over every
+     * {@code aggregate_metric_double}/numeric conflict the function must resolve, and return the same type as it does
+     * over a plain {@code unionType} field.
      */
     public void testPublishedConversionsMatchAnalyzer() {
         for (IndexMode mode : new IndexMode[] { IndexMode.STANDARD, IndexMode.TIME_SERIES }) {
@@ -85,16 +86,12 @@ public class TsAggregateMetricDoubleConflictTests extends AnalyzerTestCase {
                 if (numeric.isNumeric() == false) {
                     continue;
                 }
-                for (Map.Entry<String, Map<String, DataType>> function : ImplicitUnionCastKibanaDefinitionTests.implicitConversions()
-                    .entrySet()) {
-                    DataType convertsAmd = function.getValue().get(AGGREGATE_METRIC_DOUBLE.esNameIfPossible());
-                    DataType convertsNumeric = function.getValue().get(numeric.esNameIfPossible());
-                    assertThat(convertsAmd, equalTo(convertsNumeric));
-                    String query = query(mode, function.getKey());
+                for (Conversion conversion : ImplicitUnionCastKibanaDefinitionTests.implicitConversions()) {
+                    String query = query(mode, conversion.function());
                     String context = query + " over [" + numeric.typeName() + ", aggregate_metric_double]";
                     LogicalPlan conflicted = index(typeConflict(numeric), mode).query(query);
                     assertTrue("expected " + context + " to resolve", conflicted.resolved());
-                    LogicalPlan converted = index(plainField(convertsAmd), mode).query(query);
+                    LogicalPlan converted = index(plainField(conversion.unionType()), mode).query(query);
                     assertThat(context, conflicted.output().getFirst().dataType(), equalTo(converted.output().getFirst().dataType()));
                 }
             }

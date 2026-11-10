@@ -1341,7 +1341,7 @@ There are also cases where special Lucene optimizations are disabled, since they
 
 * Profiling currently does not measure the network overhead.
 * Profiling also does not account for time spent in the queue, merging shard responses on the coordinating node, or additional work such as building global ordinals (an internal data structure used to speed up search).
-* [Codec read profiling](#profiling-codec-reads) counts only the readers a query node opens while it builds its scorers or counts. Reads done by aggregations, sorting, fetching, and by scripts or runtime fields while they match appear on no node.
+* [Codec read profiling](#profiling-codec-reads) counts the readers a query node opens while it builds its scorers or counts, or later while it matches and scores documents, such as a reader opened by a scoring script. Reads done by query rewriting, aggregations, sorting, fetching and the explain API appear on no node.
 * Profiling statistics are currently not available for suggestions.
 * Profiling of the reduce phase of aggregation is currently not available.
 * The Profiler is instrumenting internals that can change from version to version. The resulting json should be considered mostly unstable, especially things in the `debug` section.

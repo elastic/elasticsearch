@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 164968
+pr: 165203
+summary: Charge decoded terms while reading shard requests
+type: enhancement

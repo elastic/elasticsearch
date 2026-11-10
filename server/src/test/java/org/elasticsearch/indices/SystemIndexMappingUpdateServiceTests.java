@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -392,12 +393,12 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
                                     RecoverySource.ExistingStoreRecoverySource.INSTANCE,
                                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
                                     ShardRouting.Role.DEFAULT,
-                                    ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+                                    RecoveryPriority.UNASSIGNED_NEW_PRIMARY
                                 )
                                     .initialize(UUIDs.randomBase64UUID(random()), null, 0L)
                                     .moveToUnassigned(
                                         new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""),
-                                        ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                                        RecoveryPriority.UNASSIGNED_UNEXPECTED
                                     )
                             )
                     )
@@ -447,7 +448,7 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+            RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         String nodeId = ESTestCase.randomAlphaOfLength(8);
         return RoutingTable.builder()

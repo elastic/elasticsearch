@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -23,6 +24,8 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+
+import java.util.HashSet;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
@@ -93,6 +96,15 @@ public class TestPlannerOptimizer {
         return EstimatesRowSize.estimateRowSize(0, physicalPlanOptimizer.optimize(physicalPlan(query, analyzer)));
     }
 
+    /**
+     * Plans the right side of the first {@code INLINE STATS}, which runs as its own plan before the main one.
+     */
+    public PhysicalPlan planFirstInlineSubPlan(String query, SearchStats stats, Analyzer analyzer) {
+        LogicalPlan logical = logicalOptimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query)));
+        LogicalPlan subPlan = InlineJoin.firstSubPlan(logical, new HashSet<>()).stubReplacedSubPlan();
+        return optimizedPlan(mapper.map(new Versioned<>(subPlan, analyzer.context().minimumVersion())), stats);
+    }
+
     private PhysicalPlan optimizedPlan(PhysicalPlan plan, SearchStats searchStats) {
         return optimizedPlan(plan, searchStats, new EsqlFlags(true));
     }
@@ -121,7 +133,10 @@ public class TestPlannerOptimizer {
     }
 
     private PhysicalPlan physicalPlan(String query, Analyzer analyzer) {
-        LogicalPlan logical = logicalOptimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query)));
+        var optimizer = analyzer.context().minimumVersion().equals(this.analyzer.context().minimumVersion())
+            ? logicalOptimizer
+            : new LogicalPlanOptimizer(logicalOptimizerContext(config, FoldContext.small(), analyzer.context().minimumVersion()));
+        LogicalPlan logical = optimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query)));
         // System.out.println("Logical\n" + logical);
         return mapper.map(new Versioned<>(logical, analyzer.context().minimumVersion()));
     }

@@ -31,7 +31,8 @@ public class Clusters {
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)
             .setting("esql.external.local_allowed_paths", csvDataPath::toString)
-            // Federation is only on by default in snapshot builds; the EXTERNAL and dataset specs run here need it on.
+            // Pinned so the external data source and dataset specs run here do not depend on the default, which is off
+            // on a stateless release build.
             .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
             .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
             .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))

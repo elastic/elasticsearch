@@ -47,6 +47,7 @@ import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplin
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats;
@@ -166,6 +167,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
@@ -3646,7 +3648,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertNull(source.query());
     }
 
-    public void testNoNonIndexedFilterPushDown() {
+    /** A field with doc values and no index is searched through its doc values, so a filter on it is pushed. */
+    public void testNonIndexedFieldWithDocValuesFilterPushDown() {
         var plan = physicalPlan("""
             from test
             | where long_noidx == 1
@@ -3657,11 +3660,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(limit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
-        var limit2 = as(extract.child(), LimitExec.class);
-        var filter = as(limit2.child(), FilterExec.class);
-        var extract2 = as(filter.child(), FieldExtractExec.class);
-        var source = source(extract2.child());
-        assertNull(source.query());
+        var source = as(extract.child(), EsQueryExec.class);
+        var qb = as(source.query(), SingleValueQuery.Builder.class);
+        assertThat(qb.field(), equalTo("long_noidx"));
     }
 
     public void testTextWithRawFilterPushDown() {
@@ -3697,7 +3698,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertNull(source.sorts());
     }
 
-    public void testNoNonIndexedSortPushDown() {
+    /** A field with doc values and no index sorts on its doc values, so a sort on it is pushed. */
+    public void testNonIndexedFieldWithDocValuesSortPushDown() {
         var plan = physicalPlan("""
             from test
             | sort long_noidx
@@ -3708,10 +3710,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = as(topN.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
-        var topN2 = as(extract.child(), TopNExec.class);
-        var extract2 = as(topN2.child(), FieldExtractExec.class);
-        var source = source(extract2.child());
-        assertNull(source.sorts());
+        var source = as(extract.child(), EsQueryExec.class);
+        assertThat(source.sorts().size(), equalTo(1));
+        assertThat(source.sorts().get(0).field().name(), equalTo("long_noidx"));
     }
 
     public void testTextWithRawSortPushDown() {
@@ -10563,10 +10564,41 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(randomSampling.hash(), equalTo(0));
     }
 
+    /**
+     * Before single-pass time-series aggregation, the data node ends with the partial {@link TimeSeriesAggregate}, grouped by
+     * {@code _tsid}, whose results are disjoint between shards, so node-reduce is disabled.
+     */
     public void testDisableTimeSeriesAggsReduction() {
+        var dataPlan = timeSeriesAggsDataPlan(TransportVersionUtils.getPreviousVersion(TimeSeriesAggregate.TIME_SERIES_SINGLE_PASS));
+        var fragment = as(dataPlan.child(), FragmentExec.class);
+        var tsAggregate = as(fragment.fragment(), TimeSeriesAggregate.class);
+        assertFalse(tsAggregate.singlePass());
+
+        assertThat(PlannerUtils.reductionPlan(dataPlan), equalTo(PlannerUtils.SimplePlanReduction.NO_REDUCTION));
+    }
+
+    /**
+     * With single-pass time-series aggregation, the data node also runs the outer aggregation, grouped by bucket only, so
+     * node-reduce merges its partial results like any other aggregation.
+     */
+    public void testSinglePassTimeSeriesAggsReduction() {
+        var dataPlan = timeSeriesAggsDataPlan(TimeSeriesAggregate.TIME_SERIES_SINGLE_PASS);
+        var fragment = as(dataPlan.child(), FragmentExec.class);
+        var aggregate = as(fragment.fragment(), Aggregate.class);
+        var tsAggregate = as(aggregate.child(), TimeSeriesAggregate.class);
+        assertTrue(tsAggregate.singlePass());
+
+        var reduction = as(PlannerUtils.reductionPlan(dataPlan), PlannerUtils.ReducedPlan.class);
+        var aggregateExec = as(reduction.plan(), AggregateExec.class);
+        assertThat(aggregateExec.getMode(), equalTo(AggregatorMode.INTERMEDIATE));
+        assertThat(aggregateExec.groupings(), hasSize(1));
+        as(aggregateExec.child(), TimeSeriesAggregateExec.class);
+    }
+
+    private ExchangeSinkExec timeSeriesAggsDataPlan(TransportVersion minimumVersion) {
         var mapping = loadMapping("k8s-mappings.json");
         EsIndex index = EsIndexGenerator.esIndex("k8s", mapping, Map.of("k8s", IndexMode.TIME_SERIES));
-        Analyzer analyzer = analyzer().configuration(config).addIndex(index).buildAnalyzer();
+        Analyzer analyzer = analyzer().configuration(config).addIndex(index).minimumTransportVersion(minimumVersion).buildAnalyzer();
         var timeSeriesData = new TestDataSource(mapping, index, analyzer, TEST_SEARCH_STATS);
 
         var plan = physicalPlan("""
@@ -10574,13 +10606,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | STATS max(rate(network.total_bytes_in)) BY TBUCKET(1 hour)
             """, timeSeriesData);
         Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
-        var fragment = as(as(plans.v2(), ExchangeSinkExec.class).child(), FragmentExec.class);
-        assertTrue(
-            "expected a time-series aggregation on the data node",
-            fragment.fragment().anyMatch(TimeSeriesAggregate.class::isInstance)
-        );
-
-        assertThat(PlannerUtils.reductionPlan(plans.v2()), equalTo(PlannerUtils.SimplePlanReduction.NO_REDUCTION));
+        return as(plans.v2(), ExchangeSinkExec.class);
     }
 
     public void testDisableMetricsInfoReduction() {

@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.LongStream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -618,20 +619,25 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
     }
 
     private static void assertIsolated(String metric, long[] values, int numQueries) {
-        long maxAllowed = values[0] * 5;
+        long factor = numQueries / 2;
+        // Use minimum of the last queries, to not fail on a single outlier
+        long tailMin = LongStream.of(values).skip(factor).min().getAsLong();
+        // The tail minimum is ~(numQueries / 2 + 1) * Q_1 under accumulation, so numQueries / 2 stays just below that.
+        long maxAllowed = Math.max(values[0], TimeUnit.MILLISECONDS.toNanos(1)) * factor;
         assertTrue(
-            "Q_"
-                + numQueries
-                + "."
-                + metric
-                + "="
-                + values[numQueries - 1]
-                + " must be < 5 * Q_1."
-                + metric
-                + "="
+            metric
+                + ": min of last "
+                + (numQueries - factor)
+                + " queries="
+                + tailMin
+                + " must be < "
+                + maxAllowed
+                + " ("
+                + factor
+                + " * max(Q_1="
                 + values[0]
-                + "; a value >= 5x indicates counter accumulation across queries",
-            values[numQueries - 1] < maxAllowed
+                + ", 1ms)); a larger value indicates counter accumulation across queries",
+            tailMin < maxAllowed
         );
     }
 

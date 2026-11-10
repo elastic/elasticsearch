@@ -232,8 +232,6 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         }
     }
 
-
-
     /**
     * Overridden to ensure that {@link SearchExecutionContext} has a non-null {@link IndexReader}; this query should always be rewritten
     */

@@ -647,6 +647,9 @@ public final class MultiRowTestCaseSupplier {
 
     public static List<TypedDataSupplier> stringCases(int minRows, int maxRows, DataType type) {
         List<TypedDataSupplier> cases = new ArrayList<>();
+        if (type.supportedVersion().supportedLocally() == false) {
+            return cases;
+        }
 
         addSuppliers(cases, minRows, maxRows, "empty " + type, type, () -> new BytesRef(""));
         addSuppliers(

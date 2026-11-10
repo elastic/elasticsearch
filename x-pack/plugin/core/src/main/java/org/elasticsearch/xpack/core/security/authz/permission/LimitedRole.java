@@ -118,15 +118,6 @@ public final class LimitedRole implements Role {
         return baseRole.hasFieldOrDocumentLevelSecurity() || limitedByRole.hasFieldOrDocumentLevelSecurity();
     }
 
-    /**
-     * Either side restricting is enough: an intersection of two grants narrows documents or fields if either of them
-     * does. Answered without {@link #indices()}, which a limited role does not have.
-     */
-    @Override
-    public boolean hasDocumentOrFieldLevelSecurityFor(String name) {
-        return baseRole.hasDocumentOrFieldLevelSecurityFor(name) || limitedByRole.hasDocumentOrFieldLevelSecurityFor(name);
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) {

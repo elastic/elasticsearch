@@ -114,18 +114,21 @@ public final class DatasetDefinitionValidator {
             request.resource(),
             request.rawSettings()
         );
-        // Post-validator shadow check: a validator that strips a key before returning would otherwise
-        // mask the shadow attempt at the wire boundary.
-        for (String key : validatedSettings.keySet()) {
+
+        // Shape-only validation of the declared mapping (no file I/O): declarable types and rename name collisions.
+        // A `path` column rename is honored by all formats (translation is centralized at the reader boundary).
+        DeclaredSchemaValidator.validate(request.mapping());
+        Map<String, Object> settings = PartitionSpec.alignWithMapping(validatedSettings, request.mapping());
+        // Over the map the Dataset actually carries, which is this one: a validator that returns a shadowing key
+        // the request never sent is caught here. One that strips a key is invisible by construction and is caught
+        // by the pre-check above. Reading `settings` rather than `validatedSettings` costs nothing and does not
+        // depend on alignWithMapping happening never to add a key.
+        for (String key : settings.keySet()) {
             DataSourceSetting parentSetting = parent.settings().get(key);
             if (parentSetting != null && parentSetting.secret()) {
                 throwShadowError(key);
             }
         }
-        // Shape-only validation of the declared mapping (no file I/O): declarable types and rename name collisions.
-        // A `path` column rename is honored by all formats (translation is centralized at the reader boundary).
-        DeclaredSchemaValidator.validate(request.mapping());
-        Map<String, Object> settings = PartitionSpec.alignWithMapping(validatedSettings, request.mapping());
         return new BoundDataset(
             parent,
             new Dataset(

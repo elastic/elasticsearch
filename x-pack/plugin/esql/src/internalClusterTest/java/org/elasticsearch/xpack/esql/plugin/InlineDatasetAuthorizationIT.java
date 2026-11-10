@@ -78,8 +78,6 @@ public class InlineDatasetAuthorizationIT extends SecurityIntegTestCase {
     private static final String NO_NAME = "inline_no_name";
     /** Both halves, but index {@code read} rather than the creation privilege: enough to query, not to describe. */
     private static final String READ_ONLY = "inline_read_only";
-    /** Both privileges, but the index grant carries a DLS query an external read cannot apply. */
-    private static final String DLS = "inline_dls";
 
     /** Three one-row files, so a read of the glob has splits to spread over both data nodes. */
     private static Path fixtureDir;
@@ -87,7 +85,7 @@ public class InlineDatasetAuthorizationIT extends SecurityIntegTestCase {
     @Override
     protected String configUsers() {
         StringBuilder users = new StringBuilder(super.configUsers());
-        for (String user : List.of(FULL, NO_DATASOURCE, NO_NAME, READ_ONLY, DLS)) {
+        for (String user : List.of(FULL, NO_DATASOURCE, NO_NAME, READ_ONLY)) {
             users.append(user).append(':').append(SecuritySettingsSource.TEST_PASSWORD_HASHED).append('\n');
         }
         return users.toString();
@@ -96,7 +94,7 @@ public class InlineDatasetAuthorizationIT extends SecurityIntegTestCase {
     @Override
     protected String configUsersRoles() {
         StringBuilder usersRoles = new StringBuilder(super.configUsersRoles());
-        for (String user : List.of(FULL, NO_DATASOURCE, NO_NAME, READ_ONLY, DLS)) {
+        for (String user : List.of(FULL, NO_DATASOURCE, NO_NAME, READ_ONLY)) {
             usersRoles.append(user).append(':').append(user).append('\n');
         }
         return usersRoles.toString();
@@ -129,15 +127,6 @@ public class InlineDatasetAuthorizationIT extends SecurityIntegTestCase {
               indices:
                 - names: [ 'inline_ds' ]
                   privileges: [ 'read' ]
-              global:
-                data_source:
-                  - names: [ 'inline_ds' ]
-                    privileges: [ 'read' ]
-            inline_dls:
-              indices:
-                - names: [ 'inline_ds' ]
-                  privileges: [ 'read', 'create_dataset' ]
-                  query: '{"match_all": {}}'
               global:
                 data_source:
                   - names: [ 'inline_ds' ]
@@ -219,19 +208,6 @@ public class InlineDatasetAuthorizationIT extends SecurityIntegTestCase {
         assertThat(
             ExceptionsHelper.unwrapCause(e).getMessage(),
             containsString("action [" + EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASOURCE_ACTION_NAME + "] is unauthorized")
-        );
-    }
-
-    /**
-     * A grant that narrows documents or fields cannot be honoured by an external read, so it is refused rather than
-     * served in full — the refusal a registered dataset read gets from the DLS/FLS interceptor, which cannot see a
-     * dataset the query defines because the name it would key off is not a registered one.
-     */
-    public void testADocumentLevelSecurityGrantIsRefused() {
-        Exception e = expectThrows(Exception.class, () -> query(DLS).close());
-        assertThat(
-            ExceptionsHelper.unwrapCause(e).getMessage(),
-            containsString("document or field level security restrictions are not supported")
         );
     }
 

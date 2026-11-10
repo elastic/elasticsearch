@@ -52,11 +52,8 @@ import java.util.Map;
  * Those two are what a registration asks for. One difference of object remains — a registration is checked against
  * the dataset's name and this against the source's, an inline read having no dataset name — and
  * {@code DatasetTableFunction} states it rather than this file.
- * A third question is settled on the way in rather than here: a grant that narrows documents or fields cannot be
- * honoured by an external read, and {@code ViewAndDatasetDlsFlsRequestInterceptor} refuses this action for one, as it
- * does a registered dataset read. The body asks nothing at all — it does not look the data source up, so a caller who
- * may not use it learns nothing about whether it exists. The definition is bound afterwards, and only for a caller
- * who got through here.
+ * The body asks nothing at all — it does not look the data source up, so a caller who may not use it learns nothing
+ * about whether it exists. The definition is bound afterwards, and only for a caller who got through here.
  * <p>
  * Local only. It is issued in the caller's thread context by the coordinator while it binds the definition, and again
  * by a node that receives a plan carrying a definition ({@code ExternalSourceAuthorizer}), for the reason the

@@ -114,6 +114,12 @@ public final class DatasetConfigResolver {
             }
             throw notRegistered(null);
         }
+        // The syntax that writes an inline arm is snapshot-only, but nothing on the wire path was: a release node
+        // would deserialize one and bind it. The gates still fire, so this is not a hole being closed — it is the
+        // same fail-closed treatment the unnamed case above gets, and it costs nothing while the syntax is gated.
+        if (reference instanceof DatasetReference.Inline && snapshotBuild == false) {
+            throw new IllegalStateException(DatasetReference.NOT_EVERYWHERE);
+        }
         Resolved resolved = reference instanceof DatasetReference.Named named
             ? resolveRegistered(named.name())
             : resolveSupplied((DatasetReference.Inline) reference);

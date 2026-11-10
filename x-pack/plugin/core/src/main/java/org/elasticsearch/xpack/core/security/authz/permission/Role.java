@@ -85,14 +85,6 @@ public interface Role {
     boolean hasFieldOrDocumentLevelSecurity();
 
     /**
-     * Whether a grant covering {@code name} narrows documents or fields. Answered by the same matcher authorization
-     * uses, and answerable for a name that resolves to no index abstraction — which is why a gate asks the role this
-     * rather than reading the resolved {@code IndicesAccessControl}, where such a name is unrestricted by
-     * construction.
-     */
-    boolean hasDocumentOrFieldLevelSecurityFor(String name);
-
-    /**
      * @return A predicate that will match all the indices that this role
      * has the privilege for executing the given action on.
      */

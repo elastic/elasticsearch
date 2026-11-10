@@ -135,22 +135,6 @@ public final class IndicesPermission {
     }
 
     /**
-     * Whether any group covering {@code name} narrows documents or fields. Separate from
-     * {@link #hasFieldOrDocumentLevelSecurity()}, which asks about the permission as a whole: this answers for one
-     * name, which is what a gate refusing a read that can honour neither needs, and it answers for a name the
-     * engine resolved to nothing — where the {@code IndicesAccessControl} it would otherwise read is unrestricted
-     * by construction (see {@code propagateIndexAccess}).
-     */
-    public boolean hasDocumentOrFieldLevelSecurityFor(String name) {
-        for (Group group : groups) {
-            if (group.matchesName(name) && (group.hasQuery() || group.fieldPermissions.hasFieldLevelSecurity())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
      * This function constructs an index matcher that can be used to find indices allowed by
      * permissions groups.
      *
@@ -538,16 +522,16 @@ public final class IndicesPermission {
                 if (indexAbstraction.isFailureIndexOfDataStream()) {
                     // failure indices are special: when accessed directly (not through ::failures on parent data stream) they are accessed
                     // implicitly as data. However, authz to the parent data stream happens via the failures selector
-                    if (group.checkSelector(IndexComponentSelector.FAILURES) && group.matchesName(ds.getName())) {
+                    if (group.checkSelector(IndexComponentSelector.FAILURES) && group.checkIndex(ds.getName())) {
                         return true;
                     }
                 } else if (IndexComponentSelector.DATA.equals(selector) || selector == null) {
-                    if (group.checkSelector(IndexComponentSelector.DATA) && group.matchesName(ds.getName())) {
+                    if (group.checkSelector(IndexComponentSelector.DATA) && group.checkIndex(ds.getName())) {
                         return true;
                     }
                 } // we don't support granting access to a backing index with a failure selector via the parent data stream
             }
-            return group.checkSelector(selector) && group.matchesName(name);
+            return group.checkSelector(selector) && group.checkIndex(name);
         }
 
         /**
@@ -1117,13 +1101,7 @@ public final class IndicesPermission {
             return actionMatcher.test(action);
         }
 
-        /**
-         * Whether this group's index patterns cover {@code index}. Public because a gate for a read that cannot
-         * honour document- or field-level security has to ask about a name the engine never resolved, and asking
-         * with anything weaker than the matcher authorization itself uses is how such a gate comes to miss a grant
-         * it was written to catch.
-         */
-        public boolean matchesName(String index) {
+        private boolean checkIndex(String index) {
             assert index != null;
             return indexNameMatcher.test(index);
         }

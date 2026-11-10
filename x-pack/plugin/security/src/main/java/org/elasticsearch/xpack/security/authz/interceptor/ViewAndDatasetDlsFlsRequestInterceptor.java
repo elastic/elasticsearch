@@ -14,32 +14,21 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportActionProxy;
-import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
-import org.elasticsearch.xpack.core.security.authz.permission.Role;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_VALUE;
-import static org.elasticsearch.xpack.security.authz.RBACEngine.maybeGetRBACEngineRole;
 
 /**
  * An interceptor which checks if the requested views or datasets have any DLS or FLS permissions applied.
  * If so, then the request is rejected, because views and datasets are not compatible with DLS or FLS.
- * <p>
- * A dataset a query defines rather than names is covered too, and has to be asked about differently. Its read is
- * authorized under the name of the data source it reads through, and where that name resolves to no index
- * abstraction {@code IndicesPermission} records neither DLS nor FLS for it — so the access control this reads for a
- * registered name is unrestricted there whatever the role says. For that action the role is asked directly, and the
- * answer fails closed; see {@link #interceptInlineDatasetRead}.
  */
 public class ViewAndDatasetDlsFlsRequestInterceptor implements RequestInterceptor {
     private static final Logger logger = LogManager.getLogger(ViewAndDatasetDlsFlsRequestInterceptor.class);
@@ -69,10 +58,6 @@ public class ViewAndDatasetDlsFlsRequestInterceptor implements RequestIntercepto
         AuthorizationEngine.AuthorizationInfo authorizationInfo
     ) {
         if (requestInfo.getRequest() instanceof IndicesRequest indicesRequest
-            && EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASOURCE_ACTION_NAME.equals(requestInfo.getAction())) {
-            return interceptInlineDatasetRead(requestInfo, indicesRequest, authorizationInfo);
-        }
-        if (requestInfo.getRequest() instanceof IndicesRequest indicesRequest
             && isInterceptorApplicable(indicesRequest, requestInfo.getAction())) {
 
             final ProjectMetadata projectMetadata = projectMetadataSupplier.get();
@@ -99,68 +84,6 @@ public class ViewAndDatasetDlsFlsRequestInterceptor implements RequestIntercepto
             }
         }
         return SubscribableListener.nullSuccess();
-    }
-
-    /**
-     * Refuses an inline dataset read whose authorized name is covered by a grant that narrows documents or fields.
-     * <p>
-     * Two sources, in this order, because neither alone answers for every shape. The resolved access control answers
-     * when the name happens to resolve to an index abstraction — a data source may be named after one, nothing stops
-     * it — and it answers whichever authorization engine produced it. Otherwise the role is asked
-     * ({@link Role#hasDocumentOrFieldLevelSecurityFor}), which matches with the matcher authorization itself matches
-     * with and answers for an intersection of grants, where there is no single {@code IndicesPermission} to walk.
-     * <p>
-     * <b>Fails closed where it can.</b> A read that cannot honour a document filter and is let through returns every
-     * row, so a caller with neither source is refused rather than assumed unrestricted. One case is still open and
-     * is not parity with the registered path: under an engine that is not RBAC there is no role to ask, and that
-     * engine's access control says nothing about a name it resolved to nothing. See
-     * {@link #restrictsDocumentsOrFields}.
-     */
-    private SubscribableListener<Void> interceptInlineDatasetRead(
-        AuthorizationEngine.RequestInfo requestInfo,
-        IndicesRequest indicesRequest,
-        AuthorizationEngine.AuthorizationInfo authorizationInfo
-    ) {
-        final String[] names = indicesRequest.indices();
-        if (names == null || names.length == 0) {
-            return SubscribableListener.nullSuccess();
-        }
-        final IndicesAccessControl indicesAccessControl = INDICES_PERMISSIONS_VALUE.get(threadContext);
-        final Role role = maybeGetRBACEngineRole(authorizationInfo);
-        final List<String> restricted = new ArrayList<>();
-        for (String name : names) {
-            if (restrictsDocumentsOrFields(name, indicesAccessControl, role)) {
-                restricted.add(name);
-            }
-        }
-        if (restricted.isEmpty()) {
-            return SubscribableListener.nullSuccess();
-        }
-        logger.debug(
-            "User [{}] requested an inline dataset read under a DLS or FLS grant: {}",
-            requestInfo.getAuthentication(),
-            restricted
-        );
-        return SubscribableListener.newFailed(getDlsFlsException(List.of(), restricted));
-    }
-
-    private static boolean restrictsDocumentsOrFields(
-        String name,
-        @Nullable IndicesAccessControl indicesAccessControl,
-        @Nullable Role role
-    ) {
-        if (indicesAccessControl != null && hasDlsOrFls(indicesAccessControl.getIndexPermissions(name))) {
-            return true;
-        }
-        if (role != null) {
-            return role.hasDocumentOrFieldLevelSecurityFor(name);
-        }
-        // No role to ask. With no access control either there is nothing to go on, so refuse rather than read every
-        // row under a grant that may have said otherwise. With one, this reads as an answer and is not: an engine
-        // that is not RBAC computed it for a name that resolves to nothing, where it carries no restriction whatever
-        // that engine intended. The registered path has the same single source and loses nothing by it, because its
-        // name does resolve; here it is structurally blind, and that case is open.
-        return indicesAccessControl == null;
     }
 
     private boolean isInterceptorApplicable(IndicesRequest indicesRequest, String action) {

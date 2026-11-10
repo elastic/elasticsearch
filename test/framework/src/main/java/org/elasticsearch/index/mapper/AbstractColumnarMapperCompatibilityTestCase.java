@@ -453,6 +453,12 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                                 + "] that does not support columnar parse"
                         );
                     }
+                    if (owned.mapper().resolvesColumnGroup() == FieldMapper.ColumnGroup.SINGLE_OBJECT
+                        && ColumnGroupResolver.isDirectlyInOwnerObject(schema, c, path, owned.ownerPath()) == false) {
+                        causes.add(
+                            "leaf [" + path + "] is not directly in an object at the group mapper's path [" + owned.ownerPath() + "]"
+                        );
+                    }
                 } else {
                     causes.add("leaf [" + path + "] has no mapper");
                 }

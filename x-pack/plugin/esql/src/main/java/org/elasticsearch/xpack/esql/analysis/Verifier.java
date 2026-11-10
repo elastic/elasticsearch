@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -79,7 +80,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -736,7 +741,8 @@ public class Verifier {
         return "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, IP_LOCATION, "
             + (EsqlCapabilities.Cap.FILLNULL.isEnabled() ? "FILLNULL, " : "")
             + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, CHANGE_POINT, DEDUP, WHERE, SORT, LIMIT, "
-            + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
+            + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, COMPLETION, DENSE_VECTOR, RERANK, FUSE, HIGHLIGHT, MMR, "
+            + "FORK and subquery commands; ["
             + command
             + "] is not supported yet";
     }
@@ -773,6 +779,15 @@ public class Verifier {
             || plan instanceof BranchPlan
             || (plan instanceof UnionAll && plan instanceof BranchPlan == false)
             || (plan instanceof Subquery && plan instanceof NamedSubquery == false)
+            // These commands read or add columns of their own and pass the rest through, so the _unmapped_fields column survives them.
+            // FUSE groups its input, so, like STATS, it does not return the column.
+            || plan instanceof Completion
+            || plan instanceof DenseVector
+            || plan instanceof Rerank
+            || plan instanceof Fuse
+            || plan instanceof FuseScoreEval
+            || plan instanceof Highlight
+            || plan instanceof MMR
             || plan instanceof AbstractSubqueryJoin;
     }
 

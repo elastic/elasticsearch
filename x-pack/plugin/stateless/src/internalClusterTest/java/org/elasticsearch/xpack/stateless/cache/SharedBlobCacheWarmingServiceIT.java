@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
@@ -1030,8 +1031,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         MockTransportService.getInstance(searchNode).addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
                 assert SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING.get(nodeSettings)
-                    && ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC, StatelessPlugin.PREWARM_THREAD_POOL)
-                    || ThreadPool.assertCurrentThreadPool(StatelessPlugin.PREWARM_THREAD_POOL);
+                    && ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC, StatelessThreadPools.PREWARM_THREAD_POOL)
+                    || ThreadPool.assertCurrentThreadPool(StatelessThreadPools.PREWARM_THREAD_POOL);
                 if (flushed.compareAndExchange(false, true) == false) {
                     // Spawn a new thread to avoid using flush with the prewarm thread pool which could trigger a false assertion
                     final Thread thread = new Thread(() -> {

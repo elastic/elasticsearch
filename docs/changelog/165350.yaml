@@ -1,0 +1,5 @@
+area: Transform
+issues: []
+pr: 165350
+summary: Treat `SecurityExceptions` like `IndexNotFound`
+type: bug

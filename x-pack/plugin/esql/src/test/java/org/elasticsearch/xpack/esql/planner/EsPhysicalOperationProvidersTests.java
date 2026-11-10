@@ -85,6 +85,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -117,6 +118,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         );
         EsPhysicalOperationProviders provider = new EsPhysicalOperationProviders(
             FoldContext.small(),
+            TEST_CFG,
             new IndexedByShardIdFromSingleton<>(
                 new EsPhysicalOperationProviders.DefaultShardContext(0, () -> {}, createMockContext(), AliasFilter.EMPTY)
             ),
@@ -216,6 +218,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
     public void testRoundToQuerySlicesDoNotFilterNulls() {
         EsPhysicalOperationProviders provider = new EsPhysicalOperationProviders(
             FoldContext.small(),
+            TEST_CFG,
             new IndexedByShardIdFromSingleton<>(
                 new EsPhysicalOperationProviders.DefaultShardContext(0, () -> {}, createMockContext(), AliasFilter.EMPTY)
             ),
@@ -429,6 +432,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         assertTrue("nested subfield is mapped; isMappedField alone would not skip the shard", shardContext.isMappedField("item.value"));
         var provider = new EsPhysicalOperationProviders(
             FoldContext.small(),
+            TEST_CFG,
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
             PlannerSettings.DEFAULTS,
@@ -560,6 +564,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         );
         var provider = new EsPhysicalOperationProviders(
             FoldContext.small(),
+            TEST_CFG,
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
             PlannerSettings.DEFAULTS,
@@ -657,6 +662,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         );
         var provider = new EsPhysicalOperationProviders(
             FoldContext.small(),
+            TEST_CFG,
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
             PlannerSettings.DEFAULTS,
@@ -691,6 +697,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         );
         var provider = new EsPhysicalOperationProviders(
             FoldContext.small(),
+            TEST_CFG,
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
             PlannerSettings.DEFAULTS,

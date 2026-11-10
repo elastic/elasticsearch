@@ -13,13 +13,13 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -99,7 +99,22 @@ public class AbstractTransportGetResourcesActionTests extends ESTestCase {
                 hits[i].sourceRef(new BytesArray("{}"));
             }
             var searchHits = new SearchHits(hits, new TotalHits(hitCount, TotalHits.Relation.EQUAL_TO), 1.0f);
-            var response = SearchResponseUtils.successfulResponse(searchHits);
+            var response = new SearchResponse(
+                searchHits,
+                null,
+                null,
+                false,
+                null,
+                null,
+                1,
+                null,
+                1,
+                1,
+                0,
+                1L,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY
+            );
             searchHits.decRef(); // transfer ownership to response
             ActionListener.respondAndRelease((ActionListener<SearchResponse>) listener, response);
         }

@@ -291,7 +291,7 @@ public abstract class FieldMapper extends Mapper {
         if (doSupportsColumnarParse(indexSettings) == false) {
             return false;
         }
-        if (resolvesColumnGroup()) {
+        if (resolvesColumnGroup() != ColumnGroup.NONE) {
             // A group mapper is dispatched through mapColumnGroupBatch, which — unlike mapColumnBatch below —
             // never fans out to multi-fields, so a group mapper carrying [fields] would index the parent column
             // and silently skip every sub-field. Load-bearing for geo_point, which accepts [fields] at
@@ -300,7 +300,7 @@ public abstract class FieldMapper extends Mapper {
         }
         for (FieldMapper subMapper : builderParams.multiFields) {
             // The recursive call covers mul.
-            if (subMapper.resolvesColumnGroup() || subMapper.supportsColumnarParse(indexSettings) == false) {
+            if (subMapper.resolvesColumnGroup() != ColumnGroup.NONE || subMapper.supportsColumnarParse(indexSettings) == false) {
                 return false;
             }
         }
@@ -399,16 +399,30 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
-     * Whether this mapper consumes the whole group of schema leaves rooted at its own path rather than a single leaf of its own. Mappers
-     * whose source value is an object that the columnar encoder explodes into one dotted leaf per key — {@code flattened} is the first —
-     * cannot be resolved leaf by leaf, because no mapper exists at those descendant paths. A mapper returning {@code true} receives every
-     * such leaf in one call to {@link #mapColumnGroupBatch}, and those leaves are never handed to a leaf mapper.
+     * Whether this mapper consumes the whole group of schema leaves rooted at its own path rather than a single leaf of its own, and if
+     * so, which source shapes of that group it takes. Mappers whose source value is an object that the columnar encoder explodes into one
+     * dotted leaf per key — {@code flattened} is the first — cannot be resolved leaf by leaf, because no mapper exists at those descendant
+     * paths. A mapper returning anything but {@link ColumnGroup#NONE} receives every such leaf in one call to {@link #mapColumnGroupBatch},
+     * and those leaves are never handed to a leaf mapper.
      * <p>
-     * This is orthogonal to {@link #supportsColumnarParse(IndexSettings)}: a group mapper must return {@code true} from both to
+     * This is orthogonal to {@link #supportsColumnarParse(IndexSettings)}: a group mapper must also return {@code true} from it to
      * participate in the columnar path.
      */
-    public boolean resolvesColumnGroup() {
-        return false;
+    public ColumnGroup resolvesColumnGroup() {
+        return ColumnGroup.NONE;
+    }
+
+    /** Whether a mapper {@link #resolvesColumnGroup() resolves a column group}, and which source shapes that group may have. */
+    public enum ColumnGroup {
+        /** Not a group mapper: the mapper resolves the single leaf at its own path. */
+        NONE,
+        /**
+         * The row path parses exactly one object at this field's path, so the batch path only takes a group whose leaves all sit
+         * directly in one such object. A dotted key like {@code {"h.values":[1]}}, or the field split across two objects, falls back.
+         */
+        SINGLE_OBJECT,
+        /** The mapper merges any number of objects at its path, with keys nested at any depth, as {@code flattened} does. */
+        ANY_SHAPE
     }
 
     /**

@@ -154,7 +154,8 @@ public class FieldSemanticsTests extends ESTestCase {
             false,
             false,
             needsFieldSemantics,
-            false
+            false,
+            null
         );
         return IndexResolver.mergedMappings("idx", false, info, false, IndexResolver.DO_NOT_GROUP).get().fieldSemantics();
     }

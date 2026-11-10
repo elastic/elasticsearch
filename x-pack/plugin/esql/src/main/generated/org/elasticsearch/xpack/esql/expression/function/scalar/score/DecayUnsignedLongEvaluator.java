@@ -31,30 +31,17 @@ public final class DecayUnsignedLongEvaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator value;
 
-  private final double origin;
-
-  private final double scale;
-
-  private final double offset;
-
-  private final double decay;
-
-  private final Decay.DecayFunction decayFunction;
+  private final DecayScorers.NumericScorer scorer;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public DecayUnsignedLongEvaluator(Source source, ExpressionEvaluator value, double origin,
-      double scale, double offset, double decay, Decay.DecayFunction decayFunction,
-      DriverContext driverContext) {
+  public DecayUnsignedLongEvaluator(Source source, ExpressionEvaluator value,
+      DecayScorers.NumericScorer scorer, DriverContext driverContext) {
     this.source = source;
     this.value = value;
-    this.origin = origin;
-    this.scale = scale;
-    this.offset = offset;
-    this.decay = decay;
-    this.decayFunction = decayFunction;
+    this.scorer = scorer;
     this.driverContext = driverContext;
   }
 
@@ -92,7 +79,7 @@ public final class DecayUnsignedLongEvaluator implements ExpressionEvaluator {
               continue position;
         }
         long value = valueBlock.getLong(valueBlock.getFirstValueIndex(p));
-        result.appendDouble(Decay.processUnsignedLong(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
+        result.appendDouble(Decay.processUnsignedLong(value, this.scorer));
       }
       return result.build();
     }
@@ -102,7 +89,7 @@ public final class DecayUnsignedLongEvaluator implements ExpressionEvaluator {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         long value = valueVector.getLong(p);
-        result.appendDouble(p, Decay.processUnsignedLong(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
+        result.appendDouble(p, Decay.processUnsignedLong(value, this.scorer));
       }
       return result.build();
     }
@@ -110,7 +97,7 @@ public final class DecayUnsignedLongEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "DecayUnsignedLongEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", decayFunction=" + decayFunction + "]";
+    return "DecayUnsignedLongEvaluator[" + "value=" + value + ", scorer=" + scorer + "]";
   }
 
   @Override
@@ -130,35 +117,23 @@ public final class DecayUnsignedLongEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory value;
 
-    private final double origin;
+    private final DecayScorers.NumericScorer scorer;
 
-    private final double scale;
-
-    private final double offset;
-
-    private final double decay;
-
-    private final Decay.DecayFunction decayFunction;
-
-    public Factory(Source source, ExpressionEvaluator.Factory value, double origin, double scale,
-        double offset, double decay, Decay.DecayFunction decayFunction) {
+    public Factory(Source source, ExpressionEvaluator.Factory value,
+        DecayScorers.NumericScorer scorer) {
       this.source = source;
       this.value = value;
-      this.origin = origin;
-      this.scale = scale;
-      this.offset = offset;
-      this.decay = decay;
-      this.decayFunction = decayFunction;
+      this.scorer = scorer;
     }
 
     @Override
     public DecayUnsignedLongEvaluator get(DriverContext context) {
-      return new DecayUnsignedLongEvaluator(source, value.get(context), origin, scale, offset, decay, decayFunction, context);
+      return new DecayUnsignedLongEvaluator(source, value.get(context), scorer, context);
     }
 
     @Override
     public String toString() {
-      return "DecayUnsignedLongEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", decayFunction=" + decayFunction + "]";
+      return "DecayUnsignedLongEvaluator[" + "value=" + value + ", scorer=" + scorer + "]";
     }
   }
 }

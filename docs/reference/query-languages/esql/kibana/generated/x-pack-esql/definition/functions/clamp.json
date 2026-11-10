@@ -10,7 +10,7 @@
           "name" : "field",
           "type" : "boolean",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -34,7 +34,7 @@
           "name" : "field",
           "type" : "date",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -58,7 +58,7 @@
           "name" : "field",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -82,7 +82,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -106,7 +106,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -130,7 +130,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -154,7 +154,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -178,7 +178,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -202,7 +202,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -226,7 +226,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -250,7 +250,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -274,7 +274,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -298,7 +298,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -322,7 +322,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -346,7 +346,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -370,7 +370,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -394,7 +394,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -418,7 +418,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -442,7 +442,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -466,7 +466,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -490,7 +490,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -514,7 +514,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -538,7 +538,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -562,7 +562,7 @@
           "name" : "field",
           "type" : "ip",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -586,7 +586,7 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -610,7 +610,7 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -634,7 +634,7 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -658,7 +658,7 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -682,7 +682,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -706,7 +706,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -730,7 +730,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -754,7 +754,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -778,7 +778,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -802,7 +802,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -826,7 +826,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -850,7 +850,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -874,7 +874,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -898,7 +898,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -922,7 +922,7 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -946,7 +946,7 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -970,7 +970,7 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -994,7 +994,7 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -1018,7 +1018,7 @@
           "name" : "field",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -1042,7 +1042,7 @@
           "name" : "field",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -1066,7 +1066,7 @@
           "name" : "field",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -1090,7 +1090,7 @@
           "name" : "field",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",
@@ -1114,7 +1114,7 @@
           "name" : "field",
           "type" : "version",
           "optional" : false,
-          "description" : "Numeric expression. If `null`, the function returns `null`."
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "min",

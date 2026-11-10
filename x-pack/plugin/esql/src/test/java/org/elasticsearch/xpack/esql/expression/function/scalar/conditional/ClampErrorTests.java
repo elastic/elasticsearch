@@ -30,9 +30,18 @@ public class ClampErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected Stream<List<DataType>> testCandidates(List<TestCaseSupplier> cases, Set<List<DataType>> valid) {
         // TODO unsigned_long mixed with other numeric types resolves, but isn't declared until we decide how to support it
-        return super.testCandidates(cases, valid).filter(
-            signature -> signature.contains(DataType.UNSIGNED_LONG) == false || signature.stream().allMatch(DataType::isNumeric) == false
-        );
+        return super.testCandidates(cases, valid).filter(signature -> isUnsignedLongNumericMix(signature) == false);
+    }
+
+    private static boolean isUnsignedLongNumericMix(List<DataType> signature) {
+        boolean hasUnsignedLong = false;
+        for (DataType type : signature) {
+            if (type.isNumeric() == false) {
+                return false;
+            }
+            hasUnsignedLong |= type == DataType.UNSIGNED_LONG;
+        }
+        return hasUnsignedLong;
     }
 
     @Override

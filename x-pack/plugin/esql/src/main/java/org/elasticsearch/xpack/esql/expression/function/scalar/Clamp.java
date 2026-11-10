@@ -122,7 +122,7 @@ public class Clamp extends EsqlScalarFunction implements OnlySurrogateExpression
                 "date",
                 "date_nanos",
                 "version" },
-            description = "Numeric expression. If `null`, the function returns `null`."
+            description = "Expression to clamp. If `null`, the function returns `null`."
         ) Expression field,
         @Param(
             name = "min",

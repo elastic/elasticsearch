@@ -18,12 +18,14 @@ import spock.lang.Specification
  * Elasticsearch checkout. The JAR is built by the {@code :build-tools:gradle-runner:jar}
  * task before this test runs (wired via the {@code test} task dependency).
  *
- * <p>Two scenarios are tested:
+ * <p>Three scenarios are tested:
  * <ol>
  *   <li><b>Normal build</b> &ndash; runs the {@code help} task without preemption
- *       and validates that {@code task-status.json} is written correctly.</li>
+ *       and validates that {@code task-status.json} and {@code problems-status.json}
+ *       are written correctly.</li>
  *   <li><b>Preemption build</b> &ndash; runs with simulated GCP preemption and
  *       validates the exit code, marker file, exit file, and task-status.json.</li>
+ *   <li><b>Custom exit code build</b> &ndash; verifies the preemption exit code override.</li>
  * </ol>
  */
 class GradleRunnerFuncSpec extends Specification {
@@ -45,11 +47,12 @@ class GradleRunnerFuncSpec extends Specification {
     def setup() {
         // Clean output files before each test
         new File(projectDir, 'build/task-status.json').delete()
+        new File(projectDir, 'build/problems-status.json').delete()
         new File(projectDir, 'build/.preemption-marker.json').delete()
         new File(preemptionExitFile).delete()
     }
 
-    def "normal build writes task-status.json and exits with 0"() {
+    def "normal build writes status reports and exits with 0"() {
         when:
         def result = runGradleRunner([:], 'help')
 
@@ -67,6 +70,14 @@ class GradleRunnerFuncSpec extends Specification {
 
         and: 'tasks have recorded outcomes'
         status.tasks.every { it.path != null && it.outcome != null }
+
+        and: 'problems-status.json exists with correct structure'
+        def problems = parseJson('build/problems-status.json')
+        problems != null
+        problems.totalProblems != null
+        problems.totalProblems >= 0
+        problems.severities instanceof List
+        problems.problems instanceof List
 
         and: 'preemption artifacts are absent'
         !new File(projectDir, 'build/.preemption-marker.json').exists()
@@ -131,7 +142,11 @@ class GradleRunnerFuncSpec extends Specification {
     // --- Helpers ---
 
     private RunResult runGradleRunner(Map<String, String> env, String... gradleArgs) {
-        def command = ['java', '-jar', runnerJar, '--project-dir', projectDir, '--'] + gradleArgs.toList()
+        return runGradleRunnerInProject(env, projectDir, *gradleArgs)
+    }
+
+    private RunResult runGradleRunnerInProject(Map<String, String> env, String projectDirectory, String... gradleArgs) {
+        def command = ['java', '-jar', runnerJar, '--project-dir', projectDirectory, '--'] + gradleArgs.toList()
         def pb = new ProcessBuilder(command)
         pb.redirectErrorStream(true)
         pb.environment().putAll(env)
@@ -156,7 +171,11 @@ class GradleRunnerFuncSpec extends Specification {
     }
 
     private Object parseJson(String relativePath) {
-        def file = new File(projectDir, relativePath)
+        return parseJson(new File(projectDir), relativePath)
+    }
+
+    private Object parseJson(File baseDir, String relativePath) {
+        def file = new File(baseDir, relativePath)
         if (!file.exists()) return null
         new JsonSlurper().parseText(file.text)
     }

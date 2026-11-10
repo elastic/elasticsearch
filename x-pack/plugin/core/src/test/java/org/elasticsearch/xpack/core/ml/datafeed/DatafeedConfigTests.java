@@ -45,6 +45,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -410,6 +411,70 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
         conf.setIndices(Collections.singletonList("whatever"));
         conf.setMaxEmptySearches(-1);
         assertThat(conf.build().getMaxEmptySearches(), is(nullValue()));
+    }
+
+    public void testDefaultMaxConsecutiveExtractionFailuresIsNull() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndices(Collections.singletonList("index"));
+        assertThat(builder.build().getMaxConsecutiveExtractionFailures(), is(nullValue()));
+    }
+
+    public void testCheckValid_GivenInvalidMaxConsecutiveExtractionFailures() {
+        DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> conf.setMaxConsecutiveExtractionFailures(randomFrom(-2, 0))
+        );
+        assertThat(e.getMessage(), containsString("Invalid max_consecutive_extraction_failures value"));
+    }
+
+    public void testCheckValid_GivenMaxConsecutiveExtractionFailuresMinusOneDisables() {
+        DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
+        conf.setIndices(Collections.singletonList("whatever"));
+        conf.setMaxConsecutiveExtractionFailures(-1);
+        assertThat(conf.build().getMaxConsecutiveExtractionFailures(), equalTo(-1));
+    }
+
+    public void testCheckValid_GivenPositiveMaxConsecutiveExtractionFailures() {
+        DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
+        conf.setIndices(Collections.singletonList("whatever"));
+        conf.setMaxConsecutiveExtractionFailures(42);
+        assertThat(conf.build().getMaxConsecutiveExtractionFailures(), equalTo(42));
+    }
+
+    public void testMaxConsecutiveExtractionFailuresIsOnTheWireBeforeRemovedTransportVersion() throws IOException {
+        TransportVersion beforeRemoved = TransportVersionUtils.getPreviousVersion(
+            DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED
+        );
+        assertTrue(beforeRemoved.supports(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES));
+        DatafeedConfig config = createRandomizedDatafeedConfigBuilder("job1", randomValidDatafeedId(), 3600000)
+            .setMaxConsecutiveExtractionFailures(randomBoolean() ? -1 : randomIntBetween(1, 100))
+            .build();
+
+        DatafeedConfig deserialized = copyInstance(config, beforeRemoved);
+
+        assertThat(deserialized.getMaxConsecutiveExtractionFailures(), equalTo(config.getMaxConsecutiveExtractionFailures()));
+        assertThat(deserialized, equalTo(config));
+    }
+
+    public void testMaxConsecutiveExtractionFailuresIsNotOnTheWireFromRemovedTransportVersion() throws IOException {
+        TransportVersion removed = DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED;
+        DatafeedConfig withField = createRandomizedDatafeedConfigBuilder("job1", randomValidDatafeedId(), 3600000)
+            .setMaxConsecutiveExtractionFailures(randomBoolean() ? -1 : randomIntBetween(1, 100))
+            .build();
+        DatafeedConfig withoutField = new DatafeedConfig.Builder(withField).setMaxConsecutiveExtractionFailures(null).build();
+
+        // main and 9.5 read nothing for this field from this version on, so it must not contribute any bytes
+        assertThat(serialize(withField, removed), equalTo(serialize(withoutField, removed)));
+        assertThat(copyInstance(withField, removed).getMaxConsecutiveExtractionFailures(), is(nullValue()));
+    }
+
+    private static BytesReference serialize(DatafeedConfig config, TransportVersion version) throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(version);
+            config.writeTo(output);
+            return output.bytes();
+        }
     }
 
     public void testCheckValid_GivenEmptyIndices() {
@@ -956,7 +1021,7 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
     @Override
     protected DatafeedConfig mutateInstance(DatafeedConfig instance) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(instance);
-        switch (between(0, 12)) {
+        switch (between(0, 13)) {
             case 0:
                 builder.setId(instance.getId() + randomValidDatafeedId());
                 break;
@@ -1053,6 +1118,15 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
                     Map<String, Object> field = new HashMap<>();
                     field.put("runtime_field_foo", settings);
                     builder.setRuntimeMappings(field);
+                }
+                break;
+            case 13:
+                if (instance.getMaxConsecutiveExtractionFailures() == null) {
+                    builder.setMaxConsecutiveExtractionFailures(randomFrom(-1, randomIntBetween(1, 100)));
+                } else if (instance.getMaxConsecutiveExtractionFailures() == -1) {
+                    builder.setMaxConsecutiveExtractionFailures(randomIntBetween(1, 100));
+                } else {
+                    builder.setMaxConsecutiveExtractionFailures(instance.getMaxConsecutiveExtractionFailures() + 1);
                 }
                 break;
             default:

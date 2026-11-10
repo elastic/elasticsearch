@@ -589,7 +589,9 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
     public void testIndexUnfrozen() {
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
+        // One primary shard exercises unfreezing without recovering a large random shard count.
+        var settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build();
+        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)));
         ensureHealth(sourceIndex);
         // add doc with timestamp
         String time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
@@ -606,9 +608,10 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             not(equalTo(null))
         );
 
-        String destIndex = safeGet(
-            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-        ).getDestIndex();
+        // Unfreezing reopens every source shard before reindexing, which can exceed safeGet's ten-second timeout.
+        String destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+            .actionGet(TEST_REQUEST_TIMEOUT)
+            .getDestIndex();
 
         assertThat(
             safeGet(admin().indices().getSettings(new GetSettingsRequest().indices(sourceIndex))).getIndexToSettings()

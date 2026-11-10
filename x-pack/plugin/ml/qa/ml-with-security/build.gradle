@@ -55,6 +55,7 @@ tasks.named("yamlRestTest").configure {
     'ml/datafeeds_crud/Test delete datafeed with missing id',
     'ml/datafeeds_crud/Test put datafeed referring to missing job_id',
     'ml/datafeeds_crud/Test put datafeed with invalid query',
+    'ml/datafeeds_crud/Test put datafeed with invalid max_consecutive_extraction_failures',
     'ml/datafeeds_crud/Test put datafeed with security headers in the body',
     'ml/datafeeds_crud/Test update datafeed with missing id',
     'ml/data_frame_analytics_crud/Test put config with security headers in the body',

@@ -147,4 +147,10 @@ public class Murmur3FieldMapperTests extends MapperTestCase {
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
     }
+
+    @Override
+    protected boolean supportsIndexSortRangeTest() {
+        // NOTE: A murmur3 field does not support range queries.
+        return false;
+    }
 }

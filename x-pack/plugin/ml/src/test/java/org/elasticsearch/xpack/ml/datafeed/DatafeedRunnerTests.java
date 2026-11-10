@@ -67,6 +67,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doAnswer;
@@ -228,6 +229,63 @@ public class DatafeedRunnerTests extends ESTestCase {
 
         verify(threadPool, times(11)).schedule(any(), any(), any(Executor.class));
         verify(auditor, times(1)).warning(eq(JOB_ID), anyString());
+    }
+
+    public void testRealTime_GivenConsecutiveExtractionFailures_StopsAfterThreshold() throws Exception {
+        when(datafeedJob.effectiveMaxConsecutiveExtractionFailures()).thenReturn(3L);
+        when(datafeedJob.runLookBack(anyLong(), nullable(Long.class))).thenReturn(1L);
+        when(datafeedJob.runRealtime()).thenThrow(new DatafeedJob.ExtractionProblemException(1L, new RuntimeException("extraction boom")));
+
+        // Run each scheduled real-time cycle synchronously so the failure counter accumulates until the datafeed stops
+        doAnswer(invocationOnMock -> {
+            Runnable r = (Runnable) invocationOnMock.getArguments()[0];
+            currentTime += 600000;
+            r.run();
+            return mock(Scheduler.ScheduledCancellable.class);
+        }).when(threadPool).schedule(any(), any(), any(Executor.class));
+
+        Consumer<Exception> handler = mockConsumer();
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams(DATAFEED_ID, 0L);
+        DatafeedTask task = TransportStartDatafeedActionTests.createDatafeedTask(1, "type", "action", null, params, datafeedRunner);
+        task = spyDatafeedTask(task);
+        datafeedRunner.run(task, false, handler);
+
+        // Stops on exactly the third consecutive extraction failure
+        verify(datafeedJob, times(3)).runRealtime();
+        assertThat(datafeedRunner.isRunning(task), is(false));
+        verify(auditor).info(
+            eq(JOB_ID),
+            argThat(
+                message -> message != null
+                    && message.contains("Datafeed auto-stopped after 3 consecutive real-time extraction failures")
+                    && message.contains("extraction boom")
+            )
+        );
+    }
+
+    public void testRealTime_GivenExtractionFailuresBelowThreshold_KeepsRunning() throws Exception {
+        when(datafeedJob.effectiveMaxConsecutiveExtractionFailures()).thenReturn(5L);
+        when(datafeedJob.runLookBack(anyLong(), nullable(Long.class))).thenReturn(1L);
+
+        AtomicInteger cycles = new AtomicInteger();
+        doAnswer(invocationOnMock -> {
+            if (cycles.getAndIncrement() < 3) {
+                Runnable r = (Runnable) invocationOnMock.getArguments()[0];
+                currentTime += 600000;
+                r.run();
+            }
+            return mock(Scheduler.ScheduledCancellable.class);
+        }).when(threadPool).schedule(any(), any(), any(Executor.class));
+        when(datafeedJob.runRealtime()).thenThrow(new DatafeedJob.ExtractionProblemException(1L, new RuntimeException("extraction boom")));
+
+        Consumer<Exception> handler = mockConsumer();
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams(DATAFEED_ID, 0L);
+        DatafeedTask task = TransportStartDatafeedActionTests.createDatafeedTask(1, "type", "action", null, params, datafeedRunner);
+        task = spyDatafeedTask(task);
+        datafeedRunner.run(task, false, handler);
+
+        // Three failures is below the threshold of five, so the datafeed keeps running
+        assertThat(datafeedRunner.isRunning(task), is(true));
     }
 
     public void testRealTime_GivenStoppingAnalysisProblem() throws Exception {

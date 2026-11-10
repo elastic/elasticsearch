@@ -1996,7 +1996,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             public void onRejection(Exception e) {
                 assert false : e;
                 logger.error("unexpected rejection", e);
-                epoch.incrementAndGet();
             }
 
             @Override

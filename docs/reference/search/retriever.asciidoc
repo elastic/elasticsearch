@@ -1036,6 +1036,21 @@ If you use the `none` normalizer, the scores across field groups will not be nor
 
 When using the `linear` retriever, fields can be boosted using the `^` notation:
 
+////
+[source,console]
+----
+# The searches on the books semantic_text fields below start the default ELSER deployment on
+# demand but only wait 10s for the model to start, which is not always enough on slow CI hosts.
+# Start it here with a longer timeout so those searches find it running. Keep the timeout well
+# under the test client's 60s socket timeout, which also has to cover downloading the model.
+POST _inference/sparse_embedding/.elser-2-elasticsearch?timeout=40s
+{
+  "input": "warm up the default ELSER deployment"
+}
+----
+// TEST[continued]
+////
+
 [source,console]
 ----
 GET books/_search

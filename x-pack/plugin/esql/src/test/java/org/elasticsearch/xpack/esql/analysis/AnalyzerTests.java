@@ -2398,6 +2398,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorImplicitCasting() {
+        assumeTrue("knn function capability not available", EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled());
         Analyzer analyzer = analyzer(loadMapping("mapping-dense_vector.json", "vectors"));
 
         var plan = analyze("""

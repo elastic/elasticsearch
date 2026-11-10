@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
+import java.time.Clock;
 import java.util.Objects;
 
 /**
@@ -25,19 +26,22 @@ public record TransformServices(
     TransformCheckpointService checkpointService,
     TransformAuditor auditor,
     TransformScheduler scheduler,
-    TransformNode transformNode
+    TransformNode transformNode,
+    Clock clock
 ) {
     public TransformServices(
         TransformConfigManager configManager,
         TransformCheckpointService checkpointService,
         TransformAuditor auditor,
         TransformScheduler scheduler,
-        TransformNode transformNode
+        TransformNode transformNode,
+        Clock clock
     ) {
         this.configManager = Objects.requireNonNull(configManager);
         this.checkpointService = Objects.requireNonNull(checkpointService);
         this.auditor = Objects.requireNonNull(auditor);
         this.scheduler = Objects.requireNonNull(scheduler);
         this.transformNode = Objects.requireNonNull(transformNode);
+        this.clock = Objects.requireNonNull(clock);
     }
 }

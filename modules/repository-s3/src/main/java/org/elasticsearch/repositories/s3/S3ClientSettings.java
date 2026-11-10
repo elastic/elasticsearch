@@ -168,6 +168,17 @@ final class S3ClientSettings {
         key -> Setting.boolSetting(key, false, Property.NodeScope)
     );
 
+    /**
+     * Whether to send a {@code Content-MD5} header on requests that need a checksum (e.g. {@code DeleteObjects}), as the AWS SDK did before
+     * v2.30.0. AWS S3 itself no longer requires this, but some third-party stores that claim to be S3-compatible still do.
+     */
+    // temporary workaround for non-compliant stores, must be removed in v10
+    static final Setting.AffixSetting<Boolean> LEGACY_CONTENT_MD5 = Setting.affixKeySetting(
+        PREFIX,
+        "legacy_content_md5",
+        key -> Setting.boolSetting(key, false, Property.NodeScope, Property.DeprecatedWarning)
+    );
+
     /** An override for the s3 region to use for signing requests. */
     static final Setting.AffixSetting<String> REGION = Setting.affixKeySetting(
         PREFIX,
@@ -246,6 +257,9 @@ final class S3ClientSettings {
     /** Whether to include the request body in the V4 signature even when unnecessary because HTTPS is in use. */
     final boolean alwaysSignRequests;
 
+    /** Whether to send a legacy {@code Content-MD5} header on requests that need a checksum. */
+    final boolean legacyContentMd5;
+
     private S3ClientSettings(
         AwsCredentials credentials,
         HttpScheme protocol,
@@ -262,7 +276,8 @@ final class S3ClientSettings {
         boolean disableChunkedEncoding,
         boolean addPurposeCustomQueryParameter,
         String region,
-        boolean alwaysSignRequests
+        boolean alwaysSignRequests,
+        boolean legacyContentMd5
     ) {
         this.credentials = credentials;
         this.protocol = protocol;
@@ -280,6 +295,7 @@ final class S3ClientSettings {
         this.addPurposeCustomQueryParameter = addPurposeCustomQueryParameter;
         this.region = region;
         this.alwaysSignRequests = alwaysSignRequests;
+        this.legacyContentMd5 = legacyContentMd5;
     }
 
     /**
@@ -324,6 +340,7 @@ final class S3ClientSettings {
         }
         final String newRegion = getRepoSettingOrDefault(REGION, normalizedSettings, region);
         final boolean newAlwaysSignRequests = getRepoSettingOrDefault(ALWAYS_SIGN_REQUESTS, normalizedSettings, alwaysSignRequests);
+        final boolean newLegacyContentMd5 = getRepoSettingOrDefault(LEGACY_CONTENT_MD5, normalizedSettings, legacyContentMd5);
         if (Objects.equals(protocol, newProtocol)
             && Objects.equals(endpoint, newEndpoint)
             && Objects.equals(proxyHost, newProxyHost)
@@ -337,7 +354,8 @@ final class S3ClientSettings {
             && newDisableChunkedEncoding == disableChunkedEncoding
             && newAddPurposeCustomQueryParameter == addPurposeCustomQueryParameter
             && Objects.equals(region, newRegion)
-            && newAlwaysSignRequests == alwaysSignRequests) {
+            && newAlwaysSignRequests == alwaysSignRequests
+            && newLegacyContentMd5 == legacyContentMd5) {
             return this;
         }
         return new S3ClientSettings(
@@ -356,7 +374,8 @@ final class S3ClientSettings {
             newDisableChunkedEncoding,
             newAddPurposeCustomQueryParameter,
             newRegion,
-            newAlwaysSignRequests
+            newAlwaysSignRequests,
+            newLegacyContentMd5
         );
     }
 
@@ -465,7 +484,8 @@ final class S3ClientSettings {
                 getConfigValue(settings, clientName, DISABLE_CHUNKED_ENCODING),
                 getConfigValue(settings, clientName, ADD_PURPOSE_CUSTOM_QUERY_PARAMETER),
                 getConfigValue(settings, clientName, REGION),
-                getConfigValue(settings, clientName, ALWAYS_SIGN_REQUESTS)
+                getConfigValue(settings, clientName, ALWAYS_SIGN_REQUESTS),
+                getConfigValue(settings, clientName, LEGACY_CONTENT_MD5)
             );
         }
     }
@@ -493,7 +513,8 @@ final class S3ClientSettings {
             && Objects.equals(disableChunkedEncoding, that.disableChunkedEncoding)
             && Objects.equals(addPurposeCustomQueryParameter, that.addPurposeCustomQueryParameter)
             && Objects.equals(region, that.region)
-            && alwaysSignRequests == that.alwaysSignRequests;
+            && alwaysSignRequests == that.alwaysSignRequests
+            && legacyContentMd5 == that.legacyContentMd5;
     }
 
     @Override
@@ -513,7 +534,8 @@ final class S3ClientSettings {
             disableChunkedEncoding,
             addPurposeCustomQueryParameter,
             region,
-            alwaysSignRequests
+            alwaysSignRequests,
+            legacyContentMd5
         );
     }
 

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.integration;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
@@ -14,8 +16,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -23,7 +28,16 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster CLUSTER = Clusters.CLUSTER;
+
+    @Override
+    protected String getTestRestCluster() {
+        return CLUSTER.getHttpAddresses();
+    }
+
     private static final String BASIC_AUTH_VALUE_SUPER_USER = UsernamePasswordToken.basicAuthHeaderValue(
         "x_pack_rest_user",
         SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING

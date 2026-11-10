@@ -12,7 +12,10 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
@@ -63,6 +66,7 @@ import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.r
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.containsString;
 
 public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
@@ -73,7 +77,9 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
     @Before
     public void setup() {
         registerSimplifiedConnectorIndexTemplates(indicesAdmin());
-        this.connectorIndexService = new ConnectorIndexService(client());
+        Set<Setting<?>> settingsSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingsSet.addAll(ConnectorsConfig.getSettings());
+        this.connectorIndexService = new ConnectorIndexService(client(), new ClusterSettings(Settings.EMPTY, settingsSet));
     }
 
     @Override
@@ -99,6 +105,15 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
         Connector indexedConnector = awaitGetConnector(resp.getId());
         assertThat(resp.getId(), equalTo(indexedConnector.getConnectorId()));
+    }
+
+    public void testPutConnector_WithTooLongDescription_ExpectFailure() {
+        String description = randomAlphaOfLength(ConnectorsConfig.MAX_DESCRIPTION_LENGTH_SETTING.getDefault(Settings.EMPTY) + 1);
+        PlainActionFuture<ConnectorCreateActionResponse> future = new PlainActionFuture<>();
+        connectorIndexService.createConnector(randomUUID(), description, randomAlphaOfLength(10), false, null, null, null, future);
+
+        Exception e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("The description cannot exceed"));
     }
 
     public void testDeleteConnector() throws Exception {
@@ -753,6 +768,17 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         Connector indexedConnector = awaitGetConnector(connectorId);
         assertThat(updateNameDescriptionRequest.getName(), equalTo(indexedConnector.getName()));
         assertThat(updateNameDescriptionRequest.getDescription(), equalTo(indexedConnector.getDescription()));
+    }
+
+    public void testUpdateConnectorNameOrDescription_WithTooLongDescription_ExpectFailure() {
+        UpdateConnectorNameAction.Request request = new UpdateConnectorNameAction.Request(
+            randomUUID(),
+            null,
+            randomAlphaOfLength(ConnectorsConfig.MAX_DESCRIPTION_LENGTH_SETTING.getDefault(Settings.EMPTY) + 1)
+        );
+
+        Exception e = expectThrows(IllegalArgumentException.class, () -> awaitUpdateConnectorName(request));
+        assertThat(e.getMessage(), containsString("The description cannot exceed"));
     }
 
     public void testUpdateConnectorNative() throws Exception {

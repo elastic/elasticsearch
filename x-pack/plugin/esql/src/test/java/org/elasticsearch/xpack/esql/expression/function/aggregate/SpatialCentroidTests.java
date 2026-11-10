@@ -79,11 +79,14 @@ public class SpatialCentroidTests extends AbstractAggregationTestCase {
             var expectedX = xSum.value() / count;
             var expectedY = ySum.value() / count;
 
+            // Use relative error for very large values (cartesian points can have very large coordinates)
+            double error = Math.max(1e-10, Math.max(Math.abs(expectedX), Math.abs(expectedY)) * 1e-14);
+
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 "SpatialCentroid[field=Attribute[channel=0]]",
                 fieldTypedData.type(),
-                centroidMatches(expectedX, expectedY, 1e-14)
+                centroidMatches(expectedX, expectedY, error)
             );
         });
     }

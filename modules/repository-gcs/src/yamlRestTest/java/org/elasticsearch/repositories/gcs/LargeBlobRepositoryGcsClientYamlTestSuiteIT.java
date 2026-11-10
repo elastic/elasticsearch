@@ -9,6 +9,8 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 
 public class LargeBlobRepositoryGcsClientYamlTestSuiteIT extends RepositoryGcsClientYamlTestSuiteIT {
@@ -17,7 +19,7 @@ public class LargeBlobRepositoryGcsClientYamlTestSuiteIT extends RepositoryGcsCl
         clusterConfig = c -> c.systemProperty("es.repository_gcs.large_blob_threshold_byte_size", "256");
     }
 
-    public LargeBlobRepositoryGcsClientYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
+    public LargeBlobRepositoryGcsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 }

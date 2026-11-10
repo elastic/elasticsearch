@@ -328,11 +328,9 @@ be mapped rather than an explicit <<indices-put-mapping,update mapping>> request
 `create`::
 Privilege to index documents.
 +
-IMPORTANT: Starting from 8.0, this privilege no longer grants the permission 
-to update index mappings. In earlier versions, it implicitly permitted index mapping 
-updates (excluding data stream mappings) via the {ref}/indices-put-mapping.html[updating mapping API] 
-or through {ref}/dynamic-mapping.html[dynamic field mapping]. 
-Mapping update capabilities will be fully removed in a future major release.
+IMPORTANT: Don't use this privilege to update index mappings.
+That extra authority doesn't apply to data streams, has been deprecated since 8.0, and will be removed in a future major release.
+Grant the `manage` privilege for explicit mapping updates or the `auto_configure` privilege for automatic mapping updates.
 +
 --
 NOTE: This privilege does not restrict the index operation to the creation
@@ -346,11 +344,9 @@ privilege for an alternative.
 Privilege to index documents.
 It does not grant the permission to update or overwrite existing documents.
 +
-IMPORTANT: Starting from 8.0, this privilege no longer grants the permission 
-to update index mappings. In earlier versions, it implicitly permitted index mapping 
-updates (excluding data stream mappings) via the {ref}/indices-put-mapping.html[updating mapping API] 
-or through {ref}/dynamic-mapping.html[dynamic field mapping]. 
-Mapping update capabilities will be fully removed in a future major release.
+IMPORTANT: Don't use this privilege to update index mappings.
+That extra authority doesn't apply to data streams, has been deprecated since 8.0, and will be removed in a future major release.
+Grant the `manage` privilege for explicit mapping updates or the `auto_configure` privilege for automatic mapping updates.
 +
 --
 [NOTE]
@@ -403,11 +399,9 @@ Privilege to delete an index or data stream.
 `index`::
 Privilege to index and update documents.
 +
-IMPORTANT: Starting from 8.0, this privilege no longer grants the permission 
-to update index mappings. In earlier versions, it implicitly permitted index mapping 
-updates (excluding data stream mappings) via the {ref}/indices-put-mapping.html[updating mapping API] 
-or through {ref}/dynamic-mapping.html[dynamic field mapping]. 
-Mapping update capabilities will be fully removed in a future major release.
+IMPORTANT: Don't use this privilege to update index mappings.
+That extra authority doesn't apply to data streams, has been deprecated since 8.0, and will be removed in a future major release.
+Grant the `manage` privilege for explicit mapping updates or the `auto_configure` privilege for automatic mapping updates.
 
 `maintenance`::
 Permits refresh, flush, synced flush and force merge index administration operations.
@@ -471,12 +465,9 @@ Privilege to perform all write operations to documents, which includes the
 permission to index, update, and delete documents as well as performing bulk
 operations, while also allowing to dynamically update the index mapping.
 +
-IMPORTANT: Starting from 8.0, this privilege no longer grants the permission 
-to update index mappings. In earlier versions, it implicitly permitted index mapping 
-updates (excluding data stream mappings) via the {ref}/indices-put-mapping.html[updating mapping API] 
-or through {ref}/dynamic-mapping.html[dynamic field mapping]. 
-Mapping update capabilities will be fully removed in a future major release.
-
+IMPORTANT: Don't use this privilege to update index mappings with the {ref}/indices-put-mapping.html[updating mapping API].
+That extra authority doesn't apply to data streams, has been deprecated since 8.0, and will be removed in a future major release.
+Grant the `manage` privilege for explicit mapping updates.
 
 ==== Run as privilege
 

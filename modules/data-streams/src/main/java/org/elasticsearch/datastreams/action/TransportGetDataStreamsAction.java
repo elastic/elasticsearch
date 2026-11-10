@@ -40,7 +40,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -56,8 +55,8 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
@@ -67,6 +66,11 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
     GetDataStreamAction.Response> {
 
     private static final Logger LOGGER = LogManager.getLogger(TransportGetDataStreamsAction.class);
+    private static final Set<String> EXPOSED_INDEX_SETTINGS = Set.of(
+        IndexSettings.MODE.getKey(),
+        IndexMetadata.LIFECYCLE_NAME,
+        IndexSettings.PREFER_ILM_SETTING.getKey()
+    );
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
     private final ClusterSettings clusterSettings;
@@ -165,33 +169,28 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
     }
 
     /**
-     * Resolves the index mode ("index.mode" setting) for the given data stream, from the template or additional setting providers
+     * Resolves the settings the next backing index of the given data stream would be created with, as far as they can be determined
+     * without the mappings: the settings from the additional setting providers, with the given template and data stream settings
+     * applied on top of them.
      */
-    @Nullable
-    static IndexMode resolveMode(
+    static Settings resolveEffectiveSettings(
         ClusterState state,
         IndexSettingProviders indexSettingProviders,
         DataStream dataStream,
         Settings settings,
         ComposableIndexTemplate indexTemplate
     ) {
-        IndexMode indexMode = state.metadata().retrieveIndexModeFromTemplate(indexTemplate);
-        for (IndexSettingProvider provider : indexSettingProviders.getIndexSettingProviders()) {
-            Settings addlSettinsg = provider.getAdditionalIndexSettings(
-                MetadataIndexTemplateService.VALIDATE_INDEX_NAME,
-                dataStream.getName(),
-                indexMode,
-                state.metadata(),
-                Instant.now(),
-                settings,
-                List.of()
-            );
-            var rawMode = addlSettinsg.get(IndexSettings.MODE.getKey());
-            if (rawMode != null) {
-                indexMode = Enum.valueOf(IndexMode.class, rawMode.toUpperCase(Locale.ROOT));
-            }
-        }
-        return indexMode;
+        return IndexSettingProviders.collectAdditionalSettings(
+            indexSettingProviders.getIndexSettingProviders(),
+            MetadataIndexTemplateService.VALIDATE_INDEX_NAME,
+            dataStream.getName(),
+            state.metadata().retrieveIndexModeFromTemplate(indexTemplate),
+            state.metadata(),
+            Instant.now(),
+            settings,
+            List.of(),
+            EXPOSED_INDEX_SETTINGS
+        ).applyTo(settings);
     }
 
     static GetDataStreamAction.Response innerOperation(
@@ -223,25 +222,23 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
                         dataStreamDescriptor.getComposableIndexTemplate(),
                         dataStreamDescriptor.getComponentTemplates()
                     );
-                    ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
-                    if (indexMode == null) {
-                        indexMode = resolveMode(
-                            state,
-                            indexSettingProviders,
-                            dataStream,
-                            settings,
-                            dataStreamDescriptor.getComposableIndexTemplate()
-                        );
-                    }
-                    indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
+                    Settings effectiveSettings = resolveEffectiveSettings(
+                        state,
+                        indexSettingProviders,
+                        dataStream,
+                        settings,
+                        dataStreamDescriptor.getComposableIndexTemplate()
+                    );
+                    ilmPolicyName = effectiveSettings.get(IndexMetadata.LIFECYCLE_NAME);
+                    indexMode = IndexMode.fromIndexSettingsWithoutValidation(effectiveSettings);
+                    indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(effectiveSettings);
                 }
             } else {
                 indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dataStream.getName(), false);
                 if (indexTemplate != null) {
                     Settings settings = dataStream.getEffectiveSettings(state.metadata());
-                    ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
-                    if (indexMode == null && state.metadata().templatesV2().get(indexTemplate) != null) {
-                        indexMode = resolveMode(
+                    if (state.metadata().templatesV2().get(indexTemplate) != null) {
+                        settings = resolveEffectiveSettings(
                             state,
                             indexSettingProviders,
                             dataStream,
@@ -249,6 +246,8 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
                             dataStream.getEffectiveIndexTemplate(state.metadata())
                         );
                     }
+                    ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
+                    indexMode = IndexMode.fromIndexSettingsWithoutValidation(settings);
                     indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
                 } else {
                     LOGGER.warn(

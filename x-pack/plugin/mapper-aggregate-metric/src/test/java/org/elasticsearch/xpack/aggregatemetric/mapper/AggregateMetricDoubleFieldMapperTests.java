@@ -618,4 +618,10 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
     protected boolean supportsCopyTo() {
         return false;
     }
+
+    @Override
+    protected boolean supportsIndexSortRangeTest() {
+        // NOTE: The values of an aggregate metric double field are objects, not the scalar sample values.
+        return false;
+    }
 }

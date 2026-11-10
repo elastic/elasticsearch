@@ -10,6 +10,7 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -48,6 +49,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see AcknowledgedResponse
  */
 public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable {
+
+    public static final TransportVersion MAPPINGS_AS_BYTESREFERENCE = TransportVersion.fromName("mappings_as_bytesreference");
 
     private static final Set<String> RESERVED_FIELDS = Set.of(
         "_uid",
@@ -103,7 +106,13 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
                 throw new IllegalArgumentException("Expected type [_doc] but received [" + type + "]");
             }
         }
-        source = in.readString();
+        if (in.getTransportVersion().supports(MAPPINGS_AS_BYTESREFERENCE)) {
+            BytesReference bytes = in.readBytesReference();
+            XContentType xContentType = in.readEnum(XContentType.class);
+            source = XContentHelper.convertToJson(bytes, false, false, xContentType);
+        } else {
+            source = in.readString();
+        }
         concreteIndex = in.readOptionalWriteable(Index::new);
         origin = in.readOptionalString();
         writeIndexOnly = in.readBoolean();
@@ -333,7 +342,12 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
         }
-        out.writeString(source);
+        if (out.getTransportVersion().supports(MAPPINGS_AS_BYTESREFERENCE)) {
+            out.writeBytesReference(new BytesArray(source));
+            XContentHelper.writeTo(out, XContentType.JSON);
+        } else {
+            out.writeString(source);
+        }
         out.writeOptionalWriteable(concreteIndex);
         out.writeOptionalString(origin);
         out.writeBoolean(writeIndexOnly);

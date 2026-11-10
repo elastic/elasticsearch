@@ -147,7 +147,8 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                     mock(TransformCheckpointService.class),
                     auditor,
                     new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
-                    mock(TransformNode.class)
+                    mock(TransformNode.class),
+                    Clock.systemUTC()
                 ),
                 checkpointProvider,
                 initialState,

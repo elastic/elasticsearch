@@ -272,12 +272,12 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
                 logger.debug(() -> "failure in cache fill: [" + request.id() + "]", e);
             }
         }, () -> {
-try  {
-  onComplete.close();
-} finally {
-  assert assertAvailablePermits();
-  inFlightCacheFills.release();
-}
+            try {
+                onComplete.close();
+            } finally {
+                assert assertAvailablePermits();
+                inFlightCacheFills.release();
+            }
         }), listener -> innerPut(request, listener));
     }
 

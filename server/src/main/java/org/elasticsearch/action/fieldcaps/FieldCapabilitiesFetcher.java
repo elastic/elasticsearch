@@ -130,6 +130,7 @@ class FieldCapabilitiesFetcher {
         );
         var indexMode = searchExecutionContext.getIndexSettings().getMode();
         final int numberOfShards = searchExecutionContext.getIndexSettings().getNumberOfShards();
+        final int createdVersion = searchExecutionContext.getIndexSettings().getIndexVersionCreated().id();
         if (searcher != null && canMatchShard(shardId, indexFilter, nowInMillis, searchExecutionContext, requestBreaker()) == false) {
             return new FieldCapabilitiesIndexResponse(
                 shardId.getIndexName(),
@@ -138,6 +139,7 @@ class FieldCapabilitiesFetcher {
                 false,
                 indexMode,
                 numberOfShards,
+                createdVersion,
                 settingsVersion,
                 mappingVersion
             );
@@ -169,6 +171,7 @@ class FieldCapabilitiesFetcher {
                     true,
                     indexMode,
                     numberOfShards,
+                    createdVersion,
                     settingsVersion,
                     mappingVersion
                 );
@@ -194,6 +197,7 @@ class FieldCapabilitiesFetcher {
             true,
             indexMode,
             numberOfShards,
+            createdVersion,
             settingsVersion,
             mappingVersion
         );

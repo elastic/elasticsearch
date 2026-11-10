@@ -63,4 +63,5 @@ public class StatelessPluginIT extends AbstractStatelessPluginIntegTestCase {
             equalTo(expected)
         );
     }
+
 }

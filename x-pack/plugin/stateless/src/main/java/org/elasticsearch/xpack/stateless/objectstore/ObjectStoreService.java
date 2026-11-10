@@ -523,7 +523,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     }
 
     /// Returns a set of settings that are needed to configure connection pools of object store client used.
-    /// Note this assumes that `stateless.object_store.client` is available.
+    /// Note this assumes that `stateless.object_store.type` and `stateless.object_store.client` is available.
     public static Settings connectionPoolSettings(Settings settings, StatelessThreadPools.ThreadPoolConfig threadPoolConfig) {
         ObjectStoreType type = TYPE_SETTING.get(settings);
         if (type != ObjectStoreType.S3 && type != ObjectStoreType.AZURE) {

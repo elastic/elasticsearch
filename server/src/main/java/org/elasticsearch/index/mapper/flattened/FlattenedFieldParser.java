@@ -10,9 +10,11 @@
 package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.IndexVersion;
@@ -34,6 +36,19 @@ import java.util.Map;
 class FlattenedFieldParser {
     static final String SEPARATOR = "\0";
     static final byte SEPARATOR_BYTE = '\0';
+
+    /**
+     * The type the keyed doc values report for a document whose leaves are all null: the keyed term's type plus binary doc values, so
+     * the document presents the keyed field the way a document holding a keyed term does. Not tokenized, like the keyed term, so Lucene
+     * asks no analyzer for the keyed field, which has none.
+     */
+    private static final FieldType KEYED_TYPE_WHEN_VALUELESS;
+    static {
+        FieldType type = new FieldType(StringField.TYPE_NOT_STORED);
+        type.setDocValuesType(DocValuesType.BINARY);
+        type.freeze();
+        KEYED_TYPE_WHEN_VALUELESS = type;
+    }
 
     private final String rootFieldFullPath;
     private final String keyedFieldFullPath;
@@ -299,7 +314,8 @@ class FlattenedFieldParser {
             MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.recordNull(
                 context.documentParserContext.doc(),
                 keyedFieldFullPath,
-                new BytesRef(key + SEPARATOR)
+                new BytesRef(key + SEPARATOR),
+                fieldType.indexType().hasTerms() ? KEYED_TYPE_WHEN_VALUELESS : null
             );
         } else if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT) {
             context.arrayContext.recordNull(key);

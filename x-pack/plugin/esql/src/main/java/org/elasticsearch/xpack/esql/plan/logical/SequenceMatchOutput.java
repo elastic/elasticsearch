@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -18,14 +19,18 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /** Prototype coordinator bindings for processed primary fields and row-associated authentic originals. */
@@ -90,6 +95,14 @@ public final class SequenceMatchOutput {
     /** Compile the narrow authoring surface before field discovery, retaining genuine metadata by identity. */
     public static EsqlStatement prepare(EsqlStatement statement) {
         LogicalPlan plan = statement.plan();
+        if (plan instanceof Explain explain) {
+            EsqlStatement prepared = prepare(new EsqlStatement(explain.query(), statement.settings(), statement.letBindings()));
+            if (prepared.plan() == explain.query()) return statement;
+            return new EsqlStatement(new Explain(explain.source(), prepared.plan()), statement.settings(), statement.letBindings());
+        }
+        for (var binding : statement.letBindings()) {
+            rejectSequenceOutputInLet(binding.plan());
+        }
         List<Declaration> declarations = plan.collect(Declaration.class);
         if (declarations.isEmpty()) {
             plan.forEachExpressionDown(UnresolvedFunction.class, f -> {
@@ -131,6 +144,17 @@ public final class SequenceMatchOutput {
                         || cursor instanceof Limit) == false)) {
                 throw new ParsingException(cursor.source(), "Command [{}] is outside the sequence output prototype", cursor.nodeName());
             }
+            if (capture) {
+                // Membership inside a stage filters events before matching; only the outer retained pipeline excludes joins.
+                cursor.forEachExpression(expression -> {
+                    if (expression instanceof InSubquery || expression instanceof MultiColumnInSubquery) {
+                        throw new ParsingException(
+                            expression.source(),
+                            "IN subqueries are outside the sequence output prototype with RETURN MATCHES"
+                        );
+                    }
+                });
+            }
             cursor = ((UnaryPlan) cursor).child();
         }
         sequence.forEachExpressionDown(UnresolvedFunction.class, f -> {
@@ -166,6 +190,32 @@ public final class SequenceMatchOutput {
         return prepare(new EsqlStatement(plan, statement.settings(), statement.letBindings()), header.primary - 1, capture, members);
     }
 
+    /** LET plans are expanded after preparation, so inspect their expression-held subqueries before declarations can escape. */
+    private static void rejectSequenceOutputInLet(LogicalPlan plan) {
+        var pending = new ArrayDeque<LogicalPlan>();
+        pending.add(plan);
+        while (pending.isEmpty() == false) {
+            LogicalPlan current = pending.removeFirst();
+            if (current instanceof Declaration) {
+                throw new ParsingException(current.source(), "LET is outside the sequence output prototype");
+            }
+            if (current instanceof Explain explain) {
+                pending.add(explain.query());
+            }
+            current.forEachExpression(expression -> {
+                if (expression instanceof UnresolvedFunction function && function.name().equalsIgnoreCase("member")) {
+                    throw new ParsingException(function.source(), "LET is outside the sequence output prototype");
+                }
+                if (expression instanceof InSubquery in) {
+                    pending.add(in.subquery());
+                } else if (expression instanceof MultiColumnInSubquery in) {
+                    pending.add(in.subquery());
+                }
+            });
+            pending.addAll(current.children());
+        }
+    }
+
     /** An analysis-only reference to a compiler binding, independent of its collision-free temporary name. */
     public static class BindingReference extends UnresolvedAttribute {
         private BindingReference(Source source, String name, NameId binding) {
@@ -192,7 +242,9 @@ public final class SequenceMatchOutput {
             for (Attribute attribute : output) {
                 if (attribute.id().equals(id())) return attribute.withLocation(source());
             }
-            return withUnresolvedMessage(defaultUnresolvedMessage(null));
+            // A late NULLIFY field may make this binding available on the next analysis pass.
+            // Keep its protected identity and subtype rather than falling back to name resolution.
+            return this;
         }
     }
 
@@ -222,6 +274,10 @@ public final class SequenceMatchOutput {
 
         public String field() {
             return member.field();
+        }
+
+        public int stage() {
+            return member.stage();
         }
     }
 
@@ -345,26 +401,52 @@ public final class SequenceMatchOutput {
     public static final class Originals extends UnaryPlan {
         private final List<Alias> originals;
         private final Set<String> reservedNames;
+        private final boolean keepUnmapped;
 
         private Originals(Source source, LogicalPlan child, List<Alias> originals, Set<String> reservedNames) {
+            this(source, child, originals, reservedNames, false);
+        }
+
+        private Originals(Source source, LogicalPlan child, List<Alias> originals, Set<String> reservedNames, boolean keepUnmapped) {
             super(source, child);
             this.originals = List.copyOf(originals);
             this.reservedNames = reservedNames;
+            this.keepUnmapped = keepUnmapped;
         }
 
         @Override
         protected NodeInfo<Originals> info() {
-            return NodeInfo.create(this, Originals::new, child(), originals, reservedNames);
+            return NodeInfo.create(this, Originals::new, child(), originals, reservedNames, keepUnmapped);
         }
 
         @Override
         public Originals replaceChild(LogicalPlan child) {
-            return new Originals(source(), child, originals, reservedNames);
+            return new Originals(source(), child, originals, reservedNames, keepUnmapped);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return super.equals(other) && keepUnmapped == ((Originals) other).keepUnmapped;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), keepUnmapped);
         }
 
         @Override
         public boolean expressionsResolved() {
-            return false;
+            return keepUnmapped;
+        }
+
+        @Override
+        public List<Attribute> output() {
+            return keepUnmapped ? Expressions.asAttributes(projections()) : child().output();
+        }
+
+        /** Keep compiler projections responsive to NULLIFY until the analysis fixpoint finishes. */
+        public LogicalPlan resolve(boolean keepUnmapped) {
+            return keepUnmapped ? new Originals(source(), child(), originals, reservedNames, true) : lower();
         }
 
         @Override
@@ -383,6 +465,10 @@ public final class SequenceMatchOutput {
         }
 
         public LogicalPlan lower() {
+            return new Project(source(), child(), projections());
+        }
+
+        private List<NamedExpression> projections() {
             List<NamedExpression> output = new ArrayList<>(child().output());
             Set<String> usedNames = new HashSet<>(reservedNames);
             output.forEach(field -> usedNames.add(field.name()));
@@ -397,32 +483,62 @@ public final class SequenceMatchOutput {
                     )
                 );
             }
-            return new Project(source(), child(), output);
+            return output;
         }
     }
 
     /** Analysis-only context lowered to ordinary typed projections after its sequence resolves. */
     public static final class Scope extends UnaryPlan {
         private final Context context;
+        private final boolean keepUnmapped;
 
         private Scope(Source source, LogicalPlan child, Context context) {
+            this(source, child, context, false);
+        }
+
+        private Scope(Source source, LogicalPlan child, Context context, boolean keepUnmapped) {
             super(source, child);
             this.context = context;
+            this.keepUnmapped = keepUnmapped;
         }
 
         @Override
         protected NodeInfo<Scope> info() {
-            return NodeInfo.create(this, Scope::new, child(), context);
+            return NodeInfo.create(this, Scope::new, child(), context, keepUnmapped);
         }
 
         @Override
         public Scope replaceChild(LogicalPlan child) {
-            return new Scope(source(), child, context);
+            return new Scope(source(), child, context, keepUnmapped);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return super.equals(other) && keepUnmapped == ((Scope) other).keepUnmapped;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), keepUnmapped);
         }
 
         @Override
         public boolean expressionsResolved() {
-            return false;
+            return keepUnmapped;
+        }
+
+        @Override
+        public List<Attribute> output() {
+            return keepUnmapped ? Expressions.asAttributes(projections()) : child().output();
+        }
+
+        public int primary() {
+            return context.primary();
+        }
+
+        /** Retain stage provenance while NULLIFY can still widen the processed stage outputs. */
+        public LogicalPlan resolve(boolean keepUnmapped) {
+            return keepUnmapped ? new Scope(source(), child(), context, true) : lower();
         }
 
         @Override
@@ -442,6 +558,10 @@ public final class SequenceMatchOutput {
 
         /** Binds requested ordinary fields to their stage output; a removed field is not reconstructed from source. */
         public LogicalPlan lower() {
+            return new Project(source(), child(), projections());
+        }
+
+        private List<NamedExpression> projections() {
             Sequence sequence = (Sequence) child();
             List<NamedExpression> output = new ArrayList<>();
             Set<String> usedNames = new HashSet<>(context.reservedNames());
@@ -453,7 +573,12 @@ public final class SequenceMatchOutput {
                 Attribute value = sequence.output().get(i);
                 int stage = sequence.sourceStages().get(i);
                 if (input.synthetic() == false && (i < keyCount || stage == context.primary())) {
-                    output.add(new Alias(value.source(), input.name(), value));
+                    // Recomputing a compiler projection must not change an already published binding.
+                    output.add(
+                        keepUnmapped
+                            ? new Alias(value.source(), input.name(), value, value.id(), false)
+                            : new Alias(value.source(), input.name(), value)
+                    );
                 }
                 for (var entry : context.members().entrySet()) {
                     Member member = entry.getKey();
@@ -482,7 +607,7 @@ public final class SequenceMatchOutput {
                     output.add(new Alias(value.source(), temporaryName(usedNames, "sequence_key", key), value, key, true));
                 }
             }
-            return new Project(source(), sequence, output);
+            return output;
         }
     }
 
@@ -565,7 +690,7 @@ public final class SequenceMatchOutput {
         }
 
         private static LogicalPlan retain(LogicalPlan plan, Set<NameId> ids) {
-            if (plan instanceof Sequence) return plan;
+            if (plan instanceof Sequence || plan instanceof Scope) return plan;
             if ((plan instanceof Project
                 || plan instanceof Eval
                 || plan instanceof Filter

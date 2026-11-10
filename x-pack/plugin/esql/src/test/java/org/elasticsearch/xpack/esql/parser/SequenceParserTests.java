@@ -8,10 +8,13 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Sequence;
+import org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput;
 import org.elasticsearch.xpack.esql.plan.logical.SequenceStage;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
@@ -71,10 +74,44 @@ public class SequenceParserTests extends ESTestCase {
 
     public void testSequenceDisabledInReleaseParser() {
         EsqlParser release = new EsqlParser(new EsqlConfig(false, TEST_FUNCTION_REGISTRY));
-        assertThat(
+        assertEquals(
+            "line 1:1: mismatched input 'sequence' expecting {, 'row', 'from', 'ts', 'promql', 'set', 'show'}",
             expectThrows(ParsingException.class, () -> release.createStatement("sequence with {\"maxspan\":\"30s\"} (from a), (from b)"))
-                .getMessage(),
-            containsString("sequence")
+                .getMessage()
+        );
+    }
+
+    /** Release parsing must leave an unregistered function to ordinary analysis without exposing the DEV command. */
+    public void testReleaseParserLeavesMemberForOrdinaryFunctionResolution() {
+        EsqlParser release = new EsqlParser(new EsqlConfig(false, TEST_FUNCTION_REGISTRY));
+        for (String name : List.of("MEMBER", "member")) {
+            var plan = release.createStatement("ROW x = " + name + "(1, a)").plan();
+            var functions = new ArrayList<UnresolvedFunction>();
+            plan.forEachExpressionDown(UnresolvedFunction.class, functions::add);
+            assertEquals(1, functions.size());
+            assertTrue(name.equalsIgnoreCase(functions.getFirst().name()));
+            assertEquals(2, functions.getFirst().children().size());
+        }
+    }
+
+    /** Explicit DEV parsing must prepare output bindings even when the surrounding build is a release build. */
+    public void testExplicitDevParserPreparesSequenceOutput() {
+        var plan = parser.createStatement("""
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 2
+            (FROM a), (FROM b) | EVAL supporting = MEMBER(1, payload)
+            """).plan();
+        assertTrue(plan.collect(SequenceMatchOutput.Declaration.class).isEmpty());
+        assertEquals(1, plan.collect(SequenceMatchOutput.Scope.class).size());
+        var members = new ArrayList<SequenceMatchOutput.MemberReference>();
+        plan.forEachExpressionDown(SequenceMatchOutput.MemberReference.class, members::add);
+        assertEquals(1, members.size());
+    }
+
+    /** DEV parsing retains the authoring diagnostic for MEMBER used without its sequence declaration. */
+    public void testDevParserRetainsSequenceMemberDiagnostic() {
+        assertThat(
+            expectThrows(ParsingException.class, () -> parser.createStatement("ROW x = MEMBER(1, a)")).getMessage(),
+            containsString("MEMBER requires SEQUENCE with an explicit PRIMARY")
         );
     }
 

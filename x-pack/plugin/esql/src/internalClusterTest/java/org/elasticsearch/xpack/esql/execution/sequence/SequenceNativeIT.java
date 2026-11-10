@@ -20,7 +20,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.AbstractSequenceIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.containsString;
 
 /** Native query-action coverage joining real searches, ordinary stage compute, matching and typed payload output. */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
-public class SequenceNativeIT extends AbstractEsqlIntegTestCase {
+public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
     private static final Instant BASE = Instant.parse("2026-09-25T21:14:51.389Z");
 
     /** Empty filtered aliases still contribute their successfully skipped source shards after retained PIT pages are read. */

@@ -85,6 +85,7 @@ import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Sequence;
+import org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput;
 import org.elasticsearch.xpack.esql.plan.logical.SequenceStage;
 import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -229,6 +230,11 @@ public class ApproximationSupportTests extends ESTestCase {
         Rename.class,
         ResolvingProject.class,
         SemiJoin.class,
+        // Sequence output scaffolding is removed during preparation or lowered before optimization.
+        SequenceMatchOutput.Capture.class,
+        SequenceMatchOutput.Declaration.class,
+        SequenceMatchOutput.Originals.class,
+        SequenceMatchOutput.Scope.class,
         SparklineGenerateEmptyBuckets.class,
 
         // internals

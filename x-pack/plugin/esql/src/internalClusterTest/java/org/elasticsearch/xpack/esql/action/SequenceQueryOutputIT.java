@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
@@ -47,7 +48,7 @@ import static org.hamcrest.Matchers.containsString;
 
 /** Parse the authored query through the ordinary request path and consume genuine returned schema and values. */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
-public class SequenceQueryOutputIT extends AbstractEsqlIntegTestCase {
+public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
     private static final String A = "demo-downloads";
     private static final String B = "demo-executions";
     private MockBlockFactory blocks;
@@ -114,6 +115,118 @@ public class SequenceQueryOutputIT extends AbstractEsqlIntegTestCase {
                 assertEquals(object(list(fixture.get("documents")).get(i)).get("_source"), decoded.rows.getFirst().members.get(i).source);
             }
         }
+    }
+
+    /** Projecting the other stage must preserve default primary and wide payloads, including retained output. */
+    public void testAsymmetricStageProjectionPreservesSiblingSchema() throws Exception {
+        for (int primary : List.of(1, 2)) {
+            String first = "(FROM demo-downloads" + (primary == 2 ? " | KEEP host.id" : "") + ")";
+            String second = "(FROM demo-executions" + (primary == 1 ? " | KEEP host.id" : "") + ")";
+            String actor = primary == 1 ? "downloader" : "runner";
+            for (int mode : List.of(0, 1, 2)) {
+                String presentation = mode == 0 ? "" : " PRIMARY " + primary;
+                String retention = mode == 2 ? " | RETURN MATCHES" : "";
+                try (var response = query("""
+                    SEQUENCE BY host.id WITH {"maxspan":"1m"}%s
+                    %s, %s
+                    | LIMIT 10%s
+                    """.formatted(presentation, first, second, retention))) {
+                    var names = response.columns().stream().map(ColumnInfo::name).toList();
+                    String payload = mode == 0 ? "stage" + primary + ".user.name" : "user.name";
+                    int column = names.indexOf(payload);
+                    assertTrue("Missing sibling payload [" + payload + "] in " + names, column >= 0);
+                    var values = response.column(column);
+                    assertTrue(values.hasNext());
+                    assertEquals(actor, values.next());
+                    assertFalse(values.hasNext());
+                    if (mode == 0) {
+                        assertFalse(names.contains("stage" + (3 - primary) + ".user.name"));
+                    } else if (mode == 2) {
+                        Decoded decoded = checkConsumers(response);
+                        assertEquals(1, decoded.rows.size());
+                        assertEquals(List.of("D1", "E1"), decoded.rows.getFirst().members.stream().map(Member::id).toList());
+                        for (int i = 0; i < 2; i++) {
+                            assertEquals(
+                                object(list(fixture.get("documents")).get(i)).get("_source"),
+                                decoded.rows.getFirst().members.get(i).source
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Explaining legacy sequence output keeps the ordinary plan-table response. */
+    public void testExplainLegacySequenceUsesOrdinaryPlanSchema() {
+        assertExplainedSequence("""
+            SEQUENCE BY host.id WITH {"maxspan":"1m"}
+            (FROM demo-downloads), (FROM demo-executions)
+            | KEEP host.id, stage1.user.name, stage2.user.name | LIMIT 10
+            """);
+    }
+
+    /** EXPLAIN must prepare PRIMARY and MEMBER before their plans reach analysis. */
+    public void testExplainPrimarySequenceUsesOrdinaryPlanSchema() {
+        assertExplainedSequence("""
+            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
+            (FROM demo-downloads), (FROM demo-executions)
+            | EVAL download_actor = MEMBER(1, user.name)
+            | KEEP user.name, download_actor | LIMIT 10
+            """);
+    }
+
+    /** Inner retained originals must not turn EXPLAIN's plan-table columns into evidence columns. */
+    public void testExplainRetainedSequenceUsesOrdinaryPlanSchema() {
+        assertExplainedSequence("""
+            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
+            (FROM demo-downloads), (FROM demo-executions)
+            | EVAL download_actor = MEMBER(1, user.name)
+            | KEEP user.name, download_actor | LIMIT 10 | RETURN MATCHES
+            """);
+    }
+
+    /** Stage membership filters the event population before matching; probe its original retention independently of outer joins. */
+    public void testRetainedStageMembershipPreservesMatchedOriginals() throws Exception {
+        for (String predicate : List.of(
+            "host.id IN (FROM demo-executions | KEEP host.id)",
+            "host.id NOT IN (FROM demo-executions | WHERE user.name == \"missing\" | KEEP host.id)",
+            "(host.id, file.hash.sha256) IN (FROM demo-executions"
+                + " | EVAL file.hash.sha256 = process.hash.sha256 | KEEP host.id, file.hash.sha256)"
+        )) {
+            try (var response = query("""
+                SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
+                (FROM demo-downloads | WHERE %s), (FROM demo-executions)
+                | KEEP user.name | LIMIT 10 | RETURN MATCHES
+                """.formatted(predicate))) {
+                Decoded decoded = checkConsumers(response);
+                assertEquals(1, decoded.rows.size());
+                assertEquals(List.of("runner"), decoded.rows.getFirst().ordinary);
+                assertEquals(List.of("demo-host-1"), decoded.rows.getFirst().keys);
+                assertEquals(List.of("D1", "E1"), decoded.rows.getFirst().members.stream().map(Member::id).toList());
+                for (int i = 0; i < 2; i++) {
+                    assertEquals(
+                        object(list(fixture.get("documents")).get(i)).get("_source"),
+                        decoded.rows.getFirst().members.get(i).source
+                    );
+                }
+            }
+        }
+    }
+
+    /** Retained output must reject its unsupported lowered outer join with a located author-facing error. */
+    public void testRetainedOuterInSubqueryHasLocatedRejection() {
+        assertRetainedOuterSubqueryRejected("host.id IN (FROM demo-executions | KEEP host.id)");
+    }
+
+    /** Negated membership has the same retained-output boundary as positive membership. */
+    public void testRetainedOuterNotInSubqueryHasLocatedRejection() {
+        assertRetainedOuterSubqueryRejected("host.id NOT IN (FROM demo-executions | KEEP host.id)");
+    }
+
+    /** Tuple membership must not bypass the retained-output boundary through a different expression node. */
+    public void testRetainedOuterMultiColumnInSubqueryHasLocatedRejection() {
+        assertRetainedOuterSubqueryRejected("(host.id, user.name) IN (FROM demo-executions | KEEP host.id, user.name)");
     }
 
     /** Aggregation consumes ordinary selected rows when complete-match evidence was not requested. */
@@ -551,6 +664,33 @@ public class SequenceQueryOutputIT extends AbstractEsqlIntegTestCase {
             assertEquals(result.rows.getFirst().members.get(1).source, result.rows.getFirst().ordinary.getFirst());
             assertEquals(3L, response.columns().stream().filter(column -> column.outputType().equals("_source")).count());
         }
+    }
+
+    private void assertExplainedSequence(String statement) {
+        try (var response = query("EXPLAIN (" + statement + ")")) {
+            assertEquals(List.of("cluster", "node", "role", "type", "plan"), response.columns().stream().map(ColumnInfo::name).toList());
+            assertTrue(response.columns().stream().allMatch(column -> column.outputType().equals("keyword")));
+            assertFalse(response.columns().stream().anyMatch(column -> column.meta() != null && column.meta().containsKey("sequence")));
+            var plans = response.column(4);
+            assertTrue(plans.hasNext());
+            boolean includesSequence = false;
+            while (plans.hasNext()) {
+                includesSequence |= plans.next().toString().contains("Sequence");
+            }
+            assertTrue("EXPLAIN must include the sequence plan", includesSequence);
+        }
+    }
+
+    private void assertRetainedOuterSubqueryRejected(String predicate) {
+        ParsingException error = expectThrows(ParsingException.class, () -> { try (var ignored = query("""
+            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
+            (FROM demo-downloads), (FROM demo-executions)
+            | WHERE %s
+            | LIMIT 10 | RETURN MATCHES
+            """.formatted(predicate))) {} });
+        assertEquals(3, error.getLineNumber());
+        assertTrue("The unsupported predicate must have a source column", error.getColumnNumber() > 0);
+        assertThat(error.getErrorMessage(), containsString("outside the sequence output prototype"));
     }
 
     private EsqlQueryResponse query(String text) {

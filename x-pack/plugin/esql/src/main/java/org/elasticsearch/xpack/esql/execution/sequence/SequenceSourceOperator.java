@@ -26,6 +26,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -43,6 +44,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -93,10 +95,10 @@ import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
  * retains keys and compact source handles only. Payload is fetched under the same PIT and replayed through the
  * prepared stage, preserving selected expansion rows, computed fields and original metadata.
  * <p>
- * Matching and stage CPU work run on the owning driver. Callbacks hand off one completion and wake the driver;
- * snapshot renewal has separate synchronized ownership and never blocks a search or compute thread. Closing waits
- * for in-flight ownership through DriverContext and closes
- * even a PIT returned after early termination. Searches use the caller's credentials and a fixed PIT shard enumeration.
+ * Matching and stage CPU work run on the owning driver. Callbacks hand off one completion and wake the driver.
+ * Snapshot renewal runs independently of output pulls, but its callbacks can wait for driver work on the shared monitor.
+ * Closing waits for in-flight ownership through DriverContext and closes even a PIT returned after early termination.
+ * Searches use the caller's credentials and a fixed PIT shard enumeration.
  */
 public final class SequenceSourceOperator extends SourceOperator {
     private static final TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueMinutes(2);
@@ -491,7 +493,15 @@ public final class SequenceSourceOperator extends SourceOperator {
         if (cursor.stage > 0 && initialTimeBound != null) {
             // Keep equal timestamps: the shared PIT ordinal still decides strict event order.
             Instant earliest = Instant.ofEpochMilli(initialTimeBound.epochMillis()).plusNanos(initialTimeBound.nanoOfMilli());
-            source.query(boolQuery().filter(source.query()).filter(rangeQuery("@timestamp").gte(earliest.toString())));
+            boolean nanos = cursor.input.timestampType(cursor.branch) == DataType.DATE_NANOS;
+            // A nanos source cannot precede the epoch or follow its maximum representable instant. Avoid parsing
+            // an ordinary date outside that domain as nanos, while keeping the source predicate and scope intact.
+            if (nanos == false || earliest.isBefore(Instant.EPOCH) == false) {
+                QueryBuilder lowerBound = nanos && earliest.isAfter(DateUtils.MAX_NANOSECOND_INSTANT)
+                    ? new MatchNoneQueryBuilder()
+                    : rangeQuery("@timestamp").gte(earliest.toString()).format("strict_date_optional_time_nanos");
+                source.query(boolQuery().filter(source.query()).filter(lowerBound));
+            }
         }
         if (cursor.after != null) {
             source.searchAfter(cursor.after);

@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
-import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.AbstractSequenceIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicense;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.empty;
  * them unsuitable for production performance claims. Identity, completeness and resource cleanup remain strict checks.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
-public class SequenceEqlDifferentialIT extends AbstractEsqlIntegTestCase {
+public class SequenceEqlDifferentialIT extends AbstractSequenceIntegTestCase {
     private static final String INDEX = "sequence-differential";
     private static final Instant BASE = Instant.parse("2026-09-25T21:14:51.389Z");
     private static final TimeValue TIMEOUT = TimeValue.timeValueMinutes(2);

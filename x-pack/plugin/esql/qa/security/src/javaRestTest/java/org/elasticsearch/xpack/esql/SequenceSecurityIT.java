@@ -22,6 +22,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -47,6 +48,12 @@ public class SequenceSecurityIT extends ESRestTestCase {
         .user("sequence_alias_only", "x-pack-test-password", "sequence_alias_only", false)
         .user("sequence_alias_exclusions", "x-pack-test-password", "sequence_alias_exclusions", false)
         .build();
+
+    /** Check the tested cluster before any sequence-specific fixture or assertion. */
+    @Before
+    public void requireSequenceCommand() {
+        assumeTrue("requires native SEQUENCE", hasCapabilities(adminClient(), List.of("sequence_command")));
+    }
 
     @Override
     protected String getTestRestCluster() {
@@ -74,7 +81,6 @@ public class SequenceSecurityIT extends ESRestTestCase {
 
     /** The existing default-distribution fixture verifies real Painless determinism declarations and HTTP error delivery. */
     public void testSequenceRepeatabilityWithPainless() throws Exception {
-        assumeTrue("requires native SEQUENCE", hasCapabilities(adminClient(), List.of("sequence_command")));
         createSequenceSecurityEvents(true);
         Request mappings = new Request("PUT", "sequence-security-events/_mapping");
         mappings.setJsonEntity("""
@@ -361,7 +367,6 @@ public class SequenceSecurityIT extends ESRestTestCase {
 
     /** Original source metadata retains DLS/FLS after stage and downstream projection. */
     public void testStageSourceRetainsSecurityThroughProjection() throws Exception {
-        assumeTrue("requires native SEQUENCE", hasCapabilities(adminClient(), List.of("sequence_command")));
         createSequenceSecurityEvents(true);
         Map<String, Object> result = entityAsMap(runESQLCommand("sequence_dls_fls", """
             SEQUENCE BY key WITH {"maxspan":"30s"}
@@ -388,7 +393,6 @@ public class SequenceSecurityIT extends ESRestTestCase {
 
     /** Ordinary source columns match normal FROM under the same DLS/FLS grant. */
     public void testStageSourceMatchesOrdinaryFieldSecurity() throws Exception {
-        assumeTrue("requires native SEQUENCE", hasCapabilities(adminClient(), List.of("sequence_command")));
         createSequenceSecurityEvents(true);
         Map<String, Object> ordinary = entityAsMap(runESQLCommand("sequence_dls_fls", """
             FROM sequence-security-events METADATA _id, _index, _source
@@ -430,7 +434,6 @@ public class SequenceSecurityIT extends ESRestTestCase {
 
     /** CSV acceptance must match ordinary source rendering; it is a display format rather than JSON evidence. */
     public void testStageSourceCsvMatchesOrdinarySourceRendering() throws Exception {
-        assumeTrue("requires native SEQUENCE", hasCapabilities(adminClient(), List.of("sequence_command")));
         createSequenceSecurityEvents(true);
         String ordinary = runSourceCsv("""
             FROM sequence-security-events METADATA _id, _source
@@ -459,7 +462,6 @@ public class SequenceSecurityIT extends ESRestTestCase {
 
     /** A broader second-stage alias grant may expose its own source fields, but cannot widen the first stage's source or documents. */
     public void testStageSourceRetainsStageSpecificAliasDocumentAndFieldGrants() throws Exception {
-        assumeTrue("requires native SEQUENCE", hasCapabilities(adminClient(), List.of("sequence_command")));
         createSequenceSecurityEvents(true);
         createSequenceSecurityAliases();
         String user = "sequence-source-scoped";
@@ -532,7 +534,6 @@ public class SequenceSecurityIT extends ESRestTestCase {
 
     /** Hidden predecessors must never enter matching, and typed evidence fetches must retain the caller's field permissions. */
     public void testSequenceRetainsDocumentAndFieldSecurityDuringEvidenceReplay() throws Exception {
-        assumeTrue("requires native SEQUENCE", hasCapabilities(adminClient(), List.of("sequence_command")));
         createSequenceSecurityEvents();
         String stages = """
             SEQUENCE BY key WITH {"maxspan":"30s"}
@@ -555,7 +556,6 @@ public class SequenceSecurityIT extends ESRestTestCase {
 
     /** Alias grants must authorize every PIT page without granting access to its concrete index. */
     public void testSequenceRetainsAliasOnlyDocumentAndFieldPermissions() throws Exception {
-        assumeTrue("requires native SEQUENCE", hasCapabilities(adminClient(), List.of("sequence_command")));
         createSequenceSecurityEvents();
         createSequenceSecurityAliases();
         String stages = """
@@ -581,7 +581,6 @@ public class SequenceSecurityIT extends ESRestTestCase {
 
     /** A branch-local exclusion must also exclude that alias's broader document permissions when opening the shared PIT. */
     public void testSequenceIndexExclusionsDoNotBroadenAliasDocumentPermissions() throws Exception {
-        assumeTrue("requires native SEQUENCE", hasCapabilities(adminClient(), List.of("sequence_command")));
         createSequenceSecurityEvents();
         createSequenceSecurityAliases();
         Map<String, Object> allowed = entityAsMap(runESQLCommand("sequence_alias_exclusions", """
@@ -595,7 +594,6 @@ public class SequenceSecurityIT extends ESRestTestCase {
 
     /** Each stage must retain its own document grants even when another stage uses a broader alias on the same index. */
     public void testSequenceStagesRetainIndependentAliasDocumentPermissions() throws Exception {
-        assumeTrue("requires native SEQUENCE", hasCapabilities(adminClient(), List.of("sequence_command")));
         createSequenceSecurityEvents();
         createSequenceSecurityAliases();
         // The broader alias also reaches an out-of-scope physical index. Each data node already holds a shard of the
@@ -618,7 +616,6 @@ public class SequenceSecurityIT extends ESRestTestCase {
 
     /** PIT can-match may omit an existing source index when its alias is empty; that stage still yields zero matches. */
     public void testSequenceAllowsAuthorizedSourceOmittedFromSnapshot() throws Exception {
-        assumeTrue("requires native SEQUENCE", hasCapabilities(adminClient(), List.of("sequence_command")));
         createSequenceSecurityEvents();
         createSequenceSecurityAliases();
         createSequenceSecurityAdditionalIndex();

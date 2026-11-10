@@ -35,7 +35,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.AbstractSequenceIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicense;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -66,7 +66,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * second-stage search, after stage-one compute has transferred its candidates into the source operator.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
-public class SequenceFailureIT extends AbstractEsqlIntegTestCase {
+public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
     private static final Instant BASE = Instant.parse("2026-09-25T21:14:51.389Z");
     private static final int ANCHORS = 128;

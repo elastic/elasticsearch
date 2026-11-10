@@ -15,6 +15,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -54,6 +56,12 @@ import static org.hamcrest.Matchers.containsString;
 
 /** Verifies independent stage scopes, the wide schema, and candidate completeness boundaries. */
 public class SequenceAnalyzerTests extends ESTestCase {
+    /** These analyzer fixtures parse the command using the running build's default parser. */
+    @BeforeClass
+    public static void requireSequenceCommand() {
+        assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
+    }
+
     /** Quoted aliases can spell the original's actual generated name; ID-preserved KEEP must still carry genuine originals. */
     public void testQuotedTemporaryOriginalSurvivesStageEdits() throws Exception {
         for (int primary : List.of(1, 2)) {
@@ -168,7 +176,14 @@ public class SequenceAnalyzerTests extends ESTestCase {
 
     /** Obtain compiler identities from the actual parsed context rather than introducing test-only IDs into a plan. */
     private static long bindingId(LogicalPlan parsed, String binding) {
-        String context = parsed.collect(SequenceMatchOutput.Scope.class).getFirst().nodeProperties().getLast().toString();
+        var contexts = parsed.collect(SequenceMatchOutput.Scope.class)
+            .getFirst()
+            .nodeProperties()
+            .stream()
+            .filter(property -> property.getClass().getName().equals(SequenceMatchOutput.class.getName() + "$Context"))
+            .toList();
+        assertEquals(1, contexts.size());
+        String context = contexts.getFirst().toString();
         String expression = switch (binding) {
             case "input", "output" -> "Role\\[stage=0, metadata=_id, input=(\\d+), output=(\\d+)\\]";
             case "key" -> "keys=\\[(\\d+)\\]";

@@ -24,9 +24,10 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.AbstractSequenceIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicense;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 
@@ -46,7 +47,7 @@ import static org.hamcrest.Matchers.empty;
 
 /** Verifies the initial lower time bound preserves selection and excludes only earlier later-stage input. */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
-public class SequenceTimeBoundIT extends AbstractEsqlIntegTestCase {
+public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
     private static final String A = "sequence-time-bound-a";
     private static final String B = "sequence-time-bound-b";
     private static final String C = "sequence-time-bound-c";
@@ -131,6 +132,51 @@ public class SequenceTimeBoundIT extends AbstractEsqlIntegTestCase {
         finishSeed(bulk, A, B);
         Outcome bounded = verify(ordinary(), List.of(List.of("key", "A", "after")));
         assertEquals(3L, bounded.status.candidateRowsFetched());
+    }
+
+    /** The hidden source-time bound must not inherit a mapping that accepts only numeric epoch timestamps. */
+    public void testEpochMillisTimestampFormatWithHiddenSourceTime() throws Exception {
+        create("date", "epoch_millis", 1, A, B);
+        var bulk = client().prepareBulk();
+        add(bulk, A, "A", 0L, "key", "yes", "7");
+        add(bulk, B, "before", -1L, "key", "yes", "7");
+        add(bulk, B, "B", 1000L, "key", "yes", "7");
+        finishSeed(bulk, A, B);
+
+        // Both stages project away @timestamp; no request filter can supply or mask the generated lower bound.
+        Outcome result = observe(syncEsqlQueryRequest(ordinary()).profile(true));
+        assertRows(List.of(List.of("key", "A", "B")), result);
+        assertEquals(2L, result.status.candidateRowsFetched());
+        assertEquals(2L, result.status.candidateSearchRequests());
+        assertEquals(2L, result.status.payloadRowsFetched());
+    }
+
+    /** An ordinary date before the epoch can precede a valid nanosecond event within the same sequence. */
+    public void testDateStartBeforeEpochMatchesNanosecondStage() throws Exception {
+        create("date", 1, A);
+        create("date_nanos", 1, B);
+        var bulk = client().prepareBulk();
+        add(bulk, A, "A", "1969-12-31T23:59:59Z", "key", "yes", "7");
+        add(bulk, B, "B", "1970-01-01T00:00:05Z", "key", "yes", "7");
+        finishSeed(bulk, A, B);
+
+        // No request filter may exclude the boundary dates before the generated stage bound is evaluated.
+        Outcome result = observe(syncEsqlQueryRequest(ordinary()).profile(true));
+        assertRows(List.of(List.of("key", "A", "B")), result);
+    }
+
+    /** A start beyond the nanosecond domain makes a populated nanosecond stage ineligible without failing the query. */
+    public void testDateStartAfterNanosecondRangeReturnsNoMatches() throws Exception {
+        create("date", 1, A);
+        create("date_nanos", 1, B);
+        var bulk = client().prepareBulk();
+        add(bulk, A, "A", "2262-04-11T23:47:16.855Z", "key", "yes", "7");
+        // An empty shard could bypass range parsing and hide the generated bound's invalid nanos conversion.
+        add(bulk, B, "B", "2262-04-11T23:47:16.854775807Z", "key", "yes", "7");
+        finishSeed(bulk, A, B);
+
+        Outcome result = observe(syncEsqlQueryRequest(ordinary()).profile(true));
+        assertRows(List.of(), result);
     }
 
     /** Pruning must retain predecessor replacement, expanded memberships and the inclusive total-span boundary. */
@@ -280,11 +326,16 @@ public class SequenceTimeBoundIT extends AbstractEsqlIntegTestCase {
     }
 
     private Outcome observe(String query) throws Exception {
+        return observe(
+            syncEsqlQueryRequest(query).profile(true)
+                .filter(rangeQuery("@timestamp").gte(BASE.minusSeconds(60).toString()).lte(BASE.plusSeconds(120).toString()))
+        );
+    }
+
+    private Outcome observe(EsqlQueryRequest request) throws Exception {
         String coordinator = Arrays.stream(internalCluster().getNodeNames()).sorted().findFirst().orElseThrow();
         var future = new PlainActionFuture<Outcome>();
         try {
-            var request = syncEsqlQueryRequest(query).profile(true)
-                .filter(rangeQuery("@timestamp").gte(BASE.minusSeconds(60).toString()).lte(BASE.plusSeconds(120).toString()));
             client(coordinator).execute(EsqlQueryAction.INSTANCE, request, ActionListener.wrap(response -> {
                 try {
                     assertFalse(response.isPartial());
@@ -349,13 +400,17 @@ public class SequenceTimeBoundIT extends AbstractEsqlIntegTestCase {
     }
 
     private void create(String timestampType, int shards, String... indices) {
+        create(timestampType, null, shards, indices);
+    }
+
+    private void create(String timestampType, String timestampFormat, int shards, String... indices) {
         for (String index : indices) {
             assertAcked(
                 indicesAdmin().prepareCreate(index)
                     .setSettings(indexSettings(shards, 0))
                     .setMapping(
                         "@timestamp",
-                        "type=" + timestampType,
+                        "type=" + timestampType + (timestampFormat == null ? "" : ",format=" + timestampFormat),
                         "key",
                         "type=keyword",
                         "disposition",

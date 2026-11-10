@@ -7,12 +7,14 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.plan.logical.Sequence;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.hamcrest.Matchers.containsString;
 
 /** Invalid declarations fail before searches rather than silently selecting a different field context. */
 public class SequenceQueryOutputParserTests extends ESTestCase {
+    private static final EsqlParser TEST_PARSER = new EsqlParser(new EsqlConfig(true, TEST_FUNCTION_REGISTRY));
     private static final String BASE = "SEQUENCE BY key WITH {\"maxspan\":\"1m\"} PRIMARY 2 (FROM a), (FROM b)";
 
     public void testPrimaryReferenceUsesOrdinaryNames() {
@@ -64,6 +66,51 @@ public class SequenceQueryOutputParserTests extends ESTestCase {
             var error = expectThrows(IllegalArgumentException.class, () -> TEST_PARSER.createStatement(query + " | RETURN MATCHES"));
             assertThat(error.getMessage(), containsString("outside sequence output stage boundary"));
         }
+    }
+
+    /** A declaration hidden in a LET body must fail before the binding is expanded into the main query. */
+    public void testLetBoundPrimaryIsRejectedBeforeExpansion() {
+        rejectedLetBody(BASE);
+    }
+
+    /** Retention hidden inside a binding has the same explicit LET boundary as a top-level declaration. */
+    public void testLetBoundRetainedMatchesIsRejectedBeforeExpansion() {
+        rejectedLetBody(BASE + " | RETURN MATCHES");
+    }
+
+    /** MEMBER cannot hide in an otherwise ordinary binding and reach ordinary function resolution later. */
+    public void testLetBoundMemberIsRejectedBeforeExpansion() {
+        rejectedLetBody("FROM a | EVAL supporting = MEMBER(1, user.name)");
+    }
+
+    /** A declaration inside an expression-held subquery is still inside the unsupported LET body. */
+    public void testLetBoundOutputHiddenInMembershipSubqueriesIsRejected() {
+        rejectedLetBody("FROM a | WHERE key IN (FROM (" + BASE + ") | KEEP key)");
+        rejectedLetBody("FROM a | WHERE (key, user.name) IN (FROM (" + BASE + ") | KEEP key, user.name)");
+    }
+
+    /** MEMBER calls in a membership RHS must not evade the same LET boundary as calls in the binding's main pipeline. */
+    public void testLetBoundMemberHiddenInMembershipSubqueryIsRejected() {
+        rejectedLetBody("FROM a | WHERE key IN (FROM b | EVAL key = MEMBER(1, user.name) | KEEP key)");
+    }
+
+    /** The output-prototype boundary must not reject ordinary LET or a legacy sequence without output declarations. */
+    public void testOrdinaryAndLegacyLetBindingsRemainAvailable() {
+        var ordinary = TEST_PARSER.createStatement("LET s = (FROM a | KEEP key); FROM s");
+        assertEquals(1, ordinary.letBindings().size());
+        assertEquals("s", ordinary.letBindings().getFirst().name());
+        assertTrue(ordinary.letBindings().getFirst().plan().collect(Sequence.class).isEmpty());
+        var legacy = TEST_PARSER.createStatement("LET s = (" + BASE.replace(" PRIMARY 2", "") + "); FROM s");
+        assertEquals(1, legacy.letBindings().size());
+        assertEquals("s", legacy.letBindings().getFirst().name());
+        assertEquals(1, legacy.letBindings().getFirst().plan().collect(Sequence.class).size());
+    }
+
+    private static void rejectedLetBody(String body) {
+        var error = expectThrows(ParsingException.class, () -> TEST_PARSER.createStatement("LET s = (" + body + "); FROM s"));
+        assertThat(error.getErrorMessage(), containsString("LET is outside the sequence output prototype"));
+        assertEquals(1, error.getLineNumber());
+        assertTrue("The hidden declaration must have a source column", error.getColumnNumber() > 0);
     }
 
     private static void rejected(String query, String message) {

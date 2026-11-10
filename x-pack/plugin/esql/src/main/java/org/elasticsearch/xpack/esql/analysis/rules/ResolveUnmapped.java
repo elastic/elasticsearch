@@ -40,6 +40,11 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Sequence;
+import org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.BindingReference;
+import org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.MemberReference;
+import org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Scope;
+import org.elasticsearch.xpack.esql.plan.logical.SequenceStage;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
@@ -183,6 +188,11 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
         Set<UnresolvedAttribute> allUnresolved = new HashSet<>();
         for (List<UnresolvedAttribute> uas : unresolvedByName.values()) {
             unresolved.add(uas.getFirst());
+            if (load == false) {
+                // A quoted ordinary field can share a MEMBER diagnostic name; its demand is still distinct.
+                uas.stream().filter(MemberReference.class::isInstance).forEach(unresolved::add);
+                uas.stream().filter(ua -> ua instanceof BindingReference == false).findFirst().ifPresent(unresolved::add);
+            }
             allUnresolved.addAll(uas);
         }
 
@@ -228,17 +238,58 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * It also "patches" the introduced attributes through the plan, where needed (like through a {@link MergePlan}).
      */
     private static LogicalPlan nullify(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
+        LinkedHashSet<UnresolvedAttribute> ordinary = new LinkedHashSet<>();
+        unresolved.stream().filter(ua -> ua instanceof BindingReference == false).forEach(ordinary::add);
         // For EsRelation sources: add null-typed fields to the relation's output
-        var transformed = ViewUtils.transformUpOutsideViews(plan, p -> {
-            if (p instanceof EsRelation esr) {
-                List<FieldAttribute> fieldsToNullify = fieldsToNullify(unresolved, Expressions.names(esr.output()));
-                return withAdditionalAttributesUnlessLookup(esr, fieldsToNullify, true);
+        var transformed = plan.transformUpSkipBranch(
+            (parent, child) -> ViewUtils.isViewBody(parent, child) || parent instanceof Scope || parent instanceof Sequence,
+            p -> {
+                if (p instanceof Scope scope) {
+                    Sequence sequence = nullifySequence((Sequence) scope.child(), scope.primary(), unresolved);
+                    return sequence == scope.child() ? scope : scope.replaceChild(sequence);
+                }
+                if (p instanceof Sequence sequence) return nullifySequence(sequence, -1, unresolved);
+                if (p instanceof EsRelation esr) {
+                    return withAdditionalAttributesUnlessLookup(esr, fieldsToNullify(ordinary, Expressions.names(esr.output())), true);
+                }
+                return p;
             }
-            return p;
-        });
+        );
         // Under NULLIFY the view's own rows would be null for the field anyway, so the boundary changes nothing worth reporting.
-        transformed = nullFillViewBoundaries(transformed, unresolved, false, (identity, fieldName) -> {});
-        return nullifyNonEsRelationSources(transformed, unresolved);
+        transformed = nullFillViewBoundaries(transformed, ordinary, false, (identity, fieldName) -> {});
+        transformed = nullifyNonEsRelationSources(transformed, ordinary);
+        return ViewUtils.transformUpOutsideViews(transformed, Sequence.class, Sequence::resolveSchema);
+    }
+
+    /** Route presentation names to one processed stage, without reviving a field removed by the user's projection. */
+    private static Sequence nullifySequence(Sequence sequence, int primary, Set<UnresolvedAttribute> unresolved) {
+        List<LogicalPlan> children = new ArrayList<>(sequence.children());
+        boolean changed = false;
+        for (int stageNumber = 0; stageNumber < children.size(); stageNumber++) {
+            SequenceStage stage = (SequenceStage) children.get(stageNumber);
+            // Membership preserves its left event fields. This is only an admission view; keep the actual join and RHS intact.
+            LogicalPlan admission = stage.child().transformUp(AbstractSubqueryJoin.class, join -> join.left());
+            LinkedHashMap<String, UnresolvedAttribute> fields = new LinkedHashMap<>();
+            String prefix = "stage" + (stageNumber + 1) + ".";
+            for (UnresolvedAttribute ua : unresolved) {
+                String field = null;
+                if (ua instanceof MemberReference member) {
+                    if (member.stage() == stageNumber) field = member.field();
+                } else if (ua instanceof BindingReference == false) {
+                    if (primary == stageNumber) field = ua.name();
+                    else if (primary < 0 && ua.name().startsWith(prefix)) field = ua.name().substring(prefix.length());
+                }
+                if (field != null && MetadataAttribute.isSupported(field) == false && branchCanSurfaceLoadedField(admission, field)) {
+                    fields.putIfAbsent(field, new UnresolvedAttribute(ua.source(), field));
+                }
+            }
+            LogicalPlan child = fields.isEmpty() ? stage.child() : nullify(stage.child(), new LinkedHashSet<>(fields.values()));
+            if (child != stage.child()) {
+                children.set(stageNumber, stage.replaceChild(child));
+                changed = true;
+            }
+        }
+        return changed ? sequence.replaceChildren(children).resolveSchema() : sequence.resolveSchema();
     }
 
     /**
@@ -523,6 +574,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
     private static LogicalPlan refreshPlan(LogicalPlan plan, Set<UnresolvedAttribute> maybeNowResolvableAttributes) {
         Map<UnresolvedAttribute, UnresolvedAttribute> oldAttributesToNewAttributes = new HashMap<>();
         Function<UnresolvedAttribute, UnresolvedAttribute> refresh = ua -> {
+            if (ua instanceof BindingReference) return ua;
             if (maybeNowResolvableAttributes.contains(ua)) {
                 // Besides clearing the message, we need to refresh the nameId to avoid equality with the previous plan.
                 // (A `new UnresolvedAttribute(ua.source(), ua.name())` would save an allocation, but is problematic with subtypes.)
@@ -688,7 +740,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
             }
             for (Expression expr : node.expressions()) {
                 expr.forEachUp(UnresolvedAttribute.class, ua -> {
-                    if (childOutputNames.contains(ua.name()) == false) {
+                    if (ua instanceof MemberReference || childOutputNames.contains(ua.name()) == false) {
                         sink.accept(ua);
                     }
                 });
@@ -709,8 +761,10 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
     }
 
     private static boolean leaveUnresolved(UnresolvedAttribute attribute) {
-        return attribute instanceof UnresolvedPattern || attribute instanceof UnresolvedTimestamp
-        // Exclude metadata fields so they fail with a proper verification error instead of being silently nullified/loaded.
+        return attribute instanceof UnresolvedPattern
+            || attribute instanceof UnresolvedTimestamp
+            || attribute instanceof BindingReference && attribute instanceof MemberReference == false
+            // Exclude metadata fields so they fail with a proper verification error instead of being silently nullified/loaded.
             || MetadataAttribute.isSupported(attribute.name());
     }
 

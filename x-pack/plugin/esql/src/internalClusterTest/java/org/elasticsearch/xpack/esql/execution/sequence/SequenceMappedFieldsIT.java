@@ -39,7 +39,7 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.AbstractSequenceIntegTestCase;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.junit.After;
@@ -63,7 +63,7 @@ import static org.hamcrest.Matchers.containsString;
 
 /** Differential coverage of mapped field storage layouts using ordinary ES|QL as the value oracle. */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
-public class SequenceMappedFieldsIT extends AbstractEsqlIntegTestCase {
+public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
     private static final Instant BASE = Instant.parse("2026-09-25T21:14:51.389000001Z");
 
     @Override
@@ -362,6 +362,52 @@ public class SequenceMappedFieldsIT extends AbstractEsqlIntegTestCase {
                 | keep changing | limit 1
                 """)) {
                 assertValues(fresh.values(), List.of(List.of(2L)));
+            }
+        } finally {
+            assertTrue(client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pit)).actionGet().isSucceeded());
+        }
+    }
+
+    /** Even an unused dynamic field replaces the mapping identity; a fresh sequence must remain usable afterward. */
+    public void testUnrelatedDynamicFieldAdditionRejectsOldPit() throws Exception {
+        String index = "sequence-unrelated-dynamic-field";
+        String unrelatedField = "unrelated_dynamic_field";
+        createRuntimeIndex(index, "constant");
+        assertNull(client().prepareFieldCaps(index).setFields(unrelatedField).get().getField(unrelatedField));
+        BytesReference pit = client().execute(
+            TransportOpenPointInTimeAction.TYPE,
+            new OpenPointInTimeRequest(index).keepAlive(TimeValue.timeValueMinutes(2))
+        ).actionGet().getPointInTimeId();
+        try {
+            SearchResponse first = guardedPitRead(pit, index, "A");
+            try {
+                assertEquals(1L, first.getHits().getTotalHits().value());
+                if (first.pointInTimeId() != null) pit = first.pointInTimeId();
+            } finally {
+                first.decRef();
+            }
+
+            // The guarded read demands "changing"; neither it nor the fresh query requests this new field.
+            prepareIndex(index).setId("unrelated")
+                .setSource(Map.of("@timestamp", BASE.plusNanos(2).toString(), "key", "unrelated", "phase", "unrelated", unrelatedField, 1))
+                .get();
+            assertBusy(() -> assertNotNull(client().prepareFieldCaps(index).setFields(unrelatedField).get().getField(unrelatedField)));
+            refresh(index);
+            BytesReference oldPit = pit;
+            for (String phase : List.of("B", "missing")) {
+                RuntimeException failure = expectThrows(RuntimeException.class, () -> {
+                    SearchResponse unexpected = guardedPitRead(oldPit, index, phase);
+                    unexpected.decRef();
+                });
+                assertThat(ExceptionsHelper.stackTrace(failure), containsString("mapping changes since the PIT reader was opened"));
+            }
+            try (var fresh = run("""
+                sequence by changing with {"maxspan":"30s"}
+                (from sequence-unrelated-dynamic-field | where phase=="A"),
+                (from sequence-unrelated-dynamic-field | where phase=="B")
+                | keep changing | limit 1
+                """)) {
+                assertValues(fresh.values(), List.of(List.of(1L)));
             }
         } finally {
             assertTrue(client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pit)).actionGet().isSucceeded());

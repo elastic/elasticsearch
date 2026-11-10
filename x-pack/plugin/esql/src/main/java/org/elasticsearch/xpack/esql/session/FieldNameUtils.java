@@ -160,16 +160,20 @@ public class FieldNameUtils {
 
         var forEachDownProcessor = new Holder<BiConsumer<LogicalPlan, Holder<Boolean>>>();
         Holder<LogicalPlan> lastSeenMerge = new Holder<>(null);
-        // Track if there are plans after a merge that reduce columns to a known set (e.g., Project, Aggregate)
+        // Track if plans after the first independent-branch boundary reduce columns to a known set (e.g., Project, Aggregate).
         Holder<Boolean> reduceColumnsAfterMerge = new Holder<>(false);
         forEachDownProcessor.set((LogicalPlan p, Holder<Boolean> breakEarly) -> {// go over each plan top-down
-            // Check if we see a column-reducing plan before encountering a MergePlan
+            // Stage-local projections must not become an outer column constraint on their siblings.
             if (lastSeenMerge.get() == null && shouldCollectReferencedFields(p, inlinestatsAggs)) {
                 reduceColumnsAfterMerge.set(true);
             }
 
-            if (p instanceof MergePlan mergePlan) {
-                lastSeenMerge.set(mergePlan);
+            if (p instanceof MergePlan || p instanceof Sequence) {
+                // Sequence stages have independent schemas even though matching must remain a separate plan type from a union.
+                if (p instanceof Sequence) {
+                    referencesBuilder.get().addAll(p.references());
+                }
+                lastSeenMerge.set(p);
 
                 // Early return from forEachDown. We will iterate over the children manually and end the recursion via forEachDown early.
                 var mergeRefsResult = AttributeSet.builder();
@@ -187,7 +191,7 @@ public class FieldNameUtils {
                 // by copy into parentKeepRefs above.
                 var enclosingBranchKeepRefs = currentBranchKeepRefs.get();
 
-                for (var branch : mergePlan.children()) {
+                for (var branch : p.children()) {
                     // Reset branch-specific state for each merge branch. keepRefs accumulates across the whole plan, so without
                     // resetting it a KEEP in one branch would reach the next branch and make it look column-constrained: a nested
                     // merge there would inherit those refs as its parentKeepRefs and never request all fields, and a LookupJoin
@@ -209,8 +213,9 @@ public class FieldNameUtils {
                     // 1. No KEEP commands in this branch (currentBranchKeepRefs is empty)
                     // 2. AND either:
                     // a) No field references were collected (referencesBuilder is empty), OR
-                    // b) The branch contains no commands that require explicit field collection
+                    // b) The branch's main pipeline contains no commands that require explicit field collection
                     // (e.g., no PROJECT or STATS commands that would limit field selection)
+                    // A membership subquery's KEEP or STATS only constrains that independent subquery.
                     //
                     // Examples:
                     // - "fork (where true) (where a is not null)" → needs all fields (no KEEP, only filters)
@@ -219,8 +224,7 @@ public class FieldNameUtils {
                     // - "fork (eval x = 1 | keep x) (eval y = 2 | keep y)" → specific fields only (both branches have KEEP)
                     // - "fork (eval x = 1 | keep x) (where true) | stats c = count(*)" → specific fields (stats reduces columns)
                     if (currentBranchKeepRefs.get().isEmpty()
-                        && (referencesBuilder.get().isEmpty()
-                            || false == branch.anyMatch(branchPlan -> shouldCollectReferencedFields(branchPlan, inlinestatsAggs)))
+                        && (referencesBuilder.get().isEmpty() || false == mainQueryRequiresFieldCollection(branch, inlinestatsAggs))
                         && false == reduceColumnsAfterMerge.get()) {
                         projectAll.set(true);
                         // Return early, we'll be returning all references no matter what the remainder of the query is.
@@ -231,12 +235,14 @@ public class FieldNameUtils {
                     mergeRefsResult.addAll(referencesBuilder.get());
                     mergeKeepRefsResult.addAll(keepRefs);
                 }
-                mergeRefsResult.removeIf(attr -> attr.name().equals(Fork.FORK_FIELD));
+                if (p instanceof MergePlan) {
+                    mergeRefsResult.removeIf(attr -> attr.name().equals(Fork.FORK_FIELD));
+                }
                 referencesBuilder.set(mergeRefsResult);
                 keepRefs.clear();
                 keepRefs.addAll(mergeKeepRefsResult);
                 currentBranchKeepRefs.set(enclosingBranchKeepRefs);
-                // Return early, we've already explored all merge branches.
+                // Return early, we've already explored all independent branches.
                 breakEarly.set(true);
                 return;
             } else if (p instanceof RegexExtract re) { // for Grok and Dissect

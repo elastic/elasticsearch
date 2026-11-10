@@ -66,6 +66,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -81,6 +82,7 @@ import org.elasticsearch.xpack.esql.plan.physical.SequenceExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.junit.BeforeClass;
 
 import java.util.ArrayDeque;
 import java.util.List;
@@ -98,6 +100,12 @@ import static org.hamcrest.Matchers.containsString;
  * has finished. Source operators, request breakers, block factories, analyzed plans and local stage drivers are real.
  */
 public class SequenceSourceOperatorTests extends ESTestCase {
+    /** The real operator harness analyzes its plan through the running build's default parser. */
+    @BeforeClass
+    public static void requireSequenceCommand() {
+        assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
+    }
+
     /** Satisfied downstream demand preserves execution status and still releases the snapshot and allocations. */
     public void testEarlyTerminationInsideOutputDoesNotRecordFailure() {
         var executionInfo = new EsqlExecutionInfo(Predicates.never(), EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS);

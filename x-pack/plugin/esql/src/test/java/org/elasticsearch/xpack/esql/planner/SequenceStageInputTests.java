@@ -28,6 +28,7 @@ import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Sequence;
 import org.elasticsearch.xpack.esql.plan.logical.SequenceStage;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -52,6 +54,12 @@ import static org.elasticsearch.xpack.esql.core.type.EsField.TimeSeriesFieldType
 
 /** Uses real compute drivers to check the source identity bridge through ordinary stage transformations. */
 public class SequenceStageInputTests extends ESTestCase {
+    /** These stage plans are analyzed through the running build's default parser. */
+    @BeforeClass
+    public static void requireSequenceCommand() {
+        assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
+    }
+
     public void testExpandedDerivedValuesKeepOriginalRow() {
         SequenceStage stage = firstStage("""
             sequence by normalized with {"maxspan":"30s"}

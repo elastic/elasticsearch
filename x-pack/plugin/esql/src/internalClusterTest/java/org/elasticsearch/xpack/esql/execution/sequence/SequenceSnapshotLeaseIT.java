@@ -45,7 +45,7 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.AbstractSequenceIntegTestCase;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
@@ -74,7 +74,7 @@ import static org.hamcrest.Matchers.containsString;
 /** Real shard expiry proves that a live source preserves its snapshot across stage and downstream pauses. */
 @Nightly // Real elapsed expiry is intentionally excluded from the ordinary fast test group.
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
-public class SequenceSnapshotLeaseIT extends AbstractEsqlIntegTestCase {
+public class SequenceSnapshotLeaseIT extends AbstractSequenceIntegTestCase {
     private static final TimeValue LEASE = TimeValue.timeValueSeconds(3);
 
     @Override

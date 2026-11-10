@@ -18,7 +18,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.AbstractSequenceIntegTestCase;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
 
@@ -40,7 +40,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
  * regression behavior and local costs, not production throughput, concurrency limits or parity with EQL capacity.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
-public class SequenceCapacityIT extends AbstractEsqlIntegTestCase {
+public class SequenceCapacityIT extends AbstractSequenceIntegTestCase {
     private static final String FIRST = "sequence-capacity-a";
     private static final String SECOND = "sequence-capacity-b";
     private static final Instant BASE = Instant.parse("2026-09-25T21:14:51.389Z");

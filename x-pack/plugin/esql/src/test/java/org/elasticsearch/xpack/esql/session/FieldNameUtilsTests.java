@@ -69,6 +69,7 @@ public class FieldNameUtilsTests extends ESTestCase {
 
     /** MEMBER's display label is not a substitute for a literal mapped-field demand. */
     public void testSequenceMemberAndQuotedFieldAreSeparateDemands() {
+        assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
         var parsed = TEST_PARSER.createStatement("""
             SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 2
             (FROM test | WHERE phase == "A"), (FROM test | WHERE phase == "B")
@@ -84,7 +85,61 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertFieldNames("from test", ALL_FIELDS);
     }
 
+    /** A stage-local projection cannot restrict an unconstrained sibling's observable output. */
+    public void testSequenceStageProjectionDoesNotNarrowSiblingOutput() {
+        assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
+        for (int projectedStage : List.of(1, 2)) {
+            String first = "(FROM first" + (projectedStage == 1 ? " | KEEP key" : "") + ")";
+            String second = "(FROM second" + (projectedStage == 2 ? " | KEEP key" : "") + ")";
+            for (String presentation : List.of("", " PRIMARY " + (3 - projectedStage))) {
+                assertFieldNames(
+                    "SEQUENCE BY key WITH {\"maxspan\":\"30s\"}" + presentation + " " + first + ", " + second + " | LIMIT 10",
+                    ALL_FIELDS
+                );
+            }
+        }
+    }
+
+    /** A membership subquery selects its own fields without constraining its stage's default output. */
+    public void testSequenceMembershipSubqueryDoesNotNarrowSiblingOutput() {
+        assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
+        for (String projection : List.of("KEEP key", "STATS BY key")) {
+            for (int wideStage : List.of(1, 2)) {
+                String membership = " | WHERE key IN (FROM cohort | " + projection + ")";
+                String first = "(FROM first" + (wideStage == 1 ? membership : " | KEEP key") + ")";
+                String second = "(FROM second" + (wideStage == 2 ? membership : " | KEEP key") + ")";
+                for (String presentation : List.of("", " PRIMARY " + wideStage)) {
+                    assertFieldNames(
+                        "SEQUENCE BY key WITH {\"maxspan\":\"30s\"}" + presentation + " " + first + ", " + second + " | LIMIT 10",
+                        ALL_FIELDS
+                    );
+                }
+            }
+        }
+    }
+
+    /** A projection after the sequence still permits selective source-field discovery. */
+    public void testSequenceOuterProjectionNarrowsSiblingOutput() {
+        assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
+        assertFieldNames("""
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 2
+            (FROM first | KEEP key), (FROM second)
+            | KEEP payload
+            """, Set.of("_index", "key", "key.*", "payload", "payload.*", "@timestamp", "@timestamp.*"));
+    }
+
+    /** Sequence keys do not acquire FORK's synthetic-column meaning when branch traversal is shared. */
+    public void testSequenceForkNamedFieldRemainsAnIndexDemand() {
+        assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
+        assertFieldNames("""
+            SEQUENCE BY _fork WITH {"maxspan":"30s"}
+            (FROM first | KEEP _fork), (FROM second | KEEP _fork)
+            | KEEP _fork
+            """, Set.of("_index", "_fork", "_fork.*", "@timestamp", "@timestamp.*"));
+    }
+
     public void testSequenceQualifiedPayloadFields() {
+        assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
         assertSequenceFieldNames("keep key, stage1.process.name", "process.name", "process.name.*", "@timestamp");
         assertSequenceFieldNames("where stage2.process.name == \"test\" | keep key", "process.name", "@timestamp");
         assertSequenceFieldNames("keep stage1.process.*", "process.*", "@timestamp");
@@ -92,11 +147,13 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testSequenceQualifiedEvalInputSurvivesAliasRemoval() {
+        assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
         assertSequenceFieldNames("eval result = stage1.process.name | keep result", "process.name", "@timestamp");
     }
 
     /** Payload discovery cannot depend on the stage predicates mentioning those payload fields. */
     public void testSequenceBareStageWildcardsDiscoverPayloadFields() {
+        assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
         for (String pattern : List.of("stage*", "stage1*", "stage2*", "stage*payload")) {
             assertSequenceFieldNames("keep " + pattern, "*", "@timestamp");
         }

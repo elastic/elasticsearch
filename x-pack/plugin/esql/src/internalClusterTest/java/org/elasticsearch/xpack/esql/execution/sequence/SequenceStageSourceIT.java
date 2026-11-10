@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.execution.sequence;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.AbstractSequenceIntegTestCase;
 import org.junit.After;
 
 import java.time.Instant;
@@ -25,7 +25,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 
 /** Tests original member documents carried by ordinary typed stage source columns. */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
-public class SequenceStageSourceIT extends AbstractEsqlIntegTestCase {
+public class SequenceStageSourceIT extends AbstractSequenceIntegTestCase {
     private static final String FIRST = "sequence-stage-source-a";
     private static final String SECOND = "sequence-stage-source-b";
     private static final String THIRD = "sequence-stage-source-c";

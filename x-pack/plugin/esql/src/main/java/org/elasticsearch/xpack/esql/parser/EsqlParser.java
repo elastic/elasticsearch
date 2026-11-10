@@ -212,9 +212,17 @@ public class EsqlParser {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        return org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.prepare(
-            invokeParser(query, params, inferenceSettings, viewName, pragmas, flags, EsqlBaseParser::statements, AstBuilder::statement)
+        var statement = invokeParser(
+            query,
+            params,
+            inferenceSettings,
+            viewName,
+            pragmas,
+            flags,
+            EsqlBaseParser::statements,
+            AstBuilder::statement
         );
+        return config.isDevVersion() ? org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.prepare(statement) : statement;
     }
 
     private record ParserPipeline(CommonTokenStream tokenStream, EsqlBaseParser parser) {}

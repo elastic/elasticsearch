@@ -359,6 +359,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new DetermineUnmappedFieldsToKeep(),
                 new ResolveImplicitTimeSeriesIdentityGrouping(),
                 new ResolvedProjects(),
+                new LowerSequenceOutput(),
                 new InferKnnSimilarity(),
                 new AddImplicitLimit(),
                 new AddImplicitTimestampSort(),
@@ -376,6 +377,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new UnionTypesCleanup()
             )
         );
+    }
+
+    /** Finish compiler-owned projections only after NULLIFY has reached its schema fixpoint. */
+    private static class LowerSequenceOutput extends AnalyzerRules.AnalyzerRule<LogicalPlan> {
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan) {
+            if (plan instanceof org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Originals originals) return originals.lower();
+            if (plan instanceof org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Scope scope) return scope.lower();
+            return plan;
+        }
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
     }
 
     public static final TransportVersion ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION = TransportVersion.fromName(
@@ -1512,8 +1528,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Keep k -> resolveKeep(k, context.unmappedResolution());
                 case MergePlan mergePlan -> resolveMergePlan(mergePlan, context);
                 case Sequence sequence -> sequence.resolveSchema();
-                case org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Originals originals -> originals.lower();
-                case org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Scope scope -> scope.lower();
+                case org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Originals originals -> originals.resolve(
+                    context.unmappedResolution() == UnmappedResolution.NULLIFY
+                );
+                case org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Scope scope -> scope.resolve(
+                    context.unmappedResolution() == UnmappedResolution.NULLIFY
+                );
                 case org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Capture capture -> capture.lower();
                 case Eval p -> resolveEval(p, childrenOutput);
                 case Enrich p -> resolveEnrich(p, childrenOutput);

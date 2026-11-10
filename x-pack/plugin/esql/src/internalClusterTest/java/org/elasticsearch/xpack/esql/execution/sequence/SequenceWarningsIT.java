@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.AbstractSequenceIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 
 /** Real searches and compute evaluators must share warning allowances across candidate pages and payload replay. */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
-public class SequenceWarningsIT extends AbstractEsqlIntegTestCase {
+public class SequenceWarningsIT extends AbstractSequenceIntegTestCase {
     private static final Instant BASE = Instant.parse("2026-09-25T21:14:51.389Z");
 
     public void testWarningsRemainBoundedAcrossCandidatePages() {

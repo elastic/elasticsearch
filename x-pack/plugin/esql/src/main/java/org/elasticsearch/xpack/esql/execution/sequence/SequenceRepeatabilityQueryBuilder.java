@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -44,7 +45,10 @@ public final class SequenceRepeatabilityQueryBuilder extends AbstractQueryBuilde
     private final List<String> fields;
     private final List<String> indices;
 
-    /** Retains the source's physical indices so unrelated shared-PIT slots remain empty without reading their mappings. */
+    /**
+     * Retains the source's physical indices so unrelated shared-PIT slots stay empty before delegate rewriting.
+     * Even a clause that ultimately matches nothing can otherwise parse timestamp bounds against a foreign mapping.
+     */
     public SequenceRepeatabilityQueryBuilder(QueryBuilder query, List<String> fields, List<String> indices) {
         this.query = Objects.requireNonNull(query);
         this.fields = List.copyOf(fields);
@@ -86,12 +90,13 @@ public final class SequenceRepeatabilityQueryBuilder extends AbstractQueryBuilde
 
     @Override
     protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor) throws IOException {
-        if (indices.contains(context.index().getName())) {
-            context.requireRepeatableEvaluation();
-            context.getFieldType("@timestamp");
-            for (String field : fields) {
-                context.getFieldType(field);
-            }
+        if (indices.contains(context.index().getName()) == false) {
+            return new MatchNoneQueryBuilder("PIT slot is outside this SEQUENCE source").toQuery(context, visitor);
+        }
+        context.requireRepeatableEvaluation();
+        context.getFieldType("@timestamp");
+        for (String field : fields) {
+            context.getFieldType(field);
         }
         return Rewriteable.rewrite(query, context, true).toQuery(context, visitor);
     }

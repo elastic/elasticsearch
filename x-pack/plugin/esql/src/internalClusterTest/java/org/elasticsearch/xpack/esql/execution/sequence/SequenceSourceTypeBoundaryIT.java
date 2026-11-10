@@ -12,7 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.AbstractSequenceIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
 
@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.containsString;
 
 /** Checks source type errors precede snapshot execution while ordinary membership queries keep their full type support. */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1)
-public class SequenceSourceTypeBoundaryIT extends AbstractEsqlIntegTestCase {
+public class SequenceSourceTypeBoundaryIT extends AbstractSequenceIntegTestCase {
     public void testRetainedSpatialFieldFailsVerificationWhilePrunedFieldWorks() {
         createEvents();
         var error = expectThrows(VerificationException.class, () -> run("""

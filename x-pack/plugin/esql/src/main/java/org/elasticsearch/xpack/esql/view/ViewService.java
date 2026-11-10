@@ -168,26 +168,24 @@ public class ViewService {
             final var threadPool = clusterService.threadPool();
             // The analysis completes on another thread. Go back to the request context, so that the warnings of the analysis itself
             // do not end up on the response.
+            final ActionListener<String> warningOnFailure = ActionListener.wrap(listener::onResponse, e -> {
+                final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                if (cause instanceof VerificationException || cause instanceof ResourceNotFoundException) {
+                    // HeaderWarning percent-encodes newlines, which makes the multi-line verification message unreadable.
+                    final String message = String.valueOf(cause.getMessage()).replace('\n', ' ');
+                    listener.onResponse(Strings.format("view [%s] query is not valid: %s", view.name(), message));
+                } else {
+                    listener.onResponse(null);
+                }
+            });
             final ActionListener<String> analyzed = ListenerTimeouts.wrapWithTimeout(
                 threadPool,
-                new ContextPreservingActionListener<>(threadPool.getThreadContext().newRestorableContext(false), listener),
+                new ContextPreservingActionListener<>(threadPool.getThreadContext().newRestorableContext(false), warningOnFailure),
                 VIEW_VERIFICATION_TIMEOUT,
                 threadPool.generic(),
                 "view [" + view.name() + "] verification"
             );
-            ActionListener.run(
-                analyzed,
-                l -> queryAnalyzer.analyze(statement, view.name(), ActionListener.<Void>wrap(ignored -> l.onResponse(null), e -> {
-                    final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                    if (cause instanceof VerificationException || cause instanceof ResourceNotFoundException) {
-                        // HeaderWarning percent-encodes newlines, which makes the multi-line verification message unreadable.
-                        final String message = String.valueOf(cause.getMessage()).replace('\n', ' ');
-                        l.onResponse(Strings.format("view [%s] query is not valid: %s", view.name(), message));
-                    } else {
-                        l.onResponse(null);
-                    }
-                }))
-            );
+            ActionListener.run(analyzed, l -> queryAnalyzer.analyze(statement, view.name(), l.map(ignored -> null)));
         } catch (Exception e) {
             listener.onFailure(e);
         }

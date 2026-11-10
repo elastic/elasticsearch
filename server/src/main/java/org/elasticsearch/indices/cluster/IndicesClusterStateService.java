@@ -1126,7 +1126,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
                     @Override
                     public void onFailure(Exception e) {
-                        // The pending allocation state is updated in failAndRemoveShard
+                        // The pending allocation state is updated in failAndRemoveShard.
+                        // shardRouting/primaryTerm here are createShard's own initial capture, not whatever a later
+                        // lock-wait iteration last re-resolved -- that's fine because shardId/allocationId (all that
+                        // matters for a failure report) can't have changed without the ticket-identity check at the
+                        // top of every iteration already catching it and returning early via onResponse(false).
                         failAndRemoveShard(
                             shardRouting,
                             primaryTerm,

@@ -36,14 +36,13 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
     public Decision canAllocate(ShardRouting shard, RoutingNode node, RoutingAllocation allocation) {
         if (shard.primary() == false
             || shard.unassigned() == false
-            || shard.recoverySource().getType() != RecoverySource.Type.SNAPSHOT
-            || node.node().getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
+            || shard.recoverySource().getType() != RecoverySource.Type.SNAPSHOT) {
             return Decision.YES;
         }
         Long shardSize = allocation.snapshotShardSizeInfo().getShardSize(shard);
         if (shardSize == null) {
             return allocation.decision(
-                allocation.isSimulating() ? Decision.NOT_PREFERRED : Decision.THROTTLE,
+                allocation.isSimulating() ? Decision.NO : Decision.THROTTLE,
                 NAME,
                 "snapshot shard size is still being fetched"
             );
@@ -54,7 +53,7 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
         var disk = allocation.clusterInfo().getNodeMostAvailableDiskUsages().get(node.nodeId());
         if (disk == null) {
             return allocation.decision(
-                allocation.isSimulating() ? Decision.NOT_PREFERRED : Decision.THROTTLE,
+                allocation.isSimulating() ? Decision.NO : Decision.THROTTLE,
                 NAME,
                 "node disk information is unavailable"
             );

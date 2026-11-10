@@ -635,11 +635,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             }
         };
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+        DatasetService datasetService = new DatasetService(
+            services.clusterService(),
+            crudValidators,
+            dataSourceModule.externalSourceMetrics()
+        );
         // Built from already-constructed functions: a table function declares its own dependencies by being
         // constructed with them, which is what keeps the facility from carrying any one function's.
-        DatasetDefinitionValidator datasetDefinitionValidator = new DatasetDefinitionValidator(crudValidators);
         TableFunctionRegistry tableFunctionRegistry = new TableFunctionRegistry(
-            tableFunctions(services.client(), datasetDefinitionValidator)
+            tableFunctions(services.client(), datasetService.definitionValidator())
         );
         EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
         capabilities.set(EsqlCapabilities.capabilities(functionRegistry, tableFunctionRegistry, false));
@@ -679,8 +683,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 maxDiscoveredFiles::get,
                 maxGlobExpansion::get,
                 maxListedObjects::get,
-                tableFunctionRegistry,
-                datasetDefinitionValidator
+                tableFunctionRegistry
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),
@@ -703,7 +706,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new MlAnomaliesView(viewService),
             new FederationLicense(this::getLicenseState),
             dataSourceService,
-            new DatasetService(services.clusterService(), crudValidators, dataSourceModule.externalSourceMetrics()),
+            datasetService,
             inventoryCounters,
             inventoryMetrics,
             new PluginComponentBinding<>(QueryMetricsListener.class, collector),

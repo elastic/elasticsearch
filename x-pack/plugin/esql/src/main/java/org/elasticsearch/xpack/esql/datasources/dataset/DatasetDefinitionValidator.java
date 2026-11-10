@@ -26,22 +26,13 @@ import java.util.Map;
 
 /**
  * Decides what a dataset definition means, or refuses it: which data source it reads through, which settings survive
- * that source's own validator, and what the declared mapping does to them.
- * <p>
- * One object rather than a method on {@link DatasetService} because a definition is now validated in two places that
- * have nothing else in common — when one is registered, and when one is read without being registered — and the whole
- * value of having a single answer is lost if either place grows its own. Everything a definition must satisfy belongs
- * here; what <em>registering</em> a definition must additionally satisfy (that the name is free in the index
- * namespace, that the ceiling is not reached) stays with the registration, because an inline read occupies no name
- * and adds to no count.
+ * that source's own validator, and what the declared mapping does to them. Everything a definition must satisfy is
+ * here, so the two callers — a registration and an inline read — cannot come to disagree. What <em>registering</em>
+ * additionally requires (a free name, the ceiling) stays with the registration.
  */
 public final class DatasetDefinitionValidator {
 
-    /**
-     * Not read: {@link DatasetReference.Inline#asRegistrationRequest} builds a request that is validated in process
-     * and never sent, so its master and ack timeouts decide nothing. Supplied rather than defaulted so the request's
-     * own invariant (non-null timeouts) holds.
-     */
+    /** Never read: the request is validated in process and never sent. Supplied so its non-null invariant holds. */
     private static final TimeValue UNUSED_TIMEOUT = TimeValue.timeValueSeconds(30);
 
     private final Map<String, DataSourceValidator> validatorsByType;
@@ -65,10 +56,8 @@ public final class DatasetDefinitionValidator {
     }
 
     /**
-     * The same validation, for a definition read inline: the definition becomes the request a registration would have
-     * made and goes through the one path above, so a payload refused in a query is refused in a registration with the
-     * same words. The request-level checks a REST registration gets for free are run here too, because nothing else
-     * will.
+     * The same validation for a definition read inline, via the request a registration would have made. Its
+     * {@code validate()} is run here because, unlike a REST registration, nothing in front of this will run it.
      */
     public BoundDataset validateInline(ProjectMetadata project, DatasetReference.Inline inline) {
         PutDatasetAction.Request request = inline.asRegistrationRequest(UNUSED_TIMEOUT);
@@ -79,11 +68,7 @@ public final class DatasetDefinitionValidator {
         return bind(project, request);
     }
 
-    /**
-     * The data source a definition reads through, as {@code project} has it.
-     *
-     * @throws ResourceNotFoundException if this project has no such data source
-     */
+    /** The data source a definition reads through, as {@code project} has it. */
     public DataSource requireDataSource(ProjectMetadata project, String name) {
         DataSource parent = DataSourceMetadata.get(project).get(name);
         if (parent == null) {
@@ -119,10 +104,7 @@ public final class DatasetDefinitionValidator {
         // A `path` column rename is honored by all formats (translation is centralized at the reader boundary).
         DeclaredSchemaValidator.validate(request.mapping());
         Map<String, Object> settings = PartitionSpec.alignWithMapping(validatedSettings, request.mapping());
-        // Over the map the Dataset actually carries, which is this one: a validator that returns a shadowing key
-        // the request never sent is caught here. One that strips a key is invisible by construction and is caught
-        // by the pre-check above. Reading `settings` rather than `validatedSettings` costs nothing and does not
-        // depend on alignWithMapping happening never to add a key.
+        // Over the map the Dataset carries: catches a validator that RETURNS a shadowing key the request never sent.
         for (String key : settings.keySet()) {
             DataSourceSetting parentSetting = parent.settings().get(key);
             if (parentSetting != null && parentSetting.secret()) {

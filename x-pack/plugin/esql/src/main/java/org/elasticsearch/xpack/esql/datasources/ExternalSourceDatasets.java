@@ -22,17 +22,13 @@ import java.util.Set;
  * {@link ExternalSourceExec} in the physical tree and every {@link ExternalRelation} inside a {@link FragmentExec}'s
  * logical fragment, wherever they sit (under an exchange, in a {@code UnionAll} branch, on the right side of a join).
  * <p>
- * Every such node names the dataset definition it was planned from, in one of two ways, and the receiving node
- * authorizes it before it rebinds the source to its own registry ({@link DatasetConfigResolver}): a plan arriving at
- * a node is not trusted to have been built by a coordinator the caller was allowed to use, so the caller's credential
- * must cover every definition the plan reads. A node naming a <b>registered</b> dataset is authorized by that name;
- * a node carrying the <b>definition itself</b> is authorized by the data source it reads through, which is the
- * privilege a registration against that source needs. The two are reported separately because they are different
- * privileges on different objects, not because of where either was written.
+ * Every such node names the definition it was planned from in one of two ways, and the receiving node authorizes it
+ * before rebinding the source to its own registry ({@link DatasetConfigResolver}). A node naming a <b>registered</b>
+ * dataset is authorized by that name; one carrying the <b>definition itself</b> is authorized by the data source it
+ * reads through. They are reported separately because they are different privileges on different objects.
  * <p>
- * A node with neither cannot be authorized at all; only a snapshot-only source with no dataset behind it is planned
- * that way, and its presence is reported separately so the caller can apply the release/snapshot rule
- * {@link DatasetConfigResolver#rebind} applies.
+ * A node with neither cannot be authorized at all, and only a snapshot-only source with no dataset behind it is
+ * planned that way, so its presence is reported separately too.
  */
 public final class ExternalSourceDatasets {
 
@@ -95,10 +91,7 @@ public final class ExternalSourceDatasets {
         return names;
     }
 
-    /**
-     * The data sources the plan's external nodes read a carried definition through, in plan order, without
-     * duplicates. Authorized as a registration against that source would be.
-     */
+    /** The data sources the plan reads a carried definition through, in plan order, without duplicates. */
     public Set<String> dataSources() {
         return dataSources;
     }

@@ -83,11 +83,8 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
      * per resolved name to the leaf's output. This constructor does not validate the names — invalid
      * names surface as unresolved attributes downstream with the existing "Unknown column" diagnostic.
      * <p>
-     * {@code datasetReference} says which dataset is read: a registered name, when
-     * {@link org.elasticsearch.xpack.esql.datasources.DatasetRewriter} created the relation from a
-     * {@code FROM <dataset>} pattern, or a definition the query supplied. It is {@code null} for a source with no
-     * dataset behind it at all. The name arm reaches the operator factory so the per-file {@code _index}
-     * synthesizer can emit it rather than the raw resource path.
+     * {@code datasetReference} says which dataset is read: a registered name, or a definition the query supplied,
+     * or {@code null} for a source with no dataset behind it.
      *
      * @param source the source location in the query
      * @param tablePath the resource path or external table identifier (a {@code Literal} or parameter reference)

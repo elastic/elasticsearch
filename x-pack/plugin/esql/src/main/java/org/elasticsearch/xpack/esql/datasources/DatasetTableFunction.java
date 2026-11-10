@@ -35,42 +35,22 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
  * {@code DATASET(<data source>, <definition>)}: a dataset read written where it is read, without registering the
  * dataset first.
  * <p>
- * It denotes exactly what {@code FROM <dataset>} denotes — an {@link UnresolvedExternalRelation}, which the ordinary
- * analyzer resolves by listing the resource and reading its schema, as it does for a registered one. The two differ
- * in one thing: where the definition came from. A registered read names it and every node looks it up; this one
- * carries it ({@link DatasetReference.Inline}) and every node binds it against its own data source registry. Nothing
- * downstream can tell the two apart beyond that, which is the point — an index pattern could become one of these
- * without anything moving.
- *
- * <h2>The definition</h2>
- *
- * The second argument is a dataset definition in the shape a registration body has: {@code resource},
- * {@code settings}, {@code mappings}, {@code description}. A definition whose only field is its resource may be
- * written as that resource alone, so {@code DATASET(s3, "s3://bucket/*.parquet")} and
- * {@code DATASET(s3, {"resource": "s3://bucket/*.parquet"})} are one read. It goes through the validator a
- * registration goes through ({@link DatasetDefinitionValidator}), so whatever a registered dataset can express this
- * can, and whatever a registration refuses this refuses in the same words.
- *
- * <h2>The two privileges</h2>
- *
- * This read names one object, the data source, and it is authorized both ways that object is governed: the
- * dataset-creation privilege on the name, and {@code read} on the source under {@code global.data_source}. Both are
- * settled by {@link EsqlAuthorizeDatasourceAction}, issued here as the caller before any definition is bound, and
- * again by a node that receives a plan carrying a definition ({@link ExternalSourceAuthorizer}), because a plan
- * arriving over the wire was not necessarily built by a coordinator the caller was allowed to use.
+ * It denotes exactly what {@code FROM <dataset>} denotes — an {@link UnresolvedExternalRelation}, resolved by the
+ * ordinary analyzer. The two differ in where the definition came from: a registered read names it and every node
+ * looks it up, this one carries it ({@link DatasetReference.Inline}) and every node binds it against its own data
+ * source registry.
  * <p>
- * <b>The same privilege a registration asks for.</b> What is being authorized is describing a dataset against a
- * source, and that is the same act whether or not the description is kept, so it is held to the same privilege. The
- * {@code global.data_source} half is literally the same one: {@code PutDatasetAction} advertises the same datasource
- * cluster action, which {@code ConfigurableClusterPrivileges} maps to {@code read}. The index half is the creation
- * privilege: {@code create_dataset} names {@link EsqlAuthorizeDatasourceAction} outright and {@code manage_dataset}
- * matches its namespace, while {@code read} reaches neither. A caller who may query a source's registered datasets
- * cannot describe a new one against it.
+ * The second argument is a dataset definition in the shape a registration body has. A definition whose only field is
+ * its resource may be written as that resource alone. It goes through the validator a registration goes through
+ * ({@link DatasetDefinitionValidator}), so whatever a registration refuses this refuses in the same words.
  * <p>
- * One asymmetry is left, and it is a missing name rather than a weaker check: a registration is authorized against
- * the <i>dataset's</i> name, the object it creates, and an inline read has no such name, so it is authorized against
- * the <i>data source's</i>. A role granting {@code create_dataset} on a set of dataset names and nothing on the
- * source's own name can register but cannot read inline, and the reverse holds too.
+ * It names one object, the data source, and is authorized both ways that object is governed — the dataset-creation
+ * privilege on the name, and {@code read} on the source under {@code global.data_source} — because describing a
+ * dataset against a source is the same act whether or not the description is kept. Both are settled by
+ * {@link EsqlAuthorizeDatasourceAction}, here and again on a node receiving the plan
+ * ({@link ExternalSourceAuthorizer}). One asymmetry is left, and it is a missing name rather than a weaker check: a
+ * registration is authorized against the <i>dataset's</i> name, and an inline read, having none, against the
+ * <i>data source's</i>.
  */
 public final class DatasetTableFunction implements TableFunction {
 
@@ -101,13 +81,9 @@ public final class DatasetTableFunction implements TableFunction {
     }
 
     /**
-     * The data source is one registered name, not a way of asking for several: a pattern, a comma list, a
-     * remote-cluster prefix and an exclusion each name something no data source can be registered as, and admitting
-     * any of them would make the read's identity — what both privileges are checked against — plural. Settled here
-     * rather than after binding, because it is the name the request to authorize is built from.
-     * <p>
-     * Nothing is checked about the definition here. It is held to what a registration is held to, by the validator
-     * that holds a registration to it, and only once the caller has been authorized to use the source at all.
+     * The data source is one registered name, not a way of asking for several: admitting a pattern, comma list,
+     * remote prefix or exclusion would make the read's identity — what both privileges are checked against — plural.
+     * The definition is checked by the validator that holds a registration to it, once the caller is authorized.
      */
     @Override
     public void validate(TableFunctionInvocation call) {
@@ -125,10 +101,8 @@ public final class DatasetTableFunction implements TableFunction {
         ActionListener<LeafPlan> listener
     ) {
         DatasetReference.Inline inline = new DatasetReference.Inline(call.name(0), definitionOf(call));
-        // The binding runs after the hop, on the search pool the rest of planning runs on: the authorization can
-        // complete on another thread (role resolution, a cluster-state wait), as DatasetResolver's does. Metered
-        // inside the fork, so the validation the binding does is charged to the query's planning CPU rather than to
-        // whichever transport thread answered — a table function holds no tracker of its own to charge it to.
+        // The binding runs on the search pool rather than on whichever transport thread answered the authorization,
+        // as DatasetResolver's does, so its validation is charged to the query's planning CPU.
         ActionListener<ActionResponse.Empty> authorized = new ThreadedActionListener<>(
             client.threadPool().executor(ThreadPool.Names.SEARCH),
             true,

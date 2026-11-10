@@ -982,11 +982,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         // unifiedSchema: also excluded — the optimizer's attribute-rewriting rules walk every arg
         // in info() and would prune the Unified schema along with `attributes`, defeating its
         // whole purpose. Preserved through with* methods which carry it explicitly.
-        // datasetReference: INCLUDED — it carries no Attributes (attribute rewriting cannot prune it) and the
-        // executing node rebinds config and sourcePath from whichever arm it holds (DatasetConfigResolver); a 9.5
-        // data node also reads the name arm to compose _index during a rolling upgrade. Excluding it would drop the
-        // slot whenever a generic rule reconstructs this node via node reflection. _name itself is folded on the
-        // logical relation by MaterializeRelationClassAndName, and _index is a null constant here.
+        // datasetReference: INCLUDED — excluding it would drop the slot whenever a generic rule reconstructs this
+        // node via node reflection, leaving the reading node nothing to resolve.
         // Mirrors ExternalRelation#info.
         // declaredReadSpec: INCLUDED for the same reason — it carries no Attributes (attribute
         // rewriting cannot prune it) and holds the declared renames; the renames used

@@ -79,10 +79,8 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     // Coordinator-only — not serialized. Drives FileSplit.readSchema + UBN SchemaAdaptingIterator.
     private final Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
     // Which dataset is read: a registered name, or a definition the query supplied. Null only for a source with
-    // no dataset behind it. The reading node resolves whichever arm arrived (DatasetConfigResolver): under the name
-    // arm the plan decides neither what is read nor with which credentials, and under the inline arm it supplies
-    // the definition — which the node re-validates and whose splits it bounds — while the credentials still come
-    // from the node's own registry.
+    // no dataset behind it. Resolved on the reading node (DatasetConfigResolver), whose own registry holds the
+    // credentials under either arm.
     @Nullable
     private final DatasetReference datasetReference;
     /**

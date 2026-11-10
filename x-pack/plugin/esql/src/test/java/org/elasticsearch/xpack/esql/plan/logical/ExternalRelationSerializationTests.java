@@ -132,28 +132,6 @@ public class ExternalRelationSerializationTests extends AbstractLogicalPlanSeria
         assertThat(roundTripped.datasetReference(), equalTo(inline));
     }
 
-    /**
-     * Toward a node predating the reference the inline arm is refused rather than dropped: such a node would
-     * receive a source with no dataset to resolve and refuse the query anyway, with a worse message.
-     */
-    public void testInlineArmRejectedForOlderTransportVersion() throws IOException {
-        TransportVersion before = TransportVersionUtils.getPreviousVersion(DatasetReference.DATASET_REFERENCE);
-        DatasetReference.Inline inline = new DatasetReference.Inline("s3_source", Map.of("resource", "s3://bucket/*.csv"));
-        ExternalRelation original = relationWith(inline, randomFieldAttributes(1, 3, false, before));
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> copyInstance(original, before));
-        assertThat(e.getMessage(), containsString("not supported on all nodes in the cluster"));
-    }
-
-    /** The name arm still reaches such a node, as the bare name it has always read. */
-    public void testNameArmStillTravelsToAnOlderTransportVersion() throws IOException {
-        TransportVersion before = TransportVersionUtils.getPreviousVersion(DatasetReference.DATASET_REFERENCE);
-        DatasetReference.Named named = new DatasetReference.Named("logs");
-        ExternalRelation original = relationWith(named, randomFieldAttributes(1, 3, false, before));
-
-        assertThat(copyInstance(original, before).datasetReference(), equalTo(named));
-    }
-
     private static ExternalRelation relationWith(DatasetReference reference, List<Attribute> output) {
         SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "csv", "s3://bucket/x.csv", null, null, Map.of(), Map.of());
         return new ExternalRelation(

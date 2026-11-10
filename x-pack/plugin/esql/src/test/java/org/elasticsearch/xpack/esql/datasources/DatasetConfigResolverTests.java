@@ -374,17 +374,17 @@ public class DatasetConfigResolverTests extends ESTestCase {
         assertThat(storage.get("endpoint"), not(equalTo("https://attacker.example")));
     }
 
-    /**
-     * The inline arm is a bound dataset, so on a release build it is not refused for the reason an empty slot is —
-     * and what it resolved to is the arm's own resource, not anything the plan chose.
-     */
-    public void testRebindInlineIsNotRefusedForNamingNoRegisteredDataset() {
+    /** The syntax is snapshot-only but the wire path is not, so a release node refuses an arm it can deserialize. */
+    public void testRebindInlineIsRefusedOnAReleaseBuild() {
         ProjectMetadata project = project(dataSource(Map.of("auth", "anonymous")), dataset(Map.of()));
+        DatasetConfigResolver release = new DatasetConfigResolver(
+            project,
+            false,
+            new DatasetDefinitionValidator(Map.of("s3", new PassThroughValidator()))
+        );
 
-        ExternalSourceExec rebound = inlineResolver(project).rebind(inlineExec(Map.of(), inlineDefinition()));
-
-        assertThat(rebound.datasetReference(), equalTo(inlineDefinition()));
-        assertThat(rebound.sourcePath(), equalTo(RESOURCE));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> release.rebind(inlineExec(Map.of(), inlineDefinition())));
+        assertThat(e.getMessage(), containsString("not supported on all nodes in the cluster"));
     }
 
     public void testRebindInlineIsIdempotent() {
@@ -467,8 +467,9 @@ public class DatasetConfigResolverTests extends ESTestCase {
         return new Dataset(PARENT, new DataSourceReference(PARENT), RESOURCE, null, Map.of());
     }
 
+    /** Snapshot, because the syntax that writes an inline arm is snapshot-only and a release build refuses one. */
     private static DatasetConfigResolver inlineResolver(ProjectMetadata project) {
-        return new DatasetConfigResolver(project, false, new DatasetDefinitionValidator(Map.of("s3", new PassThroughValidator())));
+        return new DatasetConfigResolver(project, true, new DatasetDefinitionValidator(Map.of("s3", new PassThroughValidator())));
     }
 
     private static ExternalSourceExec inlineExec(Map<String, Object> config, DatasetReference.Inline inline) {

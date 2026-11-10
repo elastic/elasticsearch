@@ -76,11 +76,7 @@ public final class DatasetConfigResolver {
         this(project, snapshotBuild, new DatasetDefinitionValidator(Map.of()));
     }
 
-    /**
-     * @param definitionValidator the one validator a registration goes through, so a definition the plan carried is
-     *                            held to what a registered one is held to — including the checks that stop a dataset
-     *                            setting shadowing one of the data source's secrets
-     */
+    /** @param definitionValidator the one validator a registration goes through, so both arms are held to it */
     public DatasetConfigResolver(ProjectMetadata project, boolean snapshotBuild, DatasetDefinitionValidator definitionValidator) {
         this.project = Objects.requireNonNull(project, "project");
         this.snapshotBuild = snapshotBuild;
@@ -114,9 +110,7 @@ public final class DatasetConfigResolver {
             }
             throw notRegistered(null);
         }
-        // The syntax that writes an inline arm is snapshot-only, but nothing on the wire path was: a release node
-        // would deserialize one and bind it. The gates still fire, so this is not a hole being closed — it is the
-        // same fail-closed treatment the unnamed case above gets, and it costs nothing while the syntax is gated.
+        // The syntax is snapshot-only but the wire path is not, so a release node could deserialize one and bind it.
         if (reference instanceof DatasetReference.Inline && snapshotBuild == false) {
             throw new IllegalStateException(DatasetReference.NOT_EVERYWHERE);
         }
@@ -140,17 +134,13 @@ public final class DatasetConfigResolver {
     }
 
     /**
-     * The definition the plan supplied, re-validated here against this node's own data source. What the plan
-     * supplied is the definition — user input, carrying no privilege — while the credentials stay in this node's
-     * registry, so a crafted plan can describe a read and still not choose an identity to make it with. It goes
-     * through the validator a registration goes through, which is also what stops a setting shadowing one of that
-     * source's secrets.
+     * The definition the plan supplied, re-validated here against this node's own data source. The plan supplies the
+     * definition; the credentials stay in this node's registry, so a crafted plan cannot choose an identity to read
+     * with.
      * <p>
-     * Every refusal is a {@code 400} {@link ElasticsearchStatusException}, including the ones the validator raises as
-     * a {@link ResourceNotFoundException} or an {@link IllegalStateException}: a data source registered in a state
-     * this node has not applied yet looks exactly like one that does not exist, and
-     * {@code DataNodeComputeHandler.isDatasetRefusalWhileBehind} can only wait for the state to arrive on a refusal
-     * of that shape.
+     * Every refusal is a {@code 400}, including those the validator raises as a {@link ResourceNotFoundException} or
+     * an {@link IllegalStateException}: a data source in a state this node has not applied yet looks exactly like one
+     * that does not exist, and {@code DataNodeComputeHandler.isDatasetRefusalWhileBehind} keys off that shape.
      */
     private Resolved resolveSupplied(DatasetReference.Inline inline) {
         try {

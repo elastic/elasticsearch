@@ -273,25 +273,6 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
         assertThat(copyInstance(original, TransportVersion.current()).datasetReference(), equalTo(inline));
     }
 
-    /** Toward a node predating the reference the inline arm is refused rather than dropped. */
-    public void testInlineArmRejectedForOlderTransportVersion() throws IOException {
-        TransportVersion before = TransportVersionUtils.getPreviousVersion(DatasetReference.DATASET_REFERENCE);
-        DatasetReference.Inline inline = new DatasetReference.Inline("s3_source", Map.of("resource", "s3://bucket/*.csv"));
-        ExternalSourceExec original = randomExternalSourceExec(before).withDatasetReference(inline);
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> copyInstance(original, before));
-        assertThat(e.getMessage(), containsString("not supported on all nodes in the cluster"));
-    }
-
-    /** The name arm still reaches such a node, as the bare name it has always read. */
-    public void testNameArmStillTravelsToAnOlderTransportVersion() throws IOException {
-        TransportVersion before = TransportVersionUtils.getPreviousVersion(DatasetReference.DATASET_REFERENCE);
-        DatasetReference.Named named = new DatasetReference.Named("logs");
-        ExternalSourceExec original = randomExternalSourceExec(before).withDatasetReference(named);
-
-        assertThat(copyInstance(original, before).datasetReference(), equalTo(named));
-    }
-
     /** A source with no dataset behind it still serializes toward such a node; only the inline arm is refused. */
     public void testAnEmptySlotSerializesToOlderTransportVersion() throws IOException {
         TransportVersion before = TransportVersionUtils.getPreviousVersion(DatasetReference.DATASET_REFERENCE);

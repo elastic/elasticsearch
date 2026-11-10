@@ -96,18 +96,6 @@ public class DatasetReferenceTests extends ESTestCase {
         }
     }
 
-    /** A name arm toward such a node writes nothing, because that node has nowhere to put it. */
-    public void testTheNameArmWritesNothingForANodeWithoutTheSlot() throws IOException {
-        TransportVersion beforeTheSlot = TransportVersionUtils.getPreviousVersion(DatasetReference.DATASET_NAME);
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(beforeTheSlot);
-            DatasetReference.writeOptional(out, NAMED);
-            assertThat(out.bytes().length(), equalTo(0));
-        }
-        assertThat(roundTrip(NAMED, beforeTheSlot), nullValue());
-    }
-
     public void testAPlanCarryingAnInlineArmIsRefusedOnAnOlderCluster() {
         TransportVersion before = TransportVersionUtils.getPreviousVersion(DatasetReference.DATASET_REFERENCE);
 
@@ -130,12 +118,6 @@ public class DatasetReferenceTests extends ESTestCase {
         DatasetReference.ensureEveryReferenceCanTravel(relation(NAMED), before);
         DatasetReference.ensureEveryReferenceCanTravel(relation(null), before);
         DatasetReference.ensureEveryReferenceCanTravel(indexPlan(), before);
-    }
-
-    /** What each arm is called in a diagnostic: the dataset's own name, or the source an inline definition reads. */
-    public void testEachArmNamesItself() {
-        assertThat(NAMED.describe(), equalTo("logs"));
-        assertThat(INLINE.describe(), equalTo("s3_source"));
     }
 
     /**

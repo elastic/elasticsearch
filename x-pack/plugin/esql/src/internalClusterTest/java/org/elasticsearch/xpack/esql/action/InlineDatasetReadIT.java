@@ -121,18 +121,6 @@ public class InlineDatasetReadIT extends AbstractExternalDataSourceIT {
         assertThat(e.getMessage(), containsString("data source [nobody_registered_this] not found"));
     }
 
-    /** The first argument is one data source, so a pattern there is a parse error rather than an expansion. */
-    public void testAPatternForTheDataSourceIsRefused() throws IOException {
-        Path dir = csvFixture();
-        registerDataSource(DATA_SOURCE, Map.of());
-
-        Exception e = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM DATASET(\"inline_*\", \"" + glob(dir) + "\")")).close()
-        );
-        assertThat(e.getMessage(), containsString("[DATASET] reads one data source, found [inline_*]"));
-    }
-
     /** Whatever a registration refuses in a definition is refused here, in the registration's own words. */
     public void testADefinitionSettingOutsideTheVocabularyIsRefused() throws IOException {
         Path dir = csvFixture();

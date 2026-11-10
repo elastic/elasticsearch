@@ -117,8 +117,6 @@ public final class MaterializeRelationClassAndName extends OptimizerRules.Optimi
     private static Expression relationName(Attribute attr, ClassifiedAs classified, Attribute indexAttribute) {
         // A dataset has one name, which is unknown when a bare glob named no dataset.
         if (classified instanceof ExternalRelation externalRelation) {
-            // Only a registered dataset has a name to fold; a definition the query supplied has none, so _name is
-            // NULL there, as it is for a source with no dataset behind it.
             return MetadataAttribute.keywordOrNull(
                 attr.source(),
                 externalRelation.datasetReference() instanceof DatasetReference.Named named ? named.name() : null

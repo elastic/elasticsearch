@@ -24,11 +24,9 @@ import static org.elasticsearch.xpack.core.security.support.Exceptions.authoriza
 import static org.elasticsearch.xpack.security.authz.RBACEngine.maybeGetRBACEngineRole;
 
 /**
- * Authorizes {@code global.data_source} for the actions that attach a dataset to a data source — registering one
- * ({@link EsqlDatasetActionNames#ESQL_PUT_DATASET_ACTION_NAME}) and reading one whose definition the query carries
- * ({@link EsqlDatasetActionNames#ESQL_AUTHORIZE_DATASOURCE_ACTION_NAME}) — when the request advertises a separate
- * datasource cluster action via {@link DataSourceRequestInfo#dataSourceClusterActionName()}. One interceptor covers
- * both because the datasource half is the same question, and asking it twice would let the answers drift.
+ * Authorizes {@code global.data_source} for the actions that attach a dataset to a data source — registering one,
+ * and reading one whose definition the query carries — when the request advertises a separate datasource cluster
+ * action via {@link DataSourceRequestInfo#dataSourceClusterActionName()}.
  */
 public class DatasetDatasourceRequestInterceptor implements RequestInterceptor {
 

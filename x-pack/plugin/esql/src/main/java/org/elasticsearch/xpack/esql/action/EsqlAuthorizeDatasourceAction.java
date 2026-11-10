@@ -35,30 +35,14 @@ import java.util.Map;
 /**
  * Read-authorization gate for a dataset a query defines where it reads it, rather than naming one that is registered.
  * <p>
- * Such a read names two objects, and this action is authorized on both, by the two mechanisms that already govern
- * them:
- * <ul>
- *   <li><b>the name</b>, by the dataset-creation privilege. This action carries {@code indices()}, so the
- *       authorization engine checks the caller's index privileges against that name, and the action's name is
- *       outside {@code indices:data/read/*} so {@code read} does not reach it: {@code create_dataset} names this
- *       action and {@code manage_dataset} matches its namespace. The name is the <i>data source's</i>, which is the
- *       only name an inline read has; a data source is not itself in the index namespace, so this half is what makes
- *       a role's index privileges reach an inline read at all, and the datasource half below is what makes the grant
- *       specific.</li>
- *   <li><b>the data source</b>, by {@code read} under {@code global.data_source} — the request advertises
- *       {@link DataSourceRequestInfo#dataSourceClusterActionName()}, which is what {@code PutDatasetAction} uses to
- *       have the datasource interceptor settle whether the caller may attach a dataset to that source at all.</li>
- * </ul>
- * Those two are what a registration asks for. One difference of object remains — a registration is checked against
- * the dataset's name and this against the source's, an inline read having no dataset name — and
- * {@code DatasetTableFunction} states it rather than this file.
- * The body asks nothing at all — it does not look the data source up, so a caller who may not use it learns nothing
- * about whether it exists. The definition is bound afterwards, and only for a caller who got through here.
+ * Authorized on both objects the read names, by the two mechanisms a registration already goes through: the data
+ * source's <b>name</b>, through {@code indices()} and the dataset-creation privilege, and the <b>data source</b>,
+ * through {@link DataSourceRequestInfo#dataSourceClusterActionName()} and the datasource interceptor. The body asks
+ * nothing, so a caller who may not use the source learns nothing about whether it exists.
  * <p>
- * Local only. It is issued in the caller's thread context by the coordinator while it binds the definition, and again
- * by a node that receives a plan carrying a definition ({@code ExternalSourceAuthorizer}), for the reason the
- * registered path is authorized in both places: a plan arriving over the wire was not necessarily built by a
- * coordinator the caller was allowed to use.
+ * Local only, and dispatched twice — by the coordinator while it binds the definition, and by a node that receives a
+ * plan carrying one ({@code ExternalSourceAuthorizer}) — because a plan is not trusted to have been built by a
+ * coordinator the caller was allowed to use. The registered path is authorized in both places for the same reason.
  */
 public class EsqlAuthorizeDatasourceAction extends TransportLocalProjectMetadataAction<
     EsqlAuthorizeDatasourceAction.Request,
@@ -77,11 +61,7 @@ public class EsqlAuthorizeDatasourceAction extends TransportLocalProjectMetadata
         super(NAME, actionFilters, transportService.getTaskManager(), clusterService, EsExecutors.DIRECT_EXECUTOR_SERVICE, projectResolver);
     }
 
-    /**
-     * No block: this reads no project state. The authorization that ran before it reads the caller's roles and the
-     * index abstractions, which a metadata-read block does not protect, and parking here would hold a query behind a
-     * block its answer does not depend on.
-     */
+    /** No block: this reads no project state, so parking here would hold a query behind something it does not read. */
     @Override
     protected ClusterBlockException checkBlock(Request request, ProjectState state) {
         return null;
@@ -99,18 +79,11 @@ public class EsqlAuthorizeDatasourceAction extends TransportLocalProjectMetadata
 
     /**
      * The data sources to authorize. Deliberately <b>not</b> {@link IndicesRequest.Replaceable}: a narrowing filter
-     * would drop a name the caller may not read and leave the body unable to tell, whereas a request fixed on its
-     * names is refused outright — and refusing reveals nothing, since a data source is not in the index namespace
-     * and the name is one the caller typed.
+     * would silently drop a name the caller may not read, where a request fixed on its names is refused outright.
      */
     public static class Request extends LocalClusterStateRequest implements IndicesRequest, DataSourceRequestInfo {
 
-        /**
-         * Immaterial to whether the name has to exist: this request is not {@link IndicesRequest.Replaceable}, so
-         * its names reach authorization unexpanded and unresolved whatever the options say. Spelled out rather than
-         * defaulted because {@link IndicesOptions#DEFAULT} errors on an unavailable target, which would read as the
-         * opposite intent.
-         */
+        /** Spelled out rather than defaulted: {@link IndicesOptions#DEFAULT} errors on an unavailable target. */
         private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.builder()
             .wildcardOptions(IndicesOptions.WildcardOptions.builder().matchClosed(true).includeHidden(true))
             .build();
@@ -119,8 +92,6 @@ public class EsqlAuthorizeDatasourceAction extends TransportLocalProjectMetadata
 
         public Request(TimeValue masterTimeout, String... dataSources) {
             super(masterTimeout);
-            // A non-replaceable request with no names is refused by the resolver as "requires explicit index names",
-            // so this cannot silently widen; both callers guarantee a name, and an assertion says so.
             assert dataSources.length > 0 : "a dataset reference must name the data source it reads through";
             this.dataSources = dataSources;
         }

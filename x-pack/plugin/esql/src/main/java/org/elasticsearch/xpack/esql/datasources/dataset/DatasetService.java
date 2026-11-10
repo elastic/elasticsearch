@@ -81,6 +81,11 @@ public class DatasetService {
         clusterService.getClusterSettings().initializeAndWatchIfRegistered(MAX_DATASETS_COUNT_SETTING, v -> this.maxDatasetsCount = v);
     }
 
+    /** The one validator a dataset definition goes through, registered here or carried by a query. */
+    public DatasetDefinitionValidator definitionValidator() {
+        return definitionValidator;
+    }
+
     protected DatasetMetadata getMetadata(ProjectMetadata projectMetadata) {
         return DatasetMetadata.get(projectMetadata);
     }

@@ -230,8 +230,6 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton MANAGE_VIEW_AUTOMATON = patterns("indices:admin/esql/view*");
     private static final Automaton CREATE_DATASET_AUTOMATON = patterns(
         EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME,
-        // A dataset a query defines inline is never registered, so nothing later checks a name against this privilege;
-        // this is the only place the caller is held to it, and holding them to it here is what makes the two equal.
         EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASOURCE_ACTION_NAME
     );
     private static final Automaton DELETE_DATASET_AUTOMATON = patterns(EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME);

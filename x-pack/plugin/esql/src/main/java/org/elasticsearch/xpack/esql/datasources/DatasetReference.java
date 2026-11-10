@@ -34,22 +34,11 @@ import java.util.TreeSet;
  * Which dataset an external source reads: one slot, either a registered dataset's {@link Named name} or an
  * {@link Inline} definition the query supplied. The reading node resolves whichever arrived.
  * <p>
- * <b>One slot rather than two.</b> A name and a definition are interchangeable inputs to the same read, so they
- * occupy one field and {@link DatasetConfigResolver#rebind} has one input to resolve. The shape it replaced — a
- * definition sitting beside a nullable name, resolved by testing the name for null and then testing the other field —
- * is one step from asking where a relation came from, and a later syntax that embeds a definition (a view, say) would
- * have had to add a third test. Here it lands on the {@code Inline} arm and nothing branches.
- * <p>
- * <b>Why a definition travels at all.</b> A data node does not read a source under the configuration the plan arrived
- * with; it rebuilds that configuration from its own cluster state, because a plan is not trusted to have been built by
- * a coordinator the caller was allowed to use. Rebuilding needs the whole definition rather than a name:
- * {@link DatasetRewriter#datasetConfig} takes a {@code Dataset} and the {@code DataSource} behind it, and the settings
- * it produces depend on the declared mapping ({@link PartitionSpec#alignWithMapping}).
- * <p>
- * <b>What does not travel.</b> The {@code Inline} arm carries a data source <i>name</i>, never its settings: the
- * definition says what to read and the name says whose credentials to read it with, and those credentials are looked
- * up in the receiving node's own registry. A dataset setting that shadows one of the data source's secrets is refused
- * by the one validator both arms go through, so the arm cannot smuggle one either.
+ * The definition travels because a data node rebuilds a read's configuration from its own cluster state rather than
+ * trusting what the plan arrived with, and rebuilding needs the whole definition: see
+ * {@link DatasetRewriter#datasetConfig} and {@link PartitionSpec#alignWithMapping}. What does not travel is the data
+ * source's settings — the {@link Inline} arm carries its <i>name</i>, and the credentials behind it are looked up in
+ * the receiving node's own registry.
  */
 public sealed interface DatasetReference extends Writeable {
 
@@ -112,13 +101,7 @@ public sealed interface DatasetReference extends Writeable {
             return dataSource;
         }
 
-        /**
-         * The field names only, never their values. The definition is whatever the user wrote inside the braces, and
-         * a record's generated toString renders all of it, so this arm is redacted for the same reason
-         * {@code TableFunctionArgument.NamedValues} is: a setting that shadows one of the data source's secrets is
-         * refused rather than stored, but the resource and the rest are still the caller's text, and nothing should
-         * have to know which log line or assertion message it reached.
-         */
+        /** Field names only: the values are the caller's text, and a record's generated toString would render them. */
         @Override
         public String toString() {
             return "Inline[dataSource=" + dataSource + ", definition=" + new TreeSet<>(definition.keySet()) + "]";
@@ -132,13 +115,8 @@ public sealed interface DatasetReference extends Writeable {
         }
 
         /**
-         * The definition as the request a registration would have made, so that one validator serves both arms and
-         * the two cannot come to disagree about what a definition may say. The name a registration takes from its URL
-         * path is the data source's here: it is the only name an inline read has, and it is the name the read is
-         * authorized under.
-         * <p>
-         * A definition naming its own data source is refused with an {@link IllegalArgumentException}; anything else a
-         * registration body cannot say is refused by the registration's own parser, in the registration's own words.
+         * The definition as the request a registration would have made, so one validator serves both arms. The name a
+         * registration takes from its URL path is the data source's here, that being the only name an inline read has.
          */
         public PutDatasetAction.Request asRegistrationRequest(TimeValue timeout) {
             if (definition.containsKey(DATA_SOURCE_FIELD)) {
@@ -164,13 +142,10 @@ public sealed interface DatasetReference extends Writeable {
     }
 
     /**
-     * Refuses {@code plan} if it carries an arm some node in the cluster could not read, which is decided here rather
-     * than where the plan is serialized: a leaf is read on whichever nodes hold its files, so a refusal at the
-     * serializer would fail part of a query and leave the rest of it reading, and which nodes those are is not known
-     * while the plan is still being analyzed. Walks both leaf shapes a table function may return, resolved or not.
+     * Refuses {@code plan} if it carries an arm some node could not read. Decided here rather than at the serializer,
+     * where refusing would fail part of a query and leave the rest of it reading.
      *
-     * @param minimumVersion the oldest transport version in this cluster, so a plan that passes has no target it
-     *                       cannot be sent to
+     * @param minimumVersion the oldest transport version in this cluster
      */
     static void ensureEveryReferenceCanTravel(LogicalPlan plan, TransportVersion minimumVersion) {
         if (minimumVersion.supports(DATASET_REFERENCE)) {
@@ -212,19 +187,16 @@ public sealed interface DatasetReference extends Writeable {
     }
 
     /**
-     * Writes the slot in the shape the stream can read. A {@link Named} arm toward a node predating the reference is
-     * written as the bare name that node has always read, byte for byte, so every query that works today keeps
-     * working. An {@link Inline} arm cannot be written that way and was refused while the query was planned
-     * ({@link #ensureEveryReferenceCanTravel}); reaching here with one means a target older than the minimum the
-     * coordinator saw, and dropping it would leave that node with nothing to resolve and no way to know.
+     * Writes the slot in the shape the stream can read: a {@link Named} arm toward an older node as the bare name it
+     * has always read. An {@link Inline} arm cannot be written that way and was refused while the query was planned
+     * ({@link #ensureEveryReferenceCanTravel}), so reaching here with one is a target older than the coordinator saw.
      */
     static void writeOptional(StreamOutput out, @Nullable DatasetReference reference) throws IOException {
         if (out.getTransportVersion().supports(DATASET_REFERENCE)) {
             out.writeOptionalWriteable(reference);
             return;
         }
-        // Before the slot's own version check, which returns without writing: an inline arm toward a node that has
-        // no slot at all is just as unreadable there, and returning would drop it silently.
+        // Before the slot's own version check below, which returns without writing and would drop this silently.
         if (reference instanceof Inline) {
             throw new IllegalArgumentException(NOT_EVERYWHERE);
         }
@@ -251,14 +223,8 @@ public sealed interface DatasetReference extends Writeable {
     }
 
     /**
-     * The definition a stream carried, checked rather than cast. A plan is not trusted to have been built by a
-     * coordinator the caller was allowed to use, so a payload the record cannot hold is a malformed request and is
-     * reported as one. Without this the cast raises a {@link ClassCastException} for a non-map and {@code Map.copyOf}
-     * a {@link NullPointerException} for a null key or value, both out of deserialization, where the tag's own
-     * default arm and everything else on this path produce an {@link IOException}.
-     * <p>
-     * Top level only, which is what {@code Map.copyOf} itself rejects. A null nested inside a value is carried and
-     * refused later by validation, as a 400 rather than a deserialization failure.
+     * Checked rather than cast, so a malformed wire payload is an {@link IOException} like the tag's default arm
+     * rather than a {@link ClassCastException} out of deserialization. Top level only, matching {@code Map.copyOf}.
      */
     private static Map<String, Object> inlineDefinition(Map<?, ?> fields) throws IOException {
         Map<String, Object> definition = new LinkedHashMap<>(fields.size());

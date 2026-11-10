@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.QueryFailureTelemetry;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
-import org.elasticsearch.xpack.esql.datasources.dataset.DatasetDefinitionValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
@@ -64,7 +63,6 @@ import org.elasticsearch.xpack.esql.telemetry.QueryMetric;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
@@ -95,7 +93,6 @@ public class PlanExecutor {
     @Nullable
     private final IntSupplier maxListedObjects;
     private final TableFunctionRegistry tableFunctionRegistry;
-    private final DatasetDefinitionValidator datasetDefinitionValidator;
 
     public PlanExecutor(
         IndexResolver indexResolver,
@@ -127,8 +124,7 @@ public class PlanExecutor {
             null,
             null,
             null,
-            new TableFunctionRegistry(List.of()),
-            new DatasetDefinitionValidator(Map.of())
+            new TableFunctionRegistry(List.of())
         );
     }
 
@@ -148,8 +144,7 @@ public class PlanExecutor {
         @Nullable IntSupplier maxDiscoveredFiles,
         @Nullable IntSupplier maxGlobExpansion,
         @Nullable IntSupplier maxListedObjects,
-        TableFunctionRegistry tableFunctionRegistry,
-        DatasetDefinitionValidator datasetDefinitionValidator
+        TableFunctionRegistry tableFunctionRegistry
     ) {
         this.indexResolver = indexResolver;
         this.parser = parser;
@@ -169,16 +164,6 @@ public class PlanExecutor {
         this.maxGlobExpansion = maxGlobExpansion;
         this.maxListedObjects = maxListedObjects;
         this.tableFunctionRegistry = tableFunctionRegistry;
-        this.datasetDefinitionValidator = datasetDefinitionValidator;
-    }
-
-    /**
-     * The one validator a dataset definition goes through, wherever it came from. Reached from here by the node-side
-     * rebind, which is handed it rather than building one, because the data source validators it needs are the
-     * plugins'.
-     */
-    public DatasetDefinitionValidator datasetDefinitionValidator() {
-        return datasetDefinitionValidator;
     }
 
     /**

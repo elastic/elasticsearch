@@ -36,13 +36,11 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
 /**
  * Decides, on the node that received a plan, whether the request's credential may read the datasets the plan reads.
  * <p>
- * Two kinds, authorized by their own privilege on their own object, both before anything binds. A plan naming a
- * <b>registered</b> dataset goes through the coordinator's gate for {@code FROM <dataset>}, described below. A plan
- * carrying the <b>definition itself</b> goes through the gate a registration against that data source needs,
- * {@link EsqlAuthorizeDatasourceAction}, which refuses a caller without index {@code read} on the name or without
- * {@code read} on the source under {@code global.data_source}. That refusal is reported as it arrives rather than
- * folded into the one message below: it names an object the caller typed, so its shape reveals nothing they did not
- * already supply.
+ * Two kinds, each authorized by its own privilege on its own object before anything binds. A plan naming a
+ * <b>registered</b> dataset goes through the coordinator's gate for {@code FROM <dataset>}, described below; a plan
+ * carrying the <b>definition itself</b> goes through {@link EsqlAuthorizeDatasourceAction}, the gate a registration
+ * against that data source needs. That refusal is reported as it arrives rather than folded into the message below,
+ * since it names an object the caller typed.
  * <p>
  * The compute actions are authorized by the security filter on their {@code indices()}, which the sender sets, and
  * a plan can pair an allowed index pattern with an external source for any dataset registered here; the filter never
@@ -152,10 +150,7 @@ public final class ExternalSourceAuthorizer {
         authorizeNames(names, parentTaskId, listener);
     }
 
-    /**
-     * The data sources behind the plan's carried definitions, in one request: the action authorizes every name it is
-     * given, so asking once costs one round-trip whatever the plan holds.
-     */
+    /** The data sources behind the plan's carried definitions, in one request whatever the plan holds. */
     private void authorizeDataSources(Set<String> dataSources, TaskId parentTaskId, ActionListener<Void> listener) {
         EsqlAuthorizeDatasourceAction.Request request = new EsqlAuthorizeDatasourceAction.Request(
             REST_MASTER_TIMEOUT_DEFAULT,
@@ -171,8 +166,7 @@ public final class ExternalSourceAuthorizer {
 
     private void authorizeNames(Set<String> names, TaskId parentTaskId, ActionListener<Void> listener) {
         if (names.isEmpty()) {
-            // No registered dataset to authorize: the plan's external nodes carried their own definitions, which the
-            // step above settled, or (on a snapshot build) nothing at all and the rebind lets them through.
+            // No registered dataset to authorize: the external nodes carried their own definitions, settled above.
             listener.onResponse(null);
             return;
         }
@@ -228,12 +222,9 @@ public final class ExternalSourceAuthorizer {
      * prefix or a selector), and nothing the authorization layer would read as a pattern. Datasets are registered
      * under plain index-style names, so anything else cannot be registered and is refused without a round-trip.
      * <p>
-     * The pattern half is deliberately the security layer's notion rather than {@code Regex.isSimpleMatchPattern},
-     * which tests {@code *} alone. A privilege is granted over names, and {@code StringMatcher} routes {@code *},
-     * {@code ?} and a leading {@code /} to an automaton, so a name carrying one of those is matched against a grant
-     * as a pattern. Letting it through here would authorize the literal string and resolve nothing, which keeps the
-     * read singular by the later exact lookup rather than by this check, and leaves two meanings of the word in one
-     * facility.
+     * The pattern half is the security layer's notion, not {@code Regex.isSimpleMatchPattern}: {@code StringMatcher}
+     * routes {@code *}, {@code ?} and a leading {@code /} to an automaton, so a name carrying one is matched against
+     * a grant as a pattern.
      */
     static boolean isExactLocalName(String name) {
         return name.isEmpty() == false

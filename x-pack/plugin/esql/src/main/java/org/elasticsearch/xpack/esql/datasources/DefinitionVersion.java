@@ -84,12 +84,8 @@ public final class DefinitionVersion {
      * dataset over it reads, and must change their versions too.
      * <p>
      * Murmur3-128, following {@code ReadConfigFingerprint}, and like it this guards accidental collision rather
-     * than an adversary. A registration writes the pre-image under a privileged operation, but a dataset read
-     * inline ({@code DatasetTableFunction}) writes the resource and the dataset settings under read privileges, so
-     * part of it is chosen by a reader. That stays contained rather than needing a stronger hash: the cache key
-     * this version sits in also carries the source's secret identity, so a collision cannot cross a credential
-     * boundary, and within one data source a caller who got through the gates already reaches whatever those
-     * credentials reach.
+     * than an adversary. A dataset read inline lets a reader choose part of the pre-image, but the cache key this
+     * version sits in also carries the source's secret identity, so a collision cannot cross a credential boundary.
      */
     public static String of(Dataset dataset, DataSource parent) {
         StringBuilder encoded = new StringBuilder();

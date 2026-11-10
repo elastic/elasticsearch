@@ -51,7 +51,7 @@ public interface PartitionedDocValues {
      * the index is recent enough to always write the partitions, and its {@code _tsid} uses the time-series doc-values format.
      */
     static boolean canPartitionByTsidPrefix(IndexSettings indexSettings) {
-        return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE)
+        return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.WRITE_TSID_PREFIX_PARTITION)
             && indexSettings.useTimeSeriesDocValuesFormat()
             && indexSettings.isES87TSDBCodecEnabled();
     }

@@ -602,3 +602,8 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testLoadId
   issue: https://github.com/elastic/elasticsearch/issues/165112
+- class: org.elasticsearch.lucene.spatial.CartesianCentroidCalculatorTests
+  tasks:
+  - :server:test
+  method: testAddDifferentDimensionalType
+  issue: https://github.com/elastic/elasticsearch/issues/165296

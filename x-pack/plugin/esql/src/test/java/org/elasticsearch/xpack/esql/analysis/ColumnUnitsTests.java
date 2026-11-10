@@ -102,6 +102,7 @@ public class ColumnUnitsTests extends ESTestCase {
         assertThat(unitOf(mul(column("rate", "bytes/s"), column("t", "s"))), equalTo("bytes"));
         assertThat(unitOf(div(column("a", "bytes/s"), column("b", "packets/s"))), equalTo("bytes/packets"));
         assertThat(unitOf(mul(column("x", "s"), column("y", "s"))), equalTo("s^2"));
+        assertThat(unitOf(mul(column("x", "s^2"), column("y", "bytes/s"))), equalTo("s*bytes"));
         assertThat("scaled units are opaque", unitOf(div(div(column("b", "ms"), number(7)), column("c", "ms"))), equalTo("ms/7/ms"));
     }
 
@@ -109,6 +110,7 @@ public class ColumnUnitsTests extends ESTestCase {
         assertThat("OpenTelemetry bytes", unitOf(div(column("a", "By"), column("b", "bytes"))), equalTo("1"));
         assertThat("UCUM annotation", unitOf(div(column("a", "{packets}"), column("b", "s"))), equalTo("packets/s"));
         assertThat(unitOf(div(column("a", "ns"), number(1_000_000))), equalTo("ms"));
+        assertThat("exponents", unitOf(div(column("a", "m/s^2"), column("b", "1/s"))), equalTo("m/s"));
     }
 
     public void testCount() {

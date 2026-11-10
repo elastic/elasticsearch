@@ -115,7 +115,7 @@ public record Unit(Map<String, Integer> exponents) {
     }
 
     /**
-     * Parses a {@code meta.unit} value. {@code 1} is unitless; {@code a/b} and {@code a*b} compose.
+     * Parses a {@code meta.unit} value. {@code 1} is unitless; {@code a/b}, {@code a*b} and {@code a^2} compose.
      */
     public static Unit parse(String unit) {
         String[] parts = unit.split("/");
@@ -126,10 +126,26 @@ public record Unit(Map<String, Integer> exponents) {
                 if (trimmed.isEmpty() || trimmed.equals(UNITLESS)) {
                     continue;
                 }
-                result = i == 0 ? result.times(of(trimmed)) : result.over(of(trimmed));
+                Unit term = power(trimmed);
+                result = i == 0 ? result.times(term) : result.over(term);
             }
         }
         return result;
+    }
+
+    private static Unit power(String term) {
+        int caret = term.lastIndexOf('^');
+        if (caret > 0) {
+            try {
+                int exponent = Integer.parseInt(term.substring(caret + 1));
+                if (exponent != 0) {
+                    return new Unit(Map.of(normalize(term.substring(0, caret)), exponent));
+                }
+            } catch (NumberFormatException e) {
+                // not an exponent, the whole term is the unit's name
+            }
+        }
+        return of(term);
     }
 
     private static String normalize(String base) {

@@ -141,14 +141,14 @@ public class Analysis {
     /**
      * {@link #NAMED_STOP_WORDS} as seen by indices whose creation version records a Lucene version before
      * {@link Version#LUCENE_10_6_0}: identical except that {@code _thai_} resolves to the Lucene 10.5 list. Held in a nested class so
-     * the legacy resource is only read once an old index actually resolves named stopwords.
+     * the Lucene 10.5 resource is only read once an old index actually resolves named stopwords.
      */
-    private static final class LegacyNamedStopWords {
+    private static final class Lucene105NamedStopWords {
         private static final Map<String, Set<?>> MAP;
 
         static {
             Map<String, Set<?>> map = new HashMap<>(NAMED_STOP_WORDS);
-            map.put("_thai_", LegacyThaiStopWords.DEFAULT_STOP_SET);
+            map.put("_thai_", Lucene105ThaiStopWords.defaultStopSet());
             MAP = Map.copyOf(map);
         }
     }
@@ -159,8 +159,7 @@ public class Analysis {
      * terms at query time than were removed at index time.
      */
     private static Map<String, Set<?>> namedStopWords(IndexVersion indexCreatedVersion) {
-        // Keep this gate aligned with ThaiAnalysis.generation in analysis-common.
-        return indexCreatedVersion.luceneVersion().onOrAfter(Version.LUCENE_10_6_0) ? NAMED_STOP_WORDS : LegacyNamedStopWords.MAP;
+        return Lucene105ThaiStopWords.appliesTo(indexCreatedVersion) ? Lucene105NamedStopWords.MAP : NAMED_STOP_WORDS;
     }
 
     public static CharArraySet parseWords(

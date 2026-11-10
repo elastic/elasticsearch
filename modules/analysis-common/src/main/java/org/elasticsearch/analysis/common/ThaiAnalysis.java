@@ -16,6 +16,7 @@ import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.th.ThaiTokenizer;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.analysis.Lucene105ThaiStopWords;
 import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 
@@ -23,33 +24,35 @@ import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 final class ThaiAnalysis {
 
     enum Generation {
-        LEGACY,
+        /** Lucene 10.5 behavior, kept for indices created before Lucene 10.6. */
+        LUCENE_10_5,
+        /** Whatever Lucene currently ships; not pinned to a Lucene version. */
         CURRENT;
 
         Analyzer newAnalyzer() {
             return switch (this) {
-                case LEGACY -> new LegacyThaiAnalyzer();
+                case LUCENE_10_5 -> new Lucene105ThaiAnalyzer();
                 case CURRENT -> new ThaiAnalyzer();
             };
         }
 
         Analyzer newAnalyzer(CharArraySet stopWords) {
             return switch (this) {
-                case LEGACY -> new LegacyThaiAnalyzer(stopWords);
+                case LUCENE_10_5 -> new Lucene105ThaiAnalyzer(stopWords);
                 case CURRENT -> new ThaiAnalyzer(stopWords);
             };
         }
 
         Tokenizer newTokenizer() {
             return switch (this) {
-                case LEGACY -> new LegacyThaiTokenizer();
+                case LUCENE_10_5 -> new Lucene105ThaiTokenizer();
                 case CURRENT -> new ThaiTokenizer();
             };
         }
 
         CharArraySet defaultStopSet() {
             return switch (this) {
-                case LEGACY -> LegacyThaiAnalyzer.getDefaultStopSet();
+                case LUCENE_10_5 -> Lucene105ThaiAnalyzer.getDefaultStopSet();
                 case CURRENT -> ThaiAnalyzer.getDefaultStopSet();
             };
         }
@@ -60,8 +63,7 @@ final class ThaiAnalysis {
     }
 
     static Generation generation(Version luceneVersion) {
-        // Keep this gate aligned with the _thai_ stopword gate in Analysis.namedStopWords.
-        return luceneVersion.onOrAfter(Version.LUCENE_10_6_0) ? Generation.CURRENT : Generation.LEGACY;
+        return Lucene105ThaiStopWords.appliesTo(luceneVersion) ? Generation.LUCENE_10_5 : Generation.CURRENT;
     }
 
     static PreBuiltAnalyzerProviderFactory preBuiltAnalyzerFactory() {

@@ -236,7 +236,7 @@ public class AnalysisTests extends ESTestCase {
 
         CharArraySet legacySet = Analysis.parseStopWords(legacy, null, stopwords, CharArraySet.EMPTY_SET);
         assertEquals(115, legacySet.size());
-        assertEquals(LegacyThaiStopWords.DEFAULT_STOP_SET, legacySet);
+        assertEquals(Lucene105ThaiStopWords.defaultStopSet(), legacySet);
         // Dropped from the Lucene list in apache/lucene#16718, so only the legacy set stops them.
         for (String word : List.of("ไป", "ผ่าน", "มา")) {
             assertTrue(word, legacySet.contains(word));
@@ -263,7 +263,7 @@ public class AnalysisTests extends ESTestCase {
             Analysis.parseStopWords(backportWithCurrentLucene, null, stopwords, CharArraySet.EMPTY_SET)
         );
         assertEquals(
-            LegacyThaiStopWords.DEFAULT_STOP_SET,
+            Lucene105ThaiStopWords.defaultStopSet(),
             Analysis.parseStopWords(laterIndexWithLegacyLucene, null, stopwords, CharArraySet.EMPTY_SET)
         );
     }
@@ -288,7 +288,7 @@ public class AnalysisTests extends ESTestCase {
     }
 
     /** The vendored list is shared node-wide, so it must not be mutable. */
-    public void testLegacyThaiStopWordsAreUnmodifiable() {
-        expectThrows(UnsupportedOperationException.class, () -> LegacyThaiStopWords.DEFAULT_STOP_SET.add("foo"));
+    public void testLucene105ThaiStopWordsAreUnmodifiable() {
+        expectThrows(UnsupportedOperationException.class, () -> Lucene105ThaiStopWords.defaultStopSet().add("foo"));
     }
 }

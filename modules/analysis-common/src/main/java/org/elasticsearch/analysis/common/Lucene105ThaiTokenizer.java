@@ -19,13 +19,13 @@ import org.apache.lucene.util.Version;
  * the buffer without line breaks the two rules cut in different places and so can produce different tokens. Used for indices
  * created before {@link Version#LUCENE_10_6_0} so their analysis does not change under them.
  */
-final class LegacyThaiTokenizer extends ThaiTokenizer {
+final class Lucene105ThaiTokenizer extends ThaiTokenizer {
 
-    LegacyThaiTokenizer() {
+    Lucene105ThaiTokenizer() {
         super();
     }
 
-    LegacyThaiTokenizer(AttributeFactory factory) {
+    Lucene105ThaiTokenizer(AttributeFactory factory) {
         super(factory);
     }
 

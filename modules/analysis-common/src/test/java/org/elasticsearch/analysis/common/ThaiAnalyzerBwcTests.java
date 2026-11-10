@@ -69,7 +69,7 @@ public class ThaiAnalyzerBwcTests extends ESTokenStreamTestCase {
     /** Mappings that only set {@code "analyzer": "thai"} use the prebuilt instance, so it must follow the same gate. */
     public void testPrebuiltThaiAnalyzer() throws IOException {
         NamedAnalyzer legacy = analysis(legacyVersion(), Settings.EMPTY).indexAnalyzers.get("thai");
-        assertThat(legacy.analyzer(), instanceOf(LegacyThaiAnalyzer.class));
+        assertThat(legacy.analyzer(), instanceOf(Lucene105ThaiAnalyzer.class));
         assertPreLucene106ThaiTokens(legacy);
 
         NamedAnalyzer current = analysis(gatedVersion(), Settings.EMPTY).indexAnalyzers.get("thai");
@@ -113,11 +113,11 @@ public class ThaiAnalyzerBwcTests extends ESTokenStreamTestCase {
             .put("index.analysis.analyzer.thai_only.tokenizer", "my_thai")
             .build();
         ESTestCase.TestAnalysis legacy = analysis(legacyVersion(), settings);
-        assertThat(legacy.tokenizer.get("my_thai").create(), instanceOf(LegacyThaiTokenizer.class));
+        assertThat(legacy.tokenizer.get("my_thai").create(), instanceOf(Lucene105ThaiTokenizer.class));
         assertPreLucene106ThaiTokenizer(legacy.indexAnalyzers.get("thai_only"));
 
         ESTestCase.TestAnalysis current = analysis(gatedVersion(), settings);
-        assertThat(current.tokenizer.get("my_thai").create(), not(instanceOf(LegacyThaiTokenizer.class)));
+        assertThat(current.tokenizer.get("my_thai").create(), not(instanceOf(Lucene105ThaiTokenizer.class)));
         assertLucene106ThaiTokenizer(current.indexAnalyzers.get("thai_only"));
     }
 
@@ -133,15 +133,18 @@ public class ThaiAnalyzerBwcTests extends ESTokenStreamTestCase {
         IndexVersion before = IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
         IndexVersion at = IndexVersions.UPGRADE_TO_LUCENE_10_6_0;
 
-        assertThat(new ThaiAnalyzerProvider(indexSettings(before), env(), "a", Settings.EMPTY).get(), instanceOf(LegacyThaiAnalyzer.class));
+        assertThat(
+            new ThaiAnalyzerProvider(indexSettings(before), env(), "a", Settings.EMPTY).get(),
+            instanceOf(Lucene105ThaiAnalyzer.class)
+        );
         assertThat(new ThaiAnalyzerProvider(indexSettings(at), env(), "a", Settings.EMPTY).get(), instanceOf(ThaiAnalyzer.class));
         assertThat(
             new ThaiTokenizerFactory(indexSettings(before), env(), "t", Settings.EMPTY).create(),
-            instanceOf(LegacyThaiTokenizer.class)
+            instanceOf(Lucene105ThaiTokenizer.class)
         );
         assertThat(
             new ThaiTokenizerFactory(indexSettings(at), env(), "t", Settings.EMPTY).create(),
-            not(instanceOf(LegacyThaiTokenizer.class))
+            not(instanceOf(Lucene105ThaiTokenizer.class))
         );
 
         PreConfiguredTokenizer preconfigured = new CommonAnalysisPlugin().getPreConfiguredTokenizers()
@@ -149,10 +152,13 @@ public class ThaiAnalyzerBwcTests extends ESTokenStreamTestCase {
             .filter(t -> t.getName().equals("thai"))
             .findFirst()
             .orElseThrow();
-        assertThat(preconfigured.get(indexSettings(before), env(), "thai", Settings.EMPTY).create(), instanceOf(LegacyThaiTokenizer.class));
+        assertThat(
+            preconfigured.get(indexSettings(before), env(), "thai", Settings.EMPTY).create(),
+            instanceOf(Lucene105ThaiTokenizer.class)
+        );
         assertThat(
             preconfigured.get(indexSettings(at), env(), "thai", Settings.EMPTY).create(),
-            not(instanceOf(LegacyThaiTokenizer.class))
+            not(instanceOf(Lucene105ThaiTokenizer.class))
         );
     }
 
@@ -162,7 +168,7 @@ public class ThaiAnalyzerBwcTests extends ESTokenStreamTestCase {
         IndexVersion laterIndexWithLegacyLucene = new IndexVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0.id() + 1, Version.LUCENE_10_5_2);
 
         assertEquals(ThaiAnalysis.Generation.CURRENT, ThaiAnalysis.generation(backportWithCurrentLucene));
-        assertEquals(ThaiAnalysis.Generation.LEGACY, ThaiAnalysis.generation(laterIndexWithLegacyLucene));
+        assertEquals(ThaiAnalysis.Generation.LUCENE_10_5, ThaiAnalysis.generation(laterIndexWithLegacyLucene));
     }
 
     /**

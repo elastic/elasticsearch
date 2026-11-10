@@ -17,35 +17,35 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.DecimalDigitFilter;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.index.analysis.LegacyThaiStopWords;
+import org.elasticsearch.index.analysis.Lucene105ThaiStopWords;
 
 /**
- * The Lucene 10.5 {@code ThaiAnalyzer}: {@link LegacyThaiTokenizer}, lowercase, decimal digit, stop, with the 10.5 default stopword
+ * The Lucene 10.5 {@code ThaiAnalyzer}: {@link Lucene105ThaiTokenizer}, lowercase, decimal digit, stop, with the 10.5 default stopword
  * list. No {@code ThaiCharFilter}, {@code ThaiNormalizationFilter} or {@code ThaiRepeatFilter}. Lucene's {@code ThaiAnalyzer} is final
  * and changed its chain in 10.6, so the old chain is rebuilt here. Used for indices created before
  * {@link Version#LUCENE_10_6_0} so that query-time analysis keeps matching the terms they were indexed with.
  */
-final class LegacyThaiAnalyzer extends StopwordAnalyzerBase {
+final class Lucene105ThaiAnalyzer extends StopwordAnalyzerBase {
 
     /**
-     * The Lucene 10.5 default stop set. It lives in server ({@link LegacyThaiStopWords}) so that {@code Analysis} can resolve
+     * The Lucene 10.5 default stop set. It lives in server ({@link Lucene105ThaiStopWords}) so that {@code Analysis} can resolve
      * {@code _thai_} for old indices without a cross-module hook.
      */
     static CharArraySet getDefaultStopSet() {
-        return LegacyThaiStopWords.DEFAULT_STOP_SET;
+        return Lucene105ThaiStopWords.defaultStopSet();
     }
 
-    LegacyThaiAnalyzer() {
-        this(LegacyThaiStopWords.DEFAULT_STOP_SET);
+    Lucene105ThaiAnalyzer() {
+        this(Lucene105ThaiStopWords.defaultStopSet());
     }
 
-    LegacyThaiAnalyzer(CharArraySet stopwords) {
+    Lucene105ThaiAnalyzer(CharArraySet stopwords) {
         super(stopwords);
     }
 
     @Override
     protected TokenStreamComponents createComponents(String fieldName) {
-        final Tokenizer source = new LegacyThaiTokenizer();
+        final Tokenizer source = new Lucene105ThaiTokenizer();
         TokenStream result = new LowerCaseFilter(source);
         result = new DecimalDigitFilter(result);
         result = new StopFilter(result, stopwords);

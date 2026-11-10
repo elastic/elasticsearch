@@ -378,7 +378,7 @@ public class SharingKeyTests extends ESTestCase {
         IndexVersion legacyVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
         Analyzer legacy = buildPrebuilt(legacyVersion, "thai");
         Analyzer current = buildPrebuilt(IndexVersion.current(), "thai");
-        assertThat(legacy, instanceOf(LegacyThaiAnalyzer.class));
+        assertThat(legacy, instanceOf(Lucene105ThaiAnalyzer.class));
         assertSame(legacy, buildPrebuilt(legacyVersion, "thai"));
         assertThat(current, instanceOf(ThaiAnalyzer.class));
         assertNotSame(legacy, current);

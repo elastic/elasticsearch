@@ -19,7 +19,7 @@ import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 
 /**
  * Factory for {@link ThaiTokenizer}. Indices whose creation version records a Lucene version before
- * {@link Version#LUCENE_10_6_0} get {@link LegacyThaiTokenizer} so that their tokenization does not change after an upgrade.
+ * {@link Version#LUCENE_10_6_0} get {@link Lucene105ThaiTokenizer} so that their tokenization does not change after an upgrade.
  */
 public class ThaiTokenizerFactory extends AbstractTokenizerFactory {
 

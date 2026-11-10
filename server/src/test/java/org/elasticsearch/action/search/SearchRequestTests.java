@@ -11,16 +11,21 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.AbstractSearchTestCase;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SubSearchSourceBuilder;
@@ -57,7 +62,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         if (randomBoolean()) {
             return request;
         }
-        // clusterAlias and absoluteStartMillis do not have public getters/setters hence we randomize them only in this test specifically.
+        // Exercise the independently supplied CCS clock and local-reduction metadata as well as ordinary requests.
         return SearchRequest.subSearchRequest(
             new TaskId("node", 1),
             request,
@@ -118,6 +123,229 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertEquals(deserializedRequest, searchRequest);
         assertEquals(deserializedRequest.hashCode(), searchRequest.hashCode());
         assertNotSame(deserializedRequest, searchRequest);
+        assertNull(deserializedRequest.getPointInTimeAuthorizationIndices());
+        assertNull(deserializedRequest.getPointInTimeAuthorizationScope());
+    }
+
+    public void testExplicitStartTimeSurvivesSerializationAndCopy() throws Exception {
+        long started = randomNonNegativeLong();
+        SearchRequest request = new SearchRequest(started).source(new SearchSourceBuilder());
+        SearchRequest copy = new SearchRequest(request);
+        SearchRequest transported = copyWriteable(copy, namedWriteableRegistry, SearchRequest::new);
+        assertNull(transported.getLocalClusterAlias());
+        assertTrue(transported.isFinalReduce());
+        assertEquals(started, transported.getAbsoluteStartMillis());
+        assertEquals(started, transported.getOrCreateAbsoluteStartMillis());
+        assertEquals(request, transported);
+        expectThrows(IllegalArgumentException.class, () -> new SearchRequest(-1L));
+    }
+
+    public void testExplicitStartTimeRejectsOlderPeers() {
+        SearchRequest request = new SearchRequest(randomNonNegativeLong()).source(new SearchSourceBuilder());
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> copyWriteable(
+                request,
+                namedWriteableRegistry,
+                SearchRequest::new,
+                TransportVersionUtils.getPreviousVersion(SearchRequest.SEARCH_REQUEST_ABSOLUTE_START_TIME)
+            )
+        );
+    }
+
+    /** Source expressions survive local copies but can never be sent to another coordinator. */
+    public void testPitAuthorizationExpressionsSurviveCopyAndRejectTransport() throws Exception {
+        SearchRequest request = new SearchRequest().source(
+            new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("snapshot")))
+        );
+        String[] expressions = { "events-alias-*" };
+        OriginalIndices original = new OriginalIndices(expressions, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        request.setPointInTimeAuthorizationIndices(original);
+        expressions[0] = "changed";
+        request.getPointInTimeAuthorizationIndices().indices()[0] = "also-changed";
+        assertArrayEquals(new String[] { "events-alias-*" }, request.getPointInTimeAuthorizationIndices().indices());
+        SearchRequest copy = new SearchRequest(request);
+        assertEquals(request, copy);
+        assertEquals(request.hashCode(), copy.hashCode());
+        assertEquals(0, copy.indices().length);
+        assertNull(copy.validate());
+        assertPitAuthorizationCannotBeSerialized(request);
+    }
+
+    public void testPitAuthorizationExpressionsRequireLocalPit() {
+        SearchRequest request = new SearchRequest().source(new SearchSourceBuilder());
+        request.setPointInTimeAuthorizationIndices(new OriginalIndices(new String[] { "alias" }, request.indicesOptions()));
+        assertEquals(List.of("PIT authorization expressions require a local point in time search"), request.validate().validationErrors());
+        request.source().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("snapshot")));
+        assertNull(request.validate());
+        SearchRequest remote = SearchRequest.subSearchRequest(
+            new TaskId("node", 1),
+            request,
+            Strings.EMPTY_ARRAY,
+            request.indicesOptions(),
+            "remote",
+            1,
+            true
+        );
+        assertEquals(List.of("PIT authorization expressions require a local point in time search"), remote.validate().validationErrors());
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> request.setPointInTimeAuthorizationIndices(new OriginalIndices(Strings.EMPTY_ARRAY, request.indicesOptions()))
+        );
+    }
+
+    /** Source construction binds authorization and membership together and cannot leave a scope-only request. */
+    public void testPitAuthorizationScopeRequiresFullAuthorizationAndRejectsTransport() throws Exception {
+        SearchRequest request = new SearchRequest().source(
+            new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("snapshot")))
+        );
+        String[] scopedExpressions = { "stage-alias-*" };
+        OriginalIndices complete = new OriginalIndices(new String[] { "all-alias-*" }, request.indicesOptions());
+        OriginalIndices scoped = new OriginalIndices(scopedExpressions, request.indicesOptions());
+        expectThrows(IllegalStateException.class, () -> request.setResolvedPointInTimeAuthorizationScope(scoped));
+        expectThrows(NullPointerException.class, () -> request.setPointInTimeAuthorization(null, scoped, QueryBuilders.matchAllQuery()));
+        expectThrows(NullPointerException.class, () -> request.setPointInTimeAuthorization(complete, null, QueryBuilders.matchAllQuery()));
+        expectThrows(NullPointerException.class, () -> request.setPointInTimeAuthorization(complete, scoped, null));
+        assertNull(request.getPointInTimeAuthorizationIndices());
+        assertNull(request.getPointInTimeAuthorizationScope());
+        request.setPointInTimeAuthorization(complete, scoped, QueryBuilders.matchAllQuery());
+        scopedExpressions[0] = "changed";
+        request.getPointInTimeAuthorizationScope().indices()[0] = "also-changed";
+        assertArrayEquals(new String[] { "stage-alias-*" }, request.getPointInTimeAuthorizationScope().indices());
+        assertNull(request.validate());
+        assertPitAuthorizationCannotBeSerialized(request);
+        SearchRequest copy = new SearchRequest(request);
+        assertEquals(request, copy);
+        assertEquals(request.hashCode(), copy.hashCode());
+        copy.setResolvedPointInTimeAuthorizationScope(new OriginalIndices(new String[] { "other-stage" }, request.indicesOptions()));
+        assertNotEquals(request, copy);
+        assertArrayEquals(new String[] { "stage-alias-*" }, request.getPointInTimeAuthorizationScope().indices());
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> request.setPointInTimeAuthorization(
+                complete,
+                new OriginalIndices(Strings.EMPTY_ARRAY, request.indicesOptions()),
+                QueryBuilders.matchAllQuery()
+            )
+        );
+    }
+
+    /** Admission enforces captured membership even when an ordinary query is replaced after construction. */
+    public void testPitSourceMembershipIsCapturedAndAppliedBeforeRewrite() throws Exception {
+        var membership = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("tenant", "a"));
+        OriginalIndices complete = new OriginalIndices(new String[] { "alias-a", "alias-b" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        OriginalIndices scoped = new OriginalIndices(new String[] { "alias-a" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        SearchSourceBuilder source = new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("snapshot")));
+        SearchRequest request = new SearchRequest().source(source);
+        request.setPointInTimeAuthorization(complete, scoped, membership);
+        membership.filter(new MatchNoneQueryBuilder());
+        source.query(QueryBuilders.termQuery("kind", "selected"));
+        SearchRequest admitted = request.withPointInTimeAuthorizationMembership(namedWriteableRegistry);
+        assertNotSame(request, admitted);
+        assertNotSame(source, admitted.source());
+        assertEquals(QueryBuilders.termQuery("kind", "selected"), source.query());
+        assertEquals(
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.termQuery("kind", "selected"))
+                .filter(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("tenant", "a"))),
+            admitted.source().query()
+        );
+        assertSame(admitted, admitted.withPointInTimeAuthorizationMembership(namedWriteableRegistry));
+        assertSame(new SearchRequest(admitted).source(), admitted.source());
+        SearchRequest copy = new SearchRequest(request);
+        copy.setPointInTimeAuthorizationIndices(
+            new OriginalIndices(new String[] { "resolved-a", "resolved-b" }, complete.indicesOptions())
+        );
+        copy.setResolvedPointInTimeAuthorizationScope(new OriginalIndices(new String[] { "resolved-a" }, scoped.indicesOptions()));
+        assertEquals(admitted.source().query(), copy.withPointInTimeAuthorizationMembership(namedWriteableRegistry).source().query());
+        assertArrayEquals(new String[] { "alias-a", "alias-b" }, request.getPointInTimeAuthorizationIndices().indices());
+        assertPitAuthorizationCannotBeSerialized(admitted);
+    }
+
+    /** Reusing an admitted local copy must not let mutable source/query builders remove source membership. */
+    public void testPitSourceMembershipIsReappliedAfterBuilderMutation() throws Exception {
+        OriginalIndices original = new OriginalIndices(new String[] { "alias-a" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        SearchRequest request = new SearchRequest().source(
+            new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("snapshot")))
+        );
+        request.setPointInTimeAuthorization(original, original, QueryBuilders.termQuery("tenant", "a"));
+        SearchRequest admitted = request.withPointInTimeAuthorizationMembership(namedWriteableRegistry);
+        ((BoolQueryBuilder) admitted.source().query()).filter().clear();
+        SearchRequest repaired = admitted.withPointInTimeAuthorizationMembership(namedWriteableRegistry);
+        assertNotSame(admitted, repaired);
+        assertEquals(List.of(QueryBuilders.termQuery("tenant", "a")), ((BoolQueryBuilder) repaired.source().query()).filter());
+        assertSame(repaired, repaired.withPointInTimeAuthorizationMembership(namedWriteableRegistry));
+        repaired.source().query(QueryBuilders.termQuery("kind", "replacement"));
+        SearchRequest replaced = repaired.withPointInTimeAuthorizationMembership(namedWriteableRegistry);
+        assertEquals(
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("kind", "replacement")).filter(QueryBuilders.termQuery("tenant", "a")),
+            replaced.source().query()
+        );
+        replaced.source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("snapshot"))));
+        assertEquals(
+            QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).filter(QueryBuilders.termQuery("tenant", "a")),
+            replaced.withPointInTimeAuthorizationMembership(namedWriteableRegistry).source().query()
+        );
+    }
+
+    public void testPitSourceMembershipWithoutAnOrdinaryQuery() throws Exception {
+        OriginalIndices original = new OriginalIndices(new String[] { "alias-a" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        SearchRequest request = new SearchRequest().source(
+            new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("snapshot")))
+        );
+        request.setPointInTimeAuthorization(original, original, QueryBuilders.termQuery("tenant", "a"));
+        assertEquals(
+            QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).filter(QueryBuilders.termQuery("tenant", "a")),
+            request.withPointInTimeAuthorizationMembership(namedWriteableRegistry).source().query()
+        );
+        assertNull(request.source().query());
+    }
+
+    /** Independent retrieval and global aggregation paths cannot bypass mandatory source membership. */
+    public void testPitSourceAuthorizationRejectsIndependentResultPaths() throws Exception {
+        OriginalIndices original = new OriginalIndices(new String[] { "alias-a" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        for (SearchSourceBuilder source : List.of(
+            new SearchSourceBuilder().subSearches(
+                List.of(
+                    new SubSearchSourceBuilder(QueryBuilders.matchAllQuery()),
+                    new SubSearchSourceBuilder(QueryBuilders.matchAllQuery())
+                )
+            ),
+            new SearchSourceBuilder().knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, 10f, null, null))),
+            new SearchSourceBuilder().retriever(new TestCompoundRetrieverBuilder(10)),
+            new SearchSourceBuilder().aggregation(AggregationBuilders.global("all_documents")),
+            new SearchSourceBuilder().suggest(new SuggestBuilder().addSuggestion("words", new TermSuggestionBuilder("field"))),
+            new SearchSourceBuilder().collapse(new CollapseBuilder("group"))
+        )) {
+            source.pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("snapshot")));
+            SearchRequest request = new SearchRequest().source(source);
+            request.setPointInTimeAuthorization(original, original, QueryBuilders.termQuery("tenant", "a"));
+            assertTrue(request.validate().validationErrors().contains("PIT source authorization requires a query-only search"));
+            assertEquals(
+                "PIT source authorization requires a query-only search",
+                expectThrows(IllegalArgumentException.class, () -> request.withPointInTimeAuthorizationMembership(namedWriteableRegistry))
+                    .getMessage()
+            );
+        }
+    }
+
+    /** Reject before writing any bytes, including the batched-search writer and older peers. */
+    private void assertPitAuthorizationCannotBeSerialized(SearchRequest request) throws IOException {
+        for (TransportVersion version : List.of(
+            TransportVersion.current(),
+            TransportVersionUtils.getPreviousVersion(SearchRequest.SEARCH_REQUEST_ABSOLUTE_START_TIME)
+        )) {
+            for (boolean skipIndices : List.of(false, true)) {
+                try (BytesStreamOutput out = new BytesStreamOutput()) {
+                    out.setTransportVersion(version);
+                    assertEquals(
+                        "PIT authorization expressions are coordinator-local and cannot be serialized",
+                        expectThrows(IllegalArgumentException.class, () -> request.writeTo(out, skipIndices)).getMessage()
+                    );
+                    assertEquals(0, out.size());
+                }
+            }
+        }
     }
 
     private static RescoreVectorBuilder randomRescoreVectorBuilder() {

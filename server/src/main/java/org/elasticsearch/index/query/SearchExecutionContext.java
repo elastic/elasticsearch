@@ -40,6 +40,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.AbstractScriptFieldType;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
@@ -135,6 +136,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final int shardRequestIndex;
     private final IndexSearcher searcher;
     private boolean cacheable = true;
+    private boolean requireRepeatableEvaluation;
+    @Nullable
+    private MappingLookup.CacheKey pointInTimeMappingCacheKey;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
     private Set<String> fieldsInIndex = null;
     private UnmappedFields unmappedFields = null;
@@ -251,6 +255,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         );
         this.sliceSelection = source.sliceSelection;
         this.fieldVisibilityPredicate = source.fieldVisibilityPredicate;
+        this.requireRepeatableEvaluation = source.requireRepeatableEvaluation;
+        this.pointInTimeMappingCacheKey = source.pointInTimeMappingCacheKey;
     }
 
     private SearchExecutionContext(
@@ -701,11 +707,53 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return indexSettings.getIndex();
     }
 
+    /**
+     * Supplies the original PIT reader's node-local mapping identity. Ordinary searches may omit it; a repeatable
+     * search requires it so a relocated/reconstructed reader cannot silently establish a different baseline.
+     */
+    public final void setPointInTimeMappingCacheKey(@Nullable MappingLookup.CacheKey mappingCacheKey) {
+        this.pointInTimeMappingCacheKey = mappingCacheKey;
+    }
+
+    /**
+     * Requires query construction and mapped runtime reads to be repeatable on this search context. A caller that
+     * replays selected documents can opt in before rewriting its query; the ordinary fixed request clock remains
+     * available, while nondeterministic scripts and external lookups cannot silently change the selected population.
+     * This does not constrain security policies constructed using independent search contexts.
+     */
+    public final void requireRepeatableEvaluation() {
+        requireRepeatableEvaluation = true;
+        if (pointInTimeMappingCacheKey == null) {
+            rejectNonRepeatableEvaluation("PIT reader without its original mapping identity");
+        }
+        if (pointInTimeMappingCacheKey != mappingCacheKey()) {
+            rejectNonRepeatableEvaluation("mapping changes since the PIT reader was opened");
+        }
+    }
+
+    @Override
+    public MappedFieldType getFieldType(String name) {
+        MappedFieldType fieldType = super.getFieldType(name);
+        if (requireRepeatableEvaluation
+            && fieldType instanceof AbstractScriptFieldType<?> scriptField
+            && scriptField.isResultDeterministic() == false) {
+            rejectNonRepeatableEvaluation("nondeterministic runtime field [" + name + "]");
+        }
+        return fieldType;
+    }
+
+    private void rejectNonRepeatableEvaluation(String feature) {
+        if (requireRepeatableEvaluation) {
+            throw new IllegalArgumentException("Query requires repeatable evaluation; unsupported " + feature);
+        }
+    }
+
     /** Compile script using script service */
     public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
         assert scriptService != null;
         FactoryType factory = scriptService.compile(script, context);
         if (factory instanceof ScriptFactory && ((ScriptFactory) factory).isResultDeterministic() == false) {
+            rejectNonRepeatableEvaluation("nondeterministic script");
             failIfFrozen();
         }
         return factory;
@@ -724,6 +772,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * This method fails if {@link #freezeContext()} is called before on this context.
      */
     public void disableCache() {
+        rejectNonRepeatableEvaluation("query feature that disables caching");
         failIfFrozen();
     }
 
@@ -747,12 +796,14 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     @Override
     public void registerAsyncAction(BiConsumer<Client, ActionListener<?>> asyncAction) {
+        rejectNonRepeatableEvaluation("asynchronous query rewrite");
         failIfFrozen();
         super.registerAsyncAction(asyncAction);
     }
 
     @Override
     public void executeAsyncActions(ActionListener<Void> listener) {
+        rejectNonRepeatableEvaluation("asynchronous query rewrite");
         failIfFrozen();
         super.executeAsyncActions(listener);
     }
@@ -788,6 +839,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public Client getClient() {
+        rejectNonRepeatableEvaluation("external query lookup");
         failIfFrozen(); // we somebody uses a terms filter with lookup for instance can't be cached...
         return client;
     }

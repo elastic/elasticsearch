@@ -193,6 +193,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Sequence;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
@@ -1510,6 +1511,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Rename r -> resolveRename(r, context.unmappedResolution());
                 case Keep k -> resolveKeep(k, context.unmappedResolution());
                 case MergePlan mergePlan -> resolveMergePlan(mergePlan, context);
+                case Sequence sequence -> sequence.resolveSchema();
+                case org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Originals originals -> originals.lower();
+                case org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Scope scope -> scope.lower();
+                case org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Capture capture -> capture.lower();
                 case Eval p -> resolveEval(p, childrenOutput);
                 case Enrich p -> resolveEnrich(p, childrenOutput);
                 case MvExpand p -> resolveMvExpand(p, childrenOutput);
@@ -2889,6 +2894,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Attribute> childrenOutput,
             Logger logger
         ) {
+            if (ua instanceof org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.BindingReference binding) {
+                return binding.resolve(childrenOutput);
+            }
             Attribute resolved = ua;
             List<Attribute> named = nameIndex == null
                 ? resolveAgainstList(ua, childrenOutput)
@@ -3090,6 +3098,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     } else if (proj instanceof UnsupportedAttribute) {
                         resolved = List.of(proj.toAttribute());
                         priority = 2;
+                    } else if (proj instanceof org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.BindingReference binding) {
+                        // Compiler passthrough follows the binding even when source resolution chose a different temporary name.
+                        resolved = List.of(binding.resolve(childOutput));
+                        priority = 0;
                     } else if (proj instanceof UnresolvedAttribute ua) {
                         if (useIndex) {
                             if (nameIndex.get() == null) {

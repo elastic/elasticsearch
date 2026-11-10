@@ -41,6 +41,7 @@ public class ColumnInfoImpl implements ColumnInfo {
         parser.declareString(constructorArg(), new ParseField("name"));
         parser.declareString(constructorArg(), new ParseField("type"));
         parser.declareStringArray(optionalConstructorArg(), new ParseField("original_types"));
+        parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("_meta"));
         PARSER = parser.build();
     }
 
@@ -86,11 +87,11 @@ public class ColumnInfoImpl implements ColumnInfo {
     @Nullable
     private final Map<String, Object> meta;
 
-    @ParserConstructor
     public ColumnInfoImpl(String name, String type, @Nullable List<String> originalTypes) {
         this(name, DataType.fromEs(type), originalTypes, null);
     }
 
+    @ParserConstructor
     public ColumnInfoImpl(String name, String type, @Nullable List<String> originalTypes, @Nullable Map<String, Object> meta) {
         this(name, DataType.fromEs(type), originalTypes, meta);
     }
@@ -182,6 +183,7 @@ public class ColumnInfoImpl implements ColumnInfo {
         return originalTypes;
     }
 
+    @Override
     @Nullable
     public Map<String, Object> meta() {
         return meta;

@@ -121,6 +121,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
@@ -135,6 +136,47 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SearchExecutionContextTests extends ESTestCase {
+
+    public void testRepeatableEvaluationRequiresOriginalPitMappingIdentity() {
+        SearchExecutionContext context = createSearchExecutionContext("uuid", null);
+        assertThat(
+            expectThrows(IllegalArgumentException.class, context::requireRepeatableEvaluation).getMessage(),
+            containsString("PIT reader without its original mapping identity")
+        );
+    }
+
+    public void testRepeatableEvaluationRejectsChangedMappingButOrdinarySearchIsUnchanged() {
+        MappingLookup original = createMappingLookup(List.of(), List.of());
+        MappingLookup changed = createMappingLookup(List.of(new MockFieldMapper.FakeFieldType("new_field")), List.of());
+        SearchExecutionContext context = createSearchExecutionContext("uuid", null, changed, Map.of());
+        context.setPointInTimeMappingCacheKey(original.cacheKey());
+        assertNotNull(context.getFieldType("new_field"));
+        assertNotNull(context.toQuery(new MatchAllQueryBuilder()));
+        assertThat(
+            expectThrows(IllegalArgumentException.class, context::requireRepeatableEvaluation).getMessage(),
+            containsString("mapping changes since the PIT reader was opened")
+        );
+        assertThat(
+            expectThrows(IllegalArgumentException.class, new SearchExecutionContext(context)::requireRepeatableEvaluation).getMessage(),
+            containsString("mapping changes since the PIT reader was opened")
+        );
+    }
+
+    public void testRepeatableEvaluationPreservesPitIdentityAndPolicyThroughCopyAndReset() {
+        SearchExecutionContext context = createSearchExecutionContext("uuid", null);
+        context.setPointInTimeMappingCacheKey(context.mappingCacheKey());
+        context.requireRepeatableEvaluation();
+        SearchExecutionContext copy = new SearchExecutionContext(context);
+        copy.requireRepeatableEvaluation();
+        for (SearchExecutionContext guarded : List.of(context, copy)) {
+            assertNotNull(guarded.toQuery(new MatchAllQueryBuilder()));
+            guarded.requireRepeatableEvaluation();
+            assertThat(
+                expectThrows(IllegalArgumentException.class, guarded::getClient).getMessage(),
+                containsString("requires repeatable evaluation")
+            );
+        }
+    }
 
     public void testFailIfFieldMappingNotFound() {
         SearchExecutionContext context = createSearchExecutionContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);

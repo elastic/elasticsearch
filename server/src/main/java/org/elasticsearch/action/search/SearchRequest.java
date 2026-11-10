@@ -13,17 +13,22 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -66,6 +71,9 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
 
     private static final long DEFAULT_ABSOLUTE_START_MILLIS = -1;
 
+    /** Preserves a caller-supplied date-math clock across local transport searches. */
+    public static final TransportVersion SEARCH_REQUEST_ABSOLUTE_START_TIME = TransportVersion.fromName("esql_sequence_repeatable_input");
+
     private static final TransportVersion RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE = TransportVersion.fromName(
         "re_remove_min_compatible_shard_node"
     );
@@ -77,6 +85,9 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
     private SearchType searchType = SearchType.DEFAULT;
 
     private String[] indices = Strings.EMPTY_ARRAY;
+
+    @Nullable
+    private PointInTimeAuthorization pointInTimeAuthorization;
 
     @Nullable
     private ResolvedIndexExpressions resolvedIndexExpressions = null;
@@ -138,6 +149,20 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
     public SearchRequest() {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
+        this.finalReduce = true;
+        this.ccsMinimizeRoundtrips = true;
+    }
+
+    /**
+     * Anchors date math to the parent query's start time when several searches implement one logical request.
+     * Paging and evidence replay must evaluate relative dates against the same clock, including alias filters.
+     */
+    public SearchRequest(long absoluteStartMillis) {
+        if (absoluteStartMillis < 0) {
+            throw new IllegalArgumentException("absoluteStartMillis must not be negative but was [" + absoluteStartMillis + "]");
+        }
+        this.localClusterAlias = null;
+        this.absoluteStartMillis = absoluteStartMillis;
         this.finalReduce = true;
         this.ccsMinimizeRoundtrips = true;
     }
@@ -274,6 +299,7 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
         this.resolvedIndexExpressions = searchRequest.resolvedIndexExpressions;
         this.resolvedTargetProjects = searchRequest.resolvedTargetProjects;
         this.bufferSubSearchResponseForMultiSearch = searchRequest.bufferSubSearchResponseForMultiSearch;
+        this.pointInTimeAuthorization = searchRequest.pointInTimeAuthorization;
     }
 
     /**
@@ -301,7 +327,9 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
             absoluteStartMillis = in.readVLong();
             finalReduce = in.readBoolean();
         } else {
-            absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
+            absoluteStartMillis = in.getTransportVersion().supports(SEARCH_REQUEST_ABSOLUTE_START_TIME)
+                ? in.readZLong()
+                : DEFAULT_ABSOLUTE_START_MILLIS;
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
@@ -333,6 +361,7 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
         } else {
             this.routingFromSlice = false;
         }
+
     }
 
     @Override
@@ -341,6 +370,17 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
     }
 
     public void writeTo(StreamOutput out, boolean skipIndices) throws IOException {
+        if (pointInTimeAuthorization != null) {
+            // Search binds source membership at local admission; the authorization carrier cannot cross a transport boundary.
+            throw new IllegalArgumentException("PIT authorization expressions are coordinator-local and cannot be serialized");
+        }
+        if (localClusterAlias == null
+            && absoluteStartMillis != DEFAULT_ABSOLUTE_START_MILLIS
+            && out.getTransportVersion().supports(SEARCH_REQUEST_ABSOLUTE_START_TIME) == false) {
+            throw new IllegalArgumentException(
+                "A search with an explicit start time is not supported in transport version [" + out.getTransportVersion() + "]"
+            );
+        }
         super.writeTo(out);
         out.writeByte(searchType.id());
         // write list of expressions that always resolves to no indices the same way we do it in security code to safely skip sending the
@@ -361,6 +401,8 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
         if (localClusterAlias != null) {
             out.writeVLong(absoluteStartMillis);
             out.writeBoolean(finalReduce);
+        } else if (out.getTransportVersion().supports(SEARCH_REQUEST_ABSOLUTE_START_TIME)) {
+            out.writeZLong(absoluteStartMillis);
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
         if (out.getTransportVersion().supports(RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE) == false) {
@@ -378,6 +420,7 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
                 out.writeOptionalString(searchSlice());
             }
         }
+
     }
 
     @Override
@@ -391,6 +434,15 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
 
         if (source != null) {
             validationException = source.validate(validationException, scroll, allowPartialSearchResults);
+        }
+        if (pointInTimeAuthorization != null && (pointInTimeBuilder() == null || localClusterAlias != null)) {
+            validationException = addValidationError(
+                "PIT authorization expressions require a local point in time search",
+                validationException
+            );
+        }
+        if (hasUnsupportedPointInTimeSource()) {
+            validationException = addValidationError("PIT source authorization requires a query-only search", validationException);
         }
         if (scroll) {
             if (requestCache != null && requestCache) {
@@ -449,15 +501,15 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
      * Returns the current time in milliseconds from the time epoch, to be used for the execution of this search request. Used to
      * ensure that the same value, determined by the coordinating node, is used on all nodes involved in the execution of the search
      * request. When created through {@link #subSearchRequest(TaskId, SearchRequest, String[], IndicesOptions, String, long, boolean)},
-     * this method returns the provided current time, otherwise it will return {@link System#currentTimeMillis()}.
+     * or {@link #SearchRequest(long)}, this method returns the supplied time, otherwise it returns {@link System#currentTimeMillis()}.
      */
-    long getOrCreateAbsoluteStartMillis() {
+    public long getOrCreateAbsoluteStartMillis() {
         return absoluteStartMillis == DEFAULT_ABSOLUTE_START_MILLIS ? System.currentTimeMillis() : absoluteStartMillis;
     }
 
     /**
-     * Returns the provided <code>absoluteStartMillis</code> when created through {@link #subSearchRequest} and
-     * -1 otherwise.
+     * Returns the provided <code>absoluteStartMillis</code> when created through {@link #subSearchRequest}
+     * or {@link #SearchRequest(long)}, and -1 otherwise.
      */
     long getAbsoluteStartMillis() {
         return absoluteStartMillis;
@@ -649,6 +701,93 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
             return source.pointInTimeBuilder();
         }
         return null;
+    }
+
+    /**
+     * Supplies or resolves complete snapshot authorization for internal local PIT paging. Security must verify
+     * coverage of every concrete PIT index under current caller permissions. For one source of a shared PIT,
+     * use {@link #setPointInTimeAuthorization(OriginalIndices, OriginalIndices, QueryBuilder)} to bind its scope
+     * and membership atomically. This state has no REST/wire representation and survives local copies only.
+     */
+    public void setPointInTimeAuthorizationIndices(OriginalIndices originalIndices) {
+        pointInTimeAuthorization = pointInTimeAuthorization == null
+            ? PointInTimeAuthorization.snapshot(originalIndices)
+            : pointInTimeAuthorization.withIndices(originalIndices);
+    }
+
+    /**
+     * Constructs one independently authorized source of a shared local PIT. Search automatically applies the
+     * captured membership query, even if the caller later changes its ordinary query. Security separately
+     * authorizes full token coverage and narrows overlapping grants to this source's expressions. Query
+     * builders are captured by value; neither callers nor local request copies can mutate this binding.
+     * Only query-only searches are admitted: alternative retrieval paths and global aggregations must not
+     * bypass membership by executing independently of the main query.
+     */
+    public void setPointInTimeAuthorization(OriginalIndices indices, OriginalIndices scope, QueryBuilder membership) {
+        pointInTimeAuthorization = PointInTimeAuthorization.source(indices, scope, membership);
+    }
+
+    /** Returns a defensive copy of complete snapshot authorization expressions, or null for ordinary PIT requests. */
+    @Nullable
+    public OriginalIndices getPointInTimeAuthorizationIndices() {
+        return pointInTimeAuthorization == null ? null : pointInTimeAuthorization.indices();
+    }
+
+    /**
+     * Replaces a constructed source's expressions after Security's caller-scoped resolution, preserving its
+     * membership query and complete snapshot authorization. This cannot construct a scope-only request.
+     */
+    public void setResolvedPointInTimeAuthorizationScope(OriginalIndices originalIndices) {
+        if (pointInTimeAuthorization == null) {
+            throw new IllegalStateException("PIT scope resolution requires a constructed source authorization");
+        }
+        pointInTimeAuthorization = pointInTimeAuthorization.withScope(originalIndices);
+    }
+
+    /** Returns a defensive copy of independently authorized source expressions, or null for full-snapshot searches. */
+    @Nullable
+    public OriginalIndices getPointInTimeAuthorizationScope() {
+        return pointInTimeAuthorization == null ? null : pointInTimeAuthorization.scope();
+    }
+
+    /** Admission copies the ordinary source and enforces captured membership before any rewrite can run. */
+    SearchRequest withPointInTimeAuthorizationMembership(NamedWriteableRegistry registry) throws IOException {
+        if (pointInTimeAuthorization == null) {
+            return this;
+        }
+        QueryBuilder membership = pointInTimeAuthorization.membership(registry);
+        if (membership == null) {
+            return this;
+        }
+        if (source == null) {
+            throw new IllegalArgumentException("PIT source authorization requires a search source");
+        }
+        if (hasUnsupportedPointInTimeSource()) {
+            throw new IllegalArgumentException("PIT source authorization requires a query-only search");
+        }
+        QueryBuilder query = source.query();
+        // A source/query setter or direct builder mutation may have removed an earlier admission's filter.
+        // Reuse only a still-mandatory captured predicate, never a mutable "already applied" flag.
+        if (query instanceof BoolQueryBuilder bool && bool.filter().contains(membership)) {
+            return this;
+        }
+        return new SearchRequest(this).source(
+            source.shallowCopy()
+                .query(QueryBuilders.boolQuery().must(query == null ? QueryBuilders.matchAllQuery() : query).filter(membership))
+        );
+    }
+
+    private boolean hasUnsupportedPointInTimeSource() {
+        return pointInTimeAuthorization != null
+            && pointInTimeAuthorization.scope() != null
+            && source != null
+            && (source.retriever() != null
+                || source.subSearches().size() > 1
+                || source.knnSearch().isEmpty() == false
+                || source.rankBuilder() != null
+                || source.aggregations() != null
+                || source.suggest() != null
+                || source.collapse() != null);
     }
 
     /**
@@ -920,6 +1059,7 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
         SearchRequest that = (SearchRequest) o;
         return searchType == that.searchType
             && Arrays.equals(indices, that.indices)
+            && Objects.equals(pointInTimeAuthorization, that.pointInTimeAuthorization)
             && Objects.equals(routing, that.routing)
             && routingFromSlice == that.routingFromSlice
             && Objects.equals(preference, that.preference)
@@ -942,6 +1082,7 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
         return Objects.hash(
             searchType,
             Arrays.hashCode(indices),
+            pointInTimeAuthorization,
             routing,
             routingFromSlice,
             preference,
@@ -967,6 +1108,8 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
             + searchType
             + ", indices="
             + Arrays.toString(indices)
+            + ", pointInTimeAuthorization="
+            + pointInTimeAuthorization
             + ", indicesOptions="
             + indicesOptions
             + ", routing='"

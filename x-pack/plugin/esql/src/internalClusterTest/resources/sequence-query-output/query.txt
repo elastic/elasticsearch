@@ -1,0 +1,20 @@
+// Regression query for processed PRIMARY/MEMBER fields and retained original events.
+SEQUENCE BY host.id, match_hash WITH {"maxspan":"1m"} PRIMARY 2
+  (FROM demo-downloads
+   | WHERE MV_CONTAINS(event.category, "file") AND
+       MV_CONTAINS(event.type, "creation")
+   | EVAL match_hash = file.hash.sha256),
+  (FROM demo-executions
+   | WHERE MV_CONTAINS(event.category, "process") AND
+       MV_CONTAINS(event.type, "start")
+   | EVAL match_hash = process.hash.sha256,
+          process.name = TO_LOWER(process.name)
+   | DROP process.command_line)
+| WHERE user.name == "runner" AND
+    MEMBER(1, url.domain) == "example.test"
+| EVAL download_domain = MEMBER(1, url.domain),
+       delay_seconds = DATE_DIFF("second", MEMBER(1, @timestamp), @timestamp)
+| KEEP process.name, user.name, download_domain, delay_seconds
+| SORT delay_seconds ASC
+| LIMIT 101
+| RETURN MATCHES

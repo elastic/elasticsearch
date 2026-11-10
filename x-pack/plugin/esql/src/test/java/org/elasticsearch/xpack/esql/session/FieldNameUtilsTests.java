@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.session;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -66,8 +67,51 @@ public class FieldNameUtilsTests extends ESTestCase {
         this.includePrefixFields = includePrefixFields;
     }
 
+    /** MEMBER's display label is not a substitute for a literal mapped-field demand. */
+    public void testSequenceMemberAndQuotedFieldAreSeparateDemands() {
+        var parsed = TEST_PARSER.createStatement("""
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 2
+            (FROM test | WHERE phase == "A"), (FROM test | WHERE phase == "B")
+            | EVAL ordinary = `MEMBER(1, payload)`, other_value = MEMBER(1, payload)
+            | KEEP ordinary, other_value
+            """).plan();
+        var fields = FieldNameUtils.resolveFieldNames(parsed, false, includePrefixFields).fieldNames();
+        assertThat(fields, hasItem("MEMBER(1, payload)"));
+        assertThat(fields, hasItem("payload"));
+    }
+
     public void testBasicFromCommand() {
         assertFieldNames("from test", ALL_FIELDS);
+    }
+
+    public void testSequenceQualifiedPayloadFields() {
+        assertSequenceFieldNames("keep key, stage1.process.name", "process.name", "process.name.*", "@timestamp");
+        assertSequenceFieldNames("where stage2.process.name == \"test\" | keep key", "process.name", "@timestamp");
+        assertSequenceFieldNames("keep stage1.process.*", "process.*", "@timestamp");
+        assertSequenceFieldNames("keep stage*.process.name", "process.name", "@timestamp");
+    }
+
+    public void testSequenceQualifiedEvalInputSurvivesAliasRemoval() {
+        assertSequenceFieldNames("eval result = stage1.process.name | keep result", "process.name", "@timestamp");
+    }
+
+    /** Payload discovery cannot depend on the stage predicates mentioning those payload fields. */
+    public void testSequenceBareStageWildcardsDiscoverPayloadFields() {
+        for (String pattern : List.of("stage*", "stage1*", "stage2*", "stage*payload")) {
+            assertSequenceFieldNames("keep " + pattern, "*", "@timestamp");
+        }
+    }
+
+    private void assertSequenceFieldNames(String pipeline, String... required) {
+        var parsed = TEST_PARSER.parseQuery(Strings.format("""
+            sequence by key with {"maxspan":"30s"}
+            (from test | where phase=="A"), (from test | where phase=="B")
+            | %s
+            """, pipeline));
+        var fields = FieldNameUtils.resolveFieldNames(parsed, false, includePrefixFields).fieldNames();
+        for (String field : required) {
+            assertThat(fields, hasItem(field));
+        }
     }
 
     public void testBasicFromCommandWithInlineStats() {

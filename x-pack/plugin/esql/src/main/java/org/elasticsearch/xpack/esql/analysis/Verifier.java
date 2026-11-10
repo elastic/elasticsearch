@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.Sequence;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
@@ -177,6 +178,12 @@ public class Verifier {
         checkHighlightAnalyzersAgree(plan, failures, context.minimumVersion());
         checkDenseVectorSupported(plan, failures, context.minimumVersion());
         checkFillNullFieldCount(plan, failures, context.flags().maxFillNullFields());
+        if (context.minimumVersion().supports(Sequence.ESQL_SEQUENCE_STAGE_COLUMNS) == false) {
+            plan.forEachDown(
+                Sequence.class,
+                sequence -> failures.add(fail(sequence, "SEQUENCE is not supported by all nodes in the cluster"))
+            );
+        }
 
         // collect plan checkers
         QueryPragmas pragmas = context.configuration() == null ? QueryPragmas.EMPTY : context.configuration().pragmas();

@@ -275,7 +275,9 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
     }
 
     private void executeOpenPit(SearchTask task, OpenPointInTimeRequest request, ActionListener<OpenPointInTimeResponse> listener) {
-        final SearchRequest searchRequest = new SearchRequest().indices(request.indices())
+        final SearchRequest searchRequest = (request.getAbsoluteStartMillis() < 0
+            ? new SearchRequest()
+            : new SearchRequest(request.getAbsoluteStartMillis())).indices(request.indices())
             .indicesOptions(request.indicesOptions())
             .preference(request.preference())
             .allowPartialSearchResults(request.allowPartialSearchResults())

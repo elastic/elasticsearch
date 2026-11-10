@@ -139,6 +139,10 @@ dependencies {
   securityIntegTest(testArtifact(project(xpackModule('security'))))
   internalClusterTestImplementation project(path: xpackModule('mapper-constant-keyword'))
   internalClusterTestImplementation project(xpackModule('analytics'))
+  // Differential sequence tests execute the actual EQL engine on the same indexed events.
+  // EQL's QL dependency is compileOnly, so the test runtime supplies the existing QL module explicitly.
+  internalClusterTestImplementation project(xpackModule('eql'))
+  internalClusterTestImplementation project(xpackModule('ql'))
   internalClusterTestImplementation project(xpackModule('spatial'))
   internalClusterTestImplementation project(xpackModule('mapper-unsigned-long'))
   internalClusterTestImplementation project(xpackModule('wildcard'))
@@ -215,6 +219,13 @@ tasks.named("test").configure {
   inputs.file("${rootDir}/docs/reference/query-languages/esql/esql-data-federation-dataset-settings.md")
     .withPropertyName('datasetSettingsDoc')
     .withPathSensitivity(PathSensitivity.RELATIVE)
+}
+
+// Exercise the same positive-sequence corpus as EQL without a production dependency on its engine.
+tasks.named("processTestResources").configure {
+  from(project(':x-pack:plugin:eql').file('src/test/resources/sequences.series-spec')) {
+    into 'sequence'
+  }
 }
 
 

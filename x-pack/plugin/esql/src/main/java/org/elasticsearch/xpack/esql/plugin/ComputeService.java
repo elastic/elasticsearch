@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -97,6 +98,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.execution.sequence.SequenceSourceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
@@ -223,6 +225,7 @@ public class ComputeService {
     private final Executor searchExecutor;
     private final ComputeExecutor computeExecutor;
     private final ThreadPool threadPool;
+    private final Client sequenceClient;
     // Single shared instance, refreshed in place whenever the dynamic setting changes, rather than
     // re-resolving it from ClusterSettings for every query.
     private final AtomicReference<MatcherWatchdog> grokMatcherWatchdog = new AtomicReference<>();
@@ -252,6 +255,7 @@ public class ComputeService {
         this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         this.computeExecutor = computeExecutor;
         this.threadPool = threadPool;
+        this.sequenceClient = client;
         this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
@@ -1469,7 +1473,9 @@ public class ComputeService {
                 foldContext,
                 null,
                 exchangeSinkSupplier,
-                false
+                false,
+                null,
+                execInfo
             );
             updateShardCountForCoordinatorOnlyQuery(execInfo);
             try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.map(completionInfo -> {
@@ -1578,7 +1584,9 @@ public class ComputeService {
                             foldContext,
                             exchangeSource::createExchangeSource,
                             exchangeSinkSupplier,
-                            false
+                            false,
+                            null,
+                            execInfo
                         ),
                         coordinatorPlan,
                         plannerSettings.get(),
@@ -1602,19 +1610,15 @@ public class ComputeService {
                             cancelQueryOnFailure,
                             ActionListener.wrap(r -> {
                                 localClusterWasInterrupted.set(execInfo.isStopped());
-                                execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
-                                    var builder = new EsqlExecutionInfo.Cluster.Builder(v);
-                                    applyShardCounts(
-                                        builder,
-                                        v,
-                                        r.getTotalShards(),
-                                        r.getSuccessfulShards(),
-                                        r.getSkippedShards(),
-                                        r.getFailedShards(),
-                                        exchangeSinkSupplier != null
-                                    );
-                                    return builder.addFailures(r.failures).build();
-                                });
+                                execInfo.setDataNodeShardCounts(
+                                    LOCAL_CLUSTER,
+                                    r.getTotalShards(),
+                                    r.getSuccessfulShards(),
+                                    r.getSkippedShards(),
+                                    r.getFailedShards(),
+                                    r.failures,
+                                    exchangeSinkSupplier != null
+                                );
                                 dataNodesListener.onResponse(r.getCompletionInfo());
                             }, e -> {
                                 if (configuration.allowPartialResults() && EsqlCCSUtils.canAllowPartial(e)) {
@@ -1724,7 +1728,9 @@ public class ComputeService {
                     foldContext,
                     exchangeSource::createExchangeSource,
                     exchangeSinkSupplier,
-                    false
+                    false,
+                    null,
+                    execInfo
                 ),
                 coordinatorPlan,
                 plannerSettings.get(),
@@ -2041,7 +2047,25 @@ public class ComputeService {
                 computeExecutor,
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
-                clusterService.state().getMinTransportVersion()
+                clusterService.state().getMinTransportVersion(),
+                sequenceClient == null
+                    ? null
+                    : (sequence, stagePlanner) -> new SequenceSourceOperator.Factory(
+                        sequence,
+                        new ParentTaskAssigningClient(sequenceClient, clusterService.localNode(), task),
+                        sequenceClient,
+                        task,
+                        context.configuration(),
+                        stagePlanner,
+                        (drivers, done) -> driverRunner.executeDrivers(
+                            task,
+                            drivers,
+                            computeExecutor,
+                            ActionListener.releaseAfter(done, () -> Releasables.close(drivers))
+                        ),
+                        threadPool.getThreadContext().newRestorableContext(true),
+                        context.executionInfo()
+                    )
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);

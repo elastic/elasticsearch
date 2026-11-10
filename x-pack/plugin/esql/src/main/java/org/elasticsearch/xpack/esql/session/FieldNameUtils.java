@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Sequence;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
@@ -411,12 +412,26 @@ public class FieldNameUtils {
 
         // Add JOIN ON column references afterward to avoid Alias removal
         referencesBuilder.get().addAll(joinRefs);
+        if (parsed.anyMatch(Sequence.class::isInstance)) {
+            // Source time drives sequence ordering even when every stage projects it away. Add it after alias
+            // removal so a payload rename or a downstream COUNT(*) cannot remove the source field requirement.
+            referencesBuilder.get().add(UnresolvedTimestamp.withSource(parsed.source()));
+        }
         // If any JOIN commands need wildcard field-caps calls, persist the index names
 
         // remove valid metadata attributes because they will be filtered out by the IndexResolver anyway
         // otherwise, in some edge cases, we will fail to ask for "*" (all fields) instead
-        referencesBuilder.get().removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.name()));
-        Set<String> fieldNames = referencesBuilder.get().build().names();
+        // Sequence references are compiler bindings. Remove them by type, preserving ordinary names with the same display text.
+        referencesBuilder.get()
+            .removeIf(
+                a -> a instanceof MetadataAttribute
+                    || a instanceof org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.BindingReference
+                    || MetadataAttribute.isSupported(a.name())
+            );
+        Set<String> fieldNames = org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.discoverFields(
+            parsed,
+            referencesBuilder.get().build().names()
+        );
 
         if (hasEnriches) {
             // we do not know names of the enrich policy match fields beforehand. We need to resolve all fields in this case
@@ -428,6 +443,26 @@ public class FieldNameUtils {
             Set<String> allFields = new HashSet<>();
             for (String name : fieldNames) {
                 addRelatedFields(includePrefixFields, allFields, name);
+                // SEQUENCE introduces stage prefixes after resolving its event sources. Field caps sees the
+                // underlying index fields, so a downstream reference such as stage1.process.name also requires
+                // process.name. Keep the qualified name as well: an ordinary union branch or stage may contain
+                // an actual index field with that name. Field collection is a conservative query-wide union.
+                parsed.forEachDown(Sequence.class, sequence -> {
+                    for (int stage = 1; stage <= sequence.children().size(); stage++) {
+                        int dot = name.indexOf('.');
+                        if (dot > 0 && Regex.simpleMatch(name.substring(0, dot), "stage" + stage)) {
+                            addRelatedFields(includePrefixFields, allFields, name.substring(dot + 1));
+                            break;
+                        }
+                        int wildcard = name.indexOf('*');
+                        if (dot < 0 && wildcard >= 0 && Regex.simpleMatch(name.substring(0, wildcard) + WILDCARD, "stage" + stage + ".")) {
+                            // A bare wildcard can consume both the stage separator and the payload name. Without
+                            // an underlying field prefix, field caps must discover all possible payload columns.
+                            allFields.add(WILDCARD);
+                            break;
+                        }
+                    }
+                });
             }
             allFields.add(MetadataAttribute.INDEX);
             return new PreAnalysisResult(allFields, wildcardJoinIndices);

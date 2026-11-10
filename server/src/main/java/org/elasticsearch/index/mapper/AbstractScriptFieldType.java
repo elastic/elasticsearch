@@ -79,6 +79,11 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
         return true;
     }
 
+    /** Whether repeated reads may reuse the script's result, as declared by the compiled runtime-field factory. */
+    public final boolean isResultDeterministic() {
+        return isResultDeterministic;
+    }
+
     @Override
     public TextSearchInfo getTextSearchInfo() {
         return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;

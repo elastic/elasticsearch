@@ -1,0 +1,210 @@
+{
+  "columns": [
+    {
+      "name": "process.name",
+      "type": "keyword",
+      "_meta": {
+        "sequence": {
+          "column_id": "c0"
+        }
+      }
+    },
+    {
+      "name": "user.name",
+      "type": "keyword",
+      "_meta": {
+        "sequence": {
+          "column_id": "c1"
+        }
+      }
+    },
+    {
+      "name": "download_domain",
+      "type": "keyword",
+      "_meta": {
+        "sequence": {
+          "column_id": "c2"
+        }
+      }
+    },
+    {
+      "name": "delay_seconds",
+      "type": "integer",
+      "_meta": {
+        "sequence": {
+          "column_id": "c3"
+        }
+      }
+    },
+    {
+      "name": "match_key_1",
+      "type": "keyword",
+      "_meta": {
+        "sequence": {
+          "column_id": "c4"
+        }
+      }
+    },
+    {
+      "name": "match_key_2",
+      "type": "keyword",
+      "_meta": {
+        "sequence": {
+          "column_id": "c5"
+        }
+      }
+    },
+    {
+      "name": "member_1_index",
+      "type": "keyword",
+      "_meta": {
+        "sequence": {
+          "column_id": "c6",
+          "contract": {
+            "version": 1,
+            "layout": "columns",
+            "primary_stage": 2,
+            "member_count": 2,
+            "keys": [
+              {
+                "name": "host.id",
+                "type": "keyword",
+                "column": "c4"
+              },
+              {
+                "name": "match_hash",
+                "type": "keyword",
+                "column": "c5"
+              }
+            ],
+            "members": [
+              {
+                "stage": 1,
+                "index": "c6",
+                "id": "c7",
+                "source": "c8"
+              },
+              {
+                "stage": 2,
+                "index": "c9",
+                "id": "c10",
+                "source": "c11"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "member_1_id",
+      "type": "keyword",
+      "_meta": {
+        "sequence": {
+          "column_id": "c7"
+        }
+      }
+    },
+    {
+      "name": "member_1_source",
+      "type": "_source",
+      "_meta": {
+        "sequence": {
+          "column_id": "c8"
+        }
+      }
+    },
+    {
+      "name": "member_2_index",
+      "type": "keyword",
+      "_meta": {
+        "sequence": {
+          "column_id": "c9"
+        }
+      }
+    },
+    {
+      "name": "member_2_id",
+      "type": "keyword",
+      "_meta": {
+        "sequence": {
+          "column_id": "c10"
+        }
+      }
+    },
+    {
+      "name": "member_2_source",
+      "type": "_source",
+      "_meta": {
+        "sequence": {
+          "column_id": "c11"
+        }
+      }
+    }
+  ],
+  "values": [
+    [
+      "demotool.exe",
+      "runner",
+      "example.test",
+      2,
+      "demo-host-1",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "demo-downloads",
+      "D1",
+      {
+        "@timestamp": "2026-11-08T12:00:00.000Z",
+        "event": {
+          "category": [
+            "file"
+          ],
+          "type": [
+            "creation"
+          ]
+        },
+        "host": {
+          "id": "demo-host-1"
+        },
+        "user": {
+          "name": "downloader"
+        },
+        "file": {
+          "name": "DemoTool.EXE",
+          "hash": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        "url": {
+          "domain": "example.test"
+        },
+        "demo_note": "Download detail unused by the query"
+      },
+      "demo-executions",
+      "E1",
+      {
+        "@timestamp": "2026-11-08T12:00:02.000Z",
+        "event": {
+          "category": [
+            "process"
+          ],
+          "type": [
+            "start"
+          ]
+        },
+        "host": {
+          "id": "demo-host-1"
+        },
+        "user": {
+          "name": "runner"
+        },
+        "process": {
+          "name": "DemoTool.EXE",
+          "command_line": "DemoTool.EXE --example",
+          "hash": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        "demo_note": "Execution detail unused by the query"
+      }
+    ]
+  ]
+}

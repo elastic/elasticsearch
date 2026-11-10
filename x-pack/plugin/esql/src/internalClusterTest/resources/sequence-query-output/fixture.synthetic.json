@@ -1,0 +1,145 @@
+{
+  "status": "Synthetic regression fixture; tests index these documents and run the query. Command-line strings are inert data and are never executed.",
+  "source_policy": "Complete stored source with no field restrictions for this example; no general synthetic/disabled-source policy selected.",
+  "shared_mapping": {
+    "dynamic": false,
+    "properties": {
+      "@timestamp": {
+        "type": "date_nanos"
+      },
+      "event": {
+        "properties": {
+          "category": {
+            "type": "keyword"
+          },
+          "type": {
+            "type": "keyword"
+          }
+        }
+      },
+      "host": {
+        "properties": {
+          "id": {
+            "type": "keyword"
+          }
+        }
+      },
+      "user": {
+        "properties": {
+          "name": {
+            "type": "keyword"
+          }
+        }
+      },
+      "file": {
+        "properties": {
+          "name": {
+            "type": "keyword"
+          },
+          "hash": {
+            "properties": {
+              "sha256": {
+                "type": "keyword"
+              }
+            }
+          }
+        }
+      },
+      "process": {
+        "properties": {
+          "name": {
+            "type": "keyword"
+          },
+          "command_line": {
+            "type": "keyword"
+          },
+          "hash": {
+            "properties": {
+              "sha256": {
+                "type": "keyword"
+              }
+            }
+          }
+        }
+      },
+      "url": {
+        "properties": {
+          "domain": {
+            "type": "keyword"
+          }
+        }
+      }
+    }
+  },
+  "request_filter": {
+    "range": {
+      "@timestamp": {
+        "gte": "2026-11-08T12:00:00.000Z",
+        "lt": "2026-11-08T12:01:00.000Z"
+      }
+    }
+  },
+  "consumer_candidate_cap": 100,
+  "documents": [
+    {
+      "_index": "demo-downloads",
+      "_id": "D1",
+      "_source": {
+        "@timestamp": "2026-11-08T12:00:00.000Z",
+        "event": {
+          "category": [
+            "file"
+          ],
+          "type": [
+            "creation"
+          ]
+        },
+        "host": {
+          "id": "demo-host-1"
+        },
+        "user": {
+          "name": "downloader"
+        },
+        "file": {
+          "name": "DemoTool.EXE",
+          "hash": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        "url": {
+          "domain": "example.test"
+        },
+        "demo_note": "Download detail unused by the query"
+      }
+    },
+    {
+      "_index": "demo-executions",
+      "_id": "E1",
+      "_source": {
+        "@timestamp": "2026-11-08T12:00:02.000Z",
+        "event": {
+          "category": [
+            "process"
+          ],
+          "type": [
+            "start"
+          ]
+        },
+        "host": {
+          "id": "demo-host-1"
+        },
+        "user": {
+          "name": "runner"
+        },
+        "process": {
+          "name": "DemoTool.EXE",
+          "command_line": "DemoTool.EXE --example",
+          "hash": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        "demo_note": "Execution detail unused by the query"
+      }
+    }
+  ]
+}

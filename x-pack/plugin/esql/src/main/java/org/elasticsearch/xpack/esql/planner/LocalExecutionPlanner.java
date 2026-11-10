@@ -167,6 +167,7 @@ import org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.evaluator.command.IpLocationFunctionBridge;
 import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
+import org.elasticsearch.xpack.esql.execution.sequence.SequenceSourceOperator;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
@@ -223,6 +224,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.ReadDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
+import org.elasticsearch.xpack.esql.plan.physical.SequenceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
@@ -322,6 +324,7 @@ public class LocalExecutionPlanner {
     private final MatcherWatchdog grokMatcherWatchdog;
     /** The oldest transport version in this node's cluster, which decides how external text files bind; see FileSourceFactory. */
     private final TransportVersion minTransportVersion;
+    private final SequenceSourceOperator.FactoryProvider sequenceFactory;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -347,6 +350,61 @@ public class LocalExecutionPlanner {
         int esqlWorkerPoolSize,
         MatcherWatchdog grokMatcherWatchdog,
         TransportVersion minTransportVersion
+    ) {
+        this(
+            sessionId,
+            clusterAlias,
+            parentTask,
+            bigArrays,
+            blockFactory,
+            settings,
+            configuration,
+            exchangeSourceSupplier,
+            exchangeSinkSupplier,
+            enrichLookupService,
+            lookupFromIndexService,
+            inferenceService,
+            userAgentParserRegistry,
+            ipLocationService,
+            projectResolver,
+            projectMetadata,
+            physicalOperationProviders,
+            operatorFactoryRegistry,
+            snapshotBuild,
+            parallelWorkerExecutor,
+            esqlWorkerPoolSize,
+            grokMatcherWatchdog,
+            minTransportVersion,
+            null
+        );
+    }
+
+    /** Enables native coordinator sources while retaining ordinary stage planning and compute ownership. */
+    public LocalExecutionPlanner(
+        String sessionId,
+        String clusterAlias,
+        CancellableTask parentTask,
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        Settings settings,
+        Configuration configuration,
+        Supplier<ExchangeSource> exchangeSourceSupplier,
+        Supplier<ExchangeSink> exchangeSinkSupplier,
+        EnrichLookupService enrichLookupService,
+        LookupFromIndexService lookupFromIndexService,
+        InferenceService inferenceService,
+        UserAgentParserRegistry userAgentParserRegistry,
+        IpLocationService ipLocationService,
+        ProjectResolver projectResolver,
+        ProjectMetadata projectMetadata,
+        AbstractPhysicalOperationProviders physicalOperationProviders,
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        boolean snapshotBuild,
+        @Nullable Executor parallelWorkerExecutor,
+        int esqlWorkerPoolSize,
+        MatcherWatchdog grokMatcherWatchdog,
+        TransportVersion minTransportVersion,
+        @Nullable SequenceSourceOperator.FactoryProvider sequenceFactory
     ) {
 
         this.sessionId = sessionId;
@@ -375,6 +433,7 @@ public class LocalExecutionPlanner {
         // wrapper around a single timeout value.
         this.grokMatcherWatchdog = grokMatcherWatchdog;
         this.minTransportVersion = minTransportVersion;
+        this.sequenceFactory = sequenceFactory;
     }
 
     /**
@@ -523,6 +582,8 @@ public class LocalExecutionPlanner {
         // source nodes
         else if (node instanceof EsQueryExec esQuery) {
             return planEsQueryNode(esQuery, context);
+        } else if (node instanceof SequenceExec sequence) {
+            return planSequence(sequence, context);
         } else if (node instanceof EsStatsQueryExec statsQuery) {
             return planEsStats(statsQuery, context);
         } else if (node instanceof LocalSourceExec localSource) {
@@ -1967,6 +2028,24 @@ public class LocalExecutionPlanner {
         LocalSourceOperator.PageSupplier supplier = () -> localSourceExec.supplier().get();
         var operator = new LocalSourceOperator(supplier);
         return PhysicalOperation.fromSource(new LocalSourceFactory(() -> operator), layout.build());
+    }
+
+    private PhysicalOperation planSequence(SequenceExec sequence, LocalExecutionPlannerContext context) {
+        if (sequenceFactory == null) {
+            throw new IllegalStateException("native SEQUENCE execution is not available in this planner");
+        }
+        var factory = sequenceFactory.create(sequence, (stage, output) -> {
+            return plan(
+                "sequence stage",
+                context.foldCtx(),
+                context.plannerSettings(),
+                new OutputExec(stage, output),
+                context.shardContexts(),
+                true
+            ).createDrivers(sessionId);
+        });
+        context.driverParallelism(DriverParallelism.SINGLE);
+        return PhysicalOperation.fromSource(factory, new Layout.Builder().append(sequence.output()).build());
     }
 
     private PhysicalOperation planMetricsInfo(MetricsInfoExec metricsInfoExec, LocalExecutionPlannerContext context) {

@@ -1,0 +1,97 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ sequence_command ]
+      reason: "Native SEQUENCE is available on development snapshot builds"
+
+  - do:
+      indices.create:
+        index: sequence-http-a
+        body:
+          settings: { number_of_shards: 1, number_of_replicas: 0 }
+          mappings:
+            properties:
+              "@timestamp": { type: date_nanos }
+              key: { type: keyword }
+              payload: { type: keyword }
+              number: { type: long }
+
+  - do:
+      indices.create:
+        index: sequence-http-b
+        body:
+          settings: { number_of_shards: 1, number_of_replicas: 0 }
+          mappings:
+            properties:
+              "@timestamp": { type: date_nanos }
+              key: { type: keyword }
+              payload: { type: keyword }
+              number: { type: long }
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { index: { _index: sequence-http-a, _id: A1 } }
+          - { "@timestamp": "2026-09-25T21:14:51.389000000Z", key: shared, payload: one, number: 42 }
+          - { index: { _index: sequence-http-a, _id: A2 } }
+          - { "@timestamp": "2026-09-25T21:14:51.389000001Z", key: shared, payload: two, number: 9007199254740993 }
+          - { index: { _index: sequence-http-b, _id: B3 } }
+          - { "@timestamp": "2026-09-25T21:14:51.389000002Z", key: shared, payload: completion, number: 3 }
+
+---
+"Latest predecessor produces one typed row":
+  - do:
+      esql.query:
+        body:
+          query: >-
+            SEQUENCE BY key WITH {"maxspan":"30s"}
+            (FROM sequence-http-a METADATA _id, _index, _version),
+            (FROM sequence-http-b METADATA _id)
+            | KEEP key, stage1._id, stage1._index, stage1._version, stage1.number, stage2._id
+            | LIMIT 1
+  - match:
+      columns:
+        - { name: key, type: keyword }
+        - { name: stage1._id, type: keyword }
+        - { name: stage1._index, type: keyword }
+        - { name: stage1._version, type: long }
+        - { name: stage1.number, type: long }
+        - { name: stage2._id, type: keyword }
+  - match: { values: [ [ shared, A2, sequence-http-a, 1, 9007199254740993, B3 ] ] }
+
+---
+"Downstream filtering never backtracks to an older anchor":
+  - do:
+      esql.query:
+        body:
+          query: >-
+            SEQUENCE BY key WITH {"maxspan":"30s"}
+            (FROM sequence-http-a METADATA _id), (FROM sequence-http-b METADATA _id)
+            | WHERE stage1._id == "A1"
+            | KEEP key, stage1._id, stage2._id | LIMIT 10
+  - length: { values: 0 }
+
+---
+"Total maxspan includes its nanosecond boundary":
+  - do:
+      esql.query:
+        body:
+          query: >-
+            SEQUENCE BY key WITH {"maxspan":"2nanos"}
+            (FROM sequence-http-a | WHERE payload == "one"), (FROM sequence-http-b)
+            | KEEP key, stage*.payload | LIMIT 1
+  - match: { values: [ [ shared, one, completion ] ] }
+  - do:
+      esql.query:
+        body:
+          query: >-
+            SEQUENCE BY key WITH {"maxspan":"1nanos"}
+            (FROM sequence-http-a | WHERE payload == "one"), (FROM sequence-http-b)
+            | KEEP key | LIMIT 1
+  - length: { values: 0 }

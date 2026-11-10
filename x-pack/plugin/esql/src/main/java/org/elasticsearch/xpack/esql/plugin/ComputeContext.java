@@ -12,6 +12,7 @@ import org.elasticsearch.compute.lucene.query.SharedSortBound;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -28,7 +29,8 @@ record ComputeContext(
     Supplier<ExchangeSource> exchangeSourceSupplier,
     Supplier<ExchangeSink> exchangeSinkSupplier,
     boolean singleNodeOptimizations,
-    @Nullable SharedSortBound sortBound
+    @Nullable SharedSortBound sortBound,
+    @Nullable EsqlExecutionInfo executionInfo
 ) {
     ComputeContext(
         String sessionId,
@@ -53,6 +55,36 @@ record ComputeContext(
             exchangeSourceSupplier,
             exchangeSinkSupplier,
             singleNodeOptimizations,
+            null,
+            null
+        );
+    }
+
+    ComputeContext(
+        String sessionId,
+        String description,
+        String clusterAlias,
+        EsqlFlags flags,
+        IndexedByShardId<ComputeSearchContext> searchContexts,
+        Configuration configuration,
+        FoldContext foldCtx,
+        Supplier<ExchangeSource> exchangeSourceSupplier,
+        Supplier<ExchangeSink> exchangeSinkSupplier,
+        boolean singleNodeOptimizations,
+        @Nullable SharedSortBound sortBound
+    ) {
+        this(
+            sessionId,
+            description,
+            clusterAlias,
+            flags,
+            searchContexts,
+            configuration,
+            foldCtx,
+            exchangeSourceSupplier,
+            exchangeSinkSupplier,
+            singleNodeOptimizations,
+            sortBound,
             null
         );
     }

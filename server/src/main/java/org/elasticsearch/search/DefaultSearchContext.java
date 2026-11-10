@@ -66,6 +66,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.internal.PitReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -245,6 +246,9 @@ final class DefaultSearchContext extends SearchContext {
             );
             searchExecutionContext = circuitBreaker != null ? new SearchExecutionContext(baseContext, circuitBreaker) : baseContext;
             if (searchExecutionContext != null) {
+                searchExecutionContext.setPointInTimeMappingCacheKey(
+                    readerContext instanceof PitReaderContext pit ? pit.mappingCacheKey() : null
+                );
                 // The slices the request names, for the field mappers that build its queries.
                 searchExecutionContext.setSliceSelection(SliceSelection.fromSearchSlice(request.sliceRouting()));
             }

@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.Sequence;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
@@ -146,7 +147,8 @@ public enum FeatureMetric {
     IN_SUBQUERY(plan -> false),
     // LET bindings are consumed by LetResolver before analysis, so they are never visible to the plan walk.
     // The counter is incremented in EsqlSession.gatherLetMetrics, from the parsed statement.
-    LET(plan -> false);
+    LET(plan -> false),
+    SEQUENCE(Sequence.class::isInstance);
 
     /**
      * List here plans we want to exclude from telemetry

@@ -10,6 +10,7 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -260,6 +261,13 @@ public class FetchContext {
 
     public SearchExecutionContext getSearchExecutionContext() {
         return searchContext.getSearchExecutionContext();
+    }
+
+    /**
+     * Releases resources retained by a fetch processor when the search context closes, including failed or cancelled fetches.
+     */
+    public void addReleasable(Releasable releasable) {
+        searchContext.addReleasable(releasable);
     }
 
     /**

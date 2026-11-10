@@ -1962,7 +1962,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 keepAliveInMillis,
                 relocatedReshardingMetadata,
                 relocatedSplitShardCountSummary,
-                0L
+                0L,
+                null
             );
             reader = null;
             final ReaderContext finalReaderContext = readerContext;
@@ -2070,7 +2071,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     keepAlive.millis(),
                     reshardingMetadataForContext,
                     splitShardCountSummary,
-                    creatorTaskId
+                    creatorTaskId,
+                    indexService.mapperService().mappingLookup().cacheKey()
                 );
                 final ReaderContext finalReaderContext = readerContext;
                 searcherSupplier = null; // transfer ownership to reader context

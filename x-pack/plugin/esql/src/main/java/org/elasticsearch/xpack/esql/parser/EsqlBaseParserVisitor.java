@@ -107,6 +107,18 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitExternalCommand(EsqlBaseParser.ExternalCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#returnMatchesCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitReturnMatchesCommand(EsqlBaseParser.ReturnMatchesCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#sequenceCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSequenceCommand(EsqlBaseParser.SequenceCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#indexPatternAndMetadataFields}.
    * @param ctx the parse tree
    * @return the visitor result

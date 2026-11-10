@@ -23,6 +23,38 @@ user1:
         - indices:admin/refresh
         - manage_view
 
+sequence_dls_fls:
+  cluster: []
+  indices:
+    - names: [ 'sequence-security-events' ]
+      privileges: [ 'read' ]
+      query: '{"term":{"tenant":"allowed"}}'
+      field_security:
+        grant: [ '@timestamp', key, phase, payload, number ]
+
+sequence_alias_only:
+  cluster: []
+  indices:
+    - names: [ 'sequence-alias-a', 'sequence-alias-b' ]
+      privileges: [ 'read' ]
+      query: '{"term":{"tenant":"allowed"}}'
+      field_security:
+        grant: [ '@timestamp', key, phase, payload, number ]
+
+sequence_alias_exclusions:
+  cluster: []
+  indices:
+    - names: [ 'sequence-alias-a', 'sequence-alias-b' ]
+      privileges: [ 'read' ]
+      query: '{"term":{"tenant":"allowed"}}'
+      field_security:
+        grant: [ '@timestamp', key, phase, payload, number ]
+    - names: [ 'sequence-alias-excluded' ]
+      privileges: [ 'read' ]
+      query: '{"term":{"tenant":"hidden"}}'
+      field_security:
+        grant: [ '@timestamp', key, phase, payload, number ]
+
 user2:
   cluster: []
   indices:

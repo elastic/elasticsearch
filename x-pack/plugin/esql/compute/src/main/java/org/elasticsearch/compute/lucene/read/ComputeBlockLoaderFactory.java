@@ -11,10 +11,12 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Releasable;
 
-class ComputeBlockLoaderFactory extends DelegatingBlockLoaderFactory implements Releasable {
+/** Bridges mapped field loaders to compute blocks while retaining reusable constant null blocks for one reader lifetime. */
+public class ComputeBlockLoaderFactory extends DelegatingBlockLoaderFactory implements Releasable {
     private Block nullBlock;
 
-    ComputeBlockLoaderFactory(BlockFactory factory) {
+    /** Uses the caller's block factory so loader allocations are charged to the same request breaker as other compute blocks. */
+    public ComputeBlockLoaderFactory(BlockFactory factory) {
         super(factory);
     }
 

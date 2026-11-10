@@ -27,14 +27,27 @@ import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
  */
 public final class TranslatorHandler {
 
-    public static final TranslatorHandler TRANSLATOR_HANDLER = new TranslatorHandler();
+    public static final TranslatorHandler TRANSLATOR_HANDLER = new TranslatorHandler(true);
 
-    private TranslatorHandler() {}
+    /**
+     * Candidate queries for ordinary searches, where the ES|QL evaluator rechecks every predicate. These searches
+     * lack the ES|QL shard context required by SingleValueQuery. Omitting that guard admits extra multivalued rows;
+     * it must never be used to replace a filter in the compute plan.
+     */
+    public static final TranslatorHandler CANDIDATE_TRANSLATOR_HANDLER = new TranslatorHandler(false);
+
+    private final boolean enforceSingleValue;
+
+    private TranslatorHandler(boolean enforceSingleValue) {
+        this.enforceSingleValue = enforceSingleValue;
+    }
 
     public Query asQuery(LucenePushdownPredicates predicates, Expression e) {
         if (e instanceof TranslationAware ta) {
             Query query = ta.asQuery(predicates, this);
-            return ta instanceof TranslationAware.SingleValueTranslationAware sv ? wrapFunctionQuery(sv.singleValueField(), query) : query;
+            return enforceSingleValue && ta instanceof TranslationAware.SingleValueTranslationAware sv
+                ? wrapFunctionQuery(sv.singleValueField(), query)
+                : query;
         }
 
         throw new QlIllegalArgumentException("Don't know how to translate {} {}", e.nodeName(), e);

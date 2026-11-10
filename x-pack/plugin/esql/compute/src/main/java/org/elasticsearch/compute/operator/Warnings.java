@@ -7,6 +7,11 @@
 
 package org.elasticsearch.compute.operator;
 
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 /**
@@ -14,6 +19,30 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
  */
 public class Warnings {
     static final int MAX_ADDED_WARNINGS = 20;
+
+    /**
+     * Shares each expression's warning allowance across drivers that repeatedly evaluate parts of one query.
+     * For example, paged sources may create a new driver for every input page and replay selected rows for output;
+     * neither operation should replenish the expression's allowance. Source locations and warning behavior identify
+     * collectors without relying on their formatted warning messages. Separate queries must use separate budgets.
+     */
+    public static final class Budget {
+        private final Map<SourceKey, State> states = new HashMap<>();
+
+        private synchronized State state(SourceKey key) {
+            return states.computeIfAbsent(key, unused -> new State());
+        }
+    }
+
+    /** Identifies repeated evaluation of an expression without conflating locations, views or warning behaviors. */
+    private record SourceKey(int lineNumber, int columnNumber, String viewName, String text, String behavior) {}
+
+    /** One allowance also covers custom messages, matching the existing per-collector warning contract. */
+    private static final class State {
+        private final Set<String> emittedWarnings = new HashSet<>();
+        private int addedWarnings;
+        private boolean exceptionWarningEmitted;
+    }
 
     public static final Warnings NOOP_WARNINGS = new Warnings(null, -1, -2, null, "", "") {
         @Override
@@ -80,9 +109,9 @@ public class Warnings {
     private final String location;
     private final String firstExceptionWarning;
     private final String nonExceptionWarningPrefix;
-
-    private int addedWarnings;
-    private boolean exceptionWarningEmitted = false;
+    private final SourceKey sourceKey;
+    private final State localState = new State();
+    private State sharedState;
 
     private Warnings(
         DriverContext driverContext,
@@ -93,6 +122,7 @@ public class Warnings {
         String firstExceptionWarning
     ) {
         this.driverContext = driverContext;
+        this.sourceKey = new SourceKey(lineNumber, columnNumber, viewName, sourceText, firstExceptionWarning);
         if (viewName == null) {
             this.location = format("Line {}:{}: ", lineNumber, columnNumber);
             this.nonExceptionWarningPrefix = format("Line {}:{} [{}]: ", lineNumber, columnNumber, sourceText);
@@ -115,21 +145,23 @@ public class Warnings {
 
     /**
      * Register an exception to be included in the warnings.
-     * Repeated failures with the same exception class and message are emitted once and count once
-     * towards the {@link #MAX_ADDED_WARNINGS} limit.
+     * Repeated failures with the same exception class and message are emitted once and count once towards the limit.
      * <p>
      *     This overload avoids the need to instantiate the exception, which can be expensive.
      *     Instead, it asks only the required pieces to build the warning.
      * </p>
      */
     public void registerException(Class<? extends Exception> exceptionClass, String message) {
-        if (addedWarnings < MAX_ADDED_WARNINGS) {
-            if (exceptionWarningEmitted == false) {
-                exceptionWarningEmitted = true;
-                driverContext.addWarning(firstExceptionWarning);
+        State state = state();
+        synchronized (state) {
+            if (state.addedWarnings < MAX_ADDED_WARNINGS) {
+                if (state.exceptionWarningEmitted == false) {
+                    state.exceptionWarningEmitted = true;
+                    driverContext.addWarning(firstExceptionWarning);
+                }
+                // location needs to be added to the exception too, since the headers are deduplicated
+                addDistinct(state, location + exceptionClass.getName() + ": " + message);
             }
-            // location needs to be added to the exception too, since the headers are deduplicated
-            addDistinct(location + exceptionClass.getName() + ": " + message);
         }
     }
 
@@ -139,17 +171,30 @@ public class Warnings {
      * This method therefore caches the emitted message and should not be called with non-constant messages!
      */
     public void registerWarning(String message) {
-        if (addedWarnings < MAX_ADDED_WARNINGS) {
-            addDistinct(nonExceptionWarningPrefix + message);
+        State state = state();
+        synchronized (state) {
+            if (state.addedWarnings < MAX_ADDED_WARNINGS) {
+                addDistinct(state, nonExceptionWarningPrefix + message);
+            }
         }
     }
 
-    /**
-     * The sink deduplicates warnings, so only distinct ones may consume the limit.
-     */
-    private void addDistinct(String warning) {
-        if (driverContext.addWarning(warning)) {
-            addedWarnings++;
+    /** Repeated warnings share one allowance even when evaluated by a fresh page driver. */
+    private void addDistinct(State state, String warning) {
+        if (state.emittedWarnings.contains(warning) == false && driverContext.addWarning(warning)) {
+            state.emittedWarnings.add(warning);
+            state.addedWarnings++;
         }
+    }
+
+    private State state() {
+        Budget budget = driverContext.warningsBudget();
+        if (budget == null) {
+            return localState;
+        }
+        if (sharedState == null) {
+            sharedState = budget.state(sourceKey);
+        }
+        return sharedState;
     }
 }

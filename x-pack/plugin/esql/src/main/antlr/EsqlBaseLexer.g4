@@ -85,6 +85,7 @@ import ChangePoint,
        Project,
        Promql,
        Rename,
+       Sequence,
        Set,
        Show,
        UnknownCommand;

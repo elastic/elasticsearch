@@ -4583,6 +4583,11 @@ public class EsqlCapabilities {
          * gate the external csv-spec tests asserting the {@code null}, which such nodes still fail.
          */
         FIX_DERIVED_EXTERNAL_GROUPING_MULTIVALUE,
+        /** Development command for ordered positive event stages with one row per completed sequence. */
+        SEQUENCE_COMMAND(Build.current().isSnapshot()),
+
+        /** The usage response includes the sequence counter, including in release builds where the command is gated. */
+        SEQUENCE_USAGE_METRIC,
 
         /**
          * A Parquet column declared {@code date} is read as epoch milliseconds unless the file column itself carries

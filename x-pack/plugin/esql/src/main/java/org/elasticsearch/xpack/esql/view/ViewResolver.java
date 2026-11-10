@@ -42,6 +42,8 @@ import org.elasticsearch.xpack.esql.analysis.PlanSize;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
@@ -54,6 +56,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
+import org.elasticsearch.xpack.esql.plan.logical.Sequence;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -1518,6 +1521,8 @@ public class ViewResolver {
         // rewrite find the body as this view's branch.
         keepViewIdentity = keepViewIdentity || settings.requiresViewIdentity();
         LogicalPlan parsed = statement.plan();
+        // Reject before view wrapping or request-filter rewriting: the sequence reader filters raw source events.
+        rejectSequencesInView(parsed, view.name());
         LogicalPlan subquery = parsed instanceof UnresolvedMetadata fs ? fs.child() : parsed;
         if (keepViewIdentity == false && subquery instanceof UnresolvedRelation ur && containsExclusion(ur) == false) {
             // Simple UnresolvedRelation subqueries are not kept as views, so we can compact them
@@ -1532,6 +1537,17 @@ public class ViewResolver {
             // maintained with the view name for branch identification.
             return new NamedSubquery(parsed.source(), parsed, view.name());
         }
+    }
+
+    /** Expression subquery plans are not plan children; reject their sequences before view wrapping as well. */
+    private static void rejectSequencesInView(LogicalPlan plan, String viewName) {
+        plan.forEachDown(node -> {
+            if (node instanceof Sequence) {
+                throw new VerificationException("SEQUENCE is not supported inside view definitions [{}]", viewName);
+            }
+            node.forEachExpression(InSubquery.class, in -> rejectSequencesInView(in.subquery(), viewName));
+            node.forEachExpression(MultiColumnInSubquery.class, in -> rejectSequencesInView(in.subquery(), viewName));
+        });
     }
 
     private static boolean containsExclusion(UnresolvedRelation ur) {

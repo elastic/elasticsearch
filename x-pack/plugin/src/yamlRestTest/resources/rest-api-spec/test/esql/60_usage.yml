@@ -70,6 +70,8 @@ setup:
             - highlight_v6
             - dense_vector_command
             - fillnull
+            - sequence_command
+            - sequence_usage_metric
       reason: "Test that should only be executed on snapshot versions"
 
   - do: { xpack.usage: { } }
@@ -114,6 +116,7 @@ setup:
   - set: { esql.features.fillnull: fillnull_counter }
   - set: { esql.features.highlight: highlight_counter }
   - set: { esql.features.dense_vector: dense_vector_counter }
+  - set: { esql.features.sequence: sequence_counter }
   - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries.rest.failed: rest_failed_counter }
@@ -283,6 +286,16 @@ setup:
   - do: { xpack.usage: { } }
   - gt: { esql.features.fillnull: $fillnull_counter }
 
+  - do:
+      esql.query:
+        body:
+          query: 'sequence by host with {"maxspan":"30s"}
+            (from test-ts | keep host), (from test-ts | keep host)
+            | limit 1'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.features.sequence: $sequence_counter }
+
 ---
 "Basic ESQL usage output (telemetry) non-snapshot version":
   - requires:
@@ -291,7 +304,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ non_snapshot_test_for_telemetry_v2, fn_contains, promql_command_v0, esql_limit_by, time_series_translation_in_analyzer ]
+          capabilities: [ non_snapshot_test_for_telemetry_v2, fn_contains, promql_command_v0, esql_limit_by, time_series_translation_in_analyzer, sequence_usage_metric ]
       reason: "Test that should only be executed on release versions"
 
   - do: { xpack.usage: { } }
@@ -303,6 +316,7 @@ setup:
   - set: { esql.features.enrich: enrich_counter }
   - set: { esql.features.from: from_counter }
   - set: { esql.features.ts: ts_counter }
+  - set: { esql.features.sequence: sequence_counter }
   - set: { esql.features.grok: grok_counter }
   - set: { esql.features.keep: keep_counter }
   - set: { esql.features.limit: limit_counter }
@@ -385,6 +399,7 @@ setup:
   - match: { esql.features.fuse: $fuse_counter }
   - match: { esql.features.completion: $completion_counter }
   - match: { esql.features.ts: $ts_counter }
+  - match: { esql.features.sequence: $sequence_counter }
   - match: { esql.features.mmr: $mmr_counter }
   - match: { esql.features.dedup: $dedup_counter }
   - match: { esql.features.fillnull: $fillnull_counter }

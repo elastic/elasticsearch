@@ -638,6 +638,7 @@ public class EsqlSession {
         // ViewCompaction.postIndexResolution(), which runs as an analyzer rule after ResolveTable so
         // lenient field-caps can pair each shadow with its strict sibling.
         LogicalPlan plan = ViewCompaction.preIndexResolution(viewResolution.plan());
+        plan = SequenceSourceExpressions.resolve(plan, configuration.absoluteStartedTimeInMillis());
         // For EXPLAIN (detected and unwrapped right after parsing), enable profile to capture plans from all nodes
         final Configuration finalConfiguration = explainContext != null ? configuration.withExplainOnly() : configuration;
         final FoldContext foldContext = finalConfiguration.newFoldContext();
@@ -784,7 +785,7 @@ public class EsqlSession {
                             }
                             Versioned<Result> withAdditionalData = attachAdditionalData(
                                 r,
-                                columnMetadata.get(),
+                                deliveryMetadata(statement, r, columnMetadata.get()),
                                 approximationApplied,
                                 minimumVersion
                             );
@@ -917,6 +918,22 @@ public class EsqlSession {
                 throw new IllegalStateException("Should not produce metadata with the same key");
             })
         );
+    }
+
+    /** Validate original bindings on the buffered result and release its blocks if publication fails. */
+    private Map<NameId, Map<String, Object>> deliveryMetadata(
+        EsqlStatement statement,
+        Result result,
+        Map<NameId, Map<String, Object>> existing
+    ) {
+        try {
+            return org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.deliveryMetadata(statement, result.schema(), existing);
+        } catch (RuntimeException e) {
+            org.elasticsearch.core.Releasables.close(
+                () -> org.elasticsearch.common.collect.Iterators.map(result.pages().iterator(), page -> page::releaseBlocks)
+            );
+            throw e;
+        }
     }
 
     private Versioned<Result> attachAdditionalData(

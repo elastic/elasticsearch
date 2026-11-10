@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.Sequence;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
@@ -82,6 +83,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     case MarkJoin markJoin -> pruneUnusedMarkJoin(markJoin, used, recheck);
                     case Eval eval -> pruneColumnsInEval(eval, used, recheck);
                     case Project project -> pruneColumnsInProject(project, used, recheck);
+                    case Sequence sequence -> sequence.pruneOutput(used.build());
                     case EsRelation esr -> pruneColumnsInEsRelation(esr, used);
                     case ExternalRelation ext -> pruneColumnsInExternalRelation(ext, used);
                     case MergePlan mergePlan -> {

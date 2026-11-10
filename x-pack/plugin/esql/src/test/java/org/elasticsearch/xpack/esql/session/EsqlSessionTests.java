@@ -443,7 +443,7 @@ public class EsqlSessionTests extends ESTestCase {
 
     /**
      * Two datasets over one resource that read it <em>differently</em> are two reads, and both must survive to the
-     * resolver: a CSV listing and a TSV listing of one bucket are different file sets and different schemas. Keyed by
+     * resolver: one bucket read as CSV and as TSV yields different columns. Keyed by
      * the resource alone, the second relation's configuration overwrote the first and both relations then resolved
      * against whichever was visited last.
      */

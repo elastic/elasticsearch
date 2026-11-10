@@ -19,7 +19,8 @@ import java.util.Objects;
 
 /**
  * The key a resolution is stored and looked up under: a resource and the configuration it is read under. Both
- * matter, because a CSV listing and a TSV listing of one prefix are different file sets with different schemas.
+ * matter: one prefix read as CSV and as TSV yields different columns, so the schema a resolution carries depends
+ * on the configuration and not on the resource alone.
  * <p>
  * Derived, never stored. A field on a plan node would travel to data nodes and need a transport version; resolution
  * finishes before a plan is serialized.

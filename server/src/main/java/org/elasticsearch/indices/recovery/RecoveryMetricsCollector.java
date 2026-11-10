@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -65,6 +66,7 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
     public static final String RECOVERY_GATE_BLOCKED_DURATION_METRIC = "es.recovery.gate.blocked.time";
     public static final String RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC = "es.recovery.gate.blocked.time.current";
     public static final String RECOVERY_GATE_NAME_ATTRIBUTE_KEY = "es_recovery_gate_name";
+    public static final String RECOVERY_GATE_HAS_PENDING_RECOVERIES_ATTRIBUTE_KEY = "es_recovery_has_pending";
 
     public static final String INCOMING_RECOVERIES_LIMIT_METRIC = "es.recovery.dnrt.incoming.limit.current";
     public static final String INCOMING_NON_CRITICAL_RECOVERIES_LIMIT_METRIC = "es.recovery.dnrt.incoming.non_critical.limit.current";
@@ -74,6 +76,7 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
         TelemetryProvider.NOOP,
         () -> null,
         () -> 0L,
+        () -> false,
         () -> 0L,
         new ClusterSettings(Settings.EMPTY, Set.of()),
         Settings.EMPTY,
@@ -100,6 +103,7 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
     private final List<LongAsyncGauge> asyncGauges;
     private final Supplier<BlockedState> blockedState;
     private final LongSupplier queueLatencyMillis;
+    private final BooleanSupplier hasPendingRecoveries;
     private final LongSupplier relativeTimeInMillis;
     private final ClusterSettings clusterSettings;
     private final Settings nodeSettings;
@@ -128,6 +132,7 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
             telemetryProvider,
             throttlingRecoveryService::blockedState,
             throttlingRecoveryService::queueLatencyMillis,
+            () -> throttlingRecoveryService.currentQueueSize() > 0,
             relativeTimeInMillisSupplier,
             clusterSettings,
             nodeSettings,
@@ -138,6 +143,7 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
     /// @param telemetryProvider telemetry provider
     /// @param blockedStateSupplier supplies the current recovery blocked state, or null when unblocked
     /// @param queueLatencyMillisSupplier supplies the current queue latency in milliseconds
+    /// @param hasPendingRecoveriesSupplier supplies whether any recovery is currently waiting in the queue
     /// @param relativeTimeInMillisSupplier supplies relative time in milliseconds; must use the same clock as
     /// [BlockedState#sinceRelativeMillis()]
     /// @param clusterSettings the cluster settings to watch for the incoming and outgoing recovery throttle settings
@@ -147,6 +153,7 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
         TelemetryProvider telemetryProvider,
         Supplier<BlockedState> blockedStateSupplier,
         LongSupplier queueLatencyMillisSupplier,
+        BooleanSupplier hasPendingRecoveriesSupplier,
         LongSupplier relativeTimeInMillisSupplier,
         ClusterSettings clusterSettings,
         Settings nodeSettings,
@@ -227,6 +234,7 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
         this.asyncGauges = new ArrayList<>();
         this.blockedState = blockedStateSupplier;
         this.queueLatencyMillis = queueLatencyMillisSupplier;
+        this.hasPendingRecoveries = hasPendingRecoveriesSupplier;
         this.relativeTimeInMillis = relativeTimeInMillisSupplier;
         this.clusterSettings = clusterSettings;
         this.nodeSettings = nodeSettings;
@@ -387,7 +395,7 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
                 RECOVERY_GATE_BLOCKED_CURRENT_METRIC,
                 "Whether recovery dispatch is currently blocked by recovery gates",
                 "unit",
-                () -> blockedState.get() == null ? 0L : 1L
+                measurement -> measurement.record(blockedState.get() == null ? 0L : 1L, currentRecoveryGateMetricLabels())
             )
         );
         asyncGauges.add(
@@ -395,11 +403,11 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
                 RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC,
                 "Elapsed time recovery dispatch has been blocked by recovery gates, or zero when unblocked",
                 "ms",
-                () -> {
+                measurement -> {
                     final BlockedState state = blockedState.get();
                     final long blockedTimeMillis = state == null ? 0L : relativeTimeInMillis.getAsLong() - state.sinceRelativeMillis();
                     assert blockedTimeMillis >= 0L;
-                    return blockedTimeMillis;
+                    measurement.record(blockedTimeMillis, currentRecoveryGateMetricLabels());
                 }
             )
         );
@@ -444,6 +452,12 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
     protected void doClose() throws IOException {
         // Only the asynchronous gauges are closeable; the synchronous counters and histograms need no cleanup.
         Releasables.close(asyncGauges.stream().map(gauge -> (Releasable) gauge::close).toList());
+    }
+
+    /// A block with an empty queue is not holding back any recovery, e.g. after the last recovery on a shutting-down node completes.
+    /// Labelling the current gate metrics with whether recoveries are pending lets alerts ignore such blocks.
+    private Map<String, Object> currentRecoveryGateMetricLabels() {
+        return Map.of(RECOVERY_GATE_HAS_PENDING_RECOVERIES_ATTRIBUTE_KEY, hasPendingRecoveries.getAsBoolean());
     }
 
     private static Map<String, Object> storeRecoveryTargetLifecycleMetricLabels(RecoverySource.Type type, PriorityGroup priorityGroup) {

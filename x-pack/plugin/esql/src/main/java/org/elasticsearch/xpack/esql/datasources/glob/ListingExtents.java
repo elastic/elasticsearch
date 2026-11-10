@@ -24,10 +24,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileList;
  * (see {@code PartitionMetadata#coversFileCount}). A second, narrower bound would have described a listing that
  * cannot be built, so it is gone rather than documented.
  * <p>
- * {@link Integer#MAX_VALUE} is unbounded. Only a listing that <em>reaches</em> this number sets
- * {@link FileList#isTruncated()}, which states what a reader handed a prefix of a dataset owes it. Asking for a
- * bound is not the same as getting a prefix — for a glob selective enough to be worth bounding, the usual outcome
- * is a complete listing, cacheable and believable when empty.
+ * {@link Integer#MAX_VALUE} is unbounded. A listing that <em>reaches</em> this number sets
+ * {@link FileList#isTruncated()}, which states what a reader handed a prefix of a dataset owes it; so does a
+ * prefix-accepting one stopped by the node's key ceiling. Asking to be bounded is not the same as getting a
+ * prefix — for a glob selective enough to be worth bounding, the usual outcome is a complete listing, cacheable
+ * and believable when empty.
  */
 public record ListingExtents(int maxFiles) {
 
@@ -42,6 +43,17 @@ public record ListingExtents(int maxFiles) {
 
     public boolean boundsFileSet() {
         return maxFiles != Integer.MAX_VALUE;
+    }
+
+    /**
+     * Whether a prefix of the surviving files answers the caller. Same expression as {@link #boundsFileSet()},
+     * different question: that one is asked about the ask itself — whether to walk partitions, whether a fan-out
+     * is eligible, whether the shared cache may hold the result. This one is asked at
+     * {@code esql.external.max_listed_objects}, where a prefix-accepting listing keeps its survivors and marks
+     * itself truncated.
+     */
+    public boolean acceptsPrefix() {
+        return boundsFileSet();
     }
 
 }

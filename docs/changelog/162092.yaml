@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162092
+summary: Keep the files a pruning dataset listing found when it reaches the key ceiling
+type: bug

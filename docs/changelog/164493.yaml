@@ -1,0 +1,6 @@
+area: Aggregations
+issues:
+ - 164475
+pr: 164493
+summary: Fix composite agg formats for mixed indices
+type: bug

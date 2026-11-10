@@ -16,6 +16,8 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryShardException;
@@ -91,6 +93,32 @@ public class ExceptionsHelperTests extends ESTestCase {
         assertThat(ExceptionsHelper.status(new IllegalArgumentException("illegal")), equalTo(RestStatus.BAD_REQUEST));
         assertThat(ExceptionsHelper.status(new XContentParseException(null, "illegal")), equalTo(RestStatus.BAD_REQUEST));
         assertThat(ExceptionsHelper.status(new EsRejectedExecutionException("rejected")), equalTo(RestStatus.TOO_MANY_REQUESTS));
+    }
+
+    public void testStatusOfCircuitBreakingExceptionWrappedByParser() {
+        // Object parsers wrap a trip once per level of nesting, and it must still be a 429, while other causes stay a 400.
+        CircuitBreakingException tripped = new CircuitBreakingException("tripped", CircuitBreaker.Durability.TRANSIENT);
+        XContentParseException wrapped = new XContentParseException(null, "failed to parse field [inner]", tripped);
+        assertThat(ExceptionsHelper.status(wrapped), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        assertThat(
+            ExceptionsHelper.status(new XContentParseException(null, "failed to parse field [outer]", wrapped)),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+        assertThat(
+            ExceptionsHelper.status(new XContentParseException(null, "illegal", new IllegalArgumentException("illegal"))),
+            equalTo(RestStatus.BAD_REQUEST)
+        );
+        // Query parsers such as ids wrap it again, and geo parsers wrap it in an ElasticsearchParseException.
+        assertThat(ExceptionsHelper.status(new ParsingException(null, "[ids] failed", wrapped)), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        assertThat(
+            ExceptionsHelper.status(new ElasticsearchParseException("error parsing geopoint", wrapped)),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+        assertThat(
+            ExceptionsHelper.status(new ParsingException(null, "illegal", new IllegalArgumentException("illegal"))),
+            equalTo(RestStatus.BAD_REQUEST)
+        );
+        assertThat(ExceptionsHelper.status(new ParsingException(null, "illegal")), equalTo(RestStatus.BAD_REQUEST));
     }
 
     public void testGroupBy() {

@@ -26,7 +26,7 @@ import java.util.concurrent.Executor;
  * so that a placeholder, or the rejection fallback, sees them as a whole: scanned one at a time, the contention is
  * expected to be small here.
  */
-public final class ComputeExecutor implements Executor {
+public final class ComputeExecutor implements DriverExecutor {
     static final int NORMAL_EVERY = 20;
     private final Executor executor;
     private final ThreadContext threadContext;
@@ -67,10 +67,7 @@ public final class ComputeExecutor implements Executor {
         }
     }
 
-    /**
-     * Runs {@code task} ahead of normal work, for work that has already waited its turn, such as a driver resuming
-     * after its exchange was blocked. If the pool is full the task is rejected via {@link AbstractRunnable#onRejection}.
-     */
+    @Override
     public void executeResumed(AbstractRunnable task) {
         submit(task, resumed);
     }

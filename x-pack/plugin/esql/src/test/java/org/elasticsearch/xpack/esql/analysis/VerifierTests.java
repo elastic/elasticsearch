@@ -4209,6 +4209,29 @@ public class VerifierTests extends AnalyzerTestCase {
                 + "| eval decay_result = decay(value, origin, scale, {\"offset\": 1, \"decay\": 0.5, \"type\": \"foobar\"})",
             equalTo("2:23: type option has invalid value, expected one of [gauss, linear, exp], found [\"foobar\"]")
         );
+
+        defaultAnalyzer().error(
+            "row value = 10, origin = 10, scale = 1\n" + "| eval decay_result = decay(value, origin, scale, {\"type\": \"gaussian\"})",
+            equalTo("2:23: type option has invalid value, expected one of [gauss, linear, exp], found [\"gaussian\"]")
+        );
+
+        // Origin must have the same spatial type as the value
+        defaultAnalyzer().error(
+            "row value = TO_GEOPOINT(\"POINT(1 1)\")\n"
+                + "| eval decay_result = decay(value, TO_CARTESIANPOINT(\"POINT(1 1)\"), \"100km\")",
+            equalTo(
+                "2:23: second argument of [decay(value, TO_CARTESIANPOINT(\"POINT(1 1)\"), \"100km\")] must be [geo_point], "
+                    + "found value [TO_CARTESIANPOINT(\"POINT(1 1)\")] type [cartesian_point]"
+            )
+        );
+
+        defaultAnalyzer().error(
+            "row value = TO_CARTESIANPOINT(\"POINT(1 1)\")\n" + "| eval decay_result = decay(value, TO_GEOPOINT(\"POINT(1 1)\"), 100.0)",
+            equalTo(
+                "2:23: second argument of [decay(value, TO_GEOPOINT(\"POINT(1 1)\"), 100.0)] must be [cartesian_point], "
+                    + "found value [TO_GEOPOINT(\"POINT(1 1)\")] type [geo_point]"
+            )
+        );
     }
 
     private void checkFullTextFunctionsInStats(String functionInvocation) {

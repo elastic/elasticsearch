@@ -676,7 +676,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
             int randomOrigin = randomInt();
             // scale must be > 0
             int randomScale = randomIntBetween(1, Integer.MAX_VALUE);
-            int randomOffset = randomInt();
+            int randomOffset = randomNonNegativeInt();
             double randomDecay = randomDecayOpenUnitInterval();
             String randomType = getRandomType();
 
@@ -750,7 +750,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
             long randomValue = randomLong();
             long randomOrigin = randomLong();
             long randomScale = randomLongBetween(1L, Long.MAX_VALUE);
-            long randomOffset = randomLong();
+            long randomOffset = randomNonNegativeLong();
             double randomDecay = randomDecayOpenUnitInterval();
             String randomType = randomFrom("linear", "gauss", "exp");
 
@@ -926,7 +926,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
             double randomValue = randomLong();
             double randomOrigin = randomLong();
             double randomScale = randomLongBetween(1L, Long.MAX_VALUE);
-            double randomOffset = randomLong();
+            double randomOffset = randomNonNegativeLong();
             double randomDecay = randomDecayOpenUnitInterval();
             String randomType = randomFrom("linear", "gauss", "exp");
 
@@ -1023,8 +1023,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         return List.of(new TestCaseSupplier(List.of(DataType.GEO_POINT, DataType.GEO_POINT, DataType.KEYWORD, DataType.SOURCE), () -> {
             GeoPoint randomValue = randomGeoPoint();
             GeoPoint randomOrigin = randomGeoPoint();
-            String randomScale = randomDistance();
-            String randomOffset = randomDistance();
+            String randomScale = randomDistance(1);
+            String randomOffset = randomDistance(0);
             double randomDecay = randomDecayOpenUnitInterval();
             String randomType = randomDecayType();
 
@@ -1068,11 +1068,11 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         return randomDoubleBetween(-90.0, 90.0, true);
     }
 
-    private static String randomDistance() {
+    private static String randomDistance(int min) {
         return String.format(
             Locale.ROOT,
             "%d%s",
-            randomNonNegativeInt(),
+            randomIntBetween(min, Integer.MAX_VALUE),
             randomFrom(
                 DistanceUnit.INCH,
                 DistanceUnit.YARD,
@@ -1200,7 +1200,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
             long randomOrigin = randomLongBetween(minEpoch, maxEpoch);
 
             // Max 1 year
-            long randomScaleMillis = randomNonNegativeLong() % (365L * 24 * 60 * 60 * 1000);
+            long randomScaleMillis = randomLongBetween(1L, 365L * 24 * 60 * 60 * 1000);
             // Max 30 days
             long randomOffsetMillis = randomNonNegativeLong() % (30L * 24 * 60 * 60 * 1000);
             Duration randomScale = Duration.ofMillis(randomScaleMillis);
@@ -1286,7 +1286,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 long randomOrigin = randomLongBetween(minEpochNanos, maxEpochNanos);
 
                 // Max 1 year in milliseconds
-                long randomScaleMillis = randomNonNegativeLong() % (365L * 24 * 60 * 60 * 1000);
+                long randomScaleMillis = randomLongBetween(1L, 365L * 24 * 60 * 60 * 1000);
                 // Max 30 days in milliseconds
                 long randomOffsetMillis = randomNonNegativeLong() % (30L * 24 * 60 * 60 * 1000);
                 Duration randomScale = Duration.ofMillis(randomScaleMillis);

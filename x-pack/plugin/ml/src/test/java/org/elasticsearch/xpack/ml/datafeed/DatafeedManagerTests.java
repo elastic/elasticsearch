@@ -656,6 +656,11 @@ public class DatafeedManagerTests extends ESTestCase {
 
         SecurityEnabledPutHarness harness = newSecurityEnabledPutHarness(securityEnabledSettings(), threadContext);
         when(harness.credentialManager().hasCloudManagedCredential(any())).thenReturn(false);
+        doAnswer(invocation -> {
+            ActionListener<HasPrivilegesResponse> listener = invocation.getArgument(2);
+            listener.onResponse(new HasPrivilegesResponse());
+            return null;
+        }).when(harness.client()).execute(same(HasPrivilegesAction.INSTANCE), any(), any());
         harness.stubSuccessfulPutPrerequisites();
         AtomicReference<Map<String, String>> storedHeaders = new AtomicReference<>();
         harness.stubPutDatafeedConfigCapturingHeaders(storedHeaders);
@@ -733,6 +738,7 @@ public class DatafeedManagerTests extends ESTestCase {
         SecurityEnabledPutHarness harness = newSecurityEnabledPutHarness(securityEnabledSettings());
         when(harness.credentialManager().hasCloudManagedCredential(any())).thenReturn(false);
         harness.stubSuccessfulPutPrerequisites();
+        harness.stubPutDatafeedConfigSuccess();
         doAnswer(invocation -> {
             ActionListener<HasPrivilegesResponse> listener = invocation.getArgument(2);
             listener.onResponse(new HasPrivilegesResponse());

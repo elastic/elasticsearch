@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.SearchRecoveryWaitOutcome;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -329,7 +330,10 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 mockDirectory(),
                 mock(WarmingRatioProvider.class),
-                Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L, 1L)),
+                Map.of(
+                    new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
+                    WarmTarget.withUnknownTimestamp(1L, 1L)
+                ),
                 resume
             );
             // recovery is NOT resumed
@@ -385,7 +389,10 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 null,
                 mock(WarmingRatioProvider.class),
-                Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L, 1L)),
+                Map.of(
+                    new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
+                    WarmTarget.withUnknownTimestamp(1L, 1L)
+                ),
                 resume
             );
             // recovery resumed (synchronously)
@@ -443,7 +450,10 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 mockDirectory(),
                 mock(WarmingRatioProvider.class),
-                Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), new WarmTarget(1L, 1L, 1L)),
+                Map.of(
+                    new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
+                    new WarmTarget(1L, 1L, 1L)
+                ),
                 resume
             );
             // make sure warming started running

@@ -239,9 +239,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformDestIndexIT
   method: testUnattendedTransformDestIndexCreatedDuringUpdate_EmptySourceIndex_DeferValidation
   issue: https://github.com/elastic/elasticsearch/issues/156861
-- class: org.elasticsearch.xpack.watcher.actions.webhook.WebhookTokenIntegrationTests
-  method: testWebhook
-  issue: https://github.com/elastic/elasticsearch/issues/160935
 - class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/161309
@@ -272,8 +269,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/139398
 - class: org.elasticsearch.painless.heappressure.PainlessFieldAllocationIT
   issue: https://github.com/elastic/elasticsearch/issues/162575
-- class: org.elasticsearch.search.heappressure.LargeTermsFilterHeapPressureIT
-  issue: https://github.com/elastic/elasticsearch/issues/162788
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecPrometheusK8sDeltaIT
   method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
   issue: https://github.com/elastic/elasticsearch/issues/162319
@@ -312,9 +307,12 @@ tests:
 - class: org.elasticsearch.xpack.analytics.topmetrics.TopMetricsColumnarIT
   method: testKeywordMissingMetricOnTopDocumentOnColumnarIndex
   issue: https://github.com/elastic/elasticsearch/issues/162510
-- class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
-  method: testDownsampleResumesAfterPersistentTaskRemoved
-  issue: https://github.com/elastic/elasticsearch/issues/162858
+- class: org.elasticsearch.xpack.downsample.DownsampleResilienceIT
+  method: testInterruptedRunResumesFromLastTimeSeries
+  issue: https://github.com/elastic/elasticsearch/issues/164609
+- class: org.elasticsearch.xpack.downsample.DownsampleResilienceIT
+  method: testSecondRequestDoesNotRetryCompletedShards
+  issue: https://github.com/elastic/elasticsearch/issues/164609
 - class: org.elasticsearch.xpack.stateless.StatelessResizeIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -359,11 +357,6 @@ tests:
   tasks:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:bcUpgradeTest
   issue: https://github.com/elastic/elasticsearch/issues/163562
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
-  tasks:
-  - :test:external-modules:test-esql-heap-attack:javaRestTest
-  method: testStatsBlowupNdjsonZstd
-  issue: https://github.com/elastic/elasticsearch/issues/163697
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -374,11 +367,6 @@ tests:
   - :server:test
   method: testAllFieldsLoaderReleasesItsReservationWhenItFails
   issue: https://github.com/elastic/elasticsearch/issues/163868
-- class: org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testRetryRecoveryCommitRegistrationIfPrimaryMoves
-  issue: https://github.com/elastic/elasticsearch/issues/164016
 - class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
   tasks:
   - :x-pack:plugin:ml:qa:multi-cluster-tests-with-security:yamlRestTest
@@ -418,11 +406,6 @@ tests:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
   method: testCancelTailRequest
   issue: https://github.com/elastic/elasticsearch/issues/153203
-- class: org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testFailRecoveryCommitRegistrationIfIndexGetsDeleted
-  issue: https://github.com/elastic/elasticsearch/issues/164232
 - class: org.elasticsearch.xpack.stateless.commits.StatelessStateNotRecoveredFileDeletionIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -443,16 +426,6 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
   method: test {csv-spec:k8s-timeseries-increase.increase_of_expression_promql}
   issue: https://github.com/elastic/elasticsearch/issues/164423
-- class: org.elasticsearch.cluster.SimpleClusterStateIT
-  tasks:
-  - :server:internalClusterTest
-  method: testMetadataVersion
-  issue: https://github.com/elastic/elasticsearch/issues/164246
-- class: org.elasticsearch.system_indices.action.SystemDataStreamMigrationIT
-  tasks:
-  - :x-pack:plugin:migrate:internalClusterTest
-  method: testMigrationRestartAfterFailure
-  issue: https://github.com/elastic/elasticsearch/issues/164473
 - class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
   tasks:
   - :x-pack:plugin:esql:test
@@ -526,11 +499,6 @@ tests:
   - :test:framework:integTest
   method: testLeakingRecyclerBackedByteArrayIsDetected
   issue: https://github.com/elastic/elasticsearch/issues/164889
-- class: org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldTypeTests
-  tasks:
-  - :x-pack:plugin:spatial:test
-  method: testFetchVectorTile
-  issue: https://github.com/elastic/elasticsearch/issues/164908
 - class: org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests
   tasks:
   - :x-pack:plugin:esql:compute:test
@@ -541,16 +509,6 @@ tests:
   - :x-pack:plugin:esql:compute:test
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/164938
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#yamlRestTest
-  method: test {yaml=esql/317_unmapped_fields_mapped_later/the result is the same without LOAD}
-  issue: https://github.com/elastic/elasticsearch/issues/164974
-- class: org.elasticsearch.simdvec.ESVectorUtilTests
-  tasks:
-  - :libs:simdvec:test
-  method: testMatrixMultiplyWithOffsets
-  issue: https://github.com/elastic/elasticsearch/issues/165038
 - class: org.elasticsearch.xpack.ml.qa.MlYamlRestIT
   tasks:
   - :x-pack:plugin:ml:qa:single-node-tests:yamlRestTest
@@ -566,11 +524,6 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testLookupDisconnect
   issue: https://github.com/elastic/elasticsearch/issues/165050
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#yamlRestTest
-  method: test {yaml=esql/317_unmapped_fields_mapped_later/LOAD returns null for a document indexed before the field was mapped}
-  issue: https://github.com/elastic/elasticsearch/issues/165055
 - class: org.elasticsearch.xpack.sql.qa.single_node.FieldExtractorIT
   tasks:
   - :x-pack:plugin:sql:qa:server:single-node:javaRestTest
@@ -591,3 +544,33 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testNoConflictsOrLostUpdatesDuringRefreshes
   issue: https://github.com/elastic/elasticsearch/issues/165117
+- class: org.elasticsearch.xpack.ml.integration.DataFrameAnalyticsFailedTaskReassignmentIT
+  tasks:
+  - :x-pack:plugin:ml:internalClusterTest
+  method: testForceStopOfFailedTaskThatWasReassigned
+  issue: https://github.com/elastic/elasticsearch/issues/165184
+- class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testTranslateMetricsGroupedByTwoDimension {default}
+  issue: https://github.com/elastic/elasticsearch/issues/165196
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#yamlRestTest
+  method: test {yaml=esql/40_tsdb/PromQL time range params as range selector duration}
+  issue: https://github.com/elastic/elasticsearch/issues/165214
+- class: org.elasticsearch.xpack.esql.action.ComputeExecutorIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testWokenDriverRunsBeforeQueuedDrivers
+  issue: https://github.com/elastic/elasticsearch/issues/165298
+- class: org.elasticsearch.xpack.esql.CsvLoadAllFromLoadIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: test {csv-spec:unmapped-type-conflicts.typeConflictPartiallyUnmappedTextFieldNotLoadedWithDrop}
+  issue: https://github.com/elastic/elasticsearch/issues/165306
+- class: org.elasticsearch.xpack.stateless.objectstore.gc.StaleIndicesGCIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testIsolatedNodeRunningGCDoesNotDeleteNewIndexData
+  issue: https://github.com/elastic/elasticsearch/issues/165370

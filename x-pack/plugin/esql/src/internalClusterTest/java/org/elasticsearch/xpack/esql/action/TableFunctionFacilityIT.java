@@ -7,17 +7,26 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.tablefunction.CoordinatorRowsFunction;
+import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunction;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionInvocation;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionSignature;
-import org.elasticsearch.xpack.esql.tablefunction.TableRows;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -55,10 +64,11 @@ public class TableFunctionFacilityIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * One required argument, one {@code KEYWORD} column, one row per character of the argument. Deliberately
-     * argument-dependent in both its rows and its row count, so a test can tell the argument reached it.
+     * One required argument, one {@code KEYWORD} column, one row per character of it — argument-dependent in both
+     * its rows and its row count, so a test can tell the argument reached it. It builds its leaf by hand, which is
+     * all the facility asks for: {@code toRelation} completes with any {@link LeafPlan}.
      */
-    private static final class Letters extends CoordinatorRowsFunction {
+    private static final class Letters implements TableFunction {
 
         @Override
         public String name() {
@@ -71,13 +81,27 @@ public class TableFunctionFacilityIT extends AbstractEsqlIntegTestCase {
         }
 
         @Override
-        protected void write(TableFunctionInvocation call, ProjectMetadata projectMetadata, TableRows rows, ActionListener<Void> listener) {
-            computed(listener, out -> {
-                TableRows.Keyword letter = out.keyword("letter");
-                for (char c : call.name(0).toCharArray()) {
-                    letter.append(String.valueOf(c));
+        public void toRelation(
+            TableFunctionInvocation call,
+            List<NamedExpression> metadataFields,
+            ProjectMetadata projectMetadata,
+            ActionListener<LeafPlan> listener
+        ) {
+            char[] letters = call.name(0).toCharArray();
+            BytesRefBlock block;
+            try (BytesRefBlock.Builder builder = PlannerUtils.NON_BREAKING_BLOCK_FACTORY.newBytesRefBlockBuilder(letters.length)) {
+                for (char c : letters) {
+                    builder.appendBytesRef(new BytesRef(String.valueOf(c)));
                 }
-            }, rows);
+                block = builder.build();
+            }
+            listener.onResponse(
+                new LocalRelation(
+                    call.source(),
+                    List.of(new ReferenceAttribute(Source.EMPTY, "letter", DataType.KEYWORD)),
+                    LocalSupplier.of(new Page(letters.length, block))
+                )
+            );
         }
     }
 
@@ -133,8 +157,8 @@ public class TableFunctionFacilityIT extends AbstractEsqlIntegTestCase {
 
     /**
      * A leaf that binds no metadata still answers a METADATA clause, because the analyzer fills a name absent
-     * from a leaf's output with null. {@code CoordinatorRowsFunction} leans on that rather than binding metadata
-     * itself, and nothing else in the tree exercises the claim over a table function.
+     * from a leaf's output with null. A function that binds no metadata leans on that, and nothing else in the
+     * tree exercises the claim over a table function.
      */
     public void testMetadataOverAFunctionIsNullFilled() {
         try (EsqlQueryResponse response = run("FROM letters(\"ab\") METADATA _index | KEEP letter, _index")) {

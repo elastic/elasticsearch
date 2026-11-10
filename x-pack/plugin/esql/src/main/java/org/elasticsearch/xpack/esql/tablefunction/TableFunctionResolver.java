@@ -121,11 +121,15 @@ public class TableFunctionResolver {
     private static LogicalPlan substitute(LogicalPlan parsed, Map<UnresolvedTableFunctionRelation, LeafPlan> bound) {
         return parsed.transformDown(UnresolvedTableFunctionRelation.class, leaf -> {
             LeafPlan relation = bound.get(leaf);
-            assert relation != null : "a leaf reached the substitution that the binding walk did not see";
-            // A function returning another unresolved call would never be rewritten again, and the verifier would
-            // report the user's own syntax back at them as unresolved. Nothing in the type system prevents it.
-            assert relation instanceof UnresolvedTableFunctionRelation == false
-                : "[" + leaf.call().name() + "] returned another table function call";
+            // Thrown rather than asserted, as TableFunctionSignature's own declaration checks are: assertions are
+            // off in production, where a null would fail later as an NPE naming no function, and another unresolved
+            // call would be reported to the user as their own syntax being unresolved.
+            if (relation == null) {
+                throw new IllegalStateException("[" + leaf.call().name() + "] bound no relation for a call in this query");
+            }
+            if (relation instanceof UnresolvedTableFunctionRelation) {
+                throw new IllegalStateException("[" + leaf.call().name() + "] returned another table function call");
+            }
             return relation;
         });
     }

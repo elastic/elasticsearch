@@ -436,9 +436,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 } else {
                     // Named rather than trailing: a fourth alternative added to indexPatternOrSubquery would
                     // otherwise be filed here as a table function with a null context, and fail somewhere further
-                    // down. The class names the alternative that was added; the user's own text is not in it,
-                    // because nothing in this builder puts a source list's text into a message.
-                    throw new IllegalStateException("unhandled source list entry [" + c.getClass().getSimpleName() + "]");
+                    throw new IllegalStateException("unhandled source list entry in indexPatternOrSubquery");
                 }
             });
         }

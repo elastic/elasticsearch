@@ -12,18 +12,27 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedTableFunctionRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,10 +57,9 @@ public class TableFunctionResolverTests extends ESTestCase {
 
     /**
      * A function whose rows are a literal. Four methods, and none of them about a wire format, a data node or a
-     * privilege — a function of this shape has none of those, and {@link CoordinatorRowsFunction} gives it no seam
-     * to acquire one.
+     * privilege — a function of this shape has none of those, and the facility gives it no seam to acquire one.
      */
-    private static class Numbers extends CoordinatorRowsFunction {
+    private static class Numbers implements TableFunction {
 
         private final AtomicInteger bindings = new AtomicInteger();
 
@@ -73,15 +81,14 @@ public class TableFunctionResolverTests extends ESTestCase {
         }
 
         @Override
-        protected void write(TableFunctionInvocation call, ProjectMetadata projectMetadata, TableRows rows, ActionListener<Void> listener) {
+        public void toRelation(
+            TableFunctionInvocation call,
+            List<NamedExpression> metadataFields,
+            ProjectMetadata projectMetadata,
+            ActionListener<LeafPlan> listener
+        ) {
             bindings.incrementAndGet();
-            long upto = Long.parseLong(call.name(0));
-            computed(listener, out -> {
-                TableRows.Longs n = out.longs("n");
-                for (long i = 0; i < upto; i++) {
-                    n.append(i);
-                }
-            }, rows);
+            listener.onResponse(counting(call.source(), Long.parseLong(call.name(0))));
         }
     }
 
@@ -297,20 +304,19 @@ public class TableFunctionResolverTests extends ESTestCase {
     }
 
     /** Answers its listener only when told to, so a test can hold two binds open at once. */
-    private static class Deferred extends CoordinatorRowsFunction {
+    private static class Deferred implements TableFunction {
 
         private final String name;
-        private final SetOnce<TableRows> rows = new SetOnce<>();
+        private final SetOnce<Source> source = new SetOnce<>();
         private final CountDownLatch asked = new CountDownLatch(1);
-        private final SetOnce<ActionListener<Void>> listener = new SetOnce<>();
+        private final SetOnce<ActionListener<LeafPlan>> listener = new SetOnce<>();
 
         Deferred(String name) {
             this.name = name;
         }
 
         void release() {
-            rows.get().longs("n");
-            listener.get().onResponse(null);
+            listener.get().onResponse(counting(source.get(), 0));
         }
 
         void fail(Exception e) {
@@ -328,8 +334,13 @@ public class TableFunctionResolverTests extends ESTestCase {
         }
 
         @Override
-        protected void write(TableFunctionInvocation call, ProjectMetadata projectMetadata, TableRows rows, ActionListener<Void> listener) {
-            this.rows.set(rows);
+        public void toRelation(
+            TableFunctionInvocation call,
+            List<NamedExpression> metadataFields,
+            ProjectMetadata projectMetadata,
+            ActionListener<LeafPlan> listener
+        ) {
+            this.source.set(call.source());
             this.listener.set(listener);
             asked.countDown();
         }
@@ -345,7 +356,7 @@ public class TableFunctionResolverTests extends ESTestCase {
     }
 
     /** Records the named values it was handed, so a test can assert the function saw them rather than the record. */
-    private static class MapReading extends CoordinatorRowsFunction {
+    private static class MapReading implements TableFunction {
 
         private Map<String, Object> seen;
 
@@ -363,14 +374,19 @@ public class TableFunctionResolverTests extends ESTestCase {
         }
 
         @Override
-        protected void write(TableFunctionInvocation call, ProjectMetadata projectMetadata, TableRows rows, ActionListener<Void> listener) {
+        public void toRelation(
+            TableFunctionInvocation call,
+            List<NamedExpression> metadataFields,
+            ProjectMetadata projectMetadata,
+            ActionListener<LeafPlan> listener
+        ) {
             seen = call.namedValues(1);
-            computed(listener, out -> out.longs("n"), rows);
+            listener.onResponse(counting(call.source(), 0));
         }
     }
 
     /** Throws where a function may well throw: working out its own columns, before the listener goes anywhere. */
-    private static class Throwing extends CoordinatorRowsFunction {
+    private static class Throwing implements TableFunction {
 
         @Override
         public String name() {
@@ -383,7 +399,12 @@ public class TableFunctionResolverTests extends ESTestCase {
         }
 
         @Override
-        protected void write(TableFunctionInvocation call, ProjectMetadata projectMetadata, TableRows rows, ActionListener<Void> listener) {
+        public void toRelation(
+            TableFunctionInvocation call,
+            List<NamedExpression> metadataFields,
+            ProjectMetadata projectMetadata,
+            ActionListener<LeafPlan> listener
+        ) {
             throw new IllegalStateException("cannot say what my columns are");
         }
     }
@@ -456,6 +477,23 @@ public class TableFunctionResolverTests extends ESTestCase {
             new TableFunctionInvocation(source, "numbers", List.of(new TableFunctionArgument.Name(source, argument))),
             List.of()
         );
+    }
+
+    /**
+     * A leaf built by hand: one {@code long} column holding {@code 0..count}. The facility takes any
+     * {@link LeafPlan}, so nothing here needs a base class to produce one — which is also what keeps these tests
+     * about resolution rather than about how a particular kind of function fills a page.
+     */
+    private static LocalRelation counting(Source source, long count) {
+        Attribute column = new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG);
+        LongBlock block;
+        try (LongBlock.Builder builder = PlannerUtils.NON_BREAKING_BLOCK_FACTORY.newLongBlockBuilder((int) count)) {
+            for (long i = 0; i < count; i++) {
+                builder.appendLong(i);
+            }
+            block = builder.build();
+        }
+        return new LocalRelation(source, List.of(column), LocalSupplier.of(new Page((int) count, block)));
     }
 
     private static LogicalPlan resolve(TableFunction function, LogicalPlan plan) {

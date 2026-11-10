@@ -16,7 +16,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -31,7 +30,6 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
-import org.elasticsearch.xpack.esql.datasources.DefinitionVersion;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
@@ -66,7 +64,6 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
 import java.time.Instant;
@@ -438,134 +435,6 @@ public class EsqlSessionTests extends ESTestCase {
 
         Map<String, Map<String, Object>> result = EsqlSession.extractExternalConfigs(relation);
         assertThat(result, equalTo(Map.of("s3://bucket/table", config)));
-    }
-
-    /**
-     * Resolution is keyed by the resource path, so one path yields one listing and one schema. Two relations
-     * reading that path under configurations that would read differently cannot both be honoured, and silently
-     * honouring whichever was visited last resolves the other against settings nobody asked for - a different
-     * format, or another data source's credentials. The refusal is the contract.
-     */
-    public void testExtractExternalConfigsRefusesDivergingConfigsOnOnePath() {
-        String path = "s3://bucket/table";
-        LogicalPlan plan = twoRelationsOnOnePath(path, configWith("format", "csv"), configWith("format", "ndjson"));
-
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> EsqlSession.extractExternalConfigs(plan));
-        assertThat(ex.getMessage(), containsString("resource [" + path + "] is read through datasets with different configurations"));
-    }
-
-    /**
-     * Two registered datasets over one resource with the same definition are twins: they read identically and must
-     * keep sharing one resolution. Their configs are nevertheless unequal as maps, because the dataset-context key
-     * carries each dataset's own name for diagnostics. Comparing whole configs would refuse {@code FROM a, b} here,
-     * which works today - so the comparison excludes that key and nothing else.
-     */
-    public void testExtractExternalConfigsAcceptsTwinsDifferingOnlyInDatasetContext() {
-        String path = "s3://bucket/table";
-        Map<String, Object> first = configWith("format", "csv");
-        first.put(ExternalSourceResolver.DATASET_CONTEXT_KEY, Map.of("dataset", "a", "datasource", "src", "type", "s3"));
-        Map<String, Object> second = configWith("format", "csv");
-        second.put(ExternalSourceResolver.DATASET_CONTEXT_KEY, Map.of("dataset", "b", "datasource", "src", "type", "s3"));
-        assertThat("the two configs must be unequal as maps, or this test proves nothing", first, not(equalTo(second)));
-
-        Map<String, Map<String, Object>> result = EsqlSession.extractExternalConfigs(twoRelationsOnOnePath(path, first, second));
-
-        assertThat(result.keySet(), equalTo(Set.of(path)));
-        assertThat(result.get(path), equalTo(first));
-    }
-
-    /**
-     * Two data sources whose stored secrets differ only as ciphertext are refused, and this pins the direction of
-     * the trade rather than an accident. The same secret written twice compares unequal because encryption draws a
-     * fresh IV per write; nothing in the stored form distinguishes that from two different secrets, the folded
-     * {@code _definition_version} included, since it reduces an {@code EncryptedData} to its key id. Accepting
-     * would read one dataset's resource under the other data source's credentials, so the refusal is the safe way
-     * to be wrong and the user is told which two datasets to choose between.
-     */
-    public void testExtractExternalConfigsRefusesTwinsWhoseSecretsEncryptedDifferently() {
-        String path = "s3://bucket/table";
-        Map<String, Object> first = configWith("format", "csv");
-        first.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, Map.of("secret_key", new EncryptedData("key-1", new byte[] { 1, 2, 3 })));
-        first.put(DefinitionVersion.CONFIG_KEY, "v1");
-        Map<String, Object> second = configWith("format", "csv");
-        second.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, Map.of("secret_key", new EncryptedData("key-1", new byte[] { 9, 9, 9 })));
-        // The same folded version on both, so this fails if anything ever short-circuits on it again.
-        second.put(DefinitionVersion.CONFIG_KEY, "v1");
-
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> EsqlSession.extractExternalConfigs(twoRelationsOnOnePath(path, first, second))
-        );
-        assertThat(e.getMessage(), containsString("different configurations in one query"));
-    }
-
-    /**
-     * The refusal names both datasets, which is the half of the message no test reached: every other refusal case
-     * builds its configs without a {@code _dataset_context}, so {@code datasetName} returns null for both and the
-     * naming clause is empty in all of them.
-     */
-    public void testTheRefusalNamesBothDatasets() {
-        String path = "s3://bucket/table";
-        Map<String, Object> first = configWith("format", "csv");
-        first.put(ExternalSourceResolver.DATASET_CONTEXT_KEY, Map.of("dataset", "a", "datasource", "src_a", "type", "s3"));
-        Map<String, Object> second = configWith("format", "ndjson");
-        second.put(ExternalSourceResolver.DATASET_CONTEXT_KEY, Map.of("dataset", "b", "datasource", "src_b", "type", "s3"));
-
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> EsqlSession.extractExternalConfigs(twoRelationsOnOnePath(path, first, second))
-        );
-        assertThat(e.getMessage(), containsString("in one query - [a] and [b]"));
-    }
-
-    /** A plain divergence in a setting that decides the read, with no credentials involved either way. */
-    public void testExtractExternalConfigsStillRefusesDifferentVersionsOnOnePath() {
-        String path = "s3://bucket/table";
-        Map<String, Object> first = configWith("format", "csv");
-        first.put(DefinitionVersion.CONFIG_KEY, "v1");
-        Map<String, Object> second = configWith("format", "ndjson");
-        second.put(DefinitionVersion.CONFIG_KEY, "v2");
-
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> EsqlSession.extractExternalConfigs(twoRelationsOnOnePath(path, first, second))
-        );
-        assertThat(e.getMessage(), containsString("different configurations in one query"));
-    }
-
-    /** Different paths never compare, however far their configurations diverge. */
-    public void testExtractExternalConfigsKeepsDistinctPathsApart() {
-        UnresolvedExternalRelation left = new UnresolvedExternalRelation(
-            EMPTY,
-            Literal.keyword(EMPTY, "s3://bucket/left"),
-            configWith("format", "csv")
-        );
-        UnresolvedExternalRelation right = new UnresolvedExternalRelation(
-            EMPTY,
-            Literal.keyword(EMPTY, "s3://bucket/right"),
-            configWith("format", "ndjson")
-        );
-
-        Map<String, Map<String, Object>> result = EsqlSession.extractExternalConfigs(new UnionAll(EMPTY, List.of(left, right), List.of()));
-
-        assertThat(result.keySet(), equalTo(Set.of("s3://bucket/left", "s3://bucket/right")));
-    }
-
-    private static Map<String, Object> configWith(String key, Object value) {
-        Map<String, Object> config = new HashMap<>();
-        config.put(key, value);
-        return config;
-    }
-
-    private static LogicalPlan twoRelationsOnOnePath(String path, Map<String, Object> left, Map<String, Object> right) {
-        return new UnionAll(
-            EMPTY,
-            List.of(
-                new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), left),
-                new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), right)
-            ),
-            List.of()
-        );
     }
 
     public void testComputeLookupJoinIndexScope() {

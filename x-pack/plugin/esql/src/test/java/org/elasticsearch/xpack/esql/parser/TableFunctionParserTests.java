@@ -87,7 +87,6 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
         assertThat(call.name(1), equalTo("res"));
     }
 
-    /** The name is kept as typed, for diagnostics; the registry is what matches without regard to case. */
     /**
      * A lone call is the plan's root, not a one-child {@code UnionAll}. A source list of one index does not acquire
      * a union either, and every test here finds the call with {@code forEachDown}, so nothing else would notice the
@@ -97,6 +96,7 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
         as(query("FROM EXAMPLE(my_source, \"res\")"), UnresolvedTableFunctionRelation.class);
     }
 
+    /** The name is kept as typed, for diagnostics; the registry is what matches without regard to case. */
     public void testNameIsCaseInsensitive() {
         assertThat(onlyCall("from example(my_source, \"res\", {\"x\": 1})").name(), equalTo("example"));
         assertThat(onlyCall("FROM DaTaSeT(my_source, \"res\", {\"x\": 1})").name(), equalTo("DaTaSeT"));
@@ -124,7 +124,7 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
     }
 
     /**
-     * The payload stands for the JSON a example registration carries, so a constant ES|QL admits but JSON
+     * The payload stands for the JSON an example registration carries, so a constant ES|QL admits but JSON
      * cannot express is refused rather than converted. An unsigned long is the sharpest case: its stored
      * long is a biased representation, so passing it through would hand on a different number.
      */

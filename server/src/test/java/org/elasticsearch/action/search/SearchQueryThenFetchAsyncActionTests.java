@@ -833,6 +833,162 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     }
 
     /**
+     * A shard request that saw no trip is sent before a trip that comes in meanwhile fails the search, for the reason
+     * {@code AbstractSearchAsyncAction#deferCoordinatorTripFailure} gives.
+     */
+    public void testTripWhileSendingShardRequestFailsSearchAfterItIsSent() {
+        OriginalIndices originalIndices = new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        List<SearchShardIterator> shardsIter = new ArrayList<>();
+        for (int i = 0; i < 2; i++) {
+            shardsIter.add(
+                new SearchShardIterator(
+                    null,
+                    new ShardId("idx", "_na_", i),
+                    List.of("node" + (i + 1)),
+                    originalIndices,
+                    null,
+                    null,
+                    false,
+                    false,
+                    SplitShardCountSummary.UNSET
+                )
+            );
+        }
+
+        List<Exception> failures = Collections.synchronizedList(new ArrayList<>());
+        Map<Integer, Integer> failuresWhenSent = new ConcurrentHashMap<>();
+        AtomicReference<Runnable> tripShard0 = new AtomicReference<>();
+        AtomicReference<CircuitBreakingException> trip = new AtomicReference<>();
+        // Unused, as sendExecuteQuery is overridden below, but SearchTransportService needs one; a real one needs a
+        // transport and thread pool
+        var transportService = mock(TransportService.class);
+        SearchTransportService searchTransportService = new SearchTransportService(transportService, null, null) {
+            @Override
+            public void sendExecuteQuery(
+                Transport.Connection connection,
+                ShardSearchRequest request,
+                SearchTask task,
+                ShardResponseReservation reservation,
+                ActionListener<SearchPhaseResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
+            ) {
+                int shardId = request.shardId().id();
+                failuresWhenSent.put(shardId, failures.size());
+                if (shardId == 0) {
+                    tripShard0.set(() -> trip.set(ShardResponseReservationTests.tripWhileArriving(reservation, listener)));
+                }
+            }
+        };
+        // Shard 0 trips while the coordinator gets the connection for shard 1, after shard 1 checked for a trip
+        Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>() {
+            @Override
+            public Transport.Connection get(Object nodeId) {
+                Runnable tripNow = nodeId.equals("node2") ? tripShard0.getAndSet(null) : null;
+                if (tripNow != null) {
+                    tripNow.run();
+                }
+                return super.get(nodeId);
+            }
+        };
+        for (String nodeId : List.of("node1", "node2")) {
+            lookup.put(nodeId, new SearchAsyncActionTests.MockConnection(DiscoveryNodeUtils.create(nodeId)));
+        }
+
+        try (QueryPhaseResultConsumer resultConsumer = newResultConsumer(shardsIter.size())) {
+            newSearchThatMustNotFinish(
+                searchTransportService,
+                lookup,
+                shardsIter,
+                resultConsumer,
+                false,
+                SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
+                failures
+            ).start();
+
+            assertThat("the search failed before shard 1 was sent", failuresWhenSent, equalTo(Map.of(0, 0, 1, 0)));
+            assertThat(failures, hasSize(1));
+            assertThat(failures.getFirst().getCause(), sameInstance(trip.get()));
+        }
+    }
+
+    /**
+     * A node batch that saw no trip is sent before a trip that comes in meanwhile fails the search, for the reason
+     * {@link #testTripWhileSendingShardRequestFailsSearchAfterItIsSent} gives.
+     */
+    public void testTripWhileSendingNodeBatchFailsSearchAfterItIsSent() {
+        // Two shards on each data node, so that each node gets a batch
+        OriginalIndices originalIndices = new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        List<SearchShardIterator> shardsIter = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            shardsIter.add(
+                new SearchShardIterator(
+                    null,
+                    new ShardId("idx", "_na_", i),
+                    List.of(i < 2 ? "node1" : "node2"),
+                    originalIndices,
+                    null,
+                    null,
+                    false,
+                    false,
+                    SplitShardCountSummary.UNSET
+                )
+            );
+        }
+
+        List<Exception> failures = Collections.synchronizedList(new ArrayList<>());
+        List<Integer> failuresWhenSent = Collections.synchronizedList(new ArrayList<>());
+        List<TransportResponseHandler<?>> sentBatches = Collections.synchronizedList(new ArrayList<>());
+        AtomicReference<CircuitBreakingException> trip = new AtomicReference<>();
+        // Only getLocalNode and sendChildRequest are used, to capture each batch's handler; a real TransportService needs a transport
+        // and thread pool
+        var transportService = mock(TransportService.class);
+        when(transportService.getLocalNode()).thenReturn(DiscoveryNodeUtils.create("coordinator"));
+        doAnswer(invocation -> {
+            failuresWhenSent.add(failures.size());
+            sentBatches.add(invocation.getArgument(4));
+            return null;
+        }).when(transportService)
+            .sendChildRequest(
+                any(Transport.Connection.class),
+                eq(SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME),
+                any(),
+                any(),
+                any()
+            );
+        SearchTransportService searchTransportService = new SearchTransportService(transportService, null, null);
+        // The batch sent first trips while the coordinator gets the connection for the other node, which checked for a trip already
+        Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>() {
+            @Override
+            public Transport.Connection get(Object nodeId) {
+                if (sentBatches.size() == 1 && trip.get() == null) {
+                    trip.set(ShardResponseReservationTests.tripWhileArriving(sentBatches.getFirst()));
+                }
+                return super.get(nodeId);
+            }
+        };
+        for (String nodeId : List.of("node1", "node2")) {
+            lookup.put(nodeId, new SearchAsyncActionTests.MockConnection(DiscoveryNodeUtils.create(nodeId)));
+        }
+
+        try (QueryPhaseResultConsumer resultConsumer = newResultConsumer(shardsIter.size())) {
+            newSearchThatMustNotFinish(
+                searchTransportService,
+                lookup,
+                shardsIter,
+                resultConsumer,
+                true,
+                SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
+                failures
+            ).start();
+
+            assertThat("the search failed before the second batch was sent", failuresWhenSent, contains(0, 0));
+            assertThat(failures, hasSize(1));
+            assertThat(failures.getFirst().getCause(), sameInstance(trip.get()));
+        }
+    }
+
+    /**
      * A batch through a gateway node charges nothing while its response arrives, for the reason
      * {@link SearchTransportService#unlessProxied} gives. {@link #testBatchedResponseTripFailsSearch} is the control, over direct
      * connections.

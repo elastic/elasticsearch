@@ -435,8 +435,8 @@ public class ParsedContentReservationTests extends ESTestCase {
         ByteSizeValue limit = ByteSizeValue.ofMb(100);
         HierarchyCircuitBreakerService service = requestBreakerService(limit, metrics);
         AtomicReference<ParsedContentReservation> reservation = new AtomicReference<>();
-        // A breaker of its own, since the service's cannot close the reservation. Named request so its metrics match the ones read below.
-        // Its usage is not counted by the service's parent limit.
+        // A breaker of its own, since the service's request breaker cannot close the reservation. Named request so its metrics match
+        // the ones read below. Its usage is not counted by the service's parent limit.
         ChildMemoryCircuitBreaker breaker = new ChildMemoryCircuitBreaker(
             metrics,
             new BreakerSettings(CircuitBreaker.REQUEST, limit.getBytes(), 1.0),

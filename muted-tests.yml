@@ -169,6 +169,11 @@ tests:
   - :qa:mixed-cluster:v8.17.10#yamlRestTest
   method: test {yaml=tsdb/20_mapping/disabled source is not supported}
   issue: https://github.com/elastic/elasticsearch/issues/165278
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  tasks:
+  - :qa:mixed-cluster:v8.17.10#yamlRestTest
+  method: test {yaml=logsdb/20_source_mapping/disabled _source is not supported}
+  issue: https://github.com/elastic/elasticsearch/issues/165280
 
 # Examples:
 #

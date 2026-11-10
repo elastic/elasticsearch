@@ -621,4 +621,19 @@ public class RedactProcessorTests extends ESTestCase {
     private static IngestDocument createIngestDoc(Map<String, Object> source) {
         return new IngestDocument("index", "id", 0L, "routing", VersionType.INTERNAL, new HashMap<>(source));
     }
+
+    /**
+     * Pipelines are stored, so a malformed path in one has to be accepted when the processor is created, with the failure only coming
+     * when a document is run through it. This goes through the factory, as creating a processor from a stored pipeline does.
+     */
+    public void testMalformedFieldFailsAtExecutionTime() throws Exception {
+        var config = new HashMap<String, Object>();
+        config.put("field", "a..b");
+        config.put("patterns", List.of("%{EMAILADDRESS:EMAIL}"));
+        var processor = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop()).create(null, "t", "d", config, null);
+
+        var ingestDocument = createIngestDoc(Map.of("to_redact", "thisisanemail@address.com"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
+    }
 }

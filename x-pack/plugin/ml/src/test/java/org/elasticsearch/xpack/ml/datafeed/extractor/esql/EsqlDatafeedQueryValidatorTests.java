@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.ml.datafeed.crossproject.NoMatchingProjectTestMessages;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -290,8 +291,15 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(harness.capturedQuery, equalTo("FROM logs | WHERE a > 1 // filter\n | LIMIT 0"));
     }
 
-    public void testMintAccessWithNoMatchingProjectShouldDefer() {
-        ValidatorHarness harness = new ValidatorHarness(new NoMatchingProjectException("_alias:*"));
+    public void testNoProjectAfterRoutingMessageMatchesServerText() {
+        NoMatchingProjectException fromServer = NoMatchingProjectTestMessages.noProjectAfterRouting("_alias:*");
+        assertThat(fromServer.getMessage(), containsString(EsqlDatafeedQueryValidator.NO_PROJECT_AFTER_ROUTING_MESSAGE));
+        NoMatchingProjectException explicitMissing = NoMatchingProjectTestMessages.explicitMissingQualifiedProject();
+        assertThat(explicitMissing.getMessage(), containsString("No such project"));
+    }
+
+    public void testMintAccessWithNoProjectAfterRoutingShouldDefer() {
+        ValidatorHarness harness = new ValidatorHarness(NoMatchingProjectTestMessages.noProjectAfterRouting("_alias:*"));
 
         AtomicBoolean succeeded = new AtomicBoolean(false);
         harness.validator.validateAccessForMint(
@@ -299,9 +307,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             Collections.emptyMap(),
             ESQL_QUERY,
             "_alias:*",
-            ActionListener.wrap(ignored -> succeeded.set(true), e -> {
-                throw new AssertionError("expected deferral", e);
-            }),
+            ActionTestUtils.assertNoFailureListener(ignored -> succeeded.set(true)),
             null
         );
 
@@ -327,8 +333,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(response.hasReferences(), is(false));
     }
 
-    public void testMintAccessWithQualifiedSourceAndNoMatchingProjectShouldFail() {
-        NoMatchingProjectException noMatchingProject = new NoMatchingProjectException("_alias:*");
+    public void testMintAccessWithExplicitMissingProjectShouldFailBeforeMint() {
+        NoMatchingProjectException noMatchingProject = NoMatchingProjectTestMessages.explicitMissingQualifiedProject();
         ValidatorHarness harness = new ValidatorHarness(noMatchingProject);
 
         AtomicReference<Exception> failure = new AtomicReference<>();
@@ -337,103 +343,51 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             Collections.emptyMap(),
             "FROM project-a:logs | LIMIT 10",
             "_alias:*",
-            ActionListener.wrap(ignored -> fail("a qualified project must not be deferred"), failure::set),
+            ActionListener.wrap(ignored -> fail("an explicit missing project must not be deferred"), failure::set),
             null
         );
 
         assertThat(failure.get(), equalTo(noMatchingProject));
     }
 
-    public void testMintAccessWithQualifiedOrUnprovenSourceAndNoMatchingProjectShouldFail() {
-        // Only plain comma-separated index names are deferred; anything the allow-list does not recognise fails closed.
-        List<String> failClosed = List.of(
-            "FROM (FROM project-a:logs-*) | LIMIT 10",
-            "FROM logs, (FROM project-a:logs-*) | LIMIT 10",
-            "FROM (FROM logs) | LIMIT 10",
+    public void testMintAccessWithNoProjectAfterRoutingShouldDeferRegardlessOfQueryShape() {
+        NoMatchingProjectException noProjectAfterRouting = NoMatchingProjectTestMessages.noProjectAfterRouting("_alias:*");
+        List<String> queriesWithNonQualifierColons = List.of(
             "FROM project-a:logs-* | LIMIT 10",
-            "FROM logs, project-a:logs-* | LIMIT 10",
-            "FROM logs,project-a:logs-*,other | LIMIT 10",
-            "FROM logs, -project-a:logs-* | LIMIT 10",
-            "FROM _origin:logs-* | LIMIT 10",
-            "FROM project-a : logs-* | LIMIT 10",
-            "FROM project-a :logs-* | LIMIT 10",
-            "FROM project-a: logs-* | LIMIT 10",
-            "FROM project-a /* c */ : logs | LIMIT 10",
-            "FROM project-a // c\n : logs | LIMIT 10",
-            "FROM /* c */ project-a:logs // c\n | LIMIT 10",
-            "FROM /* c */ logs | LIMIT 10",
-            "FROM logs // c\n | LIMIT 10",
-            "FROM \"project-a\":logs | LIMIT 10",
-            "FROM \"logs\" | LIMIT 10",
-            "FROM `project-a:logs` | LIMIT 10",
-            "FROM logs, | LIMIT 10",
-            "FROM logs,| LIMIT 10",
-            "FROM , logs | LIMIT 10",
-            "FROM logs,,other | LIMIT 10",
-            "FROM | LIMIT 10",
-            "FROM logs other | LIMIT 10",
-            "FROM logs METADATA | LIMIT 10",
-            "FROM logs METADATA _id, | LIMIT 10",
-            "TS project-a:metrics-* | LIMIT 10",
-            "ROW a = 1 | LIMIT 10",
-            "FROM logs-*:other | LIMIT 10",
-            "FROM logs/other | LIMIT 10",
-            "FROM <logs-{now/d}> | LIMIT 10",
-            "FROM logs::data | LIMIT 10",
-            "FROM logs | WHERE id IN (FROM project-a:other | KEEP id)",
-            "FROM logs | WHERE id IN (FROM other | KEEP id)",
-            "FROM logs | WHERE id IN ( /* c */ TS other | KEEP id)",
-            "FROM logs | WHERE id NOT IN (\nfrom project-a:other | KEEP id)",
-            "FROM logs | LOOKUP JOIN project-a:idx ON k",
+            "FROM logs | WHERE message : \"error\"",
+            "FROM logs | MATCH(f, \"q\", {\"fuzziness\": 1})",
             "FROM logs | LOOKUP JOIN idx ON k",
-            "FROM logs | lookup join idx ON k",
-            "FROM logs | ENRICH policy ON k",
-            "FROM logs | ENRICH _remote:policy ON k",
-            "FROM logs | WHERE msg == \"a:b\"",
-            "FROM logs | EVAL x = a:b",
-            "FROM logs | WHERE a > 1 :::"
+            "FROM (FROM logs) | LIMIT 10"
         );
-        for (String query : failClosed) {
-            assertThat(query, deferredForNoMatchingProject(query), is(false));
+        for (String query : queriesWithNonQualifierColons) {
+            ValidatorHarness harness = new ValidatorHarness(noProjectAfterRouting);
+            AtomicBoolean deferred = new AtomicBoolean(false);
+            harness.validator.validateAccessForMint(
+                null,
+                Collections.emptyMap(),
+                query,
+                "_alias:*",
+                ActionTestUtils.assertNoFailureListener(ignored -> deferred.set(true)),
+                null
+            );
+            assertThat("query [" + query + "]", deferred.get(), is(true));
         }
     }
 
-    public void testMintAccessWithProvenUnqualifiedSourceAndNoMatchingProjectShouldDefer() {
-        List<String> deferred = List.of(
-            "FROM logs | LIMIT 10",
-            "FROM logs-* | LIMIT 10",
-            "FROM a,b,c | LIMIT 10",
-            "FROM a , b ,\tc | LIMIT 10",
-            "FROM a,\n  b,\n  c | LIMIT 10",
-            "FROM\tlogs\n| LIMIT 10",
-            "FROM logs, -other-* | LIMIT 10",
-            "FROM logs, other-* METADATA _id, _index | LIMIT 10",
-            "from logs-* | LIMIT 10",
-            "FROM logs",
-            "TS metrics-* | LIMIT 10",
-            "FROM logs | EVAL n = bytes::long, s = host::keyword | KEEP n, s | LIMIT 5",
-            "FROM logs-* | WHERE @timestamp > NOW() - 1 hour | STATS c = COUNT(*), a = AVG(bytes) "
-                + "BY ts = BUCKET(@timestamp, 1h) | SORT ts | LIMIT 100",
-            "FROM logs | STATS c = COUNT(*) BY ts = BUCKET(@timestamp, 1h) // hourly\n | KEEP ts, c",
-            "TS metrics-* | STATS r = SUM(RATE(bytes)) BY ts = TBUCKET(1h)"
-        );
-        for (String query : deferred) {
-            assertThat(query, deferredForNoMatchingProject(query), is(true));
-        }
-    }
+    public void testMintAccessWithQualifiedSourceAndIndexNotFoundShouldDefer() {
+        ValidatorHarness harness = new ValidatorHarness(new IndexNotFoundException("project-a:logs"));
 
-    private boolean deferredForNoMatchingProject(String query) {
-        ValidatorHarness harness = new ValidatorHarness(new NoMatchingProjectException("_alias:*"));
-        AtomicBoolean deferred = new AtomicBoolean(false);
+        AtomicBoolean succeeded = new AtomicBoolean(false);
         harness.validator.validateAccessForMint(
             null,
             Collections.emptyMap(),
-            query,
+            "FROM project-a:logs | LIMIT 10",
             "_alias:*",
-            ActionListener.wrap(ignored -> deferred.set(true), e -> {}),
+            ActionTestUtils.assertNoFailureListener(ignored -> succeeded.set(true)),
             null
         );
-        return deferred.get();
+
+        assertThat(succeeded.get(), is(true));
     }
 
     public void testMintAccessWithIndexNotFoundShouldDefer() {

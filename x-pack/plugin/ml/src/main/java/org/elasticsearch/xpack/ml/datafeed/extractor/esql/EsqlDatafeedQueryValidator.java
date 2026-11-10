@@ -33,7 +33,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER;
 
@@ -57,36 +56,21 @@ public class EsqlDatafeedQueryValidator {
     private static final String LIMIT_ZERO = " | LIMIT 0";
     private static final String KEEP_SOURCE_TIME_FIELD_LIMIT_ZERO = " | KEEP ??sourceTimeField | LIMIT 0";
 
-    // MUST FIX before production: regex scan of query text instead of EsqlParser; new source-introducing commands are missed and fail
-    // open to runtime. See https://github.com/elastic/elasticsearch/issues/161207
-    private static final String SOURCE_TOKEN = "-?[A-Za-z0-9_.*][A-Za-z0-9_.*-]*";
-    private static final String METADATA_FIELD = "[A-Za-z0-9_@.]+";
-    private static final Pattern PROVEN_UNQUALIFIED_SOURCE = Pattern.compile(
-        "\\s*(?:FROM|TS)\\s+"
-            + SOURCE_TOKEN
-            + "(?:\\s*,\\s*"
-            + SOURCE_TOKEN
-            + ")*(?:\\s+METADATA\\s+"
-            + METADATA_FIELD
-            + "(?:\\s*,\\s*"
-            + METADATA_FIELD
-            + ")*)?\\s*",
-        Pattern.CASE_INSENSITIVE
-    );
-
-    /**
-     * After the leading command: subquery FROM/TS, JOIN/LOOKUP/ENRICH/PROMQL/EXTERNAL, or a single ':'. A string literal containing
-     * these words or a colon is over-rejected on purpose and fails the probe.
-     */
-    private static final Pattern SOURCE_INTRODUCING_TOKEN = Pattern.compile(
-        "\\(\\s*(?:(?://[^\\n]*\\n|/\\*.*?\\*/)\\s*)*(?:FROM|TS)\\b|\\b(?:JOIN|LOOKUP|ENRICH|PROMQL|EXTERNAL)\\b|(?<!:):(?!:)|:::",
-        Pattern.CASE_INSENSITIVE | Pattern.DOTALL
-    );
-
     // MUST FIX before production: matching the ES|QL error text is brittle and breaks if the message changes; ES|QL needs to
     // expose a typed missing-index signal. See https://github.com/elastic/elasticsearch/issues/161207
     /** ES|QL reports a missing index as 400 with this fragment; ML cannot depend on the ES|QL verifier type. */
     private static final String ESQL_UNKNOWN_INDEX_MESSAGE = "Unknown index [";
+
+    // MUST FIX before production: message match on NoMatchingProjectException; add a typed no-project signal (bead
+    // elastic-workspace-u66g). See https://github.com/elastic/elasticsearch/issues/161207
+    /** Thrown when project routing matches no project at all; a linked project may appear later. */
+    static final String NO_PROJECT_AFTER_ROUTING_MESSAGE = "no matching project after applying project routing";
+
+    static boolean isNoProjectAfterRouting(Throwable cause) {
+        return cause instanceof NoMatchingProjectException noMatchingProject
+            && Strings.isEmpty(noMatchingProject.getMessage()) == false
+            && noMatchingProject.getMessage().contains(NO_PROJECT_AFTER_ROUTING_MESSAGE);
+    }
 
     /** Whether a probe failure means the source does not exist yet (index or CPS project may appear later). */
     static boolean isDeferredExistenceFailure(Throwable cause) {
@@ -355,8 +339,8 @@ public class EsqlDatafeedQueryValidator {
     }
 
     /**
-     * {@code LIMIT 0} access probe before CPS credential mint. Fails on an unmatched project when the query may name a qualified source;
-     * defers unknown-index existence failures to runtime; all other failures fail the probe.
+     * {@code LIMIT 0} access probe before CPS credential mint. Defers when routing matched no project or the index is not
+     * known yet; fails on explicit project resolution errors and all other probe failures.
      */
     public void validateAccessForMint(
         Client client,
@@ -367,12 +351,19 @@ public class EsqlDatafeedQueryValidator {
         @Nullable String datafeedId
     ) {
         String limitZeroQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(esqlQuery, LIMIT_ZERO);
-        boolean mayHaveQualifiedSource = mayHaveQualifiedSource(esqlQuery);
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> listener.onResponse(null), e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
-            boolean unmatchedQualifiedProject = mayHaveQualifiedSource && cause instanceof NoMatchingProjectException;
-            if (unmatchedQualifiedProject == false && isDeferredExistenceFailure(cause)) {
+            if (cause instanceof NoMatchingProjectException) {
+                if (isNoProjectAfterRouting(cause)) {
+                    logger.debug(
+                        () -> "[" + datafeedId + "] ES|QL validate-before-mint probe failed with [" + cause + "]. Deferring to runtime."
+                    );
+                    listener.onResponse(null);
+                } else {
+                    listener.onFailure(e);
+                }
+            } else if (isDeferredExistenceFailure(cause)) {
                 // ES|QL reports a missing, empty-wildcard or unreadable source as unknown index; none can be told apart here.
                 logger.debug(
                     () -> "[" + datafeedId + "] ES|QL validate-before-mint probe failed with [" + cause + "]. Deferring to runtime."
@@ -384,16 +375,6 @@ public class EsqlDatafeedQueryValidator {
         });
 
         executeEsqlQueryAsync(client, limitZeroQuery, headers, projectRouting, List.of(), responseListener);
-    }
-
-    /** Fail-closed: {@code false} only when the leading command and the rest of the query are both proven free of qualified sources. */
-    private static boolean mayHaveQualifiedSource(String esqlQuery) {
-        int pipe = esqlQuery.indexOf('|');
-        String leadingSegment = pipe < 0 ? esqlQuery : esqlQuery.substring(0, pipe);
-        if (PROVEN_UNQUALIFIED_SOURCE.matcher(leadingSegment).matches() == false) {
-            return true;
-        }
-        return pipe >= 0 && SOURCE_INTRODUCING_TOKEN.matcher(esqlQuery.substring(pipe)).find();
     }
 
     static void validateEmittedTimesInSourceWindow(

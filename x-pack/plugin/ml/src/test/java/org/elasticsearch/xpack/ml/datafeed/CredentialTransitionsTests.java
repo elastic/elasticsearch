@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.Change;
 import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.Intent;
 import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.PutPersistentCallback;
 import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.TransitionContext;
+import org.elasticsearch.xpack.ml.datafeed.crossproject.NoMatchingProjectTestMessages;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.mockito.ArgumentCaptor;
@@ -878,7 +879,7 @@ public class CredentialTransitionsTests extends ESTestCase {
     public void testExecutePutWithEsqlDatafeedWhenProbeFindsNoMatchingProjectShouldDeferAndMint() {
         assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         try (EsqlProbeHarness h = new EsqlProbeHarness(xContentRegistry())) {
-            h.probeFailure = new NoMatchingProjectException("_alias:_origin");
+            h.probeFailure = NoMatchingProjectTestMessages.noProjectAfterRouting("_alias:_origin");
             h.executePut((req, headers, state, listener) -> {
                 h.events.add("persist");
                 listener.onResponse(new PutDatafeedAction.Response(req.getDatafeed()));
@@ -922,13 +923,13 @@ public class CredentialTransitionsTests extends ESTestCase {
     public void testExecutePutWithQualifiedEsqlSourceWhenProbeFindsNoMatchingProjectShouldFailBeforeMint() {
         assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         try (EsqlProbeHarness h = new EsqlProbeHarness(xContentRegistry())) {
-            h.probeFailure = new NoMatchingProjectException("_alias:_origin");
+            h.probeFailure = NoMatchingProjectTestMessages.explicitMissingQualifiedProject();
             DatafeedConfig qualified = new DatafeedConfig.Builder(esqlDatafeed()).setEsqlQuery("FROM project-a:logs-* | LIMIT 10").build();
             Exception failure = assertPutFails(h, qualified);
 
             assertThat(failure, instanceOf(NoMatchingProjectException.class));
             assertThat(failure.getMessage(), containsString("Cannot update datafeed [df]"));
-            assertThat(failure.getMessage(), containsString("_alias:_origin"));
+            assertThat(failure.getMessage(), containsString("missing-alias"));
             assertThat(failure.getCause(), sameInstance(h.probeFailure));
             assertThat(h.events, equalTo(List.of("probe")));
             verify(h.apiKeyService, never()).grantCloudAuthentication(any(), anyString(), any());

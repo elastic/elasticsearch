@@ -18,6 +18,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.eirf.EirfBatch;
@@ -27,6 +29,7 @@ import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -40,8 +43,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
-
-import static org.elasticsearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
 
 public class TranslogIndexBatchTests extends ESTestCase {
 
@@ -82,7 +83,7 @@ public class TranslogIndexBatchTests extends ESTestCase {
             shardId,
             path,
             indexSettings,
-            NON_RECYCLING_INSTANCE,
+            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
             ByteSizeValue.ofBytes(8 * 1024),
             DiskIoBufferPool.INSTANCE,
             (d, s, l) -> {},
@@ -437,6 +438,19 @@ public class TranslogIndexBatchTests extends ESTestCase {
 
         // Assertion should succeed since batchA will contain seqNo 0 which was same as the individual op that was added.
         translog.add(batchA);
+    }
+
+    public void testSeqNumberConflictAssertsSameOpAfterBatch() throws IOException {
+        final Translog.IndexBatch batchA = buildBatch(
+            List.of(Map.of("k", "v1"), Map.of("k", "v2")),
+            XContentType.JSON,
+            0L,
+            primaryTerm.get()
+        );
+        translog.add(batchA);
+
+        // Assertion should succeed since the replayed op is the same as the one batchA contains for seqNo 1.
+        translog.add(batchA.explode().get(1));
     }
 
     public void testSeqNumberConflictAssertsSemanticInequality() throws IOException {

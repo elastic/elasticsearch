@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.LowPriorityRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -132,7 +133,9 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         assertThat(runnableTasks.size(), equalTo(0));
 
         publishingCallback.getAndSet(null).onResponse(null);
-        runnableTasks.remove(0).run(); // complete publication back on master service thread
+        final Runnable completionTask = runnableTasks.remove(0);
+        assertTrue(ThreadContext.unwrap(completionTask) instanceof LowPriorityRunnable);
+        completionTask.run(); // complete publication back on master service thread
         assertTrue(firstTaskCompleted.get());
         assertThat(runnableTasks.size(), equalTo(1)); // check that new task gets queued
 

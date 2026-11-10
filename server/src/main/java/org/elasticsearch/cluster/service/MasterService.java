@@ -42,6 +42,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.LowPriorityRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
@@ -646,11 +647,50 @@ public class MasterService extends AbstractLifecycleComponent {
             // is completed at the end of the publication, at which point the publicationListener performs various bits of cleanup and then
             // picks up the next waiting task.
             new ThreadedActionListener<>(
-                threadPoolExecutor,
+                Assertions.ENABLED ? this::runPublicationCompletionRunnable : threadPoolExecutor,
                 new ContextPreservingActionListener<>(threadPool.getThreadContext().newRestorableContext(false), publicationListener)
             ),
             ackListener
         );
+    }
+
+    private void runPublicationCompletionRunnable(Runnable command) {
+        assert command.toString().contains("publication completion listener") : command.toString();
+        if (command instanceof AbstractRunnable delegate) {
+
+            /* Marks publication completion so deterministic tests can exercise failover before notifying publication listeners. */
+            class PublicationCompletionRunnable extends AbstractRunnable implements LowPriorityRunnable {
+                @Override
+                protected void doRun() {
+                    delegate.run();
+                }
+
+                @Override
+                public boolean isForceExecution() {
+                    return delegate.isForceExecution();
+                }
+
+                @Override
+                public void onRejection(Exception e) {
+                    delegate.onRejection(e);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    delegate.onFailure(e);
+                }
+
+                @Override
+                public String toString() {
+                    return delegate.toString();
+                }
+            }
+
+            threadPoolExecutor.execute(new PublicationCompletionRunnable());
+        } else {
+            assert false : command;
+            threadPoolExecutor.execute(command);
+        }
     }
 
     private void handleException(BatchSummary summary, long startTimeMillis, ClusterState newClusterState, Exception e) {

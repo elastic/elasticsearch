@@ -27,7 +27,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasItems;
 
 /**
@@ -49,9 +48,10 @@ public class ImplicitUnionCastKibanaDefinitionTests extends ESTestCase {
 
     /**
      * The aggregate functions whose implicit union cast this file describes: the contract named by the
-     * {@code ImplicitCastAggregateMetricDoubles} rule (min, max, sum, count and avg).
+     * {@code ImplicitCastAggregateMetricDoubles} rule (min, max, sum, count and avg). Each one is checked to
+     * resolve over a conflict in {@code TsAggregateMetricDoubleConflictTests}.
      */
-    static List<String> implicitlyCastingFunctions() {
+    public static List<String> implicitlyCastingFunctions() {
         return List.of("avg", "count", "max", "min", "sum");
     }
 
@@ -59,7 +59,7 @@ public class ImplicitUnionCastKibanaDefinitionTests extends ESTestCase {
      * The conflict-leg types the rule reconciles, mirroring its {@code canBeCast} condition: the conflict
      * must contain {@code aggregate_metric_double} and every leg must be numeric or {@code aggregate_metric_double}.
      */
-    static Set<String> acceptedLegTypes() {
+    public static Set<String> acceptedLegTypes() {
         Set<String> legs = new TreeSet<>();
         for (DataType dataType : DataType.values()) {
             if (dataType.isNumericOrAmd()) {
@@ -80,10 +80,6 @@ public class ImplicitUnionCastKibanaDefinitionTests extends ESTestCase {
         }
     }
 
-    public void testImplicitlyCastingFunctions() {
-        assertThat(implicitlyCastingFunctions(), contains("avg", "count", "max", "min", "sum"));
-    }
-
     public void testGenerateKibanaDefinition() throws Exception {
         String rendered;
         try (XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint().lfAtEnd().startObject()) {
@@ -94,7 +90,7 @@ public class ImplicitUnionCastKibanaDefinitionTests extends ESTestCase {
             );
             builder.startObject("conflict");
             builder.field("contains", AGGREGATE_METRIC_DOUBLE.esNameIfPossible());
-            builder.stringListField("allLegsIn", acceptedLegTypes().stream().sorted().toList());
+            builder.stringListField("allLegsIn", List.copyOf(acceptedLegTypes()));
             builder.endObject();
             builder.stringListField("functions", implicitlyCastingFunctions());
             builder.field("comparisons", true);

@@ -28,7 +28,6 @@ import org.elasticsearch.action.ingest.ReservedPipelineAction;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.search.OnlinePrewarmingServiceProvider;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
-import org.elasticsearch.action.search.SearchLogListeners;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTaskWatchdog;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -85,6 +84,8 @@ import org.elasticsearch.common.logging.DynamicContextDataProvider;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.Log4jWriter;
+import org.elasticsearch.common.logging.activity.QuerySinkProvider;
+import org.elasticsearch.common.logging.activity.QuerySinkRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -137,7 +138,6 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.TokenCountingMetrics;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.DefaultRootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -251,6 +251,7 @@ import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer.NoOpRestoreTr
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.SnapshotGlobalStateTransformer;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -923,8 +924,7 @@ class NodeConstruction {
             telemetryProvider.getMeterRegistry(),
             threadPool::relativeTimeInMillis
         );
-        TokenCountingMetrics tokenCountingMetrics = new TokenCountingMetrics(telemetryProvider.getMeterRegistry());
-        MapperMetrics mapperMetrics = new MapperMetrics(sourceFieldMetrics, tokenCountingMetrics);
+        MapperMetrics mapperMetrics = new MapperMetrics(sourceFieldMetrics);
 
         MergeMetrics mergeMetrics = new MergeMetrics(telemetryProvider.getMeterRegistry());
 
@@ -1281,6 +1281,10 @@ class NodeConstruction {
             snapshotMetrics
         );
 
+        snapshotsService.setSnapshotGlobalStateTransformer(
+            pluginsService.loadSingletonServiceProvider(SnapshotGlobalStateTransformer.class, () -> SnapshotGlobalStateTransformer.NOOP)
+        );
+
         SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
             settings,
             clusterService,
@@ -1491,10 +1495,8 @@ class NodeConstruction {
             ActivityLogWriterProvider.class,
             () -> Log4jWriter.PROVIDER
         );
-        // after the plugin components, which the listeners may use
-        SearchLogListeners searchLogListeners = new SearchLogListeners(
-            pluginsService.filterPlugins(ActionPlugin.class).flatMap(plugin -> plugin.getSearchLogListeners().stream()).toList()
-        );
+
+        QuerySinkRegistry querySinkRegistry = new QuerySinkRegistry(pluginsService.loadServiceProviders(QuerySinkProvider.class));
 
         ReshardingActionHelper reshardingActionHelper = new ReshardingActionHelper(clusterService, projectResolver, threadPool);
 
@@ -1548,7 +1550,7 @@ class NodeConstruction {
             b.bind(ProjectRoutingResolver.class).toInstance(projectRoutingResolver);
             b.bind(ActionLoggingFieldsProvider.class).toInstance(loggingFieldsProvider);
             b.bind(ActivityLogWriterProvider.class).toInstance(logWriterProvider);
-            b.bind(SearchLogListeners.class).toInstance(searchLogListeners);
+            b.bind(QuerySinkRegistry.class).toInstance(querySinkRegistry);
             b.bind(DataStreamLifecycleErrorStore.class).toInstance(dlmErrorStore);
             b.bind(ReshardingActionHelper.class).toInstance(reshardingActionHelper);
         });

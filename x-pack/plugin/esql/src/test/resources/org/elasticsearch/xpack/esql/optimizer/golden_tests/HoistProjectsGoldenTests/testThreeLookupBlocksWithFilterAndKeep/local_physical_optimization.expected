@@ -1,0 +1,33 @@
+ProjectExec[[emp_no{f}#0, languages{f}#1, salary{f}#2, $$language_name$temp_name$0{r$}#3 AS lang#4, $$language_name$temp_name$1{r$}#5 AS lang_minus_one#6, language_name{f}#7 AS lang_minus_two#8]]
+\_LimitExec[10000[INTEGER],null]
+  \_LookupJoinExec[[language_code{r}#9],[language_code{f}#10],[language_name{f}#7],null]
+    |_EvalExec[[languages{f}#1 - 2[INTEGER] AS language_code#9, language_name{f}#11 AS $$language_name$temp_name$1#5]]
+    | \_LimitExec[100[INTEGER],null]
+    |   \_LookupJoinExec[[language_code{r}#12],[language_code{f}#13],[language_name{f}#11],null]
+    |     |_EvalExec[[languages{f}#1 - 1[INTEGER] AS language_code#12, language_name{f}#14 AS $$language_name$temp_name$0#3]]
+    |     | \_LimitExec[100[INTEGER],null]
+    |     |   \_LookupJoinExec[[languages{f}#1],[language_code{f}#15],[language_name{f}#14],null]
+    |     |     |_LimitExec[100[INTEGER],null]
+    |     |     | \_ExchangeExec[[emp_no{f}#0, languages{f}#1, salary{f}#2],false]
+    |     |     |   \_ProjectExec[[emp_no{f}#0, languages{f}#1, salary{f}#2]]
+    |     |     |     \_FieldExtractExec[[emp_no{f}#0, languages{f}#1, salary{f}#2]<[],[],[]>,_doc{f}#16]
+    |     |     |       \_EsQueryExec[employees], indexMode[standard], [_doc{f}#16], limit[100], sort[] estimatedRowSize[16] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "salary",
+    "next" : {
+      "range" : {
+        "salary" : {
+          "gt" : 40000,
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "salary > 40000@6:9"
+  }
+}, tags=[]]]]
+    |     |     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+EsRelation[languages_lookup][LOOKUP][language_code{f}#15, language_name{f}#14]<>]]
+    |     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+EsRelation[languages_lookup][LOOKUP][language_code{f}#13, language_name{f}#11]<>]]
+    \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+EsRelation[languages_lookup][LOOKUP][language_code{f}#10, language_name{f}#7]<>]]

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.compute.operator.topn.SharedGlobalTopK;
 import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 /**
  * Path B wiring for {@code SORT @timestamp DESC | LIMIT N} over Lucene: shared side-channel state
@@ -22,9 +23,6 @@ import org.elasticsearch.core.Nullable;
 public record LuceneMinCompetitiveTimestampTopN(
     SharedMinCompetitive.Supplier supplier,
     String sortFieldName,
+    DataType sortFieldType,
     @Nullable SharedGlobalTopK.Supplier globalTopK
-) {
-    public LuceneMinCompetitiveTimestampTopN(SharedMinCompetitive.Supplier supplier, String sortFieldName) {
-        this(supplier, sortFieldName, null);
-    }
-}
+) {}

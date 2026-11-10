@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarF
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
@@ -75,6 +76,13 @@ public final class ExemplarsRewriter {
     private static final String METRIC_NAME_FIELD = "metric_name";
     /** The exemplar field holding the observed value. */
     private static final String VALUE_FIELD = "value";
+    /**
+     * The exemplar fields linking it to the trace and span it was recorded in. OTLP exemplars store them as top-level fields. Prometheus
+     * remote write exemplars carry them as exemplar labels, which resolve to these names through their passthrough object, following
+     * the {@code trace_id} and {@code span_id} label names that OpenTelemetry and the Prometheus client libraries use for exemplars.
+     */
+    private static final String TRACE_ID_FIELD = "trace_id";
+    private static final String SPAN_ID_FIELD = "span_id";
 
     private ExemplarsRewriter() {}
 
@@ -180,16 +188,18 @@ public final class ExemplarsRewriter {
     }
 
     /**
-     * The columns an exemplars query returns, in output order: the exemplar's timestamp, the metric it belongs to and its observed
-     * value, then the dimensions identifying its series when {@code timeseries} is requested, and finally its full document. The named
-     * columns are left unresolved so that analysis binds them against the exemplar data streams, or nullifies the ones none of them
-     * maps.
+     * The columns an exemplars query returns, in output order: the exemplar's timestamp, the metric it belongs to, its observed
+     * value and the trace and span it was recorded in, then the dimensions identifying its series when {@code timeseries} is requested,
+     * and finally its full document. The named columns are left unresolved so that analysis binds them against the exemplar data
+     * streams, or nullifies the ones none of them maps.
      */
     private static List<NamedExpression> exemplarProjections(Source source, @Nullable TimeSeriesMetadataAttribute timeseries) {
-        List<NamedExpression> projections = new ArrayList<>(5);
+        List<NamedExpression> projections = new ArrayList<>(7);
         projections.add(new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD));
         projections.add(new UnresolvedAttribute(source, METRIC_NAME_FIELD));
         projections.add(new UnresolvedAttribute(source, VALUE_FIELD));
+        projections.add(new UnresolvedAttribute(source, TRACE_ID_FIELD));
+        projections.add(new UnresolvedAttribute(source, SPAN_ID_FIELD));
         if (timeseries != null) {
             projections.add(timeseries);
         }
@@ -304,6 +314,11 @@ public final class ExemplarsRewriter {
      * for {@code IS NULL} or {@code IS NOT NULL} (looking through conversion functions). Any other reference to a metric would select
      * exemplars by their own value rather than by the series they belong to, and a condition on a value computed by an {@code EVAL}
      * cannot be evaluated on exemplars, so such conjuncts are dropped.
+     * <p>
+     * A field the metrics indices do not map is treated as a dimension: the series do not have it, so a condition on it selects the
+     * series the way a condition on a dimension would. Prometheus behaves the same, matching a label the series do not have against
+     * the empty string. The metrics query runs with {@code unmapped_fields="nullify"} (see {@code EsqlSession}), so such a field reaches
+     * this point as a nullified field rather than failing analysis.
      */
     private static List<Expression> exemplarConjuncts(Expression condition) {
         List<Expression> conjuncts = new ArrayList<>();
@@ -322,7 +337,9 @@ public final class ExemplarsRewriter {
                 return false;
             }
             FieldAttribute field = (FieldAttribute) reference;
-            if (field.isDimension() == false && field.fieldName().string().equals(MetadataAttribute.TIMESTAMP_FIELD) == false) {
+            if (field.isDimension() == false
+                && field.field() instanceof MissingEsField == false
+                && field.fieldName().string().equals(MetadataAttribute.TIMESTAMP_FIELD) == false) {
                 return false;
             }
         }
@@ -468,6 +485,13 @@ public final class ExemplarsRewriter {
         }
         // The original indices stay as they are: they name the patterns to resolve shards from, which the concrete indices then select
         // from, and a cluster left without any index is skipped by the compute service.
-        return new EsIndex(esIndex.name(), esIndex.mapping(), timeSeriesIndices, esIndex.originalIndices(), concreteIndices);
+        return new EsIndex(
+            esIndex.name(),
+            esIndex.mapping(),
+            timeSeriesIndices,
+            esIndex.originalIndices(),
+            concreteIndices,
+            esIndex.fieldSemantics()
+        );
     }
 }

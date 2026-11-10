@@ -16,6 +16,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
@@ -25,10 +26,14 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
@@ -132,11 +137,30 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        if (field() instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField union) {
+            // The implicit aggregate_metric_double conversions preserve missing fields as null, so IS NOT NULL can use exists.
+            return union.getUnmappedConversionExpression() == null && aggregateMetricDoubleImplicitCast(union)
+                ? Translatable.YES
+                : Translatable.NO;
+        }
         return IsNull.isTranslatable(field(), pushdownPredicates);
+    }
+
+    private static boolean aggregateMetricDoubleImplicitCast(UnionTypeEsField union) {
+        for (Expression e : union.getConversionExpressions()) {
+            if (e instanceof FromAggregateMetricDouble == false && e instanceof ToDouble == false && e instanceof MvCount == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        Expression field = field();
+        if (field instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField union) {
+            return new ExistsQuery(source(), fa.fieldName().string());
+        }
         return new ExistsQuery(source(), handler.nameOf(field()));
     }
 

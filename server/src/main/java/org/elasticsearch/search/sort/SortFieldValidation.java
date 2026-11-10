@@ -206,7 +206,7 @@ public final class SortFieldValidation {
         return type == SortField.Type.INT || type == SortField.Type.LONG || type == SortField.Type.FLOAT || type == SortField.Type.DOUBLE;
     }
 
-    private static SortField.Type getType(SortField sortField) {
+    public static SortField.Type getType(SortField sortField) {
         if (sortField instanceof SortedNumericSortField sf) {
             return sf.getNumericType();
         } else if (sortField instanceof SortedSetSortField) {

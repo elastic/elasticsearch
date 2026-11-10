@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -122,6 +123,8 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.useragent.api.UserAgentParser;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -253,8 +256,10 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -425,11 +430,23 @@ public class LocalExecutionPlanner {
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
+        // The projection is part of finishing the aggregation, and it is not in the plan JSON, which was written before this. It takes the
+        // aggregate's identity so its operator reports the aggregate as its plan node, one that is in the plan JSON.
         localPhysicalPlan = localPhysicalPlan.transformUp(
             AggregateExec.class,
-            a -> a.getMode().isOutputPartial() ? a : new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates()))
+            a -> a.getMode().isOutputPartial()
+                ? a
+                : new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())).copyIdentityFrom(a)
         );
         PhysicalOperation physicalOperation = plan(localPhysicalPlan, context);
+        // The exchanges of this plan, by the id of the plan node that is one side of them, so PROFILE can name the exchange of the
+        // sink and source operators the same way the plan JSON does.
+        final Map<String, String> exchangeIdsByPlanNode = new HashMap<>();
+        localPhysicalPlan.forEachDown(p -> {
+            if (p.exchange() != null) {
+                exchangeIdsByPlanNode.put(p.planId().toString(), p.exchange().id());
+            }
+        });
 
         final TimeValue statusInterval = configuration.pragmas().statusInterval();
         context.addDriverFactory(
@@ -443,7 +460,8 @@ public class LocalExecutionPlanner {
                     context.shardContexts,
                     physicalOperation,
                     statusInterval,
-                    settings
+                    settings,
+                    exchangeIdsByPlanNode
                 ),
                 context.driverParallelism().get()
             )
@@ -452,7 +470,15 @@ public class LocalExecutionPlanner {
         return new LocalExecutionPlan(context.driverFactories);
     }
 
+    /**
+     * Plans {@code node}. Operators added for this node are tagged with its {@link org.elasticsearch.xpack.esql.plan.PlanId}
+     * so PROFILE can join {@code plan_node_id} to {@code plan_json}. Child operators keep the ids assigned when they were planned.
+     */
     private PhysicalOperation plan(PhysicalPlan node, LocalExecutionPlannerContext context) {
+        return planNode(node, context).tagPlanNode(node.planId().toString());
+    }
+
+    private PhysicalOperation planNode(PhysicalPlan node, LocalExecutionPlannerContext context) {
         if (node instanceof AggregateExec aggregate) {
             return planAggregation(aggregate, context, false);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
@@ -981,7 +1007,9 @@ public class LocalExecutionPlanner {
         PhysicalOperation source;
         if (child instanceof AggregateExec aggregate) {
             // allow partitioned output if both partial and final on the same node
-            source = planAggregation(aggregate, context, context.singleNodeOptimizations());
+            // This does not go through plan(), which tags the operators of a node with its id. Left untagged they would take the id of the
+            // sink, and PROFILE would report the aggregation as an operator of the exchange sink.
+            source = planAggregation(aggregate, context, context.singleNodeOptimizations()).tagPlanNode(aggregate.planId().toString());
         } else {
             source = plan(child, context);
         }
@@ -2903,8 +2931,12 @@ public class LocalExecutionPlanner {
      */
     public static class PhysicalOperation {
         final SourceOperatorFactory sourceOperatorFactory;
+        final String sourcePlanNodeId;
         final List<OperatorFactory> intermediateOperatorFactories;
+        /** Parallel to {@link #intermediateOperatorFactories}. Null entries are filled by {@link #tagPlanNode}. */
+        final List<String> intermediatePlanNodeIds;
         final SinkOperatorFactory sinkOperatorFactory;
+        final String sinkPlanNodeId;
 
         final Layout layout; // maps field names to channels
 
@@ -2945,8 +2977,11 @@ public class LocalExecutionPlanner {
 
         private PhysicalOperation(SourceOperatorFactory sourceOperatorFactory, Layout layout) {
             this.sourceOperatorFactory = sourceOperatorFactory;
+            this.sourcePlanNodeId = null;
             this.intermediateOperatorFactories = List.of();
+            this.intermediatePlanNodeIds = List.of();
             this.sinkOperatorFactory = null;
+            this.sinkPlanNodeId = null;
             this.layout = layout;
         }
 
@@ -2957,13 +2992,113 @@ public class LocalExecutionPlanner {
             Layout layout
         ) {
             sourceOperatorFactory = physicalOperation.sourceOperatorFactory;
+            this.sourcePlanNodeId = physicalOperation.sourcePlanNodeId;
             this.intermediateOperatorFactories = new ArrayList<>(
                 physicalOperation.intermediateOperatorFactories.size() + intermediateOperatorFactories.size()
             );
             this.intermediateOperatorFactories.addAll(physicalOperation.intermediateOperatorFactories);
             this.intermediateOperatorFactories.addAll(intermediateOperatorFactories);
+            this.intermediatePlanNodeIds = new ArrayList<>(physicalOperation.intermediatePlanNodeIds);
+            for (int i = 0; i < intermediateOperatorFactories.size(); i++) {
+                this.intermediatePlanNodeIds.add(null);
+            }
             this.sinkOperatorFactory = sinkOperatorFactory.isPresent() ? sinkOperatorFactory.get() : null;
+            // with() clears the sink; withSink installs a new one that has not been tagged yet.
+            this.sinkPlanNodeId = null;
             this.layout = layout;
+        }
+
+        private PhysicalOperation(
+            PhysicalOperation physicalOperation,
+            String sourcePlanNodeId,
+            List<String> intermediatePlanNodeIds,
+            String sinkPlanNodeId
+        ) {
+            this.sourceOperatorFactory = physicalOperation.sourceOperatorFactory;
+            this.sourcePlanNodeId = sourcePlanNodeId;
+            this.intermediateOperatorFactories = physicalOperation.intermediateOperatorFactories;
+            this.intermediatePlanNodeIds = intermediatePlanNodeIds;
+            this.sinkOperatorFactory = physicalOperation.sinkOperatorFactory;
+            this.sinkPlanNodeId = sinkPlanNodeId;
+            this.layout = physicalOperation.layout;
+        }
+
+        /**
+         * Fills plan-node ids that are still null with {@code planNodeId}. Ids already set (child operators)
+         * are kept. Called once per physical plan node after that node's operators have been appended.
+         */
+        PhysicalOperation tagPlanNode(String planNodeId) {
+            String sourceId = sourcePlanNodeId != null ? sourcePlanNodeId : planNodeId;
+            List<String> intermediateIds = new ArrayList<>(intermediatePlanNodeIds.size());
+            for (String id : intermediatePlanNodeIds) {
+                intermediateIds.add(id != null ? id : planNodeId);
+            }
+            String sinkId = sinkOperatorFactory == null ? null : (sinkPlanNodeId != null ? sinkPlanNodeId : planNodeId);
+            return new PhysicalOperation(this, sourceId, intermediateIds, sinkId);
+        }
+
+        /**
+         * Identity map from the operators this operation just built to their plan-node ids.
+         * Operators with a null id are omitted so PROFILE leaves {@code plan_node_id} out.
+         */
+        Map<Operator, String> planNodeIds(SourceOperator source, List<Operator> operators, SinkOperator sink) {
+            if (operators.size() != intermediatePlanNodeIds.size()) {
+                throw new IllegalStateException(
+                    "operator count [" + operators.size() + "] != plan node id count [" + intermediatePlanNodeIds.size() + "]"
+                );
+            }
+            Map<Operator, String> ids = new IdentityHashMap<>();
+            if (source != null && sourcePlanNodeId != null) {
+                ids.put(source, sourcePlanNodeId);
+            }
+            for (int i = 0; i < operators.size(); i++) {
+                String id = intermediatePlanNodeIds.get(i);
+                if (id != null) {
+                    ids.put(operators.get(i), id);
+                }
+            }
+            if (sink != null && sinkPlanNodeId != null) {
+                ids.put(sink, sinkPlanNodeId);
+            }
+            return ids;
+        }
+
+        /**
+         * Writes the operator factories of this driver, in pipeline order, each with the id of the physical plan node it was built
+         * from. These are the same ids PROFILE reports as {@code plan_node_id}, and that the plan JSON uses as node {@code id}.
+         * The source and the sink also say which exchange they are one side of, like PROFILE does.
+         *
+         * @param exchangeIdsByPlanNode the exchange id of each exchange node of the plan, by the id of the node
+         */
+        void operatorsToXContent(XContentBuilder builder, Map<String, String> exchangeIdsByPlanNode) throws IOException {
+            builder.startArray("operators");
+            operatorToXContent(builder, "source", sourceOperatorFactory, sourcePlanNodeId, exchangeIdsByPlanNode);
+            for (int i = 0; i < intermediateOperatorFactories.size(); i++) {
+                // Only the source and the sink are part of an exchange
+                operatorToXContent(builder, "operator", intermediateOperatorFactories.get(i), intermediatePlanNodeIds.get(i), Map.of());
+            }
+            operatorToXContent(builder, "sink", sinkOperatorFactory, sinkPlanNodeId, exchangeIdsByPlanNode);
+            builder.endArray();
+        }
+
+        private static void operatorToXContent(
+            XContentBuilder builder,
+            String role,
+            Describable factory,
+            String planNodeId,
+            Map<String, String> exchangeIdsByPlanNode
+        ) throws IOException {
+            builder.startObject();
+            builder.field("role", role);
+            builder.field("factory", factory == null ? null : factory.describe());
+            if (planNodeId != null) {
+                builder.field("plan_node_id", planNodeId);
+                String exchangeId = exchangeIdsByPlanNode.get(planNodeId);
+                if (exchangeId != null) {
+                    builder.field("exchange_id", exchangeId);
+                }
+            }
+            builder.endObject();
         }
 
         public SourceOperator source(DriverContext driverContext) {
@@ -3092,7 +3227,9 @@ public class LocalExecutionPlanner {
         IndexedByShardId<? extends ShardContext> shardContexts,
         PhysicalOperation physicalOperation,
         TimeValue statusInterval,
-        Settings settings
+        Settings settings,
+        /** Exchange id by the id of the plan node that is one side of the exchange. */
+        Map<String, String> exchangeIdsByPlanNode
     ) implements Function<String, Driver>, Describable {
         @Override
         public Driver apply(String sessionId) {
@@ -3112,7 +3249,7 @@ public class LocalExecutionPlanner {
                 physicalOperation.operators(operators, driverContext);
                 sink = physicalOperation.sink(driverContext);
                 success = true;
-                return new Driver(
+                Driver driver = new Driver(
                     sessionId,
                     description,
                     clusterName,
@@ -3127,11 +3264,33 @@ public class LocalExecutionPlanner {
                     statusInterval,
                     localBreaker
                 );
+                Map<Operator, String> planNodeIds = physicalOperation.planNodeIds(source, operators, sink);
+                driver.setPlanNodeIds(planNodeIds);
+                driver.setExchangeIds(exchangeIdsOf(planNodeIds, source, sink));
+                return driver;
             } finally {
                 if (false == success) {
                     Releasables.close(source, () -> Releasables.close(operators), sink, localBreaker);
                 }
             }
+        }
+
+        /**
+         * The exchange of the driver's source and sink operators, when their plan node is one side of an exchange. Only those two are
+         * part of the exchange, so no other operator is given the id, whichever plan node it reports.
+         */
+        private Map<Operator, String> exchangeIdsOf(Map<Operator, String> planNodeIds, SourceOperator source, SinkOperator sink) {
+            Map<Operator, String> exchangeIds = new IdentityHashMap<>();
+            for (Map.Entry<Operator, String> entry : planNodeIds.entrySet()) {
+                if (entry.getKey() != source && entry.getKey() != sink) {
+                    continue;
+                }
+                String exchangeId = exchangeIdsByPlanNode.get(entry.getValue());
+                if (exchangeId != null) {
+                    exchangeIds.put(entry.getKey(), exchangeId);
+                }
+            }
+            return exchangeIds;
         }
 
         @Override
@@ -3141,6 +3300,15 @@ public class LocalExecutionPlanner {
     }
 
     record DriverFactory(DriverSupplier driverSupplier, DriverParallelism driverParallelism) implements Describable {
+        void toXContent(XContentBuilder builder) throws IOException {
+            builder.startObject();
+            builder.field("description", driverSupplier.description());
+            builder.field("instances", driverParallelism.instanceCount());
+            builder.field("parallelism", driverParallelism.type().name().toLowerCase(Locale.ROOT));
+            driverSupplier.physicalOperation().operatorsToXContent(builder, driverSupplier.exchangeIdsByPlanNode());
+            builder.endObject();
+        }
+
         @Override
         public String describe() {
             return "DriverFactory(instances = "
@@ -3184,6 +3352,25 @@ public class LocalExecutionPlanner {
         @Override
         public String describe() {
             return driverFactories.stream().map(DriverFactory::describe).collect(joining("\n"));
+        }
+
+        /**
+         * The same drivers as {@link #describe()}, as pretty JSON for the {@code plan.json} logger. Each operator carries the
+         * {@code plan_node_id} of the physical plan node it came from, so a visualizer can tie the drivers back to the plan.
+         */
+        public String toPrettyJsonString() {
+            try (XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint()) {
+                builder.startObject();
+                builder.startArray("drivers");
+                for (DriverFactory driverFactory : driverFactories) {
+                    driverFactory.toXContent(builder);
+                }
+                builder.endArray();
+                builder.endObject();
+                return Strings.toString(builder);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
     }
 }

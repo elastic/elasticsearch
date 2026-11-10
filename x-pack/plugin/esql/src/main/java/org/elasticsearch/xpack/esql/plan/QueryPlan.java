@@ -6,13 +6,20 @@
  */
 package org.elasticsearch.xpack.esql.plan;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.Node;
+import org.elasticsearch.xpack.esql.core.tree.PlanToXContent;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -22,6 +29,11 @@ import java.util.function.Predicate;
 
 /**
  * There are two main types of plans, {@code LogicalPlan} and {@code PhysicalPlan}
+ * <p>
+ * A plan node also carries identity that is not part of the plan itself: its {@link PlanId}, the nodes it was {@link #planOrigin()
+ * derived from}, and the {@link #exchange()} it is one side of. These are set while a node is built or rewritten, by the thread that
+ * owns the tree, and are not synchronized. A node that several threads can reach, such as the plan of a request that is run for
+ * more than one data node, must be copied before it is tagged, or the tag shows on all of them.
  */
 public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends Node<PlanType> {
 
@@ -30,8 +42,162 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     private List<Expression> lazyExpressions;
     private AttributeSet lazyReferences;
 
+    /**
+     * Assigned in the constructor. Same-node rewrites copy it via {@link #copyIdentityFrom}; it is not
+     * part of {@code equals} or {@code hashCode}. See {@link PlanId}.
+     */
+    private PlanId planId;
+    /** Nodes this one was derived from. Empty until a translation such as logical-to-physical records them. */
+    private List<PlanId> origin;
+    /** The exchange this node is one side of. Only exchange nodes have one. See {@link ExchangeRef}. */
+    private ExchangeRef exchange;
+
     public QueryPlan(Source source, List<PlanType> children) {
         super(source, children);
+        this.planId = new PlanId();
+        this.origin = List.of();
+    }
+
+    public final PlanId planId() {
+        return planId;
+    }
+
+    /**
+     * Ids this node was derived from, in the order they were recorded. Never null.
+     * Named {@code planOrigin} because {@code TimeSeriesAggregate} already uses {@code origin()}
+     * for a different enum. JSON still writes the field as {@code origin}.
+     */
+    public final List<PlanId> planOrigin() {
+        return origin;
+    }
+
+    /** The exchange this node is one side of, or {@code null} for every node that is not part of one. */
+    public final ExchangeRef exchange() {
+        return exchange;
+    }
+
+    /**
+     * Marks this node as one side of {@code exchange}. Same-node rewrites keep it, like the plan id.
+     * Mutable on purpose, like {@link #withOrigin}, so a node can be tagged where it is built.
+     */
+    @SuppressWarnings("unchecked")
+    public final PlanType withExchange(ExchangeRef exchange) {
+        this.exchange = exchange;
+        return (PlanType) this;
+    }
+
+    /**
+     * {@link #withExchange} for the constructors of exchange nodes. It returns nothing, so the compiler does not flag the
+     * call as {@code this} escaping a constructor.
+     */
+    protected final void initExchange(ExchangeRef exchange) {
+        this.exchange = exchange;
+    }
+
+    /**
+     * Copies {@link #planId}, {@link #origin} and {@link #exchange} from {@code original} onto this node.
+     * {@code replaceChildren} does this so a rewrite of the same node keeps its identity.
+     * The fields are mutable on purpose, the same way {@code LogicalPlan} stage is set after construction.
+     */
+    @SuppressWarnings("unchecked")
+    public final PlanType copyIdentityFrom(QueryPlan<?> original) {
+        if (original != null && original != this) {
+            this.planId = original.planId;
+            this.origin = original.origin;
+            this.exchange = original.exchange;
+        }
+        return (PlanType) this;
+    }
+
+    /**
+     * Appends {@code ids} to {@link #origin}. Existing entries are kept.
+     * A 1:1 logical-to-physical translation uses this to record the logical node it replaces.
+     */
+    @SuppressWarnings("unchecked")
+    public final PlanType withOrigin(PlanId... ids) {
+        if (ids == null || ids.length == 0) {
+            return (PlanType) this;
+        }
+        List<PlanId> merged = new ArrayList<>(origin.size() + ids.length);
+        merged.addAll(origin);
+        for (PlanId id : ids) {
+            if (id != null) {
+                merged.add(id);
+            }
+        }
+        this.origin = List.copyOf(merged);
+        return (PlanType) this;
+    }
+
+    /**
+     * The value the plan JSON reports for one of this node's {@link #nodeProperties()}. It is the property itself unless the node's
+     * {@code nodeString} shows less of it than that, such as the object name of an external source path, in which case the node
+     * returns the value that {@code nodeString} shows. The JSON is part of PROFILE and EXPLAIN responses, so it must not reveal more
+     * than the ASCII plan next to it, which hides what the user is not allowed to see.
+     */
+    public Object jsonPropertyValue(Object property) {
+        return property;
+    }
+
+    /**
+     * Query-plan children written to JSON. Usually {@link #children()}.
+     * {@code FragmentExec} exposes its inner logical plan here because {@link #children()} is empty.
+     */
+    public List<? extends QueryPlan<?>> jsonChildren() {
+        return children();
+    }
+
+    /**
+     * When a transform builds a fresh node of this same class, keep this node's id and origin.
+     * A node that already sits in {@code original}'s tree (a rewrite that collapses onto a descendant)
+     * keeps its own id.
+     */
+    @Override
+    protected void adoptIdentityFrom(Node<?> original) {
+        if (original instanceof QueryPlan<?> plan && plan.getClass() == getClass() && sharesInstance(plan, this) == false) {
+            copyIdentityFrom(plan);
+        }
+    }
+
+    private static boolean sharesInstance(QueryPlan<?> root, QueryPlan<?> target) {
+        if (root == target) {
+            return true;
+        }
+        List<? extends QueryPlan<?>> children = root.children();
+        for (int i = 0; i < children.size(); i++) {
+            if (sharesInstance(children.get(i), target)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** JSON object for this plan. The skeleton is never truncated. */
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        PlanToXContent.writePlan(builder, this);
+        return builder;
+    }
+
+    /** Compact JSON, for EXPLAIN cells and tests. */
+    public String toJsonString() {
+        return toJson(false);
+    }
+
+    /** Pretty JSON for the dedicated plan logger. */
+    public String toPrettyJsonString() {
+        return toJson(true);
+    }
+
+    private String toJson(boolean pretty) {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            if (pretty) {
+                builder.prettyPrint();
+            }
+            toXContent(builder, ToXContent.EMPTY_PARAMS);
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**

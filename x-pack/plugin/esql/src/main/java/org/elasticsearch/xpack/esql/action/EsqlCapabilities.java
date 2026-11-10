@@ -2098,6 +2098,11 @@ public class EsqlCapabilities {
          */
         EXPLAIN_WITH_REMOTE_PLANS(Build.current().isSnapshot()),
         /**
+         * EXPLAIN command with the JSON form of each plan (6 columns: cluster, node, role, type, plan, plan_json).
+         * Older nodes return the five columns of {@link #EXPLAIN_WITH_REMOTE_PLANS}.
+         */
+        EXPLAIN_WITH_JSON_PLANS(Build.current().isSnapshot()),
+        /**
          * Support for the RLIKE operator with a list of regexes.
          */
         RLIKE_WITH_LIST_OF_PATTERNS,

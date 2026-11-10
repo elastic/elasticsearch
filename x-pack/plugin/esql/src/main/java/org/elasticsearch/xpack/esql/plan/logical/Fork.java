@@ -47,7 +47,9 @@ public final class Fork extends MergePlan implements TelemetryAware {
 
     @Override
     public Fork replaceChildren(List<LogicalPlan> newChildren) {
-        return new Fork(source(), newChildren, output());
+        Fork replaced = new Fork(source(), newChildren, output());
+        replaced.copyIdentityFrom(this);
+        return replaced;
     }
 
     @Override
@@ -57,12 +59,16 @@ public final class Fork extends MergePlan implements TelemetryAware {
 
     @Override
     public Fork replaceSubPlans(List<LogicalPlan> subPlans) {
-        return new Fork(source(), subPlans, output());
+        Fork replaced = new Fork(source(), subPlans, output());
+        replaced.copyIdentityFrom(this);
+        return replaced;
     }
 
     @Override
     public Fork replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
-        return new Fork(source(), subPlans, output);
+        Fork replaced = new Fork(source(), subPlans, output);
+        replaced.copyIdentityFrom(this);
+        return replaced;
     }
 
     @Override

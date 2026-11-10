@@ -1060,7 +1060,8 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                         new ColumnInfoImpl("node", "keyword", null),
                         new ColumnInfoImpl("role", "keyword", null),
                         new ColumnInfoImpl("type", "keyword", null),
-                        new ColumnInfoImpl("plan", "keyword", null)
+                        new ColumnInfoImpl("plan", "keyword", null),
+                        new ColumnInfoImpl("plan_json", "keyword", null)
                     )
                 )
             );

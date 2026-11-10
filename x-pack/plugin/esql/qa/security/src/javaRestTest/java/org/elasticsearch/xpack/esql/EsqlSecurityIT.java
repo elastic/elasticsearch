@@ -2227,12 +2227,13 @@ public class EsqlSecurityIT extends ESRestTestCase {
             @SuppressWarnings("unchecked")
             List<Map<String, String>> columns = (List<Map<String, String>>) respMap.get("columns");
             // Verify we have the expected columns
-            assertThat(columns.size(), equalTo(5));
+            assertThat(columns.size(), equalTo(6));
             assertThat(columns.get(0).get("name"), equalTo("cluster"));
             assertThat(columns.get(1).get("name"), equalTo("node"));
             assertThat(columns.get(2).get("name"), equalTo("role"));
             assertThat(columns.get(3).get("name"), equalTo("type"));
             assertThat(columns.get(4).get("name"), equalTo("plan"));
+            assertThat(columns.get(5).get("name"), equalTo("plan_json"));
 
             @SuppressWarnings("unchecked")
             List<List<Object>> values = (List<List<Object>>) respMap.get("values");

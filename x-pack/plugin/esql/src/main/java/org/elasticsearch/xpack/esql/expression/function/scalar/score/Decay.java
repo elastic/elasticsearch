@@ -13,6 +13,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -29,7 +31,6 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -45,7 +46,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
@@ -77,7 +77,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isDateNanos;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isGeoPoint;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialPoint;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isTimeDuration;
 
 /**
  * Decay a numeric, spatial or date type value based on the distance of it to an origin.
@@ -92,7 +91,10 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isTimeDuration;
 public class Decay extends EsqlScalarFunction implements OptionalArgument, PostOptimizationVerificationAware, AnyNullIsNull {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Decay", Decay::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Decay.class).quaternary(Decay::new).name("decay");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Decay.class)
+        .quaternary(Decay::new)
+        .capabilities("ga_fixes")
+        .name("decay");
 
     public static final String ORIGIN = "origin";
     public static final String SCALE = "scale";
@@ -109,14 +111,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         Set.of(KEYWORD)
     );
 
-    // Default offsets
-    private static final Integer DEFAULT_INTEGER_OFFSET = 0;
-    private static final Long DEFAULT_LONG_OFFSET = 0L;
-    private static final Double DEFAULT_DOUBLE_OFFSET = 0.0;
     private static final BytesRef DEFAULT_GEO_POINT_OFFSET = new BytesRef("0m");
-    private static final Double DEFAULT_CARTESIAN_POINT_OFFSET = 0.0;
-    private static final Long DEFAULT_TEMPORAL_OFFSET = 0L;
-    private static final Long DEFAULT_UNSIGNED_LONG_OFFSET = NumericUtils.ZERO_AS_UNSIGNED_LONG;
 
     private static final double DEFAULT_DECAY = 0.5;
 
@@ -189,7 +184,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
                 @MapParam.MapParamEntry(
                     name = TYPE,
                     type = { "keyword" },
-                    description = "Decay function to use: linear, exponential or gaussian."
+                    description = "Decay function to use: linear, exp or gauss. Defaults to linear."
                 ) },
             optional = true
         ) Expression options
@@ -264,8 +259,8 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
             boolean isGeoPoint = isGeoPoint(valueType);
 
             return validateOriginScaleAndOffset(
-                DataType::isSpatialPoint,
-                "spatial point",
+                dt -> dt == valueType,
+                valueType.typeName(),
                 isGeoPoint ? DataType::isString : DataType::isNumeric,
                 isGeoPoint ? "keyword or text" : "numeric",
                 isGeoPoint ? DataType::isString : DataType::isNumeric,
@@ -360,7 +355,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Decay::new, children().get(0), children().get(1), children().get(2), children().get(3));
+        return NodeInfo.create(this, Decay::new, value, origin, scale, options);
     }
 
     @Override
@@ -388,82 +383,91 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         FoldContext foldCtx = toEvaluator.foldCtx();
 
         // Constants
-        Object originFolded = convertNumericParam(origin.fold(foldCtx), origin.dataType(), valueDataType);
-        Object scaleFolded = convertNumericParam(getFoldedScale(foldCtx, valueDataType), scale.dataType(), valueDataType);
-        Object offsetFolded = getOffset(foldCtx, valueDataType, offsetExpr);
+        Object originFolded = origin.fold(foldCtx);
+        Object scaleFolded = scale.fold(foldCtx);
+        Object offsetFolded = offsetExpr != null ? offsetExpr.fold(foldCtx) : null;
         double decayFolded = decayExpr != null ? ((Number) decayExpr.fold(foldCtx)).doubleValue() : DEFAULT_DECAY;
+        if ((decayFolded > 0 && decayFolded < 1) == false) {
+            throw new InvalidArgumentException("[{}] option must be in the range (0, 1), found [{}]", DECAY, decayFolded);
+        }
         DecayFunction decayFunction = DecayFunction.fromBytesRef(typeExpr != null ? (BytesRef) typeExpr.fold(foldCtx) : DEFAULT_FUNCTION);
 
         return switch (valueDataType) {
             case INTEGER -> new DecayIntEvaluator.Factory(
                 source(),
                 valueFactory,
-                ((Number) originFolded).intValue(),
-                ((Number) scaleFolded).intValue(),
-                ((Number) offsetFolded).intValue(),
+                toDoubleParam(originFolded, origin.dataType()),
+                numericScale(scaleFolded),
+                numericOffset(offsetExpr, offsetFolded),
                 decayFolded,
                 decayFunction
             );
             case DOUBLE -> new DecayDoubleEvaluator.Factory(
                 source(),
                 valueFactory,
-                ((Number) originFolded).doubleValue(),
-                ((Number) scaleFolded).doubleValue(),
-                ((Number) offsetFolded).doubleValue(),
+                toDoubleParam(originFolded, origin.dataType()),
+                numericScale(scaleFolded),
+                numericOffset(offsetExpr, offsetFolded),
                 decayFolded,
                 decayFunction
             );
             case LONG -> new DecayLongEvaluator.Factory(
                 source(),
                 valueFactory,
-                ((Number) originFolded).longValue(),
-                ((Number) scaleFolded).longValue(),
-                ((Number) offsetFolded).longValue(),
+                toDoubleParam(originFolded, origin.dataType()),
+                numericScale(scaleFolded),
+                numericOffset(offsetExpr, offsetFolded),
                 decayFolded,
                 decayFunction
             );
             case UNSIGNED_LONG -> new DecayUnsignedLongEvaluator.Factory(
                 source(),
                 valueFactory,
-                ((Number) originFolded).longValue(),
-                ((Number) scaleFolded).longValue(),
-                ((Number) offsetFolded).longValue(),
+                toDoubleParam(originFolded, origin.dataType()),
+                numericScale(scaleFolded),
+                numericOffset(offsetExpr, offsetFolded),
                 decayFolded,
                 decayFunction
             );
-            case GEO_POINT -> new DecayGeoPointEvaluator.Factory(
-                source(),
-                valueFactory,
-                (BytesRef) originFolded,
-                (BytesRef) scaleFolded,
-                (BytesRef) offsetFolded,
-                decayFolded,
-                decayFunction
-            );
+            case GEO_POINT -> {
+                BytesRef geoScale = (BytesRef) scaleFolded;
+                BytesRef geoOffset = offsetExpr != null ? (BytesRef) offsetFolded : DEFAULT_GEO_POINT_OFFSET;
+                checkScale(parseDistance(SCALE, geoScale), geoScale.utf8ToString());
+                checkOffset(parseDistance(OFFSET, geoOffset), geoOffset.utf8ToString());
+                yield new DecayGeoPointEvaluator.Factory(
+                    source(),
+                    valueFactory,
+                    (BytesRef) originFolded,
+                    geoScale,
+                    geoOffset,
+                    decayFolded,
+                    decayFunction
+                );
+            }
             case CARTESIAN_POINT -> new DecayCartesianPointEvaluator.Factory(
                 source(),
                 valueFactory,
                 (BytesRef) originFolded,
-                (Double) scaleFolded,
-                (Double) offsetFolded,
+                numericScale(scaleFolded),
+                numericOffset(offsetExpr, offsetFolded),
                 decayFolded,
                 decayFunction
             );
             case DATETIME -> new DecayDatetimeEvaluator.Factory(
                 source(),
                 valueFactory,
-                (Long) originFolded,
-                (Long) scaleFolded,
-                (Long) offsetFolded,
+                temporalOrigin(originFolded, valueDataType),
+                temporalScale(scaleFolded, valueDataType),
+                temporalOffset(offsetFolded, valueDataType),
                 decayFolded,
                 decayFunction
             );
             case DATE_NANOS -> new DecayDateNanosEvaluator.Factory(
                 source(),
                 valueFactory,
-                (Long) originFolded,
-                (Long) scaleFolded,
-                (Long) offsetFolded,
+                temporalOrigin(originFolded, valueDataType),
+                temporalScale(scaleFolded, valueDataType),
+                temporalOffset(offsetFolded, valueDataType),
                 decayFolded,
                 decayFunction
             );
@@ -484,9 +488,9 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     @Evaluator(extraName = "Int")
     static double process(
         int value,
-        @Fixed int origin,
-        @Fixed int scale,
-        @Fixed int offset,
+        @Fixed double origin,
+        @Fixed double scale,
+        @Fixed double offset,
         @Fixed double decay,
         @Fixed DecayFunction decayFunction
     ) {
@@ -508,9 +512,9 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     @Evaluator(extraName = "Long")
     static double process(
         long value,
-        @Fixed long origin,
-        @Fixed long scale,
-        @Fixed long offset,
+        @Fixed double origin,
+        @Fixed double scale,
+        @Fixed double offset,
         @Fixed double decay,
         @Fixed DecayFunction decayFunction
     ) {
@@ -520,21 +524,15 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     @Evaluator(extraName = "UnsignedLong")
     static double processUnsignedLong(
         long value,
-        @Fixed long origin,
-        @Fixed long scale,
-        @Fixed long offset,
+        @Fixed double origin,
+        @Fixed double scale,
+        @Fixed double offset,
         @Fixed double decay,
         @Fixed DecayFunction decayFunction
     ) {
         // unsigned_long values are stored as longs offset by Long.MIN_VALUE; decode to their
         // true magnitude as a double before feeding the score-script math, which operates in double space.
-        return decayFunction.numericDecay(
-            NumericUtils.unsignedLongToDouble(value),
-            NumericUtils.unsignedLongToDouble(origin),
-            NumericUtils.unsignedLongToDouble(scale),
-            NumericUtils.unsignedLongToDouble(offset),
-            decay
-        );
+        return decayFunction.numericDecay(NumericUtils.unsignedLongToDouble(value), origin, scale, offset, decay);
     }
 
     @Evaluator(extraName = "GeoPoint")
@@ -694,105 +692,119 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         public abstract double temporalDecay(long value, long origin, long scale, long offset, double decay);
 
         public static DecayFunction fromBytesRef(BytesRef functionType) {
-            return BY_NAME.getOrDefault(functionType.utf8ToString(), LINEAR);
+            String name = functionType.utf8ToString().toLowerCase(Locale.ROOT);
+            DecayFunction decayFunction = BY_NAME.get(name);
+            if (decayFunction == null) {
+                throw new InvalidArgumentException("unknown decay type [{}], expected one of [gauss, linear, exp]", name);
+            }
+            return decayFunction;
         }
     }
 
     private static double decayDateLinear(long origin, long scale, long offset, double decay, long value) {
         double scaling = scale / (1.0 - decay);
-
-        long diff = (value >= origin) ? (value - origin) : (origin - value);
-        long distance = Math.max(0, diff - offset);
+        long distance = temporalDistance(value, origin, offset);
         return Math.max(0.0, (scaling - distance) / scaling);
     }
 
     private static double decayDateExp(long origin, long scale, long offset, double decay, long value) {
         double scaling = Math.log(decay) / scale;
-
-        long diff = (value >= origin) ? (value - origin) : (origin - value);
-        long distance = Math.max(0, diff - offset);
+        long distance = temporalDistance(value, origin, offset);
         return Math.exp(scaling * distance);
     }
 
     private static double decayDateGauss(long origin, long scale, long offset, double decay, long value) {
         double scaling = 0.5 * Math.pow(scale, 2.0) / Math.log(decay);
-
-        long diff = (value >= origin) ? (value - origin) : (origin - value);
-        long distance = Math.max(0, diff - offset);
+        long distance = temporalDistance(value, origin, offset);
         return Math.exp(0.5 * Math.pow(distance, 2.0) / scaling);
     }
 
-    private Object getOffset(FoldContext foldCtx, DataType valueDataType, Expression offset) {
+    private static long temporalDistance(long value, long origin, long offset) {
+        // as java.lang.Math#abs(long) is a forbidden API, have to use this comparison instead
+        long diff = (value >= origin) ? (value - origin) : (origin - value);
+        // a negative diff means the subtraction overflowed: the dates are more than Long.MAX_VALUE apart
+        return Math.max(0, (diff < 0 ? Long.MAX_VALUE : diff) - offset);
+    }
+
+    private double numericScale(Object folded) {
+        double scaleValue = toDoubleParam(folded, scale.dataType());
+        checkScale(scaleValue, scaleValue);
+        return scaleValue;
+    }
+
+    private static double numericOffset(Expression offset, Object folded) {
         if (offset == null) {
-            return getDefaultOffset(valueDataType);
+            return 0.0;
         }
-
-        if (isTimeDuration(offset.dataType()) == false) {
-            return convertNumericParam(offset.fold(foldCtx), offset.dataType(), valueDataType);
-        }
-
-        if (isDateNanos(valueDataType)) {
-            return getTemporalOffsetAsNanos(foldCtx, offset);
-        }
-
-        return getTemporalOffsetAsMillis(foldCtx, offset);
+        double offsetValue = toDoubleParam(folded, offset.dataType());
+        checkOffset(offsetValue, offsetValue);
+        return offsetValue;
     }
 
-    private Object getFoldedScale(FoldContext foldCtx, DataType valueDataType) {
-        Object foldedScale = scale.fold(foldCtx);
-
-        if (isTimeDuration(scale.dataType()) == false) {
-            return foldedScale;
+    private static double toDoubleParam(Object folded, DataType type) {
+        if (type == UNSIGNED_LONG) {
+            return NumericUtils.unsignedLongToDouble(((Number) folded).longValue());
         }
-
-        if (isDateNanos(valueDataType)) {
-            return ((Duration) foldedScale).toNanos();
-        }
-
-        return ((Duration) foldedScale).toMillis();
+        return ((Number) folded).doubleValue();
     }
 
-    private Long getTemporalOffsetAsMillis(FoldContext foldCtx, Expression offset) {
-        Object foldedOffset = offset.fold(foldCtx);
-        return ((Duration) foldedOffset).toMillis();
-    }
-
-    private Long getTemporalOffsetAsNanos(FoldContext foldCtx, Expression offset) {
-        Object foldedOffset = offset.fold(foldCtx);
-        Duration offsetDuration = (Duration) foldedOffset;
-        return offsetDuration.toNanos();
-    }
-
-    private static Object convertNumericParam(Object value, DataType valueType, DataType targetType) {
-        if (value == null || !targetType.isNumeric() || valueType == targetType) {
-            // Null and non-numeric targets pass through unchanged; matching types need no conversion.
-            return value;
+    private static double parseDistance(String name, BytesRef distance) {
+        String distanceString = distance.utf8ToString();
+        try {
+            return DistanceUnit.DEFAULT.parse(distanceString, DistanceUnit.DEFAULT);
+        } catch (IllegalArgumentException e) {
+            throw new InvalidArgumentException(e, "[{}] is not a valid distance: [{}]", name, distanceString);
         }
-
-        Object normalized = value;
-        if (valueType == UNSIGNED_LONG) {
-            // Decode unsigned long to a precision-preserving Number.
-            normalized = NumericUtils.unsignedLongAsNumber(((Number) value).longValue());
-        }
-        Object converted = DataTypeConverter.convert(normalized, targetType);
-        if (targetType == UNSIGNED_LONG && converted instanceof BigInteger bi) {
-            // Re-encode BigInteger result back into internal representation.
-            return NumericUtils.asLongUnsigned(bi);
-        }
-        return converted;
     }
 
-    private Object getDefaultOffset(DataType valueDataType) {
-        return switch (valueDataType) {
-            case INTEGER -> DEFAULT_INTEGER_OFFSET;
-            case LONG -> DEFAULT_LONG_OFFSET;
-            case UNSIGNED_LONG -> DEFAULT_UNSIGNED_LONG_OFFSET;
-            case DOUBLE -> DEFAULT_DOUBLE_OFFSET;
-            case GEO_POINT -> DEFAULT_GEO_POINT_OFFSET;
-            case CARTESIAN_POINT -> DEFAULT_CARTESIAN_POINT_OFFSET;
-            case DATETIME, DATE_NANOS -> DEFAULT_TEMPORAL_OFFSET;
-            default -> throw new UnsupportedOperationException("Unsupported data type: " + valueDataType);
-        };
+    private long temporalOrigin(Object folded, DataType valueDataType) {
+        long originValue = (Long) folded;
+        if (origin.dataType() == valueDataType) {
+            return originValue;
+        }
+        try {
+            return isDateNanos(valueDataType) ? DateUtils.toNanoSeconds(originValue) : DateUtils.toMilliSeconds(originValue);
+        } catch (IllegalArgumentException e) {
+            throw new InvalidArgumentException(e, "[{}] cannot be converted to [{}]: {}", ORIGIN, valueDataType.typeName(), e.getMessage());
+        }
     }
 
+    private static long temporalScale(Object folded, DataType valueDataType) {
+        long scaleValue = toTemporalUnits(SCALE, (Duration) folded, valueDataType);
+        checkScale(scaleValue, scaleValue + temporalUnit(valueDataType));
+        return scaleValue;
+    }
+
+    private static long temporalOffset(Object folded, DataType valueDataType) {
+        if (folded == null) {
+            return 0L;
+        }
+        long offsetValue = toTemporalUnits(OFFSET, (Duration) folded, valueDataType);
+        checkOffset(offsetValue, offsetValue + temporalUnit(valueDataType));
+        return offsetValue;
+    }
+
+    private static long toTemporalUnits(String name, Duration duration, DataType valueDataType) {
+        try {
+            return isDateNanos(valueDataType) ? duration.toNanos() : duration.toMillis();
+        } catch (ArithmeticException e) {
+            throw new InvalidArgumentException(e, "[{}] is too large for a [{}] value: [{}]", name, valueDataType.typeName(), duration);
+        }
+    }
+
+    private static String temporalUnit(DataType valueDataType) {
+        return isDateNanos(valueDataType) ? "ns" : "ms";
+    }
+
+    private static void checkScale(double scale, Object shown) {
+        if ((scale > 0 && Double.isFinite(scale)) == false) {
+            throw new InvalidArgumentException("[{}] must be a finite number greater than 0, found [{}]", SCALE, shown);
+        }
+    }
+
+    private static void checkOffset(double offset, Object shown) {
+        if ((offset >= 0 && Double.isFinite(offset)) == false) {
+            throw new InvalidArgumentException("[{}] option must be a finite number greater than or equal to 0, found [{}]", OFFSET, shown);
+        }
+    }
 }

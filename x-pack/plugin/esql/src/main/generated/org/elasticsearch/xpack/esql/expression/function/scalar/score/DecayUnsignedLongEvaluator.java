@@ -31,11 +31,11 @@ public final class DecayUnsignedLongEvaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator value;
 
-  private final long origin;
+  private final double origin;
 
-  private final long scale;
+  private final double scale;
 
-  private final long offset;
+  private final double offset;
 
   private final double decay;
 
@@ -45,8 +45,8 @@ public final class DecayUnsignedLongEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
-  public DecayUnsignedLongEvaluator(Source source, ExpressionEvaluator value, long origin,
-      long scale, long offset, double decay, Decay.DecayFunction decayFunction,
+  public DecayUnsignedLongEvaluator(Source source, ExpressionEvaluator value, double origin,
+      double scale, double offset, double decay, Decay.DecayFunction decayFunction,
       DriverContext driverContext) {
     this.source = source;
     this.value = value;
@@ -130,18 +130,18 @@ public final class DecayUnsignedLongEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory value;
 
-    private final long origin;
+    private final double origin;
 
-    private final long scale;
+    private final double scale;
 
-    private final long offset;
+    private final double offset;
 
     private final double decay;
 
     private final Decay.DecayFunction decayFunction;
 
-    public Factory(Source source, ExpressionEvaluator.Factory value, long origin, long scale,
-        long offset, double decay, Decay.DecayFunction decayFunction) {
+    public Factory(Source source, ExpressionEvaluator.Factory value, double origin, double scale,
+        double offset, double decay, Decay.DecayFunction decayFunction) {
       this.source = source;
       this.value = value;
       this.origin = origin;

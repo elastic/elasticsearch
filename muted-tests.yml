@@ -607,3 +607,8 @@ tests:
   - :server:test
   method: testAddDifferentDimensionalType
   issue: https://github.com/elastic/elasticsearch/issues/165296
+- class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testTranslogMasterFailureOnlyStressRecoveryTest
+  issue: https://github.com/elastic/elasticsearch/issues/165089

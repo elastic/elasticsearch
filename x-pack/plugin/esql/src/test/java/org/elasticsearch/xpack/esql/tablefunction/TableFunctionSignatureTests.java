@@ -94,19 +94,4 @@ public class TableFunctionSignatureTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("required argument [second] follows an optional one"));
     }
 
-    public void testAMapArgumentMustBeLast() {
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> TableFunctionSignature.of(TableFunctionSignature.namedValues("options"), TableFunctionSignature.name("after"))
-        );
-        assertThat(e.getMessage(), containsString("argument [options] takes a {...} and is not last"));
-    }
-
-    public void testAMapArgumentCannotBeTheOnlyOne() {
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> TableFunctionSignature.of(TableFunctionSignature.namedValues("options"))
-        );
-        assertThat(e.getMessage(), containsString("argument [options] takes a {...} and is the only one"));
-    }
 }

@@ -56,12 +56,7 @@ public record TableFunctionSignature(List<Argument> arguments) {
         return new Argument(name, Kind.NAME, true);
     }
 
-    /**
-     * A required {@code {...}} payload. No function on this branch declares one: the facility carries the kind
-     * because the grammar admits the map and the builder folds it, and the first function to take one — a dataset
-     * definition written where it is read — is a separate change. Stated so this is neither read as machinery with
-     * a caller it does not have, nor cut as having no purpose.
-     */
+    /** A required {@code {...}} payload, in any position. */
     public static Argument namedValues(String name) {
         return new Argument(name, Kind.NAMED_VALUES, true);
     }
@@ -84,19 +79,6 @@ public record TableFunctionSignature(List<Argument> arguments) {
                 throw new IllegalStateException("required argument [" + argument.name() + "] follows an optional one");
             }
             seenOptional |= argument.required() == false;
-            // The grammar admits a map only as the last argument and only after at least one name, so any other
-            // position is syntax no query can write: `tableFunctionArgument (COMMA tableFunctionArgument)*
-            // (COMMA mapExpression)?`. Without this a function would simply be unreachable, with nothing said.
-            if (argument.kind() == Kind.NAMED_VALUES) {
-                if (i != arguments.size() - 1) {
-                    throw new IllegalStateException("argument [" + argument.name() + "] takes " + Kind.NAMED_VALUES + " and is not last");
-                }
-                if (i == 0) {
-                    throw new IllegalStateException(
-                        "argument [" + argument.name() + "] takes " + Kind.NAMED_VALUES + " and is the only one"
-                    );
-                }
-            }
         }
     }
 

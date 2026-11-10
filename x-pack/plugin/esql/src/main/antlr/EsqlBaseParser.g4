@@ -137,7 +137,7 @@ indexPatternOrSubquery
 // alternative here -- so it can only be written last, and writing it elsewhere is a parse error -- and the
 // builder folds it into the one argument list. Why, on TableFunctionArgument.
 tableFunction
-    : {this.isDevVersion()}? name=DEV_TABLE_FUNCTION_NAME LP (tableFunctionArgument (COMMA tableFunctionArgument)* (COMMA mapExpression)?)? RP
+    : {this.isDevVersion()}? name=DEV_TABLE_FUNCTION_NAME (tableFunctionArgument (COMMA tableFunctionArgument)*)? RP
     ;
 
 // Narrower than functionExpression's booleanExpression, and only here: a source list is read before anything
@@ -152,6 +152,7 @@ tableFunction
 tableFunctionArgument
     : identifier
     | string
+    | mapExpression
     ;
 
 subquery

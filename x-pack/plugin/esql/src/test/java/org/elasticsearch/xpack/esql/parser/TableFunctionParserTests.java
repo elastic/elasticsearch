@@ -24,6 +24,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -240,8 +241,18 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
         assertThat(found.stream().map(call -> call.name(0)).toList(), equalTo(List.of("a", "b")));
     }
 
-    public void testDataSourceNameRequired() {
-        expectError("FROM EXAMPLE({\"resource\": \"x\"})", "extraneous input '{' expecting {QUOTED_STRING");
+    /**
+     * A {@code {...}} stands wherever a name stands, including alone and first. Which positions a particular
+     * function accepts is its signature's business, not the grammar's, so nothing here refuses this.
+     */
+    public void testAPayloadStandsInAnyPosition() {
+        assertThat(onlyCall("FROM EXAMPLE({\"resource\": \"x\"})").arguments(), hasSize(1));
+        assertThat(onlyCall("FROM EXAMPLE({\"a\": 1}, name)").arguments(), hasSize(2));
+        assertThat(onlyCall("FROM EXAMPLE({\"a\": 1}, {\"b\": 2})").arguments(), hasSize(2));
+
+        TableFunctionInvocation call = onlyCall("FROM EXAMPLE({\"a\": 1}, name)");
+        assertThat(call.arguments().get(0), instanceOf(TableFunctionArgument.NamedValues.class));
+        assertThat(call.arguments().get(1), instanceOf(TableFunctionArgument.Name.class));
     }
 
     /** The options are the last argument, so a call may stop before them. */

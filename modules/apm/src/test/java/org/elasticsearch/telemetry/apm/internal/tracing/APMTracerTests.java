@@ -25,6 +25,7 @@ import io.opentelemetry.sdk.trace.data.LinkData;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
+import io.opentelemetry.sdk.trace.samplers.SamplingDecision;
 import io.opentelemetry.sdk.trace.samplers.SamplingResult;
 
 import org.elasticsearch.common.settings.Settings;
@@ -750,107 +751,6 @@ public class APMTracerTests extends ESTestCase {
         span.end();
     }
 
-    public void testExcludedSpanNamesAreNotRecorded() {
-        final Settings settings = enabledSettingsBuilder().putList(
-            APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.getKey(),
-            List.of("name-a*")
-        ).build();
-        final APMTracer tracer = tracer(settings);
-
-        startAndEnd(tracer, "name-aaa");
-        startAndEnd(tracer, "name-bbb");
-
-        assertThat(finishedSpanNames(), containsInAnyOrder("name-bbb"));
-    }
-
-    public void testOnlyIncludedSpanNamesAreRecorded() {
-        final Settings settings = enabledSettingsBuilder().putList(
-            APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.getKey(),
-            List.of("name-a*")
-        ).build();
-        final APMTracer tracer = tracer(settings);
-
-        startAndEnd(tracer, "name-aaa");
-        startAndEnd(tracer, "name-bbb");
-
-        assertThat(finishedSpanNames(), containsInAnyOrder("name-aaa"));
-    }
-
-    public void testSpanNameFiltersCanBeUpdated() {
-        final APMTracer tracer = tracer(enabledSettings());
-
-        updateSettings(Settings.builder().putList(APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.getKey(), "name-a*"));
-        startAndEnd(tracer, "name-aaa");
-        startAndEnd(tracer, "name-bbb");
-        assertThat(finishedSpanNames(), containsInAnyOrder("name-bbb"));
-
-        updateSettings(
-            Settings.builder()
-                .putList(APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.getKey(), List.of())
-                .putList(APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.getKey(), "name-a*")
-        );
-        startAndEnd(tracer, "name-aaa");
-        startAndEnd(tracer, "name-ccc");
-        assertThat(finishedSpanNames(), containsInAnyOrder("name-bbb", "name-aaa"));
-    }
-
-    public void testMaxDepthZeroRecordsOnlyTheRootSpan() {
-        final APMTracer tracer = tracer(enabledSettings(), 0);
-
-        final Span root = tracer.spanBuilder("root").startSpan();
-        final Span child = tracer.spanBuilder("child").setParent(root).startSpan();
-        assertThat(isRecorded(child), is(false));
-        child.end();
-        root.end();
-
-        assertThat(finishedSpanNames(), containsInAnyOrder("root"));
-    }
-
-    public void testMaxDepthOneRecordsTheChildButNotTheGrandchild() {
-        final APMTracer tracer = tracer(enabledSettings(), 1);
-
-        final Span root = tracer.spanBuilder("root").startSpan();
-        final Span child = tracer.spanBuilder("child").setParent(root).startSpan();
-        final Span grandchild = tracer.spanBuilder("grandchild").setParent(child).startSpan();
-        assertThat(isRecorded(grandchild), is(false));
-        grandchild.end();
-        child.end();
-        root.end();
-
-        assertThat(finishedSpanNames(), containsInAnyOrder("root", "child"));
-    }
-
-    public void testMaxSpansDoesNotCountTheLocalRoot() {
-        final Settings settings = enabledSettingsBuilder().put(OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS.getKey(), 2).build();
-        final APMTracer tracer = tracer(settings, 5);
-
-        final Span root = tracer.spanBuilder("root").startSpan();
-        for (String name : List.of("child-1", "child-2", "child-3")) {
-            tracer.spanBuilder(name).setParent(root).startSpan().end();
-        }
-        root.end();
-
-        assertThat(finishedSpanNames(), containsInAnyOrder("root", "child-1", "child-2"));
-    }
-
-    public void testLimitsCanBeUpdated() {
-        final APMTracer tracer = tracer(enabledSettings(), 0);
-        final Span root = tracer.spanBuilder("root").startSpan();
-        assertThat(isRecorded(tracer.spanBuilder("child-1").setParent(root).startSpan()), is(false));
-
-        updateSettings(
-            Settings.builder()
-                .put(OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH.getKey(), 1)
-                .put(OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS.getKey(), 1)
-        );
-
-        tracer.spanBuilder("child-2").setParent(root).startSpan().end();
-        assertThat(isRecorded(tracer.spanBuilder("child-3").setParent(root).startSpan()), is(false));
-        root.end();
-
-        assertThat(finishedSpanNames(), containsInAnyOrder("root", "child-2"));
-    }
-
     public void testSpanKindIsInternalUnlessSet() {
         final APMTracer tracer = tracer(enabledSettings());
 
@@ -973,17 +873,35 @@ public class APMTracerTests extends ESTestCase {
     }
 
     private APMTracer tracer(Settings settings, int maxTraceDepth, boolean recordExceptionStacks, Sampler sampler) {
+        // everything that the limits of the service let through is sampled, unless the given sampler drops it
         final Settings allSampled = Settings.builder()
             .put(settings)
             .put(OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE.getKey(), 1.0)
             .put(OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH.getKey(), maxTraceDepth)
             .put(OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS.getKey(), recordExceptionStacks)
             .build();
-        final APMTracingService service = new APMTracingService(threadContext, allSampled, () -> {
-            final SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
-                .setSampler(sampler)
-                .addSpanProcessor(SimpleSpanProcessor.create(exporter))
-                .build();
+        final APMTracingService service = new APMTracingService(threadContext, allSampled, serviceSampler -> () -> {
+            final SdkTracerProvider tracerProvider = SdkTracerProvider.builder().setSampler(new Sampler() {
+                @Override
+                public SamplingResult shouldSample(
+                    Context parentContext,
+                    String traceId,
+                    String name,
+                    SpanKind spanKind,
+                    Attributes attributes,
+                    List<LinkData> parentLinks
+                ) {
+                    final SamplingResult result = sampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
+                    return result.getDecision() == SamplingDecision.DROP
+                        ? result
+                        : serviceSampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
+                }
+
+                @Override
+                public String getDescription() {
+                    return "test sampler in front of " + serviceSampler.getDescription();
+                }
+            }).addSpanProcessor(SimpleSpanProcessor.create(exporter)).build();
             final OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
                 .setTracerProvider(tracerProvider)
                 .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))

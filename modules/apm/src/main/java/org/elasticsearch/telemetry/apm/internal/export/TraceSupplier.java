@@ -11,6 +11,7 @@ package org.elasticsearch.telemetry.apm.internal.export;
 
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.sdk.common.CompletableResultCode;
+import io.opentelemetry.sdk.trace.samplers.Sampler;
 
 import java.util.function.Supplier;
 
@@ -30,4 +31,10 @@ public interface TraceSupplier extends Supplier<OpenTelemetry>, AutoCloseable {
 
     @Override
     default void close() {}
+
+    @FunctionalInterface
+    interface Factory {
+
+        TraceSupplier create(Sampler sampler);
+    }
 }

@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -86,6 +87,24 @@ public class ShardGenerationListenerIT extends AbstractSnapshotIntegTestCase {
         final Call afterDelete = TestPlugin.CALLS.stream().filter(c -> c.indexId().equals(afterSecond.indexId())).findFirst().orElseThrow();
         assertThat(afterDelete.shards().snapshots().stream().map(s -> s.snapshot()).toList(), contains("snap-2"));
         assertThat(committedGeneration(repo, afterDelete.indexId()), equalTo(afterDelete.generation()));
+    }
+
+    public void testListenerSeesGenerationWrittenByClone() {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        final String repo = "test-repo";
+        createRepository(repo, "fs");
+        final String index = "test-index";
+        createIndexWithContent(index);
+        createSnapshot(repo, "snap-1", List.of(index));
+
+        TestPlugin.CALLS.clear();
+        assertAcked(clusterAdmin().prepareCloneSnapshot(TEST_REQUEST_TIMEOUT, repo, "snap-1", "clone-1").setIndices(index).get());
+
+        assertThat(TestPlugin.CALLS, hasSize(1));
+        final Call afterClone = TestPlugin.CALLS.get(0);
+        assertThat(afterClone.shards().snapshots().stream().map(s -> s.snapshot()).toList(), containsInAnyOrder("snap-1", "clone-1"));
+        assertThat(committedGeneration(repo, afterClone.indexId()), equalTo(afterClone.generation()));
     }
 
     public void testListenerFailureDoesNotFailSnapshotOrDeletion() {

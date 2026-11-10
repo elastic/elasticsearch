@@ -741,12 +741,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 target.getUUID(),
                 compress
             );
-            INDEX_SHARD_SNAPSHOTS_FORMAT.write(
-                existingSnapshots.withClone(source.getName(), target.getName()),
-                shardContainer,
-                newGen.getGenerationUUID(),
-                compress
-            );
+            final BlobStoreIndexShardSnapshots clonedSnapshots = existingSnapshots.withClone(source.getName(), target.getName());
+            INDEX_SHARD_SNAPSHOTS_FORMAT.write(clonedSnapshots, shardContainer, newGen.getGenerationUUID(), compress);
+            if (shardGeneration != null) {
+                // only UUID generations; a null shardGeneration means the legacy numeric generation
+                notifyShardGenerationWritten(index, shardNum, newGen, clonedSnapshots);
+            }
             return new ShardSnapshotResult(
                 newGen,
                 ByteSizeValue.ofBytes(sourceMeta.totalSize()),

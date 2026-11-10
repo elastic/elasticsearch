@@ -25,7 +25,7 @@ For a hands-on example, refer to [get started with {{esql}} Data Federation](esq
 
 ## How external data is read
 
-When you query a dataset, {{es}} reads data from object storage (such as Amazon S3) rather than from a local index. This means every column and every row that a query touches results in network I/O. The query engine applies several optimizations automatically, and there are things you can do to help it read less data.
+When you query a dataset, {{es}} reads data from object storage (such as Amazon S3) rather than from a local index. This means every column and every row that a query touches results in network I/O. The query engine applies several optimizations automatically, and there are things you can do to help it read less data. Your storage provider also bills for these reads. For details, refer to [](esql-data-federation-costs.md).
 
 ### Column selection
 
@@ -155,7 +155,7 @@ FROM access_logs METADATA _file.path, _file.name, _file.size
 
 ## Use search functions
 
-[Search functions](/reference/query-languages/esql/functions-operators/search-functions.md) can filter dataset rows by evaluating the query against values read from the files. This runtime search does not use an inverted index.
+[Search functions](/reference/query-languages/esql/functions-operators/search-functions.md) can filter dataset rows by evaluating the query against values read from the files. This [runtime search](esql-runtime-search.md) does not use an inverted index.
 
 Because there is no inverted index, search functions on a dataset evaluate by scanning values row by row. For large datasets where search is the primary access pattern, consider ingesting the data into {{es}} for indexed search performance.
 

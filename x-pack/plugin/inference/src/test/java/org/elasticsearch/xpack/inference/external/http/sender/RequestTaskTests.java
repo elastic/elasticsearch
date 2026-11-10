@@ -84,7 +84,7 @@ public class RequestTaskTests extends ESTestCase {
         requestTask.getListener().onFailure(new IllegalArgumentException("failed"));
         verify(listener, times(1)).onFailure(any());
         assertTrue(requestTask.hasCompleted());
-        assertTrue(requestTask.getRequestCompletedFunction().get());
+        assertTrue(requestTask.getTimedListener().hasCompleted());
 
         onTimeout.get().run();
         verifyNoMoreInteractions(listener);
@@ -105,7 +105,7 @@ public class RequestTaskTests extends ESTestCase {
         var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(thrownException.getMessage(), is(REQUEST_TIMED_OUT_MESSAGE));
         assertTrue(requestTask.hasCompleted());
-        assertTrue(requestTask.getRequestCompletedFunction().get());
+        assertTrue(requestTask.getTimedListener().hasCompleted());
         assertThat(thrownException.status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
 
@@ -133,7 +133,7 @@ public class RequestTaskTests extends ESTestCase {
         verify(listener, times(1)).onFailure(argument.capture());
         assertThat(argument.getValue().getMessage(), is(REQUEST_TIMED_OUT_MESSAGE));
         assertTrue(requestTask.hasCompleted());
-        assertTrue(requestTask.getRequestCompletedFunction().get());
+        assertTrue(requestTask.getTimedListener().hasCompleted());
 
         requestTask.getListener().onFailure(new IllegalArgumentException("failed"));
         verifyNoMoreInteractions(listener);
@@ -163,7 +163,7 @@ public class RequestTaskTests extends ESTestCase {
         verify(listener, times(1)).onFailure(argument.capture());
         assertThat(argument.getValue().getMessage(), is(REQUEST_TIMED_OUT_MESSAGE));
         assertTrue(requestTask.hasCompleted());
-        assertTrue(requestTask.getRequestCompletedFunction().get());
+        assertTrue(requestTask.getTimedListener().hasCompleted());
 
         requestTask.getListener().onResponse(mock(InferenceServiceResults.class));
         verifyNoMoreInteractions(listener);
@@ -188,7 +188,7 @@ public class RequestTaskTests extends ESTestCase {
         requestTask.getListener().onResponse(mock(InferenceServiceResults.class));
         verify(listener, times(1)).onResponse(any());
         assertTrue(requestTask.hasCompleted());
-        assertTrue(requestTask.getRequestCompletedFunction().get());
+        assertTrue(requestTask.getTimedListener().hasCompleted());
 
         onTimeout.get().run();
         verifyNoMoreInteractions(listener);

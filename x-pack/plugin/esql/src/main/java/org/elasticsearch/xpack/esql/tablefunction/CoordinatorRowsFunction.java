@@ -178,11 +178,13 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
             return encodedNumber(function, column, declared, value);
         }
         return switch (declared) {
-            // flattened belongs here and _source does not, which is what the engine's own readers do with each:
-            // ResponseValueUtils reads a flattened cell with utf8ToString and parses a _source cell as XContent.
-            case KEYWORD, TEXT, FLATTENED -> value instanceof String || value instanceof BytesRef
+            case KEYWORD, TEXT -> value instanceof String || value instanceof BytesRef
                 ? value
                 : refuse(function, column, value, "a String or a BytesRef");
+            // Two readers disagree about a flattened cell: ResponseValueUtils takes utf8ToString, PositionToXContent
+            // parses the bytes as XContent for the JSON response. The strict one decides, or text that is not JSON
+            // is accepted here and throws NotXContentException while the response is written.
+            case FLATTENED -> readBack(function, column, bytesOf(function, column, value), CoordinatorRowsFunction::parseJson);
             // A raw BytesRef is refused here as it is everywhere else encoded. The sixteen-byte length looked like
             // an invariant and is not one: every 16-character IPv6 literal is sixteen bytes of text, so
             // BytesRef("2001:db8::ff00:4") passed and decoded as a different address. A function holding encoded
@@ -298,6 +300,32 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
             return bytes;
         }
         return refuse(function, column, value, "a BytesRef");
+    }
+
+    /** A {@code String} is still fine for a text-shaped column; the bytes are what gets checked. */
+    private static Object bytesOf(String function, Attribute column, Object value) {
+        if (value instanceof String text) {
+            return new BytesRef(text);
+        }
+        if (value instanceof BytesRef bytes) {
+            return bytes;
+        }
+        return refuse(function, column, value, "a String or a BytesRef");
+    }
+
+    /** Any JSON value, not only an object, which is what a flattened cell may hold. */
+    private static void parseJson(BytesRef bytes) {
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                XContentParserConfiguration.EMPTY,
+                new BytesArray(bytes.bytes, bytes.offset, bytes.length)
+            )
+        ) {
+            parser.nextToken();
+            parser.skipChildren();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /** Parses a {@code _source} cell as the response writer parses one, for its side effect of throwing. */

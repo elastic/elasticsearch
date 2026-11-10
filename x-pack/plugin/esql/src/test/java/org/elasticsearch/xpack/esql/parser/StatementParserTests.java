@@ -5652,14 +5652,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
 
         expectError("from test)", "line -1:-1: Invalid query [from test)]");
-        // A name immediately followed by '(' opens a table function call, so the error falls on what follows the
-        // call rather than on the '('. Still rejected, and still for having parentheses in an index name - but the
-        // message differs by build, because the lexer emits the table-function token on both while only a dev
-        // parser has a rule that can consume it. Branched for the same reason testQuotedName and testLookup are.
+        // On a dev build a name followed by '(' opens a table function call, so the error falls on what follows
+        // the call; on a release build the predicate stops the token and this is what it has always been.
         if (Build.current().isSnapshot()) {
             expectError("from te()st", "line 1:10: extraneous input 'st' expecting <EOF>");
         } else {
-            expectError("from te()st", "line 1:6: no viable alternative at input 'te'");
+            expectError("from te()st", "line 1:8: mismatched input '(' expecting {<EOF>, '|', '::', ',', 'metadata'");
         }
         expectError("from test | enrich foo)", "line -1:-1: Invalid query [from test | enrich foo)]");
         expectError("from test | lookup join foo) on bar", "line 1:28: token recognition error at: ')'");

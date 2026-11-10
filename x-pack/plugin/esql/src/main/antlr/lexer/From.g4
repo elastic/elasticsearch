@@ -55,11 +55,10 @@ FROM_QUOTED_SOURCE : QUOTED_STRING -> type(QUOTED_STRING);
 
 // The '(' is matched and then rewound so it is re-lexed in TABLE_FUNCTION_MODE: nothing else separates
 // a function name from an index pattern, and a lexer rule cannot look at the token it emitted last.
-// No {isDevVersion()}? predicate -- one on a rule starting with LETTER would poison the DFA transition
-// for UNQUOTED_SOURCE, this mode's hottest token -- so the parser rule gates the feature and the DEV_
-// prefix is what EsqlParser's error listener strips from a release build's "expecting {...}".
+// The predicate sits after the '(' per #160805 -- on the left it would poison FROM_MODE's DFA start
+// state, and omitting it changed what a release build says about `from te()st`.
 DEV_TABLE_FUNCTION_NAME
-    : LETTER UNQUOTED_ID_BODY* '(' { this.rewindToTokenStart(this.getText().length() - 1); }
+    : LETTER UNQUOTED_ID_BODY* '(' {this.isDevVersion()}? { this.rewindToTokenStart(this.getText().length() - 1); }
       -> pushMode(TABLE_FUNCTION_MODE)
     ;
 

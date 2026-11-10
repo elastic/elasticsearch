@@ -25,7 +25,6 @@ import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.time.temporal.TemporalAccessor;
-import java.time.temporal.TemporalQueries;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -215,8 +214,8 @@ public class DateUtils {
             : DATE_OPTIONAL_TIME_FORMATTER_WHITESPACE;
         // The formatters resolve strictly, so a day the month lacks (2024-02-30) is refused instead of clamped, but strict
         // resolution also refuses the ISO end-of-day hour 24. Keep reading 24:00 as the next day's midnight: validate the
-        // date with the hour replaced by 00, require that time to be exactly midnight, and only then add the day to the
-        // local date, before resolving the zone, so a midnight that does not exist in a named zone does not shift the result.
+        // date with the hour replaced by 00, require that time to be exactly midnight, and only then parse the next day's
+        // 00:00, so the zone is resolved for that midnight, as for any other input, and a gap in a named zone cannot shift it.
         int hourIdx = separatorIdx + 1;
         int afterHourIdx = hourIdx + 2;
         boolean endOfDay = afterHourIdx < dateFormat.length() && dateFormat.startsWith("24", hourIdx);
@@ -232,12 +231,14 @@ public class DateUtils {
                 hourIdx
             );
         }
+        String nextDate;
         try {
-            return ZonedDateTime.of(LocalDate.from(parsed).plusDays(1), LocalTime.MIDNIGHT, parsed.query(TemporalQueries.zone()))
-                .withZoneSameInstant(UTC);
+            nextDate = ISO_LOCAL_DATE.format(LocalDate.from(parsed).plusDays(1));
         } catch (DateTimeException e) {
             throw new DateTimeParseException("Text '" + dateFormat + "' could not be parsed: " + e.getMessage(), dateFormat, hourIdx, e);
         }
+        String nextMidnight = nextDate + dateFormat.substring(separatorIdx, hourIdx) + "00" + dateFormat.substring(afterHourIdx);
+        return DateFormatters.from(formatter.parse(nextMidnight)).withZoneSameInstant(UTC);
     }
 
     public static String toString(ZonedDateTime dateTime) {

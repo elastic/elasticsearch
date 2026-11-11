@@ -499,7 +499,7 @@ public class Driver implements Releasable, Describable {
 
     public static void start(
         ThreadContext threadContext,
-        ComputeExecutor executor,
+        DriverExecutor executor,
         Driver driver,
         int maxIterations,
         ActionListener<Void> listener
@@ -593,7 +593,7 @@ public class Driver implements Releasable, Describable {
         TimeValue maxTime,
         int maxIterations,
         ThreadContext threadContext,
-        ComputeExecutor executor,
+        DriverExecutor executor,
         Driver driver,
         ActionListener<Void> listener,
         LongSupplier currentTimeNanosSupplier,

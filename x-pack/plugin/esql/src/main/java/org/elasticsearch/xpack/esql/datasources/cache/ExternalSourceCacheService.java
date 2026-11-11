@@ -1638,20 +1638,27 @@ public class ExternalSourceCacheService implements Closeable {
         Map<String, Object> merged = new HashMap<>(base);
         for (int i = 1; i < maps.size(); i++) {
             Map<String, Object> next = maps.get(i);
-            if (sameReadConfig(base, next) == false) {
-                // Two branches of one query read this file differently — legitimate, and not something to merge:
+            if (sameRead(base, next) == false) {
+                // Two reads of one file that were configured differently -- legitimate, and not something to merge:
                 // the merge keeps the FIRST contribution's identity and folds the others' columns into it, which
                 // would relabel one read's measurements as the other's. Safe-miss, no assertion; the stripe fold
                 // refuses the same disagreement.
+                //
+                // Both halves of the configuration count. Two branches of one query may bind one file's columns
+                // differently, which the read configuration separates; and two datasets over one resource may
+                // configure the reader itself differently -- a delimiter, an error policy -- which only the format
+                // configuration separates, since the resolved columns can be identical. External resolution keys a
+                // read by its resource AND its configuration, so a query holding both is an ordinary plan rather
+                // than evidence of a non-deterministic read.
                 return null;
             }
             if (agreesWithBase(base, next) == false) {
-                // Two whole-file scans of the SAME (path, config, mtime) file disagree on row count / mtime /
-                // fingerprint — non-deterministic, so neither can be trusted. Assert-and-bail: fail fast in test
-                // (an invariant violation), but in production SAFE-MISS (return null → the caller skips caching)
-                // rather than silently first-wins-merging a stat that would then serve wrong warm answers.
+                // Two whole-file scans of one file, configured identically, disagree on row count or mtime --
+                // non-deterministic, so neither can be trusted. Assert-and-bail: fail fast in test (an invariant
+                // violation), but in production SAFE-MISS (return null -> the caller skips caching) rather than
+                // silently first-wins-merging a stat that would then serve wrong warm answers.
                 assert false
-                    : "whole-file contributions for the same file must agree on row count, mtime, and config fingerprint: "
+                    : "whole-file contributions for the same file read the same way must agree on row count and mtime: "
                         + base
                         + " vs "
                         + next;
@@ -1672,24 +1679,32 @@ public class ExternalSourceCacheService implements Closeable {
         return merged;
     }
 
-    /** Whether two contributions for one path were produced by the same read configuration; see {@link #agreesWithBase}. */
-    private static boolean sameReadConfig(Map<String, Object> a, Map<String, Object> b) {
-        return Objects.equals(a.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY), b.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY));
+    /**
+     * Whether two contributions for one path were produced by the same read: the same resolved read configuration
+     * (how the file's columns are bound and typed) and the same format configuration (how the reader itself is
+     * configured). Either may differ on its own -- two branches of one query binding one file differently, two
+     * datasets over one resource setting a different delimiter or error policy -- and each is a legitimate shape
+     * rather than an invariant violation, which is why this gate safe-misses where {@link #agreesWithBase} asserts.
+     */
+    private static boolean sameRead(Map<String, Object> a, Map<String, Object> b) {
+        return Objects.equals(a.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY), b.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY))
+            && Objects.equals(a.get(ExternalStats.CONFIG_FINGERPRINT_KEY), b.get(ExternalStats.CONFIG_FINGERPRINT_KEY));
     }
 
     /**
-     * Whether two whole-file contributions for the same path agree on the facts that CANNOT legitimately differ
-     * within one reconcile — the row count, the mtime and the config fingerprint. Disagreement there means a
-     * non-deterministic read, which is an invariant violation rather than a state to handle.
+     * Whether two whole-file contributions for the same path, already known to be the same read, agree on the facts
+     * that CANNOT legitimately differ within one reconcile -- the row count and the mtime. Disagreement there means
+     * a non-deterministic read, which is an invariant violation rather than a state to handle.
      * <p>
-     * The read configuration is deliberately NOT here: two branches of one query (a FORK, a subquery) may read the
-     * same file differently, which is legitimate, not a bug. That difference is handled as a safe-miss by
-     * {@link #sameReadConfig} instead of tripping an assertion.
+     * Neither fingerprint is here, and both used to be split across this gate and {@link #sameRead}. A read
+     * configuration may legitimately differ between two branches of one query; a format configuration may
+     * legitimately differ between two datasets over one resource, which external resolution keys apart by resource
+     * AND configuration. Asserting on either confuses a plan the planner now builds on purpose with a reader that
+     * answered twice and differently, so both are safe-missed by {@link #sameRead} before this is reached.
      */
     private static boolean agreesWithBase(Map<String, Object> a, Map<String, Object> b) {
         return sameNumericOrEqual(a.get(SourceStatisticsSerializer.STATS_ROW_COUNT), b.get(SourceStatisticsSerializer.STATS_ROW_COUNT))
-            && sameNumericOrEqual(a.get(ExternalStats.MTIME_MILLIS_KEY), b.get(ExternalStats.MTIME_MILLIS_KEY))
-            && Objects.equals(a.get(ExternalStats.CONFIG_FINGERPRINT_KEY), b.get(ExternalStats.CONFIG_FINGERPRINT_KEY));
+            && sameNumericOrEqual(a.get(ExternalStats.MTIME_MILLIS_KEY), b.get(ExternalStats.MTIME_MILLIS_KEY));
     }
 
     private static boolean sameNumericOrEqual(Object a, Object b) {

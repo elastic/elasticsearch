@@ -25,6 +25,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.QueryInterceptor;
 import org.elasticsearch.common.logging.activity.QueryLogger;
+import org.elasticsearch.common.logging.activity.QuerySinkRegistry;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -151,6 +152,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         UsageService usageService,
         UserAgentParserRegistry userAgentParserRegistry,
         IpLocationService ipLocationService,
+        QuerySinkRegistry querySinkRegistry,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
         CrossProjectModeDecider crossProjectModeDecider,
@@ -274,7 +276,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             fieldProvider,
             indexNameExpressionResolver.getSystemNamePredicate()
         );
-        this.queryInterceptor = new QueryInterceptor<>(List.of(queryLogger));
+        this.queryInterceptor = querySinkRegistry.createInterceptor(queryLogger);
 
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
         clusterService.getClusterSettings()

@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.FileSplitProvider;
@@ -356,7 +357,9 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
 
         PlainActionFuture<ExternalSourceResolution> resolved = new PlainActionFuture<>();
         resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(Map.of("schema_resolution", "union_by_name"))), resolved);
-        FileList listing = resolved.actionGet(30, TimeUnit.SECONDS).soleResolvedSource(glob).fileList();
+        FileList listing = resolved.actionGet(30, TimeUnit.SECONDS)
+            .resolvedSource(new ExternalSourceSpec(glob, Map.of("schema_resolution", "union_by_name")))
+            .fileList();
         long seam1 = ExternalSourceResolver.listingPlanningCharge(listing);
         assertThat(seam1, greaterThan(0L));
         assertEquals(seam1, reservation.queryHeld());

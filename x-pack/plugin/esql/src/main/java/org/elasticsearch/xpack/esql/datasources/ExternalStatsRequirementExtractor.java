@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -34,7 +31,7 @@ import java.util.Set;
  * {@code INLINESTATS} never benefit from the eager global aggregation and must not pay its
  * per-file footer-read cost.
  *
- * <p>The result of {@link #pathsRequiringEagerStats(LogicalPlan)} is used by
+ * <p>The result of {@link #specsRequiringEagerStats(LogicalPlan)} is used by
  * {@code ExternalSourceResolver} to gate the FIRST_FILE_WINS eager all-file stats aggregation: a
  * path absent from the set defers the N footer reads (keeping {@code STATS_FILE_COUNT}, marking
  * stats partial), so wide globs no longer block planning on thousands of object-store GETs for
@@ -53,37 +50,33 @@ import java.util.Set;
  * (defer when skip-discovery could still have fired); over-reading every file for Filter/Limit
  * is no longer the bias.
  *
- * <h2>Per-path conservatism for mixed branches</h2>
- * The result is a {@link Set}: if the same path appears under an ungrouped aggregate in one branch
- * (e.g. a {@code FORK} arm) and under {@code LIMIT} in another, the union marks it as requiring eager
- * stats. Resolution is keyed by {@link ExternalSourceSpec}, so one resource read two ways has two
- * resolutions while this set is still keyed by path alone — both of them stay eager. The union never makes a
- * spec less eager than its own branch needs, so it cannot produce a wrong answer for this reason; but it is
- * no longer exact, and the over-eager spec both reads footers it cannot use and lists unbounded. Keying this
- * by the spec would make it exact.
+ * <h2>Per-spec conservatism for mixed branches</h2>
+ * Keyed by {@link ExternalSourceSpec}, as resolution is: a resource read two ways is two entries, and what one
+ * of them demands says nothing about the other. Within one spec the result is still a union — a spec under an
+ * ungrouped aggregate in one branch (a {@code FORK} arm, say) and under {@code LIMIT} in another stays eager —
+ * which never makes a spec less eager than its own branch needs.
  */
 public final class ExternalStatsRequirementExtractor {
 
     private ExternalStatsRequirementExtractor() {}
 
     /**
-     * Returns the literal {@code tablePath} of every {@link UnresolvedExternalRelation} that has an
-     * <b>ungrouped</b> {@link Aggregate} ancestor with no {@link Filter}, {@link Limit}, or
-     * {@link Sample} on the walk from that aggregate down to the relation. The path-key derivation
-     * is identical to {@code PreAnalyzer} and {@code EsqlSession#extractExternalSourceSpecs}
-     * ({@code BytesRefs.toString(literal.value())}), so every key here is the {@code path} of a spec the
-     * session derives.
+     * Returns every {@link UnresolvedExternalRelation} that has an <b>ungrouped</b> {@link Aggregate}
+     * ancestor with no {@link Filter}, {@link Limit}, or {@link Sample} on the walk from that aggregate
+     * down to the relation, as the spec it denotes. The derivation is {@link ExternalSourceSpec#ofOrNull},
+     * which is also what {@code EsqlSession#extractExternalSourceSpecs} uses, so every spec here is one
+     * the session derives too -- a relation the two disagreed about would carry a demand nothing claims.
      *
      * @param unresolvedPlan the root of the unresolved logical plan
-     * @return the set of literal path strings whose resolution must eagerly aggregate global stats
+     * @return the specs whose resolution must eagerly aggregate global stats
      */
-    public static Set<String> pathsRequiringEagerStats(LogicalPlan unresolvedPlan) {
-        Set<String> result = new HashSet<>();
+    public static Set<ExternalSourceSpec> specsRequiringEagerStats(LogicalPlan unresolvedPlan) {
+        Set<ExternalSourceSpec> result = new HashSet<>();
         collect(unresolvedPlan, false, result);
         return result;
     }
 
-    private static void collect(Node<?> node, boolean ungroupedAggAbove, Set<String> result) {
+    private static void collect(Node<?> node, boolean ungroupedAggAbove, Set<ExternalSourceSpec> result) {
         // INLINESTATS wraps its embedded Aggregate as its child (UnaryPlan child). That embedded
         // aggregate produces an InlineJoin, not the ungrouped-aggregate metadata fast path, so it
         // must not flip the flag — skip the Aggregate node and walk below it with the flag unchanged.
@@ -106,9 +99,9 @@ public final class ExternalStatsRequirementExtractor {
 
         if (node instanceof UnresolvedExternalRelation relation) {
             if (ungroupedAggAbove) {
-                String path = extractPath(relation);
-                if (path != null) {
-                    result.add(path);
+                ExternalSourceSpec spec = ExternalSourceSpec.ofOrNull(relation);
+                if (spec != null) {
+                    result.add(spec);
                 }
             }
             return; // leaf: no children below a relation
@@ -128,21 +121,4 @@ public final class ExternalStatsRequirementExtractor {
         return node instanceof Filter || node instanceof Limit || node instanceof Sample;
     }
 
-    /**
-     * Path-key derivation kept in lockstep with {@code PreAnalyzer#externalSourcePaths} and
-     * {@code EsqlSession#extractExternalSourceSpecs}: a non-null {@link Literal} {@code tablePath}
-     * rendered via {@code BytesRefs.toString}. Returns {@code null} for a non-literal {@code tablePath}
-     * so detection never throws; that path is then absent from the set and, since the resolver
-     * receives a non-null set, would <em>defer</em> rather than aggregate eagerly. In practice this
-     * branch is unreachable: {@code EsqlSession#extractExternalSourceSpecs} runs first on the same plan
-     * and throws on a non-literal {@code tablePath}, so resolution never reaches a path this method
-     * could fail to key.
-     */
-    private static String extractPath(UnresolvedExternalRelation relation) {
-        Expression tablePath = relation.tablePath();
-        if (tablePath instanceof Literal literal && literal.value() != null) {
-            return BytesRefs.toString(literal.value());
-        }
-        return null;
-    }
 }

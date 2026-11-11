@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
@@ -474,7 +475,11 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertThat(sumAgg.groupings(), hasSize(2));
         assertThat(sumAgg.aggregates().getFirst().collect(Sum.class), not(empty()));
 
-        var tsAgg = packedTimeSeriesAggregate(sumAgg.child(), 1);
+        // The label packs after the first pass, an empty value as absent.
+        var pack = as(sumAgg.child(), PackDims.class);
+        assertThat(Expressions.names(pack.dims()), contains("cluster"));
+        assertTrue(pack.emptyAsAbsent());
+        var tsAgg = as(pack.child(), TimeSeriesAggregate.class);
         assertThat(Expressions.names(packedDims(tsAgg.aggregates())), contains("cluster"));
         assertThat(tsAgg.aggregates().getFirst().collect(LastOverTime.class), not(empty()));
     }

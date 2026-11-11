@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesA
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
 
 /**
  * Translates PromQL logical plan into ESQL plan. Runs before {@link TranslateTimeSeriesAggregate} to convert
@@ -40,6 +41,6 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
     @Override
     protected LogicalPlan rule(PromqlCommand cmd, AnalyzerContext context) {
-        return cmd.translate(context);
+        return TranslationContext.withSeriesIds(cmd.translate(context));
     }
 }

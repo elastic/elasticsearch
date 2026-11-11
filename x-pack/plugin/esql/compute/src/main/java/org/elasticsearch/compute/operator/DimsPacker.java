@@ -31,15 +31,23 @@ public final class DimsPacker {
     }
 
     static BytesRefVector packBytesValues(DriverContext driverContext, BytesRefBlock raw) {
+        return packBytesValues(driverContext, raw, false);
+    }
+
+    /**
+     * Packs each position's values. With {@code emptyAsAbsent} a zero-length value is left out, so a position holding only
+     * empty values packs as absent: PromQL has no empty label value.
+     */
+    static BytesRefVector packBytesValues(DriverContext driverContext, BytesRefBlock raw, boolean emptyAsAbsent) {
         BytesRefVector vector = raw.asVector();
         if (vector != null) {
             OrdinalBytesRefVector ordinals = vector.asOrdinals();
             if (ordinals != null) {
-                var encoded = packBytesVector(driverContext, ordinals.getDictionaryVector());
+                var encoded = packBytesVector(driverContext, ordinals.getDictionaryVector(), emptyAsAbsent);
                 ordinals.getOrdinalsVector().incRef();
                 return new OrdinalBytesRefVector(ordinals.getOrdinalsVector(), encoded);
             } else {
-                return packBytesVector(driverContext, vector);
+                return packBytesVector(driverContext, vector, emptyAsAbsent);
             }
         }
         int positionCount = raw.getPositionCount();
@@ -50,12 +58,7 @@ public final class DimsPacker {
             BytesRef scratch = new BytesRef();
             for (int p = 0; p < positionCount; p++) {
                 work.clear();
-                int valueCount = raw.getValueCount(p);
-                ENCODER.encodeInt(valueCount, work);
-                int first = raw.getFirstValueIndex(p);
-                for (int i = first; i < first + valueCount; i++) {
-                    ENCODER.encodeBytesRef(raw.getBytesRef(i, scratch), work);
-                }
+                encodeBytesPosition(raw, p, emptyAsAbsent, scratch, work);
                 builder.appendBytesRef(work.bytesRefView());
             }
             return builder.build();
@@ -63,12 +66,30 @@ public final class DimsPacker {
     }
 
     static BytesRefVector packBytesVector(DriverContext driverContext, BytesRefVector encode) {
+        return packBytesVector(driverContext, encode, false);
+    }
+
+    static BytesRefVector packBytesVector(DriverContext driverContext, BytesRefVector encode, boolean emptyAsAbsent) {
         int positionCount = encode.getPositionCount();
         try (
             var builder = driverContext.blockFactory().newBytesRefVectorBuilder(estimateForBytesBuilder(positionCount));
             var work = new BreakingBytesRefBuilder(driverContext.breaker(), "pack_dims", 1024)
         ) {
             BytesRef scratch = new BytesRef();
+            if (emptyAsAbsent) {
+                for (int p = 0; p < positionCount; p++) {
+                    BytesRef value = encode.getBytesRef(p, scratch);
+                    work.clear();
+                    if (value.length == 0) {
+                        ENCODER.encodeInt(0, work);
+                    } else {
+                        ENCODER.encodeInt(1, work);
+                        ENCODER.encodeBytesRef(value, work);
+                    }
+                    builder.appendBytesRef(work.bytesRefView());
+                }
+                return builder.build();
+            }
             work.clear();
             ENCODER.encodeInt(1, work);
             int countLen = work.length();
@@ -78,6 +99,33 @@ public final class DimsPacker {
                 builder.appendBytesRef(work.bytesRefView());
             }
             return builder.build();
+        }
+    }
+
+    /** Encodes the values of one position, its count first; with {@code emptyAsAbsent} its zero-length values are left out. */
+    private static void encodeBytesPosition(
+        BytesRefBlock block,
+        int position,
+        boolean emptyAsAbsent,
+        BytesRef scratch,
+        BreakingBytesRefBuilder work
+    ) {
+        int valueCount = block.getValueCount(position);
+        int first = block.getFirstValueIndex(position);
+        int kept = valueCount;
+        if (emptyAsAbsent) {
+            for (int i = first; i < first + valueCount; i++) {
+                if (block.getBytesRef(i, scratch).length == 0) {
+                    kept--;
+                }
+            }
+        }
+        ENCODER.encodeInt(kept, work);
+        for (int i = first; i < first + valueCount; i++) {
+            BytesRef value = block.getBytesRef(i, scratch);
+            if (emptyAsAbsent == false || value.length > 0) {
+                ENCODER.encodeBytesRef(value, work);
+            }
         }
     }
 
@@ -243,6 +291,11 @@ public final class DimsPacker {
     }
 
     public static BytesRefVector packMultiColumns(DriverContext driverContext, Block[] blocks) {
+        return packMultiColumns(driverContext, blocks, false);
+    }
+
+    /** As {@link #packMultiColumns(DriverContext, Block[])}; with {@code emptyAsAbsent} zero-length values are left out. */
+    public static BytesRefVector packMultiColumns(DriverContext driverContext, Block[] blocks, boolean emptyAsAbsent) {
         int positionCount = blocks[0].getPositionCount();
         try (
             var builder = driverContext.blockFactory().newBytesRefVectorBuilder(estimateForBytesBuilder(positionCount));
@@ -252,13 +305,17 @@ public final class DimsPacker {
             for (int p = 0; p < positionCount; p++) {
                 work.clear();
                 for (Block block : blocks) {
+                    if (block.elementType() == ElementType.BYTES_REF) {
+                        encodeBytesPosition((BytesRefBlock) block, p, emptyAsAbsent, scratch, work);
+                        continue;
+                    }
                     int valueCount = block.getValueCount(p);
                     ENCODER.encodeInt(valueCount, work);
                     int first = block.getFirstValueIndex(p);
                     for (int v = 0; v < valueCount; v++) {
                         int index = first + v;
                         switch (block.elementType()) {
-                            case BYTES_REF -> ENCODER.encodeBytesRef(((BytesRefBlock) block).getBytesRef(index, scratch), work);
+                            case BYTES_REF -> throw new AssertionError("bytes values are encoded per position");
                             case LONG -> ENCODER.encodeLong(((LongBlock) block).getLong(index), work);
                             case INT -> ENCODER.encodeInt(((IntBlock) block).getInt(index), work);
                             case BOOLEAN -> ENCODER.encodeBoolean(((BooleanBlock) block).getBoolean(index), work);
@@ -315,10 +372,14 @@ public final class DimsPacker {
     }
 
     static BytesRefVector packSingleColumn(DriverContext driverContext, Block block) {
+        return packSingleColumn(driverContext, block, false);
+    }
+
+    static BytesRefVector packSingleColumn(DriverContext driverContext, Block block, boolean emptyAsAbsent) {
         ElementType elementType = block.elementType();
         return switch (elementType) {
             case NULL -> packNulls(driverContext, block.getPositionCount());
-            case BYTES_REF -> packBytesValues(driverContext, (BytesRefBlock) block);
+            case BYTES_REF -> packBytesValues(driverContext, (BytesRefBlock) block, emptyAsAbsent);
             case LONG -> packLongValues(driverContext, (LongBlock) block);
             case INT -> packIntValues(driverContext, (IntBlock) block);
             case BOOLEAN -> packBooleanValues(driverContext, (BooleanBlock) block);

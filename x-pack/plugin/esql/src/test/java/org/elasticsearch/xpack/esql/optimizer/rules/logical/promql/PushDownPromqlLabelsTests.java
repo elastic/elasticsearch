@@ -56,7 +56,8 @@ public class PushDownPromqlLabelsTests extends ESTestCase {
 
     private final FieldAttribute pod = dimension("pod");
     private final FieldAttribute value = new FieldAttribute(SOURCE, "value", new EsField("value", DataType.DOUBLE, Map.of(), true, null));
-    private final EsRelation relation = EsqlTestUtils.relation(IndexMode.TIME_SERIES).withAttributes(List.of(pod, value));
+    private final MetadataAttribute seriesId = new MetadataAttribute(SOURCE, MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false);
+    private final EsRelation relation = EsqlTestUtils.relation(IndexMode.TIME_SERIES).withAttributes(List.of(pod, value, seriesId));
 
     /** A collapse whose series only read a label above it keys by the series id and the label: the source reads no view. */
     public void testLabelReadAboveCollapseIsAColumn() {
@@ -152,9 +153,11 @@ public class PushDownPromqlLabelsTests extends ESTestCase {
         return new Alias(SOURCE, MetadataAttribute.TIMESERIES, new ToTimeSeriesMetadata(SOURCE, new TimeSeriesWithout(SOURCE)));
     }
 
+    /** A collapse per series, keyed by its labels and its id as the translation keys it. */
     private TimeSeriesAggregate collapse(Alias labels, TimeSeriesAggregate.Origin origin) {
         Alias last = new Alias(SOURCE, "value", new Values(SOURCE, value));
-        return new TimeSeriesAggregate(SOURCE, relation, List.of(labels), List.of(last, labels.toAttribute()), null, null, origin, false);
+        List<Expression> groupings = List.of(labels, seriesId);
+        return new TimeSeriesAggregate(SOURCE, relation, groupings, List.of(last, labels.toAttribute()), null, null, origin, false);
     }
 
     private static FieldAttribute dimension(String name) {

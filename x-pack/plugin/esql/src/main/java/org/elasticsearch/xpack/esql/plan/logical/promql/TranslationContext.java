@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -186,8 +187,9 @@ public record TranslationContext(
             return emitInitialAggregate(input, labels, function);
         }
         // One row per series: the source labels are its identity, so a function over its samples is one value per group. The
-        // changes made to the labels so far then apply to the collapsed series.
-        IntermediateResult collapsed = emitInitialAggregate(input, series, perSeries(function));
+        // changes made to the labels so far then apply to the collapsed series. The series id keys it too: two series can carry
+        // the same labels, an empty label being absent, and their samples must not merge.
+        IntermediateResult collapsed = emitInitialAggregate(input, series, perSeries(function), seriesId(input.plan()));
         Expression key = collapsed.labels();
         return collapsed.withLabels(labels.transformUp(Expression.class, e -> e.semanticEquals(series) ? key : e));
     }
@@ -208,13 +210,23 @@ public record TranslationContext(
 
     /** The initial aggregate keyed by {@code labels}, the label container of each result series; null keys by step alone. */
     public IntermediateResult emitInitialAggregate(IntermediateResult input, @Nullable Expression labels, Expression function) {
+        return emitInitialAggregate(input, labels, function, null);
+    }
+
+    private IntermediateResult emitInitialAggregate(
+        IntermediateResult input,
+        @Nullable Expression labels,
+        Expression function,
+        @Nullable Attribute seriesId
+    ) {
         assert input.kind().afterInitialAggregation == false : "invariant: a collapse takes a raw table";
         Alias value = new Alias(function.source(), cmd.valueColumnName(), function);
         Alias key = labelsKey(labels);
+        List<Expression> groupings = seriesId == null ? groupings(stepBucketAlias, key) : List.of(stepBucketAlias, seriesId, key);
         LogicalPlan plan = new TimeSeriesAggregate(
             cmd.promqlPlan().source(),
             input.plan(),
-            groupings(stepBucketAlias, key),
+            groupings,
             aggregates(value, input.step(), key),
             null,
             time,
@@ -246,6 +258,41 @@ public record TranslationContext(
             input.pendingFilter(),
             Kind.AFTER_INITIAL_AGGREGATE
         );
+    }
+
+    /** The time-series id of the source under {@code plan}. */
+    public static Attribute seriesId(LogicalPlan plan) {
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            for (Attribute attribute : relation.output()) {
+                if (attribute.name().equals(MetadataAttribute.TSID_FIELD)) {
+                    return attribute;
+                }
+            }
+        }
+        return new MetadataAttribute(plan.source(), MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false);
+    }
+
+    /**
+     * {@code plan} with the source of each collapse keyed by a series id reading it. The translation reads it last: a source
+     * stays the command's own relation while it translates, which it finds the source by.
+     */
+    public static LogicalPlan withSeriesIds(LogicalPlan plan) {
+        return plan.transformUp(TimeSeriesAggregate.class, aggregate -> {
+            Attribute id = null;
+            for (Expression grouping : aggregate.groupings()) {
+                if (grouping instanceof MetadataAttribute attribute && attribute.name().equals(MetadataAttribute.TSID_FIELD)) {
+                    id = attribute;
+                }
+            }
+            if (id == null || aggregate.child().outputSet().contains(id)) {
+                return aggregate;
+            }
+            Attribute read = id;
+            return aggregate.replaceChild(
+                aggregate.child()
+                    .transformUp(EsRelation.class, relation -> relation.withAttributes(CollectionUtils.combine(relation.output(), read)))
+            );
+        });
     }
 
     private @Nullable Alias labelsKey(@Nullable Expression labels) {

@@ -421,11 +421,13 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                 mergeExpressions(secondPassAggs, secondPassGroupings)
             );
         } else {
+            // PromQL has no empty label: a series whose label is empty groups with one that lacks it.
             PackDims packDims = new PackDims(
                 aggregate.source(),
                 perSeries,
                 packDimensions,
-                PackDims.newPackedAttribute(aggregate.source())
+                PackDims.newPackedAttribute(aggregate.source()),
+                aggregate.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND
             );
             Alias packedGrouping = PackDims.newPackedGrouping(aggregate.source(), packDims.packed());
             secondPassGroupings.add(packedGrouping);
@@ -659,6 +661,11 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             return plan;
         }
         return plan.transformDown(PackDims.class, packDims -> {
+            if (packDims.emptyAsAbsent()) {
+                // PackDimsAgg packs on the data nodes, which cannot be asked to read an empty value as absent: the pack stays
+                // above the first pass, reading each series' labels once there
+                return packDims;
+            }
             if (packDims.child() instanceof TimeSeriesAggregate aggs) {
                 List<NamedExpression> newAggregates = new ArrayList<>();
                 List<Attribute> dims = new ArrayList<>();

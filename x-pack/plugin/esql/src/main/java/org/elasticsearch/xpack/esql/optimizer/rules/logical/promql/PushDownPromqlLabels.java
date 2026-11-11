@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
@@ -37,7 +36,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.ToTime
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.promql.function.HashOffset;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
@@ -65,6 +63,8 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.seriesId;
+
 /**
  * Pushes the labels of a translated PromQL plan down into columns, right after {@link TranslatePromqlToEsqlPlan}.
  * <p>
@@ -83,10 +83,10 @@ import java.util.TreeSet;
  * columns. The rule first collects those sets ({@link Classes}), then rewrites the plan bottom-up, keeping each container's split as
  * a {@link Shape} until a node needs it as columns.
  * <p>
- * A collapse keeping one row per series keys by the series id when nothing above it reads a view of the series, and otherwise by the
- * one view the source reads: the one leaving out only what every reader leaves out. Any other aggregate keys by the view leaving out
- * every label its class removes or writes. Labels key packed ({@link PackDims}): a label of several values keys as a whole, and the
- * residual container, which is large, keys as it is.
+ * A collapse keeping one row per series keys by the series id, and also by the one view the source reads when something above it
+ * reads a view of the series: the one leaving out only what every reader leaves out. Any other aggregate keys by the view leaving
+ * out every label its class removes or writes. Labels key packed ({@link PackDims}): a label of several values keys as a whole, an
+ * empty label as a missing one, as PromQL has no empty label, and the residual container, which is large, keys as it is.
  */
 public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
@@ -429,10 +429,11 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
         // -- nodes --
 
         /**
-         * The aggregate keyed by the parts of its label containers. A collapse keeping one row per series keys by every view read
-         * above it and by the labels; any other aggregate keys by the residual container leaving out every label its class removes
-         * or writes, so the parts above it need no residual container of their own. The time-series collapse keys by the labels as
-         * they are and its translation packs them; any other aggregate packs them itself: a label of several values keys as a whole.
+         * The aggregate keyed by the parts of its label containers. A collapse keeping one row per series keys by the series id,
+         * every view read above it and the labels; any other aggregate keys by the residual container leaving out every label its
+         * class removes or writes, so the parts above it need no residual container of their own. The time-series collapse keys by
+         * the labels as they are and its translation packs them; any other aggregate packs them itself: a label of several values
+         * keys as a whole.
          */
         private LogicalPlan aggregate(Aggregate aggregate) {
             boolean collapse = aggregate instanceof TimeSeriesAggregate;
@@ -452,11 +453,10 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
                     Shape shape = shape(definition);
                     Shape columns;
                     if (collapse && isSource(definition)) {
+                        // The translation keys the collapse by the series id too
+                        assert aggregate.groupings().contains(seriesId(aggregate.child())) : "a collapse per series keys by its id";
                         if (finding == false && views.getOrDefault(named.id(), Set.of()).isEmpty()) {
-                            // Nothing reads a view of the series above: the series id keys the collapse.
-                            Attribute id = seriesId(aggregate.child());
-                            child = withSeriesId(aggregate.child(), id);
-                            groupings.add(id);
+                            // Nothing reads a view of the series above: the labels are columns.
                             var aliases = new ArrayList<NamedExpression>();
                             columns = columns(shape.withLabels(shape.labels()).withoutRest(), aliases);
                             groupings.addAll(aliases);
@@ -492,7 +492,7 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
                 return aggregate.with(child, groupings, aggregates(aggregate, keys, List.of()));
             }
             Source source = aggregate.source();
-            PackDims pack = new PackDims(source, child, labels, PackDims.newPackedAttribute(source));
+            PackDims pack = new PackDims(source, child, labels, PackDims.newPackedAttribute(source), true);
             Alias packed = PackDims.newPackedGrouping(source, pack.packed());
             groupings.add(packed);
             Aggregate packedAggregate = aggregate.with(pack, groupings, aggregates(aggregate, keys, List.of(packed.toAttribute())));
@@ -530,28 +530,6 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
             shape.labels().forEach((name, value) -> labels.put(name, named(value, name, aliases)));
             groupings.addAll(aliases);
             return new Shape(null, id, shape.excluded(), labels);
-        }
-
-        /** The time-series id of the source under {@code plan}. */
-        private static Attribute seriesId(LogicalPlan plan) {
-            for (EsRelation relation : plan.collect(EsRelation.class)) {
-                for (Attribute attribute : relation.output()) {
-                    if (attribute.name().equals(MetadataAttribute.TSID_FIELD)) {
-                        return attribute;
-                    }
-                }
-            }
-            return new MetadataAttribute(plan.source(), MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false);
-        }
-
-        /** {@code plan} with its source reading {@code id}. */
-        private static LogicalPlan withSeriesId(LogicalPlan plan, Attribute id) {
-            return plan.transformUp(
-                EsRelation.class,
-                relation -> relation.output().contains(id)
-                    ? relation
-                    : relation.withAttributes(CollectionUtils.combine(relation.output(), id))
-            );
         }
 
         /** The view the collapse {@code id} carries, as its column and what it leaves out. */
@@ -737,14 +715,17 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
             return alias.toAttribute();
         }
 
-        /** {@code child} with {@code labels} packed into one key, which {@code keys} gets; a label of several values keys as a whole. */
+        /**
+         * {@code child} with {@code labels} packed into one key, which {@code keys} gets; a label of several values keys as a whole,
+         * an empty one as a missing one.
+         */
         private static LogicalPlan packed(LogicalPlan child, List<Attribute> labels, List<? super Attribute> keys) {
             if (labels.isEmpty()) {
                 return child;
             }
             Attribute packed = new ReferenceAttribute(child.source(), null, PackDims.PACKED_FIELD_NAME, DataType.KEYWORD);
             keys.add(packed);
-            return new PackDims(child.source(), child, labels, packed);
+            return new PackDims(child.source(), child, labels, packed, true);
         }
 
         /** Whether the residual container of {@code shape} holds {@code label}, whether or not a column holds it as well. */

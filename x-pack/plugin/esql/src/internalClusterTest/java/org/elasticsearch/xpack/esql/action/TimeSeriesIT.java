@@ -1653,6 +1653,66 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    /**
+     * PromQL has no empty label: a series whose label is empty groups with one that lacks it, yet the two stay apart as series,
+     * even with equal samples.
+     */
+    public void testPromqlEmptyLabelIsAbsentButKeepsSeriesApart() {
+        assumeTrue("requires a typed label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
+        for (double secondValue : List.of(7.0, 9.0)) {
+            String index = "promql-empty-label-" + (int) secondValue;
+            createOptionalLabelMetricsIndex(index);
+            indexPromqlSample(index, "cluster", "prod", "host", "a", "optional", "", "tx", 7.0);
+            indexPromqlSample(index, "cluster", "prod", "host", "a", "tx", secondValue);
+            refresh(index);
+
+            String labels = "{\"cluster\":\"prod\",\"host\":\"a\"}";
+            assertPromqlRows(index, "tx", List.of(List.of(7.0, labels), List.of(secondValue, labels)));
+            assertPromqlRows(index, "sum without(optional)(tx)", List.of(List.of(7.0 + secondValue, labels)));
+        }
+    }
+
+    /** Grouping by a label that is empty on one series and absent on the other puts them in one group. */
+    public void testPromqlEmptyAndAbsentLabelsGroupTogether() {
+        assumeTrue("requires a typed label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
+        String index = "promql-empty-absent";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "optional", "", "tx", 10.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "tx", 20.0);
+        refresh(index);
+
+        assertPromqlRows(index, "sum without(host)(tx)", List.of(List.of(30.0, "{\"cluster\":\"prod\"}")));
+        try (EsqlQueryResponse response = run(promqlQuery(index, "sum by(optional)(tx)") + " | KEEP result, optional")) {
+            assertThat(EsqlTestUtils.getValuesList(response), equalTo(List.of(java.util.Arrays.asList(30.0, null))));
+        }
+    }
+
+    private void createOptionalLabelMetricsIndex(String index) {
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.mode", "time_series")
+                        .putList("index.routing_path", "cluster", "host")
+                        .put("index.time_series.start_time", "2024-05-10T00:00:00Z")
+                        .put("index.time_series.end_time", "2024-05-10T01:00:00Z")
+                )
+                .setMapping(
+                    "@timestamp",
+                    "type=date",
+                    "cluster",
+                    "type=keyword,time_series_dimension=true",
+                    "host",
+                    "type=keyword,time_series_dimension=true",
+                    "optional",
+                    "type=keyword,time_series_dimension=true",
+                    "tx",
+                    "type=double,time_series_metric=gauge"
+                )
+        );
+        ensureGreen(index);
+    }
+
     private void createPassthroughMetricsIndex(String index, String extraProperties) {
         assertAcked(
             indicesAdmin().prepareCreate(index)
@@ -1688,8 +1748,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         client().prepareIndex(index).setSource(source).get();
     }
 
-    private void assertPromqlRows(String index, String expression, List<List<Object>> expected) {
-        String query = "PROMQL index="
+    private static String promqlQuery(String index, String expression) {
+        return "PROMQL index="
             + index
             + " start=\""
             + PROMQL_QUERY_TIME
@@ -1697,8 +1757,11 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             + PROMQL_QUERY_TIME
             + "\" step=1m result=("
             + expression
-            + ") | KEEP result, _timeseries";
-        try (EsqlQueryResponse response = run(query)) {
+            + ")";
+    }
+
+    private void assertPromqlRows(String index, String expression, List<List<Object>> expected) {
+        try (EsqlQueryResponse response = run(promqlQuery(index, expression) + " | KEEP result, _timeseries")) {
             assertThat(EsqlTestUtils.getValuesList(response), containsInAnyOrder(expected.toArray()));
         }
     }

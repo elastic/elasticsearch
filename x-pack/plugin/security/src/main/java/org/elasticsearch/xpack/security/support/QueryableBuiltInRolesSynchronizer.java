@@ -350,9 +350,9 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
             while (true) {
                 int s = state.get();
                 if (s == IDLE) {
-                    String message = "endSync called while no sync is in progress";
-                    assert false : message;
-                    throw new IllegalStateException(message);
+                    // deliberately an exception rather than an assert so tests exercise the exact production
+                    // behavior; callers up the completion chain surface it loudly (see MasterService)
+                    throw new IllegalStateException("endSync called while no sync is in progress");
                 } else if (s == RUNNING_WITH_PENDING_REQUEST) {
                     if (state.compareAndSet(RUNNING_WITH_PENDING_REQUEST, RUNNING)) return true;
                 } else {

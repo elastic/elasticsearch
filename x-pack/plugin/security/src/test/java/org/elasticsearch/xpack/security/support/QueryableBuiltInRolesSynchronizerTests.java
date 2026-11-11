@@ -1099,16 +1099,16 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
 
     public void testRolesSyncEndSyncWithoutStartFailsFast() {
         // A second endSync() for the same slot used to spin forever in the CAS loop, hanging the calling
-        // thread (the master service thread in production). It must fail fast instead. With assertions
-        // enabled (always true in tests) the assert fires before the IllegalStateException is thrown.
+        // thread (the master service thread in production). It must fail fast instead. This is deliberately a
+        // plain exception rather than an assert, so this test exercises the exact production behavior.
         var sync = new QueryableBuiltInRolesSynchronizer.RolesSync();
-        expectThrows(AssertionError.class, sync::endSync);
+        expectThrows(IllegalStateException.class, sync::endSync);
         assertFalse(sync.inProgress());
 
         // same after a full acquire/release cycle
         assertTrue(sync.startSync());
         assertFalse(sync.endSync());
-        expectThrows(AssertionError.class, sync::endSync);
+        expectThrows(IllegalStateException.class, sync::endSync);
         assertFalse(sync.inProgress());
 
         // the state machine remains usable after the failed call

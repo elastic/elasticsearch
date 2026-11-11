@@ -7,6 +7,8 @@
 
 package org.elasticsearch.blobcache.common;
 
+import com.carrotsearch.randomizedtesting.annotations.Timeout;
+
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.test.ESTestCase;
@@ -39,6 +41,9 @@ import static org.hamcrest.Matchers.nullValue;
 public class BufferFillScopeTests extends ESTestCase {
 
     private static final int COMPLETE = -1;
+
+    /** Bound for tests where a bug in the scope, such as a leaked permit, would make {@code complete} wait forever. */
+    private static final int HANG_TIMEOUT_MILLIS = 30_000;
 
     public void testHeapBuffer() {
         final byte[] data = randomByteArrayOfLength(randomIntBetween(1, 1024));
@@ -82,6 +87,7 @@ public class BufferFillScopeTests extends ESTestCase {
     // The scratch buffer of a confined arena is filled by another thread, as a cache read
     // completed by a fetch thread would do, and the owner then sees the data and may close
     // the arena.
+    @Timeout(millis = HANG_TIMEOUT_MILLIS)
     public void testConfinedArenaFilledByOtherThread() throws Exception {
         final byte[] data = randomByteArrayOfLength(randomIntBetween(2, 4096));
         final int prefix = randomIntBetween(0, data.length - 1);
@@ -110,6 +116,7 @@ public class BufferFillScopeTests extends ESTestCase {
 
     // {@link BufferFillScope#complete} does not return while a filler is running,
     // so the owner cannot free memory in use.
+    @Timeout(millis = HANG_TIMEOUT_MILLIS)
     public void testCompleteWaitsForFillerInUse() throws Exception {
         final byte[] data = randomByteArrayOfLength(randomIntBetween(1, 1024));
         final Thread owner = Thread.currentThread();
@@ -149,6 +156,7 @@ public class BufferFillScopeTests extends ESTestCase {
         }
     }
 
+    @Timeout(millis = HANG_TIMEOUT_MILLIS)
     public void testOutOfBoundsSliceDoesNotLeakPermit() throws Exception {
         final int size = randomIntBetween(1, 64);
         for (boolean direct : new boolean[] { false, true }) {
@@ -177,6 +185,7 @@ public class BufferFillScopeTests extends ESTestCase {
      * owner, or do not run at all. The arena is closed as soon as {@code complete} returns, and the fillers are only joined afterwards, so
      * a filler that wrote after that point would be writing to freed memory.
      */
+    @Timeout(millis = HANG_TIMEOUT_MILLIS)
     public void testFillersRacingCompleteNeverRunAfterItReturns() throws Exception {
         final int fillers = 8;
         final int chunk = 64;
@@ -237,6 +246,7 @@ public class BufferFillScopeTests extends ESTestCase {
         }
     }
 
+    @Timeout(millis = HANG_TIMEOUT_MILLIS)
     public void testOverlappingRegionsAreRejected() throws Exception {
         assumeTrue("the check needs assertions enabled", Assertions.ENABLED);
         final BufferFillScope scope = BufferFillScope.of(ByteBuffer.allocate(16));
@@ -299,6 +309,7 @@ public class BufferFillScopeTests extends ESTestCase {
         assertComplete(scope);
     }
 
+    @Timeout(millis = HANG_TIMEOUT_MILLIS)
     public void testFailingActionDoesNotLeakPermit() throws Exception {
         try (Arena arena = Arena.ofConfined()) {
             final BufferFillScope scope = BufferFillScope.of(arena.allocate(8).asByteBuffer());
@@ -310,6 +321,7 @@ public class BufferFillScopeTests extends ESTestCase {
     }
 
     /** Interrupting the owner must not let it stop waiting for fillers in use and go on to free the memory. */
+    @Timeout(millis = HANG_TIMEOUT_MILLIS)
     public void testCompleteIgnoresInterrupt() throws Exception {
         try (Arena arena = Arena.ofConfined()) {
             final BufferFillScope scope = BufferFillScope.of(arena.allocate(8).asByteBuffer());
@@ -323,6 +335,53 @@ public class BufferFillScopeTests extends ESTestCase {
             }
             assertComplete(scope);
         }
+    }
+
+    /**
+     * Writing through the address of freed memory would silently corrupt it, so when assertions are enabled a filler that starts after
+     * the owner freed the memory without calling {@link BufferFillScope#complete} fails instead, without running.
+     */
+    public void testFillAfterArenaClosedWithoutCompleteIsRejected() {
+        assumeTrue("the check needs assertions enabled", Assertions.ENABLED);
+        final Arena arena = Arena.ofConfined();
+        final BufferFillScope scope = BufferFillScope.of(arena.allocate(8).asByteBuffer());
+        // breaks the protocol: the memory is freed without completing the scope
+        arena.close();
+        final AtomicBoolean ran = new AtomicBoolean();
+        expectThrows(AssertionError.class, () -> scope.fillSlice(0, 8, COMPLETE, slice -> {
+            ran.set(true);
+            return 8;
+        }));
+        assertFalse("the filler must not run against freed memory", ran.get());
+    }
+
+    /** As above, for a filler that is already running when the owner frees the memory. The filler here never touches the memory. */
+    @Timeout(millis = HANG_TIMEOUT_MILLIS)
+    public void testArenaClosedWhileFillerRunningIsDetected() throws Exception {
+        assumeTrue("the check needs assertions enabled", Assertions.ENABLED);
+        final Arena arena = Arena.ofConfined();
+        final BufferFillScope scope = BufferFillScope.of(arena.allocate(8).asByteBuffer());
+        final CountDownLatch inFiller = new CountDownLatch(1);
+        final CountDownLatch release = new CountDownLatch(1);
+        final AtomicReference<Throwable> failure = new AtomicReference<>();
+        final Thread filler = new Thread(() -> {
+            try {
+                scope.fillSlice(0, 8, COMPLETE, slice -> {
+                    inFiller.countDown();
+                    safeAwait(release);
+                    return 8;
+                });
+            } catch (Throwable t) {
+                failure.set(t);
+            }
+        }, "test-filler");
+        filler.start();
+        safeAwait(inFiller);
+        // breaks the protocol: the memory is freed, without completing the scope, while a filler holds a permit
+        arena.close();
+        release.countDown();
+        filler.join();
+        assertThat(failure.get(), instanceOf(AssertionError.class));
     }
 
     public void testScopedBufferOfConfinedArenaCannotBeUsedDirectlyByOtherThreads() throws Exception {

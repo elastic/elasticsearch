@@ -1,0 +1,6 @@
+area: Aggregations
+issues:
+ - 165493
+pr: 165495
+summary: Keep the index sort's missing value when rounding composite sources
+type: bug

@@ -1635,12 +1635,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     l
                 )
             );
-            if (failureStrategy.notifyMaster() == false) {
-                // sendFailShard (which would otherwise overwrite this entry with FailureReported) didn't run,
-                // so nothing else clears this ticket -- there's no further attempt coming for it.
-                logger.debug("{} clearing InFlight ticket: recovery failure strategy [{}]", key, failureStrategy);
-                pendingAllocationStates.remove(key, inFlightTicket);
-            }
+            // A no-op if sendFailShard already overwrote this entry with FailureReported (its put always wins);
+            // otherwise there's no further attempt coming for this ticket, so clear it here.
+            final boolean cleared = pendingAllocationStates.remove(key, inFlightTicket);
+            logger.debug(
+                "{} recovery failure handled [{}]: {}",
+                key,
+                failureStrategy,
+                cleared ? "cleared InFlight ticket" : "ticket already superseded"
+            );
         } catch (Exception e) {
             // should not be possible
             final var wrappedException = new IllegalStateException("unexpected failure in handleRecoveryFailure on " + shardRouting, e);

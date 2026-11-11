@@ -64,11 +64,11 @@ public final class PromqlLabels {
     }
 
     /**
-     * The PromQL label name an attribute carries: a {@link FieldAttribute}'s backing field name, otherwise the attribute
-     * name, with the {@code labels.} passthrough prefix stripped so {@code labels.pod} and a bare {@code pod} compare equal.
+     * A mapped field's PromQL label name strips the {@code labels.} passthrough prefix. Derived labels retain their
+     * declared name, so a derived {@code labels.pod} remains distinct from the mapped label {@code pod}.
      */
     public static String labelName(Attribute attribute) {
-        return labelName(attribute instanceof FieldAttribute field ? field.fieldName().string() : attribute.name());
+        return attribute instanceof FieldAttribute field ? labelName(field.fieldName().string()) : attribute.name();
     }
 
     /** Canonical label name for a mapped source field. */

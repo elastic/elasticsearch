@@ -476,12 +476,12 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     // Reject labels whose name collides with a built-in output column.
                     // If this proves too restrictive, we could add an option to rename the built-in step column.
                     for (Attribute grouping : agg.groupings()) {
-                        checkBuiltInColumnCollision(agg, PromqlLabels.labelName(grouping), failures);
+                        checkBuiltInColumnCollision(agg, PromqlLabels.labelName(grouping.name()), failures);
                     }
                 }
                 case AcrossSeriesReduction reduction -> {
                     for (Attribute grouping : reduction.groupings()) {
-                        checkBuiltInColumnCollision(reduction, PromqlLabels.labelName(grouping), failures);
+                        checkBuiltInColumnCollision(reduction, PromqlLabels.labelName(grouping.name()), failures);
                     }
                 }
                 case HistogramFunctionCall histogram -> {
@@ -698,7 +698,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         if (identitySource instanceof AcrossSeriesAggregate agg && agg.grouping() == AcrossSeriesAggregate.Grouping.BY) {
             // Compare by label name, not attribute name: a destination written as `labels.pod` names the same label as the
             // aggregation's `pod`, which is how the analyzer shadows it and how translation resolves it.
-            String destination = PromqlLabels.labelName(relabel.destination());
+            String destination = PromqlLabels.labelName(relabel.destination().name());
             if (overwritesLabel(relabel, destination)) {
                 failures.add(
                     fail(

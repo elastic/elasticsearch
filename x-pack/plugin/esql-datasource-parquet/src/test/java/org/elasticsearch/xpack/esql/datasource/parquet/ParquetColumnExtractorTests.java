@@ -36,8 +36,10 @@ import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.StorageRetryCancellation;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
@@ -65,12 +67,15 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Unit tests for {@link ParquetColumnExtractor}: random-access reads of single columns by
@@ -955,6 +960,67 @@ public class ParquetColumnExtractorTests extends ESTestCase {
                 blocking.release();
                 t.join(30_000);
                 assertFalse("extract did not complete after release", t.isAlive());
+            }
+        } finally {
+            ioExecutor.shutdownNow();
+        }
+    }
+
+    /**
+     * A cancelled extract must return on the cancellation signal, not when the outstanding
+     * column-chunk GET completes. {@code join()} on the prefetch future fails this: the extract
+     * thread stays parked until {@link BlockingChunkStorageObject#release()}.
+     */
+    public void testCancelledExtractReleasesTheThreadBeforeTheReadCompletes() throws Exception {
+        byte[] data = writeMultiRowGroupFile(2000);
+        ParquetMetadata fullFooter = loadFooter(new TrackingStorageObject(data));
+        assertTrue("expected at least 3 row groups", fullFooter.getBlocks().size() >= 3);
+
+        long rg0Rows = fullFooter.getBlocks().get(0).getRowCount();
+        long rg1Rows = fullFooter.getBlocks().get(1).getRowCount();
+        long[] survivors = new long[] { 0L, rg0Rows + 1, rg0Rows + rg1Rows + 1 };
+
+        long[][] rgWindows = new long[3][2];
+        for (int i = 0; i < 3; i++) {
+            BlockMetaData rg = fullFooter.getBlocks().get(i);
+            rgWindows[i][0] = rg.getStartingPos();
+            rgWindows[i][1] = rg.getStartingPos() + rg.getCompressedSize();
+        }
+
+        ExecutorService ioExecutor = Executors.newFixedThreadPool(4);
+        try {
+            BlockingChunkStorageObject blocking = new BlockingChunkStorageObject(data, ioExecutor, rgWindows);
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+            AtomicBoolean cancelled = new AtomicBoolean();
+            AtomicReference<Throwable> thrown = new AtomicReference<>();
+            CountDownLatch returned = new CountDownLatch(1);
+            try (ColumnExtractor extractor = new ParquetColumnExtractor(blocking, reader, fullFooter, ErrorPolicy.PERMISSIVE)) {
+                blocking.armLatch();
+                Thread t = new Thread(() -> {
+                    try {
+                        StorageRetryCancellation.runWithCancellation(cancelled::get, () -> {
+                            try (Block b = extractor.extract("v", survivors, blockFactory)) {
+                                thrown.set(new AssertionError("extract returned " + b.getPositionCount() + " positions"));
+                            }
+                        });
+                    } catch (Throwable e) {
+                        thrown.set(e);
+                    } finally {
+                        returned.countDown();
+                    }
+                }, "extract-driver");
+                t.setDaemon(true);
+                t.start();
+
+                assertTrue(
+                    "expected 3 in-flight chunk prefetches; observed " + blocking.observedDispatches.get(),
+                    blocking.dispatchedAtLeast.await(15, TimeUnit.SECONDS)
+                );
+                cancelled.set(true);
+                assertTrue("extract did not return within 5s of cancellation", returned.await(5, TimeUnit.SECONDS));
+                assertThat(thrown.get(), instanceOf(TaskCancelledException.class));
+            } finally {
+                blocking.release();
             }
         } finally {
             ioExecutor.shutdownNow();

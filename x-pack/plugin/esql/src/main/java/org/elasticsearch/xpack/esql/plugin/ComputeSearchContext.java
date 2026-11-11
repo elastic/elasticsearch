@@ -29,7 +29,7 @@ import java.util.function.BooleanSupplier;
  * <p>
  * Closing this will only close the underlying search context, and doing so <i>directly</i> is generally only done during error handling. In
  * happy-path execution, this class will be closed when the reference count in the {@link ShardContext} returned by
- * {@link #shardContext(QueryWarnings, Set)} reaches 0.
+ * {@link #shardContext(QueryWarnings, Set, boolean)} reaches 0.
  */
 class ComputeSearchContext implements Releasable {
     private final int index;
@@ -65,10 +65,11 @@ class ComputeSearchContext implements Releasable {
 
     /**
      * @param unmappedFieldNames the fields the plan reads that some shards may not map, which this shard resolves to what it holds
+     * @param flattenedKeys whether a name under a {@code flattened} field is a field, the key of that name
      */
-    ShardContext shardContext(QueryWarnings queryWarnings, Set<String> unmappedFieldNames) {
+    ShardContext shardContext(QueryWarnings queryWarnings, Set<String> unmappedFieldNames, boolean flattenedKeys) {
         if (shardContext.get() == null) {
-            shardContext.set(createShardContext(queryWarnings, unmappedFieldNames));
+            shardContext.set(createShardContext(queryWarnings, unmappedFieldNames, flattenedKeys));
         }
         return shardContext.get();
     }
@@ -94,12 +95,13 @@ class ComputeSearchContext implements Releasable {
         return searchContext == null ? null : searchContext.indexShard();
     }
 
-    private ShardContext createShardContext(QueryWarnings queryWarnings, Set<String> unmappedFieldNames) {
+    private ShardContext createShardContext(QueryWarnings queryWarnings, Set<String> unmappedFieldNames, boolean flattenedKeys) {
         ensureNotTombstone();
         EsqlSearchExecutionContext searchExecutionContext = new EsqlSearchExecutionContext(
             searchContext.getSearchExecutionContext(),
             queryWarnings,
-            unmappedFieldNames
+            unmappedFieldNames,
+            flattenedKeys
         );
         searchContext.addReleasable(searchExecutionContext::releaseQueryConstructionMemory);
         return new DefaultShardContext(index, this, searchExecutionContext, searchContext.request().getAliasFilter());

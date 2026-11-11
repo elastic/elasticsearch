@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
@@ -164,6 +165,7 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
         );
         assertRefuses(
             createMapperService(
+                randomVersionBeforeDocValuesNoOp(),
                 Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
                 mapping(
                     b -> b.startObject("body").field("type", "text").field("index_options", "docs").field("doc_values", false).endObject()
@@ -176,6 +178,7 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
     public void testParentWithANormalizerIsNotRead() throws IOException {
         assertRefuses(
             createMapperService(
+                randomVersionBeforeDocValuesNoOp(),
                 Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
                 mapping(
                     b -> b.startObject("host")
@@ -267,6 +270,8 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
 
     private void assertMultiFieldMatches(String options, boolean ownDocValues) throws IOException {
         final MapperService mapper = createMapperService(
+            // Without own doc values the multi-field must really have none, so pin before doc_values became a no-op in columnar.
+            ownDocValues ? IndexVersion.current() : randomVersionBeforeDocValuesNoOp(),
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
             mapping(
                 b -> b.startObject("host")

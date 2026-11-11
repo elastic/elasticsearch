@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SimpleRefCounted;
@@ -780,6 +781,9 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     dependencies,
                     namedWriteableRegistry
                 );
+                // merging the results of the shards of the request is work for them
+                List<ShardId> shardIds = request.shards.stream().map(ShardToQuery::shardId).toList();
+                state.queryPhaseResultConsumer.mergeLoad(searchService.searchLoad(shardIds));
                 // TODO: log activating or otherwise limiting parallelism might be helpful here
                 for (int i = 0; i < workers; i++) {
                     executeShardTasks(state);
@@ -984,6 +988,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             }
             ChannelActionListener<BytesTransportResponse> channelListener = new ChannelActionListener<>(channel);
             final BytesTransportResponse response;
+            long startNanos = System.nanoTime();
             try {
                 response = buildResponse();
             } catch (Exception e) {
@@ -994,8 +999,22 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 }
                 channelListener.onFailure(e);
                 return;
+            } finally {
+                chargeMerge(startNanos);
             }
             ActionListener.respondAndRelease(channelListener, response);
+        }
+
+        /**
+         * Charges building the response to the shards of the request, as it merges their results in the task of the shard that
+         * completed last.
+         */
+        private void chargeMerge(long startNanos) {
+            TaskLoadAttribution.Target mergeLoad = queryPhaseResultConsumer.mergeLoad();
+            if (mergeLoad != null) {
+                long finishNanos = System.nanoTime();
+                TaskLoadAttribution.charge(mergeLoad, finishNanos - startNanos, finishNanos);
+            }
         }
 
         private BytesTransportResponse buildResponse() throws Exception {

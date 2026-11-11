@@ -82,16 +82,21 @@ public final class SplitDiscoveryPhase {
     /**
      * An {@link ExternalRelation} found inside a fragment, paired with the conjuncts of the {@link Filter} ancestors
      * that guard it — the seed for its partition pruning. Empty {@code filters} means the relation is unfiltered and
-     * every file must be read.
+     * every file must be read. {@code filteredLimit} is true when a {@link Limit} was dropped by a {@link Filter},
+     * so remaining matching rows are unknown until read.
      */
-    public record GuardedRelation(ExternalRelation relation, List<Expression> filters, int rowLimit) {
+    public record GuardedRelation(ExternalRelation relation, List<Expression> filters, int rowLimit, boolean filteredLimit) {
         public GuardedRelation {
             filters = List.copyOf(filters);
         }
 
+        public GuardedRelation(ExternalRelation relation, List<Expression> filters, int rowLimit) {
+            this(relation, filters, rowLimit, false);
+        }
+
         /** A relation with no limit above it, or one the commands in between make no promise about. */
         public GuardedRelation(ExternalRelation relation, List<Expression> filters) {
-            this(relation, filters, FormatReader.NO_LIMIT);
+            this(relation, filters, FormatReader.NO_LIMIT, false);
         }
     }
 
@@ -111,7 +116,7 @@ public final class SplitDiscoveryPhase {
      */
     public static List<GuardedRelation> guardedRelations(LogicalPlan fragment) {
         List<GuardedRelation> guarded = new ArrayList<>();
-        collectGuardedRelations(fragment, List.of(), FormatReader.NO_LIMIT, guarded);
+        collectGuardedRelations(fragment, List.of(), FormatReader.NO_LIMIT, false, guarded);
         return guarded;
     }
 
@@ -119,10 +124,11 @@ public final class SplitDiscoveryPhase {
         LogicalPlan plan,
         List<Expression> ancestorFilters,
         int rowLimit,
+        boolean filteredLimit,
         List<GuardedRelation> guarded
     ) {
         if (plan instanceof ExternalRelation external) {
-            guarded.add(new GuardedRelation(external, ancestorFilters, rowLimit));
+            guarded.add(new GuardedRelation(external, ancestorFilters, rowLimit, filteredLimit));
             return;
         }
 
@@ -131,6 +137,7 @@ public final class SplitDiscoveryPhase {
         // agree. Anything else - a filter, a sort, an aggregate, an expansion - and the count below stops being
         // knowable from the limit above, so nothing is carried.
         int limitForChildren = limitForChildren(plan, rowLimit);
+        boolean filteredLimitForChildren = filteredLimitForChildren(plan, rowLimit, filteredLimit);
         List<Expression> filtersForChildren = PartitionPruningRule.rowPreserving(plan) ? ancestorFilters : List.of();
         if (plan instanceof Filter filter) {
             List<Expression> extended = new ArrayList<>(filtersForChildren);
@@ -139,8 +146,26 @@ public final class SplitDiscoveryPhase {
         }
 
         for (LogicalPlan child : plan.children()) {
-            collectGuardedRelations(child, filtersForChildren, limitForChildren, guarded);
+            collectGuardedRelations(child, filtersForChildren, limitForChildren, filteredLimitForChildren, guarded);
         }
+    }
+
+    /**
+     * True when a {@link Limit} was dropped specifically by a {@link Filter}, so remaining matching
+     * rows are unknown until read. Sort and aggregate also drop demand, but those queries need every
+     * row and must not lazy-plan. Streaming commands pass the flag through.
+     */
+    private static boolean filteredLimitForChildren(LogicalPlan plan, int rowLimit, boolean filteredLimit) {
+        if (plan instanceof Limit) {
+            return false;
+        }
+        if (plan instanceof Filter) {
+            return filteredLimit || rowLimit != FormatReader.NO_LIMIT;
+        }
+        if (plan instanceof Streaming) {
+            return filteredLimit;
+        }
+        return false;
     }
 
     /**
@@ -370,6 +395,36 @@ public final class SplitDiscoveryPhase {
         int taskConcurrency,
         TransportVersion minTransportVersion
     ) {
+        return resolveExternalSplitsWithStats(
+            plan,
+            sourceFactories,
+            maxRecordBytes,
+            isCancelled,
+            seedFilters,
+            seedRowLimit,
+            listingMemory,
+            taskConcurrency,
+            minTransportVersion,
+            false
+        );
+    }
+
+    /**
+     * As above, and {@code filteredLimit} marks a LIMIT sitting behind a Filter so discovery can
+     * footer-plan a first wave and emit the rest as whole-file splits.
+     */
+    public static Result resolveExternalSplitsWithStats(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        List<Expression> seedFilters,
+        int seedRowLimit,
+        PlanningMemory listingMemory,
+        int taskConcurrency,
+        TransportVersion minTransportVersion,
+        boolean filteredLimit
+    ) {
         ScanStats stats = new ScanStats();
         Traversal traversal = new Traversal(
             sourceFactories,
@@ -378,7 +433,8 @@ public final class SplitDiscoveryPhase {
             isCancelled,
             listingMemory,
             taskConcurrency,
-            minTransportVersion
+            minTransportVersion,
+            filteredLimit
         );
         ExternalPlanningIo planningIo = ExternalPlanningIo.current();
         PhysicalPlan resolved;
@@ -507,6 +563,40 @@ public final class SplitDiscoveryPhase {
         Executor executor,
         ActionListener<Result> listener
     ) {
+        resolveExternalSplitsWithStatsAsync(
+            plan,
+            sourceFactories,
+            maxRecordBytes,
+            isCancelled,
+            seedFilters,
+            seedRowLimit,
+            listingMemory,
+            taskConcurrency,
+            minTransportVersion,
+            false,
+            executor,
+            listener
+        );
+    }
+
+    /**
+     * As above, and {@code filteredLimit} marks a LIMIT sitting behind a Filter so discovery can
+     * footer-plan a first wave and emit the rest as whole-file splits.
+     */
+    public static void resolveExternalSplitsWithStatsAsync(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        List<Expression> seedFilters,
+        int seedRowLimit,
+        PlanningMemory listingMemory,
+        int taskConcurrency,
+        TransportVersion minTransportVersion,
+        boolean filteredLimit,
+        Executor executor,
+        ActionListener<Result> listener
+    ) {
         ActionListener.run(listener, l -> {
             ScanStats stats = new ScanStats();
             ExternalPlanningIo planningIo = ExternalPlanningIo.current();
@@ -514,7 +604,16 @@ public final class SplitDiscoveryPhase {
                 plan,
                 seedFilters,
                 seedRowLimit,
-                new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory, taskConcurrency, minTransportVersion),
+                new Traversal(
+                    sourceFactories,
+                    maxRecordBytes,
+                    stats,
+                    isCancelled,
+                    listingMemory,
+                    taskConcurrency,
+                    minTransportVersion,
+                    filteredLimit
+                ),
                 wrapPlanningIo(executor, planningIo),
                 l.map(
                     resolved -> new Result(
@@ -559,7 +658,8 @@ public final class SplitDiscoveryPhase {
         BooleanSupplier isCancelled,
         PlanningMemory listingMemory,
         int taskConcurrency,
-        TransportVersion minTransportVersion
+        TransportVersion minTransportVersion,
+        boolean filteredLimit
     ) {}
 
     private static void resolveRecursiveAsync(
@@ -734,7 +834,8 @@ public final class SplitDiscoveryPhase {
             rowLimit,
             traversal.listingMemory(),
             traversal.taskConcurrency(),
-            traversal.minTransportVersion()
+            traversal.minTransportVersion(),
+            traversal.filteredLimit()
         );
 
         SplitDiscoveryResult result;
@@ -790,7 +891,8 @@ public final class SplitDiscoveryPhase {
             rowLimit,
             traversal.listingMemory(),
             traversal.taskConcurrency(),
-            traversal.minTransportVersion()
+            traversal.minTransportVersion(),
+            traversal.filteredLimit()
         );
 
         splitProvider.discoverSplitsAsync(context, executor, ActionListener.wrap(result -> {

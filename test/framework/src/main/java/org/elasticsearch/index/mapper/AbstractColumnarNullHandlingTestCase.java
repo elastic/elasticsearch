@@ -20,6 +20,8 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.MultiTerms;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -85,6 +87,13 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public abstract class AbstractColumnarNullHandlingTestCase extends MapperServiceTestCase {
 
     protected static final String FIELD = "field";
+    private static final List<String> SINGLE_ALL_NULL_ARRAY = List.of("\"" + FIELD + "\":[null]");
+    private static final List<String> VALUELESS_FIELD_SHAPES = List.of(
+        "\"" + FIELD + "\":[null]",
+        "\"" + FIELD + "\":[null,null]",
+        "\"" + FIELD + "\":[]",
+        ""
+    );
 
     protected abstract String fieldTypeName();
 
@@ -500,9 +509,16 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
      * disagreement over the field's index options is raised here, by Lucene, as the batch is added.
      */
     private void addBatch(MapperService mapperService, MappedColumns columns, int expectedDocs) throws IOException {
-        final IndexWriterConfig iwc = new IndexWriterConfig(
-            IndexShard.buildIndexAnalyzer(mapperService, mapperService.getMapperMetrics().tokenCountingMetrics())
-        ).setCodec(
+        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, batchIndexWriterConfig(mapperService))) {
+            iw.addBatch(columns.toColumnBatch());
+            try (DirectoryReader reader = DirectoryReader.open(iw)) {
+                assertEquals(expectedDocs, reader.numDocs());
+            }
+        }
+    }
+
+    private static IndexWriterConfig batchIndexWriterConfig(MapperService mapperService) {
+        return new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService)).setCodec(
             new PerFieldMapperCodec(
                 Lucene104Codec.Mode.BEST_SPEED,
                 ElasticsearchStoredFieldsFormat.Mode.LUCENE,
@@ -512,12 +528,36 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
                 null
             )
         );
-        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, iwc)) {
-            iw.addBatch(columns.toColumnBatch());
+    }
+
+    private void assertBatchesIndex(IndexMode indexMode, boolean withCodec, List<List<String>> batches) throws IOException {
+        final MapperService mapperService = createMapperService(
+            columnarVersion(withCodec),
+            Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build(),
+            mapping(b -> {
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.startObject(FIELD).field("type", fieldTypeName()).field("index", true).endObject();
+            })
+        );
+        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, batchIndexWriterConfig(mapperService))) {
+            for (List<String> batch : batches) {
+                final List<String> sources = batch.stream().map(AbstractColumnarNullHandlingTestCase::timestamped).toList();
+                withMappedColumns(mapperService, sources, columns -> iw.addBatch(columns.toColumnBatch()));
+            }
             try (DirectoryReader reader = DirectoryReader.open(iw)) {
-                assertEquals(expectedDocs, reader.numDocs());
+                assertEquals(batches.stream().mapToInt(List::size).sum(), reader.numDocs());
+                final Terms terms = MultiTerms.getTerms(reader, FIELD);
+                assertEquals("only the valued document has postings", 1, terms == null ? 0 : terms.getDocCount());
             }
         }
+    }
+
+    private static String timestamped(String field) {
+        return "{\"@timestamp\":1735689600000" + (field.isEmpty() ? "" : "," + field) + "}";
+    }
+
+    private List<String> valuedBatch() {
+        return List.of("\"" + FIELD + "\":\"" + sampleValue() + "\"");
     }
 
     /** Maps a valued document alongside {@code other} through the batch path and indexes both. */
@@ -564,6 +604,70 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
 
     public void testBatchAbsentFieldIndexesAlongsideValue() throws IOException {
         addBatchAlongsideValue("{}");
+    }
+
+    public void testColumnarSingleAllNullArrayBatchAfterValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.COLUMNAR, true, List.of(valuedBatch(), SINGLE_ALL_NULL_ARRAY));
+    }
+
+    public void testColumnarSingleAllNullArrayBatchBeforeValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.COLUMNAR, true, List.of(SINGLE_ALL_NULL_ARRAY, valuedBatch()));
+    }
+
+    public void testColumnarValuelessFieldShapesBatchAfterValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.COLUMNAR, true, List.of(valuedBatch(), VALUELESS_FIELD_SHAPES));
+    }
+
+    public void testColumnarValuelessFieldShapesBatchBeforeValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.COLUMNAR, true, List.of(VALUELESS_FIELD_SHAPES, valuedBatch()));
+    }
+
+    public void testColumnarWithoutColumnarCodecSingleAllNullArrayBatchAfterValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.COLUMNAR, false, List.of(valuedBatch(), SINGLE_ALL_NULL_ARRAY));
+    }
+
+    public void testColumnarWithoutColumnarCodecSingleAllNullArrayBatchBeforeValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.COLUMNAR, false, List.of(SINGLE_ALL_NULL_ARRAY, valuedBatch()));
+    }
+
+    public void testColumnarWithoutColumnarCodecValuelessFieldShapesBatchAfterValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.COLUMNAR, false, List.of(valuedBatch(), VALUELESS_FIELD_SHAPES));
+    }
+
+    public void testColumnarWithoutColumnarCodecValuelessFieldShapesBatchBeforeValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.COLUMNAR, false, List.of(VALUELESS_FIELD_SHAPES, valuedBatch()));
+    }
+
+    public void testLogsdbColumnarSingleAllNullArrayBatchAfterValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.LOGSDB_COLUMNAR, true, List.of(valuedBatch(), SINGLE_ALL_NULL_ARRAY));
+    }
+
+    public void testLogsdbColumnarSingleAllNullArrayBatchBeforeValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.LOGSDB_COLUMNAR, true, List.of(SINGLE_ALL_NULL_ARRAY, valuedBatch()));
+    }
+
+    public void testLogsdbColumnarValuelessFieldShapesBatchAfterValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.LOGSDB_COLUMNAR, true, List.of(valuedBatch(), VALUELESS_FIELD_SHAPES));
+    }
+
+    public void testLogsdbColumnarValuelessFieldShapesBatchBeforeValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.LOGSDB_COLUMNAR, true, List.of(VALUELESS_FIELD_SHAPES, valuedBatch()));
+    }
+
+    public void testLogsdbColumnarWithoutColumnarCodecSingleAllNullArrayBatchAfterValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.LOGSDB_COLUMNAR, false, List.of(valuedBatch(), SINGLE_ALL_NULL_ARRAY));
+    }
+
+    public void testLogsdbColumnarWithoutColumnarCodecSingleAllNullArrayBatchBeforeValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.LOGSDB_COLUMNAR, false, List.of(SINGLE_ALL_NULL_ARRAY, valuedBatch()));
+    }
+
+    public void testLogsdbColumnarWithoutColumnarCodecValuelessFieldShapesBatchAfterValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.LOGSDB_COLUMNAR, false, List.of(valuedBatch(), VALUELESS_FIELD_SHAPES));
+    }
+
+    public void testLogsdbColumnarWithoutColumnarCodecValuelessFieldShapesBatchBeforeValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.LOGSDB_COLUMNAR, false, List.of(VALUELESS_FIELD_SHAPES, valuedBatch()));
     }
 
     /** A bare null reaches no column at all, so the document does not carry the field. */

@@ -1177,13 +1177,13 @@ public class ESVectorUtil {
     /**
      * Transposes a row-major matrix from (rows x cols) to (cols x rows).
      *
-     * @param m    input matrix in row-major order, length rows*cols
+     * @param m    input matrix in row-major order, contains matrix in elements rows*cols
      * @param rows number of rows in the input
      * @param cols number of columns in the input
      * @param result output matrix in row-major order, length cols*rows
      */
     public static void transposeMatrix(float[] m, int rows, int cols, float[] result) {
-        if (result.length != cols * rows) {
+        if (result.length < cols * rows) {
             throw new IllegalArgumentException("Invalid a array size [" + result.length + "] for matrix transposition");
         }
 
@@ -1221,16 +1221,43 @@ public class ESVectorUtil {
      * Result C is (m x n).
      */
     public static void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result, TaskExecutor executor) {
-        if (a.length != m * k) {
+        if (a.length < m * k) {
             throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix multiplication");
         }
-        if (b.length != k * n) {
+        if (b.length < k * n) {
             throw new IllegalArgumentException("Invalid b array size [" + b.length + "] for matrix multiplication");
         }
-        if (result.length != m * n) {
+        if (result.length < m * n) {
             throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix multiplication");
         }
-        IMPL.matrixMultiply(a, b, m, k, n, result, executor);
+        IMPL.matrixMultiply(a, 0, b, 0, m, k, n, result, 0, executor);
+    }
+
+    /**
+     * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major, each stored
+     * in a larger array starting at its own offset. Result C is (m x n), written at {@code resultOffset}.
+     * The rows of each matrix are contiguous.
+     * <p>
+     * Only the ranges {@code [aOffset, aOffset + m * k)}, {@code [bOffset, bOffset + k * n)} and
+     * {@code [resultOffset, resultOffset + m * n)} are touched. The result range must not overlap
+     * the range of A or of B when they share an array.
+     */
+    public static void matrixMultiply(
+        float[] a,
+        int aOffset,
+        float[] b,
+        int bOffset,
+        int m,
+        int k,
+        int n,
+        float[] result,
+        int resultOffset,
+        TaskExecutor executor
+    ) {
+        Objects.checkFromIndexSize(aOffset, m * k, a.length);
+        Objects.checkFromIndexSize(bOffset, k * n, b.length);
+        Objects.checkFromIndexSize(resultOffset, m * n, result.length);
+        IMPL.matrixMultiply(a, aOffset, b, bOffset, m, k, n, result, resultOffset, executor);
     }
 
     /**
@@ -1240,16 +1267,16 @@ public class ESVectorUtil {
      * product is not symmetric. Whatever {@code result} held before is overwritten.
      */
     public static void matrixMultiplySymmetric(float[] a, float[] b, int n, int k, float[] result, TaskExecutor executor) {
-        if (a.length != n * k) {
+        if (a.length < n * k) {
             throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix multiplication");
         }
-        if (b.length != k * n) {
+        if (b.length < k * n) {
             throw new IllegalArgumentException("Invalid b array size [" + b.length + "] for matrix multiplication");
         }
-        if (result.length != n * n) {
+        if (result.length < n * n) {
             throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix multiplication");
         }
-        IMPL.matrixMultiplySymmetric(a, b, n, k, result, executor);
+        IMPL.matrixMultiplySymmetric(a, 0, b, 0, n, k, result, 0, executor);
     }
 
     /**

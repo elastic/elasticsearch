@@ -13,7 +13,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -278,7 +277,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }"""), Strings.toString(parseDynamicUpdate(doc.dynamicMappingsUpdate()).getRoot()));
+            }"""), doc.dynamicMappingsUpdate().string());
         mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
         Mapping merged = mapperService.documentMapper().mapping();
         assertNotNull(merged.getRoot().getMapper("test"));
@@ -967,7 +966,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertNotNull(doc.rootDoc().getFields("host.name"));
         assertNotNull(doc.rootDoc().getFields("host.id"));
 
-        merge(mapperService, dynamicMapping(mappingsUpdate));
+        merge(mapperService, doc.dynamicMappingsUpdate().string());
 
         assertNotNull(mapperService.fieldType("time"));
         assertNotNull(mapperService.fieldType("time.max"));
@@ -1156,7 +1155,13 @@ public class DynamicMappingTests extends MapperServiceTestCase {
 
     public void testVectordbModesDenseVectorMappingsUseLowerThreshold() throws IOException {
         for (IndexMode mode : Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isVectorDb).toList()) {
-            DocumentMapper mapper = createDocumentMapper(topMapping(b -> {}), mode);
+            // the update asserts only what the document set, so the index's own mode derives the element type when it is merged
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), mode.getName())
+                .put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true)
+                .build();
+            MapperService mapperService = createMapperService(settings, topMapping(b -> {}));
+            DocumentMapper mapper = mapperService.documentMapper();
             BytesReference source = BytesReference.bytes(
                 XContentFactory.jsonBuilder()
                     .startObject()
@@ -1166,8 +1171,9 @@ public class DynamicMappingTests extends MapperServiceTestCase {
                     .endObject()
             );
             ParsedDocument parsedDocument = mapper.parse(new SourceToParse("id", source, XContentType.JSON));
-            Mapping update = parseDynamicUpdate(parsedDocument.dynamicMappingsUpdate());
-            assertNotNull(update);
+            assertNotNull(parsedDocument.dynamicMappingsUpdate());
+            mergeDynamicUpdate(mapperService, parsedDocument.dynamicMappingsUpdate());
+            Mapping update = mapperService.documentMapper().mapping();
             assertThat(((FieldMapper) update.getRoot().getMapper("tooSmall")).fieldType().typeName(), equalTo("float"));
             DenseVectorFieldMapper mapsToVector = (DenseVectorFieldMapper) update.getRoot().getMapper("mapsToVector");
             assertThat(mapsToVector.fieldType().typeName(), equalTo("dense_vector"));

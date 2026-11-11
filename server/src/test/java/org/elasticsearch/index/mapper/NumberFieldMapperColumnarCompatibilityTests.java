@@ -959,22 +959,38 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
     }
 
     /**
-     * A coerced empty string with no {@code null_value} records a null slot in the row path's offsets sidecar,
-     * which the columnar sidecar cannot emit, so both a scalar and an array occurrence fall back to the row path.
+     * A coerced empty string with no {@code null_value} inside an array records a null slot in the row path's offsets sidecar,
+     * which the columnar sidecar cannot emit, so it falls back to the row path.
      */
     public void testEmptyStringWithOffsetsBailsOutOfColumnarPath() throws IOException {
         final var mapperService = createMapperService(
             multiValueColumnarSettings(),
             mapping(b -> b.startObject(FIELD).field("type", "long").endObject())
         );
-        for (String source : List.of("{\"f\":\"\"}", "{\"f\":[\"\",\"5\"]}")) {
-            final UnsupportedOperationException ex = expectThrows(
-                UnsupportedOperationException.class,
-                source,
-                () -> mapColumnarLeaf(mapperService, FIELD, source)
-            );
-            assertTrue(source + ": " + ex.getMessage(), ex.getMessage().contains("records a null offsets slot"));
-        }
+        final String source = "{\"f\":[\"\",\"" + randomLong() + "\"]}";
+        final UnsupportedOperationException ex = expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, source)
+        );
+        assertThat(ex.getMessage(), containsString("records a null offsets slot as an array element"));
+    }
+
+    /**
+     * A coerced empty string on its own is a bare null, which records no offsets slot on the row path, so the columnar path maps it
+     * as absent instead of bailing out.
+     */
+    public void testLongFieldScalarEmptyStringWithOffsetsIsAbsent() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "long").endObject()),
+            multiValueColumnarSettings(),
+            batch(
+                "long multi-value scalar empty string",
+                1L,
+                doc("d1", 1L, "{\"f\":\"" + randomLong() + "\"}"),
+                doc("d2", 2L, "{\"f\":\"\"}"),
+                doc("d3", 3L, "{}")
+            )
+        );
     }
 
     /**

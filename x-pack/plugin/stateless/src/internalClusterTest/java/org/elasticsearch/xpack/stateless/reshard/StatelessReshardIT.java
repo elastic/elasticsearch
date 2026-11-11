@@ -80,6 +80,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -2732,6 +2733,85 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         // After the target shard recovery tries again it will synchronize its primary term with the source and come online.
         ensureGreen(indexName);
+    }
+
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.reshard.ReshardIndexService:DEBUG", reason = "logging assertions")
+    public void testReshardTargetWillNotTransitionToHandoffIfTargetPrimaryUnassigned() {
+        startMasterOnlyNode();
+        final var indexNode = startIndexNode();
+        ensureStableCluster(2);
+
+        final var indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        // Allow the test to control when the failed allocations are retried
+        createIndex(indexName, indexSettings(1, 0).put(SETTING_ALLOCATION_MAX_RETRY.getKey(), 1).build());
+        ensureGreen(indexName);
+        indexDocs(indexName, 100);
+        final var index = resolveIndex(indexName);
+
+        final var mockTransportService = MockTransportService.getInstance(indexNode);
+        final var handoffAttemptedLatch = new CountDownLatch(1);
+        final var proceedAfterShardFailure = new CountDownLatch(1);
+        mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action) && handoffAttemptedLatch.getCount() != 0) {
+                handoffAttemptedLatch.countDown();
+                safeAwait(proceedAfterShardFailure);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        // The target has sent its HANDOFF request, which is held before reaching the master
+        safeAwait(handoffAttemptedLatch);
+
+        final var targetPrimary = getTargetPrimary(index);
+        assertThat(targetPrimary.initializing(), equalTo(true));
+
+        final var shardStateAction = internalCluster().getInstance(ShardStateAction.class, internalCluster().getRandomNodeName());
+        final var listener = new PlainActionFuture<Void>();
+        shardStateAction.localShardFailed(targetPrimary, "broken", new Exception("boom remote"), listener);
+        safeGet(listener);
+
+        awaitClusterState(state -> getTargetPrimary(state, index).unassigned());
+        final var unassignedTargetPrimary = getTargetPrimary(index);
+        // The target failed before HANDOFF, so the source still serves its documents and its recovery stays deferrable
+        assertThat(unassignedTargetPrimary.recoveryPriority(), equalTo(RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING));
+
+        MockLog.awaitLogger(
+            proceedAfterShardFailure::countDown,
+            ReshardIndexService.class,
+            new MockLog.PatternSeenEventExpectation(
+                "handoff rejected",
+                ReshardIndexService.class.getCanonicalName(),
+                Level.DEBUG,
+                ".*\\[" + indexName + "\\]\\[1\\] cannot transition target state \\[HANDOFF\\] because the target primary is unassigned"
+            )
+        );
+
+        final var reshardingMetadata = client().admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .get(SAFE_AWAIT_TIMEOUT)
+            .getState()
+            .metadata()
+            .projectFor(index)
+            .index(index)
+            .getReshardingMetadata();
+        assertThat(reshardingMetadata.getSplit().getTargetShardState(1), equalTo(IndexReshardingState.Split.TargetShardState.CLONE));
+
+        // Reassigning the target advances its primary term, which fails the pending handoff and lets the new target
+        // copy restart the split from CLONE
+        ClusterRerouteUtils.rerouteRetryFailed(client());
+        waitForReshardCompletion(indexName);
+        ensureGreen(indexName);
+    }
+
+    private static ShardRouting getTargetPrimary(Index index) {
+        return getTargetPrimary(client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get(SAFE_AWAIT_TIMEOUT).getState(), index);
+    }
+
+    private static ShardRouting getTargetPrimary(ClusterState state, Index index) {
+        return state.projectState(state.metadata().projectFor(index).id()).routingTable().index(index).shard(1).primaryShard();
     }
 
     /**

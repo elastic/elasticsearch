@@ -16,14 +16,13 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -263,11 +262,17 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
         final CacheFile cacheFile = cacheFileReference.get();
 
         // Can we serve the read directly from disk? If so, do so and don't worry about anything else.
-        final Future<Integer> waitingForRead = cacheFile.readIfAvailableOrPending(ByteRange.of(position, position + length), chan -> {
-            final int read = readCacheFile(chan, position, b);
-            assert read == length : read + " vs " + length;
-            return read;
-        });
+        final Future<Integer> waitingForRead = cacheFile.readIfAvailableOrPending(
+            ByteRange.of(position, position + length),
+            Releasables.assertOnce(() -> {}),
+            (chan, onReadComplete) -> {
+                try (onReadComplete) {
+                    final int read = readCacheFile(chan, position, b);
+                    assert read == length : read + " vs " + length;
+                    return read;
+                }
+            }
+        );
         if (waitingForRead != null) {
             // yes, serving directly from disk because we had the bytes on disk already or had an ongoing download running for them
             final Integer read = waitingForRead.get();
@@ -355,7 +360,11 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
     private void copyToCacheFile(CacheFile cacheFile, CachedBlob cachedBlob) {
         try {
             final ByteRange cachedRange = ByteRange.of(cachedBlob.from(), cachedBlob.to());
-            cacheFile.populateAndRead(cachedRange, cachedRange, channel -> cachedBlob.length(), (channel, from, to, progressUpdater) -> {
+            cacheFile.populateAndRead(cachedRange, cachedRange, (channel, onReadComplete) -> {
+                try (onReadComplete) {
+                    return cachedBlob.length();
+                }
+            }, (channel, from, to, progressUpdater) -> {
                 final long startTimeNanos = stats.currentTimeNanos();
                 final BytesRefIterator iterator = cachedBlob.bytes()
                     .slice(toIntBytes(from - cachedBlob.from()), toIntBytes(to - from))
@@ -403,34 +412,32 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
         final ByteRange rangeToRead = ByteRange.of(position, position + b.remaining());
         assert rangeToRead.isSubRangeOf(rangeToWrite) : rangeToRead + " vs " + rangeToWrite;
 
-        return cacheFile.populateAndRead(
-            rangeToWrite,
-            rangeToRead,
-            channel -> readCacheFile(channel, position, b),
-            (fc, start, end, progressUpdater) -> {
-                assert assertFileChannelOpen(fc);
-                assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
-                final ByteBuffer copyBuffer = writeBuffer.get().clear();
-                logger.trace("writing range [{}-{}] to cache file [{}]", start, end, cacheFileReference);
+        return cacheFile.populateAndRead(rangeToWrite, rangeToRead, (channel, onReadComplete) -> {
+            try (onReadComplete) {
+                return readCacheFile(channel, position, b);
+            }
+        }, (fc, start, end, progressUpdater) -> {
+            assert assertFileChannelOpen(fc);
+            assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+            final ByteBuffer copyBuffer = writeBuffer.get().clear();
+            logger.trace("writing range [{}-{}] to cache file [{}]", start, end, cacheFileReference);
 
-                long bytesCopied = 0L;
-                long remaining = end - start;
-                final long startTimeNanos = stats.currentTimeNanos();
-                try (InputStream input = openInputStreamFromBlobStore(start, end - start)) {
-                    while (remaining > 0L) {
-                        final int bytesRead = BlobCacheUtils.readSafe(input, copyBuffer, start, remaining);
-                        positionalWrite(fc, start + bytesCopied, copyBuffer.flip());
-                        copyBuffer.clear();
-                        bytesCopied += bytesRead;
-                        remaining -= bytesRead;
-                        progressUpdater.accept(start + bytesCopied);
-                    }
-                    final long endTimeNanos = stats.currentTimeNanos();
-                    stats.addCachedBytesWritten(bytesCopied, endTimeNanos - startTimeNanos);
+            long bytesCopied = 0L;
+            long remaining = end - start;
+            final long startTimeNanos = stats.currentTimeNanos();
+            try (InputStream input = openInputStreamFromBlobStore(start, end - start)) {
+                while (remaining > 0L) {
+                    final int bytesRead = BlobCacheUtils.readSafe(input, copyBuffer, start, remaining);
+                    positionalWrite(fc, start + bytesCopied, copyBuffer.flip());
+                    copyBuffer.clear();
+                    bytesCopied += bytesRead;
+                    remaining -= bytesRead;
+                    progressUpdater.accept(start + bytesCopied);
                 }
-            },
-            directory.cacheFetchAsyncExecutor()
-        );
+                final long endTimeNanos = stats.currentTimeNanos();
+                stats.addCachedBytesWritten(bytesCopied, endTimeNanos - startTimeNanos);
+            }
+        }, directory.cacheFetchAsyncExecutor());
     }
 
     private void readComplete(long position, int length) {
@@ -450,30 +457,32 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
     }
 
     private void fillIndexCache(CacheFile cacheFile, ByteRange indexCacheMiss) {
-        final Releasable onCacheFillComplete = stats.addIndexCacheFill();
-        final Future<Integer> readFuture = cacheFile.readIfAvailableOrPending(indexCacheMiss, channel -> {
-            final int indexCacheMissLength = toIntBytes(indexCacheMiss.length());
+        cacheFile.readIfAvailableOrPending(indexCacheMiss, Releasables.assertOnce(stats.addIndexCacheFill()), (channel, onReadComplete) -> {
+            final int indexCacheMissLength;
+            final BytesReference content;
+            boolean success = false;
+            try {
+                indexCacheMissLength = toIntBytes(indexCacheMiss.length());
 
-            // We assume that we only cache small portions of blobs so that we do not need to:
-            // - use a BigArrays for allocation
-            // - use an intermediate copy buffer to read the file in sensibly-sized chunks
-            // - release the buffer once the indexing operation is complete
+                // We assume that we only cache small portions of blobs so that we do not need to:
+                // - use a BigArrays for allocation
+                // - use an intermediate copy buffer to read the file in sensibly-sized chunks
+                // - release the buffer once the indexing operation is complete
 
-            final ByteBuffer byteBuffer = ByteBuffer.allocate(indexCacheMissLength);
-            Channels.readFromFileChannelWithEofException(channel, indexCacheMiss.start(), byteBuffer);
-            // NB use Channels.readFromFileChannelWithEofException not readCacheFile() to avoid counting this in the stats
-            byteBuffer.flip();
-            final BytesReference content = BytesReference.fromByteBuffer(byteBuffer);
-            directory.putCachedBlob(fileInfo.physicalName(), indexCacheMiss, content, ActionListener.releasing(onCacheFillComplete));
+                final ByteBuffer byteBuffer = ByteBuffer.allocate(indexCacheMissLength);
+                Channels.readFromFileChannelWithEofException(channel, indexCacheMiss.start(), byteBuffer);
+                // NB use Channels.readFromFileChannelWithEofException not readCacheFile() to avoid counting this in the stats
+                byteBuffer.flip();
+                content = BytesReference.fromByteBuffer(byteBuffer);
+                success = true;
+            } finally {
+                if (success == false) {
+                    onReadComplete.close();
+                }
+            }
+            directory.putCachedBlob(fileInfo.physicalName(), indexCacheMiss, content, onReadComplete);
             return indexCacheMissLength;
         });
-
-        if (readFuture == null) {
-            // Normally doesn't happen, we're already obtaining a range covering all cache misses above, but theoretically
-            // possible in the case that the real populateAndRead call already failed to obtain this range of the file. In that
-            // case, simply move on.
-            onCacheFillComplete.close();
-        }
     }
 
     private static boolean assertFileChannelOpen(FileChannel fileChannel) {

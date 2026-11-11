@@ -34,7 +34,7 @@ public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
     @BeforeClass
     public static void requireTimeSeriesType() {
         // Every case takes a _timeseries container, which release builds can't serialize while it is under construction.
-        assumeTrue("_timeseries is under construction", DataType.TSMD_DATA_TYPE.supportedVersion().supportedLocally());
+        assumeTrue("_timeseries is under construction", DataType.TIME_SERIES_METADATA_DATA_TYPE.supportedVersion().supportedLocally());
     }
 
     @ParametersFactory
@@ -58,19 +58,29 @@ public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
                 "{\"job\":\"api\",\"label\\\"\\\\\":\"value\\\"\\\\\\n\u03bb\ud83d\ude00\",\"pod\":\"a\"}"
             )
         );
-        suppliers.add(new TestCaseSupplier("several values", List.of(DataType.TSMD_DATA_TYPE, DataType.KEYWORD, DataType.KEYWORD), () -> {
-            List<TestCaseSupplier.TypedData> data = List.of(
-                new TestCaseSupplier.TypedData(new BytesRef(labels), DataType.TSMD_DATA_TYPE, "labelContainer"),
-                new TestCaseSupplier.TypedData(new BytesRef("pod"), DataType.KEYWORD, "label").forceLiteral(),
-                new TestCaseSupplier.TypedData(List.of(new BytesRef("b"), new BytesRef(""), new BytesRef("c")), DataType.KEYWORD, "value")
-            );
-            return new TestCaseSupplier.TestCase(
-                data,
-                evaluator("pod"),
-                DataType.TSMD_DATA_TYPE,
-                equalTo(new BytesRef("{\"job\":\"api\",\"pod\":[\"b\",\"c\"]}"))
-            );
-        }));
+        suppliers.add(
+            new TestCaseSupplier(
+                "several values",
+                List.of(DataType.TIME_SERIES_METADATA_DATA_TYPE, DataType.KEYWORD, DataType.KEYWORD),
+                () -> {
+                    List<TestCaseSupplier.TypedData> data = List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef(labels), DataType.TIME_SERIES_METADATA_DATA_TYPE, "labelContainer"),
+                        new TestCaseSupplier.TypedData(new BytesRef("pod"), DataType.KEYWORD, "label").forceLiteral(),
+                        new TestCaseSupplier.TypedData(
+                            List.of(new BytesRef("b"), new BytesRef(""), new BytesRef("c")),
+                            DataType.KEYWORD,
+                            "value"
+                        )
+                    );
+                    return new TestCaseSupplier.TestCase(
+                        data,
+                        evaluator("pod"),
+                        DataType.TIME_SERIES_METADATA_DATA_TYPE,
+                        equalTo(new BytesRef("{\"job\":\"api\",\"pod\":[\"b\",\"c\"]}"))
+                    );
+                }
+            )
+        );
         return parameterSuppliersFromTypedData(suppliers);
     }
 
@@ -81,13 +91,18 @@ public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
     }
 
     private static TestCaseSupplier set(String name, String labelContainer, String label, String value, String expected) {
-        return new TestCaseSupplier(name, List.of(DataType.TSMD_DATA_TYPE, DataType.KEYWORD, DataType.KEYWORD), () -> {
+        return new TestCaseSupplier(name, List.of(DataType.TIME_SERIES_METADATA_DATA_TYPE, DataType.KEYWORD, DataType.KEYWORD), () -> {
             List<TestCaseSupplier.TypedData> data = List.of(
-                new TestCaseSupplier.TypedData(new BytesRef(labelContainer), DataType.TSMD_DATA_TYPE, "labelContainer"),
+                new TestCaseSupplier.TypedData(new BytesRef(labelContainer), DataType.TIME_SERIES_METADATA_DATA_TYPE, "labelContainer"),
                 new TestCaseSupplier.TypedData(new BytesRef(label), DataType.KEYWORD, "label").forceLiteral(),
                 new TestCaseSupplier.TypedData(new BytesRef(value), DataType.KEYWORD, "value")
             );
-            return new TestCaseSupplier.TestCase(data, evaluator(label), DataType.TSMD_DATA_TYPE, equalTo(new BytesRef(expected)));
+            return new TestCaseSupplier.TestCase(
+                data,
+                evaluator(label),
+                DataType.TIME_SERIES_METADATA_DATA_TYPE,
+                equalTo(new BytesRef(expected))
+            );
         });
     }
 
@@ -104,7 +119,7 @@ public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
 
     /** The label must be a non-empty constant string, so the evaluator folds it once. */
     public void testLabelMustBeNonEmptyConstantString() {
-        Expression labelContainer = field("labelContainer", DataType.TSMD_DATA_TYPE);
+        Expression labelContainer = field("labelContainer", DataType.TIME_SERIES_METADATA_DATA_TYPE);
         Expression value = field("value", DataType.KEYWORD);
         for (Expression label : List.of(
             Literal.integer(Source.EMPTY, 42),

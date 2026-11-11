@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.io.IOException;
 import java.util.List;
 
-/** Internal function that accesses a selected dimension value on metadata container {@link DataType#TSMD_DATA_TYPE}. */
+/** Internal function that accesses a selected dimension value on metadata container {@link DataType#TIME_SERIES_METADATA_DATA_TYPE}. */
 public final class TimeSeriesMetadataPath extends AbstractTimeSeriesMetadataFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,

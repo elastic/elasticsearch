@@ -141,9 +141,9 @@ public class SearchShardResponseCircuitBreakerIT extends ESIntegTestCase {
     }
 
     /**
-     * A shard response that trips between the coordinator's trip check and its next shard request must leave no reader
-     * context behind. The search has to fail only after that request is sent, for the reason
-     * {@code AbstractSearchAsyncAction#deferCoordinatorTripFailure} gives.
+     * The breaker trips after the coordinator decided to send a shard request, but before it was sent. Every reader context opened
+     * on a data node must be released, so the search must fail only once that request is sent.
+     * For the reasoning, see {@code AbstractSearchAsyncAction#deferCoordinatorTripFailure}.
      */
     public void testTripWhileSendingShardRequestLeavesNoReaderContext() throws Exception {
         dataNodes = internalCluster().startNodes(2);

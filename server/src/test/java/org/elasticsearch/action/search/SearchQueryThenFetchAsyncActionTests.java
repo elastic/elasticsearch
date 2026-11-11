@@ -833,8 +833,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     }
 
     /**
-     * A shard request that saw no trip is sent before a trip that comes in meanwhile fails the search, for the reason
-     * {@code AbstractSearchAsyncAction#deferCoordinatorTripFailure} gives.
+     * The breaker trips after the coordinator decided to send a shard request, but before it was sent. The search must fail only
+     * once that request is sent. For the reasoning, see {@code AbstractSearchAsyncAction#deferCoordinatorTripFailure}.
      */
     public void testTripWhileSendingShardRequestFailsSearchAfterItIsSent() {
         OriginalIndices originalIndices = new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
@@ -913,8 +913,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     }
 
     /**
-     * A node batch that saw no trip is sent before a trip that comes in meanwhile fails the search, for the reason
-     * {@link #testTripWhileSendingShardRequestFailsSearchAfterItIsSent} gives.
+     * Same as {@link #testTripWhileSendingShardRequestFailsSearchAfterItIsSent}, for a node batch.
      */
     public void testTripWhileSendingNodeBatchFailsSearchAfterItIsSent() {
         // Two shards on each data node, so that each node gets a batch

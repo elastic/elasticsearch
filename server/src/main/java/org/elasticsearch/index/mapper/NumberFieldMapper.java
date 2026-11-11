@@ -3017,7 +3017,7 @@ public class NumberFieldMapper extends FieldMapper {
                 long sortableLongValue = type.toSortableLong(value);
                 context.getOffSetContext().recordOffset(offsetsFieldName, sortableLongValue, offsetsFallback);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName, offsetsFallback);
+                context.getOffSetContext().recordNull(context, offsetsFieldName, offsetsFallback);
             }
         }
 

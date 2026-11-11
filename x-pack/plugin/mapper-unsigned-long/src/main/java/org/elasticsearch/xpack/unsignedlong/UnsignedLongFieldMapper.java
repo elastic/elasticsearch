@@ -891,7 +891,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (numericValue != null) {
                 context.getOffSetContext().recordOffset(offsetsFieldName, numericValue, OFFSETS_FALLBACK);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
+                context.getOffSetContext().recordNull(context, offsetsFieldName, OFFSETS_FALLBACK);
             }
         }
     }

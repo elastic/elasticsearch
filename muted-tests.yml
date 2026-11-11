@@ -307,9 +307,12 @@ tests:
 - class: org.elasticsearch.xpack.analytics.topmetrics.TopMetricsColumnarIT
   method: testKeywordMissingMetricOnTopDocumentOnColumnarIndex
   issue: https://github.com/elastic/elasticsearch/issues/162510
-- class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
-  method: testDownsampleResumesAfterPersistentTaskRemoved
-  issue: https://github.com/elastic/elasticsearch/issues/162858
+- class: org.elasticsearch.xpack.downsample.DownsampleResilienceIT
+  method: testInterruptedRunResumesFromLastTimeSeries
+  issue: https://github.com/elastic/elasticsearch/issues/164609
+- class: org.elasticsearch.xpack.downsample.DownsampleResilienceIT
+  method: testSecondRequestDoesNotRetryCompletedShards
+  issue: https://github.com/elastic/elasticsearch/issues/164609
 - class: org.elasticsearch.xpack.stateless.StatelessResizeIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -423,11 +426,6 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
   method: test {csv-spec:k8s-timeseries-increase.increase_of_expression_promql}
   issue: https://github.com/elastic/elasticsearch/issues/164423
-- class: org.elasticsearch.cluster.SimpleClusterStateIT
-  tasks:
-  - :server:internalClusterTest
-  method: testMetadataVersion
-  issue: https://github.com/elastic/elasticsearch/issues/164246
 - class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
   tasks:
   - :x-pack:plugin:esql:test
@@ -462,11 +460,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testNormalAndHedgeUploadsWithRandomDelays
   issue: https://github.com/elastic/elasticsearch/issues/164751
-- class: org.elasticsearch.xpack.esql.action.ExternalWorkerFirstStateIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testWorkerWithoutAnyAppliedStateIsHeldBack
-  issue: https://github.com/elastic/elasticsearch/issues/164755
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   tasks:
   - :qa:smoke-test-multinode:yamlRestTest
@@ -561,3 +554,18 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#yamlRestTest
   method: test {yaml=esql/40_tsdb/PromQL time range params as range selector duration}
   issue: https://github.com/elastic/elasticsearch/issues/165214
+- class: org.elasticsearch.xpack.esql.action.ComputeExecutorIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testWokenDriverRunsBeforeQueuedDrivers
+  issue: https://github.com/elastic/elasticsearch/issues/165298
+- class: org.elasticsearch.xpack.esql.CsvLoadAllFromLoadIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: test {csv-spec:unmapped-type-conflicts.typeConflictPartiallyUnmappedTextFieldNotLoadedWithDrop}
+  issue: https://github.com/elastic/elasticsearch/issues/165306
+- class: org.elasticsearch.xpack.stateless.objectstore.gc.StaleIndicesGCIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testIsolatedNodeRunningGCDoesNotDeleteNewIndexData
+  issue: https://github.com/elastic/elasticsearch/issues/165370

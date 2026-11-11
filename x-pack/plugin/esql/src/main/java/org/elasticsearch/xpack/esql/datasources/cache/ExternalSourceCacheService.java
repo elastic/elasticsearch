@@ -1643,13 +1643,6 @@ public class ExternalSourceCacheService implements Closeable {
                 // the merge keeps the FIRST contribution's identity and folds the others' columns into it, which
                 // would relabel one read's measurements as the other's. Safe-miss, no assertion; the stripe fold
                 // refuses the same disagreement.
-                //
-                // Both halves of the configuration count. Two branches of one query may bind one file's columns
-                // differently, which the read configuration separates; and two datasets over one resource may
-                // configure the reader itself differently -- a delimiter, an error policy -- which only the format
-                // configuration separates, since the resolved columns can be identical. External resolution keys a
-                // read by its resource AND its configuration, so a query holding both is an ordinary plan rather
-                // than evidence of a non-deterministic read.
                 return null;
             }
             if (agreesWithBase(base, next) == false) {
@@ -1696,11 +1689,8 @@ public class ExternalSourceCacheService implements Closeable {
      * that CANNOT legitimately differ within one reconcile -- the row count and the mtime. Disagreement there means
      * a non-deterministic read, which is an invariant violation rather than a state to handle.
      * <p>
-     * Neither fingerprint is here, and both used to be split across this gate and {@link #sameRead}. A read
-     * configuration may legitimately differ between two branches of one query; a format configuration may
-     * legitimately differ between two datasets over one resource, which external resolution keys apart by resource
-     * AND configuration. Asserting on either confuses a plan the planner now builds on purpose with a reader that
-     * answered twice and differently, so both are safe-missed by {@link #sameRead} before this is reached.
+     * Neither fingerprint is here: both belong to {@link #sameRead}, which safe-misses on either before this is
+     * reached.
      */
     private static boolean agreesWithBase(Map<String, Object> a, Map<String, Object> b) {
         return sameNumericOrEqual(a.get(SourceStatisticsSerializer.STATS_ROW_COUNT), b.get(SourceStatisticsSerializer.STATS_ROW_COUNT))

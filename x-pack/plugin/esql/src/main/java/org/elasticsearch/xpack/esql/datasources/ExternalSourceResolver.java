@@ -717,11 +717,6 @@ public class ExternalSourceResolver {
         return false;
     }
 
-    // Package-private: production resolves through the widest spec-keyed form; this one is for same-package tests.
-    final void resolve(List<ExternalSourceSpec> specs, ActionListener<ExternalSourceResolution> listener) {
-        resolve(specs, null, null, null, null, listener);
-    }
-
     /**
      * The one-path-read-one-way form: each path is lifted to a spec under its entry in {@code pathConfigs}, and the
      * two path-keyed maps are re-keyed onto those specs.
@@ -741,7 +736,7 @@ public class ExternalSourceResolver {
         Map<String, Map<String, Object>> pathConfigs,
         ActionListener<ExternalSourceResolution> listener
     ) {
-        resolve(paths, pathConfigs, null, null, null, null, null, listener);
+        resolve(paths, pathConfigs, null, null, null, null, listener);
     }
 
     /** As {@link #resolve(List, Map, ActionListener)}, with declared mappings and the eager-stats set. */
@@ -753,7 +748,7 @@ public class ExternalSourceResolver {
         @Nullable Set<String> pathsRequiringStats,
         ActionListener<ExternalSourceResolution> listener
     ) {
-        resolve(paths, pathConfigs, filterHints, declaredMappings, pathsRequiringStats, null, null, listener);
+        resolve(paths, pathConfigs, filterHints, declaredMappings, pathsRequiringStats, null, listener);
     }
 
     /** As {@link #resolve(List, Map, ActionListener)}, also naming the paths whose rows the query discards. */
@@ -764,20 +759,6 @@ public class ExternalSourceResolver {
         @Nullable Map<String, DatasetMapping> declaredMappings,
         @Nullable Set<String> pathsRequiringStats,
         @Nullable Set<String> pathsReadingNoRows,
-        ActionListener<ExternalSourceResolution> listener
-    ) {
-        resolve(paths, pathConfigs, filterHints, declaredMappings, pathsRequiringStats, pathsReadingNoRows, null, listener);
-    }
-
-    /** As {@link #resolve(List, Map, ActionListener)}, also carrying path-keyed folder ranges. */
-    public final void resolve(
-        List<String> paths,
-        Map<String, Map<String, Object>> pathConfigs,
-        @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
-        @Nullable Map<String, DatasetMapping> declaredMappings,
-        @Nullable Set<String> pathsRequiringStats,
-        @Nullable Set<String> pathsReadingNoRows,
-        @Nullable Map<String, FolderRangePredicate> folderRanges,
         ActionListener<ExternalSourceResolution> listener
     ) {
         if (paths == null) {
@@ -792,15 +773,11 @@ public class ExternalSourceResolver {
         Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> specHints = filterHints == null
             ? null
             : new HashMap<>();
-        Map<ExternalSourceSpec, FolderRangePredicate> specRanges = folderRanges == null ? null : new HashMap<>();
         for (String path : paths) {
             ExternalSourceSpec spec = new ExternalSourceSpec(path, pathConfigs.getOrDefault(path, Map.of()));
             specs.add(spec);
             if (specHints != null && filterHints.get(path) != null) {
                 specHints.put(spec, filterHints.get(path));
-            }
-            if (specRanges != null && folderRanges.get(path) != null) {
-                specRanges.put(spec, folderRanges.get(path));
             }
             if (specsRequiringStats != null && pathsRequiringStats.contains(path)) {
                 specsRequiringStats.add(spec);
@@ -809,7 +786,7 @@ public class ExternalSourceResolver {
                 specsReadingNoRows.add(spec);
             }
         }
-        resolve(specs, specHints, declaredMappings, specsRequiringStats, specsReadingNoRows, specRanges, listener);
+        resolve(specs, specHints, declaredMappings, specsRequiringStats, specsReadingNoRows, null, listener);
     }
 
     /**

@@ -14,6 +14,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
@@ -75,6 +76,18 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize, Data
             sb.append("queryBuilderAndTags=").append(queryBuilderAndTags);
             sb.append('}');
             return sb.toString();
+        }
+    }
+
+    /**
+     * The sum, in 128 bits, and the count of the values of a {@code long} field: what {@code AVG} of such a field
+     * needs from the data nodes. See {@code LuceneSumCountLongOperator}. It outputs the intermediate state of
+     * {@code SUM} of a {@code double} followed by the one of {@code COUNT}.
+     */
+    public record LongSumCountStat(FieldAttribute field, List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags) implements Stat {
+        @Override
+        public List<ElementType> tagTypes() {
+            return List.of();
         }
     }
 

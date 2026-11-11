@@ -163,7 +163,7 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem(MetadataAttribute.TIMESERIES));
         var topNBy = as(plan.collect(TopNBy.class).get(0), TopNBy.class);
         assertThat(topNBy.groupings(), hasSize(2));
-        assertThat(topNBy.groupings().get(1).dataType(), equalTo(DataType.TSMD_DATA_TYPE));
+        assertThat(topNBy.groupings().get(1).dataType(), equalTo(DataType.TIME_SERIES_METADATA_DATA_TYPE));
     }
 
     /** Over named labels {@code without} partitions by the labels it does not list, whatever the label container representation. */

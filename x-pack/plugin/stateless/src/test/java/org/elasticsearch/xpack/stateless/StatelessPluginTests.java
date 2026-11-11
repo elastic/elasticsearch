@@ -10,7 +10,6 @@ import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
-import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -137,10 +136,6 @@ public class StatelessPluginTests extends ESTestCase {
         assertThat(
             plugin.additionalSettings().get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()),
             equalTo("false")
-        );
-        assertThat(
-            plugin.additionalSettings().get(InternalClusterInfoService.SNAPSHOT_RESTORE_ALLOCATION_ENABLED.getKey()),
-            equalTo("true")
         );
 
         final var nodeInvalidSettings = Settings.builder()

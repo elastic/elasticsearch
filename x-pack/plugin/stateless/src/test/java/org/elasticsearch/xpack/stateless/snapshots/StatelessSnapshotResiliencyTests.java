@@ -21,6 +21,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
@@ -190,7 +191,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.cluster.ESAllocationTestCase.createShardsAllocator;
 import static org.elasticsearch.cluster.ESAllocationTestCase.randomAllocationDeciders;
-import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.mockito.ArgumentMatchers.any;
@@ -650,8 +650,12 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
 
             @Override
             protected AllocationService createAllocationService(Settings settings, SnapshotsInfoService snapshotsInfoService) {
+                final ClusterSettings clusterSettings = new ClusterSettings(
+                    settings,
+                    Sets.addToCopy(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, InternalClusterInfoService.SNAPSHOT_RESTORE_ALLOCATION_ENABLED)
+                );
                 final AllocationService allocationService = new AllocationService(
-                    randomAllocationDeciders(settings, createBuiltInClusterSettings(settings), List.of(new ClusterPlugin() {
+                    randomAllocationDeciders(settings, clusterSettings, List.of(new ClusterPlugin() {
                         @Override
                         public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
                             return List.of(new StatelessAllocationDecider());
@@ -662,9 +666,11 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     snapshotsInfoService,
                     new StatelessShardRoutingRoleStrategy(),
                     MeterRegistry.NOOP,
-                    createBuiltInClusterSettings(settings)
+                    clusterSettings
                 );
-                allocationService.setExistingShardsAllocators(Map.of(StatelessPlugin.NAME, new StatelessExistingShardsAllocator()));
+                allocationService.setExistingShardsAllocators(
+                    Map.of(StatelessPlugin.NAME, new StatelessExistingShardsAllocator(clusterSettings))
+                );
                 return allocationService;
             }
 

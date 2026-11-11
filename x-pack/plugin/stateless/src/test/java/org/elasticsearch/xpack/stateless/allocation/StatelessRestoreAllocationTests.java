@@ -112,9 +112,17 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
     }
 
     private AllocationService service(AtomicReference<ClusterInfo> info, AtomicReference<SnapshotShardSizeInfo> sizes) {
+        return service(info, sizes, true);
+    }
+
+    private AllocationService service(
+        AtomicReference<ClusterInfo> info,
+        AtomicReference<SnapshotShardSizeInfo> sizes,
+        boolean snapshotRestoreAllocationEnabled
+    ) {
         final Settings settings = Settings.builder()
             .put("cluster.routing.allocation.type", "desired_balance")
-            .put(InternalClusterInfoService.SNAPSHOT_RESTORE_ALLOCATION_ENABLED.getKey(), true)
+            .put(InternalClusterInfoService.SNAPSHOT_RESTORE_ALLOCATION_ENABLED.getKey(), snapshotRestoreAllocationEnabled)
             .build();
         final Set<Setting<?>> registered = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         registered.add(InternalClusterInfoService.SNAPSHOT_RESTORE_ALLOCATION_ENABLED);
@@ -130,7 +138,7 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
             MeterRegistry.NOOP,
             clusterSettings
         );
-        service.setExistingShardsAllocators(Map.of("stateless", new StatelessExistingShardsAllocator()));
+        service.setExistingShardsAllocators(Map.of("stateless", new StatelessExistingShardsAllocator(clusterSettings)));
         return service;
     }
 
@@ -154,6 +162,19 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         sizeInfo.set(sizes(state, 50 * GB));
         state = service.reroute(state, "size arrived", ActionListener.noop());
         assertTrue(primary(state, "index-0").initializing());
+    }
+
+    public void testDoesNotWaitForSnapshotShardSizeWhenDisabled() {
+        var state = restoreState(1);
+        var sizeInfo = new AtomicReference<>(SnapshotShardSizeInfo.EMPTY);
+        var info = new AtomicReference<>(info(70 * GB));
+        var service = service(info, sizeInfo, false);
+
+        state = service.reroute(state, "size unknown, feature disabled", ActionListener.noop());
+        assertNotEquals(
+            UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA,
+            primary(state, "index-0").unassignedInfo().lastAllocationStatus()
+        );
     }
 
     public void testPermanentlyUnavailableShardSizeFailsAllocation() {

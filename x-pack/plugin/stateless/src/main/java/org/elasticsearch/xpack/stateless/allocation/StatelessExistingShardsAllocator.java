@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.allocation;
 
+import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -14,18 +15,29 @@ import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.settings.ClusterSettings;
 
 import java.util.List;
 import java.util.function.Predicate;
 
 /**
  * Existing-shards allocator for stateless. Shard data lives in the object store, so this allocator does not
- * recover from local copies. It only defers unassigned snapshot primaries until
- * {@link org.elasticsearch.snapshots.InternalSnapshotsInfoService} has fetched their size (mirroring
- * {@code PrimaryShardAllocator}'s {@code FETCHING_SHARD_DATA} gate). Desired-balance reconciliation then
- * assigns them with {@link SnapshotRestoreAllocationDecider} enforcing disk capacity.
+ * recover from local copies. When {@link InternalClusterInfoService#SNAPSHOT_RESTORE_ALLOCATION_ENABLED} is on,
+ * it defers unassigned snapshot primaries until {@link org.elasticsearch.snapshots.InternalSnapshotsInfoService}
+ * has fetched their size (mirroring {@code PrimaryShardAllocator}'s {@code FETCHING_SHARD_DATA} gate).
+ * Desired-balance reconciliation then assigns them with {@link SnapshotRestoreAllocationDecider} enforcing disk
+ * capacity.
  */
 public class StatelessExistingShardsAllocator implements ExistingShardsAllocator {
+
+    private volatile boolean snapshotRestoreAllocationEnabled;
+
+    public StatelessExistingShardsAllocator(ClusterSettings clusterSettings) {
+        clusterSettings.initializeAndWatch(
+            InternalClusterInfoService.SNAPSHOT_RESTORE_ALLOCATION_ENABLED,
+            value -> snapshotRestoreAllocationEnabled = value
+        );
+    }
 
     @Override
     public void beforeAllocation(RoutingAllocation allocation) {}
@@ -53,8 +65,9 @@ public class StatelessExistingShardsAllocator implements ExistingShardsAllocator
         return AllocateUnassignedDecision.NOT_TAKEN;
     }
 
-    private static boolean waitingForSnapshotShardSize(ShardRouting shard, RoutingAllocation allocation) {
-        return shard.primary()
+    private boolean waitingForSnapshotShardSize(ShardRouting shard, RoutingAllocation allocation) {
+        return snapshotRestoreAllocationEnabled
+            && shard.primary()
             && shard.unassigned()
             && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT
             && allocation.snapshotShardSizeInfo().getShardSize(shard) == null;

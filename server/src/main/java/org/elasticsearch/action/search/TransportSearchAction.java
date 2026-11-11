@@ -64,9 +64,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.QueryCaptureService;
-import org.elasticsearch.common.logging.activity.QueryInterceptor;
 import org.elasticsearch.common.logging.activity.QueryLogger;
-import org.elasticsearch.common.logging.activity.QuerySinkRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -114,7 +112,6 @@ import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -204,8 +201,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final boolean collectCCSTelemetry;
     private final TimeValue forceConnectTimeoutSecs;
     private final CrossProjectModeDecider crossProjectModeDecider;
-    private final QueryInterceptor<SearchCaptureContext> queryInterceptor;
-    private final QueryCaptureService queryCaptureService;
+    private final QueryCaptureService.Interceptor<SearchCaptureContext> queryInterceptor;
 
     @Inject
     public TransportSearchAction(
@@ -225,8 +221,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponseMetrics searchResponseMetrics,
         Client client,
         UsageService usageService,
-        QuerySinkRegistry querySinkRegistry,
-        TelemetryProvider telemetryProvider,
+        QueryCaptureService queryCaptureService,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
         CrossProjectModeDecider crossProjectModeDecider
@@ -282,8 +277,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             fieldProvider,
             indexNameExpressionResolver.getSystemNamePredicate()
         );
-        this.queryInterceptor = querySinkRegistry.createInterceptor(queryLogger);
-        this.queryCaptureService = new QueryCaptureService(threadPool, telemetryProvider.getMeterRegistry());
+        this.queryInterceptor = queryCaptureService.interceptor(queryLogger);
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -438,8 +432,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         queryInterceptor.wrapAndRun(
             listener,
             searchCaptureContextBuilder,
-            l -> executeRequest((SearchTask) task, searchRequest, l, AsyncSearchActionProvider::new, true),
-            queryCaptureService
+            l -> executeRequest((SearchTask) task, searchRequest, l, AsyncSearchActionProvider::new, true)
         );
     }
 

@@ -41,17 +41,17 @@ public class QuerySinkProviderIT extends ESIntegTestCase {
             .build();
     }
 
-    public void testPluginSinkReceivesSearchesWithQueryLoggingDisabled() {
+    public void testPluginSinkReceivesSearchesWithQueryLoggingDisabled() throws Exception {
         var plugin = internalCluster().getInstance(PluginsService.class).filterPlugins(CapturePlugin.class).findFirst().orElseThrow();
         assertEquals(1, plugin.providerCalls.get());
         createIndex("test");
         ensureGreen("test");
 
         assertResponse(prepareSearch("test"), response -> assertEquals(0, response.getHits().getHits().length));
-        assertThat(plugin.captures, contains("dsl:success"));
+        assertBusy(() -> assertThat(plugin.captures, contains("dsl:success")));
 
         expectThrows(IndexNotFoundException.class, () -> prepareSearch("missing-index").get());
-        assertThat(plugin.captures, contains("dsl:success", "dsl:failure"));
+        assertBusy(() -> assertThat(plugin.captures, contains("dsl:success", "dsl:failure")));
 
         plugin.enabled = false;
         assertResponse(prepareSearch("test"), response -> assertEquals(0, response.getHits().getHits().length));
@@ -86,6 +86,10 @@ public class QuerySinkProviderIT extends ESIntegTestCase {
                 @Override
                 public void accept(QueryCaptureContext context) {
                     if (context instanceof SearchCaptureContext) {
+                        assertEquals(
+                            QueryCaptureService.ASYNC_FEATURE_FLAG.isEnabled(),
+                            Thread.currentThread().getName().contains("[query_capture]")
+                        );
                         // Retain only copied metadata, never the borrowed context or response.
                         plugin.captures.add(context.getType() + (context.isSuccess() ? ":success" : ":failure"));
                     }

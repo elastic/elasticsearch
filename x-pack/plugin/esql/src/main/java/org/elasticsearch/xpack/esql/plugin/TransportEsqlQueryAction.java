@@ -23,9 +23,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
-import org.elasticsearch.common.logging.activity.QueryInterceptor;
+import org.elasticsearch.common.logging.activity.QueryCaptureService;
 import org.elasticsearch.common.logging.activity.QueryLogger;
-import org.elasticsearch.common.logging.activity.QuerySinkRegistry;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -122,7 +121,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final RemoteClusterService remoteClusterService;
     private final UsageService usageService;
     private final TransportActionServices services;
-    private final QueryInterceptor<EsqlCaptureContext> queryInterceptor;
+    private final QueryCaptureService.Interceptor<EsqlCaptureContext> queryInterceptor;
     private final QueryMetricsListener metricsCollector;
     private volatile boolean defaultAllowPartialResults;
     private volatile int resultTruncationMaxSize;
@@ -151,7 +150,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         UsageService usageService,
         UserAgentParserRegistry userAgentParserRegistry,
         IpLocationService ipLocationService,
-        QuerySinkRegistry querySinkRegistry,
+        QueryCaptureService queryCaptureService,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
         CrossProjectModeDecider crossProjectModeDecider,
@@ -273,7 +272,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             fieldProvider,
             indexNameExpressionResolver.getSystemNamePredicate()
         );
-        this.queryInterceptor = querySinkRegistry.createInterceptor(queryLogger);
+        this.queryInterceptor = queryCaptureService.interceptor(queryLogger);
 
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
         clusterService.getClusterSettings()
@@ -835,7 +834,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         return datasetResolver;
     }
 
-    public QueryInterceptor<EsqlCaptureContext> activityInterceptor() {
+    public QueryCaptureService.Interceptor<EsqlCaptureContext> activityInterceptor() {
         return queryInterceptor;
     }
 }

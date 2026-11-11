@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
@@ -182,76 +184,75 @@ public class EsqlQueryLogIT extends AbstractEsqlIntegTestCase {
 
             EsqlQueryRequest request = syncEsqlQueryRequest(query).pragmas(randomPragmas());
             CountDownLatch latch = new CountDownLatch(1);
-            client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, request, ActionListener.running(() -> {
-                try {
-                    if (appender.lastEvent() == null) {
-                        if (timeoutMillis == 0) {
-                            fail("Expected a slow log with timeout set to zero");
-                        }
-                        return;
-                    }
-                    var msg = (ESLogMessage) appender.lastMessage();
-                    long took = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_TOOK));
-                    long tookMillisExpected = took / 1_000_000;
-                    long tookMillis = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_TOOK_MILLIS));
-                    assertThat(took, greaterThan(0L));
-                    assertThat(tookMillis, greaterThanOrEqualTo(timeoutMillis));
-                    assertThat(tookMillis, is(tookMillisExpected));
-
-                    if (expectedException == null) {
-                        for (String timing : List.of(
-                            PLANNING,
-                            PARSING,
-                            VIEW_RESOLUTION,
-                            DATASET_RESOLUTION,
-                            PRE_ANALYSIS,
-                            INDICES_RESOLUTION,
-                            ENRICH_RESOLUTION,
-                            INFERENCE_RESOLUTION,
-                            ANALYSIS
-                        )) {
-                            long timingTook = Long.valueOf(
-                                msg.get(ELASTICSEARCH_QUERYLOG_PREFIX + timing + ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX)
-                            );
-                            long timingTookMillisExpected = timingTook / 1_000_000;
-                            long timingTookMillis = Long.valueOf(
-                                msg.get(ELASTICSEARCH_QUERYLOG_PREFIX + timing + ELASTICSEARCH_QUERYLOG_TOOK_MILLIS_SUFFIX)
-                            );
-                            assertThat(timingTook, greaterThanOrEqualTo(0L));
-                            assertThat(timingTookMillis, is(timingTookMillisExpected));
-                            assertThat(took, greaterThan(timingTook));
-                        }
-                    }
-
-                    // the query is JSON-escaped in the log
-                    assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(query.replace("\"", "\\\"")));
-                    if (expectedException == null) {
-                        // successful queries reach resolution, so settings are logged with their literal resolved values
-                        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".approximation"), is(nullValue()));
-                        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".time_zone"), is("Europe/Paris"));
-                        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".unmapped_fields"), is("NULLIFY"));
-                        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".wildcards_match_views"), is("false"));
-                    }
-                    assertThat(appender.getLastEventAndReset().getLevel(), equalTo(logLevel.getKey()));
-
-                    boolean success = Booleans.parseBoolean(msg.get(ELASTICSEARCH_QUERYLOG_SUCCESS));
-                    assertThat(success, is(expectedException == null));
-                    if (expectedErrorMsg == null) {
-                        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_ERROR_MESSAGE), is(nullValue()));
-                    } else {
-                        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_ERROR_MESSAGE), containsString(expectedErrorMsg));
-                    }
-                    if (expectedException == null) {
-                        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_ERROR_TYPE), is(nullValue()));
-                    } else {
-                        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_ERROR_TYPE), is(expectedException));
-                    }
-                } finally {
-                    latch.countDown();
-                }
-            }));
-
+            client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, request, ActionListener.running(latch::countDown));
             safeAwait(latch);
+            var barrier = new PlainActionFuture<Void>();
+            internalCluster().getInstance(ThreadPool.class, coordinator.getName())
+                .executor(ThreadPool.Names.QUERY_CAPTURE)
+                .execute(() -> barrier.onResponse(null));
+            barrier.actionGet(TEST_REQUEST_TIMEOUT);
+            if (appender.lastEvent() == null) {
+                if (timeoutMillis == 0) {
+                    fail("Expected a slow log with timeout set to zero");
+                }
+            } else {
+                var msg = (ESLogMessage) appender.lastMessage();
+                long took = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_TOOK));
+                long tookMillisExpected = took / 1_000_000;
+                long tookMillis = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_TOOK_MILLIS));
+                assertThat(took, greaterThan(0L));
+                assertThat(tookMillis, greaterThanOrEqualTo(timeoutMillis));
+                assertThat(tookMillis, is(tookMillisExpected));
+
+                if (expectedException == null) {
+                    for (String timing : List.of(
+                        PLANNING,
+                        PARSING,
+                        VIEW_RESOLUTION,
+                        DATASET_RESOLUTION,
+                        PRE_ANALYSIS,
+                        INDICES_RESOLUTION,
+                        ENRICH_RESOLUTION,
+                        INFERENCE_RESOLUTION,
+                        ANALYSIS
+                    )) {
+                        long timingTook = Long.valueOf(
+                            msg.get(ELASTICSEARCH_QUERYLOG_PREFIX + timing + ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX)
+                        );
+                        long timingTookMillisExpected = timingTook / 1_000_000;
+                        long timingTookMillis = Long.valueOf(
+                            msg.get(ELASTICSEARCH_QUERYLOG_PREFIX + timing + ELASTICSEARCH_QUERYLOG_TOOK_MILLIS_SUFFIX)
+                        );
+                        assertThat(timingTook, greaterThanOrEqualTo(0L));
+                        assertThat(timingTookMillis, is(timingTookMillisExpected));
+                        assertThat(took, greaterThan(timingTook));
+                    }
+                }
+
+                // the query is JSON-escaped in the log
+                assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(query.replace("\"", "\\\"")));
+                if (expectedException == null) {
+                    // successful queries reach resolution, so settings are logged with their literal resolved values
+                    assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".approximation"), is(nullValue()));
+                    assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".time_zone"), is("Europe/Paris"));
+                    assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".unmapped_fields"), is("NULLIFY"));
+                    assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".wildcards_match_views"), is("false"));
+                }
+                assertThat(appender.getLastEventAndReset().getLevel(), equalTo(logLevel.getKey()));
+
+                boolean success = Booleans.parseBoolean(msg.get(ELASTICSEARCH_QUERYLOG_SUCCESS));
+                assertThat(success, is(expectedException == null));
+                if (expectedErrorMsg == null) {
+                    assertThat(msg.get(ELASTICSEARCH_QUERYLOG_ERROR_MESSAGE), is(nullValue()));
+                } else {
+                    assertThat(msg.get(ELASTICSEARCH_QUERYLOG_ERROR_MESSAGE), containsString(expectedErrorMsg));
+                }
+                if (expectedException == null) {
+                    assertThat(msg.get(ELASTICSEARCH_QUERYLOG_ERROR_TYPE), is(nullValue()));
+                } else {
+                    assertThat(msg.get(ELASTICSEARCH_QUERYLOG_ERROR_TYPE), is(expectedException));
+                }
+            }
 
             assertEquals("All requests must respond", 0, latch.getCount());
 

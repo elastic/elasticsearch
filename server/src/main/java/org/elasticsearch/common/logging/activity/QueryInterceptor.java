@@ -27,8 +27,8 @@ import java.util.function.Supplier;
  * {@code QueryCaptureContext} binds the request and response and is passed to the downstream {@link QuerySink}s for processing.
  *
  * Interception should be lean and efficient and an error in interception must not fail the intercepted query. {@link QuerySink}s are
- * notified synchronously by default. The overload accepting {@link QueryCaptureService} queues sink processing on a worker
- * and retains the response until that processing completes.
+ * notified synchronously by default. When asynchronous capture is enabled, interceptors obtained from
+ * {@link QueryCaptureService#interceptor(QuerySink)} queue sink processing on a worker and retain the response until it completes.
  *
  * @param <Context> Logging context type, specific context types exist for each action, such as search, ESQL query, etc.
  */
@@ -47,16 +47,9 @@ public final class QueryInterceptor<Context extends QueryCaptureContext> {
 
     /** A sink whose switch fails is treated as disabled: a sink must never fail the intercepted query. */
     private static boolean isEnabled(QuerySink<?> sink) {
-        return isEnabled(sink, null);
-    }
-
-    private static boolean isEnabled(QuerySink<?> sink, @Nullable QueryCaptureService captureService) {
         try {
             return sink.isEnabled();
         } catch (Exception e) {
-            if (captureService != null) {
-                captureService.recordProcessingFailure();
-            }
             logger.warn(() -> Strings.format("query sink [%s] failed to report whether it is enabled", sink), e);
             return false;
         }
@@ -69,7 +62,7 @@ public final class QueryInterceptor<Context extends QueryCaptureContext> {
 
     private void notifySinks(Context context, @Nullable QueryCaptureService captureService) {
         for (var sink : sinks) {
-            if (isEnabled(sink, captureService)) {
+            if (isEnabled(sink)) {
                 try {
                     sink.accept(context);
                 } catch (Exception e) {
@@ -128,8 +121,8 @@ public final class QueryInterceptor<Context extends QueryCaptureContext> {
 
     /**
      * Wrap the listener to capture the query response and execute the {@code action}.
-     * Sink processing is
-     * If no sink is enabled the action is run without any wrapping
+     * Sinks are completed synchronously on the action response thread.
+     * If no sink is enabled the action is run without any wrapping.
      */
     public <Req, R> void wrapAndRun(
         ActionListener<R> listener,
@@ -144,7 +137,7 @@ public final class QueryInterceptor<Context extends QueryCaptureContext> {
      * process the response.
      * Responses are retained while queued or executing.
      */
-    public <Req, R extends RefCounted> void wrapAndRun(
+    <Req, R extends RefCounted> void wrapAndRun(
         ActionListener<R> listener,
         QueryCaptureContextBuilder<Context, Req, R> contextBuilder,
         Consumer<ActionListener<R>> action,

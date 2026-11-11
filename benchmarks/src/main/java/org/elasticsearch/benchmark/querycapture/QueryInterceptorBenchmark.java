@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.activity.QueryCaptureService;
 import org.elasticsearch.common.logging.activity.QueryInterceptor;
 import org.elasticsearch.common.logging.activity.QuerySink;
+import org.elasticsearch.common.logging.activity.QuerySinkRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -59,12 +60,12 @@ import java.util.function.Consumer;
  * Each producer owns its request and response: running with eight threads does not introduce artificial contention on one response.
  * Run with {@code -t 1} and {@code -t 8}, and {@code -prof gc} to record allocations as well as latency.
  * Async scenarios share one bounded worker and measure submission, including rejection under saturation, rather than worker completion.
- * Per-iteration pool statistics expose the processed/rejected mix. GC allocations include both producer and worker threads.
+ * Per-iteration rejection counts identify saturated measurements. GC allocations include both producer and worker threads.
  * These are interception costs, not end-to-end search latencies.
  * <p>
  * To measure accepted submissions without saturating the queue, use one producer with
- * {@code -t 1 -bm ss -wi 100 -i 30 -bs 512 -wbs 512}. The queue is drained between bursts outside the timed method.
- * In this mode JMH reports time and allocations per burst; divide by 512 to obtain per-capture values.
+ * {@code -t 1 -bm ss -wi 100 -i 30 -bs 128 -wbs 128}. The queue is drained between bursts outside the timed method.
+ * In this mode JMH reports time and allocations per burst; divide by 128 to obtain per-capture values.
  * Confirm zero rejections in the iteration statistics when interpreting this as accepted-submission cost.
  */
 @Fork(1)
@@ -83,6 +84,7 @@ public class QueryInterceptorBenchmark {
     private SearchResponse response;
     private Task task;
     private QueryInterceptor<SearchCaptureContext> interceptor;
+    private QueryCaptureService.Interceptor<SearchCaptureContext> asyncInterceptor;
     private ActionListener<SearchResponse> listener;
     private Consumer<ActionListener<SearchResponse>> action;
     private SearchResponse delivered;
@@ -138,7 +140,7 @@ public class QueryInterceptorBenchmark {
             default -> throw new IllegalArgumentException("Unknown scenario: " + scenario);
         }
         resultCount = -1;
-        interceptor = new QueryInterceptor<>(List.of(new QuerySink<SearchCaptureContext>(() -> "benchmark") {
+        var sink = new QuerySink<SearchCaptureContext>(() -> "benchmark") {
             @Override
             public boolean isEnabled() {
                 return enabled;
@@ -151,16 +153,18 @@ public class QueryInterceptorBenchmark {
                 }
                 resultCount = context.getResultCount();
             }
-        }));
+        };
+        interceptor = new QueryInterceptor<>(List.of(sink));
+        asyncInterceptor = worker.service.interceptor(sink);
         listener = ActionListener.wrap(r -> delivered = r, e -> { throw new AssertionError(e); });
         action = l -> l.onResponse(response);
     }
 
-    private void invoke(CaptureWorker worker) {
+    private void invoke() {
         if (scenario.equals("direct")) {
             action.accept(listener);
         } else if (asynchronous) {
-            interceptor.wrapAndRun(listener, new SearchCaptureContextBuilder(task, REGISTRY, request), action, worker.service);
+            asyncInterceptor.wrapAndRun(listener, new SearchCaptureContextBuilder(task, REGISTRY, request), action);
         } else {
             interceptor.wrapAndRun(listener, new SearchCaptureContextBuilder(task, REGISTRY, request), action);
         }
@@ -168,8 +172,8 @@ public class QueryInterceptorBenchmark {
 
     /** Measures the work on the search thread, with captured outputs consumed to prevent dead-code elimination. */
     @Benchmark
-    public void capture(Blackhole blackhole, CaptureWorker worker) {
-        invoke(worker);
+    public void capture(Blackhole blackhole) {
+        invoke();
         blackhole.consume(delivered);
         blackhole.consume(resultCount);
         blackhole.consume(query);
@@ -187,8 +191,7 @@ public class QueryInterceptorBenchmark {
         private ThreadPool pool;
         private QueryCaptureService service;
         private EsThreadPoolExecutor executor;
-        private long completedBefore;
-        private long rejectedBefore;
+        private long previousRejections;
 
         @Setup(Level.Trial)
         public void setup() {
@@ -198,44 +201,12 @@ public class QueryInterceptorBenchmark {
                 MeterRegistry.NOOP,
                 new DefaultBuiltInExecutorBuilders()
             );
-            service = new QueryCaptureService(pool, MeterRegistry.NOOP);
             executor = (EsThreadPoolExecutor) pool.executor(ThreadPool.Names.QUERY_CAPTURE);
-        }
-
-        @Setup(Level.Iteration)
-        public void startIteration() throws Exception {
-            drain();
-            completedBefore = executor.getCompletedTaskCount();
-            rejectedBefore = rejected();
+            service = new QueryCaptureService(pool, MeterRegistry.NOOP, new QuerySinkRegistry(List.of()));
         }
 
         @TearDown(Level.Iteration)
         public void finishIteration(IterationParams iteration) throws Exception {
-            drain();
-            // Exclude the FIFO barrier submitted by drain().
-            long completed = executor.getCompletedTaskCount() - completedBefore - 1;
-            long rejected = rejected() - rejectedBefore;
-            if (completed + rejected > 0) {
-                System.out.printf(
-                    "capture pool [%s]: processed=%d rejected=%d dropped=%.2f%%%n",
-                    iteration.getType(),
-                    completed,
-                    rejected,
-                    100.0 * rejected / (completed + rejected)
-                );
-            }
-        }
-
-        private long rejected() {
-            for (var stats : pool.stats()) {
-                if (stats.name().equals(ThreadPool.Names.QUERY_CAPTURE)) {
-                    return stats.rejected();
-                }
-            }
-            throw new AssertionError("capture pool missing");
-        }
-
-        private void drain() throws Exception {
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
             // Producers have stopped. Make room for a FIFO barrier without introducing a synthetic rejection.
             while (executor.getQueue().remainingCapacity() == 0) {
@@ -245,12 +216,12 @@ public class QueryInterceptorBenchmark {
                 Thread.sleep(1);
             }
             executor.submit(() -> {}).get(30, TimeUnit.SECONDS);
-            // Future completion precedes the executor updating its completed-task count.
-            while (executor.getActiveCount() != 0) {
-                if (System.nanoTime() > deadline) {
-                    throw new AssertionError("capture worker did not finish");
+            for (var stats : pool.stats()) {
+                if (stats.name().equals(ThreadPool.Names.QUERY_CAPTURE)) {
+                    long rejected = stats.rejected();
+                    System.out.printf("capture pool [%s]: rejected=%d%n", iteration.getType(), rejected - previousRejections);
+                    previousRejections = rejected;
                 }
-                Thread.sleep(1);
             }
         }
 

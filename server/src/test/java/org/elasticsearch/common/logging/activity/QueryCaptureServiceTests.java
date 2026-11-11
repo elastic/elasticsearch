@@ -31,6 +31,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -41,7 +42,7 @@ public class QueryCaptureServiceTests extends ESTestCase {
 
     public void testMetricsRegistered() {
         try (var pool = new TestThreadPool(getTestName())) {
-            new QueryCaptureService(pool, meterRegistry);
+            createService(pool);
             for (var name : List.of("submitted", "completed", "processing_failures", "dropped")) {
                 assertNotNull(meterRegistry.getLongCounter("es.search.query_capture." + name + ".total"));
             }
@@ -50,7 +51,7 @@ public class QueryCaptureServiceTests extends ESTestCase {
 
     public void testQueuedResponseAndRejectedResponseOwnership() throws Exception {
         try (var pool = new TestThreadPool(getTestName(), Settings.builder().put("thread_pool.query_capture.queue_size", 1).build())) {
-            var service = new QueryCaptureService(pool, meterRegistry);
+            var service = createService(pool);
             var started = new CountDownLatch(1);
             var release = new CountDownLatch(1);
             var processed = new AtomicBoolean();
@@ -96,7 +97,6 @@ public class QueryCaptureServiceTests extends ESTestCase {
 
     public void testListenerCompletesBeforeWorkerAndResponseRemainsReadable() throws Exception {
         try (var pool = new TestThreadPool(getTestName())) {
-            var service = new QueryCaptureService(pool, meterRegistry);
             var started = new CountDownLatch(1);
             var release = new CountDownLatch(1);
             var captured = new AtomicBoolean();
@@ -112,7 +112,7 @@ public class QueryCaptureServiceTests extends ESTestCase {
                 assertEquals("request", pool.getThreadContext().getHeader("capture-test"));
                 captured.set(true);
             }, () -> "test");
-            var interceptor = new QueryInterceptor<>(List.of(sink));
+            var service = createService(pool);
             var builder = new SearchCaptureContextBuilder(
                 new Task(1, "test", "search", "", TaskId.EMPTY_TASK_ID, Map.of()),
                 new NamedWriteableRegistry(List.of()),
@@ -131,10 +131,10 @@ public class QueryCaptureServiceTests extends ESTestCase {
                 assertTrue(started.await(10, TimeUnit.SECONDS));
                 try (var ignored = pool.getThreadContext().stashContext()) {
                     pool.getThreadContext().putHeader("capture-test", "request");
-                    interceptor.wrapAndRun(ActionListener.wrap(r -> {
+                    service.interceptor(sink).wrapAndRun(ActionListener.wrap(r -> {
                         assertSame(response, r);
                         delivered.set(true);
-                    }, e -> fail(e.toString())), builder, listener -> listener.onResponse(response), service);
+                    }, e -> fail(e.toString())), builder, listener -> listener.onResponse(response));
                 }
                 assertTrue(delivered.get());
                 assertFalse(captured.get());
@@ -152,7 +152,7 @@ public class QueryCaptureServiceTests extends ESTestCase {
 
     public void testShutdownRejectionReleasesResponse() {
         try (var pool = new TestThreadPool(getTestName())) {
-            var service = new QueryCaptureService(pool, meterRegistry);
+            var service = createService(pool);
             pool.shutdown();
             var response = SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
             service.execute(() -> fail("shutdown executor must reject"), response);
@@ -179,7 +179,7 @@ public class QueryCaptureServiceTests extends ESTestCase {
                 )
             );
             var response = SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
-            new QueryCaptureService(pool, meterRegistry).execute(() -> { throw new IllegalStateException("test failure"); }, response);
+            createService(pool).execute(() -> { throw new IllegalStateException("test failure"); }, response);
             response.decRef();
             assertBusy(() -> {
                 assertFalse(response.hasReferences());
@@ -203,12 +203,12 @@ public class QueryCaptureServiceTests extends ESTestCase {
                 new NamedWriteableRegistry(List.of()),
                 new SearchRequest()
             );
-            new QueryInterceptor<>(List.of(sink)).wrapAndRun(
-                ActionListener.wrap(r -> fail("expected failure"), e -> assertSame(failure, e)),
-                builder,
-                listener -> listener.onFailure(failure),
-                new QueryCaptureService(pool, meterRegistry)
-            );
+            createService(pool).interceptor(sink)
+                .wrapAndRun(
+                    ActionListener.wrap(r -> fail("expected failure"), e -> assertSame(failure, e)),
+                    builder,
+                    listener -> listener.onFailure(failure)
+                );
             assertBusy(() -> {
                 assertTrue(captured.get());
                 assertCounters(1, 1, 0, 0);
@@ -225,19 +225,21 @@ public class QueryCaptureServiceTests extends ESTestCase {
                 new SearchRequest()
             );
             ActionListener<SearchResponse> original = ActionListener.wrap(r -> {}, e -> fail(e.toString()));
-            new QueryInterceptor<>(List.of(sink)).wrapAndRun(
-                original,
-                builder,
-                listener -> assertSame(original, listener),
-                new QueryCaptureService(pool, meterRegistry)
-            );
+            createService(pool).interceptor(sink).wrapAndRun(original, builder, listener -> assertSame(original, listener));
             assertCounters(0, 0, 0, 0);
         }
     }
 
     public void testSinkFailureIsCountedAndOtherSinksStillRun() throws Exception {
+        assertSinkFailureDoesNotPreventOtherSinks(false);
+    }
+
+    public void testSinkEnabledFailureIsNotCountedAndOtherSinksStillRun() throws Exception {
+        assertSinkFailureDoesNotPreventOtherSinks(true);
+    }
+
+    private void assertSinkFailureDoesNotPreventOtherSinks(boolean failEnabledCheck) throws Exception {
         try (var pool = new TestThreadPool(getTestName()); var log = MockLog.capture(QueryInterceptor.class)) {
-            boolean failEnabledCheck = randomBoolean();
             var caller = Thread.currentThread();
             var failingSink = new TestQuerySink<SearchCaptureContext>(() -> {
                 if (failEnabledCheck && Thread.currentThread() != caller) {
@@ -254,7 +256,7 @@ public class QueryCaptureServiceTests extends ESTestCase {
                 )
             );
             var captured = new AtomicBoolean();
-            var succeedingSink = new TestQuerySink<SearchCaptureContext>(() -> true, context -> captured.set(true), () -> "succeeding");
+            var succeedingSink = new TestQuerySink<QueryCaptureContext>(() -> true, context -> captured.set(true), () -> "succeeding");
             var builder = new SearchCaptureContextBuilder(
                 new Task(1, "test", "search", "", TaskId.EMPTY_TASK_ID, Map.of()),
                 new NamedWriteableRegistry(List.of()),
@@ -262,14 +264,15 @@ public class QueryCaptureServiceTests extends ESTestCase {
             );
             var response = SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
             try {
-                new QueryInterceptor<>(List.of(failingSink, succeedingSink)).wrapAndRun(
-                    ActionListener.wrap(r -> assertSame(response, r), e -> fail(e.toString())),
-                    builder,
-                    listener -> listener.onResponse(response),
-                    new QueryCaptureService(pool, meterRegistry)
-                );
+                new QueryCaptureService(pool, meterRegistry, new QuerySinkRegistry(List.of(() -> List.of(succeedingSink))), true)
+                    .interceptor(failingSink)
+                    .wrapAndRun(
+                        ActionListener.wrap(r -> assertSame(response, r), e -> fail(e.toString())),
+                        builder,
+                        listener -> listener.onResponse(response)
+                    );
                 assertBusy(() -> {
-                    assertCounters(1, 1, 1, 0);
+                    assertCounters(1, 1, failEnabledCheck ? 0 : 1, 0);
                     assertTrue(captured.get());
                 });
                 log.assertAllExpectationsMatched();
@@ -281,7 +284,7 @@ public class QueryCaptureServiceTests extends ESTestCase {
 
     public void testDropReasonsAreBounded() {
         try (var pool = new TestThreadPool(getTestName())) {
-            var service = new QueryCaptureService(pool, meterRegistry);
+            var service = createService(pool);
             for (var reason : QueryCaptureService.DropReason.values()) {
                 service.recordDropped(reason);
             }
@@ -297,6 +300,83 @@ public class QueryCaptureServiceTests extends ESTestCase {
                 drops.stream().map(Measurement::attributes).toList()
             );
         }
+    }
+
+    public void testActionLoggersSharePluginSinksAndWorker() throws Exception {
+        try (var pool = new TestThreadPool(getTestName())) {
+            var providerCalls = new AtomicLong();
+            var pluginCaptures = new CopyOnWriteArrayList<QueryCaptureContext>();
+            var firstCaptures = new CopyOnWriteArrayList<SearchCaptureContext>();
+            var secondCaptures = new CopyOnWriteArrayList<SearchCaptureContext>();
+            var pluginSink = new TestQuerySink<QueryCaptureContext>(() -> true, context -> {
+                assertTrue(Thread.currentThread().getName().contains("[query_capture]"));
+                pluginCaptures.add(context);
+            }, () -> "plugin");
+            var registry = new QuerySinkRegistry(List.of(() -> {
+                providerCalls.incrementAndGet();
+                return List.of(pluginSink);
+            }));
+            var service = new QueryCaptureService(pool, meterRegistry, registry, true);
+            var first = service.interceptor(new TestQuerySink<SearchCaptureContext>(() -> true, firstCaptures::add, () -> "first"));
+            var second = service.interceptor(new TestQuerySink<SearchCaptureContext>(() -> true, secondCaptures::add, () -> "second"));
+            var response = SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
+            try {
+                var builder = new SearchCaptureContextBuilder(
+                    new Task(1, "test", "search", "", TaskId.EMPTY_TASK_ID, Map.of()),
+                    new NamedWriteableRegistry(List.of()),
+                    new SearchRequest()
+                );
+                ActionListener<SearchResponse> listener = ActionListener.wrap(r -> assertSame(response, r), e -> fail(e.toString()));
+                first.wrapAndRun(listener, builder, l -> l.onResponse(response));
+                second.wrapAndRun(listener, builder, l -> l.onResponse(response));
+                assertBusy(() -> {
+                    assertCounters(2, 2, 0, 0);
+                    assertEquals(1, firstCaptures.size());
+                    assertEquals(1, secondCaptures.size());
+                    assertEquals(List.of(firstCaptures.getFirst(), secondCaptures.getFirst()), pluginCaptures);
+                });
+                assertEquals(1, providerCalls.get());
+            } finally {
+                response.decRef();
+            }
+        }
+    }
+
+    public void testDirectProcessingCompletesBeforeListenerWithoutSubmittingWork() {
+        try (var pool = new TestThreadPool(getTestName())) {
+            var service = new QueryCaptureService(pool, meterRegistry, new QuerySinkRegistry(List.of()), false);
+            var captured = new AtomicBoolean();
+            var caller = Thread.currentThread();
+            var response = SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
+            var interceptor = service.interceptor(new TestQuerySink<SearchCaptureContext>(() -> true, context -> {
+                assertSame(caller, Thread.currentThread());
+                assertEquals(0, context.getResultCount());
+                captured.set(true);
+            }, () -> "direct"));
+            // Direct processing must still work when the worker cannot accept any tasks.
+            pool.shutdown();
+            try {
+                interceptor.wrapAndRun(ActionListener.wrap(r -> {
+                    assertSame(response, r);
+                    assertTrue(captured.get());
+                }, e -> fail(e.toString())),
+                    new SearchCaptureContextBuilder(
+                        new Task(1, "test", "search", "", TaskId.EMPTY_TASK_ID, Map.of()),
+                        new NamedWriteableRegistry(List.of()),
+                        new SearchRequest()
+                    ),
+                    listener -> listener.onResponse(response)
+                );
+                assertTrue(captured.get());
+                assertCounters(0, 0, 0, 0);
+            } finally {
+                assertTrue(response.decRef());
+            }
+        }
+    }
+
+    private QueryCaptureService createService(TestThreadPool pool) {
+        return new QueryCaptureService(pool, meterRegistry, new QuerySinkRegistry(List.of()), true);
     }
 
     private void assertCounters(long submitted, long completed, long failures, long dropped) {

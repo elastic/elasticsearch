@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.action;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -24,6 +26,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -120,20 +123,20 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
 
         String query = "FROM index-analyze-only | LIMIT 1";
         try (var ignored = run(PreparedEsqlQueryRequest.analyzeOnly(parser.parse(query, new QueryParams(), inferenceSettings), query))) {
-            assertNull(appender.getLastEventAndReset());
+            assertNull(captureEvent());
         }
         String failing = "FROM index-analyze-only | KEEP missing";
         expectThrows(
             VerificationException.class,
             () -> run(PreparedEsqlQueryRequest.analyzeOnly(parser.parse(failing, new QueryParams(), inferenceSettings), failing))
         );
-        assertNull(appender.getLastEventAndReset());
+        assertNull(captureEvent());
     }
 
     public void testLoggingParseFailure() {
         String query = SET_SETTINGS + "FROM";
         expectThrows(ParsingException.class, () -> run(query));
-        var message = getMessageData(appender.getLastEventAndReset());
+        var message = getMessageData(captureEvent());
         assertMessageFailure(message, EsqlCaptureContext.TYPE, query, ParsingException.class, null);
         assertThat(message.keySet().stream().filter(k -> k.startsWith(EsqlLogProducer.SETTINGS_PREFIX)).toList(), empty());
     }
@@ -155,7 +158,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             new QueryParams(List.of(paramAsConstant(null, "192.168.0.1"), paramAsConstant(null, 1000), paramAsConstant(null, 1000)))
         );
         try (var resp = run(request)) {
-            var event = appender.getLastEventAndReset();
+            var event = captureEvent();
             var message = getMessageData(event);
             assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);
             assertSettingsLogged(message, query);
@@ -178,7 +181,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         EsqlQueryRequest request = syncEsqlQueryRequest(query);
         request.params(new QueryParams(List.of(paramAsConstant("host_name", "192.168.0.1"), paramAsConstant("max_value", 1000))));
         try (var resp = run(request)) {
-            var event = appender.getLastEventAndReset();
+            var event = captureEvent();
             var message = getMessageData(event);
             assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);
             assertSettingsLogged(message, query);
@@ -203,7 +206,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         try {
             String query = SET_SETTINGS + "FROM nullifying_view, plain_view | LIMIT 100";
             try (var resp = run(query)) {
-                var event = appender.getLastEventAndReset();
+                var event = captureEvent();
                 var message = getMessageData(event);
                 assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);
                 assertSettingsLogged(message, query);
@@ -224,13 +227,13 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             }
 
             try (var resp = run("FROM plain_view | LIMIT 100")) {
-                var event = appender.getLastEventAndReset();
+                var event = captureEvent();
                 var viewSettings = (Map<String, Object>) getMessageField(event, EsqlLogProducer.VIEW_SETTINGS_FIELD);
                 assertThat(viewSettings, equalTo(Map.of("plain_view", PLAIN_VIEW_SETTINGS)));
             }
 
             try (var resp = run("FROM logged-view-source | LIMIT 100")) {
-                var event = appender.getLastEventAndReset();
+                var event = captureEvent();
                 assertNull(getMessageField(event, EsqlLogProducer.VIEW_SETTINGS_FIELD));
             }
         } finally {
@@ -271,7 +274,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
 
     private void assertQuery(EsqlQueryRequest request, String query, long hits, QueryBuilder filter, String expectedIndices) {
         try (var resp = run(request)) {
-            var message = getMessageData(appender.getLastEventAndReset());
+            var message = getMessageData(captureEvent());
             // When the request was randomly promoted to a PreparedEsqlQueryRequest the logged
             // query will be the plan representation rather than the original query string.
             var loggedQuery = message.get(QUERY_FIELD_QUERY);
@@ -319,7 +322,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
 
     private void assertFailedQuery(String query, String expectedMessage, Class<? extends Throwable> expectedException) {
         expectThrows(VerificationException.class, () -> run(query));
-        var message = getMessageData(appender.getLastEventAndReset());
+        var message = getMessageData(captureEvent());
         assertMessageFailure(message, EsqlCaptureContext.TYPE, query, expectedException, expectedMessage);
         assertSettingsLogged(message, query);
     }
@@ -362,7 +365,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             assertThat(local.getFailedShards(), greaterThanOrEqualTo(1));
             assertThat(local.getSuccessfulShards(), greaterThanOrEqualTo(1));
         }
-        var event = appender.getLastEventAndReset();
+        var event = captureEvent();
         assertNotNull(event);
         var message = getMessageData(event);
         assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);
@@ -371,6 +374,16 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         assertThat(Integer.valueOf(message.getOrDefault(QUERY_FIELD_SHARDS + "skipped", "0")), equalTo(0));
         assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "failed")), greaterThanOrEqualTo(1));
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo("esql_partial_test"));
+    }
+
+    private LogEvent captureEvent() {
+        // A response may arrive before its capture runs. A FIFO barrier also lets us assert absence of logging.
+        for (var pool : internalCluster().getInstances(ThreadPool.class)) {
+            var barrier = new PlainActionFuture<Void>();
+            pool.executor(ThreadPool.Names.QUERY_CAPTURE).execute(() -> barrier.onResponse(null));
+            barrier.actionGet(TEST_REQUEST_TIMEOUT);
+        }
+        return appender.getLastEventAndReset();
     }
 
     @Override
@@ -409,7 +422,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         StreamQueryTestUtils.CountingStreamSubscriber subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
         StreamQueryTestUtils.executeStreamRequest(client(), source, subscriber);
 
-        var event = appender.getLastEventAndReset();
+        var event = captureEvent();
         var message = getMessageData(event);
         assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);
         assertSettingsLogged(message, query);
@@ -434,7 +447,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         StreamQueryTestUtils.CountingStreamSubscriber subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
         StreamQueryTestUtils.executeStreamRequest(client(), source, subscriber);
 
-        var event = appender.getLastEventAndReset();
+        var event = captureEvent();
         var message = getMessageData(event);
         assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);
         assertSettingsLogged(message, query);
@@ -453,7 +466,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         StreamQueryTestUtils.CountingStreamSubscriber subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
         expectThrows(Exception.class, () -> StreamQueryTestUtils.executeStreamRequest(client(), source, subscriber));
 
-        var event = appender.getLastEventAndReset();
+        var event = captureEvent();
         assertNotNull("expected a query-log failure event", event);
         var message = getMessageData(event);
         assertMessageFailure(message, EsqlCaptureContext.TYPE, query, VerificationException.class, "count(*)");
@@ -469,7 +482,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         StreamQueryTestUtils.CountingStreamSubscriber subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
         StreamQueryTestUtils.executeStreamRequest(client(), source, subscriber);
 
-        var event = appender.getLastEventAndReset();
+        var event = captureEvent();
         assertNotNull("expected a query-log event for the streaming query", event);
         var message = getMessageData(event);
         assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);

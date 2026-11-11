@@ -214,8 +214,8 @@ public class CrossClusterQueryLogUnavailableRemotesIT extends AbstractCrossClust
         }
     }
 
-    private void assertQueryLogged(String expectedQuery) {
-        assertThat("Query should have been logged", appender.lastEvent(), is(notNullValue()));
+    private void assertQueryLogged(String expectedQuery) throws Exception {
+        assertBusy(() -> assertThat("Query should have been logged", appender.lastEvent(), is(notNullValue())));
         var msg = (ESLogMessage) appender.lastMessage();
         assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(expectedQuery));
         assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SUCCESS), is("true"));

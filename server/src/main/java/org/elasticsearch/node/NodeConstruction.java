@@ -84,6 +84,7 @@ import org.elasticsearch.common.logging.DynamicContextDataProvider;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.Log4jWriter;
+import org.elasticsearch.common.logging.activity.QueryCaptureService;
 import org.elasticsearch.common.logging.activity.QuerySinkProvider;
 import org.elasticsearch.common.logging.activity.QuerySinkRegistry;
 import org.elasticsearch.common.network.NetworkModule;
@@ -1497,6 +1498,11 @@ class NodeConstruction {
         );
 
         QuerySinkRegistry querySinkRegistry = new QuerySinkRegistry(pluginsService.loadServiceProviders(QuerySinkProvider.class));
+        QueryCaptureService queryCaptureService = new QueryCaptureService(
+            threadPool,
+            telemetryProvider.getMeterRegistry(),
+            querySinkRegistry
+        );
 
         ReshardingActionHelper reshardingActionHelper = new ReshardingActionHelper(clusterService, projectResolver, threadPool);
 
@@ -1551,6 +1557,7 @@ class NodeConstruction {
             b.bind(ActionLoggingFieldsProvider.class).toInstance(loggingFieldsProvider);
             b.bind(ActivityLogWriterProvider.class).toInstance(logWriterProvider);
             b.bind(QuerySinkRegistry.class).toInstance(querySinkRegistry);
+            b.bind(QueryCaptureService.class).toInstance(queryCaptureService);
             b.bind(DataStreamLifecycleErrorStore.class).toInstance(dlmErrorStore);
             b.bind(ReshardingActionHelper.class).toInstance(reshardingActionHelper);
         });

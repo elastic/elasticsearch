@@ -5574,6 +5574,51 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * A geo_shape field marked for doc-values by a scalar function must not switch a spatial aggregation over the same field
+     * to {@code DOC_VALUES}, since the aggregations only read point doc-values (shapes use the bounds extraction instead).
+     */
+    public void testSpatialAggregationOnShapeMarkedForDocValues() {
+        var testData = airportsCityBoundaries;
+        var query = """
+            FROM airport_city_boundaries
+            | STATS extent = ST_EXTENT_AGG(city_boundary), xmax = MAX(ST_XMAX(city_boundary))
+            """;
+        var plan = physicalPlan(query.replace("airport_city_boundaries", testData.index.name()), testData);
+        var optimized = optimizedPlan(plan, testData.stats);
+        List<SpatialAggregateFunction> aggregates = new ArrayList<>();
+        optimized.forEachDown(AggregateExec.class, agg -> agg.forEachExpressionDown(SpatialExtent.class, aggregates::add));
+        assertThat(aggregates, not(empty()));
+        for (SpatialAggregateFunction aggregate : aggregates) {
+            assertThat(aggregate.fieldExtractPreference(), not(equalTo(FieldExtractPreference.DOC_VALUES)));
+        }
+    }
+
+    /**
+     * A geo_shape field loaded from doc-values is still WKB, so functions that also consume it, like ST_INTERSECTS, must keep
+     * their source evaluators, and not be switched to the point doc-values evaluators.
+     */
+    public void testSpatialRelatesOnShapeLoadedFromDocValues() {
+        var testData = airportsCityBoundaries;
+        var query = """
+            FROM airport_city_boundaries
+            | EVAL boundary_length = ST_NPOINTS(city_boundary)
+            | EVAL hit = ST_INTERSECTS(city_boundary, TO_GEOSHAPE("POLYGON((12 55, 13 55, 13 56, 12 56, 12 55))"))
+            | SORT abbrev
+            | KEEP abbrev, boundary_length, hit
+            """;
+        var plan = physicalPlan(query.replace("airport_city_boundaries", testData.index.name()), testData);
+        var optimized = optimizedPlan(plan, testData.stats);
+        Set<String> docValuesFields = new HashSet<>();
+        optimized.forEachDown(FieldExtractExec.class, extract -> docValuesFields.addAll(Expressions.names(extract.docValuesAttributes())));
+        assertThat(docValuesFields, hasItem("city_boundary"));
+        List<SpatialIntersects> intersects = new ArrayList<>();
+        optimized.forEachDown(EvalExec.class, eval -> eval.forEachExpressionDown(SpatialIntersects.class, intersects::add));
+        assertThat(intersects, hasSize(1));
+        assertThat(intersects.getFirst().leftDocValues(), equalTo(false));
+        assertThat(intersects.getFirst().rightDocValues(), equalTo(false));
+    }
+
+    /**
      * Test that ST_SIMPLIFYPRESERVETOPOLOGY and ST_BUFFER on a geo_shape field are fused into loading its doc values like
      * ST_SIMPLIFY, and that buffers of the same field with different options are loaded as separate fused fields.
      */

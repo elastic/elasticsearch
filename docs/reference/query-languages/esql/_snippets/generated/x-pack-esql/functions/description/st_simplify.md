@@ -2,5 +2,5 @@
 
 ## Description
 
-Simplifies the input geometry by applying the Douglas-Peucker algorithm with a specified tolerance. Vertices that fall within the tolerance distance from the simplified shape are removed. Note that the resulting geometry may be invalid, even if the original input was valid.
+Simplifies the input geometry by applying the Douglas-Peucker algorithm with a specified tolerance. Vertices that fall within the tolerance distance from the simplified shape are removed. Note that the resulting geometry may be invalid, even if the original input was valid. Except for constant geometries, input coordinates are first rounded to the precision of indexed spatial fields, so results do not depend on whether the geometry is loaded from the index or from the document source.
 

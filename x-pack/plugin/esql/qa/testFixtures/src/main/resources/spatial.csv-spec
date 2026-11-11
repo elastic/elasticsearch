@@ -760,6 +760,20 @@ extent:geo_shape
 BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.47659996431321)
 ;
 
+stExtentGeoShapesWithXMax
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+required_capability: st_envelope
+
+FROM airport_city_boundaries
+| WHERE region == "City of New York"
+| STATS extent = ST_EXTENT_AGG(city_boundary), xmax = MAX(ST_XMAX(city_boundary))
+;
+
+extent:geo_shape                                                                    | xmax:double
+BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.47659996431321) | -73.70020005851984
+;
+
 stExtentGeoPoints
 required_capability: st_extent_agg
 required_capability: st_extent_agg_docvalues

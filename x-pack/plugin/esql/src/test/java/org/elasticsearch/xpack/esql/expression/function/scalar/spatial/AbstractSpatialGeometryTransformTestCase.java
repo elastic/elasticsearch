@@ -99,21 +99,9 @@ public abstract class AbstractSpatialGeometryTransformTestCase extends AbstractS
         );
     }
 
-    protected static Iterable<Object[]> buildParameters(
-        String evaluatorPrefix,
-        String paramName,
-        BiFunction<Geometry, Double, Geometry> jtsOp,
-        BiFunction<DataType, DataType, DataType> expectedTypeFunction,
-        double paramMin,
-        double paramMax
-    ) {
-        return buildParameters(evaluatorPrefix, paramName, jtsOp, expectedTypeFunction, paramMin, paramMax, false);
-    }
-
     /**
-     * @param quantizeByCoordinateType when true, the function under test snaps non-literal geometries to the Lucene encoding grid
-     *                                 of their coordinate type (so results match doc-values), using separate geo and cartesian
-     *                                 evaluators, and expected results are computed the same way
+     * The evaluators under test snap input geometries to the Lucene encoding grid of their coordinate type (so results match
+     * doc-values), using separate geo and cartesian evaluators, and expected results are computed the same way.
      */
     protected static Iterable<Object[]> buildParameters(
         String evaluatorPrefix,
@@ -121,8 +109,7 @@ public abstract class AbstractSpatialGeometryTransformTestCase extends AbstractS
         BiFunction<Geometry, Double, Geometry> jtsOp,
         BiFunction<DataType, DataType, DataType> expectedTypeFunction,
         double paramMin,
-        double paramMax,
-        boolean quantizeByCoordinateType
+        double paramMax
     ) {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
         for (DataType spatialType : new DataType[] { GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE }) {
@@ -135,8 +122,7 @@ public abstract class AbstractSpatialGeometryTransformTestCase extends AbstractS
                 jtsOp,
                 expectedTypeFunction,
                 paramMin,
-                paramMax,
-                quantizeByCoordinateType
+                paramMax
             );
         }
         var hardcoded = hardcodedSuppliers();
@@ -151,8 +137,7 @@ public abstract class AbstractSpatialGeometryTransformTestCase extends AbstractS
                 jtsOp,
                 expectedTypeFunction,
                 paramMin,
-                paramMax,
-                quantizeByCoordinateType
+                paramMax
             );
         }
 
@@ -174,17 +159,11 @@ public abstract class AbstractSpatialGeometryTransformTestCase extends AbstractS
         BiFunction<Geometry, Double, Geometry> jtsOp,
         BiFunction<DataType, DataType, DataType> expectedTypeFunction,
         double paramMin,
-        double paramMax,
-        boolean quantizeByCoordinateType
+        double paramMax
     ) {
-        SpatialCoordinateTypes coordinateType = quantizeByCoordinateType
-            ? (DataType.isSpatialGeo(spatialType) ? GEO : CARTESIAN)
-            : UNSPECIFIED;
-        String evaluatorInfix = switch (coordinateType) {
-            case GEO -> "NonFoldableGeoShapeAndFoldable";
-            case CARTESIAN -> "NonFoldableCartesianShapeAndFoldable";
-            case UNSPECIFIED -> "NonFoldableGeometryAndFoldable";
-        };
+        boolean geo = DataType.isSpatialGeo(spatialType);
+        SpatialCoordinateTypes coordinateType = geo ? GEO : CARTESIAN;
+        String evaluatorInfix = geo ? "NonFoldableGeoShapeAndFoldable" : "NonFoldableCartesianShapeAndFoldable";
         for (DataType paramType : new DataType[] { DataType.DOUBLE, DataType.FLOAT, DataType.LONG, DataType.INTEGER }) {
             String testName = spatialType.typeName() + " with " + paramName + "[" + paramType.typeName() + "].";
             suppliers.add(new TestCaseSupplier(testName, List.of(spatialType, paramType), () -> {
@@ -213,6 +192,24 @@ public abstract class AbstractSpatialGeometryTransformTestCase extends AbstractS
                 );
             }));
         }
+    }
+
+    /**
+     * Constant geometries are folded without snapping to the Lucene grid, as they are never loaded from the index,
+     * so the expected result is recomputed from the original coordinates.
+     */
+    @Override
+    public void testFold() {
+        var data = testCase.getData();
+        if (data.size() == 2 && data.get(0).data() instanceof BytesRef wkb && data.get(1).data() instanceof Number parameter) {
+            testCase = new TestCaseSupplier.TestCase(
+                data,
+                testCase.evaluatorToString().toString(),
+                testCase.expectedType(),
+                Matchers.equalTo(valueOf(wkb, parameter.doubleValue(), jtsOperation(), UNSPECIFIED))
+            );
+        }
+        super.testFold();
     }
 
     protected static BytesRef valueOf(

@@ -92,7 +92,10 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                 var changedAggregates = false;
                 for (NamedExpression aggExpr : agg.aggregates()) {
                     if (aggExpr instanceof Alias as && as.child() instanceof SpatialAggregateFunction af) {
-                        if (af.field() instanceof FieldAttribute fieldAttribute && foundAttributes.contains(fieldAttribute)) {
+                        // Shapes can be marked by other functions, but spatial aggregations only read point doc-values
+                        if (af.field() instanceof FieldAttribute fieldAttribute
+                            && DataType.isSpatialPoint(fieldAttribute.dataType())
+                            && foundAttributes.contains(fieldAttribute)) {
                             // We need to both mark the field to load differently and change the spatial function to know to use it
                             changedAggregates = true;
                             orderedAggregates.add(
@@ -297,21 +300,30 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
 
     private BinarySpatialFunction withDocValues(BinarySpatialFunction spatial, Set<FieldAttribute> foundAttributes) {
         // Only update the docValues flags if the field is found in the attributes
-        boolean foundLeft = foundField(spatial.left(), foundAttributes);
-        boolean foundRight = foundField(spatial.right(), foundAttributes);
+        boolean foundLeft = foundPointField(spatial.left(), foundAttributes);
+        boolean foundRight = foundPointField(spatial.right(), foundAttributes);
         return foundLeft || foundRight ? spatial.withDocValues(foundLeft, foundRight) : spatial;
     }
 
     private BinarySpatialGeometryFunction withDocValues(BinarySpatialGeometryFunction spatial, Set<FieldAttribute> foundAttributes) {
-        boolean foundLeft = foundField(spatial.left(), foundAttributes);
-        boolean foundRight = foundField(spatial.right(), foundAttributes);
+        boolean foundLeft = foundPointField(spatial.left(), foundAttributes);
+        boolean foundRight = foundPointField(spatial.right(), foundAttributes);
         return foundLeft || foundRight ? spatial.withDocValues(foundLeft, foundRight) : spatial;
     }
 
     private SpatialDocValuesFunction withDocValues(SpatialDocValuesFunction spatial, Set<FieldAttribute> foundAttributes) {
         // Only update the docValues flags if the field is found in the attributes
-        boolean found = foundField(spatial.spatialField(), foundAttributes);
+        boolean found = foundPointField(spatial.spatialField(), foundAttributes);
         return found ? spatial.withDocValues(found) : spatial;
+    }
+
+    /**
+     * Only point fields change their block type when loaded from doc-values (encoded longs instead of WKB), so only
+     * functions consuming point fields need their doc-values flag set. Shape fields reconstructed from doc-values are
+     * still loaded as WKB, which the functions already read as if loaded from source.
+     */
+    private boolean foundPointField(Expression expression, Set<FieldAttribute> foundAttributes) {
+        return foundField(expression, foundAttributes) && DataType.isSpatialPoint(expression.dataType());
     }
 
     private boolean hasFieldAttribute(BinarySpatialFunction spatial, Set<FieldAttribute> foundAttributes) {

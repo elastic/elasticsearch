@@ -595,11 +595,19 @@ public class SearchContextStats implements SearchStats {
         return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.fieldType;
     }
 
+    /**
+     * Returns true if any shard supports reconstruction, since each shard's block loader falls back to loading from
+     * source when its own doc-values cannot reconstruct the geometry, for example in indices created before the V2
+     * doc-values format.
+     */
     @Override
     public boolean supportsGeometryDocValueReconstruction(FieldName field) {
-        MappedFieldType type = fieldType(field);
-        if (type instanceof AbstractGeometryFieldMapper.AbstractGeometryFieldType<?> geoFieldType) {
-            return geoFieldType.supportsGeometryDocValueReconstruction();
+        for (SearchExecutionContext context : contexts) {
+            if (isExtractableMappedField(context, field.string())
+                && context.getFieldType(field.string()) instanceof AbstractGeometryFieldMapper.AbstractGeometryFieldType<?> geoFieldType
+                && geoFieldType.supportsGeometryDocValueReconstruction()) {
+                return true;
+            }
         }
         return false;
     }

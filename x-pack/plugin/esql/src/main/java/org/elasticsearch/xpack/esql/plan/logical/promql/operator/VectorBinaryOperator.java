@@ -726,8 +726,8 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     }
 
     /**
-     * Prometheus' {@code resultMetric}: the many side's labels, with only the {@code on(...)} labels or without the
-     * {@code ignoring(...)} ones when one-to-one, and with each
+     * Prometheus' {@code resultMetric}: the many side's labels, without the metric name for arithmetic and {@code bool},
+     * with only the {@code on(...)} labels or without the {@code ignoring(...)} ones when one-to-one, and with each
      * {@code group_x} included label written from the one side's. Set operators keep the left series as they are.
      */
     private @Nullable Expression resultLabels(@Nullable Expression many, @Nullable Expression one) {
@@ -735,6 +735,14 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             return many;
         }
         Expression labels = many;
+        if (dropMetricName && labels != null) {
+            labels = new TimeSeriesMetadataFilter(
+                labels.source(),
+                labels,
+                List.of(Literal.keyword(labels.source(), LabelMatcher.NAME)),
+                true
+            );
+        }
         if (match.grouping() == Joining.NONE && labels != null) {
             if (match.filter() == VectorMatch.Filter.ON) {
                 labels = new TimeSeriesMetadataFilter(

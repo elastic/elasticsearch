@@ -9,21 +9,26 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Represents a PromQL function call that performs element-wise transformations on an instant vector.
  * <p>
- * These functions transform each sample in the input instant vector independently, preserving the labels.
- * The result is an instant vector with the same cardinality as the input, containing the transformed values.
- * This corresponds to PromQL syntax:
+ * These functions transform each sample in the input instant vector independently, preserving non-name labels.
+ * Like Prometheus, they drop {@code __name__}. The result is an instant vector with the same cardinality as the
+ * input, containing the transformed values. This corresponds to PromQL syntax:
  * <pre>
  * function_name(instant_vector)
  * </pre>
@@ -34,10 +39,11 @@ import java.util.List;
  * ceil(cpu_usage)
  * sqrt(variance)
  * </pre>
- *
- * These functions operate on the value of each time series without changing the set of series or their labels.
  */
 public final class ValueTransformationFunction extends PromqlFunctionCall {
+
+    private List<Attribute> output;
+
     public ValueTransformationFunction(Source source, LogicalPlan child, PromqlFunctionDefinition definition, List<Expression> parameters) {
         super(source, child, definition, parameters);
     }
@@ -54,7 +60,29 @@ public final class ValueTransformationFunction extends PromqlFunctionCall {
 
     @Override
     public List<Attribute> output() {
-        return child().output();
+        if (output == null) {
+            // Prometheus drops the metric name from value transforms (ceil, abs, ...).
+            output = withoutMetricName(source(), child().output());
+        }
+        return output;
+    }
+
+    @Override
+    public Set<String> excludedLabels() {
+        return PromqlLabels.excludedWith(child(), List.of(LabelMatcher.NAME));
+    }
+
+    /** The child's labels without {@code __name__}, which the tags label leaves out too ({@link #excludedLabels}). */
+    static List<Attribute> withoutMetricName(Source source, List<Attribute> tsIdentity) {
+        var result = new ArrayList<Attribute>(tsIdentity.size());
+        for (Attribute attr : tsIdentity) {
+            if (PromqlLabels.isTagsLabel(attr)) {
+                result.add(UnresolvedPromqlLabelAttribute.newTagsLabel(source));
+            } else if (LabelMatcher.NAME.equals(PromqlLabels.labelName(attr)) == false) {
+                result.add(attr);
+            }
+        }
+        return List.copyOf(result);
     }
 
     @Override
@@ -64,11 +92,18 @@ public final class ValueTransformationFunction extends PromqlFunctionCall {
 
     @Override
     public boolean isIdentityTransparent() {
+        // Drops __name__ but is not a grouping boundary for relabel placement.
         return true;
     }
 
     @Override
     public IntermediateResult translate(TranslationContext context) {
         return translateValueFunction(context);
+    }
+
+    /** Prometheus drops the metric name from value transforms (ceil, abs, ...). */
+    @Override
+    protected Expression labels(Expression input) {
+        return new TimeSeriesMetadataFilter(input.source(), input, List.of(Literal.keyword(input.source(), LabelMatcher.NAME)), true);
     }
 }

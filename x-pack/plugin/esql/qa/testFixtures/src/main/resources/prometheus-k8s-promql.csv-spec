@@ -2367,6 +2367,42 @@ result:double | _timeseries:keyword
 620.0         | "{""__name__"":""network.eth0.rx"",""cluster"":""qa"",""pod"":""two""}"
 ;
 
+// A value transform drops a __name__ stored as a label, as Prometheus does.
+abs_drops_stored_metric_name
+required_capability: promql_command_v0
+required_capability: fix_promql_drop_stored_metric_name
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(abs(last_over_time(network.eth0.rx{cluster="qa"}[5m])))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, _timeseries
+| SORT _timeseries;
+
+result:double | _timeseries:keyword
+818.0         | "{""cluster"":""qa"",""pod"":""one""}"
+529.0         | "{""cluster"":""qa"",""pod"":""three""}"
+620.0         | "{""cluster"":""qa"",""pod"":""two""}"
+;
+
+// A range function other than first_over_time and last_over_time drops a __name__ stored as a label, as Prometheus does.
+rate_drops_stored_metric_name
+required_capability: promql_command_v0
+required_capability: fix_promql_drop_stored_metric_name
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(rate(network.total_bytes_in{cluster="qa"}[10m]))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, _timeseries
+| SORT _timeseries;
+
+result:double      | _timeseries:keyword
+9.714783333333333  | "{""cluster"":""qa"",""pod"":""one""}"
+8.25082129708298   | "{""cluster"":""qa"",""pod"":""three""}"
+11.521589390142022 | "{""cluster"":""qa"",""pod"":""two""}"
+;
+
 // A range function over a selection without samples yields no element rather than a 0 or a 1.
 range_functions_over_no_samples_are_empty
 required_capability: promql_command_v0

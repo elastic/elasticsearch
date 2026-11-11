@@ -2787,6 +2787,12 @@ public class EsqlCapabilities {
         FIX_PROMQL_LABEL_JOIN_EMPTY_REMOVES_LABEL,
 
         /**
+         * PromQL value transforms, range functions other than {@code first_over_time}/{@code last_over_time}, and arithmetic
+         * drop a {@code __name__} stored as a label, as Prometheus does.
+         */
+        FIX_PROMQL_DROP_STORED_METRIC_NAME,
+
+        /**
          * PromQL label matchers that accept the empty string (e.g. {@code {label=""}} or {@code {label!="foo"}})
          * also match time series where the label is absent ({@code NULL}), per PromQL spec.
          */

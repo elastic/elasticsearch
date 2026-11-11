@@ -2480,3 +2480,86 @@ result:double | step:datetime            | _timeseries:keyword
 273.625       | 2024-05-10T00:20:00.000Z | "{""cluster"":""qa""}"
 154.75        | 2024-05-10T00:20:00.000Z | "{""cluster"":""staging"",""region"":""us""}"
 ;
+
+// topk, bottomk and limitk with without(...) partition by every label but the listed ones and the metric name.
+topk_without_partitions_by_the_rest
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_topk
+required_capability: promql_reduction_without
+required_capability: enable_tsmd_data_type
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(topk without (pod) (1, last_over_time(network.eth0.tx[5m])))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, _timeseries
+| SORT _timeseries;
+
+result:double | _timeseries:keyword
+409.0         | "{""__name__"":""network.eth0.tx"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+908.0         | "{""__name__"":""network.eth0.tx"",""cluster"":""qa"",""pod"":""two""}"
+472.0         | "{""__name__"":""network.eth0.tx"",""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+;
+
+bottomk_without_partitions_by_the_rest
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_bottomk
+required_capability: promql_reduction_without
+required_capability: enable_tsmd_data_type
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(bottomk without (pod) (1, last_over_time(network.eth0.tx[5m])))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, _timeseries
+| SORT _timeseries;
+
+result:double | _timeseries:keyword
+298.0         | "{""__name__"":""network.eth0.tx"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+500.0         | "{""__name__"":""network.eth0.tx"",""cluster"":""qa"",""pod"":""three""}"
+346.0         | "{""__name__"":""network.eth0.tx"",""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+;
+
+// Leaving out every label but the metric name leaves one partition.
+topk_without_every_label_is_one_partition
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_topk
+required_capability: promql_reduction_without
+required_capability: enable_tsmd_data_type
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(topk without (cluster, pod, region) (1, last_over_time(network.eth0.rx[5m])))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, _timeseries;
+
+result:double | _timeseries:keyword
+818.0         | "{""__name__"":""network.eth0.rx"",""cluster"":""qa"",""pod"":""one""}"
+;
+
+limitk_without_keeps_k_per_partition
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_limitk
+required_capability: promql_reduction_without
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(count by (cluster) (limitk without (pod) (1, last_over_time(network.eth0.tx[5m]))))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, cluster
+| SORT cluster;
+
+result:double | cluster:keyword
+1.0           | prod
+1.0           | qa
+1.0           | staging
+;
+
+// limit_ratio samples series, not partitions: a ratio of 1 keeps every series whatever the partition.
+limit_ratio_without_keeps_every_series_at_one
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_limit_ratio
+required_capability: promql_reduction_without
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(count by (cluster) (limit_ratio without (pod) (1, last_over_time(network.eth0.tx[5m]))))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, cluster
+| SORT cluster;
+
+result:double | cluster:keyword
+3.0           | prod
+3.0           | qa
+3.0           | staging
+;

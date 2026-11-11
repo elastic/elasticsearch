@@ -110,7 +110,9 @@ public class PromqlPlanLabelPushdownTests extends AbstractPromqlPlanOptimizerTes
             false
         );
         HashJoin join = plan.collect(HashJoin.class).getFirst();
-        assertThat(names(join.leftFields()), equalTo(List.of("step", PackDims.PACKED_FIELD_NAME)));
+        assertThat(join.leftFields(), hasSize(2));
+        assertThat(join.leftFields().getFirst().name(), equalTo("step"));
+        assertThat(join.left().collect(PackDims.class).getFirst().packed(), equalTo(join.leftFields().get(1)));
         assertThat(join.leftFields().stream().filter(key -> key.dataType() == DataType.TIME_SERIES_METADATA_DATA_TYPE).toList(), empty());
     }
 

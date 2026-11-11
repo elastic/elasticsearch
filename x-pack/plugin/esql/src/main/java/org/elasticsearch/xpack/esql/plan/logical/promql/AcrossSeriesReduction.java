@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -36,8 +35,10 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -125,14 +126,10 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
      * Translates an {@link AcrossSeriesReduction} ({@code topk}/{@code bottomk}/{@code limitk}/{@code limit_ratio}):
      * collapses the child to one row per series, then keeps rows within each step and partition: ranked by value
      * for the order-statistic functions, or an approximate ratio for {@code limit_ratio}.
-     * A {@code by} clause only partitions the reduction; it does not change the output schema.
+     * A {@code by} or {@code without} clause only partitions the reduction; it does not change the output schema.
      */
     @Override
     public IntermediateResult translate(TranslationContext context) {
-        if (grouping() == WITHOUT) {
-            throw new VerificationException("function [{}] is not yet supported with [{}]", functionName(), WITHOUT.name());
-        }
-
         // Ranking happens per series (see input()); limit_ratio is membership-neutral, so outer partitions are
         // neither required from the child nor materialized below.
         List<String> partitions = PromqlLabels.labelNames(groupings());
@@ -191,20 +188,33 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
         Expression k = new ToInteger(source(), new Floor(source(), parameters().getFirst()));
         LogicalPlan plan = table.plan();
         var groupings = new ArrayList<Expression>(List.of(table.step()));
-        if (grouping() == AcrossSeriesAggregate.Grouping.BY && partitions.isEmpty() == false && table.labels() != null) {
-            // A partition is the series' partition labels; a label absent from every series is one partition, like Prometheus.
-            Alias partition = new Alias(
-                source(),
-                TemporaryNameGenerator.locallyUniqueTemporaryName("partition"),
-                new TimeSeriesMetadataFilter(
+        Expression partition = table.labels() == null ? null : switch (grouping()) {
+            // The partition labels; a label absent from every series is one partition, like Prometheus.
+            case BY -> partitions.isEmpty()
+                ? null
+                : new TimeSeriesMetadataFilter(
                     table.labels().source(),
                     table.labels(),
                     PromqlLabels.labelLiterals(table.labels().source(), partitions),
                     false
-                )
-            );
-            plan = new Eval(source(), plan, List.of(partition));
-            groupings.add(partition.toAttribute());
+                );
+            // Every label but the listed ones and the metric name, as Prometheus groups a without.
+            case WITHOUT -> {
+                var leftOut = new LinkedHashSet<>(partitions);
+                leftOut.add(LabelMatcher.NAME);
+                yield new TimeSeriesMetadataFilter(
+                    table.labels().source(),
+                    table.labels(),
+                    PromqlLabels.labelLiterals(table.labels().source(), leftOut),
+                    true
+                );
+            }
+            case NONE -> null;
+        };
+        if (partition != null) {
+            Alias alias = new Alias(source(), TemporaryNameGenerator.locallyUniqueTemporaryName("partition"), partition);
+            plan = new Eval(source(), plan, List.of(alias));
+            groupings.add(alias.toAttribute());
         }
         return new TopNBy(source(), plan, order != null ? List.of(order) : List.of(), k, groupings);
     }

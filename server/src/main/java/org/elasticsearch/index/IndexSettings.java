@@ -1141,7 +1141,9 @@ public final class IndexSettings {
         if (TIME_SERIES_BATCH_INDEXING.exists(settings)) {
             return Boolean.toString(TIME_SERIES_BATCH_INDEXING.get(settings));
         }
-        return Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar());
+        // TEMPORARY: enable batch indexing for every index (when the feature flag is on) to shake out bugs in the batch path.
+        // The intended default is IndexSettings.MODE.get(settings).isStrictColumnar().
+        return Boolean.TRUE.toString();
     }, value -> {
         if (value && BatchIndexingEnabled.FEATURE_FLAG.isEnabled() == false) {
             throw new IllegalArgumentException(

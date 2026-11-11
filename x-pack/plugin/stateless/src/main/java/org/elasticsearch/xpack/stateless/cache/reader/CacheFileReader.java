@@ -18,8 +18,8 @@ import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheMetrics.PrefetchResult;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.CachePopulationSource;
+import org.elasticsearch.blobcache.common.BufferFillScope;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.common.ConcurrentBufferFill;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -532,9 +532,9 @@ public class CacheFileReader {
     private void doRead(Object initiator, ByteBuffer b, long position, int length, long endOfInput, String resourceDescription)
         throws Exception {
         // Async callbacks (such as those used by readCacheFile) may run on other threads, and may still be running if this read fails,
-        // so they only write to the buffer through bufferFill. Completing it waits for them and stops any later one, and only then
+        // so they only write to the buffer through fillScope. Completing it waits for them and stops any later one, and only then
         // advances the buffer's position.
-        final ConcurrentBufferFill bufferFill = ConcurrentBufferFill.of(b);
+        final BufferFillScope fillScope = BufferFillScope.of(b);
         try {
             // Compute the range of bytes of the blob to fetch and to write to the cache.
             //
@@ -585,18 +585,18 @@ public class CacheFileReader {
                         rangeToRead.start(),
                         rangeToRead.start() + len
                     );
-                    return SharedBytes.readCacheFile(channel, channelPos, relativePos, len, bufferFill);
+                    return SharedBytes.readCacheFile(channel, channelPos, relativePos, len, fillScope);
                 }, rangeMissingHandler, resourceDescription);
-                bufferFill.complete(bytesRead);
+                fillScope.complete(bytesRead);
             } catch (Exception e) {
                 if (e instanceof AlreadyClosedException || e.getCause() instanceof AlreadyClosedException) {
                     assert bytesRead == 0 : "expecting bytes read to be 0 but got: " + bytesRead + " for " + cacheFile.getCacheKey();
                     int len = length - bytesRead;
-                    // Some regions may have been copied into the buffer already. Complete the failed attempt's fill, which also makes sure
-                    // that none of its callbacks is, or will be, writing to the buffer, before the read below starts over with a new fill
+                    // Some regions may have been copied into the buffer already. Complete the failed attempt's scope, which also makes sure
+                    // that none of its callbacks is, or will be, writing to the buffer, before the read below starts over with a new scope
                     // and writes all of the same bytes again.
-                    bufferFill.complete(0);
-                    final ConcurrentBufferFill bypassFill = ConcurrentBufferFill.of(b);
+                    fillScope.complete(0);
+                    final BufferFillScope bypassScope = BufferFillScope.of(b);
                     // TODO ideally we would make it async, but it should be safe
                     // since the future is created on the shard read thread pool or GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL.
                     // ObjectStoreCacheBlobReader is completed on the same thread and before actually waiting on the future, and
@@ -608,9 +608,9 @@ public class CacheFileReader {
                         cacheBlobReader.getRangeInputStream(position, len, readFuture.map(in -> {
                             try (in) {
                                 // The listener may run on another thread, and may still be running if the wait below fails, so it writes
-                                // through a slice of the bypassFill rather than to b directly. If the fill is already complete
+                                // through a slice of the bypassScope rather than to b directly. If the scope is already complete
                                 // the wait below has failed and the read has been abandoned, so nobody is waiting for the bytes.
-                                return bypassFill.fillSlice(0, len, 0, dst -> {
+                                return bypassScope.fillSlice(0, len, 0, dst -> {
                                     final int read = Streams.read(in, dst, len);
                                     if (read == -1) {
                                         BlobCacheUtils.throwEOF(position, len);
@@ -620,10 +620,10 @@ public class CacheFileReader {
                             }
                         }));
                         bytesRead += cacheFile.recordWait(len, readFuture);
-                        bypassFill.complete(bytesRead);
+                        bypassScope.complete(bytesRead);
                         blobCacheMetrics.recordBypassRead();
                     } finally {
-                        bypassFill.complete(0);
+                        bypassScope.complete(0);
                     }
                 } else {
                     throw e;
@@ -631,7 +631,7 @@ public class CacheFileReader {
             }
             assert bytesRead == length : bytesRead + " vs " + length;
         } finally {
-            bufferFill.complete(0);
+            fillScope.complete(0);
         }
     }
 

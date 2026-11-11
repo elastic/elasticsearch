@@ -11,8 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.blobcache.common.BufferFillScope;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.common.ConcurrentBufferFill;
 import org.elasticsearch.index.StandardIOBehaviorHint;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
@@ -118,13 +118,13 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
         assert rangeToRead.isSubRangeOf(rangeToWrite) : rangeToRead + " vs " + rangeToWrite;
         assert rangeToRead.length() == b.remaining() : b.remaining() + " vs " + rangeToRead;
 
-        final ConcurrentBufferFill bufferFill = ConcurrentBufferFill.of(b);
+        final BufferFillScope fillScope = BufferFillScope.of(b);
         try {
-            final int bytesRead = populateAndRead(bufferFill, length, position, cacheFile, rangeToWrite).get();
+            final int bytesRead = populateAndRead(fillScope, length, position, cacheFile, rangeToWrite).get();
             assert bytesRead == length : bytesRead + " vs " + length;
-            bufferFill.complete(bytesRead);
+            fillScope.complete(bytesRead);
         } finally {
-            bufferFill.complete(0);
+            fillScope.complete(0);
         }
     }
 

@@ -21,7 +21,7 @@ import java.util.concurrent.Semaphore;
 
 /**
  * Lets several threads fill disjoint slices of a destination {@link ByteBuffer} until the thread that owns the buffer
- * {@linkplain #complete completes} the fill. Used to populate the read buffer of a Lucene read from a cache file whose missing ranges
+ * {@linkplain #complete completes} the scope. Used to populate the read buffer of a Lucene read from a cache file whose missing ranges
  * are fetched, and copied into the buffer, by other threads.
  *
  * <p>Once {@link #complete} returns, no filler is running and none will run, so the owner may reuse or free the buffer. That includes
@@ -32,25 +32,25 @@ import java.util.concurrent.Semaphore;
  * <p>Fillers may only write to their slice, and only during the call. That cannot be checked. Slice bounds are, and with assertions
  * enabled so are overlapping regions and completing with more bytes than were claimed.
  */
-public abstract class ConcurrentBufferFill {
+public abstract class BufferFillScope {
 
     /**
-     * Stands in for any thread other than the one that created the fill, to find out whether the
+     * Stands in for any thread other than the one that created the scope, to find out whether the
      * buffer is confined to that thread. It is never started.
      */
-    private static final Thread ANOTHER_THREAD = new Thread(() -> {}, "concurrent-buffer-fill-another-thread");
+    private static final Thread ANOTHER_THREAD = new Thread(() -> {}, "buffer-fill-scope-another-thread");
 
     private final Semaphore permits = new Semaphore(Integer.MAX_VALUE);
 
     protected ByteBuffer buffer;
 
-    /** The thread that created this fill, which must complete it; {@code null} unless asserting. */
+    /** The thread that created this scope, which must complete it; {@code null} unless asserting. */
     private final Thread owner = Assertions.ENABLED ? Thread.currentThread() : null;
 
     /** Claimed regions as start to end (exclusive); {@code null} unless asserting. */
     private final TreeMap<Integer, Integer> claimedRegions = Assertions.ENABLED ? new TreeMap<>() : null;
 
-    private ConcurrentBufferFill(ByteBuffer buffer) {
+    private BufferFillScope(ByteBuffer buffer) {
         this.buffer = buffer;
     }
 
@@ -58,7 +58,7 @@ public abstract class ConcurrentBufferFill {
      * Must be called on the thread that owns {@code buffer}, which must also call {@link #complete}; that
      * is checked when assertions are enabled. Fills the bytes between the buffer's position and its limit.
      */
-    public static ConcurrentBufferFill of(ByteBuffer buffer) {
+    public static BufferFillScope of(ByteBuffer buffer) {
         // Only the memory of a confined arena needs the address: a buffer of any other kind, whether it is on the heap, direct, read-only
         // or of a shared or automatic arena, can be sliced by any thread, and slicing it keeps the JDK's thread and liveness checks.
         if (buffer.isDirect() && buffer.isReadOnly() == false) {
@@ -76,7 +76,7 @@ public abstract class ConcurrentBufferFill {
      * Runs {@code filler} with a slice of the buffer to write to, holding off {@link #complete} meanwhile. The filler must not retain the
      * slice. The region must not overlap one claimed by an earlier call, which is checked when assertions are enabled.
      *
-     * @param position start of the slice, relative to the buffer's position when this fill was created
+     * @param position start of the slice, relative to the buffer's position when this scope was created
      * @param length slice length
      * @param valueIfComplete returned, without running the filler, if {@link #complete} was already called; the read has been abandoned
      *                        by then, so for a filler that returns a byte count this should make callers treat it as done
@@ -101,8 +101,8 @@ public abstract class ConcurrentBufferFill {
     abstract ByteBuffer newSlice(int position, int length);
 
     /**
-     * Ends the fill: waits, uninterruptibly, for fillers in progress, then advances the buffer's position. Later calls have no effect.
-     * Must be called on the thread that created the fill, so that the owner cannot free or reuse the buffer before this returns.
+     * Ends the scope: waits, uninterruptibly, for fillers in progress, then advances the buffer's position. Later calls have no effect.
+     * Must be called on the thread that created the scope, so that the owner cannot free or reuse the buffer before this returns.
      *
      * @param bytesFilled bytes to advance the position by, at most the total length of the claimed regions. Zero if nothing was filled or
      *                    the caller accounts for it itself.
@@ -148,7 +148,7 @@ public abstract class ConcurrentBufferFill {
     }
 
     /** A buffer that any thread can slice, which is every kind but the memory of a confined arena. */
-    private static final class Sliced extends ConcurrentBufferFill {
+    private static final class Sliced extends BufferFillScope {
         private final int start;
 
         Sliced(ByteBuffer buffer) {
@@ -166,7 +166,7 @@ public abstract class ConcurrentBufferFill {
      * The native memory of a confined arena, which other threads cannot reach through the buffer. Slices are short-lived views of the
      * memory that are not bound to the arena, created per call.
      */
-    private static final class Unscoped extends ConcurrentBufferFill {
+    private static final class Unscoped extends BufferFillScope {
         private final long address;
         private final int capacity;
 

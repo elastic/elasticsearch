@@ -9,5 +9,5 @@
 @ignoreMissingClasses
 
 # A caller must be able to show that the buffer cannot be used once the memory is freed, so that is reviewed and suppressed per use with
-# @SuppressForbidden, naming what enforces it. ConcurrentBufferFill is the model.
-org.elasticsearch.nativeaccess.SegmentBuffers#unscopedByteBuffer(long, int) @ Unsafe: the buffer is not bound to its arena, so it can be used after the memory is freed. Use MemorySegment#asByteBuffer, or see ConcurrentBufferFill
+# @SuppressForbidden, naming what enforces it. BufferFillScope is the model.
+org.elasticsearch.nativeaccess.SegmentBuffers#unscopedByteBuffer(long, int) @ Unsafe: the buffer is not bound to its arena, so it can be used after the memory is freed. Use MemorySegment#asByteBuffer, or see BufferFillScope

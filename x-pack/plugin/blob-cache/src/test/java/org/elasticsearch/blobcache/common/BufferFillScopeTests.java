@@ -36,25 +36,25 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ConcurrentBufferFillTests extends ESTestCase {
+public class BufferFillScopeTests extends ESTestCase {
 
     private static final int COMPLETE = -1;
 
     public void testHeapBuffer() {
         final byte[] data = randomByteArrayOfLength(randomIntBetween(1, 1024));
         final ByteBuffer buffer = ByteBuffer.allocate(data.length + randomIntBetween(0, 16));
-        final ConcurrentBufferFill fill = ConcurrentBufferFill.of(buffer);
+        final BufferFillScope scope = BufferFillScope.of(buffer);
 
-        final int written = fill.fillSlice(0, data.length, COMPLETE, slice -> {
+        final int written = scope.fillSlice(0, data.length, COMPLETE, slice -> {
             slice.put(data);
             return data.length;
         });
         assertThat(written, equalTo(data.length));
-        fill.complete(written);
+        scope.complete(written);
 
         assertThat(buffer.position(), equalTo(data.length));
         assertArrayEquals(data, Arrays.copyOf(buffer.array(), data.length));
-        assertComplete(fill);
+        assertComplete(scope);
     }
 
     // A direct buffer that is not backed by a segment is filled by other threads
@@ -65,18 +65,18 @@ public class ConcurrentBufferFillTests extends ESTestCase {
         final int offset = randomIntBetween(0, 16);
         final ByteBuffer buffer = ByteBuffer.allocateDirect(offset + data.length + randomIntBetween(0, 16));
         buffer.position(offset);
-        final ConcurrentBufferFill fill = ConcurrentBufferFill.of(buffer);
+        final BufferFillScope scope = BufferFillScope.of(buffer);
 
-        writeOnOtherThread(fill, 0, data, 0, prefix);
-        writeOnOtherThread(fill, prefix, data, prefix, data.length - prefix);
-        fill.complete(data.length);
+        writeOnOtherThread(scope, 0, data, 0, prefix);
+        writeOnOtherThread(scope, prefix, data, prefix, data.length - prefix);
+        scope.complete(data.length);
 
         assertThat(buffer.position(), equalTo(offset + data.length));
         final byte[] actual = new byte[data.length];
         buffer.get(offset, actual);
         assertArrayEquals(data, actual);
-        assertComplete(fill);
-        onOtherThread(() -> assertComplete(fill));
+        assertComplete(scope);
+        onOtherThread(() -> assertComplete(scope));
     }
 
     // The scratch buffer of a confined arena is filled by another thread, as a cache read
@@ -85,30 +85,30 @@ public class ConcurrentBufferFillTests extends ESTestCase {
     public void testConfinedArenaFilledByOtherThread() throws Exception {
         final byte[] data = randomByteArrayOfLength(randomIntBetween(2, 4096));
         final int prefix = randomIntBetween(0, data.length - 1);
-        final ConcurrentBufferFill fill;
+        final BufferFillScope scope;
         try (Arena arena = Arena.ofConfined()) {
             final MemorySegment scratch = arena.allocate(data.length);
             final ByteBuffer buffer = scratch.asByteBuffer();
-            fill = ConcurrentBufferFill.of(buffer);
+            scope = BufferFillScope.of(buffer);
 
             // two writers, each with its own slice, as the cache does when a read spans regions
-            writeOnOtherThread(fill, 0, data, 0, prefix);
-            writeOnOtherThread(fill, prefix, data, prefix, data.length - prefix);
-            fill.complete(data.length);
+            writeOnOtherThread(scope, 0, data, 0, prefix);
+            writeOnOtherThread(scope, prefix, data, prefix, data.length - prefix);
+            scope.complete(data.length);
             assertThat(buffer.position(), equalTo(data.length));
             for (int i = 0; i < data.length; i++) {
                 assertThat("byte mismatch at " + i, scratch.get(ValueLayout.JAVA_BYTE, i), equalTo(data[i]));
             }
             // after the defined point nothing can be done with the buffer, so nothing can reach the memory that is about to be freed
-            assertComplete(fill);
-            onOtherThread(() -> assertComplete(fill));
+            assertComplete(scope);
+            onOtherThread(() -> assertComplete(scope));
         }
         // and still nothing once the arena is closed
-        assertComplete(fill);
-        onOtherThread(() -> assertComplete(fill));
+        assertComplete(scope);
+        onOtherThread(() -> assertComplete(scope));
     }
 
-    // {@link ConcurrentBufferFill#complete} does not return while a filler is running,
+    // {@link BufferFillScope#complete} does not return while a filler is running,
     // so the owner cannot free memory in use.
     public void testCompleteWaitsForFillerInUse() throws Exception {
         final byte[] data = randomByteArrayOfLength(randomIntBetween(1, 1024));
@@ -116,12 +116,12 @@ public class ConcurrentBufferFillTests extends ESTestCase {
         final CountDownLatch inAction = new CountDownLatch(1);
         try (Arena arena = Arena.ofConfined()) {
             final MemorySegment scratch = arena.allocate(data.length);
-            final ConcurrentBufferFill fill = ConcurrentBufferFill.of(scratch.asByteBuffer());
+            final BufferFillScope scope = BufferFillScope.of(scratch.asByteBuffer());
             final AtomicReference<Throwable> writerFailure = new AtomicReference<>();
 
             final Thread writer = new Thread(() -> {
                 try {
-                    fill.fillSlice(0, data.length, COMPLETE, slice -> {
+                    scope.fillSlice(0, data.length, COMPLETE, slice -> {
                         inAction.countDown();
                         // only write once the owner is blocked in complete, which must therefore be waiting for this action
                         assertBusy(
@@ -138,7 +138,7 @@ public class ConcurrentBufferFillTests extends ESTestCase {
             safeAwait(inAction);
 
             // as when a read failed or was abandoned, which is when a slice can still be in use: no bytes are accounted for
-            fill.complete(0);
+            scope.complete(0);
 
             // complete returned, so the write is complete and visible
             assertThat(writerFailure.get(), nullValue());
@@ -154,26 +154,26 @@ public class ConcurrentBufferFillTests extends ESTestCase {
         for (boolean direct : new boolean[] { false, true }) {
             try (Arena arena = Arena.ofConfined()) {
                 final ByteBuffer buffer = direct ? arena.allocate(size).asByteBuffer() : ByteBuffer.allocate(size);
-                final ConcurrentBufferFill fill = ConcurrentBufferFill.of(buffer);
+                final BufferFillScope scope = BufferFillScope.of(buffer);
                 final AtomicBoolean ran = new AtomicBoolean();
-                expectThrows(IndexOutOfBoundsException.class, () -> fill.fillSlice(randomIntBetween(1, size), size, COMPLETE, slice -> {
+                expectThrows(IndexOutOfBoundsException.class, () -> scope.fillSlice(randomIntBetween(1, size), size, COMPLETE, slice -> {
                     ran.set(true);
                     return 0;
                 }));
-                expectThrows(IndexOutOfBoundsException.class, () -> fill.fillSlice(-1, 1, COMPLETE, slice -> {
+                expectThrows(IndexOutOfBoundsException.class, () -> scope.fillSlice(-1, 1, COMPLETE, slice -> {
                     ran.set(true);
                     return 0;
                 }));
                 assertFalse("the filler must not run for a slice that is out of bounds", ran.get());
                 // a leaked permit would make this block forever
-                fill.complete(0);
-                assertComplete(fill);
+                scope.complete(0);
+                assertComplete(scope);
             }
         }
     }
 
     /**
-     * Fillers racing with {@link ConcurrentBufferFill#complete} either run to completion before it returns, and are then visible to the
+     * Fillers racing with {@link BufferFillScope#complete} either run to completion before it returns, and are then visible to the
      * owner, or do not run at all. The arena is closed as soon as {@code complete} returns, and the fillers are only joined afterwards, so
      * a filler that wrote after that point would be writing to freed memory.
      */
@@ -190,13 +190,13 @@ public class ConcurrentBufferFillTests extends ESTestCase {
             final byte[] filled = new byte[fillers * chunk];
             try (Arena arena = Arena.ofConfined()) {
                 final MemorySegment scratch = arena.allocate(fillers * chunk);
-                final ConcurrentBufferFill fill = ConcurrentBufferFill.of(scratch.asByteBuffer());
+                final BufferFillScope scope = BufferFillScope.of(scratch.asByteBuffer());
                 for (int i = 0; i < fillers; i++) {
                     final int index = i;
                     threads[i] = new Thread(() -> {
                         try {
                             start.await();
-                            fill.fillSlice(index * chunk, chunk, COMPLETE, slice -> {
+                            scope.fillSlice(index * chunk, chunk, COMPLETE, slice -> {
                                 running.incrementAndGet();
                                 // never runs once complete has returned, which sets this before the arena is closed
                                 assertFalse("a filler started after complete returned", completed.get());
@@ -218,7 +218,7 @@ public class ConcurrentBufferFillTests extends ESTestCase {
                     Thread.onSpinWait();
                 }
 
-                fill.complete(0);
+                scope.complete(0);
                 assertThat("no filler may be running once complete returned", running.get(), equalTo(0));
                 completed.set(true);
                 // the fillers that ran are visible, and the ones that did not left their region alone
@@ -239,35 +239,35 @@ public class ConcurrentBufferFillTests extends ESTestCase {
 
     public void testOverlappingRegionsAreRejected() throws Exception {
         assumeTrue("the check needs assertions enabled", Assertions.ENABLED);
-        final ConcurrentBufferFill fill = ConcurrentBufferFill.of(ByteBuffer.allocate(16));
-        fillWith(fill, 4, 4);
+        final BufferFillScope scope = BufferFillScope.of(ByteBuffer.allocate(16));
+        fillWith(scope, 4, 4);
         // adjacent and disjoint regions are fine, and so is an empty one wherever it is
-        fillWith(fill, 0, 4);
-        fillWith(fill, 8, 8);
-        fillWith(fill, 5, 0);
+        fillWith(scope, 0, 4);
+        fillWith(scope, 8, 8);
+        fillWith(scope, 5, 0);
         // overlapping from the left, from the right, within, around, and exactly the same
         for (int[] region : new int[][] { { 2, 3 }, { 7, 2 }, { 5, 2 }, { 3, 6 }, { 4, 4 }, { 0, 16 } }) {
             final AtomicBoolean ran = new AtomicBoolean();
-            expectThrows(AssertionError.class, () -> fill.fillSlice(region[0], region[1], COMPLETE, slice -> {
+            expectThrows(AssertionError.class, () -> scope.fillSlice(region[0], region[1], COMPLETE, slice -> {
                 ran.set(true);
                 return 0;
             }));
             assertFalse("the filler must not run for an overlapping region " + Arrays.toString(region), ran.get());
         }
         // a rejected region does not leak a permit
-        fill.complete(0);
-        assertComplete(fill);
+        scope.complete(0);
+        assertComplete(scope);
     }
 
-    // Starting over with a new fill of the same buffer, as the bypass read does, may fill regions that the first fill did.
+    // Starting over with a new scope of the same buffer, as the bypass read does, may fill regions that the first scope did.
     public void testNewFillAfterCompleteMayRefillSameRegions() throws Exception {
         final ByteBuffer buffer = ByteBuffer.allocate(16);
-        final ConcurrentBufferFill first = ConcurrentBufferFill.of(buffer);
+        final BufferFillScope first = BufferFillScope.of(buffer);
         fillWith(first, 0, 8);
         first.complete(0);
-        final ConcurrentBufferFill second = ConcurrentBufferFill.of(buffer);
+        final BufferFillScope second = BufferFillScope.of(buffer);
         fillWith(second, 0, 16);
-        // the first fill is over, so a late filler of the failed attempt does not write, and does not claim anything from the second
+        // the first scope is over, so a late filler of the failed attempt does not write, and does not claim anything from the second
         assertComplete(first);
         second.complete(16);
         assertThat(buffer.position(), equalTo(16));
@@ -275,53 +275,53 @@ public class ConcurrentBufferFillTests extends ESTestCase {
 
     public void testCompleteRejectsMoreBytesThanClaimed() {
         assumeTrue("the check needs assertions enabled", Assertions.ENABLED);
-        final ConcurrentBufferFill fill = ConcurrentBufferFill.of(ByteBuffer.allocate(16));
-        fillWith(fill, 0, 4);
-        fillWith(fill, 8, 4);
-        expectThrows(AssertionError.class, () -> fill.complete(9));
+        final BufferFillScope scope = BufferFillScope.of(ByteBuffer.allocate(16));
+        fillWith(scope, 0, 4);
+        fillWith(scope, 8, 4);
+        expectThrows(AssertionError.class, () -> scope.complete(9));
     }
 
-    // The owner must not be able to free the buffer while another thread is still completing the fill.
+    // The owner must not be able to free the buffer while another thread is still completing the scope.
     public void testCompleteOnAnotherThreadIsRejected() throws Exception {
         assumeTrue("the check needs assertions enabled", Assertions.ENABLED);
-        final ConcurrentBufferFill fill = ConcurrentBufferFill.of(ByteBuffer.allocate(16));
+        final BufferFillScope scope = BufferFillScope.of(ByteBuffer.allocate(16));
         final AtomicReference<Throwable> failure = new AtomicReference<>();
         onOtherThread(() -> {
             try {
-                fill.complete(0);
+                scope.complete(0);
             } catch (AssertionError e) {
                 failure.set(e);
             }
         });
         assertThat(failure.get(), instanceOf(AssertionError.class));
-        // the rejected call left the fill alone, so the owner can still complete it
-        fill.complete(0);
-        assertComplete(fill);
+        // the rejected call left the scope alone, so the owner can still complete it
+        scope.complete(0);
+        assertComplete(scope);
     }
 
     public void testFailingActionDoesNotLeakPermit() throws Exception {
         try (Arena arena = Arena.ofConfined()) {
-            final ConcurrentBufferFill fill = ConcurrentBufferFill.of(arena.allocate(8).asByteBuffer());
-            expectThrows(IOException.class, () -> fill.fillSlice(0, 8, COMPLETE, slice -> { throw new IOException("simulated"); }));
+            final BufferFillScope scope = BufferFillScope.of(arena.allocate(8).asByteBuffer());
+            expectThrows(IOException.class, () -> scope.fillSlice(0, 8, COMPLETE, slice -> { throw new IOException("simulated"); }));
             // a leaked permit would make this block forever
-            fill.complete(0);
-            assertComplete(fill);
+            scope.complete(0);
+            assertComplete(scope);
         }
     }
 
     /** Interrupting the owner must not let it stop waiting for fillers in use and go on to free the memory. */
     public void testCompleteIgnoresInterrupt() throws Exception {
         try (Arena arena = Arena.ofConfined()) {
-            final ConcurrentBufferFill fill = ConcurrentBufferFill.of(arena.allocate(8).asByteBuffer());
+            final BufferFillScope scope = BufferFillScope.of(arena.allocate(8).asByteBuffer());
             Thread.currentThread().interrupt();
             try {
-                fill.complete(0);
+                scope.complete(0);
                 assertTrue("interrupt status is preserved", Thread.currentThread().isInterrupted());
             } finally {
                 // clear the status so that it does not leak to other tests
                 Thread.interrupted();
             }
-            assertComplete(fill);
+            assertComplete(scope);
         }
     }
 
@@ -340,7 +340,7 @@ public class ConcurrentBufferFillTests extends ESTestCase {
         }
     }
 
-    /** The kinds of buffer that a fill may be given. Only the memory of a confined arena is filled through its address. */
+    /** The kinds of buffer that a scope may be given. Only the memory of a confined arena is filled through its address. */
     private enum BufferKind {
         HEAP,
         HEAP_SLICE,
@@ -389,23 +389,23 @@ public class ConcurrentBufferFillTests extends ESTestCase {
             try (Arena confined = Arena.ofConfined(); Arena shared = Arena.ofShared()) {
                 final ByteBuffer buffer = newBuffer(kind, offset + data.length + randomIntBetween(0, 16), confined, shared, dir);
                 buffer.position(offset);
-                final ConcurrentBufferFill fill = ConcurrentBufferFill.of(buffer);
+                final BufferFillScope scope = BufferFillScope.of(buffer);
 
-                writeOnOtherThread(fill, 0, data, 0, prefix);
-                writeOnOtherThread(fill, prefix, data, prefix, data.length - prefix);
-                fill.complete(data.length);
+                writeOnOtherThread(scope, 0, data, 0, prefix);
+                writeOnOtherThread(scope, prefix, data, prefix, data.length - prefix);
+                scope.complete(data.length);
 
                 assertThat(kind.toString(), buffer.position(), equalTo(offset + data.length));
                 final byte[] actual = new byte[data.length];
                 buffer.get(offset, actual);
                 assertArrayEquals(kind.toString(), data, actual);
-                assertComplete(fill);
-                onOtherThread(() -> assertComplete(fill));
+                assertComplete(scope);
+                onOtherThread(() -> assertComplete(scope));
             }
         }
     }
 
-    // A read-only buffer cannot be filled whatever it is backed by, and the failure does not stop the fill from completing.
+    // A read-only buffer cannot be filled whatever it is backed by, and the failure does not stop the scope from completing.
     public void testReadOnlyBuffersCannotBeFilled() {
         try (Arena confined = Arena.ofConfined(); Arena shared = Arena.ofShared()) {
             final ByteBuffer[] buffers = {
@@ -414,37 +414,37 @@ public class ConcurrentBufferFillTests extends ESTestCase {
                 confined.allocate(8).asReadOnly().asByteBuffer(),
                 shared.allocate(8).asReadOnly().asByteBuffer() };
             for (ByteBuffer buffer : buffers) {
-                final ConcurrentBufferFill fill = ConcurrentBufferFill.of(buffer);
-                expectThrows(ReadOnlyBufferException.class, () -> fill.fillSlice(0, 8, COMPLETE, slice -> {
+                final BufferFillScope scope = BufferFillScope.of(buffer);
+                expectThrows(ReadOnlyBufferException.class, () -> scope.fillSlice(0, 8, COMPLETE, slice -> {
                     slice.put((byte) 1);
                     return 1;
                 }));
                 // a leaked permit would make this block forever
-                fill.complete(0);
-                assertComplete(fill);
+                scope.complete(0);
+                assertComplete(scope);
             }
         }
     }
 
-    // Asserts that the fill is complete, so that it no longer lets anything touch
+    // Asserts that the scope is complete, so that it no longer lets anything touch
     // the buffer: the filler is not run and the fallback value is returned.
-    private static void assertComplete(ConcurrentBufferFill fill) {
-        final int result = fill.fillSlice(0, 1, COMPLETE, slice -> {
-            throw new AssertionError("the filler must not run once the fill is complete");
+    private static void assertComplete(BufferFillScope scope) {
+        final int result = scope.fillSlice(0, 1, COMPLETE, slice -> {
+            throw new AssertionError("the filler must not run once the scope is complete");
         });
         assertThat(result, equalTo(COMPLETE));
     }
 
-    private static void fillWith(ConcurrentBufferFill fill, int position, int length) {
-        fill.fillSlice(position, length, COMPLETE, slice -> {
+    private static void fillWith(BufferFillScope scope, int position, int length) {
+        scope.fillSlice(position, length, COMPLETE, slice -> {
             assertThat(slice.remaining(), equalTo(length));
             return length;
         });
     }
 
-    private static void writeOnOtherThread(ConcurrentBufferFill fill, int position, byte[] data, int from, int length) {
+    private static void writeOnOtherThread(BufferFillScope scope, int position, byte[] data, int from, int length) {
         onOtherThread(() -> {
-            final int written = fill.fillSlice(position, length, COMPLETE, slice -> {
+            final int written = scope.fillSlice(position, length, COMPLETE, slice -> {
                 slice.put(data, from, length);
                 return length;
             });

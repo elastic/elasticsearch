@@ -26,7 +26,7 @@ import java.util.List;
 
 /**
  * Sums {@code long} input exactly in a signed 128-bit accumulator and reports the result in the intermediate state of
- * {@link SumDoubleAggregatorFunction}.
+ * {@code SumDoubleAggregatorFunction}, which is generated.
  * <p>
  *     This is the replacement for {@code SUM(TO_DOUBLE(long_field))}, which is what {@code AVG(long_field)} is rewritten to.
  *     That plan converts every {@code long} into a {@code double} in a separate operator and then runs a Kahan summation, whose
@@ -34,7 +34,7 @@ import java.util.List;
  *     avoids the conversion, the extra block, and the dependency chain.
  * </p>
  * <p>
- *     The intermediate state is deliberately identical to {@link SumDoubleAggregatorFunction}'s: nodes that don't know about
+ *     The intermediate state is deliberately identical to {@code SumDoubleAggregatorFunction}'s: nodes that don't know about
  *     this function keep working, because they exchange the same {@code (value, delta, seen)} columns and only the way the
  *     {@code value} is produced differs. The exact 128-bit sum is rounded to a {@code double} once, and the part that doesn't
  *     fit into the {@code double} is reported in {@code delta}, which {@link CompensatedSum} adds back when partial results

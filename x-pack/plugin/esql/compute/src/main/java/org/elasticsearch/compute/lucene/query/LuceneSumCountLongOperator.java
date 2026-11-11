@@ -283,8 +283,16 @@ public final class LuceneSumCountLongOperator extends LuceneOperator {
     @Override
     protected void describe(StringBuilder sb) {
         sb.append(", field = ").append(field.name());
-        sb.append(", docsWithoutIds = ").append(docsWithoutIds);
-        sb.append(", docsWithIds = ").append(docsWithIds);
+    }
+
+    /** The docs read as a range, without a doc id array. Only for the tests, so that the profile output stays stable. */
+    long docsWithoutIds() {
+        return docsWithoutIds;
+    }
+
+    /** The docs read through an array of doc ids. Only for the tests. */
+    long docsWithIds() {
+        return docsWithIds;
     }
 
     /** The docs {@code [start, start + count)}, without an array. */

@@ -13,7 +13,7 @@ import java.util.List;
 
 /**
  * {@link AggregatorFunctionSupplier} for {@link SumLongAsDoubleAggregatorFunction}. Its intermediate state is the one of
- * {@link SumDoubleAggregatorFunctionSupplier}, see {@link SumLongAsDoubleAggregatorFunction} for why.
+ * {@code SumDoubleAggregatorFunctionSupplier}, see {@link SumLongAsDoubleAggregatorFunction} for why.
  */
 public final class SumLongAsDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
     public SumLongAsDoubleAggregatorFunctionSupplier() {}

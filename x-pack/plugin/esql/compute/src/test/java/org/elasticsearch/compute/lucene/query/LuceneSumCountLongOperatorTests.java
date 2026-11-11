@@ -50,8 +50,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -353,15 +351,9 @@ public class LuceneSumCountLongOperatorTests extends ComputeTestCase {
         long docsWithoutIds = 0;
         long docsWithIds = 0;
         for (SourceOperator operator : operators) {
-            docsWithoutIds += stat(operator, "docsWithoutIds");
-            docsWithIds += stat(operator, "docsWithIds");
+            docsWithoutIds += ((LuceneSumCountLongOperator) operator).docsWithoutIds();
+            docsWithIds += ((LuceneSumCountLongOperator) operator).docsWithIds();
         }
         return new Counts(count, docsWithoutIds, docsWithIds);
-    }
-
-    private static long stat(SourceOperator operator, String name) {
-        Matcher matcher = Pattern.compile(name + " = (\\d+)").matcher(operator.toString());
-        assertTrue(operator.toString(), matcher.find());
-        return Long.parseLong(matcher.group(1));
     }
 }

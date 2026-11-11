@@ -2128,6 +2128,8 @@ public class StatelessPlugin extends Plugin
         @Override
         public boolean test(ShardId shardId) {
             IndexShard indexShard = indicesService.getShardOrNull(shardId);
+            assert indexShard == null || indexShard.routingEntry().primary()
+                : "merges only run on stateless indexing shards, which are always primaries: " + indexShard.routingEntry();
             return indexShard == null
                 || indexShard.isActivelyRelocatingPrimary()
                 || indexShard.isRelocatedPrimary()

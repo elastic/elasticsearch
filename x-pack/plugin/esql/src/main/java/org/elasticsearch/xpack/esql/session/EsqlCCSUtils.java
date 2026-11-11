@@ -87,7 +87,8 @@ public class EsqlCCSUtils {
         if (e instanceof NoClustersToSearchException || ExceptionsHelper.isRemoteUnavailableException(e)) {
             for (String clusterAlias : executionInfo.clusterAliases()) {
                 // Check if we have any remotes that can't be skipped on failure.
-                if (executionInfo.shouldSkipOnFailure(clusterAlias) == false) {
+                if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false
+                    && executionInfo.shouldSkipOnFailure(clusterAlias) == false) {
                     return false;
                 }
             }

@@ -39,7 +39,7 @@ public class TimeSeriesMetadataFilterTests extends AbstractScalarFunctionTestCas
     @BeforeClass
     public static void requireTimeSeriesType() {
         // Every case takes a _timeseries container, which release builds can't serialize while it is under construction.
-        assumeTrue("_timeseries is under construction", DataType.TSMD_DATA_TYPE.supportedVersion().supportedLocally());
+        assumeTrue("_timeseries is under construction", DataType.TIME_SERIES_METADATA_DATA_TYPE.supportedVersion().supportedLocally());
     }
 
     @ParametersFactory
@@ -65,16 +65,18 @@ public class TimeSeriesMetadataFilterTests extends AbstractScalarFunctionTestCas
 
     private static TestCaseSupplier keep(String name, String labelContainer, List<String> labels, String expected) {
         List<DataType> types = new ArrayList<>();
-        types.add(DataType.TSMD_DATA_TYPE);
+        types.add(DataType.TIME_SERIES_METADATA_DATA_TYPE);
         labels.forEach(label -> types.add(DataType.KEYWORD));
         return new TestCaseSupplier(name, types, () -> {
             List<TestCaseSupplier.TypedData> data = new ArrayList<>();
-            data.add(new TestCaseSupplier.TypedData(new BytesRef(labelContainer), DataType.TSMD_DATA_TYPE, "labelContainer"));
+            data.add(
+                new TestCaseSupplier.TypedData(new BytesRef(labelContainer), DataType.TIME_SERIES_METADATA_DATA_TYPE, "labelContainer")
+            );
             labels.forEach(label -> data.add(new TestCaseSupplier.TypedData(new BytesRef(label), DataType.KEYWORD, label).forceLiteral()));
             String evaluator = "TimeSeriesMetadataFunctionEvaluator[operation=KEEP, names="
                 + labels
                 + ", labelContainer=Attribute[channel=0]]";
-            return new TestCaseSupplier.TestCase(data, evaluator, DataType.TSMD_DATA_TYPE, equalTo(new BytesRef(expected)));
+            return new TestCaseSupplier.TestCase(data, evaluator, DataType.TIME_SERIES_METADATA_DATA_TYPE, equalTo(new BytesRef(expected)));
         });
     }
 
@@ -91,7 +93,7 @@ public class TimeSeriesMetadataFilterTests extends AbstractScalarFunctionTestCas
 
     /** Label names must be non-empty constant strings, so the evaluator folds them once. */
     public void testLabelsMustBeNonEmptyConstantStrings() {
-        Expression labelContainer = field("labelContainer", DataType.TSMD_DATA_TYPE);
+        Expression labelContainer = field("labelContainer", DataType.TIME_SERIES_METADATA_DATA_TYPE);
         for (Expression label : List.of(
             Literal.integer(Source.EMPTY, 42),
             Literal.keyword(Source.EMPTY, ""),
@@ -135,7 +137,7 @@ public class TimeSeriesMetadataFilterTests extends AbstractScalarFunctionTestCas
     private void remove(Object labelContainer) {
         var transform = new TimeSeriesMetadataFilter(
             Source.EMPTY,
-            field("labelContainer", DataType.TSMD_DATA_TYPE),
+            field("labelContainer", DataType.TIME_SERIES_METADATA_DATA_TYPE),
             List.of(Literal.keyword(Source.EMPTY, "pod")),
             false
         );

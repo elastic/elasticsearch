@@ -22,7 +22,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 /**
- * Internal function that keeps selected dimension names of metadata container {@link DataType#TSMD_DATA_TYPE}, or with
+ * Internal function that keeps selected dimension names of metadata container {@link DataType#TIME_SERIES_METADATA_DATA_TYPE}, or with
  * {@code exclude} removes them. Naming an absent dimension changes nothing.
  */
 public final class TimeSeriesMetadataFilter extends AbstractTimeSeriesMetadataFunction {
@@ -61,7 +61,7 @@ public final class TimeSeriesMetadataFilter extends AbstractTimeSeriesMetadataFu
 
     @Override
     public DataType dataType() {
-        return DataType.TSMD_DATA_TYPE;
+        return DataType.TIME_SERIES_METADATA_DATA_TYPE;
     }
 
     @Override

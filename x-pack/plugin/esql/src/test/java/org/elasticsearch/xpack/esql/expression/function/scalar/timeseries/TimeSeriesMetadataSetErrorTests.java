@@ -39,7 +39,7 @@ public class TimeSeriesMetadataSetErrorTests extends ErrorsForCasesWithoutExampl
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return signature.getFirst() == DataType.TSMD_DATA_TYPE
+        return signature.getFirst() == DataType.TIME_SERIES_METADATA_DATA_TYPE
             ? typeErrorMessage(signature, 2, "string")
             : typeErrorMessage(signature, 0, "_timeseries");
     }

@@ -362,14 +362,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
             }
             String description = p.get("description").toString();
             switch (description) {
-                case "data" -> assertMap(
-                    sig,
-                    matchesList().item("LuceneSourceOperator")
-                        .item("ValuesSourceReaderOperator")
-                        .item("EvalOperator")
-                        .item("AggregationOperator")
-                        .item("ExchangeSinkOperator")
-                );
+                // The AVG of a long is pushed to the fused operator, which reads, sums and counts in one go.
+                case "data" -> assertMap(sig, matchesList().item("LuceneSumCountLongOperator").item("ExchangeSinkOperator"));
                 case "node_reduce" -> assertThat(
                     sig,
                     either(matchesList().item("ExchangeSourceOperator").item("ExchangeSinkOperator")).or(
@@ -1433,7 +1427,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
                 for (Map<String, Object> o : operators) {
                     String name = signature(o);
-                    if (name.equals("LuceneSourceOperator")) {
+                    if (name.equals("LuceneSourceOperator") || name.equals("LuceneSumCountLongOperator")) {
                         MapMatcher status = matchesMap().entry("total_slices", equalTo(1))
                             .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"))
                             .extraOk();
@@ -1460,7 +1454,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
                 for (Map<String, Object> o : operators) {
                     String name = signature(o);
-                    if (name.equals("LuceneSourceOperator")) {
+                    if (name.equals("LuceneSourceOperator") || name.equals("LuceneSumCountLongOperator")) {
                         // AUTO routes to DOC (docs_threshold_auto_partitioning=20 is below this
                         // index's 1000 docs), but the DOC partitioner caps slices at
                         // totalDocs / MIN_DOCS_PER_SLICE (50_000), so this 1000-doc index —
@@ -1533,6 +1527,20 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("slice_max", 0)
                 .entry("slice_min", 0)
                 .entry("current", DocIdSetIterator.NO_MORE_DOCS)
+                .entry("pages_emitted", greaterThan(0))
+                .entry("rows_emitted", greaterThan(0))
+                .entry("process_nanos", greaterThan(0))
+                .entry("processed_queries", List.of("*:*"))
+                .entry("bytes_read", greaterThanOrEqualTo(0))
+                .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"))
+                .extraOk();
+            case "LuceneSumCountLongOperator" -> matchesMap().entry("processed_slices", greaterThan(0))
+                .entry("processed_shards", List.of(testIndexName() + ":0"))
+                .entry("total_slices", greaterThan(0))
+                .entry("slice_index", 0)
+                .entry("slice_max", 0)
+                .entry("slice_min", 0)
+                .entry("current", greaterThanOrEqualTo(0))
                 .entry("pages_emitted", greaterThan(0))
                 .entry("rows_emitted", greaterThan(0))
                 .entry("process_nanos", greaterThan(0))

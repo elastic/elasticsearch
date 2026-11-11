@@ -822,7 +822,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             shardContexts,
             querySupplier(stat.queryBuilderAndTags()),
             context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
-            LuceneOperator.SMALL_INDEX_BOUNDARY,
+            // The same threshold as the source of a plain STATS, which this replaces.
+            context.queryPragmas().docsThresholdForAutoPartitioning(plannerSettings.docsThresholdForAutoPartitioning()),
             context.queryPragmas().taskConcurrency(),
             field,
             directoryBytesRead,

@@ -256,6 +256,10 @@ tests:
   tasks:
   - :qa:multi-cluster-search:v9.4.10#multi-cluster
   issue: https://github.com/elastic/elasticsearch/issues/165287
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  tasks:
+  - :x-pack:qa:core-rest-tests-with-security:yamlRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/165497
 
 # Examples:
 #

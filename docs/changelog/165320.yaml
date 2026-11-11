@@ -1,5 +1,5 @@
-area: Infra/Entitlements
+area: Infra/Core
 issues: []
 pr: 165320
-summary: "Entitlements: delegate checks to caller or creator"
+summary: "Entitlements: delegation API"
 type: enhancement

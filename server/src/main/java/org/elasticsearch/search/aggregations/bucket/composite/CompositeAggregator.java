@@ -298,7 +298,10 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
                 || source.missingBucket
                 || indexSortField.getField().equals(source.fieldType.name()) == false
                 || isMaybeMultivalued(context, indexSortField)
-                || sourceConfig.hasScript()) {
+                || sourceConfig.hasScript()
+                // applySortFieldRounding can only round a SortedNumericSortField; a ColumNAR numeric column's sort isn't one.
+                || (sourceConfig.valuesSource() instanceof RoundingValuesSource
+                    && indexSortField instanceof SortedNumericSortField == false)) {
                 break;
             }
 

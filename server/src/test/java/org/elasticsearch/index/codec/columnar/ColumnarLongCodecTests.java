@@ -35,8 +35,11 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
@@ -59,6 +62,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -322,7 +326,15 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
         assertSameAggregations();
         final SortOrder compositeOrder = randomFrom(SortOrder.values());
         final int pageSize = between(1, 50);
-        assertEquals(compositeBuckets(WITHOUT_CODEC, compositeOrder, pageSize), compositeBuckets(WITH_CODEC, compositeOrder, pageSize));
+        final Supplier<CompositeValuesSourceBuilder<?>> terms = () -> new TermsValuesSourceBuilder("l").field(FIELD).order(compositeOrder);
+        assertEquals(compositeBuckets(WITHOUT_CODEC, terms, pageSize), compositeBuckets(WITH_CODEC, terms, pageSize));
+        // A rounded source can't use a ColumNAR index sort to terminate early. Its pages are checked against a single page of
+        // every bucket rather than the SORTED_NUMERIC index's pages, which can undercount a bucket that spans two pages when
+        // they terminate early on the rounded index sort.
+        final Supplier<CompositeValuesSourceBuilder<?>> rounded = () -> new DateHistogramValuesSourceBuilder("l").field(FIELD)
+            .fixedInterval(new DateHistogramInterval("10ms"))
+            .order(compositeOrder);
+        assertEquals(compositeBuckets(WITHOUT_CODEC, rounded, 10_000), compositeBuckets(WITH_CODEC, rounded, pageSize));
     }
 
     /** Each document's sort key, in doc id order, never goes against the index sort. */
@@ -352,14 +364,13 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
     }
 
     /** All buckets of a composite aggregation over the field, which can use the index sort to terminate early. */
-    private List<Object> compositeBuckets(String index, SortOrder order, int pageSize) {
+    private List<Object> compositeBuckets(String index, Supplier<CompositeValuesSourceBuilder<?>> source, int pageSize) {
         final List<Object> buckets = new ArrayList<>();
         final AtomicReference<Map<String, Object>> after = new AtomicReference<>();
         do {
-            final CompositeAggregationBuilder composite = new CompositeAggregationBuilder(
-                "composite",
-                List.of(new TermsValuesSourceBuilder("l").field(FIELD).order(order))
-            ).size(pageSize);
+            final CompositeAggregationBuilder composite = new CompositeAggregationBuilder("composite", List.of(source.get())).size(
+                pageSize
+            );
             if (after.get() != null) {
                 composite.aggregateAfter(after.get());
             }

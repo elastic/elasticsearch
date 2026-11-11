@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -19,6 +18,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -30,12 +30,15 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSingleValueOrNull;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -43,13 +46,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.local.ImmediateLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
-import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -68,7 +71,7 @@ import static org.hamcrest.Matchers.sameInstance;
  */
 public class SubqueryJoinTests extends ESTestCase {
 
-    private static final int HASH_JOIN_THRESHOLD = PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY);
+    private static final int HASH_JOIN_THRESHOLD = AbstractSubqueryJoin.DEFAULT_FILTER_PATH_MAX_VALUES;
     private static final BlockFactory BLOCK_FACTORY = TestBlockFactory.getNonBreakingInstance();
     private static final String MV_WARNING =
         "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value";
@@ -1007,9 +1010,216 @@ public class SubqueryJoinTests extends ESTestCase {
         Block[] blocks = new Block[] { BlockUtils.constantBlock(TestBlockFactory.getNonBreakingInstance(), 42, 1) };
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(blocks)));
 
-        LogicalPlan newPlan = AbstractSubqueryJoin.newMainPlan(semiJoin, subPlan, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
+        LogicalPlan newPlan = AbstractSubqueryJoin.newMainPlan(
+            semiJoin,
+            subPlan,
+            result,
+            HASH_JOIN_THRESHOLD,
+            relation -> 0,
+            BLOCK_FACTORY,
+            null
+        );
         var filter = as(newPlan, Filter.class);
         assertThat(filter.condition(), instanceOf(In.class));
+    }
+
+    // -- filter path threshold (cost-based choice between the IN filter and the hash join) --
+
+    private static final int MAX_TERMS_COUNT = 65_536;
+
+    /**
+     * A threshold that was set is used as is, whatever the key and the indices look like, so an operator or a query can still pin the
+     * join shape.
+     */
+    public void testFilterPathThresholdUsesConfiguredValue() {
+        FieldAttribute key = getFieldAttribute("session.id", DataType.KEYWORD);
+        SemiJoin semiJoin = semiJoin(key, relationOf(key), getFieldAttribute("session.id", DataType.KEYWORD));
+
+        assertThat(AbstractSubqueryJoin.filterPathThreshold(semiJoin, 0, relation -> MAX_TERMS_COUNT), equalTo(0));
+        assertThat(AbstractSubqueryJoin.filterPathThreshold(semiJoin, 7, relation -> MAX_TERMS_COUNT), equalTo(7));
+        assertThat(AbstractSubqueryJoin.filterPathThreshold(semiJoin, 1_000_000, relation -> MAX_TERMS_COUNT), equalTo(1_000_000));
+    }
+
+    /**
+     * {@code field IN (subquery)} over an indexed field is a {@code terms} query that reads only the matching rows, so the IN list is
+     * kept up to the most terms the indices accept.
+     */
+    public void testFilterPathThresholdSemiJoinOnIndexedFieldUsesMaxTermsCount() {
+        FieldAttribute key = getFieldAttribute("session.id", DataType.KEYWORD);
+        EsRelation relation = relationOf(key);
+        SemiJoin semiJoin = semiJoin(key, relation, getFieldAttribute("session.id", DataType.KEYWORD));
+
+        int threshold = AbstractSubqueryJoin.filterPathThreshold(semiJoin, -1, r -> {
+            assertThat(r, sameInstance(relation));
+            return MAX_TERMS_COUNT;
+        });
+        assertThat(threshold, equalTo(MAX_TERMS_COUNT));
+    }
+
+    /**
+     * A Filter already on the relation is merged with the IN filter, so the IN list still reaches the relation. Two stacked Filters
+     * are not: only the one below the join is merged, and the one under it would keep the IN list from the source.
+     */
+    public void testFilterPathThresholdThroughOneFilterOnIndexedFieldUsesMaxTermsCount() {
+        FieldAttribute key = getFieldAttribute("session.id", DataType.KEYWORD);
+        FieldAttribute rightField = getFieldAttribute("session.id", DataType.KEYWORD);
+        LogicalPlan oneFilter = new Filter(Source.EMPTY, relationOf(key), new IsNotNull(Source.EMPTY, key));
+
+        assertThat(
+            AbstractSubqueryJoin.filterPathThreshold(semiJoin(key, oneFilter, rightField), -1, relation -> MAX_TERMS_COUNT),
+            equalTo(MAX_TERMS_COUNT)
+        );
+        LogicalPlan twoFilters = new Filter(Source.EMPTY, oneFilter, new IsNotNull(Source.EMPTY, key));
+        assertDefaultFilterPathThreshold(semiJoin(key, twoFilters, rightField));
+    }
+
+    /**
+     * The IN filter is merged into a Filter already on the left side instead of stacked on top of it, which is what lets the local
+     * physical planner push the IN list to Lucene beside the conjuncts that are already there.
+     */
+    public void testInlineDataMergesInFilterIntoFilterOnLeftSide() {
+        FieldAttribute key = getFieldAttribute("emp_no", DataType.INTEGER);
+        FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
+        EsRelation relation = relationOf(key);
+        Expression existing = new IsNotNull(Source.EMPTY, key);
+        SemiJoin semiJoin = semiJoin(key, new Filter(Source.EMPTY, relation, existing), rightField);
+
+        Block[] blocks = new Block[] { intBlock(1, 2, 3) };
+        LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(blocks)));
+
+        LogicalPlan inlined = AbstractSubqueryJoin.inlineData(semiJoin, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
+
+        var filter = as(inlined, Filter.class);
+        assertThat(filter.child(), sameInstance(relation));
+        var and = as(filter.condition(), And.class);
+        assertThat(and.left(), equalTo(existing));
+        assertThat(as(and.right(), In.class).list(), hasSize(3));
+    }
+
+    public void testFilterPathThresholdNeverLowersTheDefault() {
+        FieldAttribute key = getFieldAttribute("session.id", DataType.KEYWORD);
+        SemiJoin semiJoin = semiJoin(key, relationOf(key), getFieldAttribute("session.id", DataType.KEYWORD));
+
+        // An index may lower index.max_terms_count, and a relation may not say what its indices accept (0).
+        int small = randomIntBetween(1, HASH_JOIN_THRESHOLD);
+        assertThat(
+            AbstractSubqueryJoin.filterPathThreshold(semiJoin, -1, relation -> small),
+            equalTo(AbstractSubqueryJoin.DEFAULT_FILTER_PATH_MAX_VALUES)
+        );
+        assertThat(
+            AbstractSubqueryJoin.filterPathThreshold(semiJoin, -1, relation -> 0),
+            equalTo(AbstractSubqueryJoin.DEFAULT_FILTER_PATH_MAX_VALUES)
+        );
+    }
+
+    /**
+     * Without an index to answer the list, it is evaluated against every row and the hash join wins above the default limit.
+     */
+    public void testFilterPathThresholdWithoutIndexedSourceKeepsDefault() {
+        FieldAttribute key = getFieldAttribute("session.id", DataType.KEYWORD);
+        FieldAttribute rightField = getFieldAttribute("session.id", DataType.KEYWORD);
+
+        // The key is computed, so there is no index behind it.
+        ReferenceAttribute computed = new ReferenceAttribute(Source.EMPTY, "computed", DataType.KEYWORD);
+        assertDefaultFilterPathThreshold(semiJoin(computed, relationOf(key), rightField));
+
+        // The outer rows come from something other than an index scan.
+        assertDefaultFilterPathThreshold(semiJoin(key, emptyLocalRelation(List.of(key)), rightField));
+        assertDefaultFilterPathThreshold(
+            semiJoin(
+                key,
+                new Eval(
+                    Source.EMPTY,
+                    relationOf(key),
+                    List.of(new Alias(Source.EMPTY, "x", new Literal(Source.EMPTY, 1, DataType.INTEGER)))
+                ),
+                rightField
+            )
+        );
+
+        // A field that is not aggregatable is not known to be indexed with doc values.
+        FieldAttribute notAggregatable = new FieldAttribute(
+            Source.EMPTY,
+            "session.id",
+            new EsField("session.id", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        assertDefaultFilterPathThreshold(semiJoin(notAggregatable, relationOf(notAggregatable), rightField));
+
+        // A text field can only be pushed through an exact sub-field, which is not known here.
+        FieldAttribute text = getFieldAttribute("message", DataType.TEXT);
+        assertDefaultFilterPathThreshold(semiJoin(text, relationOf(text), getFieldAttribute("message", DataType.TEXT)));
+    }
+
+    /**
+     * ANTI keeps the rows the list does not match, so the filter reads nearly every row either way, and MARK adds a column to every
+     * row, so only SEMI is raised.
+     */
+    public void testFilterPathThresholdOnlyRaisedForSemiJoin() {
+        FieldAttribute key = getFieldAttribute("session.id", DataType.KEYWORD);
+        FieldAttribute rightField = getFieldAttribute("session.id", DataType.KEYWORD);
+        EsRelation relation = relationOf(key);
+
+        assertDefaultFilterPathThreshold(
+            new AntiJoin(Source.EMPTY, relation, emptyLocalRelation(List.of(rightField)), List.of(key), List.of(rightField))
+        );
+        assertDefaultFilterPathThreshold(markJoin(key, rightField, relation));
+    }
+
+    /**
+     * End to end through {@link AbstractSubqueryJoin#newMainPlan}: above the default limit, a subquery over an indexed key stays an IN
+     * filter on the relation, and the same one over a key with no index behind it becomes a hash join.
+     */
+    public void testNewMainPlanKeepsInFilterOnIndexedFieldAboveDefaultLimit() {
+        int values = AbstractSubqueryJoin.DEFAULT_FILTER_PATH_MAX_VALUES * 10;
+        FieldAttribute key = getFieldAttribute("session.id", DataType.KEYWORD);
+        FieldAttribute rightField = getFieldAttribute("session.id", DataType.KEYWORD);
+
+        EsRelation relation = relationOf(key);
+        LogicalPlan indexed = newMainPlanForDistinctKeywords(semiJoin(key, relation, rightField), rightField, values, -1, MAX_TERMS_COUNT);
+        var filter = as(indexed, Filter.class);
+        assertThat(as(filter.condition(), In.class).list(), hasSize(values));
+        assertThat(filter.child(), sameInstance(relation));
+
+        // More values than the indices accept: a terms query would be rejected by every shard, so it is a hash join.
+        LogicalPlan tooMany = newMainPlanForDistinctKeywords(semiJoin(key, relation, rightField), rightField, values, -1, values - 1);
+        var join = as(as(as(tooMany, Project.class).child(), Filter.class).child(), Join.class);
+        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
+
+        // The same values with a pinned threshold below them, as a query pragma does, are always a hash join.
+        LogicalPlan pinned = newMainPlanForDistinctKeywords(semiJoin(key, relation, rightField), rightField, values, 0, MAX_TERMS_COUNT);
+        as(as(as(pinned, Project.class).child(), Filter.class).child(), Join.class);
+
+        // No index behind the key: hash join.
+        ReferenceAttribute computed = new ReferenceAttribute(Source.EMPTY, "computed", DataType.KEYWORD);
+        LogicalPlan unindexed = newMainPlanForDistinctKeywords(
+            semiJoin(computed, relation, rightField),
+            rightField,
+            values,
+            -1,
+            MAX_TERMS_COUNT
+        );
+        as(as(as(unindexed, Project.class).child(), Filter.class).child(), Join.class);
+    }
+
+    private static void assertDefaultFilterPathThreshold(AbstractSubqueryJoin join) {
+        assertThat(
+            AbstractSubqueryJoin.filterPathThreshold(join, -1, relation -> MAX_TERMS_COUNT),
+            equalTo(AbstractSubqueryJoin.DEFAULT_FILTER_PATH_MAX_VALUES)
+        );
+    }
+
+    private static LogicalPlan newMainPlanForDistinctKeywords(
+        AbstractSubqueryJoin join,
+        FieldAttribute rightField,
+        int values,
+        int threshold,
+        int maxIndexedValues
+    ) {
+        var subPlan = AbstractSubqueryJoin.firstSubPlan(join, new HashSet<>());
+        assertThat(subPlan, notNullValue());
+        Block[] blocks = new Block[] { distinctKeywordBlock(values) };
+        LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(blocks)));
+        return AbstractSubqueryJoin.newMainPlan(join, subPlan, result, threshold, relation -> maxIndexedValues, BLOCK_FACTORY, null);
     }
 
     // -- helpers --
@@ -1019,6 +1229,10 @@ public class SubqueryJoinTests extends ESTestCase {
     }
 
     private static MarkJoin markJoin(FieldAttribute leftField, FieldAttribute rightField) {
+        return markJoin(leftField, rightField, emptyLocalRelation(List.of(leftField)));
+    }
+
+    private static MarkJoin markJoin(FieldAttribute leftField, FieldAttribute rightField, LogicalPlan left) {
         Attribute markAttribute = new ReferenceAttribute(
             Source.EMPTY,
             null,
@@ -1030,7 +1244,7 @@ public class SubqueryJoinTests extends ESTestCase {
         );
         return new MarkJoin(
             Source.EMPTY,
-            emptyLocalRelation(List.of(leftField)),
+            left,
             emptyLocalRelation(List.of(rightField)),
             List.of(leftField),
             List.of(rightField),
@@ -1096,6 +1310,14 @@ public class SubqueryJoinTests extends ESTestCase {
             List.of(leftField),
             List.of(rightField)
         );
+    }
+
+    private static SemiJoin semiJoin(Attribute leftField, LogicalPlan left, Attribute rightField) {
+        return new SemiJoin(Source.EMPTY, left, emptyLocalRelation(List.of(rightField)), List.of(leftField), List.of(rightField));
+    }
+
+    private static EsRelation relationOf(Attribute... attributes) {
+        return new EsRelation(Source.EMPTY, "idx", IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), List.of(attributes));
     }
 
     private static AntiJoin antiJoin(FieldAttribute leftField, FieldAttribute rightField) {
@@ -1166,6 +1388,15 @@ public class SubqueryJoinTests extends ESTestCase {
         try (IntBlock.Builder builder = TestBlockFactory.getNonBreakingInstance().newIntBlockBuilder(count)) {
             for (int i = 0; i < count; i++) {
                 builder.appendInt(i);
+            }
+            return builder.build();
+        }
+    }
+
+    private static BytesRefBlock distinctKeywordBlock(int count) {
+        try (BytesRefBlock.Builder builder = TestBlockFactory.getNonBreakingInstance().newBytesRefBlockBuilder(count)) {
+            for (int i = 0; i < count; i++) {
+                builder.appendBytesRef(new BytesRef("session-" + i));
             }
             return builder.build();
         }

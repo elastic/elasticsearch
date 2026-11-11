@@ -15,6 +15,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -32,6 +33,7 @@ import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.IndexModeFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -128,6 +130,7 @@ import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -1399,6 +1402,7 @@ public class EsqlSession {
                         semiJoinTuple,
                         resultWrapper,
                         resolveInSubqueryHashJoinThreshold(configuration),
+                        this::maxIndexedInSubqueryValues,
                         blockFactory,
                         localRelationPage
                     );
@@ -1626,11 +1630,37 @@ public class EsqlSession {
     }
 
     /**
-     * Resolves the IN subquery hash join threshold: query pragma overrides the cluster setting.
+     * Resolves the IN subquery hash join threshold: query pragma overrides the cluster setting. A negative result means neither was set,
+     * and {@link AbstractSubqueryJoin#filterPathThreshold} chooses for each join.
      */
     private int resolveInSubqueryHashJoinThreshold(Configuration configuration) {
         int pragmaValue = QueryPragmas.IN_SUBQUERY_HASH_JOIN_THRESHOLD.get(configuration.pragmas().getSettings());
         return pragmaValue >= 0 ? pragmaValue : plannerSettings.inSubqueryHashJoinThreshold();
+    }
+
+    /**
+     * The most values a {@code terms} query may hold on every index {@code relation} reads, the smallest {@code index.max_terms_count}
+     * among them, as the shards fail a longer one. {@code 0} when that is not known: when an index lives on a remote cluster, or this
+     * node holds no metadata for it.
+     */
+    private int maxIndexedInSubqueryValues(EsRelation relation) {
+        if (projectMetadata == null) {
+            return 0;
+        }
+        int max = Integer.MAX_VALUE;
+        for (Map.Entry<String, List<String>> cluster : relation.concreteIndices().entrySet()) {
+            if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(cluster.getKey()) == false) {
+                return 0;
+            }
+            for (String index : cluster.getValue()) {
+                IndexMetadata metadata = projectMetadata.index(index);
+                if (metadata == null) {
+                    return 0;
+                }
+                max = Math.min(max, IndexSettings.MAX_TERMS_COUNT_SETTING.get(metadata.getSettings()));
+            }
+        }
+        return max == Integer.MAX_VALUE ? 0 : max;
     }
 
     private static void releaseLocalRelationBlocks(AtomicReference<Page> localRelationPage) {

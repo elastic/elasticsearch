@@ -21,10 +21,12 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware.Translatable;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -38,7 +40,9 @@ import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.DocPreserving;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -56,6 +60,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.ToIntFunction;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -121,6 +126,13 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
         return config().rightFields().isEmpty() == false && super.expressionsResolved();
     }
 
+    /**
+     * The number of distinct subquery values up to which the result is kept as an IN list when nothing narrows the scan of the outer
+     * source: the list is then evaluated against every row, so a longer one costs more than the hash join. See
+     * {@link #filterPathThreshold}.
+     */
+    public static final int DEFAULT_FILTER_PATH_MAX_VALUES = 100;
+
     // -- Hooks for SEMI / ANTI / MARK variation in the inlineData transformation. --
 
     /**
@@ -155,6 +167,79 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
     }
 
     /**
+     * Whether the filter path leaves the IN list in a {@link Filter}, so that an outer source able to answer the list from an index
+     * reads only the rows the list matches. Only SEMI does. ANTI keeps the rows the list does not match, which is nearly all of
+     * them, and MARK adds a column to every row, so neither reads fewer rows through the filter than through the hash join.
+     */
+    protected boolean filterPathNarrowsSourceScan() {
+        return false;
+    }
+
+    /**
+     * The relation whose index the filter path would query, or {@code null} when the IN list would be evaluated against every row.
+     * <p>
+     * The list is evaluated per row unless the local physical planner pushes it to Lucene as a {@code terms} query. That needs the
+     * filter to sit directly on the relation, which {@link #filterOnLeft} arranges when the left side is the relation or a single
+     * {@link Filter} on it, and the key to be a plain field that every index maps with an index and doc values. The same
+     * {@link LucenePushdownPredicates#DEFAULT} answer the coordinator uses elsewhere decides the latter. This is a prediction, made
+     * without the shards: a field that is not indexed on some shard is read in full there and the list is evaluated against each row.
+     */
+    private EsRelation indexedFilterSource() {
+        if (filterPathNarrowsSourceScan() == false || config().leftFields().size() != 1) {
+            return null;
+        }
+        Attribute leftField = config().leftFields().get(0);
+        if (leftField instanceof FieldAttribute key) {
+            // Only the pushability of an IN over the key is asked, so the list holds a placeholder rather than the values. A NULL
+            // placeholder reports YES_BUT_RECHECK_NEGATED, the same as a list that holds the NULL the subquery returned: the IN is
+            // pushed as it stands and only its negation is rechecked, which does not matter here because only IN narrows the scan.
+            In probe = new In(source(), key, List.of(new Literal(source(), null, key.dataType())));
+            Translatable translatable = probe.translatable(LucenePushdownPredicates.DEFAULT);
+            LogicalPlan below = left() instanceof Filter filter ? filter.child() : left();
+            if ((translatable == Translatable.YES || translatable == Translatable.YES_BUT_RECHECK_NEGATED)
+                && below instanceof EsRelation relation
+                && relation.outputSet().contains(key)) {
+                return relation;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * A {@link Filter} of {@code condition} on the rows of the left side. When the left side is itself a {@link Filter} the two are
+     * merged, as the logical optimizer would have done had it run after the subquery was inlined: the local physical planner only
+     * pushes a filter that sits directly on the source, and it pushes the conjuncts it can and keeps the rest, so a second Filter on
+     * top of the first would keep the IN list from ever reaching Lucene.
+     */
+    private LogicalPlan filterOnLeft(Source source, Expression condition) {
+        if (left() instanceof Filter below) {
+            return new Filter(source, below.child(), Predicates.combineAnd(List.of(below.condition(), condition)));
+        }
+        return new Filter(source, left(), condition);
+    }
+
+    /**
+     * The number of distinct values up to which this join keeps the subquery result as an IN list rather than a hash join.
+     * <p>
+     * A {@code configuredThreshold} of zero or more is a limit someone chose, so it is used as is. A negative one leaves the choice
+     * to the cost of each shape. Evaluated per row, an IN list costs more for every value it holds, and the hash join does not, so
+     * the list stays short: {@link #DEFAULT_FILTER_PATH_MAX_VALUES}. Pushed to an index as a {@code terms} query, the list costs
+     * a lookup per value and the scan reads only the matching rows, where the hash join reads every row, so it can be as long as
+     * the indices accept: {@code maxIndexedValues} gives that limit for the relation, which is {@code 0} when it is not known.
+     *
+     * @param maxIndexedValues the most values a {@code terms} query may hold on every index of a relation
+     */
+    public static int filterPathThreshold(AbstractSubqueryJoin join, int configuredThreshold, ToIntFunction<EsRelation> maxIndexedValues) {
+        if (configuredThreshold >= 0) {
+            return configuredThreshold;
+        }
+        EsRelation source = join.indexedFilterSource();
+        return source == null
+            ? DEFAULT_FILTER_PATH_MAX_VALUES
+            : Math.max(DEFAULT_FILTER_PATH_MAX_VALUES, maxIndexedValues.applyAsInt(source));
+    }
+
+    /**
      * Build the terminal plan for the small-dedup "filter" path. {@code dedupKeys} contains the BlockHash-deduplicated distinct values
      * from the right side and may include a single NULL position at index 0 if any input position was NULL or multi-valued
      * (BlockHash collapses all NULL inputs into its reserved group 0). {@code rightHadNulls} is equivalent to {@code dedupKeys.isNull(0)}
@@ -170,7 +255,7 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
         Source source,
         boolean rightHadNulls
     ) {
-        return new Filter(source, left(), wrapInExpression(source, inListFromDedupKeys(source, leftField, dedupKeys, keyType)));
+        return filterOnLeft(source, wrapInExpression(source, inListFromDedupKeys(source, leftField, dedupKeys, keyType)));
     }
 
     /**
@@ -355,6 +440,8 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
      * or swapped to point at the new dedup page (hash-join path) so the caller's existing cleanup releases the right page at end of plan
      * execution.
      *
+     * @param hashJoinThreshold the number of distinct values up to which the result stays an IN list, never negative. A caller that
+     *                          lets the cost decide resolves it first with {@link #filterPathThreshold}.
      * @param blockFactory CB-tracked factory used to allocate the dedup key column and sentinel
      * @param pageHolder   optional holder that initially references the source page from {@code data.supplier().get()}; updated to
      *                    reference the new dedup page (hash-join path) or cleared (filter / empty path) so the caller's existing cleanup
@@ -1116,17 +1203,25 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
         return new LogicalPlanTuple(subPlan, subPlan);
     }
 
+    /**
+     * @param hashJoinThreshold  the number of values above which a join becomes a hash join, or a negative number to choose per join by
+     *                           {@link #filterPathThreshold}
+     * @param maxIndexedValues   the most values a {@code terms} query may hold on every index of a relation, or {@code 0} when unknown
+     */
     public static LogicalPlan newMainPlan(
         LogicalPlan optimizedPlan,
         LogicalPlanTuple subPlans,
         LocalRelation resultWrapper,
         int hashJoinThreshold,
+        ToIntFunction<EsRelation> maxIndexedValues,
         BlockFactory blockFactory,
         AtomicReference<Page> pageHolder
     ) {
         LogicalPlan newPlan = optimizedPlan.transformUp(
             AbstractSubqueryJoin.class,
-            sj -> sj.right() == subPlans.originalSubPlan() ? inlineData(sj, resultWrapper, hashJoinThreshold, blockFactory, pageHolder) : sj
+            sj -> sj.right() == subPlans.originalSubPlan()
+                ? inlineData(sj, resultWrapper, filterPathThreshold(sj, hashJoinThreshold, maxIndexedValues), blockFactory, pageHolder)
+                : sj
         );
         newPlan.setOptimized();
         return newPlan;

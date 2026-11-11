@@ -51,6 +51,23 @@ public class ValueCardinalityTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(cardinalityOfKey("FROM test | EVAL k = 1 | STATS c = COUNT(*) BY k", "k"), equalTo(SINGLE));
     }
 
+    /**
+     * An expression that is not folded yet is unknown, and asking about it must not evaluate it: evaluating {@code 1 / 0} would add
+     * a warning to the response, which the test framework reports as a failure.
+     */
+    public void testUnfoldedConstantExpressionIsUnknownAndEmitsNoWarning() {
+        assertThat(cardinalityOfKey("FROM test | EVAL k = 1 / 0 | STATS c = COUNT(*) BY k", "k"), equalTo(MAYBE_MULTI));
+        assertThat(cardinalityOfKey("FROM test | EVAL k = 1 + 2 | STATS c = COUNT(*) BY k", "k"), equalTo(MAYBE_MULTI));
+    }
+
+    /**
+     * The optimizer folds constants before the rules that use this class, so a folded constant is a literal and is single-valued.
+     */
+    public void testFoldedConstantIsSingleOnAnOptimizedPlan() {
+        LogicalPlan optimized = optimizedPlan("FROM test | EVAL k = 1 + 2 | STATS c = COUNT(*) BY k");
+        assertThat(cardinalityOfKey(optimized, "k"), equalTo(SINGLE));
+    }
+
     public void testMultivalueReducersAreSingle() {
         for (String reducer : new String[] { "MV_MIN", "MV_MAX", "MV_FIRST", "MV_LAST", "MV_COUNT" }) {
             String query = "FROM test | EVAL k = " + reducer + "(languages) | STATS c = COUNT(*) BY k";

@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -47,7 +47,7 @@ import java.util.List;
  * <p>
  * The proof follows the attribute from {@code plan} down to the node that produced it, and stops at the first of:
  * <ul>
- *   <li>a scalar literal or constant expression;</li>
+ *   <li>a scalar literal;</li>
  *   <li>the output of {@code MV_MIN}, {@code MV_MAX}, {@code MV_FIRST}, {@code MV_LAST} or {@code MV_COUNT}, which reduce any
  *       input to at most one value;</li>
  *   <li>the attribute {@link MvExpand} produces;</li>
@@ -191,8 +191,8 @@ enum ValueCardinality {
         if (depth > MAX_DEPTH) {
             return MAYBE_MULTI;
         }
-        if (isScalarFoldable(expression)) {
-            // A constant folds to null or one value, but a multi-valued literal such as [1, 2] folds to a list.
+        if (isScalarLiteral(expression)) {
+            // A scalar literal, or null, is one value. A multi-valued literal such as [1, 2] holds a list.
             return SINGLE;
         }
         if (expression instanceof Alias alias) {
@@ -271,7 +271,12 @@ enum ValueCardinality {
         return null;
     }
 
-    private static boolean isScalarFoldable(Expression expression) {
-        return expression.foldable() && expression.fold(FoldContext.small()) instanceof Collection<?> == false;
+    /**
+     * Only a {@link Literal} counts, not any foldable expression. Folding an expression evaluates it, which can add warnings to the
+     * response, as {@code 1 / 0} does. The optimizer folds constants before the rules that use this class, so a constant is a literal
+     * by then. An expression that is not folded yet is {@link #MAYBE_MULTI}.
+     */
+    private static boolean isScalarLiteral(Expression expression) {
+        return expression instanceof Literal literal && literal.value() instanceof Collection<?> == false;
     }
 }

@@ -1994,6 +1994,50 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
     }
 
     /**
+     * Every name under a flattened field resolves to a keyed field type, so the companions of a flattened field's mapped sub-field
+     * ({@code f.host._ignore_malformed} and its {@code .counts}) look mapped too. They must still follow the sub-field's FLS decision,
+     * or a role granting the sub-field loses its malformed values from synthetic source.
+     */
+    public void testFlattenedMappedSubFieldCompanionsFollowSubField() throws Exception {
+        IndexVersion indexVersion = IndexVersion.current();
+        Settings mapperSettings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        var indexSettings = createIndexSettings(indexVersion, mapperSettings);
+        var format = IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings);
+
+        MapperService mapperService = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+            b.startObject("f").field("type", "flattened").startObject("properties");
+            b.startObject("host").field("type", "long").field("ignore_malformed", true).endObject();
+            b.endObject().endObject();
+        }));
+        DocumentMapper mapper = mapperService.documentMapper();
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.startObject("f");
+                b.array("host", "aa", "bb");
+                b.endObject();
+            }));
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            iw.addDocuments(doc.docs());
+            iw.close();
+
+            var grant = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "f", "f.host" }, null));
+            try (
+                DirectoryReader indexReader = FieldSubsetReader.wrap(
+                    wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                    grant,
+                    format,
+                    SecurityIndexReaderWrapper.isMapped(mapperService.mappingLookup())
+                )
+            ) {
+                assertEquals("{\"f\":{\"host\":[\"aa\",\"bb\"]}}", syntheticSource(mapper, indexReader, doc.docs().size() - 1));
+            }
+        }
+    }
+
+    /**
      * Every name under a flattened field resolves to a keyed field type, so the flattened field's own companions ({@code f._keyed.counts},
      * {@code f.offsets}) look mapped. They must still follow their parent's FLS decision: a role that grants {@code f} and
      * {@code f._keyed} but not {@code f._keyed.counts} would otherwise hide the counts, and the keyed doc values would be decoded in the

@@ -562,6 +562,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<IndexEngineDynamicSettings> indexEngineDynamicSettings = new SetOnce<>();
     private final SetOnce<ReshardSearchFilters> reshardSearchFilters = new SetOnce<>();
     private final SetOnce<SearchShardInformationIndexListener> searchShardInformationIndexListener = new SetOnce<>();
+    private final SetOnce<StatelessSearchNodeRecoveryListener> searchNodeRecoveryListener = new SetOnce<>();
     private final SetOnce<PITRelocationService> pitRelocationService = new SetOnce<>();
     private final SetOnce<List<StatelessExtensionProvider>> statelessServicesConsumerProviders = new SetOnce<>();
     private final SetOnce<SnapshotsCommitService> snapshotsCommitServiceRef = new SetOnce<>();
@@ -1174,6 +1175,19 @@ public class StatelessPlugin extends Plugin
                     threadPool.relativeTimeInMillisSupplier()
                 )
             );
+            setAndGet(
+                this.searchNodeRecoveryListener,
+                new StatelessSearchNodeRecoveryListener(
+                    objectStoreService,
+                    recoveryCommitRegistrationHandler.get(),
+                    cacheWarmingService,
+                    projectResolver.get(),
+                    bccHeaderReadExecutor.get(),
+                    clusterService,
+                    warmingRatioProviderFactoryRef.get(),
+                    client
+                )
+            );
             final var shuttingDown = setAndGet(isNodeShuttingDown, new AtomicBoolean());
             clusterService.addListener(event -> {
                 if (event.state().metadata().nodeShutdowns().contains(event.state().nodes().getLocalNodeId())) {
@@ -1679,6 +1693,7 @@ public class StatelessPlugin extends Plugin
             );
 
             indexModule.addIndexEventListener(this.searchShardInformationIndexListener.get());
+            indexModule.addIndexEventListener(this.searchNodeRecoveryListener.get());
             indexModule.addIndexEventListener(this.pitRelocationService.get());
 
             final var searchIdxVersion = indexModule.indexSettings().getIndexVersionCreated();
@@ -1696,18 +1711,6 @@ public class StatelessPlugin extends Plugin
                     return in;
                 }
             });
-            indexModule.addIndexEventListener(
-                new StatelessSearchNodeRecoveryListener(
-                    objectStoreService.get(),
-                    recoveryCommitRegistrationHandler.get(),
-                    sharedBlobCacheWarmingService.get(),
-                    projectResolver.get(),
-                    bccHeaderReadExecutor.get(),
-                    clusterService.get(),
-                    warmingRatioProviderFactoryRef.get(),
-                    clientRef.get()
-                )
-            );
         }
         indexModule.addIndexEventListener(recoveryMetricsCollector.get());
     }

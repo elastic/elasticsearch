@@ -424,6 +424,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING);
             res.add(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TOTAL_TIMEOUT_CAP_SETTING);
             res.add(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_IGNORE_NON_SEARCH_NODE_SHUTDOWNS_SETTING);
+            res.add(SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_SOURCE_WARMING_INFO_ENABLED_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_FILTER_SOURCE_SHARDS_BY_TARGET_SETTING);
             res.add(DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING);
@@ -821,6 +822,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
         private HollowShardsService hollowShardsService;
         private ReshardIndexService reshardIndexService;
         private SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService;
+        private StatelessSearchNodeRecoveryListener searchNodeRecoveryListener;
         private WarmingRatioProviderFactory warmingRatioProviderFactory;
 
         public TestStatelessPlugin(Settings settings) {
@@ -980,6 +982,18 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 return List.of(new RemoveRefreshClusterBlockService(settings, clusterService, threadPool));
             }
             warmingRatioProviderFactory = shardId -> mock(WarmingRatioProvider.class);
+            if (hasSearchRole) {
+                searchNodeRecoveryListener = new StatelessSearchNodeRecoveryListener(
+                    objectStoreService,
+                    new RecoveryCommitRegistrationHandler(client, clusterService),
+                    cacheWarmingService,
+                    projectResolver,
+                    bccHeaderReadExecutor,
+                    clusterService,
+                    warmingRatioProviderFactory,
+                    client
+                );
+            }
             return List.of();
         }
 
@@ -1114,18 +1128,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 );
             }
             if (hasSearchRole) {
-                indexModule.addIndexEventListener(
-                    new StatelessSearchNodeRecoveryListener(
-                        objectStoreService,
-                        new RecoveryCommitRegistrationHandler(client, clusterService),
-                        cacheWarmingService,
-                        projectResolver,
-                        bccHeaderReadExecutor,
-                        clusterService,
-                        warmingRatioProviderFactory,
-                        client
-                    )
-                );
+                indexModule.addIndexEventListener(searchNodeRecoveryListener);
             }
         }
 

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154596
+pr: 165612
+summary: Prune field caps by the time range on `@timestamp` in the query
+type: bug

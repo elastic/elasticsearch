@@ -840,7 +840,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
     }
 
     /**
-     * A {@code nullability=false} field that is missing, null, or an array with no non-null value has no value, as on the row path.
+     * A {@code nullability=false} field that is missing, null, or an array with no non-null value has no value, as on the sequential path.
      * Whatever the field's type, {@code FieldMapper.mapColumnBatch} records it in {@code _ignored} for that document only under
      * {@code on_failure=ignore}, keeping the batch columnar, as {@code testRequiredFieldAbsentFromSchemaAppearsInIgnoredOnIgnoreFailure}
      * does for a field no document has.
@@ -849,7 +849,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         assertRequiredFieldWithoutValue(true);
     }
 
-    /** Under {@code on_failure=fail} the same document makes the batch fall back, so that the row path rejects it. */
+    /** Under {@code on_failure=fail} the same document makes the batch fall back, so that the sequential path rejects it. */
     public void testRequiredFieldWithoutValueCausesColumnarFallback() throws IOException {
         assertRequiredFieldWithoutValue(false);
     }

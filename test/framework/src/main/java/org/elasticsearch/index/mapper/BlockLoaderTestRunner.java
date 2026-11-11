@@ -52,6 +52,7 @@ import static org.apache.lucene.tests.util.LuceneTestCase.newDirectory;
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -171,7 +172,7 @@ public class BlockLoaderTestRunner {
                 // In Time series the _id is derived from document
                 params.indexMode() == IndexMode.TIME_SERIES ? null : "1",
                 new BytesSource(BytesReference.bytes(documentXContent), XContentType.JSON, true),
-                params.indexMode() == IndexMode.TIME_SERIES ? TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE : null,
+                params.indexMode() == IndexMode.TIME_SERIES ? TimeSeriesRoutingHashFieldMapper.encode(randomInt()) : null,
                 Map.of(),
                 Map.of(),
                 XContentMeteringParserDecorator.NOOP,

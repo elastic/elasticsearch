@@ -56,7 +56,7 @@ public class APMTelemetryProvider implements TelemetryProvider {
             meterService::getHealthMeterProvider
         );
         httpServerInstrumentation = new HttpServerInstrumentations(
-            List.of(new HttpServerTracing(tracingService.tracer()), new RestRequestMetrics(threadContext, meterService.getMeterRegistry()))
+            List.of(new HttpServerTracing(tracingService), new RestRequestMetrics(threadContext, meterService.getMeterRegistry()))
         );
     }
 
@@ -74,8 +74,8 @@ public class APMTelemetryProvider implements TelemetryProvider {
     }
 
     @Override
-    public Tracer getTracer() {
-        return tracingService.tracer();
+    public Tracer getTracer(String scopeName) {
+        return tracingService.tracer(scopeName);
     }
 
     @Override

@@ -34,17 +34,20 @@ public class APMTracer implements Tracer {
     private final Supplier<OpenTelemetry> openTelemetry;
     private final AtomicBoolean enabled; // instance shared with sampler
     private final AtomicBoolean recordExceptionStacks;
+    private final String scopeName;
 
     public APMTracer(
         ThreadContext threadContext,
         Supplier<OpenTelemetry> openTelemetry,
         AtomicBoolean enabled,
-        AtomicBoolean recordExceptionStacks
+        AtomicBoolean recordExceptionStacks,
+        String scopeName
     ) {
         this.threadContext = threadContext;
         this.openTelemetry = openTelemetry;
         this.enabled = enabled;
         this.recordExceptionStacks = recordExceptionStacks;
+        this.scopeName = scopeName;
     }
 
     @Override
@@ -59,7 +62,7 @@ public class APMTracer implements Tracer {
         if (context == null) {
             return Span.noop();
         }
-        return enabled.get() && isSpanRecording(context) ? new APMSpan(this, context) : new PropagatedSpan(this, context);
+        return isSpanRecording(context) ? new APMSpan(this, context) : new PropagatedSpan(this, context);
     }
 
     ThreadContext threadContext() {
@@ -67,7 +70,7 @@ public class APMTracer implements Tracer {
     }
 
     io.opentelemetry.api.trace.Tracer otelTracer() {
-        return openTelemetry.get().getTracer("elasticsearch", Build.current().version());
+        return openTelemetry.get().getTracer(scopeName, Build.current().version());
     }
 
     OpenTelemetry openTelemetry() {

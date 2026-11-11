@@ -12,6 +12,7 @@ package org.elasticsearch.telemetry.apm.internal;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 
 import org.elasticsearch.common.settings.Settings;
@@ -22,9 +23,12 @@ import org.elasticsearch.test.ESTestCase;
 
 import static io.opentelemetry.api.common.AttributeKey.stringKey;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class APMTracingServiceTests extends ESTestCase {
+
+    private static final String scopeName = "test.scope";
 
     private final InMemorySpanExporter exporter = InMemorySpanExporter.create();
 
@@ -32,7 +36,7 @@ public class APMTracingServiceTests extends ESTestCase {
         try (var service = service(true)) {
             service.start();
 
-            service.tracer()
+            service.tracer(scopeName)
                 .spanBuilder("name1")
                 .setAttribute("password", "hunter2")
                 .setAttribute("not.sensitive", "visible")
@@ -49,7 +53,12 @@ public class APMTracingServiceTests extends ESTestCase {
             service.start();
 
             updater(service, true).update(labelFilters("custom*"));
-            service.tracer().spanBuilder("name1").setAttribute("custom-field", "a").setAttribute("password", "hunter2").startSpan().end();
+            service.tracer(scopeName)
+                .spanBuilder("name1")
+                .setAttribute("custom-field", "a")
+                .setAttribute("password", "hunter2")
+                .startSpan()
+                .end();
 
             assertThat(exportedAttribute("name1", "custom-field"), equalTo("[REDACTED]"));
             assertThat(exportedAttribute("name1", "password"), equalTo("hunter2"));
@@ -63,7 +72,12 @@ public class APMTracingServiceTests extends ESTestCase {
             final var updater = updater(service, false);
             updater.update(labelFilters("custom*"));
             updater.update(enabled(true));
-            service.tracer().spanBuilder("name1").setAttribute("custom-field", "a").setAttribute("password", "hunter2").startSpan().end();
+            service.tracer(scopeName)
+                .spanBuilder("name1")
+                .setAttribute("custom-field", "a")
+                .setAttribute("password", "hunter2")
+                .startSpan()
+                .end();
 
             assertThat(exportedAttribute("name1", "custom-field"), equalTo("[REDACTED]"));
             assertThat(exportedAttribute("name1", "password"), equalTo("hunter2"));
@@ -75,7 +89,7 @@ public class APMTracingServiceTests extends ESTestCase {
             service.start();
             updater(service, false).update(enabled(true));
 
-            service.tracer().spanBuilder("name1").startSpan().end();
+            service.tracer(scopeName).spanBuilder("name1").startSpan().end();
 
             assertThat(exportedAttribute("name1", "es.cluster.name"), equalTo(TracingSettingsUpdater.CLUSTER_NAME));
             assertThat(exportedAttribute("name1", "es.node.name"), equalTo(TracingSettingsUpdater.NODE_NAME));
@@ -86,9 +100,28 @@ public class APMTracingServiceTests extends ESTestCase {
         try (var service = service(false)) {
             service.start();
 
-            service.tracer().spanBuilder("name1").startSpan().end();
-            assertThat(service.tracer().currentSpan(), sameInstance(Span.noop()));
+            service.tracer(scopeName).spanBuilder("name1").startSpan().end();
+            assertThat(service.tracer(scopeName).currentSpan(), sameInstance(Span.noop()));
             assertThat(exporter.getFinishedSpanItems().size(), equalTo(0));
+        }
+    }
+
+    public void testTracerIsCreatedOncePerScope() {
+        try (var service = service(true)) {
+            assertThat(service.tracer("scope.a"), sameInstance(service.tracer("scope.a")));
+            assertThat(service.tracer("scope.a"), not(sameInstance(service.tracer("scope.b"))));
+        }
+    }
+
+    public void testSpansAreExportedWithTheInstrumentationScopeOfTheirTracer() {
+        try (var service = service(true)) {
+            service.start();
+
+            service.tracer("scope.a").spanBuilder("name1").startSpan().end();
+            service.tracer("scope.b").spanBuilder("name2").startSpan().end();
+
+            assertThat(exportedSpan("name1").getInstrumentationScopeInfo().getName(), equalTo("scope.a"));
+            assertThat(exportedSpan("name2").getInstrumentationScopeInfo().getName(), equalTo("scope.b"));
         }
     }
 
@@ -97,6 +130,8 @@ public class APMTracingServiceTests extends ESTestCase {
         final Settings settings = Settings.builder()
             .put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), enabled)
             .put(OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE.getKey(), 1.0)
+            // by default only the root spans are exported
+            .put(OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH.getKey(), 10)
             .build();
         return new APMTracingService(
             new ThreadContext(settings),
@@ -131,13 +166,11 @@ public class APMTracingServiceTests extends ESTestCase {
         return Settings.builder().putList(APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES.getKey(), patterns).build();
     }
 
+    private SpanData exportedSpan(String spanName) {
+        return exporter.getFinishedSpanItems().stream().filter(span -> span.getName().equals(spanName)).findFirst().orElseThrow();
+    }
+
     private String exportedAttribute(String spanName, String key) {
-        return exporter.getFinishedSpanItems()
-            .stream()
-            .filter(span -> span.getName().equals(spanName))
-            .findFirst()
-            .orElseThrow()
-            .getAttributes()
-            .get(stringKey(key));
+        return exportedSpan(spanName).getAttributes().get(stringKey(key));
     }
 }

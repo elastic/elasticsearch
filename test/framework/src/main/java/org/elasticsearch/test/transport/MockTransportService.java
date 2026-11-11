@@ -51,7 +51,6 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TelemetryProvider.NoopTelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestEsExecutors;
@@ -268,7 +267,7 @@ public class MockTransportService extends TransportService {
             interceptor,
             localNodeFactory,
             clusterSettings,
-            MockTaskManager.create(settings, threadPool, taskHeaders, Tracer.noop(), nodeId),
+            MockTaskManager.create(settings, threadPool, taskHeaders, TelemetryProvider.NOOP, nodeId),
             new ClusterSettingsLinkedProjectConfigService(settings, clusterSettings, DefaultProjectResolver.INSTANCE),
             new NoopTelemetryProvider() {
                 final MeterRegistry meterRegistry = new RecordingMeterRegistry();

@@ -29,6 +29,8 @@ import static org.hamcrest.Matchers.is;
 
 public class APMTracerFlushTests extends ESTestCase {
 
+    private static final String scopeName = "test.scope";
+
     /**
      * A {@link TraceSupplier} that records, in order, when {@code attemptFlushTraces()} and {@code close()} are called
      * so tests can assert the shutdown sequence. The flush result is configurable so the same double can model a
@@ -97,7 +99,7 @@ public class APMTracerFlushTests extends ESTestCase {
 
         assertThat(supplier.calls, contains("attemptFlushTraces", "close"));
         // the tracing is shut down, so nothing is recorded anymore
-        assertThat(tracer.tracer().spanBuilder("name").startSpan().isRecording(), is(false));
+        assertThat(tracer.tracer(scopeName).spanBuilder("name").startSpan().isRecording(), is(false));
     }
 
     /**

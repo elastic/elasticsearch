@@ -158,9 +158,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     /**
-     * Wrapping queries must not compound the breaker charge, however deeply they are nested.
+     * Wrapping queries must not compound the breaker charge, however deeply they are wrapped.
      */
-    public void testNestedQueriesChargeBreakerOnce() throws IOException {
+    public void testWrappedQueriesChargeBreakerOnce() throws IOException {
         try (IndexReaderManager irm = getIndexReaderManager()) {
             SearchExecutionContext context = createSearchExecutionContext(irm.getIndexSearcher());
             context.setAllowUnmappedFields(true);
@@ -169,21 +169,24 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             // without inner queries.
             Deque<QueryBuilder> levels = new ArrayDeque<>();
             levels.push(createInnerQuery());
-            try {
-                int depth = randomIntBetween(1, 3);
-                for (int i = 0; i < depth; i++) {
-                    QB wrapper = createQueryWithInnerQuery(levels.peek());
-                    QueryBuilder rewritten = rewriteQuery(wrapper, createQueryRewriteContext(), new SearchExecutionContext(context));
-                    if (rewritten.getClass() != wrapper.getClass()) {
-                        // The rewrite rewrote the wrapper to another query type. We assume that, in the context of these tests, such
-                        // rewrites produce query types without inner or hidden queries. If this assumption is wrong, the test will fail.
-                        // Clear the levels from here and start fresh.
-                        levels.clear();
-                    }
-                    levels.push(rewritten);
+            int depth = randomIntBetween(1, 3);
+            for (int i = 0; i < depth; i++) {
+                QB wrapper;
+                try {
+                    wrapper = createQueryWithInnerQuery(levels.peek());
+                } catch (UnsupportedOperationException e) {
+                    assumeNoException("Runs only for queries that wrap others", e);
+                    return;
                 }
-            } catch (UnsupportedOperationException e) {
-                assumeNoException("Runs only for queries that support nesting", e);
+
+                QueryBuilder rewritten = rewriteQuery(wrapper, createQueryRewriteContext(), new SearchExecutionContext(context));
+                if (rewritten.getClass() != wrapper.getClass()) {
+                    // The rewrite rewrote the wrapper to another query type. We assume that, in the context of these tests, such
+                    // rewrites produce query types without inner or hidden queries. If this assumption is wrong, the test will fail.
+                    // Clear the levels from here and start fresh.
+                    levels.clear();
+                }
+                levels.push(rewritten);
             }
 
             QueryBuilder root = levels.peek();

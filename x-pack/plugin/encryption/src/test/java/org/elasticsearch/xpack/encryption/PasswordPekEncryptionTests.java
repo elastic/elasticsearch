@@ -160,18 +160,4 @@ public class PasswordPekEncryptionTests extends ESTestCase {
         );
         assertFalse(enc.isKeyMissingOnDisk());
     }
-
-    public void testWarnsAgainForSameCauseAfterKeysRemoved() {
-        PasswordPekEncryption enc = new PasswordPekEncryption(() -> Settings.EMPTY);
-        Runnable failedWrite = () -> enc.onGatewayWrite(new ElasticsearchException("cannot wrap PEK for disk: missing"), false);
-        failedWrite.run();
-
-        enc.localKeys().onApplied(null);
-
-        MockLog.assertThatLogger(
-            failedWrite,
-            PasswordPekEncryption.class,
-            new MockLog.SeenEventExpectation("warn after reset", LOGGER, Level.WARN, "cannot wrap PEK for disk: missing*")
-        );
-    }
 }

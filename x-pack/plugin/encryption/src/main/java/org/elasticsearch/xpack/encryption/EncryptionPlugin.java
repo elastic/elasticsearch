@@ -73,8 +73,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
         ProjectEncryptionKeyService pekService = ProjectEncryptionKeyService.create(
             services.clusterService(),
             services.projectResolver(),
-            () -> this.pekSettings,
-            pekEncryption.localKeys()
+            () -> this.pekSettings
         );
         AesGcmEncryptionService encryptionService = new AesGcmEncryptionService(
             pekService,
@@ -102,7 +101,8 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
             services.clusterService(),
             services.projectResolver(),
             pekService,
-            pekEncryption::isKeyMissingOnDisk
+            pekEncryption::isKeyMissingOnDisk,
+            handlerRegistry
         );
 
         this.pekService.set(pekService);
@@ -149,7 +149,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(this.coordinator.get(), this.pekService.get());
+        IOUtils.close(this.coordinator.get());
     }
 
     @Override

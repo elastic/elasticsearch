@@ -6,9 +6,18 @@
  */
 package org.elasticsearch.xpack.encryption;
 
-import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.LocalKeys;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.OnDiskKeys;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.PekEncryption;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.PekEncryption.WrappedKey;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Iterator;
+import java.util.Map;
 
 /** Shared no-op {@link PekEncryption} for use in unit tests. */
 class TestPekEncryption {
@@ -38,8 +47,8 @@ class TestPekEncryption {
         }
     };
 
-    /** Returns {@code delegate} using {@code localKeys}, the way one node's {@link PasswordPekEncryption} owns its {@link LocalKeys}. */
-    static PekEncryption onNode(PekEncryption delegate, LocalKeys localKeys) {
+    /** Returns {@code delegate} using {@code onDiskKeys}, the way one node's {@link PasswordPekEncryption} owns its {@link OnDiskKeys}. */
+    static PekEncryption onNode(PekEncryption delegate, OnDiskKeys onDiskKeys) {
         return new PekEncryption() {
             @Override
             public String activePasswordId() {
@@ -62,10 +71,25 @@ class TestPekEncryption {
             }
 
             @Override
-            public LocalKeys localKeys() {
-                return localKeys;
+            public OnDiskKeys onDiskKeys() {
+                return onDiskKeys;
             }
         };
+    }
+
+    /** Writes {@code metadata} the way a node persists it, which records the wrapped keys in that node's {@link OnDiskKeys}. */
+    static void persist(ProjectEncryptionKeyMetadata metadata) {
+        ToXContent.Params params = new ToXContent.MapParams(Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY));
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            Iterator<? extends ToXContent> chunks = metadata.toXContentChunked(params);
+            while (chunks.hasNext()) {
+                chunks.next().toXContent(builder, params);
+            }
+            builder.endObject();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private TestPekEncryption() {}

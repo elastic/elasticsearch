@@ -34,9 +34,7 @@ final class PasswordPekEncryption implements ProjectEncryptionKeyMetadata.PekEnc
 
     private final Supplier<Settings> settingsSupplier;
     private final AtomicReference<String> lastWrapFailure = new AtomicReference<>();
-    private final ProjectEncryptionKeyMetadata.LocalKeys localKeys = new ProjectEncryptionKeyMetadata.LocalKeys(
-        () -> lastWrapFailure.set(null)
-    );
+    private final ProjectEncryptionKeyMetadata.OnDiskKeys onDiskKeys = new ProjectEncryptionKeyMetadata.OnDiskKeys();
     private volatile boolean keyMissingOnDisk;
 
     PasswordPekEncryption(Supplier<Settings> settingsSupplier) {
@@ -110,8 +108,8 @@ final class PasswordPekEncryption implements ProjectEncryptionKeyMetadata.PekEnc
     }
 
     @Override
-    public ProjectEncryptionKeyMetadata.LocalKeys localKeys() {
-        return localKeys;
+    public ProjectEncryptionKeyMetadata.OnDiskKeys onDiskKeys() {
+        return onDiskKeys;
     }
 
     /** Returns whether this node's last on-disk write of the project encryption key carried no key material. */

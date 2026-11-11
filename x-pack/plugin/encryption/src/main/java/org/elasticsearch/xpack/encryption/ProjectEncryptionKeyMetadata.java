@@ -62,8 +62,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * <p>If a node cannot wrap the keys for its own disk, GATEWAY serialization does not fail, since that would make the node reject every
  * publication. It persists its last written copy of the same keys, or no key material.
  *
- * <p>A node that holds no keys can still be elected master and publish a degraded instance. Nodes whose last healthy copy has the same
- * active key keep using it (see {@link LocalKeys}), and the next master that holds them restores them into cluster state.
+ * <p>A node that holds no keys can still be elected master and publish a degraded instance. Encryption is then unavailable on every node,
+ * but each node keeps its own on-disk copy of the keys (see {@link OnDiskKeys}), and the next master that holds them restores them into
+ * cluster state.
  */
 class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
     static final String TYPE = "primary_encryption_key";
@@ -101,9 +102,9 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         /** Called on GATEWAY serialization, before the on-disk write commits. {@code keysWritten} is false if no key was written. */
         default void onGatewayWrite(@Nullable Exception wrapFailure, boolean keysWritten) {}
 
-        /** Returns this node's {@link LocalKeys}, or {@code null} if this implementation does not track them. */
+        /** Returns this node's {@link OnDiskKeys}, or {@code null} if this implementation does not track them. */
         @Nullable
-        default LocalKeys localKeys() {
+        default OnDiskKeys onDiskKeys() {
             return null;
         }
     }
@@ -160,40 +161,14 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
     private record DiskCopy(String activeKeyId, String passwordId, Map<String, KeyEntry> wrappedKeys, Map<String, String> handlerKeyIds) {}
 
     /**
-     * This node's copies of the keys, kept so a master that published a degraded instance cannot make this node lose them: the wrapped
-     * keys it last wrote to disk, and the last healthy instance it applied. A copy is only used for the same active key. Keys are only
-     * added by a rotation, which changes the active key, so such a copy holds every current key. It may be older than the last committed
-     * instance: it can still hold retired keys, and its handler key ids and password id can be stale.
+     * The wrapped keys this node last read from or wrote to its own disk. A degraded instance writes them back instead of no key material,
+     * so a master that holds no keys cannot erase them from this node's disk, and a master that holds them can restore them. They are only
+     * used for the same active key. Keys are only added by a rotation, which changes the active key, so they include every current key.
+     * They may be older than the last committed instance: they can still hold retired keys, and their handler key ids and password id can
+     * be stale.
      */
-    static final class LocalKeys {
-        private final Runnable onKeysRemoved;
+    static final class OnDiskKeys {
         private volatile DiskCopy diskCopy;
-        private volatile ProjectEncryptionKeyMetadata lastHealthy;
-
-        LocalKeys() {
-            this(() -> {});
-        }
-
-        LocalKeys(Runnable onKeysRemoved) {
-            this.onKeysRemoved = onKeysRemoved;
-        }
-
-        /** Returns the last healthy instance if it has the given active key, otherwise {@code null}. */
-        @Nullable
-        ProjectEncryptionKeyMetadata lastHealthyWithActiveKey(@Nullable String activeKeyId) {
-            ProjectEncryptionKeyMetadata healthy = lastHealthy;
-            return healthy != null && healthy.activeKeyId.equals(activeKeyId) ? healthy : null;
-        }
-
-        void onApplied(@Nullable ProjectEncryptionKeyMetadata metadata) {
-            if (metadata == null) {
-                lastHealthy = null;
-                diskCopy = null;
-                onKeysRemoved.run();
-            } else if (metadata.isUnwrapFailed() == false) {
-                lastHealthy = metadata;
-            }
-        }
     }
 
     ProjectEncryptionKeyMetadata(
@@ -277,7 +252,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
 
     /**
      * Creates a degraded instance that carries the failure reason but no usable key material. Used by {@link #fromXContent} when the
-     * on-disk blob cannot be unwrapped or has no key material. In GATEWAY context it re-emits this node's {@link LocalKeys} disk copy if
+     * on-disk blob cannot be unwrapped or has no key material. In GATEWAY context it re-emits this node's {@link OnDiskKeys} if
      * that has the same active key, so recovery remains possible once the correct password is supplied.
      */
     static ProjectEncryptionKeyMetadata degraded(
@@ -300,6 +275,20 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
      */
     boolean isUnwrapFailed() {
         return unwrapFailureReason != null;
+    }
+
+    /**
+     * Returns a usable instance unwrapped from this node's {@link OnDiskKeys} for the active key of this degraded instance, or
+     * {@code null} if this node has no such copy. Throws if this node's password cannot unwrap it.
+     */
+    @Nullable
+    ProjectEncryptionKeyMetadata unwrapOnDiskKeys() {
+        assert isUnwrapFailed();
+        DiskCopy copy = diskCopy();
+        if (copy == null || copy.wrappedKeys().isEmpty() || copy.activeKeyId().equals(activeKeyId) == false) {
+            return null;
+        }
+        return unwrap(copy, pekEncryption);
     }
 
     @Nullable
@@ -439,24 +428,25 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
 
     @Nullable
     private DiskCopy diskCopy() {
-        LocalKeys local = pekEncryption.localKeys();
-        return local == null ? null : local.diskCopy;
+        OnDiskKeys onDisk = pekEncryption.onDiskKeys();
+        return onDisk == null ? null : onDisk.diskCopy;
     }
 
     private Iterator<? extends ToXContent> writeDiskCopy(DiskCopy copy) {
-        LocalKeys local = pekEncryption.localKeys();
-        if (local != null) {
-            local.diskCopy = copy;
-        }
+        setDiskCopy(pekEncryption, copy);
         return gatewayChunk(copy);
     }
 
     private Iterator<? extends ToXContent> writeNoKeys() {
-        LocalKeys local = pekEncryption.localKeys();
-        if (local != null) {
-            local.diskCopy = null;
-        }
+        setDiskCopy(pekEncryption, null);
         return emptyGatewayChunk();
+    }
+
+    private static void setDiskCopy(PekEncryption pekEncryption, @Nullable DiskCopy copy) {
+        OnDiskKeys onDisk = pekEncryption.onDiskKeys();
+        if (onDisk != null) {
+            onDisk.diskCopy = copy;
+        }
     }
 
     private Iterator<? extends ToXContent> apiChunk() {
@@ -567,16 +557,10 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         if (parsed.isUnwrapFailed()) {
             return parsed;
         }
-        LocalKeys local = pekEncryption.localKeys();
-        if (local != null) {
-            local.diskCopy = new DiskCopy(parsed.activeKeyId, parsed.passwordId, parsed.keys, parsed.handlerKeyIds);
-        }
-        Map<String, KeyEntry> plaintextKeys = HashMap.newHashMap(parsed.keys.size());
+        DiskCopy copy = new DiskCopy(parsed.activeKeyId, parsed.passwordId, parsed.keys, parsed.handlerKeyIds);
+        setDiskCopy(pekEncryption, copy);
         try {
-            for (Map.Entry<String, KeyEntry> entry : parsed.keys.entrySet()) {
-                byte[] plaintext = pekEncryption.unwrap(entry.getValue().bytes(), parsed.passwordId);
-                plaintextKeys.put(entry.getKey(), new KeyEntry(plaintext, entry.getValue().generatedAt()));
-            }
+            return unwrap(copy, pekEncryption);
         } catch (RuntimeException e) {
             logger.error(
                 () -> Strings.format(
@@ -588,17 +572,21 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
             );
             return degraded(parsed.activeKeyId, parsed.passwordId, pekEncryption, e.getMessage());
         }
-        ProjectEncryptionKeyMetadata loaded = new ProjectEncryptionKeyMetadata(
+    }
+
+    private static ProjectEncryptionKeyMetadata unwrap(DiskCopy copy, PekEncryption pekEncryption) {
+        Map<String, KeyEntry> plaintextKeys = HashMap.newHashMap(copy.wrappedKeys().size());
+        for (Map.Entry<String, KeyEntry> entry : copy.wrappedKeys().entrySet()) {
+            byte[] plaintext = pekEncryption.unwrap(entry.getValue().bytes(), copy.passwordId());
+            plaintextKeys.put(entry.getKey(), new KeyEntry(plaintext, entry.getValue().generatedAt()));
+        }
+        return new ProjectEncryptionKeyMetadata(
             Map.copyOf(plaintextKeys),
-            parsed.activeKeyId,
-            parsed.passwordId,
-            parsed.handlerKeyIds,
+            copy.activeKeyId(),
+            copy.passwordId(),
+            copy.handlerKeyIds(),
             pekEncryption
         );
-        if (local != null) {
-            local.lastHealthy = loaded;
-        }
-        return loaded;
     }
 
     @Override

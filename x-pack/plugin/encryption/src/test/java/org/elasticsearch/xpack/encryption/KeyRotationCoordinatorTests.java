@@ -262,29 +262,82 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         return secure;
     }
 
-    private static ProjectEncryptionKeyMetadata degraded(String activeKeyId) {
-        return ProjectEncryptionKeyMetadata.degraded(activeKeyId, PASSWORD_ID, NO_OP_ENCRYPTION, "no key material found on disk");
+    private ProjectEncryptionKeyMetadata degraded(String activeKeyId) {
+        return ProjectEncryptionKeyMetadata.degraded(activeKeyId, PASSWORD_ID, pekEncryption, "no key material found on disk");
     }
 
-    private void onNodeHolding(ProjectEncryptionKeyMetadata ownCopy) {
-        ProjectEncryptionKeyMetadata.LocalKeys local = new ProjectEncryptionKeyMetadata.LocalKeys();
-        local.onApplied(ownCopy);
-        pekEncryption = TestPekEncryption.onNode(NO_OP_ENCRYPTION, local);
+    /** Makes this node's {@link #pekEncryption} use {@code delegate}, after it persisted {@code keys} to its disk. */
+    private void onNodeThatPersisted(Map<String, KeyEntry> keys, String activeKeyId, ProjectEncryptionKeyMetadata.PekEncryption delegate) {
+        pekEncryption = TestPekEncryption.onNode(delegate, new ProjectEncryptionKeyMetadata.OnDiskKeys());
+        TestPekEncryption.persist(new ProjectEncryptionKeyMetadata(keys, activeKeyId, PASSWORD_ID, Map.of(), pekEncryption));
     }
 
-    public void testRestoreSubmittedWhenDegradedAndNodeHoldsSameActiveKey() {
-        onNodeHolding(new ProjectEncryptionKeyMetadata(Map.of("k1", entry(0L)), "k1", PASSWORD_ID, Map.of(), NO_OP_ENCRYPTION));
+    public void testRestoreSubmittedWhenDegradedAndNodePersistedSameActiveKey() {
+        onNodeThatPersisted(Map.of("k1", entry(0L)), "k1", NO_OP_ENCRYPTION);
         ClusterState state = clusterStateWith(degraded("k1"), true);
         setup(state, 0L, TimeValue.timeValueDays(30));
 
         coordinator.onClusterStateChanged(new ClusterChangedEvent("test", state, clusterStateWith(null, true)));
         coordinator.onClusterStateChanged(new ClusterChangedEvent("test", state, clusterStateWith(null, true)));
 
+        ArgumentCaptor<KeyRotationCoordinator.KeyRotationTask> task = ArgumentCaptor.forClass(KeyRotationCoordinator.KeyRotationTask.class);
+        verify(taskQueue).submitTask(eq("restore-project-encryption-keys"), task.capture(), any());
+        ProjectEncryptionKeyMetadata restored = ((KeyRotationCoordinator.RestoreKeysTask) task.getValue()).keys();
+        assertFalse(restored.isUnwrapFailed());
+        assertEquals("k1", restored.getActiveKeyId());
+    }
+
+    public void testFailedRestoreWarnsAndRetriesOnlyAfterReload() {
+        AtomicInteger unwraps = new AtomicInteger();
+        AtomicReference<RuntimeException> unwrapFailure = new AtomicReference<>(new IllegalStateException("wrong password"));
+        onNodeThatPersisted(Map.of("k1", entry(0L)), "k1", new ProjectEncryptionKeyMetadata.PekEncryption() {
+            @Override
+            public String activePasswordId() {
+                return PASSWORD_ID;
+            }
+
+            @Override
+            public WrappedKey wrap(byte[] plaintextPek) {
+                return NO_OP_ENCRYPTION.wrap(plaintextPek);
+            }
+
+            @Override
+            public byte[] unwrap(byte[] wrappedPek, String passwordId) {
+                unwraps.incrementAndGet();
+                if (unwrapFailure.get() != null) {
+                    throw unwrapFailure.get();
+                }
+                return NO_OP_ENCRYPTION.unwrap(wrappedPek, passwordId);
+            }
+        });
+        ClusterState state = clusterStateWith(degraded("k1"), true);
+        setup(state, 0L, TimeValue.timeValueDays(30));
+        ClusterChangedEvent event = new ClusterChangedEvent("test", state, clusterStateWith(null, true));
+
+        MockLog.assertThatLogger(
+            () -> coordinator.onClusterStateChanged(event),
+            KeyRotationCoordinator.class,
+            new MockLog.SeenEventExpectation(
+                "restore failed",
+                KeyRotationCoordinator.class.getName(),
+                Level.WARN,
+                "the elected master cannot restore project encryption key [k1] from its own disk*"
+            )
+        );
+        coordinator.onClusterStateChanged(event);
+        coordinator.tick();
+        assertEquals("no retry with the same settings", 1, unwraps.get());
+        verify(taskQueue, never()).submitTask(anyString(), any(), any());
+
+        unwrapFailure.set(null);
+        settingsRef.set(Settings.builder().put(settingsRef.get(), false).setSecureSettings(passwordSettings()).build());
+        coordinator.reload();
+
         verify(taskQueue).submitTask(eq("restore-project-encryption-keys"), isA(KeyRotationCoordinator.RestoreKeysTask.class), any());
     }
 
     public void testNothingSubmittedOnDegradedStateWithoutOwnCopyOfActiveKey() {
-        onNodeHolding(new ProjectEncryptionKeyMetadata(Map.of("k1", entry(0L)), "k1", PASSWORD_ID, Map.of(), NO_OP_ENCRYPTION));
+        onNodeThatPersisted(Map.of("k1", entry(0L)), "k1", NO_OP_ENCRYPTION);
         ClusterState state = clusterStateWith(degraded("k2"), TestCustom.encryptedUnder("old-key"), true);
         AtomicInteger calls = new AtomicInteger();
         setup(state, Long.MAX_VALUE, TimeValue.timeValueDays(30), List.of(captureHandler(calls, "k2")));

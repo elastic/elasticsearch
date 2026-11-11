@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -130,7 +131,6 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
     private final TimeValue rotationInterval;
     private final TimeValue checkInterval;
     private final List<EncryptedDataHandler<?>> handlers;
-    private final ProjectEncryptionKeyMetadata.PekEncryption pekEncryption;
     private final ClusterStateListener clusterStateListener = this::onClusterStateChanged;
     private final Supplier<Settings> settingsSupplier;
 
@@ -141,6 +141,8 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
     private final AtomicBoolean beginRotationInFlight = new AtomicBoolean(false);
     private final AtomicBoolean passwordIdRotateInFlight = new AtomicBoolean(false);
     private final AtomicBoolean restoreInFlight = new AtomicBoolean(false);
+    // a failed restore is only retried after a reload or a change to the degraded metadata
+    private final AtomicReference<FailedRestore> failedRestore = new AtomicReference<>();
     private final AtomicReference<String> installSkippedForPasswordId = new AtomicReference<>();
 
     static KeyRotationCoordinator create(
@@ -192,7 +194,6 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         Settings initialSettings = settingsSupplier.get();
         this.rotationInterval = ROTATION_INTERVAL_SETTING.get(initialSettings);
         this.checkInterval = CHECK_INTERVAL_SETTING.get(initialSettings);
-        this.pekEncryption = pekEncryption;
         this.settingsSupplier = settingsSupplier;
     }
 
@@ -228,6 +229,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         }
         reEncrypting.set(false);
         installSkippedForPasswordId.set(null);
+        failedRestore.set(null);
         stopSchedule();
     }
 
@@ -479,17 +481,49 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
     }
 
     private void scheduleRestore(ProjectEncryptionKeyMetadata degraded) {
-        ProjectEncryptionKeyMetadata.LocalKeys localKeys = pekEncryption.localKeys();
-        ProjectEncryptionKeyMetadata ownCopy = localKeys == null ? null : localKeys.lastHealthyWithActiveKey(degraded.getActiveKeyId());
-        if (ownCopy == null) {
-            logger.debug("project encryption key: cluster state is degraded and this node holds no copy of the active key");
+        Settings settings = settingsSupplier.get();
+        FailedRestore failed = failedRestore.get();
+        if (failed != null && failed.settings() == settings && failed.degraded() == degraded) {
             return;
         }
         if (restoreInFlight.compareAndSet(false, true) == false) {
             return;
         }
-        if (submitTaskIfOpen("restore-project-encryption-keys", new RestoreKeysTask(ownCopy, restoreInFlight)) == false) {
+        try {
+            // unwrapping derives a key from the password, which is too slow for the cluster applier thread
+            threadPool.generic().execute(() -> restoreFromDisk(degraded, settings));
+        } catch (Exception e) {
             restoreInFlight.set(false);
+            logger.debug("could not fork project encryption key restore", e);
+        }
+    }
+
+    private void restoreFromDisk(ProjectEncryptionKeyMetadata degraded, Settings settings) {
+        boolean submitted = false;
+        try {
+            ProjectEncryptionKeyMetadata onDisk = degraded.unwrapOnDiskKeys();
+            if (onDisk == null) {
+                logger.debug("project encryption key: cluster state is degraded and this node's disk holds no copy of the active key");
+                failedRestore.set(new FailedRestore(settings, degraded));
+            } else {
+                failedRestore.set(null);
+                submitted = submitTaskIfOpen("restore-project-encryption-keys", new RestoreKeysTask(onDisk, restoreInFlight));
+            }
+        } catch (Exception e) {
+            failedRestore.set(new FailedRestore(settings, degraded));
+            logger.warn(
+                () -> Strings.format(
+                    "the elected master cannot restore project encryption key [%s] from its own disk. Configure the encryption password"
+                        + " this node used to persist the key and reload secure settings, or restart this node so that a"
+                        + " master-eligible node that holds the key is elected",
+                    degraded.getActiveKeyId()
+                ),
+                e
+            );
+        } finally {
+            if (submitted == false) {
+                restoreInFlight.set(false);
+            }
         }
     }
 
@@ -621,6 +655,8 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         }
     }
 
+    private record FailedRestore(Settings settings, ProjectEncryptionKeyMetadata degraded) {}
+
     record RestoreKeysTask(ProjectEncryptionKeyMetadata keys, AtomicBoolean inFlight) implements KeyRotationTask {
         @Override
         public String description() {
@@ -694,19 +730,19 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             ProjectEncryptionKeyMetadata existing,
             RestoreKeysTask task
         ) {
-            ProjectEncryptionKeyMetadata ownCopy = task.keys();
+            ProjectEncryptionKeyMetadata onDisk = task.keys();
             // never undo a reset or a newer key: only replace the degraded instance for the same active key
             if (existing == null
                 || existing.isUnwrapFailed() == false
-                || ownCopy.getActiveKeyId().equals(existing.getActiveKeyId()) == false) {
+                || onDisk.getActiveKeyId().equals(existing.getActiveKeyId()) == false) {
                 logger.debug("dropping restore task: project encryption key metadata changed to [{}]", existing);
                 return Tuple.tuple(clusterState, null);
             }
             logger.info(
-                "restoring project encryption keys from this node's copy of active key [{}]; the previous master held no key material",
-                ownCopy.getActiveKeyId()
+                "restoring project encryption keys from this node's on-disk copy of active key [{}]; cluster state held no key material",
+                onDisk.getActiveKeyId()
             );
-            return Tuple.tuple(putMetadata(clusterState, projectState, ownCopy), null);
+            return Tuple.tuple(putMetadata(clusterState, projectState, onDisk), null);
         }
 
         private Tuple<ClusterState, Void> executeInstallInitial(

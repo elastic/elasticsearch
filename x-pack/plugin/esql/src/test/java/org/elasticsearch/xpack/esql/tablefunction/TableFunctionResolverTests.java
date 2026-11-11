@@ -513,6 +513,32 @@ public class TableFunctionResolverTests extends ESTestCase {
         assertThat(children.get(0) == children.get(1), equalTo(false));
     }
 
+    /**
+     * And the mirror of it: one leaf the plan reaches from several parents is one call, asked once. {@code FORK}
+     * builds exactly this shape — {@code LogicalPlanBuilder#visitForkCommand} applies every branch's factory to
+     * the one plan above it — so {@code FROM f(x) | FORK (..) (..)} arrives here with the same leaf object under
+     * each branch. Asked per arrival, a function doing I/O pays a round trip per branch for a call written once,
+     * and every relation but the last is built and discarded.
+     */
+    public void testALeafReachedFromSeveralParentsIsAskedOnce() {
+        Numbers function = new Numbers();
+        UnresolvedTableFunctionRelation shared = call("2");
+        LogicalPlan plan = new UnionAll(
+            Source.EMPTY,
+            List.of(new Filter(Source.EMPTY, shared, Literal.TRUE), new Filter(Source.EMPTY, shared, Literal.TRUE)),
+            List.of()
+        );
+
+        LogicalPlan resolved = resolve(function, plan);
+
+        assertThat(function.bindings.get(), equalTo(1));
+        LogicalPlan left = resolved.children().get(0).children().get(0);
+        LogicalPlan right = resolved.children().get(1).children().get(0);
+        assertThat(left, instanceOf(LocalRelation.class));
+        // The one relation stands under both, as the one EsRelation a resolved index pattern becomes does.
+        assertSame(left, right);
+    }
+
     /** A call of the same function with nothing in the parentheses, which its signature refuses. */
     private static UnresolvedTableFunctionRelation callWithNoArguments() {
         Source source = Source.EMPTY;

@@ -279,6 +279,24 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
     }
 
     /**
+     * One call written once is one leaf, even where a later command reaches it more than once. {@code FORK} hands
+     * every branch the one plan above it, so walking down from the {@code Fork} arrives at the same leaf object
+     * once per branch. Anything collecting calls out of a plan has to count distinct leaves rather than arrivals,
+     * which is what {@code TableFunctionResolver} does and what this pins.
+     */
+    public void testAForkReachesTheOneLeafOncePerBranch() {
+        List<UnresolvedTableFunctionRelation> found = new ArrayList<>();
+        query("FROM EXAMPLE(a) | FORK (WHERE x == 1) (WHERE x == 2)").forEachDown(node -> {
+            if (node instanceof UnresolvedTableFunctionRelation leaf) {
+                found.add(leaf);
+            }
+        });
+
+        assertThat(found, hasSize(2));
+        assertSame(found.get(0), found.get(1));
+    }
+
+    /**
      * A {@code {...}} stands wherever a name stands, including alone and first. Which positions a particular
      * function accepts is its signature's business, not the grammar's, so nothing here refuses this.
      */

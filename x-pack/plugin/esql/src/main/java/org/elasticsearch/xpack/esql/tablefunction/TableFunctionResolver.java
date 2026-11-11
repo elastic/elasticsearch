@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 /**
@@ -57,8 +58,15 @@ public class TableFunctionResolver {
      */
     public void resolveTableFunctions(LogicalPlan parsed, ProjectMetadata projectMetadata, ActionListener<LogicalPlan> listener) {
         List<UnresolvedTableFunctionRelation> leaves = new ArrayList<>();
+        // Distinct by identity, because a plan may reach one leaf from more than one parent: FORK hands every
+        // branch the one plan above it -- LogicalPlanBuilder#visitForkCommand applies each branch's factory to the
+        // same input -- so FROM f(x) | FORK (..) (..) walks down to one leaf once per branch. Collected per
+        // occurrence, a call the user wrote once is asked once per branch: a function doing I/O pays a round trip
+        // per branch, and every relation but the last is built and thrown away. Identity rather than equality for
+        // the reason the map below is: two calls written separately must each bind, and they can compare equal.
+        Set<UnresolvedTableFunctionRelation> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         parsed.forEachDown(node -> {
-            if (node instanceof UnresolvedTableFunctionRelation leaf) {
+            if (node instanceof UnresolvedTableFunctionRelation leaf && seen.add(leaf)) {
                 leaves.add(leaf);
             }
         });

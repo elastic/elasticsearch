@@ -725,8 +725,9 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         if (diff >= 0) {
             return Math.max(0, diff - offset);
         }
-        // the subtraction overflowed, so diff holds the exact distance as an unsigned long above Long.MAX_VALUE
-        return NumericUtils.unsignedLongToDouble(NumericUtils.asLongUnsigned(diff)) - offset;
+        // the subtraction overflowed, so diff holds the exact distance as an unsigned long above Long.MAX_VALUE;
+        // offset is below it, so subtracting in unsigned arithmetic is exact
+        return NumericUtils.unsignedLongToDouble(NumericUtils.asLongUnsigned(diff - offset));
     }
 
     private double numericScale(Object folded) {

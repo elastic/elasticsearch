@@ -5,7 +5,8 @@
 # (https://github.com/elastic/promcheck) on the PR and its merge base, then reports
 # regressions, improvements, and flaky cases on the build and the PR.
 # Regressions fail the step; comparisons that cannot run are reported as warnings.
-# The grafanalabs-top100.tar.gz release asset supplies the dataset and queries.
+# The corpus named by PROMCHECK_WORKLOAD (default grafanalabs-top100) supplies the dataset and queries.
+# Oneshot can override that with a named capture from the PR comment ("buildkite run promcheck <workload>").
 #
 # Required environment for oneshot:
 #   GITHUB_PR_TARGET_BRANCH          PR target branch used to find the merge base.
@@ -15,6 +16,7 @@
 # Nightly also requires BUILDKITE_BUILD_ID and the results namespace, URL, and Vault secret
 # configured by that YAML (or PROMCHECK_RESULTS_API_KEY in place of the Vault secret).
 # Optional environment:
+#   GITHUB_PR_COMMENT_VAR_WORKLOAD   Fixture from "buildkite run promcheck <workload>"; overrides PROMCHECK_WORKLOAD.
 #   PROMCHECK_GROUP_BY               JSONPath selector for result aggregation (set by nightly YAML).
 #   PROMCHECK_CONCURRENCY            Cases and seeding writes promcheck keeps in flight (default: the CPU count).
 #   PROMETHEUS_COMPLIANCE_TMPDIR     Scratch/artifact parent directory (default /tmp).
@@ -234,7 +236,8 @@ report() {
 # The note shown while the comparison runs. The final report reuses the same annotation context and comment key, so
 # it replaces this note instead of adding a second one.
 announce_running() {
-  annotate info "$(printf '**Promcheck running**\n\nChecking Prometheus/Elasticsearch mismatches on the merge base and this PR with promcheck v%s. The verdict replaces this note when both runs finish.\n\n' "$PROMCHECK_VER" | report)"
+  [[ -n "${PROMCHECK_WORKLOAD:-}" ]] || die "PROMCHECK_WORKLOAD must be set"
+  annotate info "$(printf '**Promcheck running**\n\nChecking Prometheus/Elasticsearch mismatches on the merge base and this PR with promcheck v%s (`%s`). The verdict replaces this note when both runs finish.\n\n' "$PROMCHECK_VER" "$PROMCHECK_WORKLOAD" | report)"
 }
 
 # The pipeline's first step: posts the running note as the PR comment right away. The build bot comments early once
@@ -606,8 +609,18 @@ run_nightly() (
   echo "Indexed $PROMCHECK_WORKLOAD results for $revision"
 )
 
+# Prefer a fixture named in the PR trigger comment ("buildkite run promcheck <workload>").
+apply_pr_comment_workload() {
+  local workload="${GITHUB_PR_COMMENT_VAR_WORKLOAD:-}"
+  [[ -z "$workload" ]] && return 0
+  [[ "$workload" =~ ^[A-Za-z0-9._-]+$ ]] \
+    || die "Invalid promcheck workload from PR comment: $workload"
+  export PROMCHECK_WORKLOAD="$workload"
+}
+
 case "${1:-}" in
   oneshot)
+    apply_pr_comment_workload
     case "${2:-run}" in
       notify) notify ;;
       run) run_oneshot ;;

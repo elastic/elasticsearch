@@ -8,6 +8,11 @@ const ROOT = resolve(import.meta.dirname, "../..");
 const PIPELINE_FILE = ".buildkite/pipelines/pull-request-validate-prometheus-compliance.yml";
 const pipeline = parse(readFileSync(resolve(ROOT, PIPELINE_FILE), "utf8"));
 const catalog = parseAllDocuments(readFileSync(resolve(ROOT, "catalog-info.yaml"), "utf8")).map((doc) => doc.toJS());
+const pullRequests = parse(readFileSync(resolve(ROOT, ".buildkite/pull-requests.json"), "utf8"));
+const promcheckTrigger = new RegExp(
+  pullRequests.jobs.find((job: { pipeline_slug: string }) => job.pipeline_slug === "elasticsearch-pull-request-validate-prometheus-compliance")
+    .trigger_comment_regex,
+);
 
 // These are Buildkite expressions evaluated at upload, before any job runs.
 const ONESHOT_CONDITION = 'build.source != "schedule"';
@@ -70,5 +75,33 @@ describe("shared promcheck YAML pipeline", () => {
     expect(nightly.env.PROMCHECK_GROUP_BY).toBe("$.labels.dashboard[*]");
     expect(nightly.env.PROMCHECK_RESULTS_NAMESPACE).toBe("experimental");
     expect(nightly.env.PROMCHECK_RESULTS_URL).toBe("https://overview-elastic-cloud-com.es.us-east-1.aws.found.io");
+  });
+
+  test.each([
+    "buildkite run promcheck",
+    "buildkite run promcheck please",
+    "buildkite run promcheck grafanalabs-top100",
+    "buildkite run promcheck compliance-tester",
+    "buildkite run promcheck compliance-tester please",
+    "@elasticmachine run promcheck compliance-tester",
+    "@elasticsearchmachine run promcheck grafanalabs-top100 please",
+  ])("PR comment trigger accepts %s", (comment) => {
+    const match = comment.match(promcheckTrigger);
+    expect(match).not.toBeNull();
+    expect(match?.groups?.workload).toBe(
+      comment.includes("grafanalabs-top100")
+        ? "grafanalabs-top100"
+        : comment.includes("compliance-tester")
+          ? "compliance-tester"
+          : undefined,
+    );
+  });
+
+  test.each([
+    "buildkite run promcheck please compliance-tester",
+    "run promcheck compliance-tester",
+    "buildkite run promcheck ",
+  ])("PR comment trigger rejects %s", (comment) => {
+    expect(comment.match(promcheckTrigger)).toBeNull();
   });
 });

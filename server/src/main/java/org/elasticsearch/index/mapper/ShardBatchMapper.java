@@ -557,7 +557,11 @@ public final class ShardBatchMapper {
                     // support is extended to nested fields, this will need to handle nested required
                     // fields as well.
                     for (String fieldName : mappingLookup.requiredFields("")) {
-                        if (schemaLeafPaths.contains(fieldName) == false) {
+                        // A multi-field has no column of its own: it is mapped from its parent's, so it is present whenever the parent is.
+                        final String sourcePath = isMultiFieldSubField(fieldName, mappingLookup)
+                            ? fieldName.substring(0, fieldName.lastIndexOf('.'))
+                            : fieldName;
+                        if (schemaLeafPaths.contains(sourcePath) == false) {
                             final Mapper m = mappingLookup.getMapper(fieldName);
                             assert m instanceof FieldMapper : "required field [" + fieldName + "] must be a FieldMapper";
                             final FieldMapper fieldMapper = (FieldMapper) m;

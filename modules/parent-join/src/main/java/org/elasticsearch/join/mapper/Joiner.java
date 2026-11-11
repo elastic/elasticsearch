@@ -119,7 +119,7 @@ public final class Joiner {
     public Query parentIdFilter(String childType, String parentId, SearchExecutionContext context) {
         String field = parentJoinField(childType);
         if (context.isFieldMapped(field) == false) {
-            return new MatchNoDocsQuery();
+            return MatchNoDocsQuery.INSTANCE;
         }
         return context.getFieldType(field).termQuery(parentId, context);
     }

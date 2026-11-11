@@ -122,8 +122,12 @@ public class InlineDatasetReadIT extends AbstractExternalDataSourceIT {
         assertThat(e.getMessage(), containsString("data source [nobody_registered_this] not found"));
     }
 
-    /** Whatever a registration refuses in a definition is refused here, in the registration's own words. */
-    public void testADefinitionSettingOutsideTheVocabularyIsRefused() throws IOException {
+    /**
+     * The definition goes through the request a registration would have made, so a field of the wrong type is
+     * refused by that request's own parse rather than by anything written for this path. {@code description} is
+     * declared as a string.
+     */
+    public void testADefinitionFieldOfTheWrongTypeIsRefused() throws IOException {
         Path dir = csvFixture();
         registerDataSource(DATA_SOURCE, Map.of());
 

@@ -22,13 +22,16 @@ import java.util.Set;
  * {@link ExternalSourceExec} in the physical tree and every {@link ExternalRelation} inside a {@link FragmentExec}'s
  * logical fragment, wherever they sit (under an exchange, in a {@code UnionAll} branch, on the right side of a join).
  * <p>
- * Every such node names the definition it was planned from in one of two ways, and the receiving node authorizes it
- * before rebinding the source to its own registry ({@link DatasetConfigResolver}). A node naming a <b>registered</b>
- * dataset is authorized by that name; one carrying the <b>definition itself</b> is authorized by the data source it
- * reads through. They are reported separately because they are different privileges on different objects.
+ * A node naming a <b>registered</b> dataset names what the receiving node authorizes before rebinding the source to
+ * its own registry ({@link DatasetConfigResolver}): a plan arriving at a node is not trusted to have been built by a
+ * coordinator the caller was allowed to use, so the caller's credential must cover every dataset the plan names.
  * <p>
- * A node with neither cannot be authorized at all, and only a snapshot-only source with no dataset behind it is
- * planned that way, so its presence is reported separately too.
+ * The other two kinds name no dataset and so are authorized by nothing here, and each is reported separately because
+ * each decides something on its own. A node carrying the <b>definition itself</b> is still counted, so that a plan
+ * holding only such nodes is not {@link #isEmpty()} — the refusals keyed on that, a cross-cluster request and a
+ * request with neither shards nor external splits, would otherwise let one through. A node with neither a name nor a
+ * definition is only planned by the snapshot-only inline {@code EXTERNAL} command, and its presence is reported so
+ * the caller can apply the release/snapshot rule {@link DatasetConfigResolver#rebind} applies.
  */
 public final class ExternalSourceDatasets {
 
@@ -91,7 +94,10 @@ public final class ExternalSourceDatasets {
         return names;
     }
 
-    /** The data sources the plan reads a carried definition through, in plan order, without duplicates. */
+    /**
+     * The data sources the plan reads a carried definition through, in plan order, without duplicates. Nothing
+     * authorizes them: the set exists so a plan holding only carried definitions is not {@link #isEmpty()}.
+     */
     public Set<String> dataSources() {
         return dataSources;
     }

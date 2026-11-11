@@ -436,6 +436,19 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         // are going to recover them again once state persistence is disabled (no master / not recovered)
         // TODO: feels hacky, a block disables state persistence, and then we clean the allocated shards, maybe another flag in blocks?
         if (state.blocks().disableStatePersistence()) {
+            // Every index is about to be torn down, so no in-progress creation ticket can still be valid.
+            // FailureReported entries track what master has been told, not a local shard, so they remain
+            // valid regardless and are left alone here.
+            // Sweep the tickets before removing the shards for internal consistency in IndicesClusterStateService
+            // (updatePendingAllocationTracker runs first in normal operations).
+            int evicted = 0;
+            for (final var iterator = pendingAllocationStates.entrySet().iterator(); iterator.hasNext();) {
+                if (iterator.next().getValue() instanceof PendingAllocationState.FailureReported == false) {
+                    iterator.remove();
+                    evicted++;
+                }
+            }
+            logger.debug("clearing [{}] pending allocation states: state persistence disabled", evicted);
             for (AllocatedIndex<? extends Shard> indexService : indicesService) {
                 // also cleans shards
                 indicesService.removeIndex(
@@ -446,17 +459,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     getShardsClosedListener()
                 );
             }
-            // Every index is about to be torn down, so no in-progress creation ticket can still be valid.
-            // FailureReported entries track what master has been told, not a local shard, so they remain
-            // valid regardless and are left alone here.
-            int evicted = 0;
-            for (final var iterator = pendingAllocationStates.entrySet().iterator(); iterator.hasNext();) {
-                if (iterator.next().getValue() instanceof PendingAllocationState.FailureReported == false) {
-                    iterator.remove();
-                    evicted++;
-                }
-            }
-            logger.debug("clearing [{}] pending allocation states: state persistence disabled", evicted);
             return;
         }
 

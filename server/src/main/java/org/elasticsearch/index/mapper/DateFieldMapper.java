@@ -1354,7 +1354,7 @@ public final class DateFieldMapper extends FieldMapper {
         if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
             if (nullValue == null) {
                 if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
-                    context.getOffSetContext().recordNull(offsetsFieldName, offsetsFallback);
+                    context.getOffSetContext().recordNull(context, offsetsFieldName, offsetsFallback);
                 }
                 return;
             }

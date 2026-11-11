@@ -240,6 +240,16 @@ public final class ShardSearchStats implements SearchOperationListener {
         totalStats.addSearchLoad(tookInNanos, nowInNanos);
     }
 
+    /**
+     * Accumulates the recent search waiting for this shard: the time a query waited with work for it queued on the node.
+     *
+     * @param waitedInNanos the time waited, in nanoseconds
+     * @param nowInNanos    the time the waiting was measured up to, from {@link System#nanoTime()}
+     */
+    public void accumulateSearchWaiting(long waitedInNanos, long nowInNanos) {
+        totalStats.recentSearchWaiting.addIncrement(waitedInNanos, nowInNanos);
+    }
+
     static final class StatsHolder {
         final MeanMetric queryMetric = new MeanMetric();
         final MeanMetric fetchMetric = new MeanMetric();
@@ -261,11 +271,14 @@ public final class ShardSearchStats implements SearchOperationListener {
         final CounterMetric fetchFailure = new CounterMetric();
 
         final ExponentiallyWeightedMovingRate recentSearchLoad;
+        final ExponentiallyWeightedMovingRate recentSearchWaiting;
         final LongAdder searchLoadNanos = new LongAdder();
 
         StatsHolder(SearchStatsSettings searchStatsSettings) {
             double lambdaInInverseNanos = Math.log(2.0) / searchStatsSettings.getRecentReadLoadHalfLifeForNewShards().nanos();
-            this.recentSearchLoad = new ExponentiallyWeightedMovingRate(lambdaInInverseNanos, System.nanoTime());
+            long now = System.nanoTime();
+            this.recentSearchLoad = new ExponentiallyWeightedMovingRate(lambdaInInverseNanos, now);
+            this.recentSearchWaiting = new ExponentiallyWeightedMovingRate(lambdaInInverseNanos, now);
         }
 
         void addSearchLoad(long nanos, long nowInNanos) {
@@ -289,7 +302,8 @@ public final class ShardSearchStats implements SearchOperationListener {
                 suggestMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(suggestMetric.sum()),
                 suggestCurrent.count(),
-                recentSearchLoad.getRate(System.nanoTime())
+                recentSearchLoad.getRate(System.nanoTime()),
+                recentSearchWaiting.getRate(System.nanoTime())
             );
         }
     }

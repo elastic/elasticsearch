@@ -231,9 +231,14 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                         index
                     );
                     // We cancel even on a partial (not-yet-converged) balance to avoid delaying freeing recovery slots
-                    // on data nodes. This is consistent with reconciling on the same partial balance below. Since the
-                    // final balance may reverse the decision, only queued recoveries of shards that cannot remain on
-                    // their current node are cancelled, to limit cancellation/allocation back and forth.
+                    // on data nodes. This is consistent with reconciling on the same partial balance below. The
+                    // cancellation service restricts which recoveries it cancels when the balance has not converged.
+                    //
+                    // Skip the restricted pass if the assignments did not change. It never escalates a cancellation, so
+                    // a rerun on the same assignments can only find something new if a canRemain decision flipped
+                    // without any assignment change. The cause of such a flip (e.g. a shutdown or an allocation filter)
+                    // usually moves other shards too (so `hasChanges` is true), and the unconditional full pass on
+                    // convergence covers the remaining cases.
                     if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
                         final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
                         recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation, false);
@@ -245,9 +250,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     logger.debug("Desired balance computation for [{}] is completed, scheduling reconciliation", index);
                     computationsConverged.inc();
 
-                    // Run the full cancellation pass even if the assignments did not change. The same assignments may
-                    // previously only have been seen by the restricted pass (e.g. when they were computed from an input that
-                    // was then superseded), and canRemain decisions may have changed without the assignments changing.
+                    // Unlike the non-converged branches, run the full cancellation pass even if the assignments did not
+                    // change. The same assignments may previously only have been seen by the restricted pass (e.g. when
+                    // they were computed from an input that was then superseded), and `canRemain` decisions may have
+                    // changed without the assignments changing.
                     //
                     // TODO: A reconcile round from a recent balance could be in progress while a new balance gets computed,
                     // in which case the currentAllocation captured below could miss an initializing shard created by
@@ -258,11 +264,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     submitReconcileTask(currentDesiredBalance);
                 } else {
                     logger.debug("Desired balance computation for [{}] is superseded by newer input", index);
-                    // Trigger cancellation even if the desired balance computation got superseeded by a newer input.
+                    // Trigger cancellation even if the desired balance computation got superseded by a newer input.
                     // On a large busy cluster with a steady stream of new input (e.g. during a rolling upgrade) a
-                    // computation may not converge for a little time. However, because this balance did not have the
-                    // latest input, only cancel queued recoveries of shards whose canRemain decision on their current node
-                    // is NO. Shards moved for rebalancing purposes are more likely to be moved back by the later computation.
+                    // computation may not converge for a long time. As for STOP_EARLY above, the cancellation service
+                    // restricts which recoveries it cancels, and the pass is skipped if the assignments did not change.
                     if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
                         final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
                         recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation, false);

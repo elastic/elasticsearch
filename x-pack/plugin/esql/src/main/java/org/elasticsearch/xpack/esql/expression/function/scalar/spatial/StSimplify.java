@@ -58,9 +58,10 @@ public class StSimplify extends SpatialDocValuesFunction implements AnyNullIsNul
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StSimplify.class)
         .binary(StSimplify::new)
-        // Results are quantized to the Lucene grid, matching the coordinates of shape fields simplified from doc values
-        .capabilities("doc_values")
+        // Non-constant inputs are quantized to the Lucene grid, matching the coordinates of shape fields simplified from doc values
+        .capabilities("quantized")
         .name("st_simplify");
+    /** Used for constant geometries, which are not quantized, and for doc-values geometries, which already are. */
     private static final SpatialGeometryBlockProcessor processor = new SpatialGeometryBlockProcessor(
         UNSPECIFIED,
         IterativeDouglasPeuckerSimplifier::simplify
@@ -81,7 +82,9 @@ public class StSimplify extends SpatialDocValuesFunction implements AnyNullIsNul
         briefSummary = "Simplifies the input geometry using the Douglas-Peucker algorithm with a specified tolerance.",
         description = "Simplifies the input geometry by applying the Douglas-Peucker algorithm with a specified tolerance. "
             + "Vertices that fall within the tolerance distance from the simplified shape are removed. "
-            + "Note that the resulting geometry may be invalid, even if the original input was valid.",
+            + "Note that the resulting geometry may be invalid, even if the original input was valid. "
+            + "Except for constant geometries, input coordinates are first rounded to the precision of indexed spatial fields, "
+            + "so results do not depend on whether the geometry is loaded from the index or from the document source.",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
         examples = @Example(file = "spatial-jts", tag = "st_simplify"),
@@ -196,7 +199,7 @@ public class StSimplify extends SpatialDocValuesFunction implements AnyNullIsNul
                 inputTolerance
             );
         }
-        // For WKB, we need to know if it is Geo or Cartesian to quantize the results to match Lucene grids
+        // For WKB, we need to know if it is Geo or Cartesian to quantize the inputs to match Lucene grids
         return DataType.isSpatialGeo(geometry.dataType())
             ? new StSimplifyNonFoldableGeoShapeAndFoldableToleranceEvaluator.Factory(source(), geometryEvaluator, inputTolerance)
             : new StSimplifyNonFoldableCartesianShapeAndFoldableToleranceEvaluator.Factory(source(), geometryEvaluator, inputTolerance);

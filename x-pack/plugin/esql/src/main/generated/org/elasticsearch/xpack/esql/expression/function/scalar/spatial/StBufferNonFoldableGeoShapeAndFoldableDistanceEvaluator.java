@@ -22,8 +22,8 @@ import org.locationtech.jts.operation.buffer.BufferParameters;
  * {@link ExpressionEvaluator} implementation for {@link StBuffer}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StBufferNonFoldableGeometryAndFoldableDistanceEvaluator implements ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StBufferNonFoldableGeometryAndFoldableDistanceEvaluator.class);
+public final class StBufferNonFoldableGeoShapeAndFoldableDistanceEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StBufferNonFoldableGeoShapeAndFoldableDistanceEvaluator.class);
 
   private final Source source;
 
@@ -37,7 +37,7 @@ public final class StBufferNonFoldableGeometryAndFoldableDistanceEvaluator imple
 
   private Warnings warnings;
 
-  public StBufferNonFoldableGeometryAndFoldableDistanceEvaluator(Source source,
+  public StBufferNonFoldableGeoShapeAndFoldableDistanceEvaluator(Source source,
       ExpressionEvaluator geometry, double distance, BufferParameters bufferParameters,
       DriverContext driverContext) {
     this.source = source;
@@ -73,7 +73,7 @@ public final class StBufferNonFoldableGeometryAndFoldableDistanceEvaluator imple
           continue position;
         }
         try {
-          StBuffer.processNonFoldableGeometryAndConstantDistance(result, p, geometryBlock, this.distance, this.bufferParameters);
+          StBuffer.processGeoShapeAndConstantDistance(result, p, geometryBlock, this.distance, this.bufferParameters);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -85,7 +85,7 @@ public final class StBufferNonFoldableGeometryAndFoldableDistanceEvaluator imple
 
   @Override
   public String toString() {
-    return "StBufferNonFoldableGeometryAndFoldableDistanceEvaluator[" + "geometry=" + geometry + ", distance=" + distance + "]";
+    return "StBufferNonFoldableGeoShapeAndFoldableDistanceEvaluator[" + "geometry=" + geometry + ", distance=" + distance + "]";
   }
 
   @Override
@@ -118,13 +118,13 @@ public final class StBufferNonFoldableGeometryAndFoldableDistanceEvaluator imple
     }
 
     @Override
-    public StBufferNonFoldableGeometryAndFoldableDistanceEvaluator get(DriverContext context) {
-      return new StBufferNonFoldableGeometryAndFoldableDistanceEvaluator(source, geometry.get(context), distance, bufferParameters, context);
+    public StBufferNonFoldableGeoShapeAndFoldableDistanceEvaluator get(DriverContext context) {
+      return new StBufferNonFoldableGeoShapeAndFoldableDistanceEvaluator(source, geometry.get(context), distance, bufferParameters, context);
     }
 
     @Override
     public String toString() {
-      return "StBufferNonFoldableGeometryAndFoldableDistanceEvaluator[" + "geometry=" + geometry + ", distance=" + distance + "]";
+      return "StBufferNonFoldableGeoShapeAndFoldableDistanceEvaluator[" + "geometry=" + geometry + ", distance=" + distance + "]";
     }
   }
 }

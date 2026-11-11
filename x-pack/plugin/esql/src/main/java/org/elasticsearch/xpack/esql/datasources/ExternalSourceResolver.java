@@ -970,7 +970,7 @@ public class ExternalSourceResolver {
         List<PartitionFilterHintExtractor.PartitionFilterHint> hints = filterHints != null ? filterHints.get(spec) : null;
         FolderRangePredicate folderRange = folderRanges != null ? folderRanges.get(spec) : null;
         // How much of this path the query actually needs. The two sets are exclusive by construction, so they
-        // collapse into one value here rather than travelling down the resolution rails side by side.
+        // collapse into one value here rather than being carried side by side through resolution.
         ResolutionDemand demand = ResolutionDemand.of(path, pathsRequiringStats, pathsReadingNoRows);
         DatasetMapping declaredMapping = declaredMappings != null ? declaredMappings.get(path) : null;
         // The declared mapping's read-instructions (logical->physical column renames, date formats) travel as a

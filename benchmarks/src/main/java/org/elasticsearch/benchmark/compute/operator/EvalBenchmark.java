@@ -12,6 +12,7 @@ package org.elasticsearch.benchmark.compute.operator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
@@ -35,12 +36,14 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.script.ScoreScriptUtils;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -104,7 +107,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.IntToDoubleFunction;
 
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
 @Warmup(iterations = 5)
@@ -214,6 +219,28 @@ public class EvalBenchmark {
                 checkDateTruncExpected(this, actual);
             }
         },
+        DECAY_CARTESIAN("decay_cartesian") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return decayCartesianEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkDecayExpected(this, actual, new ScoreScriptUtils.DecayNumericExp(0, BLOCK_LENGTH, 0, 0.5)::decayNumericExp);
+            }
+        },
+        DECAY_DATETIME("decay_datetime") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return decayDatetimeEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkDecayExpected(this, actual, new ScoreScriptUtils.DecayNumericGauss(0, BLOCK_LENGTH, 0, 0.5)::decayNumericGauss);
+            }
+        },
         DECAY_DOUBLE("decay_double") {
             @Override
             ExpressionEvaluator evaluator() {
@@ -222,7 +249,7 @@ public class EvalBenchmark {
 
             @Override
             void checkExpected(Page actual) {
-                checkDecayDoubleExpected(this, actual);
+                checkDecayExpected(this, actual, new ScoreScriptUtils.DecayNumericLinear(0, BLOCK_LENGTH, 0, 0.5)::decayNumericLinear);
             }
         },
         DECAY_GEO("decay_geo") {
@@ -233,7 +260,8 @@ public class EvalBenchmark {
 
             @Override
             void checkExpected(Page actual) {
-                checkDecayGeoExpected(this, actual);
+                var expected = new ScoreScriptUtils.DecayGeoLinear("45,0", "1000km", "10km", 0.5);
+                checkDecayExpected(this, actual, i -> expected.decayGeoLinear(new GeoPoint(45, i * 0.001)));
             }
         },
         EQUAL_TO_CONST("equal_to_const") {
@@ -918,12 +946,27 @@ public class EvalBenchmark {
         return evaluator;
     }
 
+    private static ExpressionEvaluator decayCartesianEvaluator() {
+        FieldAttribute cartesianField = new FieldAttribute(
+            Source.EMPTY,
+            "cartesian",
+            new EsField("cartesian", DataType.CARTESIAN_POINT, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Literal origin = new Literal(Source.EMPTY, CARTESIAN.wktToWkb("POINT (0 0)"), DataType.CARTESIAN_POINT);
+        Literal scale = new Literal(Source.EMPTY, (double) BLOCK_LENGTH, DataType.DOUBLE);
+        return decayEvaluator(cartesianField, origin, scale, decayOptions("type", "exp"));
+    }
+
+    private static ExpressionEvaluator decayDatetimeEvaluator() {
+        Literal origin = new Literal(Source.EMPTY, 0L, DataType.DATETIME);
+        Literal scale = new Literal(Source.EMPTY, Duration.ofMillis(BLOCK_LENGTH), DataType.TIME_DURATION);
+        return decayEvaluator(timestampField(), origin, scale, decayOptions("type", "gauss"));
+    }
+
     private static ExpressionEvaluator decayDoubleEvaluator() {
-        FieldAttribute doubleField = doubleField();
         Literal origin = new Literal(Source.EMPTY, 0D, DataType.DOUBLE);
         Literal scale = new Literal(Source.EMPTY, (double) BLOCK_LENGTH, DataType.DOUBLE);
-        return EvalMapper.toEvaluator(FOLD_CONTEXT, new Decay(Source.EMPTY, doubleField, origin, scale, null), layout(doubleField))
-            .get(driverContext);
+        return decayEvaluator(doubleField(), origin, scale, null);
     }
 
     private static ExpressionEvaluator decayGeoEvaluator() {
@@ -932,10 +975,18 @@ public class EvalBenchmark {
             "geo",
             new EsField("geo", DataType.GEO_POINT, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
-        Literal origin = new Literal(Source.EMPTY, GEO.wktToWkb("POINT (0 0)"), DataType.GEO_POINT);
+        Literal origin = new Literal(Source.EMPTY, GEO.wktToWkb("POINT (0 45)"), DataType.GEO_POINT);
         Literal scale = Literal.keyword(Source.EMPTY, "1000km");
-        return EvalMapper.toEvaluator(FOLD_CONTEXT, new Decay(Source.EMPTY, geoField, origin, scale, null), layout(geoField))
+        return decayEvaluator(geoField, origin, scale, decayOptions("offset", "10km"));
+    }
+
+    private static ExpressionEvaluator decayEvaluator(FieldAttribute field, Literal origin, Literal scale, MapExpression options) {
+        return EvalMapper.toEvaluator(FOLD_CONTEXT, new Decay(Source.EMPTY, field, origin, scale, options), layout(field))
             .get(driverContext);
+    }
+
+    private static MapExpression decayOptions(String key, String value) {
+        return new MapExpression(Source.EMPTY, List.of(Literal.keyword(Source.EMPTY, key), Literal.keyword(Source.EMPTY, value)));
     }
 
     private static ExpressionEvaluator dateTruncEvaluator() {
@@ -1418,25 +1469,12 @@ public class EvalBenchmark {
         }
     }
 
-    private static void checkDecayDoubleExpected(Operation operation, Page actual) {
+    private static void checkDecayExpected(Operation operation, Page actual, IntToDoubleFunction expectedAtPosition) {
         DoubleVector v = actual.<DoubleBlock>getBlock(1).asVector();
-        double scaling = BLOCK_LENGTH / 0.5;
         for (int i = 0; i < BLOCK_LENGTH; i++) {
-            double expected = (scaling - i) / scaling;
+            double expected = expectedAtPosition.applyAsDouble(i);
             if (v.getDouble(i) != expected) {
-                throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getDouble(i) + "]");
-            }
-        }
-    }
-
-    private static void checkDecayGeoExpected(Operation operation, Page actual) {
-        DoubleVector v = actual.<DoubleBlock>getBlock(1).asVector();
-        if (v.getDouble(0) != 1.0) {
-            throw new AssertionError("[" + operation + "] expected [1.0] at the origin but was [" + v.getDouble(0) + "]");
-        }
-        for (int i = 1; i < BLOCK_LENGTH; i++) {
-            if (v.getDouble(i) > v.getDouble(i - 1) || v.getDouble(i) <= 0.5) {
-                throw new AssertionError("[" + operation + "] expected a decreasing score above 0.5 but was [" + v.getDouble(i) + "]");
+                throw new AssertionError("[" + operation + "] expected [" + expected + "] at [" + i + "] but was [" + v.getDouble(i) + "]");
             }
         }
     }
@@ -1803,6 +1841,20 @@ public class EvalBenchmark {
                 }
                 yield new Page(builder.build());
             }
+            case DECAY_CARTESIAN -> {
+                var builder = blockFactory.newBytesRefBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.appendBytesRef(CARTESIAN.asWkb(new Point(i, 0)));
+                }
+                yield new Page(builder.build());
+            }
+            case DECAY_DATETIME -> {
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.appendLong(i);
+                }
+                yield new Page(builder.build());
+            }
             case DECAY_DOUBLE -> {
                 var builder = blockFactory.newDoubleBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
@@ -1811,10 +1863,10 @@ public class EvalBenchmark {
                 yield new Page(builder.build());
             }
             case DECAY_GEO -> {
-                // points along the equator, up to about 910km from the origin
+                // points along the 45th parallel, east of the origin, where swapping lat and lon changes the distances
                 var builder = blockFactory.newBytesRefBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    builder.appendBytesRef(GEO.asWkb(new Point(i * 0.001, 0)));
+                    builder.appendBytesRef(GEO.asWkb(new Point(i * 0.001, 45)));
                 }
                 yield new Page(builder.build());
             }

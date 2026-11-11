@@ -1993,6 +1993,79 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         }
     }
 
+    /**
+     * Every name under a flattened field resolves to a keyed field type, so the flattened field's own companions ({@code f._keyed.counts},
+     * {@code f.offsets}) look mapped. They must still follow their parent's FLS decision: a role that grants {@code f} and
+     * {@code f._keyed} but not {@code f._keyed.counts} would otherwise hide the counts, and the keyed doc values would be decoded in the
+     * wrong layout, corrupting or failing synthetic source.
+     */
+    public void testFlattenedCompanionsFollowParent() throws Exception {
+        String counts = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        String keyed = "f" + FlattenedFieldMapper.KEYED_FIELD_SUFFIX;
+        IndexVersion indexVersion = IndexVersion.current();
+        // The time-series doc values format (as in logsdb) makes f._keyed binary doc values with a f._keyed.counts companion.
+        Settings mapperSettings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.use_time_series_doc_values_format", true)
+            .build();
+        var indexSettings = createIndexSettings(indexVersion, mapperSettings);
+        var format = IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings);
+        String preserveLeafArrays = randomFrom("lossy", "exact");
+
+        MapperService mapperService = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+            b.startObject("f").field("type", "flattened").field("preserve_leaf_arrays", preserveLeafArrays).endObject();
+        }));
+        DocumentMapper mapper = mapperService.documentMapper();
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.startObject("f");
+                b.field("key1", "value1");
+                b.array("key2", "value3", "value2");
+                b.field("key3", "value4");
+                b.endObject();
+            }));
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            iw.addDocuments(doc.docs());
+            iw.close();
+
+            String expected = "exact".equals(preserveLeafArrays)
+                ? "{\"f\":{\"key1\":\"value1\",\"key2\":[\"value3\",\"value2\"],\"key3\":\"value4\"}}"
+                : "{\"f\":{\"key1\":\"value1\",\"key2\":[\"value2\",\"value3\"],\"key3\":\"value4\"}}";
+            var grant = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "f", keyed }, null));
+            try (
+                DirectoryReader indexReader = FieldSubsetReader.wrap(
+                    wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                    grant,
+                    format,
+                    SecurityIndexReaderWrapper.isMapped(mapperService.mappingLookup())
+                )
+            ) {
+                assertEquals(expected, syntheticSource(mapper, indexReader, doc.docs().size() - 1));
+                LeafReader leaf = indexReader.leaves().get(0).reader();
+                assertNotNull("counts should follow the keyed field", leaf.getNumericDocValues(keyed + counts));
+            }
+
+            var deny = new CharacterRunAutomaton(
+                FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "f", keyed })
+            );
+            try (
+                DirectoryReader indexReader = FieldSubsetReader.wrap(
+                    wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                    deny,
+                    format,
+                    SecurityIndexReaderWrapper.isMapped(mapperService.mappingLookup())
+                )
+            ) {
+                for (FieldInfo fi : indexReader.leaves().get(0).reader().getFieldInfos()) {
+                    assertFalse(fi.name + " should follow the denied flattened field", fi.name.startsWith("f."));
+                }
+            }
+        }
+    }
+
     public void testVisibilityOriginalFieldNames() throws Exception {
         try (Directory dir = newDirectory()) {
             try (IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(null))) {

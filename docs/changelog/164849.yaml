@@ -1,0 +1,6 @@
+area: Vector Search
+issues:
+ - 164821
+pr: 164849
+summary: Fix IVF kNN pruning rescore candidates when segment oversample differs
+type: bug

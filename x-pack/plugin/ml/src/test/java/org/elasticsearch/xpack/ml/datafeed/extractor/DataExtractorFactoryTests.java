@@ -663,33 +663,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         );
     }
 
-    public void testCreateGivenEsqlQueryShouldRouteToChunkedEsqlFactory() {
-        DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setTimeField("time");
-        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
-        jobBuilder.setDataDescription(dataDescription);
-
-        DatafeedConfig datafeedConfig = esqlDatafeedBuilder("esql-datafeed", "foo").setChunkingConfig(ChunkingConfig.newAuto()).build();
-
-        ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(dataExtractorFactory -> {
-            assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class));
-            assertThat(((ChunkedDataExtractorFactory) dataExtractorFactory).getDelegate(), instanceOf(EsqlDataExtractorFactory.class));
-        });
-
-        DataExtractorFactory.create(
-            client,
-            cloudCredentialManager,
-            datafeedConfig,
-            null,
-            jobBuilder.build(new Date()),
-            xContentRegistry(),
-            timingStatsReporter,
-            listener
-        );
-        verify(client, never()).execute(same(GetRollupIndexCapsAction.INSTANCE), any(), any());
-    }
-
-    public void testCreateGivenEsqlQueryShouldBypassRollupCheck() {
+    public void testCreateGivenEsqlQueryShouldRouteToChunkedEsqlFactoryAndBypassRollupCheck() {
         givenAggregatableRollup("myField", "max", 5, "termField");
 
         DataDescription.Builder dataDescription = new DataDescription.Builder();
@@ -697,7 +671,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
 
-        DatafeedConfig datafeedConfig = esqlDatafeedBuilder("esql-datafeed", "foo").build();
+        DatafeedConfig datafeedConfig = esqlDatafeedBuilder("esql-datafeed", "foo").setChunkingConfig(ChunkingConfig.newAuto()).build();
 
         ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(dataExtractorFactory -> {
             assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class));

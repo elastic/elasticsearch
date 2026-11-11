@@ -79,9 +79,6 @@ public interface DataExtractorFactory {
     ) {
         final Client searchClient = cloudCredentialManager.wrapClient(client, datafeed.getCloudInternalCredential());
 
-        final boolean hasEsqlQuery = datafeed.getEsqlQuery() != null;
-        final boolean hasAggs = datafeed.hasAggregations();
-        final boolean isComposite = hasAggs && datafeed.hasCompositeAgg(xContentRegistry);
         ActionListener<DataExtractorFactory> factoryHandler = listener.delegateFailureAndWrap(
             (l, factory) -> l.onResponse(
                 datafeed.getChunkingConfig().isEnabled()
@@ -90,6 +87,14 @@ public interface DataExtractorFactory {
             )
         );
 
+        if (datafeed.getEsqlQuery() != null) {
+            // Preview extraFilters (data-tier exclusion) are not applied on this path; see elastic/elasticsearch#161207.
+            EsqlDataExtractorFactory.create(searchClient, datafeed, job, timingStatsReporter, factoryHandler);
+            return;
+        }
+
+        final boolean hasAggs = datafeed.hasAggregations();
+        final boolean isComposite = hasAggs && datafeed.hasCompositeAgg(xContentRegistry);
         ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(
             response -> handleRollupIndexCapsResponse(
                 response,
@@ -108,9 +113,7 @@ public interface DataExtractorFactory {
             e -> handleRollupIndexCapsFailure(e, datafeed, listener)
         );
 
-        if (hasEsqlQuery) {
-            EsqlDataExtractorFactory.create(searchClient, datafeed, job, timingStatsReporter, factoryHandler);
-        } else if (RemoteClusterLicenseChecker.containsRemoteIndex(datafeed.getIndices())) {
+        if (RemoteClusterLicenseChecker.containsRemoteIndex(datafeed.getIndices())) {
             // If we have remote indices in the data feed, don't bother checking for rollup support
             // Rollups + CCS is not supported
             getRollupIndexCapsActionHandler.onResponse(new GetRollupIndexCapsAction.Response());

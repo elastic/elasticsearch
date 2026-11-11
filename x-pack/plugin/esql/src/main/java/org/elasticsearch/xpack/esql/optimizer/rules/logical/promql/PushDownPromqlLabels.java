@@ -92,7 +92,12 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-        return pushDown(plan, context.configuration(), PromqlCommand.usesLabelContainer(context));
+        boolean typed = PromqlCommand.usesLabelContainer(context);
+        if (typed && context.configuration().pragmas().promqlLabelPushdown() == false) {
+            // The translation is correct without it; a node before 9.7 reads only the keyword containers it leaves
+            return plan;
+        }
+        return pushDown(plan, context.configuration(), typed);
     }
 
     static LogicalPlan pushDown(LogicalPlan plan, Configuration configuration) {

@@ -263,6 +263,9 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
             if (randomBoolean()) {
                 settings.put("time_series_single_pass", randomBoolean());
             }
+            if (randomBoolean()) {
+                settings.put("promql_label_pushdown", randomBoolean());
+            }
         }
         return new QueryPragmas(settings.build());
     }

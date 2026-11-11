@@ -451,6 +451,9 @@ public class CsvIT extends ESTestCase {
         if (randomBoolean()) {
             pragmaSettings.put("max_concurrent_shards_per_node", randomBoolean() ? 1 : between(2, 10));
         }
+        if (randomBoolean()) {
+            pragmaSettings.put(QueryPragmas.PROMQL_LABEL_PUSHDOWN.getKey(), randomBoolean());
+        }
         pragmaSettings.put(transformed.extraPragmas());
         testCase.pragmas.forEach(pragmaSettings::put);
         if (pragmaSettings.build().isEmpty() == false) {

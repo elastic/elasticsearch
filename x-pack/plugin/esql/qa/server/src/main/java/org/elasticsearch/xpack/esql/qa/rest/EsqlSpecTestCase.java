@@ -574,6 +574,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (randomBoolean() && hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TIME_SERIES_SINGLE_PASS.capabilityName()))) {
             pragma.put(QueryPragmas.TIME_SERIES_SINGLE_PASS.getKey(), randomBoolean());
         }
+        if (randomBoolean()) {
+            // A node that does not know it reads every label container pushed down, as it is by default
+            pragma.put(QueryPragmas.PROMQL_LABEL_PUSHDOWN.getKey(), randomBoolean());
+        }
     }
 
     protected MappedFieldType.FieldExtractPreference fieldExtractPreference() {

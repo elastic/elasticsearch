@@ -82,6 +82,13 @@ public final class QueryPragmas implements Writeable {
 
     public static final Setting<Boolean> SINGLE_NODE_OPTIMIZATIONS = Setting.boolSetting("single_node_optimizations", true);
 
+    /**
+     * Whether a PromQL query splits its label containers into columns. The translation is correct without it: a testing lever
+     * that runs the plan as translated. Where a node before 9.7 takes part the keyword containers it leaves are required, so it
+     * applies regardless.
+     */
+    public static final Setting<Boolean> PROMQL_LABEL_PUSHDOWN = Setting.boolSetting("promql_label_pushdown", true);
+
     public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
 
     public static final Setting<MappedFieldType.FieldExtractPreference> FIELD_EXTRACT_PREFERENCE = Setting.enumSetting(
@@ -292,7 +299,8 @@ public final class QueryPragmas implements Writeable {
         PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD,
         SINGLE_NODE_OPTIMIZATIONS,
         TIME_SERIES_SINGLE_PASS,
-        TIME_SERIES_REDUCE_PER_INDEX
+        TIME_SERIES_REDUCE_PER_INDEX,
+        PROMQL_LABEL_PUSHDOWN
     ).map(Setting::getKey).toList();
 
     private final Settings settings;
@@ -415,6 +423,13 @@ public final class QueryPragmas implements Writeable {
      */
     public boolean singleNodeOptimizations() {
         return SINGLE_NODE_OPTIMIZATIONS.get(settings);
+    }
+
+    /**
+     * Whether a PromQL query splits its label containers into columns, see {@link #PROMQL_LABEL_PUSHDOWN}
+     */
+    public boolean promqlLabelPushdown() {
+        return PROMQL_LABEL_PUSHDOWN.get(settings);
     }
 
     /**

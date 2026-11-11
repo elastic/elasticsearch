@@ -2128,6 +2128,65 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         assertRowsAnyOrder(promqlQuery(index, "tx unless ignoring(host) (tx > 2)") + " | KEEP result, _timeseries", List.of());
     }
 
+    /** A by() key no parent reads still decides the rows it aggregates. */
+    public void testPromqlUnusedByKeyStillDeterminesRows() {
+        String index = "promql-unused-by-key";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "tx", 1.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "tx", 10.0);
+        refresh(index);
+        assertRowsAnyOrder(promqlQuery(index, "sum(max by(host)(tx))") + " | KEEP result", List.of(List.of(11.0)));
+    }
+
+    /** A label a closed by() left out reads as absent above it, a non-dimension field like a dimension. */
+    public void testPromqlMissingLabelCannotCrossClosedBy() {
+        String index = "promql-closed-by";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "event", "e1", "tx", 1.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "event", "e2", "tx", 10.0);
+        refresh(index);
+        assertRowsAnyOrder(
+            promqlQuery(index, "sum by(host)(sum by(cluster)(tx))") + " | KEEP result, host",
+            List.of(Arrays.asList(11.0, null))
+        );
+        assertRowsAnyOrder(
+            promqlQuery(index, "sum by(event)(tx)") + " | KEEP result, event",
+            List.of(List.of(1.0, "e1"), List.of(10.0, "e2"))
+        );
+        assertRowsAnyOrder(
+            promqlQuery(index, "sum by(event)(sum by(cluster)(tx))") + " | KEEP result, event",
+            List.of(Arrays.asList(11.0, null))
+        );
+    }
+
+    /** A label named {@code a$b} leaves out a different view than labels {@code a} and {@code b}. */
+    public void testPromqlDistinctLabelContainerViewsDoNotCollideOnLabelSeparator() {
+        assumeTrue("requires a typed label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
+        String index = "promql-label-views";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "tx", 1.0, "rx", 2.0);
+        refresh(index);
+        String expression = "label_join(tx, \"a$b\", \"-\", \"host\") or "
+            + "label_join(label_join(rx, \"a\", \"-\", \"host\"), \"b\", \"-\", \"host\")";
+        assertRowsAnyOrder(promqlQuery(index, expression) + " | KEEP result", List.of(List.of(1.0), List.of(2.0)));
+    }
+
+    /** Removing the metric name from the output must not merge histogram families before their quantiles. */
+    public void testPromqlHistogramMetricNameIsAnInternalGroupingDependency() {
+        String index = "promql-histogram-families";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "m1", "le", "1", "tx", 2.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "m1", "le", "+Inf", "tx", 4.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "m2", "le", "1", "tx", 6.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "m2", "le", "+Inf", "tx", 8.0);
+        refresh(index);
+        // m1: target count 2 in a bucket of count 2 gives 1. m2: target 4 in a bucket of count 6 gives 2/3.
+        assertRowsAnyOrder(
+            promqlQuery(index, "histogram_quantile(0.5,sum by(le,__name__,cluster)(tx))") + " | KEEP result",
+            List.of(List.of(1.0), List.of(2.0 / 3.0))
+        );
+    }
+
     private void createOptionalLabelMetricsIndex(String index) {
         assertAcked(
             indicesAdmin().prepareCreate(index)
@@ -2151,6 +2210,10 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                     "type=keyword,time_series_dimension=true",
                     "__name__",
                     "type=keyword,time_series_dimension=true",
+                    "le",
+                    "type=keyword,time_series_dimension=true",
+                    "event",
+                    "type=keyword",
                     "tx",
                     "type=double,time_series_metric=gauge",
                     "rx",

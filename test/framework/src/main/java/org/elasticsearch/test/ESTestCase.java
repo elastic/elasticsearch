@@ -229,6 +229,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -3325,16 +3326,24 @@ public abstract class ESTestCase extends LuceneTestCase {
      * a failed assertion, is rethrown on the calling thread as an {@link AssertionError}.
      */
     public static void onOtherThread(CheckedRunnable<Exception> task) {
-        // runInParallel runs the last task on the calling thread and every other task on a new thread, so the task at index 0 is off-thread
-        runInParallel(2, i -> {
-            if (i == 0) {
-                try {
-                    task.run();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+        final AtomicReference<Throwable> failure = new AtomicReference<>();
+        final Thread thread = new Thread(() -> {
+            try {
+                task.run();
+            } catch (Throwable t) {
+                failure.set(t);
             }
-        });
+        }, "TEST-onOtherThread");
+        thread.start();
+        try {
+            thread.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("interrupted while waiting for the task on the other thread", e);
+        }
+        if (failure.get() != null) {
+            throw new AssertionError(failure.get());
+        }
     }
 
     public static void ensureAllContextsReleased(SearchService searchService) {

@@ -29,6 +29,7 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TermQuery;
@@ -2978,8 +2979,13 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     }
 
     private void assertDateHistogramAfterKeyWithIndexSortMissingValue(boolean missingLast) throws IOException {
-        final SortedNumericSortField sortField = new SortedNumericSortField("date", SortField.Type.LONG, false);
-        sortField.setMissingValue(missingLast ? Long.MAX_VALUE : Long.MIN_VALUE);
+        final SortedNumericSortField sortField = new SortedNumericSortField(
+            "date",
+            SortField.Type.LONG,
+            false,
+            SortedNumericSelector.Type.MIN,
+            missingLast ? Long.MAX_VALUE : Long.MIN_VALUE
+        );
         indexSort = new Sort(sortField);
         try (Directory directory = newDirectory()) {
             final IndexWriterConfig config = newIndexWriterConfig(random(), new MockAnalyzer(random()));

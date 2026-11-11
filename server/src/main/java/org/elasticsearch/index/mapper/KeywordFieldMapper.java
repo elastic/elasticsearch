@@ -2332,7 +2332,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexed) {
                 context.getOffSetContext().recordOffset(offsetsFieldName, value.bytes(), OFFSETS_FALLBACK);
             } else if (value == null) {
-                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
+                context.getOffSetContext().recordNull(context, offsetsFieldName, OFFSETS_FALLBACK);
             } else {
                 // The value tripped ignore_above: a field that records offsets has doc values, so that is the only reason a non-null
                 // value is not indexed. It gets no slot, but is recorded so that the _ignored_source fallback for oversized offsets

@@ -375,6 +375,18 @@ decay_result:double
 0.75
 ;
 
+unsignedLongNegativeOrigin
+required_capability: fn_decay_ga_fixes
+
+// distance 15 - (-5) = 20 with scale 20: (40 - 20) / 40
+ROW value = 15::unsigned_long
+| EVAL decay_result = decay(value, -5, 20)
+| KEEP decay_result;
+
+decay_result:double
+0.5
+;
+
 unsignedLongLinearMaxOffset
 required_capability: decay_function_unsigned_long
 

@@ -33,6 +33,7 @@ import java.util.Queue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -41,6 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ComputeListenerTests extends ESTestCase {
     private ThreadPool threadPool;
@@ -193,5 +195,98 @@ public class ComputeListenerTests extends ESTestCase {
         assertThat(cause, instanceOf(CircuitBreakingException.class));
         assertThat(failure.getSuppressed().length, lessThan(10));
         assertThat(onFailure.get(), greaterThanOrEqualTo(1));
+    }
+
+    public void testFailureReportsUsageOfSucceededAndFailedSlots() {
+        PlainActionFuture<DriverCompletionInfo> rootListener = new PlainActionFuture<>();
+        AtomicReference<DriverCompletionInfo> reportedUsage = new AtomicReference<>();
+        var succeeded = randomCompletionInfo();
+        var failedWithUsage = randomCompletionInfo();
+        try (var computeListener = new ComputeListener(() -> {}, rootListener, reportedUsage::set)) {
+            computeListener.acquireCompute().onResponse(succeeded);
+            computeListener.acquireCompute().onFailure(new IllegalStateException("failed"), failedWithUsage);
+            // a slot that fails without saying what it did, and one that does not collect usage, add nothing
+            computeListener.acquireCompute().onFailure(new IllegalStateException("failed too"));
+            computeListener.acquireAvoid().onFailure(new IllegalStateException("failed as well"));
+        }
+        expectThrows(ExecutionException.class, () -> rootListener.get(10, TimeUnit.SECONDS));
+        assertNotNull(reportedUsage.get());
+        assertThat(reportedUsage.get().documentsFound(), equalTo(succeeded.documentsFound() + failedWithUsage.documentsFound()));
+        assertThat(reportedUsage.get().bytesRead(), equalTo(succeeded.bytesRead() + failedWithUsage.bytesRead()));
+        assertThat(reportedUsage.get().readCpuNanos(), equalTo(succeeded.readCpuNanos() + failedWithUsage.readCpuNanos()));
+    }
+
+    public void testSuccessDoesNotReportFailureUsage() {
+        PlainActionFuture<DriverCompletionInfo> rootListener = new PlainActionFuture<>();
+        AtomicInteger reports = new AtomicInteger();
+        try (var computeListener = new ComputeListener(() -> {}, rootListener, usage -> reports.incrementAndGet())) {
+            computeListener.acquireCompute().onResponse(randomCompletionInfo());
+        }
+        rootListener.actionGet(10, TimeUnit.SECONDS);
+        assertThat(reports.get(), equalTo(0));
+    }
+
+    public void testFailureIsDeliveredWhenReportingUsageFails() {
+        PlainActionFuture<DriverCompletionInfo> rootListener = new PlainActionFuture<>();
+        IllegalStateException failure = new IllegalStateException("failed");
+        try (
+            var computeListener = new ComputeListener(() -> {}, rootListener, usage -> { throw new IllegalArgumentException("broken"); })
+        ) {
+            computeListener.acquireCompute().onFailure(failure, randomCompletionInfo());
+        }
+        ExecutionException e = expectThrows(ExecutionException.class, () -> rootListener.get(10, TimeUnit.SECONDS));
+        assertThat(e.getCause(), sameInstance(failure));
+    }
+
+    public void testUsageIsReportedBeforeTheFailureIsDelivered() {
+        List<String> events = new ArrayList<>();
+        ActionListener<DriverCompletionInfo> delegate = ActionListener.wrap(
+            info -> fail("the compute failed"),
+            e -> events.add("failure delivered")
+        );
+        try (var computeListener = new ComputeListener(() -> {}, delegate, usage -> events.add("usage reported"))) {
+            computeListener.acquireCompute().onFailure(new IllegalStateException("failed"), randomCompletionInfo());
+        }
+        assertThat(events, equalTo(List.of("usage reported", "failure delivered")));
+    }
+
+    public void testFailureWithoutUsageAddsNothing() {
+        AtomicReference<DriverCompletionInfo> reportedUsage = new AtomicReference<>();
+        var succeeded = randomCompletionInfo();
+        try (
+            var computeListener = new ComputeListener(
+                () -> {},
+                ActionListener.wrap(info -> fail("the compute failed"), e -> {}),
+                reportedUsage::set
+            )
+        ) {
+            computeListener.acquireCompute().onResponse(succeeded);
+            // the plain failure of a ComputeCompletionListener reports no usage
+            computeListener.acquireCompute().onFailure(new IllegalStateException("failed"));
+        }
+        assertThat(reportedUsage.get().bytesRead(), equalTo(succeeded.bytesRead()));
+        assertThat(reportedUsage.get().cpuNanos(), equalTo(succeeded.cpuNanos()));
+    }
+
+    public void testNestedListenerReportsItsUsageOnlyToItsOwnConsumer() {
+        AtomicReference<DriverCompletionInfo> outerUsage = new AtomicReference<>();
+        AtomicReference<DriverCompletionInfo> innerUsage = new AtomicReference<>();
+        PlainActionFuture<DriverCompletionInfo> rootListener = new PlainActionFuture<>();
+        var outerSucceeded = randomCompletionInfo();
+        var innerSucceeded = randomCompletionInfo();
+        var innerFailed = randomCompletionInfo();
+        try (var outer = new ComputeListener(() -> {}, rootListener, outerUsage::set)) {
+            outer.acquireCompute().onResponse(outerSucceeded);
+            var outerSlot = outer.acquireCompute();
+            try (var inner = new ComputeListener(() -> {}, outerSlot.delegateFailure((l, info) -> l.onResponse(info)), innerUsage::set)) {
+                inner.acquireCompute().onResponse(innerSucceeded);
+                inner.acquireCompute().onFailure(new IllegalStateException("failed"), innerFailed);
+            }
+        }
+        expectThrows(ExecutionException.class, () -> rootListener.get(10, TimeUnit.SECONDS));
+        assertNotNull(innerUsage.get());
+        assertThat(innerUsage.get().bytesRead(), equalTo(innerSucceeded.bytesRead() + innerFailed.bytesRead()));
+        // to the outer listener the failed inner listener is a slot that failed without saying what it did
+        assertThat(outerUsage.get().bytesRead(), equalTo(outerSucceeded.bytesRead()));
     }
 }

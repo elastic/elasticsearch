@@ -229,6 +229,7 @@ import org.elasticsearch.xpack.stateless.recovery.metering.StatelessSearchNodeRe
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationIndexListener;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationMetricsCollector;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction;
+import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportGetShardWarmingInfoAction;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardMetrics;
 import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
@@ -389,6 +390,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<IndexEngineDynamicSettings> indexEngineDynamicSettings = new SetOnce<>();
     private final SetOnce<ReshardSearchFilters> reshardSearchFilters = new SetOnce<>();
     private final SetOnce<SearchShardInformationIndexListener> searchShardInformationIndexListener = new SetOnce<>();
+    private final SetOnce<StatelessSearchNodeRecoveryListener> searchNodeRecoveryListener = new SetOnce<>();
     private final SetOnce<PITRelocationService> pitRelocationService = new SetOnce<>();
     private final SetOnce<List<StatelessExtensionProvider>> statelessServicesConsumerProviders = new SetOnce<>();
     private final SetOnce<SnapshotsCommitService> snapshotsCommitServiceRef = new SetOnce<>();
@@ -597,6 +599,7 @@ public class StatelessPlugin extends Plugin
             new ActionHandler(TransportReshardAction.TYPE, TransportReshardAction.class),
             new ActionHandler(StatelessUnpromotableRelocationAction.TYPE, TransportStatelessUnpromotableRelocationAction.class),
             new ActionHandler(TransportFetchSearchShardInformationAction.TYPE, TransportFetchSearchShardInformationAction.class),
+            new ActionHandler(TransportGetShardWarmingInfoAction.TYPE, TransportGetShardWarmingInfoAction.class),
             new ActionHandler(TransportPublishHeapMemoryMetrics.INSTANCE, TransportPublishHeapMemoryMetrics.class),
             new ActionHandler(
                 TransportPublishIndexingOperationsHeapMemoryRequirements.INSTANCE,
@@ -750,12 +753,14 @@ public class StatelessPlugin extends Plugin
         var commitCleaner = new StatelessCommitCleaner(consistencyService, threadPool, objectStoreService);
         components.add(commitCleaner);
 
+        components.add(new PluginComponentBinding<>(WarmingRatioProviderFactory.class, warmingRatioProviderFactoryRef.get()));
         final var searchRecoveryTimeoutCalculationService = new SearchRecoveryTimeoutCalculationService(
             cacheService,
             threadPool,
             clusterService.getClusterSettings(),
             clusterService.getSettings(),
-            JvmInfo.jvmInfo().getMem().getHeapMax()
+            JvmInfo.jvmInfo().getMem().getHeapMax(),
+            services.telemetryProvider()
         );
         components.add(searchRecoveryTimeoutCalculationService);
         var cacheWarmingService = createSharedBlobCacheWarmingService(
@@ -1046,6 +1051,19 @@ public class StatelessPlugin extends Plugin
                     shardInformationMetricsCollector,
                     clusterService.getClusterSettings(),
                     threadPool.relativeTimeInMillisSupplier()
+                )
+            );
+            setAndGet(
+                this.searchNodeRecoveryListener,
+                new StatelessSearchNodeRecoveryListener(
+                    objectStoreService,
+                    recoveryCommitRegistrationHandler.get(),
+                    cacheWarmingService,
+                    projectResolver.get(),
+                    bccHeaderReadExecutor.get(),
+                    clusterService,
+                    warmingRatioProviderFactoryRef.get(),
+                    client
                 )
             );
             final var shuttingDown = setAndGet(isNodeShuttingDown, new AtomicBoolean());
@@ -1406,6 +1424,7 @@ public class StatelessPlugin extends Plugin
             SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING,
             SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_IGNORE_NON_SEARCH_NODE_SHUTDOWNS_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
+            SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_SOURCE_WARMING_INFO_ENABLED_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_FILTER_SOURCE_SHARDS_BY_TARGET_SETTING,
             AutoCreateAction.AUTO_CREATE_INDEX_PRIORITY_SETTING,
             AutoCreateAction.AUTO_CREATE_INDEX_MAX_TIMEOUT_SETTING,
@@ -1552,6 +1571,7 @@ public class StatelessPlugin extends Plugin
             );
 
             indexModule.addIndexEventListener(this.searchShardInformationIndexListener.get());
+            indexModule.addIndexEventListener(this.searchNodeRecoveryListener.get());
             indexModule.addIndexEventListener(this.pitRelocationService.get());
 
             final var searchIdxVersion = indexModule.indexSettings().getIndexVersionCreated();
@@ -1569,17 +1589,6 @@ public class StatelessPlugin extends Plugin
                     return in;
                 }
             });
-            indexModule.addIndexEventListener(
-                new StatelessSearchNodeRecoveryListener(
-                    objectStoreService.get(),
-                    recoveryCommitRegistrationHandler.get(),
-                    sharedBlobCacheWarmingService.get(),
-                    projectResolver.get(),
-                    bccHeaderReadExecutor.get(),
-                    clusterService.get(),
-                    warmingRatioProviderFactoryRef.get()
-                )
-            );
         }
         indexModule.addIndexEventListener(recoveryMetricsCollector.get());
     }

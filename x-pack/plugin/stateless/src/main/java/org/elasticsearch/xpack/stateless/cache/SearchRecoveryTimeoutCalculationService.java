@@ -24,6 +24,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
 
@@ -33,8 +37,23 @@ import java.util.Map;
 /// [#searchRecoveryTimeout].
 public class SearchRecoveryTimeoutCalculationService {
 
+    private static final Logger logger = LogManager.getLogger(SearchRecoveryTimeoutCalculationService.class);
+
+    public static final String SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_TOTAL_METRIC =
+        "es.blob_cache_warming.search_recovery.drain_timeout_heuristic.total";
+    public static final String SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY = "es_drain_timeout_heuristic";
+    public static final String SEARCH_RECOVERY_SOURCE_WARMING_INFO_STATUS_ATTRIBUTE_KEY = "es_source_warming_info_status";
+
     public static final String OFFLINE_WARMING_TIMEOUT_REEVALUATION_PREFIX =
         SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_timeout_reevaluation";
+
+    /// When true, drain-path search recovery warming timeouts may use the shard warming info fetched from the shutting-down source node.
+    public static final Setting<Boolean> SEARCH_OFFLINE_WARMING_SOURCE_WARMING_INFO_ENABLED_SETTING = Setting.boolSetting(
+        SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_source_warming_info.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     /// Enabling causes offline warming timeouts to be reevaluated to see whether we can afford to continue warming before relocating and
     /// opening a shard. Enabling this setting should reduce blob store cache misses after shard relocations.
@@ -78,6 +97,7 @@ public class SearchRecoveryTimeoutCalculationService {
 
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
+    private final LongCounter drainTimeoutHeuristicTotalMetric;
     private volatile int maxConcurrentRelocationRecoveries;
     private volatile TimeValue searchRecoveryWarmingRelocationWithShutdownTimeout;
     private volatile TimeValue searchRecoveryWarmingRelocationTimeout;
@@ -97,10 +117,21 @@ public class SearchRecoveryTimeoutCalculationService {
         ThreadPool threadPool,
         ClusterSettings clusterSettings,
         Settings nodeSettings,
-        ByteSizeValue maxHeap
+        ByteSizeValue maxHeap,
+        TelemetryProvider telemetryProvider
     ) {
         this.cacheService = cacheService;
         this.threadPool = threadPool;
+        this.drainTimeoutHeuristicTotalMetric = telemetryProvider.getMeterRegistry()
+            .registerLongCounter(
+                SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_TOTAL_METRIC,
+                "Number of warming timeouts calculated for drain-path search recovery warming, broken down by the ["
+                    + SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY
+                    + "] heuristic used for the timeout and the ["
+                    + SEARCH_RECOVERY_SOURCE_WARMING_INFO_STATUS_ATTRIBUTE_KEY
+                    + "] of the source's shard warming info",
+                "count"
+            );
         DataNodeRecoveryThrottlingSettings.watchIncomingRecoveryLimits(
             clusterSettings,
             nodeSettings,
@@ -197,11 +228,21 @@ public class SearchRecoveryTimeoutCalculationService {
     /// When to await search recovery warming (internal replicated-files path only). Relocation targets use relocation-specific timeouts or
     /// a computed share when the source is shutting down. Non-relocation: wait only if another active search shard copy exists and no
     /// search node is shutting down, using [SharedBlobCacheWarmingService#SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING].
-    public SearchRecoveryTimeout searchRecoveryTimeout(
+    public final SearchRecoveryTimeout searchRecoveryTimeout(
         ClusterState state,
         IndexShard indexShard,
         long totalBytesToWarm,
         @Nullable SearchRecoveryTimeout previousPlan
+    ) {
+        return searchRecoveryTimeout(state, indexShard, totalBytesToWarm, previousPlan, SourceShardWarmingInfo.NOT_REQUESTED);
+    }
+
+    public SearchRecoveryTimeout searchRecoveryTimeout(
+        ClusterState state,
+        IndexShard indexShard,
+        long totalBytesToWarm,
+        @Nullable SearchRecoveryTimeout previousPlan,
+        SourceShardWarmingInfo sourceShardWarmingInfo
     ) {
         final ShardRouting shardRouting = indexShard.routingEntry();
         assert shardRouting.isPromotableToPrimary() == false;
@@ -213,8 +254,10 @@ public class SearchRecoveryTimeoutCalculationService {
                     state,
                     sourceNodeId,
                     shardRouting.currentNodeId(),
+                    indexShard.shardId(),
                     totalBytesToWarm,
-                    previousPlan
+                    previousPlan,
+                    sourceShardWarmingInfo
                 );
             }
             if (hasShuttingDownSearchNodeWithShards(state)) {
@@ -299,13 +342,17 @@ public class SearchRecoveryTimeoutCalculationService {
         return false;
     }
 
-    /// Returns the warming timeout for a shard whose relocation source is shutting down, as the maximum of two heuristics:
+    /// Returns the warming timeout for a shard whose relocation source is shutting down, as the maximum of these heuristics:
     ///
     /// 1. _Equal-share_: `factor * (deadline - now) / shardsOnSource * concurrentRelocations`, ensuring every
     /// shard on the shutting-down source gets a fair slice of the remaining grace period.
     /// 2. _Data-volume-proportional_ (contributes only when `totalBytesToWarm` is greater than zero): the fraction of the
     /// node's warming cache budget consumed by this shard's data multiplied by the remaining time,
     /// i.e. `(totalBytesToWarm / (cacheSize * cacheRatio)) * remaining * concurrentRelocations`.
+    /// 3. _Warm-amount share_ (when the source answered for its current shutdown signal before this plan):
+    /// `(shardWarmAmount / sumOfWarmAmountsFromSourceToTarget) * remaining * concurrentRelocations`. Both amounts are the source's
+    /// estimates. The source leaves copies already relocating to a different node out of the sum and keeps STARTED copies (no target
+    /// yet) in it, and recomputes it on each request, so shards that finished relocating drop out of it.
     ///
     /// with `deadline = start + min(metadata grace, cap)`. The timeout is capped at the remaining grace period.
     ///
@@ -314,15 +361,18 @@ public class SearchRecoveryTimeoutCalculationService {
     /// is a rough estimate, and an upper bound: it ignores the other recoveries competing for the target's slots.
     ///
     /// The heuristics above decide the first plan of the shutdown phase. Only equal-share plans are
-    /// [SearchRecoveryTimeout#extendable]. A re-evaluation of an equal-share plan (`previousPlan`) always yields an equal-share
-    /// plan that only extends the wait by the time saved since then, regardless of which heuristic would win, see [#searchRecoveryTimeout].
-    /// When all shards fit in the target's recovery slots, nobody waits behind this one, so the extension is all the remaining grace.
+    /// [SearchRecoveryTimeout#extendable]. Data-volume and warm-amount plans are not. A re-evaluation of an equal-share plan
+    /// (`previousPlan`) always yields an equal-share plan that only extends the wait by the time saved since then, regardless of which
+    /// heuristic would win, see [#searchRecoveryTimeout]. When all shards fit in the target's recovery slots, nobody waits behind this
+    /// one, so each re-evaluation extends by at most one minute of the remaining grace.
     private SearchRecoveryTimeout computeRelocationSourceShutdownWarmingTimeout(
         ClusterState state,
         String sourceNodeId,
         String targetNodeId,
+        ShardId shardId,
         long totalBytesToWarm,
-        @Nullable SearchRecoveryTimeout previousPlan
+        @Nullable SearchRecoveryTimeout previousPlan,
+        SourceShardWarmingInfo sourceShardWarmingInfo
     ) {
         final var shutdown = state.metadata().nodeShutdowns().get(sourceNodeId);
         assert shutdown != null;
@@ -365,10 +415,11 @@ public class SearchRecoveryTimeoutCalculationService {
         if (previousPlan != null && previousPlan.isEqualSharePlan() && previousPlan.perShardShareMs() > 0) {
             // Re-evaluation of an equal-share plan: every shard still on the source was already budgeted previousPlan.perShardShareMs()
             // when the previous plan was computed, so only the part of the fresh share above that is time saved by shards that finished
-            // early. When none did, the fresh share is not larger and there is nothing to extend by. The data-volume heuristic is
-            // deliberately not consulted: it only decides the first plan of the shutdown phase, afterwards only saved time is handed out.
-            // The exception is when all shards fit in the target's slots: nobody is queued behind this one, so the remaining grace would be
-            // wasted if not used, so extend by max 1 minute on every reevaluation as long as the conditions don't change.
+            // early. When none did, the fresh share is not larger and there is nothing to extend by. The data-volume and warm-amount
+            // heuristics are deliberately not consulted: they only decide the first plan of the shutdown phase, afterwards only saved
+            // time is handed out. The exception is when all shards fit in the target's slots: nobody is queued behind this one, so the
+            // remaining grace would be wasted if not used, so extend by max 1 minute on every reevaluation as long as the conditions
+            // don't change.
             // n.b. RELOCATING does not imply running, under recovery throttling a shard may still be queued for a slot.
             final boolean noShardWaitingForRelocationSlot = shardsOnSource <= concurrentRelocations;
             final double extensionMs = noShardWaitingForRelocationSlot
@@ -381,22 +432,51 @@ public class SearchRecoveryTimeoutCalculationService {
             );
         }
 
-        // The decision below is per-shard whereas the two heuristics above assume all shards opt with the same heuristic
-        // this is an inherent problem of the fact that, during relocation, we don't know apriori all the shards that are going
-        // to be relocated between two given nodes, so we can't know which of the two heuristics is more suitable overall.
+        // Warm-amount shares use the source's estimates of its current commits; they can differ from this target's WarmTarget plan.
+        final long shutdownStartedAtMillis = shutdown.getStartedAtMillis();
+        final double warmAmountMs = sourceShardWarmingInfo.get(shutdownStartedAtMillis).map(warmingInfo -> {
+            logger.debug(
+                "{} source shard warming info [{}/{}] bytes, target plans to warm [{}] bytes",
+                shardId,
+                warmingInfo.shardBytesToWarm(),
+                warmingInfo.sourceBytesToWarm(),
+                totalBytesToWarm
+            );
+            return warmingInfo.warmBytesRatio() * remaining;
+        }).orElse(0.0);
+
+        // The decision below is per-shard whereas the three heuristics above assume all shards opt with the same heuristic.
+        // This is an inherent problem of the fact that, during relocation, we don't know up-front all the shards that are going
+        // to be relocated between two given nodes, so we can't know which of the three heuristics is more suitable overall.
         // Though the per-shard local decision here is OKish, because it's all relative to the remaining deadline and shards,
-        // so the impact of currently choosing a different heuristic from previous (or future) relocating shards is partially mitigated
-        if (dataVolumeMs > equalShareMs) {
-            return new SearchRecoveryTimeout(
-                TimeValue.timeValueMillis(Math.round(Math.min(remaining, dataVolumeMs * concurrentRelocations))),
-                TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME
-            );
-        } else {
-            return new SearchRecoveryTimeout(
-                TimeValue.timeValueMillis(Math.round(Math.min(remaining, equalShareMs * concurrentRelocations))),
-                TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE,
-                equalShareMs
-            );
+        // so the impact of currently choosing a different heuristic from previous (or future) relocating shards is partially mitigated.
+        final ShutdownHeuristic heuristic = ShutdownHeuristic.select(equalShareMs, dataVolumeMs, warmAmountMs);
+        drainTimeoutHeuristicTotalMetric.incrementBy(
+            1,
+            Map.of(
+                SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY,
+                heuristic.name(),
+                SEARCH_RECOVERY_SOURCE_WARMING_INFO_STATUS_ATTRIBUTE_KEY,
+                sourceShardWarmingInfo.status(shutdownStartedAtMillis).attributeValue()
+            )
+        );
+        return new SearchRecoveryTimeout(
+            TimeValue.timeValueMillis(Math.round(Math.min(remaining, heuristic.perShardShareMs() * concurrentRelocations))),
+            heuristic.context(),
+            // Only equal-share plans are extended, and a re-evaluation compares this share with the fresh one.
+            heuristic.context() == TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE ? heuristic.perShardShareMs() : 0
+        );
+    }
+
+    private record ShutdownHeuristic(String name, TimeoutContext context, double perShardShareMs) {
+        static ShutdownHeuristic select(double equalShareMs, double dataVolumeMs, double warmAmountMs) {
+            if (warmAmountMs > equalShareMs && warmAmountMs > dataVolumeMs) {
+                return new ShutdownHeuristic("warm_amount", TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_AMOUNT, warmAmountMs);
+            } else if (dataVolumeMs > equalShareMs) {
+                return new ShutdownHeuristic("data_volume", TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME, dataVolumeMs);
+            } else {
+                return new ShutdownHeuristic("equal_share", TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE, equalShareMs);
+            }
         }
     }
 

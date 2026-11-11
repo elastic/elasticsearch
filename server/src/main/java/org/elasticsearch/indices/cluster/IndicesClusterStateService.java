@@ -163,7 +163,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     /// Identifies one allocation attempt of a shard. Keying bookkeeping by allocation id (not just
     /// [ShardId]) means a new allocation of a shard can never collide with, or be confused
-    /// for, bookkeeping left behind by a previous allocation of the same shard.
+    /// for, bookkeeping left behind by a previous allocation of the same shard. Note that
+    /// the primary term lives in the value and can be used to differentiate creation attempts
+    /// that doesn't change allocation id (e.g. a primary gets reassigned with the same allocation id
+    /// after a recovery failed, or a restore from snapshot that reused allocation id)
     record ShardAllocationKey(ShardId shardId, String allocationId) {
         static ShardAllocationKey fromRouting(ShardRouting routing) {
             return new ShardAllocationKey(routing.shardId(), routing.allocationId().getId());

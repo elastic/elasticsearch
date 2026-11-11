@@ -2403,9 +2403,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          *   <li>A {@code LOAD_ALL} sibling column: a sibling branch of a union or a {@code FORK} has the column, with the same type in
          *   every branch that has it, and this branch does not, so the keyword read from {@code _source} is cast to that type when a
          *   cast exists, and otherwise null-filled with a warning. How the sibling got the column (a mapping, an {@code EVAL}, a
-         *   {@code RENAME}, a union or {@code FORK} nested in it) makes no difference, and neither does the order of the branches. A column with no single type, such as
-         *   one that the siblings disagree on, is not loaded. A field this branch already named stays a keyword and conflicts further
-         *   down, same as load.</li>
+         *   {@code RENAME}, a union or {@code FORK} nested in it) makes no difference, and neither does the order of the branches. A
+         *   column with no single type, such as one that the siblings disagree on, is not loaded. A field this branch already named
+         *   stays a keyword and conflicts further down, same as load.</li>
          *   <li>A field materialized in a sibling branch is materialized here too (rather than null-filled), unless this branch
          *   cannot surface it: loaded from {@code _source} under {@code LOAD}/{@code LOAD_ALL}, null-typed under nullify. This keeps
          *   the branches' source relations symmetric. Matched by name so a sibling's generating command (EVAL/MV_EXPAND/...)

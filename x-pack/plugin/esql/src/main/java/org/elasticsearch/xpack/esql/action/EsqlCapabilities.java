@@ -4236,6 +4236,13 @@ public class EsqlCapabilities {
         FIX_PROMQL_EMPTY_RANGE_IS_NO_ELEMENT(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * Fix PromQL range queries reading the first step's samples: the source filter starts one step before
+         * {@code start}, so an instant selector at the first step, and so a range query with {@code start == end},
+         * sees the samples of its whole bucket.
+         */
+        FIX_PROMQL_FIRST_STEP_LOOKBACK(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Fix mixing of millisecond roundings with nanosecond timestamps in time-series aggregations over
          * {@code date_nanos} indices. This covers window bucket expansion, the window merge in the final
          * aggregation, the window row filter for windows smaller than the time bucket, and the neighbor-bucket

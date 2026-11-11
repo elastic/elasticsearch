@@ -118,12 +118,14 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
     }
 
     /**
-     * Resolves the range-query bucket size from an explicit {@code step} or an auto bucket count.
+     * Resolves the range-query bucket size from an explicit {@code step} or an auto bucket count. The width depends on the
+     * range alone, not on the index's timestamp, which may be missing or not yet resolved.
      */
-    public static Duration foldStep(Expression timestamp, Literal start, Literal end, Literal step, Literal buckets) {
+    public static Duration foldStep(Literal start, Literal end, Literal step, Literal buckets) {
         if (step.value() instanceof Duration duration) {
             return duration;
         }
+        var timestamp = new ReferenceAttribute(buckets.source(), null, MetadataAttribute.TIMESTAMP_FIELD, DataType.DATETIME);
         Bucket autoBucket = new Bucket(buckets.source(), timestamp, buckets, start, end, null, ConfigurationAware.CONFIGURATION_MARKER);
         long rangeStart = ((Number) start.value()).longValue();
         long rangeEnd = ((Number) end.value()).longValue();
@@ -156,9 +158,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         long first = start;
 
         if (command.isInstantQuery() == false) {
-            var tsField = new ReferenceAttribute(source, null, MetadataAttribute.TIMESTAMP_FIELD, DataType.DATETIME);
-
-            step = foldStep(tsField, command.start(), command.end(), command.step(), command.buckets()).toMillis();
+            step = foldStep(command.start(), command.end(), command.step(), command.buckets()).toMillis();
 
             if (step <= 0) {
                 throw new IllegalArgumentException("step must be positive");

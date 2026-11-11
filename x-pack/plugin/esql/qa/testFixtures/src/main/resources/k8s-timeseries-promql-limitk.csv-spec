@@ -77,10 +77,13 @@ required_capability: promql_command_v0
 required_capability: promql_limitk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_first_step_lookback
 PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" result=(limitk(5, network.total_bytes_in{cluster="prod"}))
 | SORT step, result;
 
 result:double | step:datetime            | _timeseries:keyword
+8031.0        | 2024-05-10T00:20:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+9254.0        | 2024-05-10T00:20:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
 9969.0        | 2024-05-10T00:20:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
 947.0         | 2024-05-10T00:25:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
 10277.0       | 2024-05-10T00:25:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"

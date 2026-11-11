@@ -1064,7 +1064,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             query.visit(visitor);
             return visitor.getEstimatedBytes();
         } finally {
-            context.releaseQueryConstructionMemory();
+            if (estimateOnly) {
+                context.releaseQueryConstructionMemory();
+            }
         }
     }
 

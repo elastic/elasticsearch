@@ -220,6 +220,33 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
         assertEquals(1, new GetPrivilegesRequestBuilder(client).application("app-1").privileges("read").get().privileges().length);
     }
 
+    /**
+     * Changing one application's privileges must not invalidate names cache entries that cannot reference that application:
+     * a wildcard query for app-1 must keep answering from the cache across a change to app-2. The cache hit is proven by
+     * deleting the backing documents, after which only a cached result can still return the privileges.
+     */
+    public void testCacheClearKeepsUnrelatedNamesCacheEntries() {
+        final Client client = client();
+
+        // Populate the names cache with a wildcard query that cannot match app-2
+        assertEquals(3, new GetPrivilegesRequestBuilder(client).application("app-1*").get().privileges().length);
+
+        // Properly change app-2, which clears only cache entries that could reference app-2
+        deleteApplicationPrivilege("app-2", "read");
+
+        // Delete the backing documents of app-1: only the cache can still answer the wildcard query
+        assertFalse(
+            client.prepareBulk()
+                .add(new DeleteRequest(SECURITY_MAIN_ALIAS, DOC_TYPE_VALUE + "_app-1:read"))
+                .add(new DeleteRequest(SECURITY_MAIN_ALIAS, DOC_TYPE_VALUE + "_app-1:write"))
+                .add(new DeleteRequest(SECURITY_MAIN_ALIAS, DOC_TYPE_VALUE + "_app-1:admin"))
+                .setRefreshPolicy(IMMEDIATE)
+                .get()
+                .hasFailures()
+        );
+        assertEquals(3, new GetPrivilegesRequestBuilder(client).application("app-1*").get().privileges().length);
+    }
+
     public void testHasPrivileges() {
         assertTrue(
             checkPrivilege("app-1", "read").getApplicationPrivileges()
@@ -322,6 +349,55 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
             ElasticsearchSecurityException.class,
             () -> new ClusterHealthRequestBuilder(testRoleCacheUserClient, TEST_REQUEST_TIMEOUT).get()
         );
+    }
+
+    /**
+     * Deleting an application privilege that does not exist changes nothing, so it must not clear the role cache: a cached
+     * role whose backing document is gone keeps working, where a real privilege change would evict it (see
+     * {@link #testRolesCacheIsClearedWhenPrivilegesIsChanged}). This also guards against no-op deletes, which only require
+     * the scoped manage privilege for one application, being usable to force cluster-wide role cache clears.
+     */
+    public void testRolesCacheIsNotClearedWhenNothingWasDeleted() {
+        final Client client = client();
+
+        // Add a new user and role so they do not interfere with existing tests
+        final String testRole = "test_noop_delete_cache_role";
+        final String testRoleCacheUser = "test_noop_delete_cache_user";
+        final PutRoleResponse putRoleResponse = new PutRoleRequestBuilder(client).name(testRole)
+            .cluster("all")
+            .addIndices(new String[] { "*" }, new String[] { "read" }, null, null, null, false)
+            .get();
+        assertTrue(putRoleResponse.isCreated());
+        final Hasher hasher = getFastStoredHashAlgoForTests();
+        final PutUserResponse putUserResponse = new PutUserRequestBuilder(client).username(testRoleCacheUser)
+            .roles(testRole)
+            .password(new SecureString("longerpassword".toCharArray()), hasher)
+            .get();
+        assertTrue(putUserResponse.created());
+
+        final Client testRoleCacheUserClient = client.filterWithHeader(
+            singletonMap(
+                "Authorization",
+                "Basic " + Base64.getEncoder().encodeToString((testRoleCacheUser + ":longerpassword").getBytes(StandardCharsets.UTF_8))
+            )
+        );
+        new ClusterHealthRequestBuilder(testRoleCacheUserClient, TEST_REQUEST_TIMEOUT).get();
+
+        // Directly delete the role document, so that only the role cache can still authorize the user
+        final DeleteResponse deleteResponse = client.prepareDelete(SECURITY_MAIN_ALIAS, "role-" + testRole).get();
+        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+
+        // A delete of a privilege that does not exist is a no-op and must not clear the role cache
+        assertTrue(
+            new DeletePrivilegesRequestBuilder(client).application("app-1")
+                .privileges(new String[] { "no-such-privilege" })
+                .get()
+                .found()
+                .isEmpty()
+        );
+
+        // The cluster health action still succeeds because the role is still cached
+        new ClusterHealthRequestBuilder(testRoleCacheUserClient, TEST_REQUEST_TIMEOUT).get();
     }
 
     private HasPrivilegesResponse checkPrivilege(String applicationName, String privilegeName) {

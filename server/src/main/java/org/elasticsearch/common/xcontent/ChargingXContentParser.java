@@ -15,6 +15,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.io.IOException;
@@ -97,7 +98,7 @@ final class ChargingXContentParser extends FilterXContentParserWrapper {
     /** The {@link #pending} charge at which the request is checked, a chunk less what it charged without a check before. */
     private long checkAt;
     /** Field-name strings charged so far, at most {@link #MAX_CHARGED_NAMES}. Names beyond those are charged every time. */
-    private final Set<String> chargedNames = Collections.newSetFromMap(new IdentityHashMap<>());
+    private Set<String> chargedNames;
 
     ChargingXContentParser(XContentParser delegate, ParsedContentReservation reservation, boolean ownsReservation) {
         super(delegate);
@@ -176,7 +177,9 @@ final class ChargingXContentParser extends FilterXContentParserWrapper {
      * Charges a field-name string the first time this parser sees it.
      */
     private void chargeName(String name) {
-        if (chargedNames.contains(name)) {
+        if (chargedNames == null) {
+            chargedNames = Collections.newSetFromMap(new IdentityHashMap<>());
+        } else if (chargedNames.contains(name)) {
             return;
         }
         if (chargedNames.size() < MAX_CHARGED_NAMES) {
@@ -187,12 +190,19 @@ final class ChargingXContentParser extends FilterXContentParserWrapper {
 
     /**
      * What the current text keeps at most: its UTF-8 length, as an exact-size {@code BytesRef} keeps it, or two bytes a character, as a
-     * String keeps it once any character is outside Latin-1. One pass over the characters, which {@code textLength()} decodes anyway.
+     * String keeps it once any character is outside Latin-1. ASCII text, the common case, takes a single pass that the JIT vectorizes.
      */
     private long textBytes() throws IOException {
         final char[] chars = delegate().textCharacters();
         final int offset = delegate().textOffset();
         final int length = delegate().textLength();
+        int all = 0;
+        for (int i = offset; i < offset + length; i++) {
+            all |= chars[i];
+        }
+        if (all < 0x80) {
+            return length;
+        }
         long utf8 = length;
         boolean latin1 = true;
         for (int i = offset; i < offset + length; i++) {
@@ -211,10 +221,33 @@ final class ChargingXContentParser extends FilterXContentParserWrapper {
      * {@code BigDecimal}, which grows with its digits.
      */
     private long numberBytes() throws IOException {
+        if (delegate().contentType().canonical() == XContentType.JSON && fitsPrimitive()) {
+            return NUMBER_VALUE_BYTES;
+        }
         return switch (delegate().numberType()) {
             case INT, LONG, FLOAT, DOUBLE -> NUMBER_VALUE_BYTES;
             case BIG_INTEGER, BIG_DECIMAL -> STRING_VALUE_BYTES + textBytes();
         };
+    }
+
+    /**
+     * Whether the current JSON number is read as a {@code long} or {@code double}, told from its text since {@code numberType()} parses
+     * a decimal on its own. Up to 18 characters always fit a {@code long}, and a decimal or exponent is always read as a {@code double}.
+     */
+    private boolean fitsPrimitive() throws IOException {
+        final int length = delegate().textLength();
+        if (length <= 18) {
+            return true;
+        }
+        final char[] chars = delegate().textCharacters();
+        final int offset = delegate().textOffset();
+        for (int i = offset; i < offset + length; i++) {
+            final char c = chars[i];
+            if (c == '.' || c == 'e' || c == 'E') {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -251,6 +284,11 @@ final class ChargingXContentParser extends FilterXContentParserWrapper {
             reservation.reserveWithoutBreaking(pending);
             pending = 0;
         }
+    }
+
+    @Override
+    public Object objectBytes() throws IOException {
+        return delegate().objectBytes();
     }
 
     @Override

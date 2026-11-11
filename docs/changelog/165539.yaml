@@ -1,0 +1,6 @@
+area: PromQL
+issues:
+ - 154786
+pr: 165539
+summary: Release metric exemplar querying in ES|QL and the Prometheus API
+type: feature

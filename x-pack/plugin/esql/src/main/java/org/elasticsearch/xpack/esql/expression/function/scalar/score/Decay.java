@@ -84,7 +84,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialPoint;
 /**
  * Decay a numeric, spatial or date type value based on the distance of it to an origin.
  *
- * This function uses the same {@link ScoreScriptUtils} implementations as Painless scripts,
+ * This function uses the same formulas as the {@link ScoreScriptUtils} classes Painless scripts use,
  * ensuring consistent decay calculations across ES|QL and script contexts. The decay
  * functions support linear, exponential, and gaussian decay types for:
  * - Numeric types (int, long, double, unsigned_long)
@@ -418,10 +418,12 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
                 numericScorer(decayFunction, originFolded, scaleFolded, offsetExpr, offsetFolded, decayFolded)
             );
             case GEO_POINT -> {
-                String geoScale = BytesRefs.toString(scaleFolded);
-                String geoOffset = offsetExpr != null ? BytesRefs.toString(offsetFolded) : DEFAULT_GEO_POINT_OFFSET;
-                checkScale(parseDistance(SCALE, geoScale), geoScale);
-                checkOffset(parseDistance(OFFSET, geoOffset), geoOffset);
+                String scaleString = BytesRefs.toString(scaleFolded);
+                String offsetString = offsetExpr != null ? BytesRefs.toString(offsetFolded) : DEFAULT_GEO_POINT_OFFSET;
+                double geoScale = parseDistance(SCALE, scaleString);
+                checkScale(geoScale, scaleString);
+                double geoOffset = parseDistance(OFFSET, offsetString);
+                checkOffset(geoOffset, offsetString);
                 yield new DecayGeoPointEvaluator.Factory(
                     source(),
                     valueFactory,
@@ -568,6 +570,28 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
                 throw new InvalidArgumentException("unknown decay type [{}], expected one of [gauss, linear, exp]", name);
             }
             return decayFunction;
+        }
+
+        /**
+         * The constant {@link #score} needs, derived once from the scale and the decay.
+         */
+        double scaling(double scale, double decay) {
+            return switch (this) {
+                case LINEAR -> scale / (1.0 - decay);
+                case EXPONENTIAL -> Math.log(decay) / scale;
+                case GAUSSIAN -> 0.5 * Math.pow(scale, 2.0) / Math.log(decay);
+            };
+        }
+
+        /**
+         * The score at {@code distance} past the offset, given the {@link #scaling} for this query.
+         */
+        double score(double scaling, double distance) {
+            return switch (this) {
+                case LINEAR -> Math.max(0.0, (scaling - distance) / scaling);
+                case EXPONENTIAL -> Math.exp(scaling * distance);
+                case GAUSSIAN -> Math.exp(0.5 * Math.pow(distance, 2.0) / scaling);
+            };
         }
     }
 

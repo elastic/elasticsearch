@@ -103,7 +103,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
     /// wait for it (recorded as timed out)
     public static final Setting<TimeValue> PREWARM_WAIT_TIMEOUT_SETTING = Setting.timeSetting(
         "stateless.cluster.primary_relocation.prewarm_wait_timeout",
-        TimeValue.timeValueSeconds(5),
+        TimeValue.timeValueMillis(250),
         TimeValue.ZERO,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -115,7 +115,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
      */
     public static final Setting<Boolean> TRANSFER_HOLLOW_COMMIT_METADATA_SETTING = Setting.boolSetting(
         "stateless.cluster.primary_relocation.transfer_hollow_commit_metadata",
-        false,
+        true,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

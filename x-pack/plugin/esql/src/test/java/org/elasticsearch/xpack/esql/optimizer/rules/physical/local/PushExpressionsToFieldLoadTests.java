@@ -56,6 +56,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.test.TransportVersionUtils.randomVersionSupporting;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.hamcrest.Matchers.equalTo;
@@ -892,7 +893,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         Analyzer analyzer = EsqlTestUtils.analyzer()
             .configuration(config)
             .addIndex("test", "mapping-flattened_keyed.json")
-            .minimumTransportVersion(TransportVersion.current())
+            .minimumTransportVersion(randomVersionSupporting(Knn.ESQL_KNN_RUNTIME_FIELD))
             .buildAnalyzer();
         PhysicalPlan plan = new TestPlannerOptimizer(config, analyzer).plan("""
             FROM test

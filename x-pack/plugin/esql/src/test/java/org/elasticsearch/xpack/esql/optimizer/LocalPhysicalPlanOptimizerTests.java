@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.apache.lucene.queryparser.xml.builders.BooleanQueryBuilder;
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -139,6 +139,7 @@ import static org.elasticsearch.index.query.QueryBuilders.regexpQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
+import static org.elasticsearch.test.TransportVersionUtils.randomVersionSupporting;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
@@ -2057,8 +2058,13 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
         var pushed = pushedQuery(plan);
         assertThat(pushed, notNullValue());
-        assertThat(pushed, not(instanceOf(KnnVectorQueryBuilder.class)));
+        assertThat(pushed, not(instanceOf(BooleanQueryBuilder.class)));
         assertThat(pushed.toString(), not(containsString("knn")));
+        assertThat(pushed, instanceOf(SingleValueQuery.Builder.class));
+        var rangeQueryBuilder = as(((SingleValueQuery.Builder) pushed).next(), RangeQueryBuilder.class);
+        assertEquals("integer", rangeQueryBuilder.fieldName());
+        assertEquals(10, rangeQueryBuilder.from());
+        assertFalse(rangeQueryBuilder.includeLower());
         var knn = as(runtimeFilterCondition(plan), Knn.class);
         assertTrue(knn.isRuntimeSearch());
     }
@@ -2070,7 +2076,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var analyzer = EsqlTestUtils.analyzer()
             .configuration(config)
             .addIndex("test", "mapping-all-types.json")
-            .minimumTransportVersion(TransportVersion.current())
+            .minimumTransportVersion(randomVersionSupporting(Knn.ESQL_KNN_RUNTIME_FIELD))
             .buildAnalyzer();
         return new TestPlannerOptimizer(config, analyzer);
     }

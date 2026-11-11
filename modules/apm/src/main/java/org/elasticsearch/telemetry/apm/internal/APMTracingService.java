@@ -27,6 +27,8 @@ import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.RedactingSpanExporter;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -41,11 +43,13 @@ public class APMTracingService extends AbstractLifecycleComponent {
 
     private final AtomicBoolean enabled = new AtomicBoolean(); // instance shared with sampler and tracer
     private final AtomicBoolean recordExceptionStacks = new AtomicBoolean();
+    private final ConcurrentMap<String, APMTracer> tracers = new ConcurrentHashMap<>();
+
+    private final ThreadContext threadContext;
     private final RedactingSpanExporter.Factory redactingExporterFactory;
     private final CommonAttributesSpanProcessor commonAttributes;
     private final ElasticTracestateSampler sampler;
     private final TraceSupplier traceSupplier;
-    private final APMTracer tracer;
 
     public APMTracingService(ThreadContext threadContext, Settings settings, Supplier<MeterProvider> meterProvider) {
         this(
@@ -65,15 +69,20 @@ public class APMTracingService extends AbstractLifecycleComponent {
     public APMTracingService(ThreadContext threadContext, Settings settings, TraceSupplier.Factory traceSupplierFactory) {
         this.enabled.set(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings));
         this.recordExceptionStacks.set(OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS.get(settings));
+
+        this.threadContext = threadContext;
         this.redactingExporterFactory = new RedactingSpanExporter.Factory(settings);
         this.commonAttributes = new CommonAttributesSpanProcessor(threadContext);
         this.sampler = new ElasticTracestateSampler(enabled, settings);
         this.traceSupplier = traceSupplierFactory.create(redactingExporterFactory::create, commonAttributes, sampler);
-        this.tracer = new APMTracer(threadContext, traceSupplier, enabled, recordExceptionStacks);
     }
 
-    public APMTracer tracer() {
-        return tracer;
+    public APMTracer tracer(String scopeName) {
+        return tracers.computeIfAbsent(scopeName, this::newTracer);
+    }
+
+    private APMTracer newTracer(String scopeName) {
+        return new APMTracer(threadContext, traceSupplier, enabled, recordExceptionStacks, scopeName);
     }
 
     public CompletableResultCode attemptFlushTraces() {

@@ -32,7 +32,7 @@ public interface TelemetryProvider {
         );
     }
 
-    Tracer getTracer();
+    Tracer getTracer(String scopeName);
 
     MeterRegistry getMeterRegistry();
 
@@ -50,7 +50,7 @@ public interface TelemetryProvider {
     class NoopTelemetryProvider implements TelemetryProvider {
 
         @Override
-        public Tracer getTracer() {
+        public Tracer getTracer(String scopeName) {
             return Tracer.noop();
         }
 

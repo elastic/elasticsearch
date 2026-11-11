@@ -31,15 +31,7 @@ final class DecayScorers {
     /**
      * Scores numeric values with the same {@link ScoreScriptUtils} classes Painless uses.
      */
-    static final class NumericScorer {
-        private final DoubleUnaryOperator decay;
-        private final String description;
-
-        private NumericScorer(DoubleUnaryOperator decay, String description) {
-            this.decay = decay;
-            this.description = description;
-        }
-
+    record NumericScorer(DoubleUnaryOperator decay, String description) {
         static NumericScorer of(DecayFunction function, double origin, double scale, double offset, double decay) {
             DoubleUnaryOperator score = switch (function) {
                 case LINEAR -> new ScoreScriptUtils.DecayNumericLinear(origin, scale, offset, decay)::decayNumericLinear;
@@ -62,15 +54,7 @@ final class DecayScorers {
     /**
      * Scores {@code geo_point} values by arc distance with the same {@link ScoreScriptUtils} classes Painless uses.
      */
-    static final class GeoScorer {
-        private final ToDoubleFunction<GeoPoint> decay;
-        private final String description;
-
-        private GeoScorer(ToDoubleFunction<GeoPoint> decay, String description) {
-            this.decay = decay;
-            this.description = description;
-        }
-
+    record GeoScorer(ToDoubleFunction<GeoPoint> decay, String description) {
         static GeoScorer of(DecayFunction function, BytesRef origin, String scale, String offset, double decay) {
             Point originPoint = SpatialCoordinateTypes.UNSPECIFIED.wkbAsPoint(origin);
             // GeoUtils.parseGeoPoint expects coordinate strings in "lat,lon" order; use getY (lat) then getX (lon).
@@ -97,21 +81,7 @@ final class DecayScorers {
     /**
      * Scores {@code cartesian_point} values by euclidean distance.
      */
-    static final class CartesianScorer {
-        private final double originX;
-        private final double originY;
-        private final double offset;
-        private final DoubleUnaryOperator decayOfDistance;
-        private final String description;
-
-        private CartesianScorer(double originX, double originY, double offset, DoubleUnaryOperator decayOfDistance, String description) {
-            this.originX = originX;
-            this.originY = originY;
-            this.offset = offset;
-            this.decayOfDistance = decayOfDistance;
-            this.description = description;
-        }
-
+    record CartesianScorer(double originX, double originY, double offset, DoubleUnaryOperator decayOfDistance, String description) {
         static CartesianScorer of(DecayFunction function, BytesRef origin, double scale, double offset, double decay) {
             Point originPoint = SpatialCoordinateTypes.UNSPECIFIED.wkbAsPoint(origin);
             DoubleUnaryOperator decayOfDistance = switch (function) {
@@ -154,19 +124,7 @@ final class DecayScorers {
      * Scores {@code datetime} and {@code date_nanos} values. The origin, scale and offset are in the value's unit,
      * milliseconds or nanoseconds. The distance is computed in {@code long} and then scored like a number.
      */
-    static final class TemporalScorer {
-        private final long origin;
-        private final long offset;
-        private final NumericScorer decayOfDistance;
-        private final String description;
-
-        private TemporalScorer(long origin, long offset, NumericScorer decayOfDistance, String description) {
-            this.origin = origin;
-            this.offset = offset;
-            this.decayOfDistance = decayOfDistance;
-            this.description = description;
-        }
-
+    record TemporalScorer(long origin, long offset, NumericScorer decayOfDistance, String description) {
         static TemporalScorer of(DecayFunction function, long origin, long scale, long offset, double decay) {
             return new TemporalScorer(
                 origin,

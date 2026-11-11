@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical.promql.operator;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -515,7 +516,11 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         if (collapsed) {
             Frame leftFrame = frame(context, left);
             Frame rightFrame = frame(context, right);
-            if (leftFrame == null || rightFrame == null || leftFrame.sharesGrainWith(rightFrame) == false || readsDisjointSeries(context)) {
+            if (leftFrame == null
+                || rightFrame == null
+                || leftFrame.sharesGrainWith(rightFrame) == false
+                || sameSeriesLabels(left.labels(), right.labels()) == false
+                || readsDisjointSeries(context)) {
                 return translateAsLeftJoin(context, leftTranslated, rightTranslated);
             }
             plan = emitBinaryOperatorAggregateExpression(left, leftFrame, right, rightFrame);
@@ -611,6 +616,32 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         boolean sharesGrainWith(Frame other) {
             return acrossSeries == other.acrossSeries && sameLabels(aggregate, other.aggregate);
         }
+    }
+
+    /**
+     * Whether two collapsed operands label each series of their frames alike, but for the metric name, which matching ignores: a
+     * relabel on one side only makes its series match none of the other side's row by row.
+     */
+    private static boolean sameSeriesLabels(@Nullable Expression left, @Nullable Expression right) {
+        Expression leftProgram = labelProgram(left);
+        Expression rightProgram = labelProgram(right);
+        return leftProgram == null ? rightProgram == null : rightProgram != null && leftProgram.semanticEquals(rightProgram);
+    }
+
+    /** {@code labels} over any frame key, without removing the metric name. */
+    private static @Nullable Expression labelProgram(@Nullable Expression labels) {
+        if (labels == null) {
+            return null;
+        }
+        Expression program = labels.transformUp(Attribute.class, key -> Literal.keyword(key.source(), "{}"));
+        return program.transformUp(
+            TimeSeriesMetadataFilter.class,
+            unset -> unset.children().size() == 2 && isMetricName(unset.children().get(1)) ? unset.children().getFirst() : unset
+        );
+    }
+
+    private static boolean isMetricName(Expression label) {
+        return label instanceof Literal literal && LabelMatcher.NAME.equals(BytesRefs.toString(literal.value()));
     }
 
     /**

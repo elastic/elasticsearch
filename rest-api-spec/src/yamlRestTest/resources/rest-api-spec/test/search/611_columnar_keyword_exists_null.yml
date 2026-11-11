@@ -62,6 +62,20 @@ exists total equals the hits returned for a keyword field without an index:
       search:
         index: test
         body:
+          query:
+            bool:
+              filter:
+                - exists: { field: unindexed }
+                - ids: { values: [ only_null ] }
+          _source: false
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: only_null }
+
+  - do:
+      search:
+        index: test
+        body:
           query: { exists: { field: unindexed } }
           size: 0
           track_total_hits: true
@@ -93,6 +107,20 @@ exists total equals the hits returned for an indexed keyword field:
 
   - length: { hits.hits: 3 }
   - match: { hits.total.value: 3 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            bool:
+              filter:
+                - exists: { field: indexed }
+                - ids: { values: [ only_null ] }
+          _source: false
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: only_null }
 
   - do:
       search:

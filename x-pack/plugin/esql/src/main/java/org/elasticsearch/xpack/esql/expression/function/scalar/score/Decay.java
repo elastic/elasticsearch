@@ -375,6 +375,10 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        return evaluatorFactory(toEvaluator.apply(value), toEvaluator.foldCtx());
+    }
+
+    private ExpressionEvaluator.Factory evaluatorFactory(ExpressionEvaluator.Factory valueFactory, FoldContext foldCtx) {
         DataType valueDataType = value.dataType();
         Options.populateMapWithExpressionsMultipleDataTypesAllowed(
             (MapExpression) options,
@@ -384,13 +388,9 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
             ALLOWED_OPTIONS
         );
 
-        ExpressionEvaluator.Factory valueFactory = toEvaluator.apply(value);
-
         Expression offsetExpr = (Expression) resolvedOptions.get(OFFSET);
         Expression decayExpr = (Expression) resolvedOptions.get(DECAY);
         Expression typeExpr = (Expression) resolvedOptions.get(TYPE);
-
-        FoldContext foldCtx = toEvaluator.foldCtx();
 
         // Constants
         Object originFolded = origin.fold(foldCtx);
@@ -493,6 +493,15 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
                 failures.add(fail(expr, "Function [{}] has non-literal value [{}].", sourceText(), exprName));
             }
         });
+        if (origin instanceof Literal && scale instanceof Literal) {
+            // Data nodes only check the constants when they build the evaluator, which never happens for a target without
+            // shards, so check them here on the coordinator too. The value is not needed for that.
+            try {
+                evaluatorFactory(null, FoldContext.small());
+            } catch (InvalidArgumentException e) {
+                failures.add(fail(this, "{}", e.getMessage()));
+            }
+        }
     }
 
     @Evaluator(extraName = "Int")

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165438
+summary: Cancel deferred Parquet extract waits
+type: bug

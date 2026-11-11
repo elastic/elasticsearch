@@ -24,7 +24,7 @@ $$$grok-options$$$
 | Name | Required | Default | Description |
 | --- | --- | --- | --- |
 | `field` | yes | - | The field to use for grok expression parsing |
-| `patterns` | yes | - | An ordered list of grok expression to match and extract named captures with. Returns on the first expression in the list that matches. |
+| `patterns` | yes | - | An ordered list of grok expressions to match and extract named captures with. Returns the match that starts leftmost in the input string. If two patterns match at the same position, the first pattern in the list wins. |
 | `pattern_definitions` | no | - | A map of pattern-name and pattern tuples defining custom patterns to be used by the current processor. Patterns matching existing names will override the pre-existing definition. |
 | `ecs_compatibility` | no | `disabled` | Must be `disabled` or `v1`. If `v1`, the processor uses patterns with [Elastic Common Schema (ECS)](ecs://reference/ecs-field-reference.md) field names. |
 | `trace_match` | no | false | when true, `_ingest._grok_match_index` will be inserted into your matched document’s metadata with the index into the pattern found in `patterns` that matched. |
@@ -235,6 +235,63 @@ In the above response, you can see that the index of the pattern that matched wa
 
 This trace metadata enables debugging which of the patterns matched. This information is stored in the ingest metadata and will not be indexed.
 
+### Which pattern matches
+
+When you provide multiple patterns, the processor does not necessarily use the first pattern in the list that matches. {{es}} combines the patterns into a single regular expression, so the pattern that matches leftmost in the input string wins. List order only breaks ties between patterns that match at the same position.
+
+For example, a catch-all `%{GREEDYDATA:event.original}` pattern matches from the start of the string. It wins even though the more specific `Failed password` pattern is listed first:
+
+```console
+POST _ingest/pipeline/_simulate
+{
+  "docs": [
+    { "_source": { "message": "Oct 16 12:00:01 web01 sshd[4127]: Failed password for root from 10.1.2.3 port 22 ssh2" } }
+  ],
+  "pipeline": {
+    "processors": [
+      {
+        "grok": {
+          "field": "message",
+          "patterns": [
+            "Failed password for %{USER:user.name} from %{IP:source.ip}",
+            "%{GREEDYDATA:event.original}"
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+% NOTCONSOLE
+
+The `Failed password` pattern only matches from partway into the line, so the result populates `event.original` and not `user.name` or `source.ip`.
+
+To make a specific pattern take priority, ensure it can match from the same position as the competing pattern. Prefix the `Failed password` pattern with `%{GREEDYDATA}` so it also matches from the start of the string. Both patterns now tie at position 0, and the first pattern in the list wins:
+
+```console
+POST _ingest/pipeline/_simulate
+{
+  "docs": [
+    { "_source": { "message": "Oct 16 12:00:01 web01 sshd[4127]: Failed password for root from 10.1.2.3 port 22 ssh2" } }
+  ],
+  "pipeline": {
+    "processors": [
+      {
+        "grok": {
+          "field": "message",
+          "patterns": [
+            "%{GREEDYDATA}Failed password for %{USER:user.name} from %{IP:source.ip}",
+            "%{GREEDYDATA:event.original}"
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+% NOTCONSOLE
+
+The result now populates `user.name` and `source.ip` instead of `event.original`.
 
 ## Validating input without extracting fields [validate-only]
 ```{applies_to}

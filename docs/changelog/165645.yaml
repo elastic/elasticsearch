@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 165645
+summary: Semantic_text preserve inference id on merge
+type: bug

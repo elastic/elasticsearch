@@ -27,6 +27,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.DummyBlockLoaderContext;
@@ -54,6 +56,7 @@ import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.WildcardFieldMaskingReader;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -2086,6 +2089,94 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertThat(syntheticSource, equalTo("{\"field\":{\"a_unmapped\":\"val_a\",\"e_unmapped\":\"val_e\",\"c_mapped\":\"val_c\"}}"));
     }
 
+    private static final String TIMESTAMP = "2024-01-01T00:00:00.000Z";
+
+    private MapperService createMappedSubFieldMapperService(IndexMode mode, String type) throws IOException {
+        return createMapperService(Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build(), mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("labels").field("type", "flattened");
+            b.startObject("properties").startObject("n").field("type", type).endObject().endObject();
+            b.endObject();
+        }));
+    }
+
+    /** Two distinct values of {@code type}, each written the way synthetic source writes it back. */
+    private static List<Object> twoDistinctSubFieldValues(String type) {
+        return switch (type) {
+            case "keyword" -> {
+                String first = randomAlphaOfLength(5);
+                yield List.of(first, randomValueOtherThan(first, () -> randomAlphaOfLength(5)));
+            }
+            case "long" -> {
+                long first = randomLong();
+                yield List.of(first, randomValueOtherThan(first, ESTestCase::randomLong));
+            }
+            case "ip" -> {
+                String first = NetworkAddress.format(randomIp(randomBoolean()));
+                yield List.of(first, randomValueOtherThan(first, () -> NetworkAddress.format(randomIp(randomBoolean()))));
+            }
+            case "boolean" -> {
+                boolean first = randomBoolean();
+                yield List.of(first, first == false);
+            }
+            case "date" -> {
+                long first = randomLongBetween(0, 4102444800000L);
+                long second = randomValueOtherThan(first, () -> randomLongBetween(0, 4102444800000L));
+                yield List.of(
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(first),
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(second)
+                );
+            }
+            default -> throw new AssertionError(type);
+        };
+    }
+
+    /** A random array of {@code values} and nulls, holding at least one null. */
+    private static List<Object> randomArrayWithNull(List<Object> values) {
+        List<Object> array = new ArrayList<>();
+        int size = between(1, 5);
+        for (int i = 0; i < size; i++) {
+            array.add(randomBoolean() ? null : randomFrom(values));
+        }
+        array.set(between(0, size - 1), null);
+        return array;
+    }
+
+    private void assertMappedSubFieldRoundTrips(DocumentMapper mapper, List<Object> array) throws IOException {
+        XContentBuilder expected = XContentBuilder.builder(XContentType.JSON.xContent());
+        expected.startObject().field("@timestamp", TIMESTAMP).startObject("labels").field("n", array).endObject().endObject();
+        String actual = syntheticSource(mapper, b -> b.field("@timestamp", TIMESTAMP).startObject("labels").field("n", array).endObject());
+        assertThat(actual, equalTo(BytesReference.bytes(expected).utf8ToString()));
+    }
+
+    /**
+     * A mapped sub-field tells an element of its own array from a bare value by the immediate parent the parser records, so the flattened
+     * parser has to record its own arrays and objects. In a strictly columnar index a null inside the sub-field's own array keeps its
+     * slot, while a bare null is the sub-field being absent (see MultiValuedBinaryDocValuesField#keepsNullSlot).
+     */
+    public void testMappedSubFieldKeepsNullsInItsOwnArrayInStrictColumnar() throws IOException {
+        String type = randomFrom("keyword", "long", "ip", "boolean", "date");
+        DocumentMapper mapper = createMappedSubFieldMapperService(IndexMode.LOGSDB_COLUMNAR, type).documentMapper();
+        assertMappedSubFieldRoundTrips(mapper, randomArrayWithNull(twoDistinctSubFieldValues(type)));
+        String absent = syntheticSource(mapper, b -> b.field("@timestamp", TIMESTAMP));
+        assertThat(
+            syntheticSource(mapper, b -> b.field("@timestamp", TIMESTAMP).startObject("labels").nullField("n").endObject()),
+            equalTo(absent)
+        );
+    }
+
+    /**
+     * With {@code synthetic_source_keep: arrays}, the logsdb default, a mapped sub-field records offsets for its own array, so the array
+     * comes back in its original order, with its duplicates and nulls.
+     */
+    public void testMappedSubFieldKeepsItsArrayInLogsdb() throws IOException {
+        String type = randomFrom("keyword", "long", "ip", "boolean", "date");
+        DocumentMapper mapper = createMappedSubFieldMapperService(IndexMode.LOGSDB, type).documentMapper();
+        List<Object> values = twoDistinctSubFieldValues(type);
+        assertMappedSubFieldRoundTrips(mapper, List.of(values.get(0), values.get(1), values.get(0)));
+        assertMappedSubFieldRoundTrips(mapper, randomArrayWithNull(values));
+    }
+
     public void testExistsQueryOnMappedProperty() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "flattened");
@@ -2243,6 +2334,11 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             }
         });
         assertThat(blockLoader, instanceOf(BlockSourceReader.BytesRefsBlockLoader.class));
+    }
+
+    @Override
+    protected boolean supportsDynamicallyAddedMultiFields() {
+        return false;
     }
 
     @Override

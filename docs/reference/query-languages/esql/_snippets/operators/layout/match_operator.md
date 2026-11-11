@@ -22,6 +22,7 @@ The match operator can also search expressions that are not backed by an index,
 such as computed columns produced by `EVAL` or `STATS`.
 When the target is not an indexed field, the search evaluates by scanning values
 row by row, which may be slower on large datasets.
+To learn more, refer to [runtime search](/reference/query-languages/esql/esql-runtime-search.md).
 
 For using the function syntax, or adding [match query parameters](/reference/query-languages/query-dsl/query-dsl-match-query.md#match-field-params), you can use the [match function](../../../functions-operators/search-functions/match.md).
 

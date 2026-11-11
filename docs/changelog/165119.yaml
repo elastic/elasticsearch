@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165119
+summary: Propagate units and report field semantics in column metadata
+type: enhancement

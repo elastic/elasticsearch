@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags.FetchPhaseMode;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.ReductionPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -61,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering.SORTED;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -72,6 +74,10 @@ import static org.hamcrest.Matchers.sameInstance;
 public class PlanFetchTests extends ESTestCase {
 
     private static final String DEFAULT_LIMIT_WARNING = "No limit defined, adding default limit of [1000]";
+
+    private static final EsqlFlags DISABLED = EsqlFlags.withFetchPhase(FetchPhaseMode.DISABLED);
+    private static final EsqlFlags AUTO = EsqlFlags.withFetchPhase(FetchPhaseMode.AUTO);
+    private static final EsqlFlags ALWAYS = EsqlFlags.withFetchPhase(FetchPhaseMode.ALWAYS);
 
     private static final String BASIC =
         "FROM employees | WHERE salary > 1000 | SORT hire_date DESC | LIMIT 10 | KEEP first_name, emp_no, hire_date";
@@ -136,7 +142,7 @@ public class PlanFetchTests extends ESTestCase {
     /** Without KEEP the query still returns the columns it returned before, in the same order, and never the documents. */
     public void testWithoutKeep() {
         String query = "FROM employees | SORT emp_no | LIMIT 5";
-        PhysicalPlan eager = plan(query, EsqlFlags.withFetchPhase(false));
+        PhysicalPlan eager = plan(query, DISABLED);
         PhysicalPlan fetched = plan(query);
         ProjectExec restore = as(fetched, ProjectExec.class);
         assertThat(restore.child(), instanceOf(FetchExec.class));
@@ -250,7 +256,7 @@ public class PlanFetchTests extends ESTestCase {
         Configuration configuration = configuration(
             Settings.builder().put(QueryPragmas.FIELD_EXTRACT_PREFERENCE.getKey(), MappedFieldType.FieldExtractPreference.STORED).build()
         );
-        single(plan(BASIC, EsqlFlags.withFetchPhase(true), configuration, TransportVersion.current()), FetchExec.class);
+        single(plan(BASIC, ALWAYS, configuration, TransportVersion.current()), FetchExec.class);
     }
 
     /**
@@ -259,7 +265,7 @@ public class PlanFetchTests extends ESTestCase {
      */
     public void testSplits() {
         Configuration configuration = configuration(Settings.EMPTY);
-        PhysicalPlan plan = plan(BASIC, EsqlFlags.withFetchPhase(true), configuration, TransportVersion.current());
+        PhysicalPlan plan = plan(BASIC, ALWAYS, configuration, TransportVersion.current());
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndData = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, configuration);
         assertThat(coordinatorAndData.v1().collect(FetchExec.class), hasSize(1));
         ExchangeSinkExec dataNodePlan = as(coordinatorAndData.v2(), ExchangeSinkExec.class);
@@ -283,13 +289,38 @@ public class PlanFetchTests extends ESTestCase {
 
     /** Nothing turns the rule on but {@link EsqlFlags#fetchPhaseMode()}. */
     public void testRunsOnlyWhenTheFlagsEnableIt() {
-        assertEager(plan(BASIC, EsqlFlags.withFetchPhase(false)));
-        single(plan(BASIC, EsqlFlags.withFetchPhase(true)), FetchExec.class);
+        assertEager(plan(BASIC, DISABLED));
+        single(plan(BASIC, ALWAYS), FetchExec.class);
+    }
+
+    /**
+     * With {@code AUTO}, a {@code TopN} that defers {@code _source} gets the fetch phase. The round trip is paid anyway,
+     * so the other columns the cut doesn't read are fetched with it.
+     */
+    public void testAutoFetchesATopNThatDefersTheSource() {
+        FetchExec fetch = single(
+            plan("FROM employees METADATA _source | SORT hire_date | LIMIT 10 | KEEP first_name, _source, hire_date", AUTO),
+            FetchExec.class
+        );
+        assertThat(names(fetch.fetchedAttributes()), containsInAnyOrder("first_name", "_source"));
+    }
+
+    /** With {@code AUTO}, a {@code TopN} that defers no {@code _source} saves too little to pay for the round trip. */
+    public void testAutoKeepsATopNWithoutTheSourceEager() {
+        assertEager(plan(BASIC, AUTO));
+        assertThat("the plan can use the fetch phase", plan(BASIC, ALWAYS).collect(FetchExec.class), hasSize(1));
+    }
+
+    /** With {@code AUTO}, a {@code LIMIT} stays eager even when it defers {@code _source}: it drops few rows. */
+    public void testAutoKeepsALimitEager() {
+        String query = "FROM employees METADATA _source | LIMIT 10 | KEEP first_name, _source";
+        assertEager(plan(query, AUTO));
+        assertThat("the plan can use the fetch phase", plan(query, ALWAYS).collect(FetchExec.class), hasSize(1));
     }
 
     /** A plan the rule declines is returned as it came in, so the query plans exactly as without the fetch phase. */
     public void testDeclinedPlansAreUntouched() {
-        PhysicalPlan eager = plan("FROM employees | SORT hire_date | LIMIT 10 | STATS m = MAX(salary)", EsqlFlags.withFetchPhase(false));
+        PhysicalPlan eager = plan("FROM employees | SORT hire_date | LIMIT 10 | STATS m = MAX(salary)", DISABLED);
         assertThat(applyTo(eager), sameInstance(eager));
     }
 
@@ -369,7 +400,7 @@ public class PlanFetchTests extends ESTestCase {
     }
 
     private static PhysicalPlan plan(String query) {
-        return plan(query, EsqlFlags.withFetchPhase(true));
+        return plan(query, ALWAYS);
     }
 
     private static PhysicalPlan plan(String query, EsqlFlags flags) {
@@ -384,7 +415,7 @@ public class PlanFetchTests extends ESTestCase {
     }
 
     private static PhysicalPlan plan(TestAnalyzer analyzer, String query) {
-        return plan(analyzer, query, EsqlFlags.withFetchPhase(true), configuration(Settings.EMPTY));
+        return plan(analyzer, query, ALWAYS, configuration(Settings.EMPTY));
     }
 
     private static PhysicalPlan plan(TestAnalyzer analyzer, String query, EsqlFlags flags, Configuration configuration) {
@@ -462,7 +493,7 @@ public class PlanFetchTests extends ESTestCase {
     }
 
     private static PhysicalPlan applyTo(PhysicalPlan plan) {
-        return new PlanFetch().apply(plan, context(EsqlFlags.withFetchPhase(true)));
+        return new PlanFetch().apply(plan, context(ALWAYS));
     }
 
     /**

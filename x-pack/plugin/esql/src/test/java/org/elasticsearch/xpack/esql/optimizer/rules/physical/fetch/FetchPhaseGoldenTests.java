@@ -16,16 +16,17 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags.FetchPhaseMode;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.EnumSet;
 
 /**
  * The plans of the fetch phase, next to the plans the same queries get without it. Each test writes two sets of files:
- * {@code fetch/} with the fetch phase and {@code eager/} without. The {@code physical_optimization} file is the plan
- * the coordinator ships, {@code local_reduce_planned_*} are the node reduce stage and the data driver plan a data node
- * splits it into, and {@code local_reduce_physical_optimization_data_driver} is the data driver plan after local
- * optimization.
+ * {@code fetch/} with the fetch phase on every plan that can use it, whether it pays off or not, and {@code eager/}
+ * without. The {@code physical_optimization} file is the plan the coordinator ships, {@code local_reduce_planned_*} are
+ * the node reduce stage and the data driver plan a data node splits it into, and
+ * {@code local_reduce_physical_optimization_data_driver} is the data driver plan after local optimization.
  */
 public class FetchPhaseGoldenTests extends GoldenTestCase {
 
@@ -161,14 +162,17 @@ public class FetchPhaseGoldenTests extends GoldenTestCase {
     private TestBuilder withFetchPhase(String query, SearchStats searchStats) {
         return builder(query).stages(STAGES)
             .searchStats(searchStats)
-            .flags(EsqlFlags.withFetchPhase(true))
+            .flags(EsqlFlags.withFetchPhase(FetchPhaseMode.ALWAYS))
             // the plans send _doc across the exchange, which a node can read from this version on
             .since(DocVector.ESQL_DOC_ORIGINS)
             .nestedPath("fetch");
     }
 
     private TestBuilder withoutFetchPhase(String query, SearchStats searchStats) {
-        return builder(query).stages(STAGES).searchStats(searchStats).flags(EsqlFlags.withFetchPhase(false)).nestedPath("eager");
+        return builder(query).stages(STAGES)
+            .searchStats(searchStats)
+            .flags(EsqlFlags.withFetchPhase(FetchPhaseMode.DISABLED))
+            .nestedPath("eager");
     }
 
     // Prevents TopN pushdown.

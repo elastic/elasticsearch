@@ -56,8 +56,12 @@ public class EsqlFlags {
      * run such a plan yet, so only tests turn it on.
      */
     public enum FetchPhaseMode {
+        /** Every plan loads its columns eagerly. */
         DISABLED,
-        ENABLED
+        /** The fetch phase for the plans that can use it and are likely faster with it. */
+        AUTO,
+        /** The fetch phase for every plan that can use it, whatever it costs. Tests and benchmarks use it to cover every shape. */
+        ALWAYS
     }
 
     /**
@@ -399,7 +403,7 @@ public class EsqlFlags {
     /**
      * Test helper that leaves the other flags at their defaults.
      */
-    public static EsqlFlags withFetchPhase(boolean enabled) {
+    public static EsqlFlags withFetchPhase(FetchPhaseMode fetchPhaseMode) {
         return new EsqlFlags(
             ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY),
             ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY),
@@ -410,7 +414,7 @@ public class EsqlFlags {
             ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY),
             ESQL_METRICS_INFO_MAX_TIME_RANGE.getDefault(Settings.EMPTY),
             ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY),
-            enabled ? FetchPhaseMode.ENABLED : FetchPhaseMode.DISABLED
+            fetchPhaseMode
         );
     }
 

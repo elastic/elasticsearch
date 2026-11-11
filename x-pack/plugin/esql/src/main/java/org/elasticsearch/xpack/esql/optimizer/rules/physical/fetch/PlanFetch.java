@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags.FetchPhaseMode;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
@@ -83,19 +85,25 @@ import static org.elasticsearch.transport.RemoteClusterAware.isRemoteIndexName;
  * with their {@code _doc}, which keeps naming the documents after it left.
  * <p>
  * {@link #demand} decides which columns cross the exchange as values. {@link #shape} lists the plans the rule accepts.
- * Every other plan keeps loading its columns eagerly, unchanged, and the rule logs why at debug level.
+ * Both are about correctness only. {@link #paysOff} then decides whether an accepted plan is likely faster with the
+ * fetch phase. Every other plan keeps loading its columns eagerly, unchanged, and the rule logs why at debug level.
  * <p>
- * The rule runs only when {@link EsqlFlags#fetchPhaseMode()} enables it.
+ * {@link EsqlFlags#fetchPhaseMode()} turns the rule on. {@link FetchPhaseMode#ALWAYS} skips {@link #paysOff}.
  */
 public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPlan, PhysicalOptimizerContext> {
     private static final Logger logger = LogManager.getLogger(PlanFetch.class);
 
     @Override
     public PhysicalPlan apply(PhysicalPlan plan, PhysicalOptimizerContext context) {
-        if (context.flags().fetchPhaseMode() != EsqlFlags.FetchPhaseMode.ENABLED) {
+        FetchPhaseMode mode = context.flags().fetchPhaseMode();
+        if (mode == FetchPhaseMode.DISABLED) {
             return plan;
         }
-        return switch (shape(plan)) {
+        Shape shape = shape(plan);
+        if (mode == FetchPhaseMode.AUTO && shape instanceof Candidate candidate) {
+            shape = paysOff(candidate);
+        }
+        return switch (shape) {
             case Declined declined -> {
                 logger.debug("fetch phase not planned: {}", declined.reason());
                 yield plan;
@@ -221,6 +229,30 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
             return new Declined("the cut reads every column, or the others cannot be fetched");
         }
         return new Candidate(exchange, fragment, fragmentRoot, coordinatorCut, relation, demand);
+    }
+
+    /**
+     * Whether the fetch phase is likely faster than loading the deferred columns eagerly. The fetch saves loading and
+     * sending the deferred columns of the rows the data nodes keep and the coordinator drops. It costs one more round
+     * trip after the coordinator cut, which nothing overlaps. With few or small deferred columns the round trip costs
+     * more than it saves.
+     * <ul>
+     *     <li>The cut must be a {@code TopN}. A data node stops reading after {@code LIMIT} rows, and without a
+     *     filter the coordinator queries only a few nodes at a time, so an eager {@code LIMIT} loads few rows that the
+     *     coordinator drops.</li>
+     *     <li>The fetch must defer {@code _source}. It is usually the largest column per row and the most expensive to
+     *     load, stored or synthetic, so skipping it for the dropped rows is what pays for the round trip.</li>
+     * </ul>
+     * Once the round trip is paid, the fetch defers every column {@link #demand} allows, not only {@code _source}.
+     */
+    private static Shape paysOff(Candidate candidate) {
+        if (candidate.coordinatorCut() instanceof TopNExec == false) {
+            return new Declined("a [LIMIT] cut leaves too few dropped rows to pay for the fetch");
+        }
+        if (candidate.demand().deferred().stream().noneMatch(attribute -> attribute.dataType() == DataType.SOURCE)) {
+            return new Declined("the fetch defers no [_source], so it saves too little to pay for its round trip");
+        }
+        return candidate;
     }
 
     /**

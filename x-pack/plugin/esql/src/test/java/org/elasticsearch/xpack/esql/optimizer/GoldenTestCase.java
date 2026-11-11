@@ -263,7 +263,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         private QueryBuilder requestFilter;
         private Map<String, String> views = Map.of();
         private boolean singleConcreteIndex;
-        private EsqlFlags flags = EsqlFlags.withFetchPhase(false);
+        private EsqlFlags flags = EsqlFlags.withFetchPhase(EsqlFlags.FetchPhaseMode.DISABLED);
 
         private TestBuilder(
             String esqlQuery,

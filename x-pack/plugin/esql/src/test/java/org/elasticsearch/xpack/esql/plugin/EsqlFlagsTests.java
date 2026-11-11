@@ -26,7 +26,8 @@ public class EsqlFlagsTests extends ESTestCase {
     }
 
     public void testWithFetchPhase() {
-        assertThat(EsqlFlags.withFetchPhase(true).fetchPhaseMode(), equalTo(FetchPhaseMode.ENABLED));
-        assertThat(EsqlFlags.withFetchPhase(false).fetchPhaseMode(), equalTo(FetchPhaseMode.DISABLED));
+        for (FetchPhaseMode mode : FetchPhaseMode.values()) {
+            assertThat(EsqlFlags.withFetchPhase(mode).fetchPhaseMode(), equalTo(mode));
+        }
     }
 }

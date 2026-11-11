@@ -62,6 +62,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -99,9 +101,8 @@ public class FollowingEngineTests extends ESTestCase {
     private AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
     private IndexMode indexMode;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initEngineTestResources() throws Exception {
         Settings settings = Settings.builder()
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
             .build();
@@ -118,10 +119,19 @@ public class FollowingEngineTests extends ESTestCase {
         indexMode = randomFrom(IndexMode.availableModes());
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void cleanupEngineTestResources() throws Exception {
         IOUtils.close(nodeEnvironment, () -> terminate(threadPool));
-        super.tearDown();
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        final var warnings = super.filteredWarnings();
+        warnings.add(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+        return warnings;
     }
 
     public void testFollowingEngineRejectsNonFollowingIndex() throws IOException {
@@ -627,7 +637,7 @@ public class FollowingEngineTests extends ESTestCase {
                     thread.join();
                 }
                 assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), greaterThanOrEqualTo(leader.getMaxSeqNoOfUpdatesOrDeletes()));
-                assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
+                assertSameLiveDocs(leader, follower);
                 EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(follower);
                 EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(follower);
             }
@@ -667,6 +677,50 @@ public class FollowingEngineTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * Asserts that the follower and the leader hold the same live documents. On mismatch, the failure message lists only the
+     * differing documents (and the engine sequence number state) because the full lists are huge and get truncated in CI reports.
+     */
+    private void assertSameLiveDocs(InternalEngine leader, FollowingEngine follower) throws IOException {
+        final List<DocIdSeqNoAndSource> leaderDocs = getDocIds(leader, true);
+        final List<DocIdSeqNoAndSource> followerDocs = getDocIds(follower, true);
+        if (leaderDocs.equals(followerDocs)) {
+            return;
+        }
+        final Set<DocIdSeqNoAndSource> followerSet = Set.copyOf(followerDocs);
+        final Set<DocIdSeqNoAndSource> leaderSet = Set.copyOf(leaderDocs);
+        final String onlyOnLeader = leaderDocs.stream()
+            .filter(doc -> followerSet.contains(doc) == false)
+            .map(FollowingEngineTests::describeDoc)
+            .collect(Collectors.joining("\n  ", "\n  ", ""));
+        final String onlyOnFollower = followerDocs.stream()
+            .filter(doc -> leaderSet.contains(doc) == false)
+            .map(FollowingEngineTests::describeDoc)
+            .collect(Collectors.joining("\n  ", "\n  ", ""));
+        throw new AssertionError(
+            Strings.format(
+                "follower live docs differ from leader live docs: leader has [%d] docs, follower has [%d] docs, "
+                    + "leader [processedCheckpoint=%d, maxSeqNo=%d, maxSeqNoOfUpdatesOrDeletes=%d], "
+                    + "follower [processedCheckpoint=%d, maxSeqNo=%d, maxSeqNoOfUpdatesOrDeletes=%d]"
+                    + "%nonly on leader:%s%nonly on follower:%s",
+                leaderDocs.size(),
+                followerDocs.size(),
+                leader.getProcessedLocalCheckpoint(),
+                leader.getSeqNoStats(-1).getMaxSeqNo(),
+                leader.getMaxSeqNoOfUpdatesOrDeletes(),
+                follower.getProcessedLocalCheckpoint(),
+                follower.getSeqNoStats(-1).getMaxSeqNo(),
+                follower.getMaxSeqNoOfUpdatesOrDeletes(),
+                onlyOnLeader,
+                onlyOnFollower
+            )
+        );
+    }
+
+    private static String describeDoc(DocIdSeqNoAndSource doc) {
+        return Strings.format("id=[%s] seqNo=[%d] primaryTerm=[%d] version=[%d]", doc.id(), doc.seqNo(), doc.primaryTerm(), doc.version());
     }
 
     private void fetchOperations(AtomicBoolean stopped, AtomicLong lastFetchedSeqNo, InternalEngine leader, FollowingEngine follower)
@@ -786,9 +840,11 @@ public class FollowingEngineTests extends ESTestCase {
             case LOGSDB:
             case COLUMNAR:
             case LOGSDB_COLUMNAR:
+            case VECTORDB_COLUMNAR:
                 settingsBuilder.put("index.mode", indexMode.getName());
                 settingsBuilder.put("index.disable_sequence_numbers", "false");
                 settingsBuilder.put("index.seq_no.index_options", "points_and_doc_values");
+                settingsBuilder.put("index.mapping.use_columnar_id_mode_by_default", false);
                 break;
             case LOOKUP:
                 settingsBuilder.put("index.mode", IndexMode.LOOKUP.getName());

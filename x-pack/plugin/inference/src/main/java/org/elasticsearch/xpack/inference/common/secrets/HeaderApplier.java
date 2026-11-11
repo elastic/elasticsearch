@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.common.secrets;
 
-import org.apache.http.Header;
-import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.http.Header;
 import org.elasticsearch.action.ActionListener;
 
 import java.util.Objects;
@@ -25,7 +25,7 @@ public record HeaderApplier(Supplier<Header> headerSupplier) implements SecretsA
     }
 
     @Override
-    public void applyTo(HttpRequestBase request, ActionListener<HttpRequestBase> listener) {
+    public void applyTo(SimpleHttpRequest request, ActionListener<SimpleHttpRequest> listener) {
         request.setHeader(headerSupplier.get());
         listener.onResponse(request);
     }

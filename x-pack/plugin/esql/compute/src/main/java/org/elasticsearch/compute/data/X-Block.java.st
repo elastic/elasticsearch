@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 $endif$
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -177,6 +178,13 @@ $if(BytesRef)$
      */
     OrdinalBytesRefBlock asOrdinals();
 
+    /**
+     * An estimate of the bytes this block's values spell, as opposed to the memory it holds, taken without
+     * reading the values one by one. Exact unless the values are read through a dictionary, where each one
+     * counts as the dictionary's average term.
+     */
+    long estimateTotalValueBytes();
+
 $elseif(boolean)$
     /**
      * Convert this to a {@link BooleanVector "mask"} that's appropriate for
@@ -199,7 +207,12 @@ $endif$
     }
 
     @Override
-    $Type$Block filter(boolean mayContainDuplicates, int... positions);
+    $Type$Block filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default $Type$Block filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
@@ -420,6 +433,9 @@ $endif$
         Builder append$Type$($type$ value);
 
 $if(BytesRef)$
+        @Override
+        Builder appendBytesReference(BytesReference value);
+
         /**
          * Appends a BytesRef to the current entry using a {@link PagedBytesCursor}.
          */

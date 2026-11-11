@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 148453
-summary: Fix double-release in two-phase parquet path
-type: bug

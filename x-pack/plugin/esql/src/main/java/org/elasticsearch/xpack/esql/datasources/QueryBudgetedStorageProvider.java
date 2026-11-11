@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.List;
 
 /**
  * Decorates a {@link StorageProvider} with per-query concurrency budget enforcement. Each
@@ -24,7 +23,7 @@ import java.util.List;
  * Closing this provider closes the underlying budget, which deregisters from the
  * {@link ConcurrencyBudgetAllocator} and triggers rebalancing of remaining active queries.
  */
-class QueryBudgetedStorageProvider implements StorageProvider {
+class QueryBudgetedStorageProvider extends DelegatingStorageProvider {
 
     private final StorageProvider delegate;
     private final QueryConcurrencyBudget budget;
@@ -32,6 +31,11 @@ class QueryBudgetedStorageProvider implements StorageProvider {
     QueryBudgetedStorageProvider(StorageProvider delegate, QueryConcurrencyBudget budget) {
         this.delegate = delegate;
         this.budget = budget;
+    }
+
+    @Override
+    protected StorageProvider delegate() {
+        return delegate;
     }
 
     @Override
@@ -50,23 +54,13 @@ class QueryBudgetedStorageProvider implements StorageProvider {
     }
 
     @Override
-    public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
-        return delegate.listObjects(prefix, recursive);
-    }
-
-    @Override
-    public boolean exists(StoragePath path) throws IOException {
-        return delegate.exists(path);
-    }
-
-    @Override
-    public List<String> supportedSchemes() {
-        return delegate.supportedSchemes();
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
+        return new QueryBudgetedStorageObject(delegate.newObject(path, length, lastModified, version), budget);
     }
 
     /**
-     * Closes the per-query budget only; the delegate provider is shared (registry-owned) and
-     * intentionally not closed here.
+     * Closes the per-query budget only; the delegate provider is pooled (or registry-owned)
+     * and is returned via a sibling {@code onClose} on the operator factory, not here.
      */
     @Override
     public void close() throws IOException {

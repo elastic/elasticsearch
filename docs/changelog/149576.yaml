@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 149576
-summary: NDJSON keyword decode reuses one `BytesRef` scratch
-type: enhancement

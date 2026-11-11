@@ -56,9 +56,9 @@ FROM employees
 
 ### Subqueries
 
-The `FROM` command supports [subqueries](/reference/query-languages/esql/esql-subquery.md),
+The `FROM` command supports [`FROM` subqueries](/reference/query-languages/esql/esql-from-subquery.md),
 which are complete ES|QL queries wrapped in parentheses. Each subquery starts
-with a `FROM` source command followed by zero or more piped processing commands.
+with a source command followed by zero or more piped processing commands.
 Multiple subqueries and regular index patterns can be combined in a single
 `FROM` clause, separated by commas.
 
@@ -67,6 +67,8 @@ FROM
     employees,
     (FROM sample_data | WHERE client_ip == "172.21.3.15")
 ```
+
+To learn about other ways to combine and reuse queries, refer to [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-combine-reuse-queries.md).
 
 ## Examples
 
@@ -96,6 +98,22 @@ Use comma-separated lists or wildcards to
 ```esql
 FROM employees-00001,other-employees-*
 ```
+
+### Query a dataset
+```{applies_to}
+stack: preview 9.6+, experimental =9.5
+serverless: unavailable
+```
+
+Use a [dataset](/reference/query-languages/esql/esql-data-federation-datasets.md) name to query external data through [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md):
+
+```esql
+FROM my_s3_dataset
+```
+
+{applies_to}`stack: preview 9.6+` {applies_to}`serverless: unavailable` By default, a wildcard doesn't match datasets. To include datasets in a wildcard, refer to [](/reference/query-languages/esql/esql-data-federation-querying.md#match-datasets-with-wildcards).
+
+{applies_to}`stack: experimental =9.5` {applies_to}`serverless: unavailable` A wildcard also matches datasets, so registering a dataset can change what an existing wildcard query reads.
 
 ### Query remote clusters
 ```{applies_to}

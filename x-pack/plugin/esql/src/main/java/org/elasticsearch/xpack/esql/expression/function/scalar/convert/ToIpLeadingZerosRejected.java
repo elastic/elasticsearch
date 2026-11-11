@@ -54,6 +54,11 @@ public class ToIpLeadingZerosRejected extends AbstractConvertFunction {
     }
 
     @Override
+    public String functionName() {
+        return "TO_IP";
+    }
+
+    @Override
     protected Map<DataType, BuildFactory> factories() {
         return EVALUATORS;
     }

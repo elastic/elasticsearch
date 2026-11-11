@@ -1,0 +1,367 @@
+version: 9.4.5
+released: true
+generated: 2026-08-11T18:39:43.229474428Z
+changelogs:
+  - pr: 2841
+    summary: Improve messaging for OOM process termination
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2846
+    summary: Report the actual memory usage of the autodetect process
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2848
+    summary: Improve adherence to memory limits for the bucket gatherer
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2851
+    summary: Restrict file system access for PyTorch models
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2863
+    summary: Update the PyTorch library to version 2.7.1
+    area: Machine Learning
+    type: upgrade
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2889
+    summary: Downgrade log severity for a batch of recoverable errors
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2894
+    summary: Improve error handling for quantiles state documents
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2895
+    summary: Improve handling of invalid JSON state documents
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3008
+    summary: "Harden `pytorch_inference` with TorchScript model graph validation"
+    area: Machine Learning
+    type: enhancement
+    issues:
+      - 2890
+    source_repo: elastic/ml-cpp
+  - pr: 3015
+    summary: Add EuroBERT and Jina v5 ops to the graph validation allowlist
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3017
+    summary: "Fix flaky `CIoManagerTest/testFileIoGood` test"
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3078
+    summary: "Reject TorchScript custom state hooks before load and forbid `inductor::_reinterpret_tensor`"
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3080
+    summary: "Reject non-native ABIs in the ML seccomp filter (`socketcall`/`getuid` collision)"
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3081
+    summary: Mark the ML controller non-dumpable before accepting commands
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3090
+    summary: Fix flaky concurrent LFU cache count invariant under lock timeouts
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 152718
+    summary: Prevent out-of-memory errors caused by scripted fields
+    area: Search
+    type: bug
+    issues:
+      - 120459
+  - pr: 153057
+    summary: Upgrade Apache HttpComponents 5.x to address CVEs
+    area: Security
+    type: upgrade
+    issues: []
+  - pr: 153213
+    summary: "Use the model's `deployment_id` when waiting for model allocation"
+    area: Machine Learning
+    type: bug
+    issues:
+      - 146835
+  - pr: 153298
+    summary: Retry transient failures during restarts
+    area: Transform
+    type: bug
+    issues: []
+  - pr: 153366
+    summary: Prevent mixing time series and standard indices with time series views
+    area: ES|QL
+    type: bug
+    issues:
+      - 149619
+      - 153030
+      - 145445
+  - pr: 153467
+    summary: Upgrade Apache HttpCore 5 to 5.4.3 to fix header DoS CVEs
+    area: Security
+    type: upgrade
+    issues: []
+  - pr: 153582
+    summary: Fix wildcard queries on keyword fields whose normalizer rewrites wildcard characters
+    area: Mapping
+    type: bug
+    issues:
+      - 150699
+  - pr: 153675
+    summary: "Fix an off-by-one error in `ZeroBucket.index()` due to rounding errors"
+    area: ES|QL
+    type: bug
+    issues:
+      - 153270
+  - pr: 153688
+    summary: Fix associating an inference endpoint with an ML node deployment
+    area: Inference
+    type: bug
+    issues:
+      - 144860
+  - pr: 153831
+    summary: "Ensure cancelled `_field_caps` tasks are removed from the tasks API"
+    area: Search
+    type: bug
+    issues:
+      - 137475
+  - pr: 153886
+    summary: Deploy text embedding models before the validation call
+    area: Inference
+    type: bug
+    issues:
+      - 144871
+  - pr: 154016
+    summary: "Fix a cause of lost ES|QL warnings by preserving thread context"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 154115
+    summary: Upgrade Log4j to 2.26.1
+    area: Security
+    type: upgrade
+    issues: []
+  - pr: 154155
+    summary: Fix SSE parsing across network read boundaries
+    area: Inference
+    type: bug
+    issues:
+      - 153980
+  - pr: 154287
+    summary: "Retype `text` to `keyword` to fulfill the CASE `resolveType` contract"
+    area: ES|QL
+    type: bug
+    issues:
+      - 154278
+  - pr: 154295
+    summary: "Avoid an integer overflow loop in the `REPEAT` function"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 154317
+    summary: "Guard `ROUND_TO` to fields from indices in the physical optimizer"
+    area: ES|QL
+    type: bug
+    issues:
+      - 154315
+  - pr: 154373
+    summary: Cache little-endian float layout in the DiskBBQ scalar corrections loop
+    area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 154417
+    summary: "Fix `MV_SORT` incorrectly allowing geospatial types, which are not sortable"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 154508
+    summary: Fix incorrect inclusion of flattened subfields in multi-index queries
+    area: ES|QL
+    type: bug
+    issues:
+      - 154743
+      - 154484
+      - 154011
+  - pr: 154521
+    summary: "Add `policy_base_id` field to fleet-agents and fleet-policies index templates"
+    area: Infra/Plugins
+    type: enhancement
+    issues: []
+  - pr: 154525
+    summary: "Use `readArraySize` in `readImmutableMap` and `readImmutableOpenMap`"
+    area: Search
+    type: bug
+    issues: []
+  - pr: 154542
+    summary: Parse scroll ID from a bounded byte array
+    area: Search
+    type: bug
+    issues: []
+  - pr: 154569
+    summary: Upgrade Jackson to 2.18.9
+    area: Security
+    type: upgrade
+    issues: []
+  - pr: 154572
+    summary: Limit dot-separated identifiers per version part
+    area: Search
+    type: bug
+    issues: []
+  - pr: 154577
+    summary: Fix double decrement of the pending inference request count
+    area: Machine Learning
+    type: bug
+    issues:
+      - 154483
+  - pr: 154632
+    summary: Fix SSE parser handling of empty lines and byte order marks
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 154689
+    summary: Bound numeric string length before parsing
+    area: Search
+    type: bug
+    issues: []
+  - pr: 154694
+    summary: "Fix view and alias data deduplication in `ViewResolver`"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 154735
+    summary: Delete default inference endpoints using the master node action only
+    area: Inference
+    type: bug
+    issues:
+      - 154710
+  - pr: 154793
+    summary: Add a check against self-referencing filters
+    area: Analysis
+    type: bug
+    issues: []
+  - pr: 154795
+    summary: "Validate the inference ingest processor `target_field`"
+    area: Machine Learning
+    type: bug
+    issues:
+      - 88059
+  - pr: 154814
+    summary: Add a hardcoded limit on nested retrievers
+    area: Ranking
+    type: bug
+    issues: []
+  - pr: 154837
+    summary: Trip the request breaker on term and phrase suggesters based on backing array estimates
+    area: Analysis
+    type: bug
+    issues: []
+  - pr: 154955
+    summary: "Fix `FROM_BASE64` generating invalid non-UTF-8 strings. Previously it could create binary values that ES|QL does not support in other operations; only valid UTF-8 is supported, and invalid cases now return null with a warning."
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 154972
+    summary: "Fix a concurrency issue in `InferenceOperator#pollNextRequest` for failed responses"
+    area: ES|QL
+    type: bug
+    issues:
+      - 154866
+  - pr: 155076
+    summary: Reserve regexp automaton memory on the circuit breaker before building it
+    area: Search
+    type: bug
+    issues: []
+  - pr: 155099
+    summary: Fix an error caused by empty reranker results
+    area: Ranking
+    type: bug
+    issues: []
+  - pr: 155231
+    summary: "Apply `max_regex_length` limit to intervals regexp and wildcard rules"
+    area: Search
+    type: bug
+    issues: []
+  - pr: 155279
+    summary: "When `number_of_replicas` is specified in the ILM `allocate` action, `auto_expand_replicas` is now explicitly removed from the index settings."
+    area: ILM
+    type: breaking
+    issues:
+      - 150407
+    breaking:
+      area: ILM
+      title: ILM allocate action now removes auto_expand_replicas when number_of_replicas is set
+      details: "When `number_of_replicas` is specified in the ILM `allocate` action, the `auto_expand_replicas` setting is now explicitly removed from the index. Previously, a pre-existing `auto_expand_replicas` setting would remain and override the configured `number_of_replicas`, causing the action to have no effect on the replica count."
+      impact: "Indices that have `auto_expand_replicas` set and pass through an ILM `allocate` action with `number_of_replicas` configured have `auto_expand_replicas` removed. If you rely on `auto_expand_replicas` continuing to take effect after the `allocate` action, remove the `number_of_replicas` setting from that action."
+      notable: false
+      essSettingChange: false
+  - pr: 155418
+    summary: "Allow garbage collection of closed search contexts in ES|QL"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 155552
+    summary: Add security stats to the monitoring mapping
+    area: Security
+    type: enhancement
+    issues: []
+  - pr: 155598
+    summary: Upgrade lz4-java to 1.11.1
+    area: Infra/Core
+    type: upgrade
+    issues: []
+  - pr: 155630
+    summary: "Fix `EUCLIDEAN` score clamping order in the BBQ vector scorer"
+    area: Vector Search
+    type: bug
+    issues:
+      - 155568
+  - pr: 155693
+    summary: Clamp merge scheduler thread count when it exceeds max merge count
+    area: Search
+    type: bug
+    issues:
+      - 96594
+      - 155678
+  - pr: 155819
+    summary: Upgrade Bouncy Castle to 1.85
+    area: Security
+    type: upgrade
+    issues: []
+  - pr: 155853
+    summary: Upgrade JANSI to 2.4.3 to fix terminal detection on zlib-ng based systems (EL10)
+    area: Infra/CLI
+    type: bug
+    issues:
+      - 154510
+  - pr: 155937
+    summary: Update Bouncy Castle FIPS TLS libraries
+    area: FIPS
+    type: upgrade
+    issues: []

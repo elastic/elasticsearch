@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.orc;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -16,6 +17,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -40,7 +42,8 @@ public class OrcReaderStatusTests extends AbstractWireSerializingTestCase<OrcRea
             randomList(0, 4, () -> randomAlphaOfLength(6)).stream().sorted().toList(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomNonNegativeLong()
+            0L,
+            0L
         );
     }
 
@@ -57,21 +60,45 @@ public class OrcReaderStatusTests extends AbstractWireSerializingTestCase<OrcRea
             instance.predicatePushdownUsed(),
             instance.predicateColumns(),
             instance.columnsProjected(),
-            instance.columnsTotal(),
-            randomValueOtherThan(instance.readNanos(), () -> randomNonNegativeLong())
+            randomValueOtherThan(instance.columnsTotal(), () -> randomNonNegativeLong()),
+            0L,
+            0L
         );
     }
 
     public void testToXContent() throws IOException {
-        OrcReaderStatus status = new OrcReaderStatus(100L, 5L, 6L, 1L, 2L, 3L, 4L, true, List.of("host"), 7L, 9L, 150L);
+        OrcReaderStatus status = new OrcReaderStatus(100L, 5L, 6L, 1L, 2L, 3L, 4L, true, List.of("host"), 7L, 9L, 0L, 0L);
         assertThat(
             toJson(status),
             equalTo(
                 "{\"format\":\"orc\",\"rows_emitted\":100,\"footer_read_nanos\":5,\"footer_size_bytes\":6,"
                     + "\"footer_cache_hits\":1,\"footer_cache_misses\":2,\"stripes_in_file\":3,\"stripes_total\":4,"
                     + "\"predicate_pushdown_used\":true,\"predicate_columns\":[\"host\"],"
-                    + "\"columns_projected\":7,\"columns_total\":9,\"read_nanos\":150}"
+                    + "\"columns_projected\":7,\"columns_total\":9}"
             )
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testProfileSchema() {
+        Map<String, Object> properties = (Map<String, Object>) OrcReaderStatus.PROFILE_SCHEMA.schema().get("properties");
+        assertEquals(ProfileSchema.constant("orc"), properties.get("format"));
+        assertEquals(
+            List.of(
+                "format",
+                "rows_emitted",
+                "footer_read_nanos",
+                "footer_size_bytes",
+                "footer_cache_hits",
+                "footer_cache_misses",
+                "stripes_in_file",
+                "stripes_total",
+                "predicate_pushdown_used",
+                "predicate_columns",
+                "columns_projected",
+                "columns_total"
+            ),
+            OrcReaderStatus.PROFILE_SCHEMA.schema().get("required")
         );
     }
 

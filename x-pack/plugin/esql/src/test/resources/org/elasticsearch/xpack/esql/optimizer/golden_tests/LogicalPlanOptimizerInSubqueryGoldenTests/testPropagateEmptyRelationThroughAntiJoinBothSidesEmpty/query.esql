@@ -1,0 +1,3 @@
+FROM employees
+| WHERE false
+| WHERE emp_no NOT IN (FROM employees | WHERE false | KEEP emp_no)

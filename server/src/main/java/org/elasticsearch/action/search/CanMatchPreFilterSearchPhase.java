@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -41,6 +42,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.core.Strings.format;
@@ -97,6 +99,14 @@ final class CanMatchPreFilterSearchPhase {
      * from iterators and counted in {@link CanMatchResult#skippedByClusterAlias()}.
      */
     private final boolean includeSkippedShardsInIterators;
+    /**
+     * The cluster state the shard iterators were built from, used to recognise shards that are missing because they are being restored
+     * from a snapshot; {@code null} when the caller has none, in which case missing shards are reported as they always were.
+     */
+    @Nullable
+    private final ClusterState clusterState;
+    private final LongAdder canMatchResultBytesRead = new LongAdder();
+    private final LongAdder canMatchRequestBytesWritten = new LongAdder();
 
     private CanMatchPreFilterSearchPhase(
         Logger logger,
@@ -112,8 +122,10 @@ final class CanMatchPreFilterSearchPhase {
         boolean requireAtLeastOneMatch,
         CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
         boolean includeSkippedShardsInIterators,
+        @Nullable ClusterState clusterState,
         ActionListener<CanMatchResult> listener
     ) {
+        this.clusterState = clusterState;
         this.logger = logger;
         this.searchTransportService = searchTransportService;
         this.nodeIdToConnection = nodeIdToConnection;
@@ -160,7 +172,8 @@ final class CanMatchPreFilterSearchPhase {
         CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
         SearchResponseMetrics searchResponseMetrics,
         Map<String, Object> searchRequestAttributes,
-        boolean includeSkippedShardsInIterators
+        boolean includeSkippedShardsInIterators,
+        @Nullable ClusterState clusterState
     ) {
         if (shardsIts.isEmpty()) {
             // Must be mutable: callers fold per-cluster skip counts into this map via Map#merge.
@@ -198,7 +211,7 @@ final class CanMatchPreFilterSearchPhase {
             @Override
             protected void doRun() {
                 assert assertSearchCoordinationThread();
-                new CanMatchPreFilterSearchPhase(
+                CanMatchPreFilterSearchPhase phase = new CanMatchPreFilterSearchPhase(
                     logger,
                     searchTransportService,
                     nodeIdToConnection,
@@ -212,8 +225,29 @@ final class CanMatchPreFilterSearchPhase {
                     requireAtLeastOneMatch,
                     coordinatorRewriteContextProvider,
                     includeSkippedShardsInIterators,
+                    clusterState,
                     listener
-                ).runCoordinatorRewritePhase();
+                );
+                listener.addListener(new ActionListener<>() {
+                    @Override
+                    public void onResponse(CanMatchResult canMatchResult) {
+                        long resultBytes = phase.canMatchResultBytesRead.sumThenReset();
+                        long requestBytes = phase.canMatchRequestBytesWritten.sumThenReset();
+                        if (resultBytes > 0) {
+                            assert requestBytes > 0 : "successful responses from remote nodes must have corresponding request bytes set";
+                            searchResponseMetrics.recordSearchPhaseShardResultBytes(PHASE_NAME, resultBytes, searchRequestAttributes);
+                        }
+                        if (requestBytes > 0) {
+                            searchResponseMetrics.recordSearchPhaseShardRequestBytes(PHASE_NAME, requestBytes, searchRequestAttributes);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // do not record bytes of failed phases
+                    }
+                });
+                phase.runCoordinatorRewritePhase();
             }
         });
         return listener;
@@ -293,7 +327,7 @@ final class CanMatchPreFilterSearchPhase {
 
     private void checkNoMissingShards(List<SearchShardIterator> shards) {
         assert assertSearchCoordinationThread();
-        SearchPhase.doCheckNoMissingShards(PHASE_NAME, request, shards);
+        SearchPhase.doCheckNoMissingShards(PHASE_NAME, request, shards, clusterState);
     }
 
     private Map<SendingTarget, List<SearchShardIterator>> groupByNode(List<SearchShardIterator> shards) {
@@ -376,7 +410,9 @@ final class CanMatchPreFilterSearchPhase {
                                     onOperationFailed(shard.getShardRequestIndex(), e);
                                 }
                             }
-                        }
+                        },
+                        canMatchResultBytesRead::add,
+                        canMatchRequestBytesWritten::add
                     );
                 } catch (Exception e) {
                     for (CanMatchNodeRequest.Shard shard : shardLevelRequests) {

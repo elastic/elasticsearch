@@ -1,0 +1,2 @@
+FROM employees
+| EVAL m = ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NULL

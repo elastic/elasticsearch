@@ -103,7 +103,6 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
     }
 
     public void testCreateDynamicStringFieldWithoutAutoTextSubfield() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.DYNAMIC_STRINGS_AUTO_TEXT.getKey(), false).build();
         String source = "{\"f1\": \"foobar\"}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, source);
@@ -128,6 +127,6 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         assertThat(built, instanceOf(KeywordFieldMapper.class));
         KeywordFieldMapper kwdBuilt = (KeywordFieldMapper) built;
         assertFalse(kwdBuilt.multiFields().iterator().hasNext());
-        assertTrue(kwdBuilt.fieldType().usesBinaryDocValues());
+        assertFalse(kwdBuilt.fieldType().usesBinaryDocValues());
     }
 }

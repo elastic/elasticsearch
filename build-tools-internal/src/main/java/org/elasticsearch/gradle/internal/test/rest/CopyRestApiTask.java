@@ -161,7 +161,13 @@ public class CopyRestApiTask extends DefaultTask {
                 }
             }
         } catch (IOException e) {
-            throw new IllegalStateException(String.format("Error determining if this project [%s] has rest tests.", getProject()), e);
+            throw new IllegalStateException(
+                String.format(
+                    "Error determining if this project [%s] has rest tests.",
+                    projectLayout.getProjectDirectory().getAsFile().getPath()
+                ),
+                e
+            );
         }
         return false;
     }

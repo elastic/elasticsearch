@@ -38,8 +38,11 @@ import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -49,6 +52,7 @@ import static org.elasticsearch.xpack.stateless.memory.ShardsMappingSizeCollecto
 import static org.elasticsearch.xpack.stateless.memory.ShardsMappingSizeCollector.HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING;
 import static org.elasticsearch.xpack.stateless.memory.ShardsMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING;
 import static org.elasticsearch.xpack.stateless.memory.ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -121,6 +125,7 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
                 randomNonNegativeInt(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
+                randomNonNegativeLong(),
                 randomNonNegativeLong()
             )
         );
@@ -162,6 +167,93 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
         verifyNoMoreInteractions(publisher);
     }
 
+    /**
+     * Input-parity guard for the recovery gate: {@link ShardsMappingSizeCollector#collectShardMappingSizes} must return exactly what
+     * the full-sweep publication sends to the master, so the gate's local estimate and the master's estimate are computed from the
+     * same values. If collection and publication ever diverge (different sources, filters, or fields), this fails.
+     */
+    public void testCollectShardMappingSizesMatchesPublishedSizes() {
+        final int indexCount = between(1, 10);
+        final List<IndexService> indexServices = new ArrayList<>();
+        final Set<ShardId> collectableShardIds = new HashSet<>();
+        for (int i = 0; i < indexCount; i++) {
+            final Index index = new Index(randomIdentifier(), randomIdentifier());
+            // An index may not have mapping stats yet; collection and publication both skip it entirely.
+            final boolean hasMappingStats = i == 0 || randomBoolean();
+            final int shardCount = between(1, 4);
+            final List<IndexShard> shards = new ArrayList<>();
+            for (int shardNumber = 0; shardNumber < shardCount; shardNumber++) {
+                final ShardId shardId = new ShardId(index, shardNumber);
+                // keep at least a shard
+                if ((i == 0 && shardNumber == 0) || randomBoolean()) {
+                    shards.add(mockStartedShard(shardId, randomShardFieldStats()));
+                    // Mixed hollowness within one collection: hollow shards self-report an overhead, regular shards do not.
+                    when(hollowShardsService.isHollowShard(shardId)).thenReturn(randomBoolean());
+                    if (hasMappingStats) {
+                        collectableShardIds.add(shardId);
+                    }
+                } else {
+                    shards.add(mockShardWithoutFieldStats(shardId));
+                }
+            }
+            final IndexService service = mock(IndexService.class);
+            when(service.iterator()).thenAnswer(invocation -> shards.iterator());
+            when(service.getNodeMappingStats()).thenReturn(hasMappingStats ? randomNodeMappingStats() : null);
+            indexServices.add(service);
+        }
+        when(indicesService.iterator()).thenAnswer(invocation -> indexServices.iterator());
+
+        var publisher = mock(HeapMemoryUsagePublisher.class);
+        var collector = new ShardsMappingSizeCollector(
+            IS_INDEX_NODE,
+            indicesService,
+            publisher,
+            deterministicTaskQueue.getThreadPool(),
+            clusterService,
+            hollowShardsService
+        );
+
+        final Map<ShardId, ShardMappingSize> collected = collector.collectShardMappingSizes();
+        assertThat(collected.keySet(), equalTo(collectableShardIds));
+
+        collector.updateMappingMetricsForAllIndices(randomNonNegativeLong());
+        deterministicTaskQueue.runAllTasks();
+        ArgumentCaptor<HeapMemoryUsage> heapUsageCaptor = ArgumentCaptor.forClass(HeapMemoryUsage.class);
+        verify(publisher).publishIndicesMappingSize(heapUsageCaptor.capture(), any());
+        assertThat(collected, equalTo(heapUsageCaptor.getValue().shardMappingSizes()));
+    }
+
+    private IndexShard mockStartedShard(ShardId shardId, ShardFieldStats fieldStats) {
+        final IndexShard shard = mock(IndexShard.class);
+        when(shard.shardId()).thenReturn(shardId);
+        when(shard.routingEntry()).thenReturn(TestShardRouting.newShardRouting(shardId, "node-0", true, ShardRoutingState.STARTED));
+        when(shard.getShardFieldStats()).thenReturn(fieldStats);
+        return shard;
+    }
+
+    /** A shard before its first refresh: {@code getShardFieldStats()} is still null, so it must not be collected or published. */
+    private IndexShard mockShardWithoutFieldStats(ShardId shardId) {
+        final IndexShard shard = mock(IndexShard.class);
+        when(shard.shardId()).thenReturn(shardId);
+        when(shard.routingEntry()).thenReturn(TestShardRouting.newShardRouting(shardId, "node-0", true, ShardRoutingState.INITIALIZING));
+        return shard;
+    }
+
+    private static ShardFieldStats randomShardFieldStats() {
+        return new ShardFieldStats(
+            between(0, 100),
+            between(0, 10_000),
+            randomBoolean() ? -1 : randomNonNegativeLong(), // -1 marks field usages as unavailable
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
+    }
+
+    private static NodeMappingStats randomNodeMappingStats() {
+        return new NodeMappingStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+    }
+
     public void testPublishHeapMemoryUsagesAreRetried() {
         CountDownLatch published = new CountDownLatch(1);
         AtomicInteger attempts = new AtomicInteger(randomIntBetween(2, 5));
@@ -197,7 +289,7 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
         );
         var shards = Map.of(
             new ShardId(TEST_INDEX, 0),
-            new ShardMappingSize(randomNonNegativeInt(), 0, 0, 0L, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, "newTestShardNodeId")
+            new ShardMappingSize(randomNonNegativeInt(), 0, 0, 0L, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, "newTestShardNodeId")
         );
         var heapUsage = new HeapMemoryUsage(randomNonNegativeLong(), shards);
         collector.publishHeapUsage(heapUsage);
@@ -230,7 +322,7 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
         );
         var shards = Map.of(
             new ShardId(TEST_INDEX, 0),
-            new ShardMappingSize(randomNonNegativeInt(), 0, 0, 0L, 0L, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, "newTestShardNodeId")
+            new ShardMappingSize(randomNonNegativeInt(), 0, 0, 0L, 0L, 0L, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, "newTestShardNodeId")
         );
         var heapUsage = new HeapMemoryUsage(randomNonNegativeLong(), shards);
         collector.publishHeapUsage(heapUsage, TimeValue.timeValueMillis(500), new ActionListener<ActionResponse.Empty>() {
@@ -258,7 +350,7 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(shardId);
         when(indexShard.routingEntry()).thenReturn(shardRoutingStub);
-        when(indexShard.getShardFieldStats()).thenReturn(new ShardFieldStats(1, 1, -1, 0, 0));
+        when(indexShard.getShardFieldStats()).thenReturn(new ShardFieldStats(1, 1, -1, 0, 0, 0));
 
         when(indexService.getShardOrNull(shardId.id())).thenReturn(indexShard);
         final long testIndexMappingSizeInBytes = 1024;
@@ -268,7 +360,7 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
         when(hollowShardsService.isHollowShard(any())).thenReturn(false);
         final var shards = Map.of(
             shardId,
-            new ShardMappingSize(testIndexMappingSizeInBytes, 1, 1, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, "node-0")
+            new ShardMappingSize(testIndexMappingSizeInBytes, 1, 1, 0, 0, 0L, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, "node-0")
         );
 
         long currentClusterStateVersion = randomNonNegativeLong();
@@ -300,7 +392,7 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
         when(indexShard.shardId()).thenReturn(shardId);
         when(indexShard.routingEntry()).thenReturn(TestShardRouting.newShardRouting(shardId, "node-0", true, ShardRoutingState.STARTED));
         final int numSegments = randomIntBetween(1, 10);
-        when(indexShard.getShardFieldStats()).thenReturn(new ShardFieldStats(numSegments, 1, -1, 10, 20));
+        when(indexShard.getShardFieldStats()).thenReturn(new ShardFieldStats(numSegments, 1, -1, 10, 20, 30));
 
         when(indexService.getShardOrNull(shardId.id())).thenReturn(indexShard);
         final long testIndexMappingSizeInBytes = 1024;
@@ -329,7 +421,7 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
         long shardMemoryOverhead = hollowShardSegmentMemoryOverheadBytes * numSegments + fixedHollowShardMemoryOverheadBytes;
         final var shards = Map.of(
             shardId,
-            new ShardMappingSize(testIndexMappingSizeInBytes, numSegments, 1, 10, 20, shardMemoryOverhead, "node-0")
+            new ShardMappingSize(testIndexMappingSizeInBytes, numSegments, 1, 10, 20, 30, shardMemoryOverhead, "node-0")
         );
 
         collector.updateMappingMetricsForShard(shardId, randomNonNegativeLong());

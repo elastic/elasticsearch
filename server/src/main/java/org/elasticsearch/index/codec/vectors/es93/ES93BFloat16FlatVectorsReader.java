@@ -58,14 +58,15 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ES93BFloat16FlatVectorsReader.class);
 
     private final IntObjectHashMap<FieldEntry> fields = new IntObjectHashMap<>();
+    private final FlatVectorsScorer vectorScorer;
     private final IndexInput vectorData;
     private final FieldInfos fieldInfos;
     private final IOContext dataContext;
 
     public ES93BFloat16FlatVectorsReader(SegmentReadState state, FlatVectorsScorer scorer) throws IOException {
-        super(scorer);
         int versionMeta = readMetadata(state);
         this.fieldInfos = state.fieldInfos;
+        this.vectorScorer = scorer;
         // Flat formats are used to randomly access vectors from their node ID that is stored
         // in the HNSW graph.
         dataContext = state.context.withHints(FileTypeHint.DATA, FileDataHint.KNN_VECTORS, DataAccessHint.RANDOM);
@@ -220,6 +221,11 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
     @Override
     public ByteVectorValues getByteVectorValues(String field) throws IOException {
         throw new IllegalStateException(field + " only supports float vectors");
+    }
+
+    @Override
+    public FlatVectorsScorer getFlatVectorScorer(String field) throws IOException {
+        return vectorScorer;
     }
 
     @Override

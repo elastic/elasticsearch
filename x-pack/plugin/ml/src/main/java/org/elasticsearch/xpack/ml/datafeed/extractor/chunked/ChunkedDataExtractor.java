@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
@@ -20,6 +21,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 
 /**
  * A wrapper {@link DataExtractor} that can be used with other extractors in order to perform
@@ -45,16 +47,18 @@ public class ChunkedDataExtractor implements DataExtractor {
 
     private final DataExtractorFactory dataExtractorFactory;
     private final ChunkedDataExtractorContext context;
+    private final ChunkedDataExtractorEsqlSizing esqlSizing;
     private long currentStart;
     private long currentEnd;
     private long chunkSpan;
-    private boolean isCancelled;
-    private DataExtractor currentExtractor;
+    private volatile boolean isCancelled;
+    private volatile DataExtractor currentExtractor;
     private List<LinkedClusterState> lastLinkedClusterStates = List.of();
 
     ChunkedDataExtractor(DataExtractorFactory dataExtractorFactory, ChunkedDataExtractorContext context) {
         this.dataExtractorFactory = Objects.requireNonNull(dataExtractorFactory);
         this.context = Objects.requireNonNull(context);
+        this.esqlSizing = new ChunkedDataExtractorEsqlSizing(context);
         this.currentStart = context.start();
         this.currentEnd = context.start();
         this.isCancelled = false;
@@ -89,9 +93,24 @@ public class ChunkedDataExtractor implements DataExtractor {
     }
 
     private void setUpChunkedSearch() {
-        DataSummary dataSummary = dataExtractorFactory.newExtractor(currentStart, context.end()).getSummary();
+        // Keep a reference so that if getSummary() throws (e.g. because a remote cluster was skipped)
+        // we can still recover the cluster states it observed and expose them via getLinkedClusterStates().
+        DataExtractor summaryExtractor = dataExtractorFactory.newExtractor(currentStart, context.end());
+        DataSummary dataSummary;
+        try {
+            dataSummary = summaryExtractor.getSummary();
+        } catch (ResourceNotFoundException e) {
+            List<LinkedClusterState> failedStates = summaryExtractor.getLinkedClusterStates();
+            if (failedStates.isEmpty() == false) {
+                lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(lastLinkedClusterStates, failedStates);
+            }
+            throw e;
+        }
         if (dataSummary.hasData()) {
-            currentStart = context.timeAligner().alignToFloor(dataSummary.earliestTime());
+            long earliestTime = context.timeAligner().alignToFloor(dataSummary.earliestTime());
+            // ES|QL summary MIN may precede the queried window (e.g. DATE_TRUNC). Jump forward so an
+            // unbounded range skips empty chunks.
+            currentStart = context.hasEsqlQuery() ? Math.max(currentStart, earliestTime) : earliestTime;
             currentEnd = currentStart;
 
             if (context.chunkSpan() != null) {
@@ -99,6 +118,17 @@ public class ChunkedDataExtractor implements DataExtractor {
             } else if (context.hasAggregations()) {
                 // This heuristic is a direct copy of the manual chunking config auto-creation done in {@link DatafeedConfig}
                 chunkSpan = DatafeedConfig.DEFAULT_AGGREGATION_CHUNKING_BUCKETS * context.histogramInterval();
+            } else if (context.hasEsqlQuery()) {
+                long timeSpread = dataSummary.latestTime() - dataSummary.earliestTime();
+                if (timeSpread <= 0) {
+                    chunkSpan = context.end() - currentEnd;
+                } else {
+                    // Same uniform-density heuristic as DSL below: totalHits over timeSpread, target DEFAULT_ESQL_CHUNK_DOCS rows.
+                    chunkSpan = Math.max(
+                        MIN_CHUNK_SPAN,
+                        ChunkedDataExtractorEsqlSizing.DEFAULT_ESQL_CHUNK_DOCS * timeSpread / dataSummary.totalHits()
+                    );
+                }
             } else {
                 long timeSpread = dataSummary.latestTime() - dataSummary.earliestTime();
                 if (timeSpread <= 0) {
@@ -115,6 +145,9 @@ public class ChunkedDataExtractor implements DataExtractor {
             }
 
             chunkSpan = context.timeAligner().alignToCeil(chunkSpan);
+            if (context.hasEsqlQuery()) {
+                esqlSizing.captureInitialChunkSpan(chunkSpan);
+            }
             LOGGER.debug("[{}] Chunked search configured: chunk span = {} ms", context.jobId(), chunkSpan);
         } else {
             // search is over
@@ -134,13 +167,33 @@ public class ChunkedDataExtractor implements DataExtractor {
                 isNewSearch = true;
             }
 
-            Result result = currentExtractor.next();
+            Result result;
+            try {
+                result = currentExtractor.next();
+            } catch (IOException | RuntimeException e) {
+                // Capture states from the inner extractor before rethrowing so that
+                // getLinkedClusterStates() gives accurate data to DatafeedJob's catch block.
+                DataExtractor delegate = currentExtractor;
+                if (delegate != null) {
+                    List<LinkedClusterState> innerStates = delegate.getLinkedClusterStates();
+                    if (innerStates.isEmpty() == false) {
+                        lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(lastLinkedClusterStates, innerStates);
+                    }
+                }
+                throw e;
+            }
             lastSearchInterval = result.searchInterval();
             if (result.linkedClusterStates().isEmpty() == false) {
                 lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
                     lastLinkedClusterStates,
                     result.linkedClusterStates()
                 );
+            }
+            if (handleTruncatedEsqlResult(result)) {
+                continue;
+            }
+            if (context.hasEsqlQuery() && result.data().isPresent()) {
+                chunkSpan = esqlSizing.regrownSpan(chunkSpan, result.rowCount());
             }
             if (result.data().isPresent()) {
                 return result;
@@ -171,6 +224,41 @@ public class ChunkedDataExtractor implements DataExtractor {
         return new Result(lastSearchInterval, Optional.empty(), lastLinkedClusterStates);
     }
 
+    private boolean handleTruncatedEsqlResult(Result result) throws IOException {
+        if (esqlSizing.isTruncated(result.rowCount()) == false) {
+            return false;
+        }
+        OptionalLong shrunkEnd = esqlSizing.onTruncated(currentStart, currentEnd, isCancelled(), result.searchInterval());
+        if (shrunkEnd.isEmpty()) {
+            return false;
+        }
+        long newEnd = shrunkEnd.getAsLong();
+        if (result.data().isPresent()) {
+            result.data().get().close();
+        }
+        currentExtractor.destroy();
+        currentEnd = newEnd;
+        chunkSpan = esqlSizing.alignChunkSpanAfterShrink(chunkSpan, currentStart, currentEnd);
+        installExtractor(dataExtractorFactory.newExtractor(currentStart, currentEnd));
+        LOGGER.debug(
+            "[{}] shrinks ES|QL chunk to [{}, {}) after receiving [{}] rows",
+            context.jobId(),
+            currentStart,
+            currentEnd,
+            result.rowCount()
+        );
+        return true;
+    }
+
+    /** Installs a new delegate extractor for the current chunk window. */
+    private void installExtractor(DataExtractor newExtractor) {
+        currentExtractor = newExtractor;
+        // cancel() sets the flag before cancelling the delegate; re-check after install so a cancel during replacement still reaches it.
+        if (isCancelled) {
+            newExtractor.cancel();
+        }
+    }
+
     private void advanceTime() {
         // Destroy the previous extractor to clean up any scroll contexts before creating a new one
         if (currentExtractor != null) {
@@ -178,7 +266,8 @@ public class ChunkedDataExtractor implements DataExtractor {
         }
         currentStart = currentEnd;
         currentEnd = Math.min(currentStart + chunkSpan, context.end());
-        currentExtractor = dataExtractorFactory.newExtractor(currentStart, currentEnd);
+        installExtractor(dataExtractorFactory.newExtractor(currentStart, currentEnd));
+        esqlSizing.onNewChunk();
         LOGGER.debug("[{}] advances time to [{}, {})", context.jobId(), currentStart, currentEnd);
     }
 
@@ -189,10 +278,11 @@ public class ChunkedDataExtractor implements DataExtractor {
 
     @Override
     public void cancel() {
-        if (currentExtractor != null) {
-            currentExtractor.cancel();
-        }
         isCancelled = true;
+        DataExtractor delegate = currentExtractor;
+        if (delegate != null) {
+            delegate.cancel();
+        }
     }
 
     @Override
@@ -206,6 +296,17 @@ public class ChunkedDataExtractor implements DataExtractor {
     @Override
     public long getEndTime() {
         return context.end();
+    }
+
+    @Override
+    public List<LinkedClusterState> getLinkedClusterStates() {
+        return lastLinkedClusterStates;
+    }
+
+    /** Span covering every truncated chunk; complete chunks between them may fall inside it. */
+    @Override
+    public Optional<SearchInterval> getIncompleteSearchInterval() {
+        return esqlSizing.incompleteInterval();
     }
 
     ChunkedDataExtractorContext getContext() {

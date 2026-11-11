@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -104,7 +105,8 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         Path path = createTempDir().resolve("indices")
             .resolve(shardRouting.shardId().getIndex().getUUID())
@@ -131,7 +133,8 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
             new SearchUsageStats(),
             RepositoryUsageStats.EMPTY,
             null,
-            null
+            null,
+            new ProjectRoutingUsageSnapshot()
         );
 
         stats = VersionStats.of(metadata, Collections.singletonList(nodeResponse));

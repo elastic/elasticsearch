@@ -16,20 +16,22 @@ import de.thetaphi.forbiddenapis.Logger;
 import de.thetaphi.forbiddenapis.ParseException;
 import groovy.lang.Closure;
 
+import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
-import org.gradle.api.Transformer;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.FileTreeElement;
 import org.gradle.api.file.ProjectLayout;
+import org.gradle.api.file.RegularFile;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.SetProperty;
 import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.CacheableTask;
@@ -39,6 +41,7 @@ import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
+import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
@@ -49,6 +52,7 @@ import org.gradle.api.tasks.VerificationException;
 import org.gradle.api.tasks.VerificationTask;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
+import org.gradle.jvm.toolchain.JavaLauncher;
 import org.gradle.workers.WorkAction;
 import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkQueue;
@@ -57,7 +61,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.annotation.RetentionPolicy;
+import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -70,6 +74,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import javax.inject.Inject;
 
@@ -81,7 +87,8 @@ import static de.thetaphi.forbiddenapis.Checker.Option.FAIL_ON_VIOLATION;
 @CacheableTask
 public abstract class CheckForbiddenApisTask extends DefaultTask implements PatternFilterable, VerificationTask, Constants {
 
-    public static final Set<String> BUNDLED_SIGNATURE_DEFAULTS = Set.of("jdk-unsafe", "jdk-non-portable", "jdk-system-out");
+    /** Default bundled JDK signature ids applied by {@link ForbiddenApisPrecommitPlugin}. */
+    public static final List<String> BUNDLED_SIGNATURE_DEFAULTS = List.of("jdk-unsafe", "jdk-non-portable", "jdk-system-out");
 
     private static final String NL = System.getProperty("line.separator", "\n");
     private final PatternSet patternSet = new PatternSet().include("**/*.class");
@@ -100,30 +107,112 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
 
     private boolean ignoreFailures = false;
     private boolean ignoreMissingClasses = false;
-
-    @Input
-    @Optional
-    abstract SetProperty<String> getBundledSignatures();
+    private Provider<RegularFile> foreignApiJar;
+    private String foreignSignatureName;
 
     /**
-     * List of a custom Java annotations (full class names) that are used in the checked
-     * code to suppress errors. Those annotations must have at least
-     * {@link RetentionPolicy#CLASS}. They can be applied to classes, their methods,
-     * or fields. By default, {@code @de.thetaphi.forbiddenapis.SuppressForbidden}
-     * can always be used, but needs the {@code forbidden-apis.jar} file in classpath
-     * of compiled project, which may not be wanted.
-     * Instead of a full class name, a glob pattern may be used (e.g.,
-     * {@code **.SuppressForbidden}).
+     * Gradle cannot decorate {@link CheckForbiddenApisTask} with abstract {@link SetProperty} accessors (see task creation);
+     * these are created via {@link ObjectFactory} instead.
      */
-    @Input
-    @Optional
-    abstract SetProperty<String> getSuppressAnnotations();
+    private final SetProperty<String> bundledSignatures;
+    private final SetProperty<String> suppressAnnotations;
+
+    /**
+     * Applies edits to bundled JDK signatures before they are stored in deterministic sorted order for caching.
+     */
+    public interface BundledSignaturesSpec {
+        /** Adds a forbidden-apis bundled signatures resource id (e.g. {@code jdk-internal}). */
+        void add(String bundledSignature);
+
+        /** Removes a bundled signatures resource id (e.g. {@code jdk-non-portable}). */
+        void remove(String bundledSignature);
+    }
 
     @Inject
     public CheckForbiddenApisTask(ObjectFactory factory, ProjectLayout projectLayout) {
         signaturesFiles = factory.fileCollection();
         this.objectFactory = factory;
         this.projectLayout = projectLayout;
+        this.bundledSignatures = factory.setProperty(String.class);
+        this.suppressAnnotations = factory.setProperty(String.class);
+        getBundledSignatures().convention(new TreeSet<>());
+        getSuppressAnnotations().convention(new TreeSet<>());
+    }
+
+    /**
+     * Replaces bundled JDK signatures; values are deduplicated and stored in stable sorted order (implementation uses a {@link TreeSet}).
+     */
+    public void setBundledSignatures(Iterable<String> bundledSignatures) {
+        getBundledSignatures().set(copySortedStrings(bundledSignatures));
+    }
+
+    /** Mutates the current bundled signatures, then commits them in sorted order. */
+    public void configureBundledSignatures(Action<? super BundledSignaturesSpec> action) {
+        configureBundledSignaturesFromSeed(getBundledSignatures().get(), action);
+    }
+
+    /**
+     * Starts from {@link #BUNDLED_SIGNATURE_DEFAULTS}, applies edits, then commits bundled signatures in sorted order.
+     */
+    public void configureBundledSignaturesFromDefaults(Action<? super BundledSignaturesSpec> action) {
+        configureBundledSignaturesFromSeed(BUNDLED_SIGNATURE_DEFAULTS, action);
+    }
+
+    private void configureBundledSignaturesFromSeed(Iterable<String> seed, Action<? super BundledSignaturesSpec> action) {
+        LinkedHashSet<String> working = new LinkedHashSet<>();
+        for (String s : seed) {
+            working.add(Objects.requireNonNull(s, "bundledSignature"));
+        }
+        BundledSignaturesSpec spec = new BundledSignaturesSpec() {
+            @Override
+            public void add(String bundledSignature) {
+                working.add(Objects.requireNonNull(bundledSignature, "bundledSignature"));
+            }
+
+            @Override
+            public void remove(String bundledSignature) {
+                working.remove(Objects.requireNonNull(bundledSignature, "bundledSignature"));
+            }
+        };
+        action.execute(spec);
+        getBundledSignatures().set(copySortedStrings(working));
+    }
+
+    /**
+     * Replaces suppression annotations; values are deduplicated and stored in stable sorted order.
+     */
+    public void setSuppressAnnotations(Iterable<String> suppressAnnotations) {
+        getSuppressAnnotations().set(copySortedStrings(suppressAnnotations));
+    }
+
+    private static SortedSet<String> copySortedStrings(Iterable<String> values) {
+        TreeSet<String> sorted = new TreeSet<>();
+        for (String v : values) {
+            sorted.add(Objects.requireNonNull(v, "value"));
+        }
+        return sorted;
+    }
+
+    /**
+     * Forbidden-apis bundled JDK signature ids tracked as a task input.
+     * Values are normally assigned via {@link #setBundledSignatures} or {@link #configureBundledSignaturesFromDefaults}
+     * so they are stored in sorted order for stable fingerprints; assigning directly via {@link SetProperty#set}
+     * with an unordered collection may produce unstable cache keys.
+     */
+    @Input
+    @Optional
+    public SetProperty<String> getBundledSignatures() {
+        return bundledSignatures;
+    }
+
+    /**
+     * Suppression annotations tracked as a task input.
+     * Prefer {@link #setSuppressAnnotations} so values are stored in sorted order for stable fingerprints.
+     */
+    @Input
+    @Optional
+    public SetProperty<String> getSuppressAnnotations() {
+        return suppressAnnotations;
     }
 
     @OutputFile
@@ -175,11 +264,17 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
     /**
      * A {@link FileCollection} containing all files, which contain signatures and comments for forbidden API calls.
      * The signatures are resolved against {@link #getClasspath()}.
+     * Includes the foreign API signature file if {@link #checkForeignApiUsage} was called.
      */
     @InputFiles
     @Optional
     @PathSensitive(PathSensitivity.RELATIVE)
     public FileCollection getSignaturesFiles() {
+        if (foreignSignatureName != null) {
+            return objectFactory.fileCollection()
+                .from(signaturesFiles)
+                .from(new File(resourcesDir, "forbidden/" + foreignSignatureName + ".txt"));
+        }
         return signaturesFiles;
     }
 
@@ -198,10 +293,6 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
         this.signaturesFiles = signaturesFiles;
     }
 
-    public void modifyBundledSignatures(Transformer<Set<String>, Set<String>> transformer) {
-        getBundledSignatures().set(transformer.transform(getBundledSignatures().get()));
-    }
-
     public void replaceSignatureFiles(String... signatureFiles) {
         List<File> resources = new ArrayList<>(signatureFiles.length);
         for (Object name : signatureFiles) {
@@ -216,7 +307,28 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
             resources.add(new File(resourcesDir, "forbidden/" + name + ".txt"));
         }
         setSignaturesFiles(objectFactory.fileCollection().from(getSignaturesFiles()).from(resources));
+    }
 
+    /**
+     * Opt-in to checking for direct usage of {@code java.lang.foreign} APIs that should go
+     * through the adapter classes in {@code org.elasticsearch.foreign.adapter}.
+     *
+     * <p>When {@code targetVersion} is 21 this adds the {@code jdk-foreign-signatures} file
+     * (with preview-era method names like {@code getUtf8String}) and configures a child-first
+     * classloader with the de-previewed foreign API stub JAR so the checker can resolve them.
+     * On 22+ it adds {@code jdk-foreign-signatures22} (with the renamed methods like
+     * {@code getString}) which resolve against the standard JDK.
+     *
+     * @param jarFile the stub JAR produced by {@code ExtractForeignApiTask}
+     * @param targetVersion the minimum runtime Java version the project targets
+     */
+    public void checkForeignApiUsage(Provider<RegularFile> jarFile, int targetVersion) {
+        if (targetVersion == 21) {
+            this.foreignSignatureName = "jdk-foreign-signatures";
+            this.foreignApiJar = jarFile;
+        } else {
+            this.foreignSignatureName = "jdk-foreign-signatures22";
+        }
     }
 
     /**
@@ -260,6 +372,17 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
     public void setIgnoreMissingClasses(boolean ignoreMissingClasses) {
         this.ignoreMissingClasses = ignoreMissingClasses;
     }
+
+    /**
+     * Optional Java toolchain launcher. When set, the forbidden-apis checker runs in a
+     * forked process using this launcher's JVM, so signature resolution uses that JVM's
+     * bootclasspath. {@link ForbiddenApisPrecommitPlugin} sets this when the project's
+     * minimum runtime differs from the Gradle daemon JVM. When absent the checker falls
+     * back to running in the Gradle daemon ({@code noIsolation}).
+     */
+    @Nested
+    @Optional
+    public abstract Property<JavaLauncher> getJavaLauncher();
 
     /**
      * The default compiler target version used to expand references to bundled JDK signatures.
@@ -379,7 +502,13 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
     /** Executes the forbidden apis task. */
     @TaskAction
     public void checkForbidden() {
-        WorkQueue workQueue = getWorkerExecutor().noIsolation();
+        WorkQueue workQueue;
+        if (getJavaLauncher().isPresent()) {
+            File javaExecutable = getJavaLauncher().get().getExecutablePath().getAsFile();
+            workQueue = getWorkerExecutor().processIsolation(spec -> spec.forkOptions(opts -> opts.executable(javaExecutable)));
+        } else {
+            workQueue = getWorkerExecutor().noIsolation();
+        }
         workQueue.submit(ForbiddenApisCheckWorkAction.class, parameters -> {
             parameters.getClasspath().setFrom(getClasspath());
             parameters.getClassDirectories().setFrom(getClassesDirs());
@@ -392,6 +521,9 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
             parameters.getIgnoreMissingClasses().set(getIgnoreMissingClasses());
             parameters.getSuccessMarker().set(getSuccessMarker());
             parameters.getSignaturesFiles().from(getSignaturesFiles());
+            if (foreignApiJar != null && foreignApiJar.isPresent()) {
+                parameters.getForeignApiJar().set(foreignApiJar.get().getAsFile());
+            }
         });
     }
 
@@ -520,7 +652,67 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
                 throw new InvalidUserDataException("Failed to build classpath URLs.", mfue);
             }
 
+            RegularFileProperty foreignApiJarProp = getParameters().getForeignApiJar();
+            if (foreignApiJarProp.isPresent()) {
+                try {
+                    File jarFile = foreignApiJarProp.getAsFile().get();
+                    URL foreignJarUrl = jarFile.toURI().toURL();
+                    return new ForeignFirstClassLoader(foreignJarUrl, urls, ClassLoader.getSystemClassLoader());
+                } catch (MalformedURLException mfue) {
+                    throw new InvalidUserDataException("Failed to build foreign API JAR URL.", mfue);
+                }
+            }
             return URLClassLoader.newInstance(urls, ClassLoader.getSystemClassLoader());
+        }
+
+        /**
+         * A classloader that checks its own URLs before delegating to the parent for
+         * classes and resources under {@code java/lang/foreign/}. This allows a
+         * de-previewed stub JAR to shadow the runtime JDK's preview API classes, so
+         * that forbidden-apis can resolve method signatures for JDK 21 preview APIs
+         * that were renamed in JDK 22.
+         *
+         * For all other classes, standard parent-first delegation applies.
+         */
+        private static class ForeignFirstClassLoader extends URLClassLoader {
+            private static final String FOREIGN_RESOURCE_PREFIX = "java/lang/foreign/";
+
+            ForeignFirstClassLoader(URL foreignJarUrl, URL[] classpathUrls, ClassLoader parent) {
+                super(prepend(foreignJarUrl, classpathUrls), parent);
+            }
+
+            private static URL[] prepend(URL first, URL[] rest) {
+                URL[] combined = new URL[rest.length + 1];
+                combined[0] = first;
+                System.arraycopy(rest, 0, combined, 1, rest.length);
+                return combined;
+            }
+
+            @Override
+            public URL getResource(String name) {
+                if (name.startsWith(FOREIGN_RESOURCE_PREFIX)) {
+                    URL url = findResource(name);
+                    if (url != null) {
+                        return url;
+                    }
+                }
+                return super.getResource(name);
+            }
+
+            @Override
+            public InputStream getResourceAsStream(String name) {
+                if (name.startsWith(FOREIGN_RESOURCE_PREFIX)) {
+                    URL url = findResource(name);
+                    if (url != null) {
+                        try {
+                            return url.openStream();
+                        } catch (IOException e) {
+                            return null;
+                        }
+                    }
+                }
+                return super.getResourceAsStream(name);
+            }
         }
 
         @NotNull
@@ -591,6 +783,7 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
 
         ListProperty<String> getSignatures();
 
+        RegularFileProperty getForeignApiJar();
     }
 
 }

@@ -22,8 +22,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.KeyEntry;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
-import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -31,8 +31,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.UnaryOperator;
 
 public class TransportEncryptionResetActionTests extends ESTestCase {
+
+    private static final ProjectEncryptionKeyMetadata.PekEncryption NO_OP_ENCRYPTION = TestPekEncryption.NO_OP;
 
     public void testApplyDestructiveResetRemovesCustomWhenHandlerReturnsNull() {
         ProjectId projectId = ProjectId.DEFAULT;
@@ -104,7 +107,7 @@ public class TransportEncryptionResetActionTests extends ESTestCase {
             }
 
             @Override
-            public TestCustom reEncrypt(TestCustom current, EncryptionService encryptionService, String activeKeyId) {
+            public TestCustom reEncrypt(TestCustom current, UnaryOperator<EncryptedData> rewrapper) {
                 return current;
             }
 
@@ -173,7 +176,7 @@ public class TransportEncryptionResetActionTests extends ESTestCase {
     private static ProjectEncryptionKeyMetadata somePek() {
         byte[] key = new byte[PasswordBasedEncryption.PEK_LENGTH_BYTES];
         random().nextBytes(key);
-        return new ProjectEncryptionKeyMetadata(Map.of("k1", new KeyEntry(key, 42L)), "k1", "v1");
+        return new ProjectEncryptionKeyMetadata(Map.of("k1", new KeyEntry(key, 42L)), "k1", "v1", Map.of(), NO_OP_ENCRYPTION);
     }
 
     private static TransportEncryptionResetAction.EncryptionResetTask resetTask(List<EncryptedDataHandler<?>> handlers) {
@@ -192,7 +195,7 @@ public class TransportEncryptionResetActionTests extends ESTestCase {
         }
 
         @Override
-        public TestCustom reEncrypt(TestCustom current, EncryptionService encryptionService, String activeKeyId) {
+        public TestCustom reEncrypt(TestCustom current, UnaryOperator<EncryptedData> rewrapper) {
             return current;
         }
 

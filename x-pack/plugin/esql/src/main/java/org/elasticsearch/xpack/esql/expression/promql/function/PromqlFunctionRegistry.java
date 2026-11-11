@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Changes;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Delta;
@@ -27,7 +28,9 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PredictLinear;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StddevOverTime;
@@ -40,6 +43,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Clamp
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramFraction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acosh;
@@ -71,6 +76,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * A registry for PromQL functions that maps function names to their respective definitions.
@@ -80,12 +87,14 @@ public class PromqlFunctionRegistry {
         //
         Delta.PROMQL_DEFINITION,
         Idelta.PROMQL_DEFINITION,
+        Changes.PROMQL_DEFINITION,
         Increase.PROMQL_DEFINITION,
         Irate.PROMQL_DEFINITION,
         Rate.PROMQL_DEFINITION,
         FirstOverTime.PROMQL_DEFINITION,
         LastOverTime.PROMQL_DEFINITION,
         Deriv.PROMQL_DEFINITION,
+        PredictLinear.PROMQL_DEFINITION,
         //
         AvgOverTime.PROMQL_DEFINITION,
         CountOverTime.PROMQL_DEFINITION,
@@ -108,6 +117,24 @@ public class PromqlFunctionRegistry {
         Variance.PROMQL_DEFINITION,
         //
         Percentile.PROMQL_DEFINITION,
+        PromqlHistogramQuantile.PROMQL_DEFINITION,
+        //
+        PromqlBuiltinFunctionDefinitions.TOPK,
+        PromqlBuiltinFunctionDefinitions.BOTTOMK,
+        PromqlBuiltinFunctionDefinitions.LIMITK,
+        PromqlBuiltinFunctionDefinitions.LIMIT_RATIO,
+        //
+        PromqlBuiltinFunctionDefinitions.LABEL_REPLACE,
+        PromqlBuiltinFunctionDefinitions.LABEL_JOIN,
+        PromqlBuiltinFunctionDefinitions.SORT,
+        PromqlBuiltinFunctionDefinitions.SORT_DESC,
+        PromqlBuiltinFunctionDefinitions.SORT_BY_LABEL,
+        PromqlBuiltinFunctionDefinitions.SORT_BY_LABEL_DESC,
+        //
+        ExtractHistogramComponent.PROMQL_HISTOGRAM_AVG,
+        ExtractHistogramComponent.PROMQL_HISTOGRAM_COUNT,
+        ExtractHistogramComponent.PROMQL_HISTOGRAM_SUM,
+        HistogramFraction.PROMQL_DEFINITION,
         //
         Ceil.PROMQL_DEFINITION,
         Abs.PROMQL_DEFINITION,
@@ -149,7 +176,8 @@ public class PromqlFunctionRegistry {
         PromqlBuiltinFunctionDefinitions.DAYS_IN_MONTH,
         PromqlBuiltinFunctionDefinitions.HOUR,
         PromqlBuiltinFunctionDefinitions.MINUTE,
-        PromqlBuiltinFunctionDefinitions.TIME, };
+        PromqlBuiltinFunctionDefinitions.TIME,
+        PromqlBuiltinFunctionDefinitions.TIMESTAMP, };
 
     public static final PromqlFunctionRegistry INSTANCE = new PromqlFunctionRegistry();
 
@@ -162,47 +190,39 @@ public class PromqlFunctionRegistry {
         }
     }
 
-    /**
-     * Carries the PromQL evaluation context needed by function builders to construct ES|QL expressions.
-     */
-    public record PromqlContext(Expression timestamp, Expression window, Expression step, Configuration configuration) {}
+    public record PromqlContext(
+        Expression timestamp,
+        Expression window,
+        Expression step,
+        Configuration configuration,
+        Expression originalTimestamp
+    ) {
+        public PromqlContext(Expression timestamp, Expression window, Expression step, Configuration configuration) {
+            this(timestamp, window, step, configuration, timestamp);
+        }
+    }
 
     // PromQL function names not yet implemented
     // https://github.com/elastic/metrics-program/issues/39
     private static final Set<String> NOT_IMPLEMENTED = Set.of(
         // Across-series aggregations (not yet available in ESQL)
-        "bottomk",
-        "topk",
         "group",
         "count_values",
-
         // Range vector functions (not yet implemented)
-        "changes",
+        // Prometheus 3.x replacement for holt_winters; requires smoothing factors applied over a range vector.
+        "double_exponential_smoothing",
         "holt_winters",
         "mad_over_time",
-        "predict_linear",
         "resets",
 
         // Instant vector functions
         "absent",
-        "sort",
-        "sort_desc",
-
-        // Time functions
-        "timestamp",
-
-        // Label manipulation functions
-        "label_join",
-        "label_replace",
+        // Prometheus 3.x: joins metric-info labels onto a vector; requires cross-metric label lookup.
+        "info",
 
         // Histogram functions
-        "histogram_avg",
-        "histogram_count",
-        "histogram_fraction",
-        "histogram_quantile",
         "histogram_stddev",
-        "histogram_stdvar",
-        "histogram_sum"
+        "histogram_stdvar"
     );
 
     private String normalize(String name) {
@@ -229,6 +249,14 @@ public class PromqlFunctionRegistry {
         return NOT_IMPLEMENTED.contains(normalize(name));
     }
 
+    /**
+     * Returns the names of PromQL functions that are recognized but not yet implemented, sorted for deterministic
+     * output. Used by documentation generation to render the "Not yet supported" list straight from the registry.
+     */
+    public SortedSet<String> notImplementedFunctions() {
+        return new TreeSet<>(NOT_IMPLEMENTED);
+    }
+
     public void checkFunction(Source source, String name) {
         String normalized = normalize(name);
 
@@ -241,13 +269,22 @@ public class PromqlFunctionRegistry {
         }
     }
 
+    /**
+     * Builds the ES|QL expression for scalar, aggregate, and value-transformation functions.
+     * Functions translated directly by the translator ({@code limit_ratio} lowers to a sampling
+     * filter, metadata functions to dedicated nodes) must go through
+     * {@code PromqlFunctionCall#buildEsqlFunction} or the translator instead.
+     */
     public Expression buildEsqlFunction(String name, Source source, Expression target, PromqlContext ctx, List<Expression> extraParams) {
         checkFunction(source, name);
         PromqlFunctionDefinition metadata = functionMetadata(name);
         try {
             return metadata.esqlBuilder().build(source, target, ctx, extraParams);
+        } catch (ParsingException e) {
+            throw e;
         } catch (Exception e) {
-            throw new ParsingException(source, "Error building ESQL function for [{}]: {}", name, e.getMessage());
+            String message = e.getMessage() != null ? e.getMessage() : e.toString();
+            throw new ParsingException(source, "Error building ESQL function for [{}]: {}", name, message);
         }
     }
 }

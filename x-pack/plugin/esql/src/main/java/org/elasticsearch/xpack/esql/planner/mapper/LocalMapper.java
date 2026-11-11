@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
@@ -106,7 +107,8 @@ public class LocalMapper {
         //
         if (unary instanceof Aggregate aggregate) {
             List<Attribute> intermediate = MapperUtils.intermediateAttributes(aggregate);
-            return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
+            boolean singlePass = aggregate instanceof TimeSeriesAggregate timeSeries && timeSeries.singlePass();
+            return MapperUtils.aggExec(aggregate, mappedChild, singlePass ? AggregatorMode.SINGLE : AggregatorMode.INITIAL, intermediate);
         }
 
         if (unary instanceof Limit limit) {
@@ -122,7 +124,8 @@ public class LocalMapper {
         }
 
         if (unary instanceof TopNBy topNBy) {
-            return new TopNByExec(topNBy.source(), mappedChild, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null);
+            return new TopNByExec(topNBy.source(), mappedChild, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null)
+                .withNonSortedOutput();
         }
 
         if (unary instanceof MetricsInfo metricsInfo) {
@@ -136,7 +139,7 @@ public class LocalMapper {
         }
 
         if (unary instanceof TsInfo tsInfo) {
-            return new TsInfoExec(tsInfo.source(), mappedChild, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.INITIAL);
+            return new TsInfoExec(tsInfo.source(), mappedChild, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.INITIAL, tsInfo.limit());
         }
 
         //

@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.SearchHit.NestedIdentity;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -24,6 +25,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
@@ -107,6 +109,55 @@ public class NestedIdentityTests extends ESTestCase {
                 assertNotSame(nestedIdentity, deserializedCopy);
             }
         }
+    }
+
+    public void testExtractSourceSingleLevel() {
+        Map<String, Object> rootMap = Map.of("name", "root", "children", List.of(Map.of("value", "alpha"), Map.of("value", "beta")));
+        Source root = Source.fromMap(rootMap, XContentType.JSON);
+
+        Source extracted = new NestedIdentity("children", 1, null).extractSource(root);
+
+        assertEquals(Map.of("children", Map.of("value", "beta")), extracted.source());
+    }
+
+    public void testExtractSourceMultiLevel() {
+        Map<String, Object> rootMap = Map.of(
+            "children",
+            List.of(
+                Map.of("grandchildren", List.of(Map.of("field", "value1"), Map.of("field", "value2"))),
+                Map.of("grandchildren", List.of(Map.of("field", "value3"), Map.of("field", "value4")))
+            )
+        );
+        Source root = Source.fromMap(rootMap, XContentType.JSON);
+
+        NestedIdentity nestedIdentity = new NestedIdentity("children", 0, new NestedIdentity("grandchildren", 1, null));
+        Source extracted = nestedIdentity.extractSource(root);
+
+        assertEquals(Map.of("children", Map.of("grandchildren", Map.of("field", "value2"))), extracted.source());
+    }
+
+    public void testExtractSourceMissingPathReturnsEmpty() {
+        Source root = Source.fromMap(Map.of("name", "root"), XContentType.JSON);
+
+        Source extracted = new NestedIdentity("children", 0, null).extractSource(root);
+
+        assertTrue(extracted.source().isEmpty());
+    }
+
+    public void testExtractSourceNoNestedObjectsReturnsEmpty() {
+        Source root = Source.fromMap(Map.of("children", List.of("alpha", "beta")), XContentType.JSON);
+        Source extracted = new NestedIdentity("children", 0, null).extractSource(root);
+        assertTrue(extracted.source().isEmpty());
+    }
+
+    public void testExtractSourceOffsetBeyondNonEmptyArrayThrows() {
+        Map<String, Object> rootMap = Map.of("children", List.of(Map.of("value", "alpha"), Map.of("value", "beta")));
+        Source root = Source.fromMap(rootMap, XContentType.JSON);
+
+        NestedIdentity nestedIdentity = new NestedIdentity("children", 5, null);
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> nestedIdentity.extractSource(root));
+        assertEquals("Error retrieving path children", e.getMessage());
     }
 
     private static NestedIdentity mutate(NestedIdentity original) {

@@ -160,7 +160,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         Map<String, Object> mappingProperties = getIndexMappingProperties(sharedResultsIndex);
 
         // Assert mappings have a few fields from the template
-        assertThat(mappingProperties.keySet(), hasItems("anomaly_score", "bucket_count"));
+        assertThat(mappingProperties.keySet(), hasItems("anomaly_score", "bucket_count", "source_end_ms", "datafeed_id", "fingerprint"));
         // Assert mappings have the by field
         assertThat(mappingProperties.keySet(), hasItem("by_field_1"));
 
@@ -805,8 +805,12 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 {"job_id":"other_job","snapshot_id":"11", "snapshot_doc_count":1,"retain":false}""", XContentType.JSON)
             .get();
 
-        indicesAdmin().prepareRefresh(AnomalyDetectorsIndex.jobStateIndexPattern(), AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
-            .get();
+        indicesAdmin().prepareRefresh(
+            Strings.concatStringArrays(
+                AnomalyDetectorsIndex.jobStateIndexPatterns(),
+                new String[] { AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*" }
+            )
+        ).get();
 
         PlainActionFuture<QueryPage<ModelSnapshot>> future = new PlainActionFuture<>();
         jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_2,snap_1", null, future::onResponse, future::onFailure);
@@ -908,9 +912,13 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         indexQuantiles(quantiles);
 
         indicesAdmin().prepareRefresh(
-            MlMetaIndex.indexName(),
-            AnomalyDetectorsIndex.jobStateIndexPattern(),
-            AnomalyDetectorsIndex.jobResultsAliasedName(jobId)
+            Strings.concatStringArrays(
+                new String[] { MlMetaIndex.indexName() },
+                Strings.concatStringArrays(
+                    AnomalyDetectorsIndex.jobStateIndexPatterns(),
+                    new String[] { AnomalyDetectorsIndex.jobResultsAliasedName(jobId) }
+                )
+            )
         ).get();
 
         AutodetectParams params = getAutodetectParams(job.build(new Date()));

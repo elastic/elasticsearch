@@ -23,7 +23,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.cache.reader.LazyRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
@@ -38,8 +38,8 @@ import static org.apache.logging.log4j.Level.DEBUG;
 import static org.apache.logging.log4j.Level.INFO;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.PREWARM_THREAD_POOL;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.PREWARM_THREAD_POOL;
 
 /**
  * {@link OnlinePrewarmingService} implementation specific to our stateless search nodes. This aims to prewarm all the segments of the
@@ -68,8 +68,8 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
     private static final Logger logger = LogManager.getLogger(StatelessOnlinePrewarmingService.class);
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> {
         assert ThreadPool.assertCurrentThreadPool(
-            StatelessPlugin.PREWARM_THREAD_POOL,
-            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+            StatelessThreadPools.PREWARM_THREAD_POOL,
+            StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
         ) : "writeBuffer should only be used in the prewarm or fill vbcc thread pool but used in " + Thread.currentThread().getName();
         return ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE);
     });
@@ -184,6 +184,9 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
                 final int endRegion = siRange.fileOffset() + siRange.fileLength() > cacheService.getRegionSize() ? 1 : 0;
                 var cacheKey = new FileCacheKey(indexShard.shardId(), siRange.primaryTerm(), siRange.blobName());
                 var cacheBlobReader = searchDirectory.getCacheBlobReaderForSearchOnlineWarming(siRange.blobLocation().blobFile());
+                // We warm the first (and possibly second) region of the blob; both regions are stamped with the timestamp of the compound
+                // commit for the highestSegmentInfoRanges, which is acceptable since the warmed regions include it.
+                final long timestampMillis = searchDirectory.resolveRegionTimestampMillis(siRange.timestampRange());
 
                 for (int i = 0; i <= endRegion; i++) {
                     if (store.isClosing() || store.tryIncRef() == false) {
@@ -243,6 +246,7 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
                                 logger.error(() -> format("%s failed to online prewarm cache key %s", indexShard.shardId(), cacheKey), e);
                             }
                         }),
+                        timestampMillis,
                         ActionListener.runAfter(refs.acquire().map(b -> null), store::decRef)
                     );
                 }

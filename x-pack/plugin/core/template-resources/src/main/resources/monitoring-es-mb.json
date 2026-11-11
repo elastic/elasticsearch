@@ -686,6 +686,13 @@
                             }
                           }
                         },
+                        "shard_stats": {
+                          "properties": {
+                            "total_count": {
+                              "type": "long"
+                            }
+                          }
+                        },
                         "store": {
                           "properties": {
                             "size": {
@@ -2765,6 +2772,71 @@
                       "properties": {
                         "count": {
                           "type": "long"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "security": {
+              "properties": {
+                "stats": {
+                  "properties": {
+                    "dls": {
+                      "properties": {
+                        "cache": {
+                          "properties": {
+                            "entries": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "memory": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "hits": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                },
+                                "time": {
+                                  "properties": {
+                                    "ms": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "misses": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                },
+                                "time": {
+                                  "properties": {
+                                    "ms": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "evictions": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
                         }
                       }
                     }

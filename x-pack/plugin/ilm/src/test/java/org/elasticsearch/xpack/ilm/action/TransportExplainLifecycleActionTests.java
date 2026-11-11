@@ -7,9 +7,14 @@
 
 package org.elasticsearch.xpack.ilm.action;
 
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -31,6 +36,7 @@ import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.ilm.action.TransportExplainLifecycleAction.getIndexLifecycleExplainResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -87,6 +93,7 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
             true,
             true,
             REGISTRY,
+            randomBoolean(),
             randomBoolean()
         );
         assertThat(onlyErrorsResponse, notNullValue());
@@ -119,6 +126,7 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
             true,
             true,
             REGISTRY,
+            randomBoolean(),
             randomBoolean()
         );
         assertThat(onlyErrorsResponse, nullValue());
@@ -129,6 +137,7 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
             false,
             true,
             REGISTRY,
+            randomBoolean(),
             randomBoolean()
         );
         assertThat(allManagedResponse, notNullValue());
@@ -157,6 +166,7 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
             true,
             true,
             REGISTRY,
+            randomBoolean(),
             randomBoolean()
         );
         assertThat(onlyErrorsResponse, notNullValue());
@@ -181,9 +191,122 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
             false,
             true,
             REGISTRY,
+            randomBoolean(),
             randomBoolean()
         );
         assertThat(onlyManaged, nullValue());
+    }
+
+    public void testGetIndexLifecycleExplainResponse_notManagedIndexReportsReason() throws IOException {
+        IndexMetadata indexMetadata = IndexMetadata.builder("index")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(indexMetadata, true)
+            .putCustom(IndexLifecycleMetadata.TYPE, createIndexLifecycleMetadata())
+            .build();
+
+        IndexLifecycleExplainResponse response = getIndexLifecycleExplainResponse(
+            "index",
+            project,
+            false,
+            false,
+            REGISTRY,
+            randomBoolean(),
+            randomBoolean()
+        );
+        assertThat(response.managedByILM(), is(false));
+        assertThat(response.getUnmanagedReason(), is("Index [index] does not have an ILM policy configured."));
+    }
+
+    public void testGetIndexLifecycleExplainResponse_lookupIndexReportsReason() throws IOException {
+        IndexMetadata indexMetadata = IndexMetadata.builder("lookup-index")
+            .settings(
+                settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, POLICY_NAME)
+                    .put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP.getName())
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(indexMetadata, true)
+            .putCustom(IndexLifecycleMetadata.TYPE, createIndexLifecycleMetadata())
+            .build();
+
+        IndexLifecycleExplainResponse response = getIndexLifecycleExplainResponse(
+            "lookup-index",
+            project,
+            false,
+            false,
+            REGISTRY,
+            randomBoolean(),
+            randomBoolean()
+        );
+        assertThat(response.managedByILM(), is(false));
+        assertThat(response.getUnmanagedReason(), containsString("is a lookup index"));
+    }
+
+    public void testGetIndexLifecycleExplainResponse_managedByDataStreamLifecycleReportsReason() throws IOException {
+        String dataStreamName = "my-data-stream";
+        IndexMetadata backingIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+            .settings(
+                settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, POLICY_NAME).put(IndexSettings.PREFER_ILM, false)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        DataStream dataStream = DataStreamTestHelper.newInstance(
+            dataStreamName,
+            List.of(backingIndex.getIndex()),
+            1,
+            Map.of(),
+            false,
+            DataStreamLifecycle.dataLifecycleBuilder().build()
+        );
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(backingIndex, false)
+            .put(dataStream)
+            .putCustom(IndexLifecycleMetadata.TYPE, createIndexLifecycleMetadata())
+            .build();
+
+        IndexLifecycleExplainResponse response = getIndexLifecycleExplainResponse(
+            backingIndex.getIndex().getName(),
+            project,
+            false,
+            false,
+            REGISTRY,
+            randomBoolean(),
+            randomBoolean()
+        );
+        assertThat(response.managedByILM(), is(false));
+        assertThat(response.getUnmanagedReason(), containsString("belongs to data stream [my-data-stream]"));
+        assertThat(response.getUnmanagedReason(), containsString("prefer_ilm to true"));
+    }
+
+    public void testGetIndexLifecycleExplainResponse_managedIndexHasNoUnmanagedReason() throws IOException {
+        IndexMetadata indexMetadata = IndexMetadata.builder("index")
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, POLICY_NAME))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(indexMetadata, true)
+            .putCustom(IndexLifecycleMetadata.TYPE, createIndexLifecycleMetadata())
+            .build();
+
+        IndexLifecycleExplainResponse response = getIndexLifecycleExplainResponse(
+            "index",
+            project,
+            false,
+            false,
+            REGISTRY,
+            randomBoolean(),
+            randomBoolean()
+        );
+        assertThat(response.managedByILM(), is(true));
+        assertThat(response.getUnmanagedReason(), nullValue());
     }
 
     public void testGetIndexLifecycleExplainResponse_rolloverOnlyIfHasDocuments_addsCondition() throws IOException {
@@ -210,11 +333,73 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
             false,
             true,
             REGISTRY,
-            true
+            true,
+            randomBoolean()
         );
         var rolloverAction = ((RolloverAction) response.getPhaseExecutionInfo().getPhase().getActions().get(RolloverAction.NAME));
         assertThat(rolloverAction, notNullValue());
         assertThat(rolloverAction.getConditions().getMinDocs(), is(1L));
+    }
+
+    /**
+     * A backing index of a time series data stream without a configured lifecycle is managed by ILM, unless the minimum lifecycle for
+     * time series is enabled and the index does not prefer ILM.
+     */
+    public void testGetIndexLifecycleExplainResponse_timeSeriesDataStreamWithMinimumLifecycle() throws IOException {
+        String dataStreamName = "metrics-prod";
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        IndexMetadata indexMetadata = IndexMetadata.builder(backingIndexName)
+            .settings(
+                settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, POLICY_NAME).put(IndexSettings.PREFER_ILM, false)
+            )
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        DataStream dataStream = DataStream.builder(dataStreamName, List.of(indexMetadata.getIndex()))
+            .setGeneration(1)
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(indexMetadata, true)
+            .put(dataStream)
+            .putCustom(IndexLifecycleMetadata.TYPE, createIndexLifecycleMetadata())
+            .build();
+
+        IndexLifecycleExplainResponse managedByIlm = getIndexLifecycleExplainResponse(
+            backingIndexName,
+            project,
+            false,
+            false,
+            REGISTRY,
+            randomBoolean(),
+            false
+        );
+        assertThat(managedByIlm, notNullValue());
+        assertThat(managedByIlm.managedByILM(), is(true));
+        assertThat(managedByIlm.getPolicyName(), is(POLICY_NAME));
+
+        IndexLifecycleExplainResponse managedByDataStreamLifecycle = getIndexLifecycleExplainResponse(
+            backingIndexName,
+            project,
+            false,
+            false,
+            REGISTRY,
+            randomBoolean(),
+            true
+        );
+        assertThat(managedByDataStreamLifecycle, notNullValue());
+        assertThat(managedByDataStreamLifecycle.managedByILM(), is(false));
+
+        IndexLifecycleExplainResponse onlyManaged = getIndexLifecycleExplainResponse(
+            backingIndexName,
+            project,
+            false,
+            true,
+            REGISTRY,
+            randomBoolean(),
+            true
+        );
+        assertThat(onlyManaged, nullValue());
     }
 
     private static IndexLifecycleMetadata createIndexLifecycleMetadata() {

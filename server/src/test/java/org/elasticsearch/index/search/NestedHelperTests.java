@@ -24,6 +24,7 @@ import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -37,9 +38,8 @@ public class NestedHelperTests extends MapperServiceTestCase {
 
     SearchExecutionContext searchExecutionContext;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initNestedMapping() throws Exception {
         String mapping = """
             { "_doc" : {
               "properties" : {

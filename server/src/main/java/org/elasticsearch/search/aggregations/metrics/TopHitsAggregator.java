@@ -30,6 +30,7 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.util.LongObjectPagedHashMap.Cursor;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchHit;
@@ -73,25 +74,56 @@ class TopHitsAggregator extends MetricsAggregator {
 
     private final BigArrays bigArrays;
     private final SubSearchContext subSearchContext;
+    /**
+     * Collects the top documents of every bucket without a Lucene collector per bucket, or {@code null} for the sorts it does
+     * not support, in which case {@link #topDocsCollectors} and {@link #leafCollectors} are used.
+     */
+    @Nullable
+    private final BucketedTopHits bucketedTopHits;
     private final LongObjectPagedHashMap<Collectors> topDocsCollectors;
     private final List<ProfileResult> fetchProfiles;
     // this must be mutable so it can be closed/replaced on each call to getLeafCollector
     private LongObjectPagedHashMap<LeafCollector> leafCollectors;
     private final boolean isNested;
+    private final SearchExecutionContext forkedSearchExecutionContext;
+    private final InnerHitsContext forkedInnerHitsContext;
 
     TopHitsAggregator(
         SubSearchContext subSearchContext,
         String name,
         AggregationContext context,
         Aggregator parent,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        @Nullable BucketedTopHits bucketedTopHits
     ) throws IOException {
         super(name, context, parent, metadata);
         this.bigArrays = context.bigArrays();
         this.subSearchContext = subSearchContext;
-        this.topDocsCollectors = new LongObjectPagedHashMap<>(1, bigArrays);
+        this.bucketedTopHits = bucketedTopHits;
+        this.topDocsCollectors = bucketedTopHits == null ? new LongObjectPagedHashMap<>(1, bigArrays) : null;
         this.fetchProfiles = context.profiling() ? new ArrayList<>() : null;
         this.isNested = isNestedAggregationContext(parent);
+        // Fork the search execution context, because the fetch phase does not support concurrent execution yet. One fork per
+        // aggregator is enough: each slice gets its own aggregator and its buckets are fetched sequentially. Forking per bucket
+        // instead pinned a SearchExecutionContext, and the stored fields its lookup provider had loaded, for every bucket until
+        // the query context closed.
+        this.forkedSearchExecutionContext = new SearchExecutionContext(subSearchContext.getSearchExecutionContext());
+        // When top_hits aggregation is inside a nested aggregation, do not inherit inner_hits from parent query.
+        // Query-level inner_hits operate at parent document scope, while nested aggregation top_hits operate
+        // at nested document scope within buckets. Inheriting inner_hits causes conflicting fetch contexts
+        // and fails when extracting nested documents by offset.
+        if (isNested) {
+            this.forkedInnerHitsContext = new InnerHitsContext();
+        } else {
+            // InnerHitSubContext is not thread-safe, so we fork it as well to support concurrent execution
+            this.forkedInnerHitsContext = new InnerHitsContext(
+                getForkedInnerHits(subSearchContext.innerHits().getInnerHits(), forkedSearchExecutionContext)
+            );
+        }
+    }
+
+    boolean usesBucketedSort() {
+        return bucketedTopHits != null;
     }
 
     @Override
@@ -107,6 +139,9 @@ class TopHitsAggregator extends MetricsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
+        if (usesBucketedSort()) {
+            return bucketedTopHits.getLeafCollector(aggCtx, sub);
+        }
         // Create leaf collectors here instead of at the aggregator level. Otherwise in case this collector get invoked
         // when post collecting then we have already replaced the leaf readers on the aggregator level have already been
         // replaced with the next leaf readers and then post collection pushes docids of the previous segment, which
@@ -177,11 +212,10 @@ class TopHitsAggregator extends MetricsAggregator {
         };
     }
 
-    @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
+    private TopDocsAndMaxScore luceneTopDocs(long owningBucketOrdinal) throws IOException {
         Collectors collectors = topDocsCollectors.get(owningBucketOrdinal);
         if (collectors == null) {
-            return buildEmptyAggregation();
+            return null;
         }
         TopDocsCollector<?> topDocsCollector = collectors.topDocsCollector;
         TopDocs topDocs = topDocsCollector.topDocs();
@@ -201,7 +235,18 @@ class TopHitsAggregator extends MetricsAggregator {
             TopFieldCollector.populateScores(topDocs.scoreDocs, subSearchContext.searcher(), subSearchContext.query());
             maxScore = collectors.maxScoreCollector.getMaxScore();
         }
-        final TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(topDocs, maxScore);
+        return new TopDocsAndMaxScore(topDocs, maxScore);
+    }
+
+    @Override
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
+        final TopDocsAndMaxScore topDocsAndMaxScore = usesBucketedSort()
+            ? bucketedTopHits.topDocs(owningBucketOrdinal, subSearchContext)
+            : luceneTopDocs(owningBucketOrdinal);
+        if (topDocsAndMaxScore == null) {
+            return buildEmptyAggregation();
+        }
+        final TopDocs topDocs = topDocsAndMaxScore.topDocs;
         subSearchContext.queryResult()
             .topDocs(topDocsAndMaxScore, subSearchContext.sort() == null ? null : subSearchContext.sort().formats);
         int[] docIdsToLoad = new int[topDocs.scoreDocs.length];
@@ -234,30 +279,16 @@ class TopHitsAggregator extends MetricsAggregator {
     }
 
     private FetchSearchResult runFetchPhase(int[] docIdsToLoad, IntConsumer memoryChecker) {
-        // Fork the search execution context for each slice, because the fetch phase does not support concurrent execution yet.
-        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(subSearchContext.getSearchExecutionContext());
-        // When top_hits aggregation is inside a nested aggregation, do not inherit inner_hits from parent query.
-        // Query-level inner_hits operate at parent document scope, while nested aggregation top_hits operate
-        // at nested document scope within buckets. Inheriting inner_hits causes conflicting fetch contexts
-        // and fails when extracting nested documents by offset.
-        InnerHitsContext innerHitsContext;
-        if (isNested) {
-            innerHitsContext = new InnerHitsContext();
-        } else {
-            // InnerHitSubContext is not thread-safe, so we fork it as well to support concurrent execution
-            innerHitsContext = new InnerHitsContext(
-                getForkedInnerHits(subSearchContext.innerHits().getInnerHits(), searchExecutionContext)
-            );
-        }
+        // Stays per bucket: it owns the FetchSearchResult the bucket's hits are published through.
         SubSearchContext fetchSubSearchContext = new SubSearchContext(subSearchContext) {
             @Override
             public SearchExecutionContext getSearchExecutionContext() {
-                return searchExecutionContext;
+                return forkedSearchExecutionContext;
             }
 
             @Override
             public InnerHitsContext innerHits() {
-                return innerHitsContext;
+                return forkedInnerHitsContext;
             }
         };
 
@@ -313,19 +344,21 @@ class TopHitsAggregator extends MetricsAggregator {
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
-        List<Map<String, Object>> debug = new ArrayList<>();
-        for (ProfileResult result : fetchProfiles) {
-            Map<String, Object> resultDebug = new HashMap<>();
-            resultDebug.put("time", result.getTime());
-            resultDebug.put("breakdown", result.getTimeBreakdown());
-            debug.add(resultDebug);
+        if (fetchProfiles != null) {
+            List<Map<String, Object>> debug = new ArrayList<>();
+            for (ProfileResult result : fetchProfiles) {
+                Map<String, Object> resultDebug = new HashMap<>();
+                resultDebug.put("time", result.getTime());
+                resultDebug.put("breakdown", result.getTimeBreakdown());
+                debug.add(resultDebug);
+            }
+            add.accept("fetch_profile", debug);
         }
-        add.accept("fetch_profile", debug);
     }
 
     @Override
     protected void doClose() {
-        Releasables.close(topDocsCollectors, leafCollectors);
+        Releasables.close(bucketedTopHits, topDocsCollectors, leafCollectors);
     }
 
     private static class ResettableScorable extends Scorable {

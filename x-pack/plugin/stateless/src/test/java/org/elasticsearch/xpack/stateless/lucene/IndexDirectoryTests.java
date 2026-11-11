@@ -176,7 +176,7 @@ public class IndexDirectoryTests extends ESTestCase {
                             2L,
                             length,
                             Set.of(fileName),
-                            Map.of(fileName, createBlobFileRanges(1L, fileName.hashCode(), 0L, length))
+                            Map.of(fileName, createBlobFileRanges(1L, blobGeneration(fileName), 0L, length))
                         );
                         var fileLength = filesSizes.remove(fileName);
                         assertThat(directory.estimateSizeInBytes(), equalTo(totalSize - fileLength));
@@ -215,7 +215,7 @@ public class IndexDirectoryTests extends ESTestCase {
                                 .collect(
                                     Collectors.toMap(
                                         Map.Entry::getKey,
-                                        o -> createBlobFileRanges(1L, o.getKey().hashCode(), 0L, o.getValue())
+                                        o -> createBlobFileRanges(1L, blobGeneration(o.getKey()), 0L, o.getValue())
                                     )
                                 )
                         );
@@ -503,13 +503,56 @@ public class IndexDirectoryTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies that {@link IndexDirectory.PreferLocalHint} in the {@link IOContext} routes reads to local disk even after the file has
+     * been marked as uploaded (at which point normal {@link IndexDirectory#openInput} would route to the blob-store cache directory).
+     * The local read succeeds as long as a local file reference is held.
+     */
+    public void testOpenInputPreferLocalHintPrefersLocalDisk() throws IOException {
+        final Path path = PathUtils.get(createTempDir().toString());
+        final IndexBlobStoreCacheDirectory cacheDirectory = new IndexBlobStoreCacheDirectory(mockedCacheService(), null);
+        cacheDirectory.setBlobContainer(ignore -> mock(BlobContainer.class));
+        try (IndexDirectory directory = new IndexDirectory(FSDirectory.open(path), cacheDirectory, null, true)) {
+            final String filename = "test.cfe";
+            final byte[] content = randomByteArrayOfLength(between(1, 128));
+
+            try (IndexOutput output = directory.createOutput(filename, IOContext.DEFAULT)) {
+                output.writeBytes(content, content.length);
+            }
+
+            // Hold a local ref so the file stays on disk even after it is marked as uploaded.
+            try (var localRef = directory.tryAcquireLocalFileRef(filename)) {
+                directory.updateCommit(
+                    1L,
+                    content.length,
+                    Set.of(filename),
+                    Map.of(filename, createBlobFileRanges(1L, blobGeneration(filename), 0L, content.length))
+                );
+
+                // With PreferLocalHint the read goes to local disk and returns the correct content,
+                // even though the file is now marked as uploaded (normal openInput would go to cache).
+                final var context = IOContext.DEFAULT.withHints(IndexDirectory.PreferLocalHint.INSTANCE);
+                try (IndexInput input = directory.openInput(filename, context)) {
+                    final byte[] read = new byte[content.length];
+                    input.readBytes(read, 0, read.length);
+                    assertArrayEquals(content, read);
+                }
+            }
+        }
+    }
+
     private static TestThreadPool getThreadPool(String name) {
         return new TestThreadPool(name, StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
     }
 
+    /// A positive generation derived from the file name, so that different files point to different blobs.
+    private static long blobGeneration(String fileName) {
+        return (fileName.hashCode() & Integer.MAX_VALUE) + 1L;
+    }
+
     private static StatelessCompoundCommit createCommit(IndexDirectory directory, Set<String> files, long generation) {
         Map<String, BlobLocation> commitFiles = files.stream()
-            .collect(Collectors.toMap(Function.identity(), o -> createBlobLocation(1L, o.hashCode(), 0L, between(1, 100))));
+            .collect(Collectors.toMap(Function.identity(), o -> createBlobLocation(1L, blobGeneration(o), 0L, between(1, 100))));
         return new StatelessCompoundCommit(
             directory.getBlobStoreCacheDirectory().getShardId(),
             new PrimaryTermAndGeneration(1L, generation),

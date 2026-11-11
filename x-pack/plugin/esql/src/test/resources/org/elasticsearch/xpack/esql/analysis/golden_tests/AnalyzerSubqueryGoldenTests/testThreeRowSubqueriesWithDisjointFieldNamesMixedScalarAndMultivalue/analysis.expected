@@ -1,0 +1,5 @@
+Limit[1000[INTEGER],false,false]
+\_BranchPlan[[unnamed_view_1=SUBQUERY, unnamed_view_2=SUBQUERY, unnamed_view_3=SUBQUERY]]
+  |_Row[[1[INTEGER] AS a#0, [10, 20, 30][INTEGER] AS b#1]]
+  |_Row[[hello[KEYWORD] AS c#2, [true, false][BOOLEAN] AS d#3]]
+  \_Row[[[1.5, -2.5][DOUBLE] AS e#4, 100[INTEGER] AS f#5]]

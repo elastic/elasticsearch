@@ -20,11 +20,10 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Map;
 
-import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.matchAllQueryBytes;
-import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.randomRemoteInfo;
+import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.matchAllQueryBytes;
+import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.randomRemoteInfo;
 import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
 
 public class RemoteInfoWireSerializingTests extends AbstractWireSerializingTestCase<RemoteInfo> {
@@ -49,8 +48,8 @@ public class RemoteInfoWireSerializingTests extends AbstractWireSerializingTestC
     }
 
     /**
-     * {@link BulkByScrollWireSerializingTestUtils#randomRemoteInfo()} always uses
-     * {@link BulkByScrollWireSerializingTestUtils#matchAllQueryBytes()}; toggling with a different fixed query avoids
+     * {@link BulkByPaginatedSearchWireSerializingTestUtils#randomRemoteInfo()} always uses
+     * {@link BulkByPaginatedSearchWireSerializingTestUtils#matchAllQueryBytes()}; toggling with a different fixed query avoids
      * {@link ESTestCase#randomValueOtherThan} spinning forever when the supplier keeps returning the same bytes as the input.
      */
     private static BytesReference queryMutation(BytesReference current) {
@@ -204,10 +203,6 @@ public class RemoteInfoWireSerializingTests extends AbstractWireSerializingTestC
      */
     @Override
     protected void dispose(RemoteInfo remoteInfo) {
-        try {
-            remoteInfo.close();
-        } catch (IOException ioException) {
-            throw new UncheckedIOException(ioException);
-        }
+        remoteInfo.close();
     }
 }

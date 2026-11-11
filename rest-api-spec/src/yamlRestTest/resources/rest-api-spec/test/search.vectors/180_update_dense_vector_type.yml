@@ -791,6 +791,10 @@ setup:
         max_num_segments: 1
 
   - do:
+      indices.refresh:
+        index: test_index
+
+  - do:
       search:
         index: test_index
         body:
@@ -936,6 +940,10 @@ setup:
       indices.forcemerge:
         index: test_index
         max_num_segments: 1
+
+  - do:
+      indices.refresh:
+        index: test_index
 
   - do:
       search:

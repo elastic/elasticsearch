@@ -44,8 +44,7 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void setUpPersistentTasksDeciders() throws Exception {
         clusterService = createClusterService(threadPool);
         PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(emptyList()) {
             @Override
@@ -72,8 +71,7 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void tearDownPersistentTasksDeciders() throws Exception {
         clusterService.close();
     }
 

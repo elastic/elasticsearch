@@ -77,10 +77,8 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
     private IndexRoutingTable routingTable;
     private ClusterIndexHealth indexHealth;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initIndexStatsFields() throws Exception {
         indexStats = mock(IndexStats.class);
         metadata = mockIndexMetadata(index, primaries, replicas);
         routingTable = mockIndexRoutingTable(index, primaries, replicas, activePrimaries, activeReplicas, initializing, relocating);
@@ -403,6 +401,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
             no,
             no,
             no,
+            no,
             false,
             ++iota,
             no,
@@ -428,6 +427,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
             no,
             no,
             no,
+            Double.valueOf(no),
             Double.valueOf(no)
         );
         commonStats.getSearch().add(new SearchStats(searchStats, no, null));

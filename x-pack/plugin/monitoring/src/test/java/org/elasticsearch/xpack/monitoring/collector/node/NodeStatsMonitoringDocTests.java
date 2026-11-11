@@ -61,10 +61,8 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
     private NodeStats nodeStats;
     private boolean mlockall;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initNodeStatsFields() throws Exception {
         nodeId = randomAlphaOfLength(5);
         isMaster = randomBoolean();
         nodeStats = mock(NodeStats.class);
@@ -345,6 +343,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
             no,
             no,
             no,
+            no,
             false,
             ++iota,
             no,
@@ -372,6 +371,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
             no,
             no,
             no,
+            Double.valueOf(no),
             Double.valueOf(no)
         );
         indicesCommonStats.getSearch().add(new SearchStats(searchStats, no, null));

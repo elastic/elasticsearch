@@ -47,4 +47,30 @@ public class MlUsageIT extends ESRestTestCase {
         assertThat(memoryUsage.toString(), (Integer) memoryUsage.get("pytorch_inference_memory_bytes"), greaterThanOrEqualTo(0));
         assertThat(memoryUsage.toString(), (Integer) memoryUsage.get("total_used_memory_bytes"), greaterThanOrEqualTo(0));
     }
+
+    /**
+     * Regression test for the calendars telemetry collector: it must not build a
+     * {@code GetCalendarsAction.Request} that sets both a calendar id and paging, which fails
+     * validation and silently drops the calendar config-size histogram. When the fetch succeeds
+     * the {@code calendars} entry (with its {@code config_sizes}) is present under {@code ml.jobs}.
+     */
+    @SuppressWarnings("unchecked")
+    public void testMLUsageIncludesCalendarConfigSizes() throws IOException {
+        Request putCalendar = new Request("PUT", "/_ml/calendars/usage-cal");
+        putCalendar.setJsonEntity("""
+            { "description": "usage telemetry regression calendar" }
+            """);
+        client().performRequest(putCalendar);
+
+        Request request = new Request("GET", "/_xpack/usage");
+        var usage = entityAsMap(client().performRequest(request).getEntity());
+
+        var ml = (Map<String, Object>) usage.get("ml");
+        assertNotNull(usage.toString(), ml);
+        var jobsUsage = (Map<String, Object>) ml.get("jobs");
+        assertNotNull(ml.toString(), jobsUsage);
+        var calendars = (Map<String, Object>) jobsUsage.get("calendars");
+        assertNotNull(jobsUsage.toString(), calendars);
+        assertNotNull(calendars.toString(), calendars.get("config_sizes"));
+    }
 }

@@ -127,7 +127,6 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
     }
 
     public void testCreateDataStreamLogsdbColumnar() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = "my-data-stream";
         ComposableIndexTemplate template = ComposableIndexTemplate.builder()
@@ -669,8 +668,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             .putProjectMetadata(ProjectMetadata.builder(projectId).put("template", template).build())
             .build();
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(projectId, dataStreamName);
-        AssertionError e = expectThrows(
-            AssertionError.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> MetadataCreateDataStreamService.createDataStream(
                 metadataCreateIndexService,
                 Settings.EMPTY,
@@ -682,7 +681,35 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 false
             )
         );
-        assertThat(e.getMessage(), containsString("matches a SystemIndexDescriptor"));
+        assertThat(e.getMessage(), equalTo("data_stream [.my-system-idx] must not match system index pattern [.my-system-idx*]"));
+    }
+
+    public void testCreateDataStreamWithNullValueInTemplateMetadata() throws Exception {
+        final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
+        final String dataStreamName = "my-data-stream";
+        Map<String, Object> meta = new HashMap<>();
+        meta.put("x", null);
+        meta.put("y", "z");
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName + "*"))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .metadata(meta)
+            .build();
+        final var projectId = randomProjectIdOrDefault();
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put("template", template).build())
+            .build();
+        ClusterState newState = MetadataCreateDataStreamService.createDataStream(
+            metadataCreateIndexService,
+            Settings.EMPTY,
+            cs,
+            true,
+            new CreateDataStreamClusterStateUpdateRequest(projectId, dataStreamName),
+            RerouteBehavior.PERFORM_REROUTE,
+            ActionListener.noop(),
+            false
+        );
+        assertThat(newState.metadata().getProject(projectId).dataStreams().get(dataStreamName).getMetadata(), equalTo(meta));
     }
 
     private static MetadataCreateIndexService getMetadataCreateIndexService() throws Exception {

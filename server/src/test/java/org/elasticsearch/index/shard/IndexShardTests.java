@@ -17,6 +17,7 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.TermQuery;
@@ -44,6 +45,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
@@ -86,6 +88,7 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
@@ -102,6 +105,7 @@ import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -119,14 +123,18 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.store.StoreUtils;
 import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.FailureStrategy;
+import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
+import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -137,9 +145,11 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryFactory;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Assert;
 
@@ -154,16 +164,19 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -183,7 +196,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
 import static org.elasticsearch.index.IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
@@ -272,7 +284,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new ShardStateMetadata(routing.primary(), shard.indexSettings().getUUID(), routing.allocationId())
         );
 
-        routing = shard.shardRouting.relocate("some node", 42L);
+        routing = shard.shardRouting.relocate("some node", 42L, RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
         IndexShardTestCase.updateRoutingEntry(shard, routing);
         shardStateMetadata = load(logger, shardStatePath);
         assertEquals(shardStateMetadata, getShardStateMetadata(shard));
@@ -732,11 +744,12 @@ public class IndexShardTests extends IndexShardTestCase {
         final boolean isPrimaryMode;
         if (randomBoolean()) {
             // relocation target
-            indexShard = newShard(
-                shardRoutingBuilder(shardId, "local_node", true, ShardRoutingState.INITIALIZING).withRelocatingNodeId("other node")
-                    .withAllocationId(AllocationId.newRelocation(AllocationId.newInitializing()))
-                    .build()
-            );
+            final ShardRouting relocationTargetRouting = shardRoutingBuilder(shardId, "local_node", true, ShardRoutingState.INITIALIZING)
+                .withRelocatingNodeId("other_node")
+                .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
+                .withAllocationId(AllocationId.newRelocation(AllocationId.newInitializing()))
+                .build();
+            indexShard = newShard(relocationTargetRouting, DiscoveryNodeUtils.create("other_node"));
             assertEquals(0, indexShard.getActiveOperationsCount());
             isPrimaryMode = false;
         } else if (randomBoolean()) {
@@ -981,7 +994,10 @@ public class IndexShardTests extends IndexShardTestCase {
                         relocating ? AllocationId.newRelocation(AllocationId.newInitializing()) : AllocationId.newInitializing()
                     )
                     .build();
-                indexShard = newShard(routing);
+                final DiscoveryNode sourceNode = routing.recoverySource().getType() == RecoverySource.Type.PEER
+                    ? DiscoveryNodeUtils.builder("sourceNode").build()
+                    : null;
+                indexShard = newShard(routing, sourceNode);
                 engineClosed = true;
             }
             case 2 -> {
@@ -1219,6 +1235,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final AtomicBoolean synced = new AtomicBoolean();
         final IndexShard primaryShard = newShard(
             shardRouting,
+            null,
             indexMetadata.build(),
             null,
             new InternalEngineFactory(),
@@ -1284,6 +1301,7 @@ public class IndexShardTests extends IndexShardTestCase {
         AtomicBoolean synced = new AtomicBoolean();
         IndexShard primaryShard = newShard(
             shardRouting,
+            null,
             indexMetadata.build(),
             null,
             new InternalEngineFactory(),
@@ -1504,17 +1522,16 @@ public class IndexShardTests extends IndexShardTestCase {
         flushShard(shard);
 
         final IndexShard newShard = reinitShard(shard);
-        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
 
         Store.MetadataSnapshot snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
 
-        newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
+        newShard.markAsRecovering("store");
 
         snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
 
-        assertTrue(recoverFromStore(newShard));
+        recoverFromStore(newShard);
 
         snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
@@ -1581,6 +1598,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, 1);
         IndexShard shard = newShard(
             shardRouting,
+            null,
             indexMetadata.build(),
             null,
             new InternalEngineFactory(),
@@ -1718,6 +1736,7 @@ public class IndexShardTests extends IndexShardTestCase {
         try (Store store = createStore(shardId, new IndexSettings(metadata, Settings.EMPTY), directory)) {
             IndexShard shard = newShard(
                 shardRouting,
+                null,
                 shardPath,
                 metadata,
                 i -> store,
@@ -1725,7 +1744,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 new InternalEngineFactory(),
                 NOOP_GCP_SYNCER,
                 RetentionLeaseSyncer.EMPTY,
-                EMPTY_EVENT_LISTENER
+                IndexEventListener.NOOP
             );
             AtomicBoolean failureCallbackTriggered = new AtomicBoolean(false);
             shard.addShardFailureCallback((ig) -> failureCallbackTriggered.set(true));
@@ -1826,6 +1845,26 @@ public class IndexShardTests extends IndexShardTestCase {
             shard.indexingStats().getTotal().getIndexFailedDueToVersionConflictCount(),
             equalTo(indexingFailedWithVersionConflictCount.get())
         );
+        closeShards(shard);
+    }
+
+    public void testIndexingErrorsDueToTooManyDocs() throws IOException {
+        final int maxDocs = randomIntBetween(5, 20);
+        IndexShard shard = newStartedShard(true, Settings.EMPTY, config -> EngineTestCase.createEngine(config, maxDocs));
+        for (int id = 0; id < maxDocs; id++) {
+            assertThat(indexDoc(shard, "_doc", "accepted" + id).isCreated(), is(true));
+        }
+        final int rejectedCount = randomIntBetween(1, 10);
+        for (int id = 0; id < rejectedCount; id++) {
+            Engine.IndexResult indexResult = indexDoc(shard, "_doc", "rejected" + id);
+            assertThat(indexResult.getFailure(), instanceOf(IllegalArgumentException.class));
+            assertThat(InternalEngine.isTooManyDocsFailure(indexResult.getFailure()), is(true));
+        }
+        IndexingStats.Stats stats = shard.indexingStats().getTotal();
+        assertThat(stats.getIndexCount(), equalTo((long) maxDocs));
+        assertThat(stats.getIndexFailedCount(), equalTo((long) rejectedCount));
+        assertThat(stats.getIndexFailedDueToTooManyDocsCount(), equalTo((long) rejectedCount));
+        assertThat(stats.getIndexFailedDueToVersionConflictCount(), equalTo(0L));
         closeShards(shard);
     }
 
@@ -2122,7 +2161,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testLockingBeforeAndAfterRelocated() throws Exception {
         final IndexShard shard = newStartedShard(true);
-        final ShardRouting routing = ShardRoutingHelper.relocate(shard.routingEntry(), "other_node");
+        final ShardRouting routing = ShardRoutingHelper.relocate(shard.routingEntry(), "other_node", RecoveryPriority.RELOCATE_REBALANCING);
         IndexShardTestCase.updateRoutingEntry(shard, routing);
         CountDownLatch latch = new CountDownLatch(1);
         Thread recoveryThread = new Thread(() -> {
@@ -2149,7 +2188,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testDelayedOperationsBeforeAndAfterRelocated() throws Exception {
         final IndexShard shard = newStartedShard(true);
-        final ShardRouting routing = ShardRoutingHelper.relocate(shard.routingEntry(), "other_node");
+        final ShardRouting routing = ShardRoutingHelper.relocate(shard.routingEntry(), "other_node", RecoveryPriority.RELOCATE_REBALANCING);
         IndexShardTestCase.updateRoutingEntry(shard, routing);
         final CountDownLatch startRecovery = new CountDownLatch(1);
         final CountDownLatch relocationStarted = new CountDownLatch(1);
@@ -2229,7 +2268,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testStressRelocated() throws Exception {
         final IndexShard shard = newStartedShard(true);
         assertFalse(shard.isRelocatedPrimary());
-        final ShardRouting routing = ShardRoutingHelper.relocate(shard.routingEntry(), "other_node");
+        final ShardRouting routing = ShardRoutingHelper.relocate(shard.routingEntry(), "other_node", RecoveryPriority.RELOCATE_REBALANCING);
         IndexShardTestCase.updateRoutingEntry(shard, routing);
         final int numThreads = randomIntBetween(2, 4);
         Thread[] indexThreads = new Thread[numThreads];
@@ -2281,7 +2320,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testRelocatedShardCanNotBeRevived() throws IOException {
         final IndexShard shard = newStartedShard(true);
         final ShardRouting originalRouting = shard.routingEntry();
-        final ShardRouting routing = ShardRoutingHelper.relocate(originalRouting, "other_node");
+        final ShardRouting routing = ShardRoutingHelper.relocate(originalRouting, "other_node", RecoveryPriority.RELOCATE_REBALANCING);
         IndexShardTestCase.updateRoutingEntry(shard, routing);
         blockingCallRelocated(shard, routing, (primaryContext, listener) -> listener.onResponse(null));
         expectThrows(IllegalIndexShardStateException.class, () -> IndexShardTestCase.updateRoutingEntry(shard, originalRouting));
@@ -2303,7 +2342,11 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testShardCanNotBeMarkedAsRelocatedIfRelocationCancelled() throws IOException {
         final IndexShard shard = newStartedShard(true);
         final ShardRouting originalRouting = shard.routingEntry();
-        final ShardRouting relocationRouting = ShardRoutingHelper.relocate(originalRouting, "other_node");
+        final ShardRouting relocationRouting = ShardRoutingHelper.relocate(
+            originalRouting,
+            "other_node",
+            RecoveryPriority.RELOCATE_REBALANCING
+        );
         IndexShardTestCase.updateRoutingEntry(shard, relocationRouting);
         IndexShardTestCase.updateRoutingEntry(shard, originalRouting);
         safeAwaitFailure(
@@ -2322,7 +2365,11 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testRelocatedShardCanNotBeRevivedConcurrently() throws IOException, InterruptedException, BrokenBarrierException {
         final IndexShard shard = newStartedShard(true);
         final ShardRouting originalRouting = shard.routingEntry();
-        final ShardRouting relocationRouting = ShardRoutingHelper.relocate(originalRouting, "other_node");
+        final ShardRouting relocationRouting = ShardRoutingHelper.relocate(
+            originalRouting,
+            "other_node",
+            RecoveryPriority.RELOCATE_REBALANCING
+        );
         IndexShardTestCase.updateRoutingEntry(shard, relocationRouting);
         CyclicBarrier cyclicBarrier = new CyclicBarrier(3);
         AtomicReference<Exception> relocationException = new AtomicReference<>();
@@ -2385,15 +2432,23 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard shard = newStartedShard(true);
         final ShardRouting original = shard.routingEntry();
 
-        final ShardRouting wrongTargetNodeShardRouting = ShardRoutingHelper.relocate(original, "node_1");
+        final ShardRouting wrongTargetNodeShardRouting = ShardRoutingHelper.relocate(
+            original,
+            "node_1",
+            RecoveryPriority.RELOCATE_REBALANCING
+        );
         IndexShardTestCase.updateRoutingEntry(shard, wrongTargetNodeShardRouting);
         IndexShardTestCase.updateRoutingEntry(shard, original);
 
-        final ShardRouting wrongTargetAllocationIdShardRouting = ShardRoutingHelper.relocate(original, "node_2");
+        final ShardRouting wrongTargetAllocationIdShardRouting = ShardRoutingHelper.relocate(
+            original,
+            "node_2",
+            RecoveryPriority.RELOCATE_REBALANCING
+        );
         IndexShardTestCase.updateRoutingEntry(shard, wrongTargetAllocationIdShardRouting);
         IndexShardTestCase.updateRoutingEntry(shard, original);
 
-        final ShardRouting correctShardRouting = ShardRoutingHelper.relocate(original, "node_2");
+        final ShardRouting correctShardRouting = ShardRoutingHelper.relocate(original, "node_2", RecoveryPriority.RELOCATE_REBALANCING);
         IndexShardTestCase.updateRoutingEntry(shard, correctShardRouting);
 
         final AtomicBoolean relocated = new AtomicBoolean();
@@ -2457,7 +2512,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard shard = newStartedShard(false);
         long primaryTerm = shard.getOperationPrimaryTerm();
         shard.advanceMaxSeqNoOfUpdatesOrDeletes(1); // manually advance msu for this delete
-        shard.applyDeleteOperationOnReplica(1, primaryTerm, 2, "id");
+        shard.applyDeleteOperationOnReplica(1, primaryTerm, 2, "id", null);
         shard.getEngine().rollTranslogGeneration(); // isolate the delete in it's own generation
         shard.applyIndexOperationOnReplica(
             0,
@@ -2513,15 +2568,15 @@ public class IndexShardTests extends IndexShardTestCase {
         }
 
         final ShardRouting replicaRouting = shard.routingEntry();
-        IndexShard newShard = reinitShard(
-            shard,
-            shardRoutingBuilder(replicaRouting.shardId(), replicaRouting.currentNodeId(), true, ShardRoutingState.INITIALIZING)
-                .withRecoverySource(RecoverySource.ExistingStoreRecoverySource.INSTANCE)
-                .build()
-        );
-        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
-        assertTrue(recoverFromStore(newShard));
+        final ShardRouting reinitRouting = shardRoutingBuilder(
+            replicaRouting.shardId(),
+            replicaRouting.currentNodeId(),
+            true,
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(RecoverySource.ExistingStoreRecoverySource.INSTANCE).build();
+        IndexShard newShard = reinitShard(shard, reinitRouting, null);
+        newShard.markAsRecovering("store");
+        recoverFromStore(newShard);
         assertEquals(replayedOps, newShard.recoveryState().getTranslog().recoveredOperations());
         assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperations());
         assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperationsOnStart());
@@ -2544,9 +2599,8 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         String historyUUID = shard.getHistoryUUID();
         IndexShard newShard = reinitShard(shard);
-        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
-        assertTrue(recoverFromStore(newShard));
+        newShard.markAsRecovering("store");
+        recoverFromStore(newShard);
         assertEquals(translogOps, newShard.recoveryState().getTranslog().recoveredOperations());
         assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperations());
         assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperationsOnStart());
@@ -2580,15 +2634,15 @@ public class IndexShardTests extends IndexShardTestCase {
             flushShard(shard);
         }
         String historyUUID = shard.getHistoryUUID();
-        IndexShard newShard = reinitShard(
-            shard,
-            shardRoutingBuilder(shard.shardId(), shard.shardRouting.currentNodeId(), true, ShardRoutingState.INITIALIZING)
-                .withRecoverySource(RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE)
-                .build()
-        );
-        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
-        assertTrue(recoverFromStore(newShard));
+        final ShardRouting reinitRouting = shardRoutingBuilder(
+            shard.shardId(),
+            shard.shardRouting.currentNodeId(),
+            true,
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE).build();
+        IndexShard newShard = reinitShard(shard, reinitRouting, null);
+        newShard.markAsRecovering("store");
+        recoverFromStore(newShard);
         IndexShardTestCase.updateRoutingEntry(
             newShard,
             newShard.routingEntry().moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
@@ -2604,8 +2658,15 @@ public class IndexShardTests extends IndexShardTestCase {
         for (int i = 0; i < totalOps; i++) {
             indexDoc(primarySource, "_doc", Integer.toString(i));
         }
-        IndexShardTestCase.updateRoutingEntry(primarySource, primarySource.routingEntry().relocate(randomAlphaOfLength(10), -1));
-        final IndexShard primaryTarget = newShard(primarySource.routingEntry().getTargetRelocatingShard());
+        IndexShardTestCase.updateRoutingEntry(
+            primarySource,
+            primarySource.routingEntry().relocate(randomAlphaOfLength(10), -1, RecoveryPriority.RELOCATION_CAN_REMAIN_NO)
+        );
+        final ShardRouting primaryTargetRouting = primarySource.routingEntry().getTargetRelocatingShard();
+        final IndexShard primaryTarget = newShard(
+            primaryTargetRouting,
+            DiscoveryNodeUtils.builder(primarySource.routingEntry().currentNodeId()).build()
+        );
         updateMappings(primaryTarget, primarySource.indexSettings().getIndexMetadata());
         recoverReplica(primaryTarget, primarySource, true);
 
@@ -2640,13 +2701,13 @@ public class IndexShardTests extends IndexShardTestCase {
         );
 
         final ShardRouting primaryShardRouting = shard.routingEntry();
-        IndexShard newShard = reinitShard(
-            otherShard,
-            ShardRoutingHelper.initWithSameId(primaryShardRouting, RecoverySource.ExistingStoreRecoverySource.INSTANCE)
+        final ShardRouting reinitRouting = ShardRoutingHelper.initWithSameId(
+            primaryShardRouting,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE
         );
-        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
-        assertTrue(recoverFromStore(newShard));
+        IndexShard newShard = reinitShard(otherShard, reinitRouting, null);
+        newShard.markAsRecovering("store");
+        recoverFromStore(newShard);
         assertEquals(1, newShard.recoveryState().getTranslog().recoveredOperations());
         assertEquals(1, newShard.recoveryState().getTranslog().totalOperations());
         assertEquals(1, newShard.recoveryState().getTranslog().totalOperationsOnStart());
@@ -2671,12 +2732,13 @@ public class IndexShardTests extends IndexShardTestCase {
         assertDocCount(shard, 2);
 
         for (int i = 0; i < 2; i++) {
-            newShard = reinitShard(
-                newShard,
-                ShardRoutingHelper.initWithSameId(primaryShardRouting, RecoverySource.ExistingStoreRecoverySource.INSTANCE)
+            final ShardRouting loopReinitRouting = ShardRoutingHelper.initWithSameId(
+                primaryShardRouting,
+                RecoverySource.ExistingStoreRecoverySource.INSTANCE
             );
-            newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
-            assertTrue(recoverFromStore(newShard));
+            newShard = reinitShard(newShard, loopReinitRouting, null);
+            newShard.markAsRecovering("store");
+            recoverFromStore(newShard);
             try (Translog.Snapshot snapshot = getTranslog(newShard).newSnapshot()) {
                 assertThat(snapshot.totalOperations(), equalTo(newShard.indexSettings.isSoftDeleteEnabled() ? 0 : 2));
             }
@@ -2691,14 +2753,14 @@ public class IndexShardTests extends IndexShardTestCase {
             flushShard(shard);
         }
         final ShardRouting shardRouting = shard.routingEntry();
-        IndexShard newShard = reinitShard(
-            shard,
-            ShardRoutingHelper.initWithSameId(shardRouting, RecoverySource.EmptyStoreRecoverySource.INSTANCE)
+        final ShardRouting reinitRouting = ShardRoutingHelper.initWithSameId(
+            shardRouting,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE
         );
+        IndexShard newShard = reinitShard(shard, reinitRouting, null);
 
-        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
-        assertTrue(recoverFromStore(newShard));
+        newShard.markAsRecovering("store");
+        recoverFromStore(newShard);
         assertEquals(0, newShard.recoveryState().getTranslog().recoveredOperations());
         assertEquals(0, newShard.recoveryState().getTranslog().totalOperations());
         assertEquals(0, newShard.recoveryState().getTranslog().totalOperationsOnStart());
@@ -2724,9 +2786,8 @@ public class IndexShardTests extends IndexShardTestCase {
         cleanLuceneIndex(store.directory());
         store.decRef();
         IndexShard newShard = reinitShard(shard);
-        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         ShardRouting routing = newShard.routingEntry();
-        newShard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
+        newShard.markAsRecovering("store");
         try {
             recoverFromStore(newShard);
             fail("index not there!");
@@ -2734,19 +2795,23 @@ public class IndexShardTests extends IndexShardTestCase {
             assertTrue(ex.getMessage().contains("failed to fetch index version after copying it over"));
         }
 
-        routing = ShardRoutingHelper.moveToUnassigned(routing, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "because I say so"));
+        routing = routing.moveToUnassigned(
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "because I say so"),
+            RecoveryPriority.UNASSIGNED_EXPECTED
+        );
         routing = ShardRoutingHelper.initialize(routing, newShard.routingEntry().currentNodeId());
         assertTrue("it's already recovering, we should ignore new ones", newShard.ignoreRecoveryAttempt());
         try {
-            newShard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
+            newShard.markAsRecovering("store");
             fail("we are already recovering, can't mark again");
         } catch (IllegalIndexShardStateException e) {
             // OK!
         }
 
-        newShard = reinitShard(newShard, ShardRoutingHelper.initWithSameId(routing, RecoverySource.EmptyStoreRecoverySource.INSTANCE));
-        newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
-        assertTrue("recover even if there is nothing to recover", recoverFromStore(newShard));
+        final ShardRouting reinitRouting = ShardRoutingHelper.initWithSameId(routing, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
+        newShard = reinitShard(newShard, reinitRouting, null);
+        newShard.markAsRecovering("store");
+        recoverFromStore(newShard);
 
         IndexShardTestCase.updateRoutingEntry(
             newShard,
@@ -2760,6 +2825,80 @@ public class IndexShardTests extends IndexShardTestCase {
         assertDocCount(newShard, 1);
 
         closeShards(newShard);
+    }
+
+    /// A failed store recovery is only aborted (and not reported to the master) if this shard was closed, since whoever
+    /// closed it is responsible for informing the master. An [IndexShardClosedException] about some other shard, such as
+    /// a reshard split source on a remote node, must still be reported, otherwise this shard is left initializing forever.
+    /// See #161494.
+    public void testStoreRecoveryFailureIsOnlyAbortedIfShardIsClosed() throws Exception {
+        final var closeShardDuringRecovery = randomBoolean();
+        final var indexName = randomIndexName();
+        final var indexUuid = randomUUID();
+        final var shardId = new ShardId(indexName, indexUuid, 0);
+        final var shardRouting = shardRoutingBuilder(shardId, "node", true, ShardRoutingState.INITIALIZING).withRecoverySource(
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE
+        ).build();
+        final var dataPath = new NodeEnvironment.DataPath(createTempDir());
+        final var shardPath = new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId);
+        final var metadata = IndexMetadata.builder(shardRouting.getIndexName())
+            .settings(indexSettings(IndexVersion.current(), 1, 0).build())
+            .primaryTerm(0, 1)
+            .build();
+
+        final var recoveryFailure = randomFrom(
+            new IndexShardRecoveryException(
+                shardId,
+                "failed to recover from gateway",
+                new RemoteTransportException("simulated", new IndexShardClosedException(new ShardId(indexName, indexUuid, 1)))
+            ),
+            new IndexShardClosedException(new ShardId(indexName, randomUUID(), 1)),
+            new ElasticsearchException("simulated")
+        );
+
+        final var shard = newShard(
+            shardRouting,
+            null,
+            shardPath,
+            metadata,
+            null,
+            null,
+            new InternalEngineFactory(),
+            NOOP_GCP_SYNCER,
+            RetentionLeaseSyncer.EMPTY,
+            new IndexEventListener() {
+                @Override
+                public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+                    ActionListener.run(listener, l -> {
+                        if (closeShardDuringRecovery) {
+                            closeShardNoCheck(indexShard);
+                        }
+                        l.onFailure(recoveryFailure);
+                    });
+                }
+            }
+        );
+
+        final var failureStrategyFuture = new PlainActionFuture<FailureStrategy>();
+        final var recoveryListener = new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                failureStrategyFuture.onFailure(new IllegalStateException("recovery should have failed"));
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
+                failureStrategyFuture.onResponse(failureStrategy);
+            }
+        };
+        threadPool.generic().execute(() -> shard.startRecovery(null, recoveryListener, null, (mapping, l) -> l.onResponse(null), null, 0L));
+
+        assertThat(safeGet(failureStrategyFuture), equalTo(closeShardDuringRecovery ? FailureStrategy.ABORT : FailureStrategy.RETRY));
+        closeShards(shard);
     }
 
     public void testRecoverFromStoreRemoveStaleOperations() throws Exception {
@@ -2805,10 +2944,15 @@ public class IndexShardTests extends IndexShardTestCase {
             .primaryTerm(replicaRouting.shardId().id(), shard.getOperationPrimaryTerm() + 1)
             .build();
         closeShards(shard);
+        ShardRouting newShardRouting = shardRoutingBuilder(
+            replicaRouting.shardId(),
+            replicaRouting.currentNodeId(),
+            true,
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(RecoverySource.ExistingStoreRecoverySource.INSTANCE).build();
         IndexShard newShard = newShard(
-            shardRoutingBuilder(replicaRouting.shardId(), replicaRouting.currentNodeId(), true, ShardRoutingState.INITIALIZING)
-                .withRecoverySource(RecoverySource.ExistingStoreRecoverySource.INSTANCE)
-                .build(),
+            newShardRouting,
+            null,
             shard.shardPath(),
             newShardIndexMetadata,
             null,
@@ -2816,11 +2960,10 @@ public class IndexShardTests extends IndexShardTestCase {
             shard.getEngineFactory(),
             shard.getGlobalCheckpointSyncer(),
             shard.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER
+            IndexEventListener.NOOP
         );
-        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
-        assertTrue(recoverFromStore(newShard));
+        newShard.markAsRecovering("store");
+        recoverFromStore(newShard);
         assertThat(getShardDocIDs(newShard), containsInAnyOrder("doc-0", "doc-2"));
         closeShards(newShard);
     }
@@ -2829,7 +2972,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard shard = newStartedShard(true);
         ShardRouting origRouting = shard.routingEntry();
         assertThat(shard.state(), equalTo(IndexShardState.STARTED));
-        ShardRouting inRecoveryRouting = ShardRoutingHelper.relocate(origRouting, "some_node");
+        ShardRouting inRecoveryRouting = ShardRoutingHelper.relocate(origRouting, "some_node", RecoveryPriority.RELOCATE_REBALANCING);
         IndexShardTestCase.updateRoutingEntry(shard, inRecoveryRouting);
         blockingCallRelocated(shard, inRecoveryRouting, (primaryContext, listener) -> listener.onResponse(null));
         assertTrue(shard.isRelocatedPrimary());
@@ -2869,13 +3012,12 @@ public class IndexShardTests extends IndexShardTestCase {
                 new IndexId("test", UUIDs.randomBase64UUID(random()))
             )
         );
-        target = reinitShard(target, routing);
+        target = reinitShard(target, routing, null);
         Store sourceStore = source.store();
         Store targetStore = target.store();
 
-        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        target.markAsRecovering("store", new RecoveryState(routing, localNode, null));
-        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        target.markAsRecovering("store");
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
         target.restoreFromRepository(new RestoreOnlyRepository(randomProjectIdOrDefault(), "test") {
             @Override
             public void restoreShard(
@@ -2899,7 +3041,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 });
             }
         }, future);
-        assertTrue(future.actionGet());
+        future.actionGet(); // Fail test on throw
         assertThat(target.getLocalCheckpoint(), equalTo(2L));
         assertThat(target.seqNoStats().getMaxSeqNo(), equalTo(2L));
         assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(0L));
@@ -2928,7 +3070,7 @@ public class IndexShardTests extends IndexShardTestCase {
             assertTrue(getResult.exists());
             assertNotNull(getResult.searcher());
         }
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             TopDocs search = searcher.search(new TermQuery(new Term("foo", "bar")), 10);
             assertEquals(search.totalHits.value(), 1);
             search = searcher.search(new TermQuery(new Term("foobar", "bar")), 10);
@@ -2936,8 +3078,13 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> new FieldMaskingReader("foo", reader);
         closeShards(shard);
+        ShardRouting newShardRouting = ShardRoutingHelper.initWithSameId(
+            shard.routingEntry(),
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE
+        );
         IndexShard newShard = newShard(
-            ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.ExistingStoreRecoverySource.INSTANCE),
+            newShardRouting,
+            null,
             shard.shardPath(),
             shard.indexSettings().getIndexMetadata(),
             null,
@@ -2945,12 +3092,12 @@ public class IndexShardTests extends IndexShardTestCase {
             new InternalEngineFactory(),
             NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
-            EMPTY_EVENT_LISTENER
+            IndexEventListener.NOOP
         );
 
         recoverShardFromStore(newShard);
 
-        try (Engine.Searcher searcher = newShard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = newShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             TopDocs search = searcher.search(new TermQuery(new Term("foo", "bar")), 10);
             assertEquals(search.totalHits.value(), 0);
             search = searcher.search(new TermQuery(new Term("foobar", "bar")), 10);
@@ -2993,7 +3140,7 @@ public class IndexShardTests extends IndexShardTestCase {
         FieldDataStats before = shard.fieldData().stats("foo");
         assertThat(before.getMemorySizeInBytes(), equalTo(0L));
         FieldDataStats after = null;
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertThat("we have to have more than one segment", searcher.getDirectoryReader().leaves().size(), greaterThan(1));
             ifd.loadGlobal(searcher.getDirectoryReader());
             after = shard.fieldData().stats("foo");
@@ -3070,8 +3217,13 @@ public class IndexShardTests extends IndexShardTestCase {
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> { throw new RuntimeException("boom"); };
 
         closeShards(shard);
+        ShardRouting newShardRouting = ShardRoutingHelper.initWithSameId(
+            shard.routingEntry(),
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE
+        );
         IndexShard newShard = newShard(
-            ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.ExistingStoreRecoverySource.INSTANCE),
+            newShardRouting,
+            null,
             shard.shardPath(),
             shard.indexSettings().getIndexMetadata(),
             null,
@@ -3079,13 +3231,13 @@ public class IndexShardTests extends IndexShardTestCase {
             new InternalEngineFactory(),
             NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
-            EMPTY_EVENT_LISTENER
+            IndexEventListener.NOOP
         );
 
         recoverShardFromStore(newShard);
 
         try {
-            newShard.acquireSearcher("test");
+            newShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT);
             fail("exception expected");
         } catch (RuntimeException ex) {
             //
@@ -3177,10 +3329,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
         }
         Translog.Snapshot snapshot = TestTranslog.newSnapshotFromOperations(operations);
-        primary.markAsRecovering(
-            "store",
-            new RecoveryState(primary.routingEntry(), getFakeDiscoNode(primary.routingEntry().currentNodeId()), null)
-        );
+        primary.markAsRecovering("store");
         recoverFromStore(primary);
 
         primary.recoveryState().getTranslog().totalOperations(snapshot.totalOperations());
@@ -3197,14 +3346,82 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
+    public void testTranslogReplayUsesMeteringParserDecoratorOfEngine() throws IOException {
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("""
+                { "properties": { "foo":  { "type": "text"}}}""")
+            .settings(settings)
+            .primaryTerm(0, randomLongBetween(1, Long.MAX_VALUE))
+            .build();
+        ShardId shardId = new ShardId(metadata.getIndex(), 0);
+        ShardRouting routing = shardRoutingBuilder(shardId, "n1", true, ShardRoutingState.INITIALIZING).withRecoverySource(
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE
+        ).build();
+
+        final long meteredSize = randomLongBetween(1, 1000);
+        final List<Long> normalizedSizes = new CopyOnWriteArrayList<>();
+        EngineFactory engineFactory = config -> new InternalEngine(config) {
+            @Override
+            public XContentMeteringParserDecorator newMeteringParserDecorator() {
+                return new XContentMeteringParserDecorator() {
+                    @Override
+                    public long meteredDocumentSize() {
+                        return meteredSize;
+                    }
+
+                    @Override
+                    public XContentParser decorate(XContentParser xContentParser, Mapping mapping) {
+                        return xContentParser;
+                    }
+                };
+            }
+
+            @Override
+            public IndexResult index(Index index) throws IOException {
+                normalizedSizes.add(index.parsedDoc().getNormalizedSize());
+                return super.index(index);
+            }
+        };
+        IndexShard primary = newShard(routing, null, metadata, null, engineFactory);
+        Translog.Snapshot snapshot = TestTranslog.newSnapshotFromOperations(
+            List.of(
+                new Translog.Index(
+                    "1",
+                    0,
+                    primary.getPendingPrimaryTerm(),
+                    1,
+                    new BytesArray("{\"foo\" : \"bar\"}".getBytes(StandardCharsets.UTF_8)),
+                    null,
+                    -1
+                )
+            )
+        );
+        primary.markAsRecovering("store");
+        recoverFromStore(primary);
+
+        primary.recoveryState().getTranslog().totalOperations(snapshot.totalOperations());
+        primary.recoveryState().getTranslog().totalOperationsOnStart(snapshot.totalOperations());
+        primary.state = IndexShardState.RECOVERING; // translog recovery on the next line would otherwise fail as we are in POST_RECOVERY
+        primary.runTranslogRecovery(
+            primary.getEngine(),
+            snapshot,
+            Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
+            primary.recoveryState().getTranslog()::incrementRecoveredOperations
+        );
+
+        // the replayed document is parsed with the decorator provided by the engine
+        assertThat(normalizedSizes, equalTo(List.of(meteredSize)));
+
+        closeShards(primary);
+    }
+
     public void testShardActiveDuringInternalRecovery() throws IOException {
         boolean isPrimary = randomBoolean();
         IndexShard shard = newStartedShard(isPrimary);
         indexDoc(shard, "_doc", "0");
         shard = reinitShard(shard);
-        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        DiscoveryNode sourceNode = isPrimary ? null : DiscoveryNodeUtils.builder("bar").roles(emptySet()).build();
-        shard.markAsRecovering("for testing", new RecoveryState(shard.routingEntry(), localNode, sourceNode));
+        shard.markAsRecovering("for testing");
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(shard.isActive());
         shard.prepareForIndexRecovery();
@@ -3217,6 +3434,46 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testOpenEngineAndSkipTranslogRecoveryWithKnownLastCommit() throws IOException {
+        IndexShard shard = newStartedShard(false);
+        indexDoc(shard, "_doc", "0");
+        flushShard(shard);
+        final SegmentInfos segmentInfos = shard.store().readLastCommittedSegmentsInfo();
+        // a different translog UUID shows that the given last commit is used rather than the one read from the store
+        final boolean knownLastCommitMatches = randomBoolean();
+        final Map<String, String> userData = new HashMap<>(segmentInfos.getUserData());
+        if (knownLastCommitMatches == false) {
+            userData.put(Translog.TRANSLOG_UUID_KEY, UUIDs.randomBase64UUID());
+        }
+        final var lastCommit = new IndexShard.LastCommitInfo(segmentInfos.getGeneration(), userData, segmentInfos.getCommitLuceneVersion());
+
+        shard = reinitShard(shard);
+        assertThat(shard.routingEntry().recoverySource().getType(), equalTo(RecoverySource.Type.PEER));
+        shard.markAsRecovering("for testing");
+        shard.prepareForIndexRecovery();
+        shard.recoveryState().getIndex().setFileDetailsComplete();
+        shard.recoveryState().setStage(RecoveryState.Stage.VERIFY_INDEX);
+        shard.recoveryState().setStage(RecoveryState.Stage.TRANSLOG);
+
+        // the given last commit must be the last commit of the store
+        final var otherGeneration = new IndexShard.LastCommitInfo(
+            segmentInfos.getGeneration() + randomFrom(-1, 1),
+            segmentInfos.getUserData(),
+            segmentInfos.getCommitLuceneVersion()
+        );
+        final IndexShard shardWithOtherGeneration = shard;
+        expectThrows(AssertionError.class, () -> shardWithOtherGeneration.openEngineAndSkipTranslogRecovery(otherGeneration));
+
+        if (knownLastCommitMatches) {
+            shard.openEngineAndSkipTranslogRecovery(lastCommit);
+            assertNotNull(shard.getEngineOrNull());
+        } else {
+            final IndexShard recoveringShard = shard;
+            expectThrows(TranslogCorruptedException.class, () -> recoveringShard.openEngineAndSkipTranslogRecovery(lastCommit));
+        }
+        closeShards(shard);
+    }
+
     public void testShardActiveDuringPeerRecovery() throws IOException {
         IndexMetadata metadata = newTestIndexMetadata();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
@@ -3224,8 +3481,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         IndexShard replica = newShard(primary.shardId(), false, "n2", metadata, null);
-        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
+        replica.markAsRecovering("for testing");
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(replica.isActive());
         recoverReplica(
@@ -3282,8 +3538,7 @@ public class IndexShardTests extends IndexShardTestCase {
             expectThrows(IllegalIndexShardStateException.class, listener::actionGet);
         };
         IndexShard replica = newShard(primary.shardId(), false, "n2", metadata, null);
-        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
+        replica.markAsRecovering("for testing");
         assertListenerCalled.accept(replica);
         recoverReplica(
             replica,
@@ -3594,11 +3849,10 @@ public class IndexShardTests extends IndexShardTestCase {
             .build();
 
         final IndexShard targetShard;
-        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         Map<String, MappingMetadata> requestedMappingUpdates = ConcurrentCollections.newConcurrentMap();
         {
-            targetShard = newShard(targetRouting);
-            targetShard.markAsRecovering("store", new RecoveryState(targetShard.routingEntry(), localNode, null));
+            targetShard = newShard(targetRouting, null);
+            targetShard.markAsRecovering("store");
 
             BiConsumer<MappingMetadata, ActionListener<Void>> mappingConsumer = (mapping, listener) -> {
                 assertNull(requestedMappingUpdates.put("_doc", mapping));
@@ -3608,23 +3862,23 @@ public class IndexShardTests extends IndexShardTestCase {
             final IndexShard differentIndex = newShard(new ShardId("index_2", "index_2", 0), true);
             recoverShardFromStore(differentIndex);
             expectThrows(IllegalArgumentException.class, () -> {
-                final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+                final PlainActionFuture<Void> future = new PlainActionFuture<>();
                 targetShard.recoverFromLocalShards(mappingConsumer, Arrays.asList(sourceShard, differentIndex), future);
                 future.actionGet();
             });
             closeShards(differentIndex);
 
             // check that an error from the mapper service is handled correctly
-            final PlainActionFuture<Boolean> badMapperFuture = new PlainActionFuture<>();
+            final PlainActionFuture<Void> badMapperFuture = new PlainActionFuture<>();
             final IndexShard badMapper = spy(targetShard);
             doThrow(IllegalArgumentException.class).when(badMapper).mapperService();
             final BiConsumer<MappingMetadata, ActionListener<Void>> noopConsumer = (mapping, listener) -> listener.onResponse(null);
             badMapper.recoverFromLocalShards(noopConsumer, List.of(sourceShard), badMapperFuture);
             assertThrows(IndexShardRecoveryException.class, badMapperFuture::actionGet);
 
-            final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
             targetShard.recoverFromLocalShards(mappingConsumer, Arrays.asList(sourceShard), future);
-            assertTrue(future.actionGet());
+            future.actionGet(); // Fail test on throw
             RecoveryState recoveryState = targetShard.recoveryState();
             assertEquals(RecoveryState.Stage.DONE, recoveryState.getStage());
             assertTrue(recoveryState.getIndex().fileDetails().size() > 0);
@@ -3660,6 +3914,114 @@ public class IndexShardTests extends IndexShardTestCase {
             {"properties":{"foo":{"type":"text"}}}"""));
 
         closeShards(sourceShard, targetShard);
+    }
+
+    public void testRequestRecoveryCancellationThrowsWhenShardHasAlreadyStarted() throws IOException {
+        final IndexShard shard = newStartedShard();
+        expectThrows(IndexShardNotRecoveringException.class, shard::requestRecoveryCancellation);
+        shard.ensureRecoveryNotCancelled();
+        closeShards(shard);
+    }
+
+    public void testRequestRecoveryCancellationSetsFlagForCreatedShard() throws Exception {
+        final IndexShard shard = newShard(true);
+        assertThat(shard.state(), equalTo(IndexShardState.CREATED));
+        shard.requestRecoveryCancellation();
+        shard.markAsRecovering("store");
+        expectThrows(RecoveryCancelledException.class, shard::ensureRecoveryNotCancelled);
+        closeShards(shard);
+    }
+
+    public void testRequestRecoveryCancellationSetsFlagForStoreRecovery() throws Exception {
+        final IndexShard shard = reinitShard(newStartedShard(true));
+        shard.markAsRecovering("store");
+        shard.requestRecoveryCancellation();
+        expectThrows(RecoveryCancelledException.class, shard::ensureRecoveryNotCancelled);
+        closeShards(shard);
+    }
+
+    public void testCancellationFlagSetInCreatedStateCancelsNonPeerRecovery() throws Exception {
+        final IndexShard shard = reinitShard(newStartedShard(true));
+        assertThat(shard.state(), equalTo(IndexShardState.CREATED));
+
+        shard.requestRecoveryCancellation();
+        shard.markAsRecovering("store");
+        expectThrows(RecoveryCancelledException.class, shard::ensureRecoveryNotCancelled);
+        closeShards(shard);
+    }
+
+    public void testRequestRecoveryCancellationSetsFlagForPeerRecovery() throws Exception {
+        final IndexMetadata metadata = newTestIndexMetadata();
+        final IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "node1", metadata, null);
+        recoverShardFromStore(primary);
+        final IndexShard replica = newShard(primary.shardId(), false, "node2", metadata, null);
+        replica.markAsRecovering("peer");
+        replica.requestRecoveryCancellation();
+        expectThrows(RecoveryCancelledException.class, replica::ensureRecoveryNotCancelled);
+        closeShards(primary, replica);
+    }
+
+    public void testCancellationFlagSetInCreatedStateCancelsPeerRecovery() throws Exception {
+        final IndexMetadata metadata = newTestIndexMetadata();
+        final IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "node1", metadata, null);
+        recoverShardFromStore(primary);
+        final IndexShard replica = newShard(primary.shardId(), false, "node2", metadata, null);
+        assertThat(replica.state(), equalTo(IndexShardState.CREATED));
+
+        replica.requestRecoveryCancellation();
+        replica.markAsRecovering("peer");
+        expectThrows(RecoveryCancelledException.class, replica::ensureRecoveryNotCancelled);
+
+        closeShards(primary, replica);
+    }
+
+    public void testPreRecoveryThrowsIndexShardClosedException() throws IOException {
+        IndexShard shard = newShard(true);
+        shard.markAsRecovering("for testing");
+        closeShards(shard);
+        expectThrows(IndexShardClosedException.class, () -> shard.preRecovery(ActionListener.noop()));
+    }
+
+    public void testPrepareForIndexRecoveryThrowsIndexShardClosedException() throws IOException {
+        IndexShard shard = newShard(true);
+        shard.markAsRecovering("for testing");
+        closeShards(shard);
+        expectThrows(IndexShardClosedException.class, shard::prepareForIndexRecovery);
+    }
+
+    public void testRecoverLocallyUpToGlobalCheckpointFailsWithIndexShardClosedException() throws IOException {
+        IndexShard shard = newShard(true);
+        shard.markAsRecovering("for testing");
+        closeShards(shard);
+        PlainActionFuture<Long> future = new PlainActionFuture<>();
+        shard.recoverLocallyUpToGlobalCheckpoint(future);
+        expectThrows(IndexShardClosedException.class, future::actionGet);
+    }
+
+    public void testOpenEngineAndRecoverFromTranslogThrowsIndexShardClosedException() throws IOException {
+        IndexShard shard = newStartedShard(true);
+        shard = reinitShard(shard);
+        shard.markAsRecovering("for testing");
+        shard.prepareForIndexRecovery();
+        shard.recoveryState().getIndex().setFileDetailsComplete();
+        closeShardNoCheck(shard);
+        try {
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            shard.openEngineAndRecoverFromTranslog(future);
+            expectThrows(IndexShardClosedException.class, future::actionGet);
+        } finally {
+            IOUtils.close(shard.store());
+        }
+    }
+
+    public void testResetRecoveryStageThrowsIndexShardClosedException() throws IOException {
+        final IndexMetadata metadata = newTestIndexMetadata();
+        final IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "node1", metadata, null);
+        recoverShardFromStore(primary);
+        final IndexShard replica = newShard(primary.shardId(), false, "node2", metadata, null);
+        replica.markAsRecovering("peer");
+        closeShards(primary, replica);
+        expectThrows(IndexShardClosedException.class, replica::resetRecoveryStage);
     }
 
     public void testCompletionStatsMarksSearcherAccessed() throws Exception {
@@ -3707,7 +4069,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 final DocsStats docsStats = indexShard.docStats();
                 assertThat("searcher was marked as accessed", shard.getLastSearcherAccess(), equalTo(prevAccessTime));
                 assertThat(docsStats.getCount(), equalTo(numDocs));
-                try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
+                try (Engine.Searcher searcher = indexShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                     assertTrue(searcher.getIndexReader().numDocs() <= docsStats.getCount());
                 }
                 assertThat(docsStats.getDeleted(), equalTo(0L));
@@ -3766,7 +4128,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
             {
                 final DocsStats docStats = indexShard.docStats();
-                try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
+                try (Engine.Searcher searcher = indexShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                     assertTrue(searcher.getIndexReader().numDocs() <= docStats.getCount());
                 }
                 assertThat(docStats.getCount(), equalTo(numDocs));
@@ -3958,6 +4320,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         IndexShard corruptedShard = newShard(
             shardRouting,
+            null,
             shardPath,
             indexMetadata,
             null,
@@ -3965,7 +4328,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard.engineFactory,
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER
+            IndexEventListener.NOOP
         );
 
         try (var mockLog = MockLog.capture(IndexShard.class)) {
@@ -4044,6 +4407,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // try to start shard on corrupted files
         final IndexShard corruptedShard = newShard(
             shardRouting,
+            null,
             shardPath,
             indexMetadata,
             null,
@@ -4051,7 +4415,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard.engineFactory,
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER
+            IndexEventListener.NOOP
         );
 
         final IndexShardRecoveryException exception1 = expectThrows(
@@ -4077,6 +4441,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // try to start another time shard on corrupted files
         final IndexShard corruptedShard2 = newShard(
             shardRouting,
+            null,
             shardPath,
             indexMetadata,
             null,
@@ -4084,7 +4449,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard.engineFactory,
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER
+            IndexEventListener.NOOP
         );
 
         final IndexShardRecoveryException exception2 = expectThrows(
@@ -4130,6 +4495,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .build();
         final IndexShard newShard = newShard(
             shardRouting,
+            isPrimary ? null : DiscoveryNodeUtils.builder("fake-source-node").build(),
             indexShard.shardPath(),
             indexMetadata,
             null,
@@ -4137,7 +4503,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard.engineFactory,
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER
+            IndexEventListener.NOOP
         );
 
         Store.MetadataSnapshot storeFileMetadatas = newShard.snapshotStoreMetadata();
@@ -4161,19 +4527,9 @@ public class IndexShardTests extends IndexShardTestCase {
         snapshotter.start();
 
         if (isPrimary) {
-            newShard.markAsRecovering(
-                "store",
-                new RecoveryState(newShard.routingEntry(), getFakeDiscoNode(newShard.routingEntry().currentNodeId()), null)
-            );
+            newShard.markAsRecovering("store");
         } else {
-            newShard.markAsRecovering(
-                "peer",
-                new RecoveryState(
-                    newShard.routingEntry(),
-                    getFakeDiscoNode(newShard.routingEntry().currentNodeId()),
-                    getFakeDiscoNode(newShard.routingEntry().currentNodeId())
-                )
-            );
+            newShard.markAsRecovering("peer");
         }
         int iters = iterations(10, 100);
         latch.await();
@@ -4281,7 +4637,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertBusy(() -> assertTrue(primary.isSearchIdle()));
         do {
             // now loop until we are fast enough... shouldn't take long
-            primary.acquireSearcher("test").close();
+            primary.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT).close();
             if (primary.isSearchIdle()) {
                 assertTrue(primary.searchIdleTime() >= tenMillis.millis());
             }
@@ -4330,7 +4686,7 @@ public class IndexShardTests extends IndexShardTestCase {
             primary.getLastSearcherAccess()
         );
         assertTrue(lastSearchAccess < primary.getLastSearcherAccess());
-        try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = primary.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertEquals(2, searcher.getIndexReader().numDocs());
         }
 
@@ -4339,7 +4695,7 @@ public class IndexShardTests extends IndexShardTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         primary.ensureShardSearchActive(registered -> {
             assertFalse(registered);
-            try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
+            try (Engine.Searcher searcher = primary.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 assertEquals(2, searcher.getIndexReader().numDocs());
             } finally {
                 latch.countDown();
@@ -4367,10 +4723,271 @@ public class IndexShardTests extends IndexShardTestCase {
         logger.info("--> scheduledRefresh(future5)");
         primary.scheduledRefresh(ActionListener.noop());
         assertBusy(() -> assertThat(primary.refreshStats().getExternalTotal(), equalTo(externalRefreshesBefore + 1)));
-        try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = primary.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertEquals(3, searcher.getIndexReader().numDocs());
         }
         closeShards(primary);
+    }
+
+    public void testEnsureShardSearchActiveDispatchesListenerOffRefreshThread() throws Exception {
+        IndexMetadata metadata = newTestIndexMetadata();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+        indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
+        PlainActionFuture<Boolean> refreshed = new PlainActionFuture<>();
+        primary.scheduledRefresh(refreshed);
+        assertTrue(refreshed.actionGet());
+
+        Settings searchIdleSettings = Settings.builder()
+            .put(primary.indexSettings().getSettings())
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
+            .build();
+        primary.indexSettings().getScopedSettings().applySettings(searchIdleSettings);
+        indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
+        PlainActionFuture<Boolean> deferred = new PlainActionFuture<>();
+        primary.scheduledRefresh(deferred);
+        assertFalse(deferred.actionGet());
+        assertTrue("a refresh should be pending while the shard is search idle", primary.hasRefreshPending());
+
+        final String executorName = "ensure-search-active-test";
+        final ExecutorService responseExecutor = Executors.newSingleThreadExecutor(
+            EsExecutors.daemonThreadFactory("test-node", executorName)
+        );
+        try {
+            final AtomicReference<String> listenerThreadName = new AtomicReference<>();
+            final AtomicBoolean registered = new AtomicBoolean();
+            final CountDownLatch latch = new CountDownLatch(1);
+            primary.ensureShardSearchActive(responseExecutor, wasRegistered -> {
+                registered.set(wasRegistered);
+                listenerThreadName.set(Thread.currentThread().getName());
+                latch.countDown();
+            });
+            safeAwait(latch);
+            assertTrue("a refresh was pending so the listener must have been registered as a refresh listener", registered.get());
+            assertThat(
+                "listener must be dispatched to the provided executor",
+                listenerThreadName.get(),
+                containsString("[" + executorName + "]")
+            );
+            assertThat(
+                "listener must not run on a refresh thread",
+                listenerThreadName.get(),
+                not(containsString("[" + ThreadPool.Names.REFRESH + "]"))
+            );
+        } finally {
+            ThreadPool.terminate(responseExecutor, 10, TimeUnit.SECONDS);
+        }
+        closeShards(primary);
+    }
+
+    public void testEnsureShardSearchActiveRunsInlineWhenNoRefreshPending() throws Exception {
+        IndexMetadata metadata = newTestIndexMetadata();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+        indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
+        PlainActionFuture<Boolean> refreshed = new PlainActionFuture<>();
+        primary.scheduledRefresh(refreshed);
+        assertTrue(refreshed.actionGet());
+        assertFalse(primary.hasRefreshPending());
+
+        final ExecutorService responseExecutor = Executors.newSingleThreadExecutor(
+            EsExecutors.daemonThreadFactory("test-node", "ensure-search-active-test")
+        );
+        try {
+            final String callingThreadName = Thread.currentThread().getName();
+            final AtomicReference<String> listenerThreadName = new AtomicReference<>();
+            final AtomicBoolean registered = new AtomicBoolean(true);
+            primary.ensureShardSearchActive(responseExecutor, wasRegistered -> {
+                registered.set(wasRegistered);
+                listenerThreadName.set(Thread.currentThread().getName());
+            });
+            assertFalse("no refresh was pending so the listener must not have been registered", registered.get());
+            assertEquals("listener must run inline on the calling thread", callingThreadName, listenerThreadName.get());
+        } finally {
+            ThreadPool.terminate(responseExecutor, 10, TimeUnit.SECONDS);
+        }
+        closeShards(primary);
+    }
+
+    public void testEnsureShardSearchActiveRunsInlineWhenDispatchRejected() throws Exception {
+        IndexMetadata metadata = newTestIndexMetadata();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+        indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
+        PlainActionFuture<Boolean> refreshed = new PlainActionFuture<>();
+        primary.scheduledRefresh(refreshed);
+        assertTrue(refreshed.actionGet());
+
+        Settings searchIdleSettings = Settings.builder()
+            .put(primary.indexSettings().getSettings())
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
+            .build();
+        primary.indexSettings().getScopedSettings().applySettings(searchIdleSettings);
+        indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
+        PlainActionFuture<Boolean> deferred = new PlainActionFuture<>();
+        primary.scheduledRefresh(deferred);
+        assertFalse(deferred.actionGet());
+        assertTrue("a refresh should be pending while the shard is search idle", primary.hasRefreshPending());
+
+        final Executor rejectingExecutor = command -> { throw new EsRejectedExecutionException("rejected for test"); };
+        try (var mockLog = MockLog.capture(IndexShard.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "dispatch failure warning",
+                    IndexShard.class.getCanonicalName(),
+                    Level.WARN,
+                    "ensureShardSearchActive could not dispatch to [*], running inline"
+                )
+            );
+
+            final AtomicInteger invocations = new AtomicInteger();
+            final AtomicBoolean registered = new AtomicBoolean();
+            final CountDownLatch latch = new CountDownLatch(1);
+            primary.ensureShardSearchActive(rejectingExecutor, wasRegistered -> {
+                registered.set(wasRegistered);
+                invocations.incrementAndGet();
+                latch.countDown();
+            });
+            safeAwait(latch);
+            assertTrue("a refresh was pending so the listener must have been registered as a refresh listener", registered.get());
+            assertEquals("listener must be invoked exactly once when dispatch is rejected", 1, invocations.get());
+            mockLog.assertAllExpectationsMatched();
+        }
+        closeShards(primary);
+    }
+
+    /**
+     * The refresh that {@link IndexShard#ensureShardSearchActive} forks can still be queued when the shard closes. Closing detaches the
+     * engine before it closes the refresh listeners, so the task finds a pending refresh location and no engine behind it, and must drop
+     * the refresh rather than let the failure escape the refresh worker.
+     */
+    public void testEnsureShardSearchActiveIgnoresClosedEngineOnRefreshThread() throws Exception {
+        IndexMetadata metadata = newTestIndexMetadata();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        // Released on every exit path below: an assertion failure while the refresh threads are held would otherwise leave them parked
+        // until safeAwait times out, and each would then report a timeout that hides the real failure.
+        final CountDownLatch releaseRefreshThreads = new CountDownLatch(1);
+        final AtomicReference<Runnable> deferredClose = new AtomicReference<>();
+        final PlainActionFuture<Void> closeFuture = new PlainActionFuture<>();
+        try {
+            recoverShardFromStore(primary);
+            indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
+            PlainActionFuture<Boolean> refreshed = new PlainActionFuture<>();
+            primary.scheduledRefresh(refreshed);
+            assertTrue(refreshed.actionGet());
+
+            Settings searchIdleSettings = Settings.builder()
+                .put(primary.indexSettings().getSettings())
+                .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
+                .build();
+            primary.indexSettings().getScopedSettings().applySettings(searchIdleSettings);
+            indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
+            PlainActionFuture<Boolean> deferred = new PlainActionFuture<>();
+            primary.scheduledRefresh(deferred);
+            assertFalse(deferred.actionGet());
+            assertTrue("a refresh should be pending while the shard is search idle", primary.hasRefreshPending());
+
+            // Hold every refresh thread so that the refresh forked below stays queued while the shard closes underneath it.
+            final int refreshThreads = threadPool.info(ThreadPool.Names.REFRESH).getMax();
+            final CountDownLatch refreshThreadsBusy = new CountDownLatch(refreshThreads);
+            for (int i = 0; i < refreshThreads; i++) {
+                threadPool.executor(ThreadPool.Names.REFRESH).execute(() -> {
+                    refreshThreadsBusy.countDown();
+                    safeAwait(releaseRefreshThreads);
+                });
+            }
+            safeAwait(refreshThreadsBusy);
+
+            primary.ensureShardSearchActive(ignored -> {});
+
+            // Deferring the close executor keeps the shard in the state it passes through in production: the engine is already gone but
+            // the refresh listeners have not fired yet, so the queued refresh still sees its pending location.
+            primary.close("test", false, deferredClose::set, closeFuture);
+            assertNotNull("close must hand the rest of the work to the close executor", deferredClose.get());
+            assertNull("close must detach the engine before the close executor runs", primary.getEngineOrNull());
+            assertTrue("the queued refresh must still see a pending refresh location", primary.hasRefreshPending());
+
+            // A regression escapes the refresh worker, and the runner fails the test on any exception that leaves a thread, so that is
+            // the real signal here. The expectation below covers the other half: the drop must stay silent rather than warn about a
+            // shard that is simply going away.
+            try (var mockLog = MockLog.capture(IndexShard.class)) {
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "refresh failure warning",
+                        IndexShard.class.getCanonicalName(),
+                        Level.WARN,
+                        "Failed to perform engine refresh"
+                    )
+                );
+                releaseRefreshThreads.countDown();
+                // Returns only once every refresh thread is idle, so the forked refresh has run by the time the expectation is checked.
+                flushThreadPoolExecutor(threadPool, ThreadPool.Names.REFRESH);
+                mockLog.assertAllExpectationsMatched();
+            }
+        } finally {
+            releaseRefreshThreads.countDown();
+            final Runnable completeClose = deferredClose.get();
+            if (completeClose == null) {
+                closeShards(primary);
+            } else {
+                IOUtils.close(() -> {
+                    completeClose.run();
+                    safeGet(closeFuture);
+                }, primary.store());
+            }
+        }
+    }
+
+    /**
+     * A refresh forked by {@link IndexShard#ensureShardSearchActive} that fails for a reason other than the shard closing must still be
+     * reported, so that swallowing the close race does not also hide real refresh failures.
+     */
+    public void testEnsureShardSearchActiveLogsUnexpectedRefreshFailure() throws Exception {
+        // The guard can only observe a synchronous throw: Engine#maybeRefresh is declared to throw, but InternalEngine completes its
+        // listener on failure instead, and the forked call discards that listener. This pins the contract of the guard rather than a
+        // failure mode InternalEngine can currently produce.
+        final EngineFactory engineFactory = config -> new InternalEngine(config) {
+            @Override
+            public void maybeRefresh(String source, ActionListener<Engine.RefreshResult> listener) {
+                if ("ensure-shard-search-active".equals(source)) {
+                    throw new RuntimeException("simulated refresh failure");
+                }
+                super.maybeRefresh(source, listener);
+            }
+        };
+        IndexShard primary = newStartedShard(true, Settings.EMPTY, engineFactory);
+        indexDoc(primary, "_doc", "0");
+        PlainActionFuture<Boolean> refreshed = new PlainActionFuture<>();
+        primary.scheduledRefresh(refreshed);
+        assertTrue(refreshed.actionGet());
+
+        Settings searchIdleSettings = Settings.builder()
+            .put(primary.indexSettings().getSettings())
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
+            .build();
+        primary.indexSettings().getScopedSettings().applySettings(searchIdleSettings);
+        indexDoc(primary, "_doc", "1");
+        PlainActionFuture<Boolean> deferred = new PlainActionFuture<>();
+        primary.scheduledRefresh(deferred);
+        assertFalse(deferred.actionGet());
+        assertTrue("a refresh should be pending while the shard is search idle", primary.hasRefreshPending());
+
+        try (var mockLog = MockLog.capture(IndexShard.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "refresh failure warning",
+                    IndexShard.class.getCanonicalName(),
+                    Level.WARN,
+                    "Failed to perform engine refresh"
+                )
+            );
+            primary.ensureShardSearchActive(ignored -> {});
+            flushThreadPoolExecutor(threadPool, ThreadPool.Names.REFRESH);
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            // close on every exit path so that a failed expectation does not also leak the engine and store
+            closeShards(primary);
+        }
     }
 
     public void testRefreshIsNeededWithRefreshListeners() throws IOException, InterruptedException {
@@ -5303,6 +5920,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard readonlyShard = reinitShard(
             shard,
             readonlyShardRouting,
+            null,
             shard.indexSettings.getIndexMetadata(),
             engineConfig -> new ReadOnlyEngine(engineConfig, null, null, true, Function.identity(), true, randomBoolean()) {
                 @Override
@@ -5311,8 +5929,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
             }
         );
-        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        readonlyShard.markAsRecovering("store", new RecoveryState(readonlyShard.routingEntry(), localNode, null));
+        readonlyShard.markAsRecovering("store");
         recoverFromStore(readonlyShard);
         assertThat(readonlyShard.docStats().getCount(), equalTo(numDocs));
         closeShards(readonlyShard);
@@ -5335,7 +5952,15 @@ public class IndexShardTests extends IndexShardTestCase {
                 .build();
             return new InternalEngine(configWithWarmer);
         });
-        Thread recoveryThread = new Thread(() -> expectThrows(AlreadyClosedException.class, () -> recoverShardFromStore(shard)));
+        Thread recoveryThread = new Thread(() -> {
+            IndexShardClosedException indexShardClosedException = expectThrows(
+                IndexShardClosedException.class,
+                () -> recoverShardFromStore(shard)
+            );
+            Throwable[] suppressed = indexShardClosedException.getSuppressed();
+            assertThat(suppressed.length, equalTo(1));
+            assertThat(ExceptionsHelper.unwrap(suppressed[0], AlreadyClosedException.class), notNullValue());
+        });
         recoveryThread.start();
         try {
             warmerStarted.await();
@@ -5363,6 +5988,12 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(thirdForceMergeUUID, notNullValue());
         assertThat(thirdForceMergeUUID, not(equalTo(secondForceMergeUUID)));
         assertThat(thirdForceMergeUUID, equalTo(secondForceMergeRequest.forceMergeUUID()));
+        final ForceMergeRequest onlyExpungeDeletesRequest = new ForceMergeRequest().onlyExpungeDeletes(true);
+        shard.forceMerge(onlyExpungeDeletesRequest);
+        final String fourthForceMergeUUID = ((InternalEngine) shard.getEngine()).getForceMergeUUID();
+        assertThat(fourthForceMergeUUID, notNullValue());
+        assertThat(fourthForceMergeUUID, not(equalTo(thirdForceMergeUUID)));
+        assertThat(fourthForceMergeUUID, equalTo(onlyExpungeDeletesRequest.forceMergeUUID()));
         closeShards(shard);
     }
 
@@ -5774,6 +6405,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final ShardPath shardPath = new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId);
         final IndexShard replicaShard = newShard(
             shardRouting,
+            DiscoveryNodeUtils.builder(primary.routingEntry().currentNodeId()).build(),
             shardPath,
             primary.indexSettings().getIndexMetadata(),
             null,
@@ -5781,7 +6413,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new InternalEngineFactory(),
             NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
-            EMPTY_EVENT_LISTENER,
+            IndexEventListener.NOOP,
             fakeClock,
             Collections.emptyList(),
             // Use a listener to advance the fake clock once per indexing operation:
@@ -5826,7 +6458,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexingThread.start();
 
         final var recoveryFinishedLatch = new CountDownLatch(1);
-        final var recoveryListener = new PeerRecoveryTargetService.RecoveryListener() {
+        final var recoveryListener = new RecoveryListener() {
             @Override
             public void onRecoveryDone(
                 RecoveryState state,
@@ -5837,7 +6469,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
                 assert false : "Unexpected failure";
             }
         };
@@ -5913,10 +6545,12 @@ public class IndexShardTests extends IndexShardTestCase {
 
         ShardId shardId = new ShardId("index", "_na_", 0);
         NodeEnvironment.DataPath dataPath = new NodeEnvironment.DataPath(createTempDir());
+        ShardRouting shardRouting = shardRoutingBuilder(shardId, randomAlphaOfLength(10), true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE)
+            .build();
         IndexShard shard = newShard(
-            shardRoutingBuilder(shardId, randomAlphaOfLength(10), true, ShardRoutingState.INITIALIZING).withRecoverySource(
-                RecoverySource.EmptyStoreRecoverySource.INSTANCE
-            ).build(),
+            shardRouting,
+            null,
             new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId),
             IndexMetadata.builder("index")
                 .settings(indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
@@ -5927,7 +6561,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new InternalEngineFactory(),
             NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
-            EMPTY_EVENT_LISTENER,
+            IndexEventListener.NOOP,
             fakeClock,
             Collections.emptyList(),
             // Use a listener to advance the fake clock once per indexing operation:

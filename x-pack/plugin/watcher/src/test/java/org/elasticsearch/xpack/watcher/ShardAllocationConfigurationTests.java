@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.watcher;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -211,7 +212,8 @@ public class ShardAllocationConfigurationTests extends ESTestCase {
             false,
             RecoverySource.PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            RecoveryPriority.UNASSIGNED_EXPECTED
         );
 
         final IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index).addShard(primary).addShard(unassignedReplica).build();

@@ -1,0 +1,7 @@
+Limit[1000[INTEGER],false,false]
+\_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*)#0]]
+  \_BranchPlan[[null=INDEX, unnamed_view_1=SUBQUERY]]
+    |_Aggregate[[message{f}#1],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS total#2, message{f}#1]]
+    | \_EsRelation[sample_data][@timestamp{f}#3, client_ip{f}#4, event_duration{f}#5, message{f}#1]
+    \_Eval[[TOLONG(network.total_bytes_in{f}#6) AS network.total_bytes_in#7, TODOUBLE(network.total_cost{f}#8) AS network.total_cost#9]]
+      \_EsRelation[k8s-downsampled][TIME_SERIES][@timestamp{f}#10, client.ip{f}#11, cluster{f}#12, event{f}#13, event_city{f}#14, event_city_boundary{f}#15, event_location{f}#16, event_log{f}#17, event_shape{f}#18, events_received{f}#19, network.bytes_in{f}#20, network.cost{f}#21, network.eth0.currently_connected_clients{f}#22, network.eth0.firmware_version{f}#23, network.eth0.last_up{f}#24, network.eth0.rx{f}#25, network.eth0.tx{f}#26, network.eth0.up{f}#27, network.total_bytes_in{f}#6, network.total_cost{f}#8, pod{f}#28]

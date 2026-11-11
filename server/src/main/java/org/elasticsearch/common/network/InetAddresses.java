@@ -30,6 +30,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Locale;
 
+import static org.elasticsearch.core.Strings.truncateForError;
+
 public class InetAddresses {
     private static final int IPV4_PART_COUNT = 4;
     private static final int IPV6_PART_COUNT = 8;
@@ -59,10 +61,18 @@ public class InetAddresses {
      */
     public static byte[] encodeAsIpv6(XContentString ipString) {
         XContentString.UTF8Bytes uft8Bytes = ipString.bytes();
-        byte[] address = ipStringToBytes(uft8Bytes.bytes(), uft8Bytes.offset(), uft8Bytes.length(), true);
+        return encodeAsIpv6(uft8Bytes.bytes(), uft8Bytes.offset(), uft8Bytes.length());
+    }
+
+    /**
+     * Encodes a UTF-8 IP address string (given as a byte slice) in 16-byte binary encoding, always
+     * using 16 bytes for both IPv4 and IPv6 addresses.
+     */
+    public static byte[] encodeAsIpv6(byte[] ipUtf8, int offset, int length) {
+        byte[] address = ipStringToBytes(ipUtf8, offset, length, true);
         // The argument was malformed, i.e. not an IP string literal.
         if (address == null) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, "'%s' is not an IP string literal.", ipString.string()));
+            throw invalidIpStringLiteral(ipUtf8, offset, length);
         }
         return address;
     }
@@ -448,12 +458,15 @@ public class InetAddresses {
 
         // The argument was malformed, i.e. not an IP string literal.
         if (addr == null) {
-            throw new IllegalArgumentException(
-                String.format(Locale.ROOT, "'%s' is not an IP string literal.", new String(ipUtf8, offset, length, StandardCharsets.UTF_8))
-            );
+            throw invalidIpStringLiteral(ipUtf8, offset, length);
         }
 
         return bytesToInetAddress(addr);
+    }
+
+    private static IllegalArgumentException invalidIpStringLiteral(byte[] ipUtf8, int offset, int length) {
+        String ip = new String(ipUtf8, offset, length, StandardCharsets.UTF_8);
+        return new IllegalArgumentException(String.format(Locale.ROOT, "'%s' is not an IP string literal.", truncateForError(ip)));
     }
 
     /**
@@ -490,24 +503,30 @@ public class InetAddresses {
             if (addressString.contains(":") && address.getAddress().length == 4) {
                 throw new IllegalArgumentException(
                     "CIDR notation is not allowed with IPv6-mapped IPv4 address ["
-                        + addressString
-                        + " as it introduces ambiguity as to whether the prefix length should be interpreted as a v4 prefix length or a"
+                        + truncateForError(addressString)
+                        + "] as it introduces ambiguity as to whether the prefix length should be interpreted as a v4 prefix length or a"
                         + " v6 prefix length"
                 );
             }
-            final int prefixLength = Integer.parseInt(fields[1]);
+            final int prefixLength;
+            try {
+                prefixLength = Integer.parseInt(fields[1]);
+            } catch (NumberFormatException e) {
+                // The JDK message repeats the whole input
+                throw new NumberFormatException("For input string: \"" + truncateForError(fields[1]) + "\"");
+            }
             if (prefixLength < 0 || prefixLength > 8 * address.getAddress().length) {
                 throw new IllegalArgumentException(
                     "Illegal prefix length ["
                         + prefixLength
                         + "] in ["
-                        + maskedAddress
+                        + truncateForError(maskedAddress)
                         + "]. Must be 0-32 for IPv4 ranges, 0-128 for IPv6 ranges"
                 );
             }
             return new Tuple<>(address, prefixLength);
         } else {
-            throw new IllegalArgumentException("Expected [ip/prefix] but was [" + maskedAddress + "]");
+            throw new IllegalArgumentException("Expected [ip/prefix] but was [" + truncateForError(maskedAddress) + "]");
         }
     }
 

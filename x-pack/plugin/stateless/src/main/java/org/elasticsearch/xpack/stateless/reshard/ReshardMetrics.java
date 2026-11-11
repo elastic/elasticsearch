@@ -21,6 +21,8 @@ public record ReshardMetrics(
     DoubleHistogram targetCloneDurationHistogram,
     LongHistogram targetHandoffDurationHistogram,
     LongHistogram targetSplitDurationHistogram,
+    LongCounter targetShardFailureCounter,
+    LongCounter targetShardRecoveryFailureCounter,
     MeterRegistry meterRegistry
 ) {
 
@@ -32,6 +34,8 @@ public record ReshardMetrics(
     public static final String RESHARD_TARGET_CLONE_DURATION = "es.reshard.target.clone.duration.histogram";
     public static final String RESHARD_TARGET_HANDOFF_DURATION = "es.reshard.target.handoff.duration.histogram";
     public static final String RESHARD_TARGET_SPLIT_DURATION = "es.reshard.target.split.duration.histogram";
+    public static final String RESHARD_TARGET_FAILURE_COUNT = "es.reshard.target.failed.total";
+    public static final String RESHARD_TARGET_RECOVERY_FAILURE_COUNT = "es.reshard.target.recovery.failed.total";
 
     public ReshardMetrics(MeterRegistry meterRegistry) {
         this(
@@ -41,6 +45,12 @@ public record ReshardMetrics(
             meterRegistry.registerDoubleHistogram(RESHARD_TARGET_CLONE_DURATION, "reshard target clone duration", "s"),
             meterRegistry.registerLongHistogram(RESHARD_TARGET_HANDOFF_DURATION, "reshard target handoff duration", "ms"),
             meterRegistry.registerLongHistogram(RESHARD_TARGET_SPLIT_DURATION, "reshard target split duration", "ms"),
+            meterRegistry.registerLongCounter(RESHARD_TARGET_FAILURE_COUNT, "reshard target shard failure count", "count"),
+            meterRegistry.registerLongCounter(
+                RESHARD_TARGET_RECOVERY_FAILURE_COUNT,
+                "reshard target shard recovery failure count",
+                "count"
+            ),
             meterRegistry
         );
     }

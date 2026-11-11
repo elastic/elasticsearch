@@ -42,6 +42,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesTransportMessageTestUtils;
 import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -316,7 +317,8 @@ public class JoinValidationServiceTests extends ESTestCase {
                 );
 
                 try (var ignored = NamedWriteableRegistryTests.ignoringUnknownNamedWriteables(); var out = new BytesStreamOutput()) {
-                    request.writeTo(out);
+                    BytesTransportRequest bytesRequest = (BytesTransportRequest) request;
+                    BytesTransportMessageTestUtils.writeThinWithBytes(out, bytesRequest);
                     out.flush();
                     final var handler = joiningNodeTransport.getRequestHandlers().getHandler(action);
                     handler.processMessageReceived(

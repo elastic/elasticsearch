@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
@@ -30,8 +31,8 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
-import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
@@ -72,6 +73,12 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
      */
     private static final Settings TSDB_PROMETHEUS_LIKE_SETTINGS = tsdbSettings(SourceFieldMapper.Mode.STORED, "labels.*");
 
+    /**
+     * OTel-like TSDB index: an {@code attributes} passthrough object. Dimension fields show up under
+     * {@code attributes.*} and also as root-level aliases. Synthetic source (JSON) is used.
+     */
+    private static final Settings TSDB_OTEL_LIKE_SETTINGS = tsdbSettings(null, "attributes.*");
+
     private static final String MAPPING = """
         {
           "_doc": {
@@ -83,6 +90,38 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
               "cpu": { "type": "double", "time_series_metric": "gauge" },
               "request_count": { "type": "long", "time_series_metric": "counter" },
               "message": { "type": "keyword" }
+            }
+          }
+        }
+        """;
+
+    /**
+     * OTel TSDB index: an {@code attributes} {@code passthrough} object marked as
+     * {@code time_series_dimension: true}, plus a non-dimension metric under {@code metrics}. Dimension
+     * fields are exposed both under their concrete path ({@code attributes.cpu}) and as root-level aliases
+     * ({@code cpu}). Stored source is not configured here, so synthetic source (JSON) is used.
+     */
+    private static final String OTEL_LIKE_MAPPING = """
+        {
+          "_doc": {
+            "properties": {
+              "@timestamp": { "type": "date" },
+              "attributes": {
+                "type": "passthrough",
+                "priority": 10,
+                "time_series_dimension": true,
+                "properties": {
+                  "cpu": { "type": "keyword" },
+                  "state": { "type": "keyword" }
+                }
+              },
+              "metrics": {
+                "type": "passthrough",
+                "priority": 20,
+                "properties": {
+                  "system.cpu.time": { "type": "double", "time_series_metric": "gauge" }
+                }
+              }
             }
           }
         }
@@ -188,24 +227,6 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         assertThat(sourcePaths(loader), equalTo(Set.of("labels.__name__", "labels.instance")));
     }
 
-    /**
-     * With no exclusions the wildcard {@code index.dimensions} shortcut is still honored as-is, since there is
-     * nothing to remove and the source filter understands the {@code labels.*} pattern.
-     */
-    public void testWildcardDimensionSettingUsedWhenNothingExcluded() throws IOException {
-        Settings settings = Settings.builder()
-            .put(TSDB_PROMETHEUS_LIKE_SETTINGS)
-            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "labels.*")
-            .build();
-        BlockLoader loader = createBlockLoader(
-            settings,
-            PROMETHEUS_LIKE_MAPPING,
-            new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of())
-        );
-        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
-        assertThat(sourcePaths(loader), equalTo(Set.of("labels.*")));
-    }
-
     public void testNoConfigReturnSourceBlockLoader() throws IOException {
         MapperService mapperService = createMapperService(TSDB_SYNTHETIC_SETTINGS, MAPPING);
         BlockLoader loader = mapperService.documentMapper()
@@ -249,6 +270,56 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
     }
 
     /**
+     * A read that returns {@code _source} next to {@code _timeseries} — an ES|QL exemplars query, say — hands both columns the whole
+     * document, since {@link StoredFieldsSpec#merge} widens the shared source to what its hungriest reader needs. The loader must
+     * narrow it back down to the dimensions itself; otherwise {@code _timeseries} duplicates {@code _source}.
+     */
+    public void testReadEmitsDimensionsOnlyFromFullSource() throws IOException {
+        BytesReference json = bytes(XContentType.JSON, b -> {
+            writeTimestampAndDimensions(b, "host-1", "prod", "us-east-1");
+            b.field("cpu", 0.25);
+            b.field("message", "not a dimension");
+        });
+        BytesRef value = readTimeSeriesValue(TSDB_SYNTHETIC_SETTINGS, MAPPING, sourceToParse(json, XContentType.JSON), Set.of(), false);
+        assertThat(parseJsonObject(value), equalTo(Map.of("host", "host-1", "env", "prod", "region", "us-east-1")));
+    }
+
+    /**
+     * Two {@code _timeseries} columns of one read — a PROMQL query with two differently excluding {@code without} clauses, say — share
+     * a source holding the union of the dimensions they asked for. Each column must still emit only its own, so the exclusions of one
+     * cannot leak into the other.
+     */
+    public void testWithoutProjectionFiltersSharedSource() throws IOException {
+        XContentType type = randomFrom(XContentType.JSON, XContentType.CBOR);
+        BytesReference source = bytes(type, b -> writeTimestampAndDimensions(b, "host-1", "prod", "us-east-1"));
+        BytesRef value = readTimeSeriesValue(
+            randomFrom(TSDB_SYNTHETIC_SETTINGS, TSDB_STORED_SETTINGS),
+            MAPPING,
+            sourceToParse(source, type),
+            Set.of("host", "region"),
+            false
+        );
+        assertThat(parseJsonObject(value), equalTo(Map.of("env", "prod")));
+    }
+
+    /**
+     * Excluding every dimension leaves nothing to identify the series by, so the column is an empty object rather than the document the
+     * shared source happens to hold.
+     */
+    public void testWithoutAllDimensionsEmitsEmptyObject() throws IOException {
+        XContentType type = randomFrom(XContentType.JSON, XContentType.CBOR);
+        BytesReference source = bytes(type, b -> writeTimestampAndDimensions(b, "host-1", "prod", "us-east-1"));
+        BytesRef value = readTimeSeriesValue(
+            randomFrom(TSDB_SYNTHETIC_SETTINGS, TSDB_STORED_SETTINGS),
+            MAPPING,
+            sourceToParse(source, type),
+            Set.of("host", "env", "region"),
+            randomBoolean()
+        );
+        assertThat(value.utf8ToString(), equalTo("{}"));
+    }
+
+    /**
      * A TSDB index modeled after the Prometheus remote-write component template, with a {@code labels} {@code passthrough} object marked as
      * a dimension and stored CBOR source. The emitted {@code _timeseries} JSON object must contain a nested {@code labels} object with
      * the indexed dimension key/value pairs.
@@ -281,16 +352,155 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
     }
 
     /**
+     * Verify that the `skipFieldNames` parameter correctly excludes labels from the output.
+     * When using PromQL's `without(instance)` clause, the `instance` label must not appear
+     * in the emitted `_timeseries` JSON.
+     */
+    public void testWithoutFieldsExcludesLabelsFromOutput() throws IOException {
+        BytesReference cbor = bytes(XContentType.CBOR, b -> {
+            b.field("@timestamp", "2021-04-28T18:50:00Z");
+            b.startObject("labels");
+            b.field("__name__", "go_gc_cleanups_executed_cleanups_total");
+            b.field("instance", "localhost:9090");
+            b.field("job", "prometheus");
+            b.endObject();
+            b.startObject("metrics");
+            b.field("go_gc_cleanups_executed_cleanups_total", 1.0);
+            b.endObject();
+        });
+        BytesRef value = readTimeSeriesValue(
+            TSDB_PROMETHEUS_LIKE_SETTINGS,
+            PROMETHEUS_LIKE_MAPPING,
+            sourceToParse(cbor, XContentType.CBOR),
+            Set.of("labels.instance")
+        );
+        Map<String, Object> parsed = parseJsonObject(value);
+        assertThat(parsed.keySet(), equalTo(Set.of("labels")));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> labels = (Map<String, Object>) parsed.get("labels");
+        assertThat(labels, equalTo(Map.of("__name__", "go_gc_cleanups_executed_cleanups_total", "job", "prometheus")));
+    }
+
+    /**
+     * Regression test for OTel passthrough alias exclusion (GitHub issue #151540). PromQL
+     * {@code without(cpu)} passes the short alias name {@code "cpu"} in {@code skipFieldNames}. The block
+     * loader must resolve the alias to the concrete dimension path {@code "attributes.cpu"} (via
+     * {@link MappingLookup#getFieldType}) so the exclusion actually matches and the dimension is dropped from
+     * the {@code _timeseries} source paths. Before the fix, {@code "cpu" != "attributes.cpu"} caused the
+     * exclusion to silently no-op, leaking the label.
+     */
+    public void testOtelPassthroughAliasExcludedByShortName() throws IOException {
+        BlockLoader loader = createBlockLoader(
+            TSDB_OTEL_LIKE_SETTINGS,
+            OTEL_LIKE_MAPPING,
+            new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of("cpu"))
+        );
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of("attributes.state")));
+    }
+
+    /**
+     * Prometheus-style passthrough: {@code labels.job} is exposed as the short alias {@code job} at the
+     * root level. Passing {@code "job"} in skipFieldNames must resolve to {@code "labels.job"} and exclude
+     * it, leaving only {@code labels.__name__} and {@code labels.instance}.
+     */
+    public void testPrometheusPassthroughAliasExcludedByShortName() throws IOException {
+        BlockLoader loader = createBlockLoader(
+            TSDB_PROMETHEUS_LIKE_SETTINGS,
+            PROMETHEUS_LIKE_MAPPING,
+            new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of("job"))
+        );
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of("labels.__name__", "labels.instance")));
+    }
+
+    /**
+     * Excluding all dimensions must produce an empty source-paths set (single global series).
+     */
+    public void testWithoutAllDimensionsYieldsEmptySourcePaths() throws IOException {
+        BlockLoader loader = createBlockLoader(
+            TSDB_SYNTHETIC_SETTINGS,
+            MAPPING,
+            new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of("host", "env", "region"))
+        );
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of()));
+    }
+
+    /**
+     * An unknown field in skipFieldNames must be silently ignored: the exclusion simply
+     * does not match any dimension and the full dimension set is returned.
+     */
+    public void testWithoutUnknownFieldIsIgnored() throws IOException {
+        BlockLoader loader = createBlockLoader(
+            TSDB_SYNTHETIC_SETTINGS,
+            MAPPING,
+            new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of("does_not_exist"))
+        );
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of("host", "env", "region")));
+    }
+
+    /**
+     * loadMetricFields=true with a non-empty exclusion set: the excluded dimension must be absent from
+     * source paths while metrics remain unaffected.
+     */
+    public void testExcludedDimensionsWithMetricsAndExclusion() throws IOException {
+        BlockLoader loader = createBlockLoader(
+            TSDB_SYNTHETIC_SETTINGS,
+            MAPPING,
+            new BlockLoaderFunctionConfig.TimeSeriesMetadata(true, Set.of("host"))
+        );
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of("env", "region", "cpu", "request_count")));
+    }
+
+    /**
+     * Complement of {@link #testOtelPassthroughAliasExcludedByShortName}: passing the concrete field name
+     * {@code "attributes.cpu"} directly must also work, and it already did before the fix (regression guard).
+     */
+    public void testOtelPassthroughConcreteNameExcludesCorrectly() throws IOException {
+        BlockLoader loader = createBlockLoader(
+            TSDB_OTEL_LIKE_SETTINGS,
+            OTEL_LIKE_MAPPING,
+            new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of("attributes.cpu"))
+        );
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of("attributes.state")));
+    }
+
+    /**
      * Build the {@code _timeseries} block loader, index a single document, and return the {@link BytesRef}
      * the loader writes into a one-row block. This mirrors how the production code wires
      * {@link TimeSeriesMetadataFieldBlockLoader} into a row-stride read at search time.
      */
     private BytesRef readTimeSeriesValue(Settings settings, String mapping, SourceToParse sourceToParse) throws IOException {
+        return readTimeSeriesValue(settings, mapping, sourceToParse, Set.of());
+    }
+
+    private BytesRef readTimeSeriesValue(Settings settings, String mapping, SourceToParse sourceToParse, Set<String> withoutFields)
+        throws IOException {
+        return readTimeSeriesValue(settings, mapping, sourceToParse, withoutFields, true);
+    }
+
+    /**
+     * {@code narrowSource} loads the source the way a read of only the {@code _timeseries} column does, restricted to the paths the
+     * loader asks for and reporting them as {@link BlockLoader.StoredFields#sourcePaths()}. Clearing it loads the whole document
+     * instead, the way a read that also returns {@code _source} does: the readers of a read share one source and
+     * {@link StoredFieldsSpec#merge} widens it to all of the document for all of them.
+     */
+    private BytesRef readTimeSeriesValue(
+        Settings settings,
+        String mapping,
+        SourceToParse sourceToParse,
+        Set<String> withoutFields,
+        boolean narrowSource
+    ) throws IOException {
         MapperService mapperService = createMapperService(settings, mapping);
         BlockLoader loader = mapperService.documentMapper()
             .sourceMapper()
             .fieldType()
-            .blockLoader(new TestBlockLoaderContext(mapperService, new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of())));
+            .blockLoader(new TestBlockLoaderContext(mapperService, new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, withoutFields)));
         assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
 
         AtomicReference<BytesRef> result = new AtomicReference<>();
@@ -301,17 +511,17 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
             CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
             try (BlockLoader.RowStrideReader rowReader = loader.rowStrideReader(breaker, ctx)) {
                 StoredFieldsSpec loaderSpec = loader.rowStrideStoredFieldSpec();
-                SourceFilter filter = loaderSpec.requiresSource()
-                    ? new SourceFilter(loaderSpec.sourcePaths().toArray(new String[0]), null)
-                    : null;
-                SourceLoader sourceLoader = mapperService.mappingLookup().newSourceLoader(filter, SourceFieldMetrics.NOOP);
-                SourceLoader.Leaf sourceLeaf = sourceLoader.leaf(ctx.reader(), null);
+                Set<String> sourcePaths = narrowSource ? loaderSpec.sourcePaths() : Set.of();
+                SourceFilter filter = sourcePaths.isEmpty() ? null : new SourceFilter(sourcePaths.toArray(new String[0]), null);
+                SourceLoader sourceLoader = mapperService.mappingLookup().newSourceLoader(filter, SourceFieldMetrics.NOOP, null);
+                SourceLoader.Leaf sourceLeaf = sourceLoader.leaf(ctx, null);
                 StoredFieldsSpec storedFieldsSpec = loaderSpec.merge(
                     new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields())
                 );
                 BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
                     StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
-                    sourceLeaf
+                    sourceLeaf,
+                    sourcePaths
                 );
                 BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
                 storedFields.advanceTo(0);
@@ -343,7 +553,14 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
             (ft, s) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "")).build(null, null)
         );
         IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService)).setCodec(
-            new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
+            new PerFieldMapperCodec(
+                Lucene104Codec.Mode.BEST_SPEED,
+                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                mapperService,
+                BigArrays.NON_RECYCLING_INSTANCE,
+                null
+            )
         );
         if (indexSort != null) {
             iwc.setIndexSort(indexSort);

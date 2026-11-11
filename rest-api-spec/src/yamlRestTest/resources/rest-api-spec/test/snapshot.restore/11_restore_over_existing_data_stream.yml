@@ -1,0 +1,94 @@
+---
+setup:
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo_ds
+        body:
+          type: fs
+          settings:
+            location: "test_repo_ds_loc"
+
+  - do:
+      indices.put_index_template:
+        name: test-ds-template
+        body:
+          index_patterns: [ "test-ds" ]
+          data_stream: {}
+          template:
+            settings:
+              number_of_replicas: 0
+
+  - do:
+      indices.create_data_stream:
+        name: test-ds
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+---
+"Restore over an existing data stream with restore_over_existing":
+
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_snapshot/{repository}/{snapshot}/_restore
+          capabilities: [ restore_over_existing ]
+      reason: "restore_over_existing is a new request parameter that older nodes do not understand, so skip on mixed-version clusters"
+
+  # index a document so the snapshot has content, then snapshot the data stream
+  - do:
+      index:
+        index: test-ds
+        op_type: create
+        body:
+          "@timestamp": "2020-01-01T00:00:00Z"
+          field: value
+
+  - do:
+      snapshot.create:
+        repository: test_repo_ds
+        snapshot: test_snapshot_ds
+        wait_for_completion: true
+        body:
+          indices: "test-ds"
+          feature_states: ["none"]
+
+  - match: { snapshot.snapshot: test_snapshot_ds }
+  - match: { snapshot.state : SUCCESS }
+
+  # without the flag, restoring over the live (open) data stream is rejected: its backing indices already exist and are open
+  - do:
+      catch: /cannot restore index .* because an open index with same name already exists in the cluster/
+      snapshot.restore:
+        repository: test_repo_ds
+        snapshot: test_snapshot_ds
+        wait_for_completion: true
+        body:
+          indices: "test-ds"
+
+  # with restore_over_existing, the existing data stream's backing indices are deleted and recreated from the snapshot in a single
+  # cluster-state update, so the restore succeeds
+  - do:
+      snapshot.restore:
+        repository: test_repo_ds
+        snapshot: test_snapshot_ds
+        wait_for_completion: true
+        body:
+          indices: "test-ds"
+          restore_over_existing: true
+
+  - match: { snapshot.snapshot: test_snapshot_ds }
+  - gt:    { snapshot.shards.successful: 0 }
+  - match: { snapshot.shards.failed: 0 }
+
+  # the data stream still exists after the restore. This is asserted from cluster-state metadata (served by the master) rather than by a
+  # search, which in a stateless deployment would depend on a search-node shard that is not guaranteed to be assigned the instant the
+  # restore completes. The restored data contents (rollback to the snapshotted document) are covered by RestoreOverExistingDataStreamIT.
+  - do:
+      indices.get_data_stream:
+        name: test-ds
+
+  - match: { data_streams.0.name: test-ds }

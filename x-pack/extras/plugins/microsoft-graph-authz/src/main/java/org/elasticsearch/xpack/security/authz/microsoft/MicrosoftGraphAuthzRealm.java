@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.support.CancellableRunnable;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -135,6 +136,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
     }
 
     private void doLookupUser(String principal, ActionListener<User> listener) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         try {
             final var userProperties = fetchUserProperties(client, principal);
             final var groups = fetchGroupMembership(client, principal);
@@ -163,7 +165,9 @@ public class MicrosoftGraphAuthzRealm extends Realm {
         final var clientSecret = config.getSetting(MicrosoftGraphAuthzRealmSettings.CLIENT_SECRET);
 
         final var timeout = config.getSetting(MicrosoftGraphAuthzRealmSettings.HTTP_REQUEST_TIMEOUT);
-        final var httpClient = new OkHttpClient.Builder().callTimeout(timeout.toDuration()).addInterceptor(new RetryHandler()).build();
+        final var tokenHttpClient = new OkHttpClient.Builder().callTimeout(timeout.toDuration()).build();
+        // Kiota's RetryHandler only supports Kiota requests; Azure Identity retries token requests itself
+        final var graphHttpClient = tokenHttpClient.newBuilder().addInterceptor(new RetryHandler()).build();
 
         final var credentialProviderBuilder = new ClientSecretCredentialBuilder().clientId(
             config.getSetting(MicrosoftGraphAuthzRealmSettings.CLIENT_ID)
@@ -171,7 +175,10 @@ public class MicrosoftGraphAuthzRealm extends Realm {
             .clientSecret(clientSecret.toString())
             .tenantId(config.getSetting(MicrosoftGraphAuthzRealmSettings.TENANT_ID))
             .authorityHost(config.getSetting(MicrosoftGraphAuthzRealmSettings.ACCESS_TOKEN_HOST))
-            .httpClient(new OkHttpAsyncHttpClientBuilder(httpClient).build())
+            // Avoid Azure's shared virtual thread pool, which can deadlock when pinned in class initializers. The OkHttp call
+            // timeout already bounds token requests, so Azure's response timeout (scheduled on that pool) is disabled
+            .httpClient(new OkHttpAsyncHttpClientBuilder(tokenHttpClient).responseTimeout(Duration.ZERO).build())
+            .executorService(EsExecutors.DIRECT_EXECUTOR_SERVICE)
             .enableUnsafeSupportLogging()
             .enableAccountIdentifierLogging();
 
@@ -190,7 +197,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
                     "https://graph.microsoft.com/.default"
                 ),
                 config.getSetting(MicrosoftGraphAuthzRealmSettings.API_HOST),
-                httpClient
+                graphHttpClient
             )
         );
     }

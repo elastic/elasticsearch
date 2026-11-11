@@ -76,7 +76,7 @@ public abstract class Assertion implements ExecutableSection {
     /**
      * a utility to get the class of an object, protecting for null (i.e., returning null if the input is null)
      */
-    protected Class<?> safeClass(Object o) {
+    protected static Class<?> safeClass(Object o) {
         return o == null ? null : o.getClass();
     }
 }

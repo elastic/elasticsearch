@@ -93,7 +93,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                 transportService,
                 TransportSimulateBulkActionTests.this.clusterService,
                 null,
-                new ActionFilters(Set.of()),
+                ActionFilters.EMPTY,
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE,
                 TestProjectResolvers.DEFAULT_PROJECT_ONLY,
@@ -106,8 +106,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         threadPool = new TestThreadPool(getClass().getName());
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("node")
             .version(
@@ -135,11 +134,17 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeServices() throws Exception {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         threadPool = null;
         clusterService.close();
-        super.tearDown();
+    }
+
+    public void testSimulationDoesNotAccountIngestExpansion() {
+        // nothing is indexed by a simulation, so whatever the pipelines add to a document is not retained and must never be rejected
+        try (IndexingPressure.CoordinatingExpansionTracker tracker = bulkAction.trackIngestExpansion(randomBoolean())) {
+            tracker.add(Long.MAX_VALUE / 4);
+        }
     }
 
     public void testIndexData() throws IOException {

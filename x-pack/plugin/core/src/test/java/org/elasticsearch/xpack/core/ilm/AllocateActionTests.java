@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
@@ -175,6 +176,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         Settings.Builder expectedSettings = Settings.builder();
         if (action.getNumberOfReplicas() != null) {
             expectedSettings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, action.getNumberOfReplicas());
+            expectedSettings.putNull(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS);
         }
         action.getInclude()
             .forEach((key, value) -> expectedSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + key, value));
@@ -217,6 +219,46 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         // allow an allocate action that only specifies total shards per node (don't expect any exceptions in this case)
         action = new AllocateAction(null, 5, null, null, null);
         assertThat(action.getTotalShardsPerNode(), is(5));
+    }
+
+    public void testAutoExpandReplicasRemovedWhenReplicasSet() {
+        Integer numberOfReplicas = randomIntBetween(0, 4);
+        AllocateAction action = new AllocateAction(numberOfReplicas, null, null, null, null);
+        Settings actualSettings = allocateActionSettings(action);
+        assertThat(actualSettings.get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS), is(String.valueOf(numberOfReplicas)));
+        assertTrue(
+            "auto_expand_replicas must be present as null to remove it",
+            actualSettings.keySet().contains(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS)
+        );
+        assertNull(actualSettings.get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS));
+    }
+
+    public void testAutoExpandReplicasNotTouchedWhenReplicasNotSet() {
+        AllocateAction action = new AllocateAction(null, 5, null, null, null);
+        Settings actualSettings = allocateActionSettings(action);
+        assertFalse(
+            "auto_expand_replicas must not be included when no replica count is specified",
+            actualSettings.keySet().contains(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS)
+        );
+    }
+
+    private Settings allocateActionSettings(AllocateAction action) {
+        String phase = randomAlphaOfLengthBetween(1, 10);
+        StepKey nextStepKey = new StepKey(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
+        List<Step> steps = action.toSteps(null, phase, nextStepKey);
+        UpdateSettingsStep updateSettingsStep = steps.stream()
+            .filter(s -> s instanceof UpdateSettingsStep)
+            .map(s -> (UpdateSettingsStep) s)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no UpdateSettingsStep found in steps returned by AllocateAction#toSteps"));
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
+            .settings(indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0))
+            .build();
+        return updateSettingsStep.getSettingsSupplier().apply(indexMetadata);
     }
 
 }

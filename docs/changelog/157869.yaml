@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154938
+pr: 157869
+summary: Clamp Parquet window to file length
+type: bug

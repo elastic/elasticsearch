@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 149605
+summary: Expose per-breaker `memory.held.usage` / `memory.limit.size` / `memory.estimated.usage` gauges
+type: enhancement

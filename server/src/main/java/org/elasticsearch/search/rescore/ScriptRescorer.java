@@ -126,6 +126,11 @@ public class ScriptRescorer implements Rescorer {
             return query;
         }
 
+        @Override
+        public String profileDescription() {
+            return query.toString();
+        }
+
         public boolean needsScores() {
             return query.needsScore();
         }

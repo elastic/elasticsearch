@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -103,6 +104,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MIN_SHARD_WRITE_LOAD_THRESHOLD_SETTING;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -220,7 +222,10 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             )
             .build();
 
-        final var settings = Settings.builder().put(WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(), "enabled").build();
+        final var settings = Settings.builder()
+            .put(WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(), "enabled")
+            .put(WRITE_LOAD_DECIDER_HOTSPOT_MIN_SHARD_WRITE_LOAD_THRESHOLD_SETTING.getKey(), -1.0)
+            .build();
         final var routingAllocation = routingAllocationWithDecidersOf(clusterState, clusterInfo, settings);
         final var input = new DesiredBalanceInput(42, routingAllocation, List.of());
         final var computer = createDesiredBalanceComputer(new BalancedShardsAllocator(settings));
@@ -366,7 +371,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         "node-2",
                         0L,
                         "test",
-                        changes
+                        changes,
+                        RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                     );
                 }
                 break;
@@ -418,7 +424,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         "node-0",
                         0L,
                         "test",
-                        changes
+                        changes,
+                        RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                     );
                 }
                 break;
@@ -562,7 +569,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                             nodes.remove(0),
                             0L,
                             "test",
-                            changes
+                            changes,
+                            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                         );
                     }
                     break;
@@ -583,7 +591,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                             nodes.remove(0),
                             0L,
                             "test",
-                            changes
+                            changes,
+                            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                         );
                     }
                     break;
@@ -1484,10 +1493,12 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
                 // move shard on each iteration
                 for (var shard : allocation.routingNodes().node("node-0").shardsWithState(STARTED).toList()) {
-                    allocation.routingNodes().relocateShard(shard, "node-1", 0L, "test", allocation.changes());
+                    allocation.routingNodes()
+                        .relocateShard(shard, "node-1", 0L, "test", allocation.changes(), RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
                 }
                 for (var shard : allocation.routingNodes().node("node-1").shardsWithState(STARTED).toList()) {
-                    allocation.routingNodes().relocateShard(shard, "node-0", 0L, "test", allocation.changes());
+                    allocation.routingNodes()
+                        .relocateShard(shard, "node-0", 0L, "test", allocation.changes(), RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
                 }
             }
 
@@ -1929,7 +1940,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             randomValueOtherThan(shard2PrimaryNodeId, () -> randomFrom(initialState.nodes().getDataNodes().values()).getId()),
             randomLongBetween(100, 999),
             "test",
-            routingChangesObserver
+            routingChangesObserver,
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
         // Add the shard as started on the source node.
         existingStartedShards.add(relocationTuple.v1());
@@ -1953,9 +1965,6 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         {
             DesiredBalanceComputer.maybeSimulateAlreadyStartedShards(clusterInfo, routingNodes, clusterInfoSimulator);
             verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedShard, null);
-            if (routingNodes.node(startedShard.currentNodeId()).numberOfStartedShardsForIndex(startedShard.index()) == 1) {
-                verify(clusterInfoSimulator).simulateAddIndexToNode(startedShard.currentNodeId(), startedShard.index());
-            }
             verifyNoMoreInteractions(clusterInfoSimulator);
         }
 
@@ -1971,35 +1980,121 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             // Simulation should be called for the two new shards
             verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedShard, null);
             verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedRelocatingShard, relocationTuple.v1().currentNodeId());
-            // Internal public methods should also be called, to handle the stats changes due to new or removed indices on nodes.
-            if (startedShard.currentNodeId() == startedRelocatingShard.currentNodeId()) {
-                // The shards were moved to the same node: if the index is new to that node, then there should be a call to simulate adding
-                // the index stats for the node.
-                if (routingNodes.node(startedShard.currentNodeId()).numberOfStartedShardsForIndex(startedShard.index()) == 2) {
-                    verify(clusterInfoSimulator).simulateAddIndexToNode(startedShard.currentNodeId(), startedShard.index());
-                }
-            } else {
-                // Check if the index is new on either node that received a new shard: if either is new, then the index stats should have
-                // been simulated, too.
-                if (routingNodes.node(startedShard.currentNodeId()).numberOfStartedShardsForIndex(startedShard.index()) == 1) {
-                    verify(clusterInfoSimulator).simulateAddIndexToNode(startedShard.currentNodeId(), startedShard.index());
-                }
-                if (routingNodes.node(startedRelocatingShard.currentNodeId())
-                    .numberOfStartedShardsForIndex(startedRelocatingShard.index()) == 1) {
-                    verify(clusterInfoSimulator).simulateAddIndexToNode(
-                        startedRelocatingShard.currentNodeId(),
-                        startedRelocatingShard.index()
-                    );
-                }
-            }
-            if (routingNodes.node(relocationTuple.v1().currentNodeId()).hasIndex(startedRelocatingShard.index()) == false) {
-                verify(clusterInfoSimulator).simulateRemoveIndexFromNode(
-                    relocationTuple.v1().currentNodeId(),
-                    relocationTuple.v1().index()
-                );
-            }
             verifyNoMoreInteractions(clusterInfoSimulator);
         }
+    }
+
+    ///
+    /// [DesiredBalanceComputer#maybeSimulateAlreadyStartedShards] accounts for shard movements that have occurred since the
+    /// [ClusterInfo] was generated.
+    /// Previously we used [ShardRouting#started()] to determine which shards to simulate, which omitted RELOCATING shards.
+    /// Relocating shards are effectively started and should be treated as such for the purpose of this simulation.
+    /// This test ensures that relocating shards are included in the simulation.
+    ///
+    public void testMaybeSimulateAlreadyStartedShardsIncludesRelocating() {
+        final var clusterInfoSimulator = mock(ClusterInfoSimulator.class);
+
+        // 6 data nodes, 3 shards, no replicas. Pinned node assignments (node-0..node-5) keep
+        // the verifications deterministic and avoid conditional handling for node overlap.
+        //
+        // node-0: shard 0 started (in ClusterInfo)
+        // node-1: shard 1 relocating away (not in ClusterInfo)
+        // node-2: shard 1 relocation target (initializing)
+        // node-3: shard 2 original location (in ClusterInfo, shard has since moved away)
+        // node-4: shard 2 current location (relocating a second time, not in ClusterInfo for node-4)
+        // node-5: shard 2 second-relocation target (initializing)
+        final ClusterState initialState = createInitialClusterState(6, 3, 0);
+        final RoutingNodes routingNodes = initialState.mutableRoutingNodes();
+        final IndexRoutingTable indexRoutingTable = initialState.routingTable(ProjectId.DEFAULT).index(TEST_INDEX);
+
+        // Shard 0: start on node-0 and record in ClusterInfo.
+        final ShardRouting startedShard0 = routingNodes.startShard(
+            routingNodes.initializeShard(
+                indexRoutingTable.shard(0).primaryShard(),
+                "node-0",
+                null,
+                randomLongBetween(100, 999),
+                RoutingChangesObserver.NOOP
+            ),
+            RoutingChangesObserver.NOOP,
+            randomLongBetween(100, 999)
+        );
+
+        // Shard 2: start on node-3 and record in ClusterInfo (its original position).
+        final ShardRouting startedShard2OnNode3 = routingNodes.startShard(
+            routingNodes.initializeShard(
+                indexRoutingTable.shard(2).primaryShard(),
+                "node-3",
+                null,
+                randomLongBetween(100, 999),
+                RoutingChangesObserver.NOOP
+            ),
+            RoutingChangesObserver.NOOP,
+            randomLongBetween(100, 999)
+        );
+
+        final ClusterInfo clusterInfo = ClusterInfo.builder()
+            .dataPath(
+                Map.of(
+                    NodeAndShard.from(startedShard0),
+                    "/data/" + randomIdentifier(),
+                    NodeAndShard.from(startedShard2OnNode3),
+                    "/data/" + randomIdentifier()
+                )
+            )
+            .build();
+
+        // Shard 1: start on node-1 and immediately relocate to node-2 — ClusterInfo has no entry for it.
+        final Tuple<ShardRouting, ShardRouting> shard1RelocationTuple = routingNodes.relocateShard(
+            routingNodes.startShard(
+                routingNodes.initializeShard(
+                    indexRoutingTable.shard(1).primaryShard(),
+                    "node-1",
+                    null,
+                    randomLongBetween(100, 999),
+                    RoutingChangesObserver.NOOP
+                ),
+                RoutingChangesObserver.NOOP,
+                randomLongBetween(100, 999)
+            ),
+            "node-2",
+            randomLongBetween(100, 999),
+            "test",
+            RoutingChangesObserver.NOOP,
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+        );
+
+        // Shard 2: complete a first relocation (node-3 → node-4), then begin a second relocation
+        // (node-4 → node-5). ClusterInfo still shows shard 2 on node-3.
+        final Tuple<ShardRouting, ShardRouting> shard2FirstRelocationTuple = routingNodes.relocateShard(
+            startedShard2OnNode3,
+            "node-4",
+            randomLongBetween(100, 999),
+            "test",
+            RoutingChangesObserver.NOOP,
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+        );
+        final ShardRouting startedShard2OnNode4 = routingNodes.startShard(
+            shard2FirstRelocationTuple.v2(),
+            RoutingChangesObserver.NOOP,
+            randomLongBetween(100, 999)
+        );
+        final Tuple<ShardRouting, ShardRouting> shard2SecondRelocationTuple = routingNodes.relocateShard(
+            startedShard2OnNode4,
+            "node-5",
+            randomLongBetween(100, 999),
+            "test",
+            RoutingChangesObserver.NOOP,
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+        );
+
+        DesiredBalanceComputer.maybeSimulateAlreadyStartedShards(clusterInfo, routingNodes, clusterInfoSimulator);
+
+        // Shard 1: RELOCATING from node-1 with no ClusterInfo entry → sourceNodeId is null.
+        verify(clusterInfoSimulator).simulateAlreadyStartedShard(shard1RelocationTuple.v1(), null);
+        // Shard 2: RELOCATING from node-4, but ClusterInfo has it on node-3 (stale) → sourceNodeId is node-3.
+        verify(clusterInfoSimulator).simulateAlreadyStartedShard(shard2SecondRelocationTuple.v1(), "node-3");
+        verifyNoMoreInteractions(clusterInfoSimulator);
     }
 
     private static ShardRouting findShard(ClusterState clusterState, String name, boolean primary) {

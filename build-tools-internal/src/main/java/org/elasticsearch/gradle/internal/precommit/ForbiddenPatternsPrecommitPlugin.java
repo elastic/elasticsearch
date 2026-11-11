@@ -45,7 +45,7 @@ public class ForbiddenPatternsPrecommitPlugin extends PrecommitPlugin {
                     .map(sourceSet -> sourceSet.getProcessResourcesTaskName())
                     .collect(Collectors.toList())
             );
-            forbiddenPatternsTask.getRootDir().set(project.getRootDir());
+            forbiddenPatternsTask.getRootDir().set(project.getLayout().getSettingsDirectory().getAsFile());
         });
     }
 }

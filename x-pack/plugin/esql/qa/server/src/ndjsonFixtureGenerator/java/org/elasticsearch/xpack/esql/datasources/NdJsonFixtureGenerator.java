@@ -40,7 +40,9 @@ import java.util.Locale;
  *   <li>One JSON object per data row, with property names equal to column names (including dotted names such as
  *       {@code languages.long}).</li>
  *   <li>Properties with {@code null} values are omitted (including empty multi-value cells parsed as {@code null}).</li>
- *   <li>Keyword-like values are trimmed; if the result is empty, the property is omitted.</li>
+ *   <li>A present string value is written verbatim, including the empty string ({@code "name":""}), so a
+ *       present-but-empty string column round-trips as {@code ""} rather than a missing (null) property, matching
+ *       {@code CsvFormatReader}.</li>
  *   <li>Multi-value cells (lists from bracket syntax) are written as JSON arrays only when at least one element
  *       produces a concrete JSON value; elements that would encode as JSON {@code null} are skipped. If no elements
  *       remain, the property is omitted (never {@code []}), matching {@code NdJsonPageDecoder} which cannot close an
@@ -173,10 +175,10 @@ public final class NdJsonFixtureGenerator {
     }
 
     private static void writeStringField(XContentBuilder b, String name, Object v) throws IOException {
-        String s = ((String) v).trim();
-        if (s.isEmpty() == false) {
-            b.field(name, s);
-        }
+        // A present string value is written verbatim, including the empty string: genuinely-null cells
+        // are omitted earlier in writeColumn, so reaching here means the source cell held a value. This
+        // mirrors CsvFormatReader, where a present-but-empty string column reads as "" rather than null.
+        b.field(name, (String) v);
     }
 
     /**

@@ -9,11 +9,13 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -56,14 +58,14 @@ public class RenameProcessorTests extends ESTestCase {
 
         Processor processor = createRenameProcessor("list.0", "item", false, false);
         processor.execute(ingestDocument);
-        Object actualObject = ingestDocument.getSourceAndMetadata().get("list");
+        Object actualObject = ingestDocument.getSource().get("list");
         assertThat(actualObject, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<String> actualList = (List<String>) actualObject;
         assertThat(actualList.size(), equalTo(2));
         assertThat(actualList.get(0), equalTo("item2"));
         assertThat(actualList.get(1), equalTo("item3"));
-        actualObject = ingestDocument.getSourceAndMetadata().get("item");
+        actualObject = ingestDocument.getSource().get("item");
         assertThat(actualObject, instanceOf(String.class));
         assertThat(actualObject, equalTo("item1"));
 
@@ -155,8 +157,8 @@ public class RenameProcessorTests extends ESTestCase {
                         + "but was [foobar] with type [java.lang.String]"
                 )
             );
-            assertThat(ingestDocument.getSourceAndMetadata().containsKey("_index"), equalTo(true));
-            assertThat(ingestDocument.getSourceAndMetadata().containsKey("_version_type"), equalTo(false));
+            assertThat(ingestDocument.getMetadata().containsKey("_index"), equalTo(true));
+            assertThat(ingestDocument.getMetadata().containsKey("_version_type"), equalTo(false));
         }
     }
 
@@ -172,8 +174,8 @@ public class RenameProcessorTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
             // the remove failed, the old field has not been removed
             assertThat(e.getMessage(), equalTo("_version cannot be removed"));
-            assertThat(ingestDocument.getSourceAndMetadata().containsKey("_version"), equalTo(true));
-            assertThat(ingestDocument.getSourceAndMetadata().containsKey("new_field"), equalTo(false));
+            assertThat(ingestDocument.getMetadata().containsKey("_version"), equalTo(true));
+            assertThat(ingestDocument.getSource().containsKey("new_field"), equalTo(false));
         }
     }
 
@@ -206,6 +208,91 @@ public class RenameProcessorTests extends ESTestCase {
         Processor processor1 = createRenameProcessor("message", "event.original", false, true);
         processor1.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("event.original", String.class), equalTo("new_message"));
+    }
+
+    /**
+     * An empty field is treated as one that is missing rather than as an invalid path. That matters for a template that renders as
+     * nothing when the document doesn't have something that it refers to, combined with ignore_missing: the processor does nothing if
+     * ignore_missing is set, and otherwise it fails because the field doesn't exist. A field that is empty for every document is
+     * treated the same way. This is the same for the kv, rename and remove processors.
+     */
+    public void testEmptyFieldIsTreatedAsMissing() throws Exception {
+        TemplateScript.Factory constantEmpty = ConfigurationUtils.compileTemplate(
+            RenameProcessor.TYPE,
+            "tag",
+            "field",
+            "",
+            TestTemplateService.instance()
+        );
+        // a constant template, which is empty for every document, and one that really is rendered for every document
+        for (TemplateScript.Factory emptyField : List.of(constantEmpty, new TestTemplateService.MockTemplateScript.Factory(""))) {
+            TemplateScript.Factory target = new TestTemplateService.MockTemplateScript.Factory("target");
+
+            IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+            ingestDocument.setFieldValue("foo", "bar");
+            new RenameProcessor("tag", null, emptyField, target, true, false).execute(ingestDocument);
+            assertThat(ingestDocument.getSource(), equalTo(Map.of("foo", "bar")));
+
+            RenameProcessor notIgnoringMissing = new RenameProcessor("tag", null, emptyField, target, false, false);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> notIgnoringMissing.execute(ingestDocument));
+            assertThat(e.getMessage(), equalTo("field [] doesn't exist"));
+        }
+    }
+
+    /**
+     * Unlike an empty field, an empty target field is not treated as a missing one, so it is an error whether or not ignore_missing is
+     * set (which is only about the field that is being renamed). It is reported before the field that is being renamed is removed, so
+     * that the document is left as it was.
+     */
+    public void testEmptyTargetFieldIsInvalid() throws Exception {
+        TemplateScript.Factory constantEmpty = ConfigurationUtils.compileTemplate(
+            RenameProcessor.TYPE,
+            "tag",
+            "target_field",
+            "",
+            TestTemplateService.instance()
+        );
+        // a constant template, which is empty for every document, and one that really is rendered for every document
+        for (TemplateScript.Factory emptyTarget : List.of(constantEmpty, new TestTemplateService.MockTemplateScript.Factory(""))) {
+            for (boolean ignoreMissing : new boolean[] { true, false }) {
+                IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+                ingestDocument.setFieldValue("foo", "bar");
+                RenameProcessor processor = new RenameProcessor(
+                    "tag",
+                    null,
+                    new TestTemplateService.MockTemplateScript.Factory("foo"),
+                    emptyTarget,
+                    ignoreMissing,
+                    randomBoolean()
+                );
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+                assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
+                assertThat(ingestDocument.getSource(), equalTo(Map.of("foo", "bar")));
+            }
+        }
+    }
+
+    /**
+     * A target field that can't be used is reported before the field that is being renamed is removed, so that field is not lost. That
+     * matters most for an element of an array: removing it shifts the elements after it down, so (unlike for a field of an object)
+     * putting the value back where it came from is not the same as never having removed it.
+     */
+    public void testMalformedTargetFieldDoesNotLoseTheField() throws Exception {
+        // a field of an object
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        ingestDocument.setFieldValue("foo", "bar");
+        Processor processor = createRenameProcessor("foo", "a..b", false, randomBoolean());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
+        assertThat(ingestDocument.getSource(), equalTo(Map.of("foo", "bar")));
+
+        // an element of an array
+        IngestDocument arrayDocument = TestIngestDocument.emptyIngestDocument();
+        arrayDocument.setFieldValue("list", new ArrayList<>(List.of("item1", "item2", "item3")));
+        Processor arrayProcessor = createRenameProcessor("list.0", "a..b", false, randomBoolean());
+        e = expectThrows(IllegalArgumentException.class, () -> arrayProcessor.execute(arrayDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
+        assertThat(arrayDocument.getFieldValue("list", List.class), equalTo(List.of("item1", "item2", "item3")));
     }
 
     private RenameProcessor createRenameProcessor(String field, String targetField, boolean ignoreMissing, boolean overrideEnabled) {

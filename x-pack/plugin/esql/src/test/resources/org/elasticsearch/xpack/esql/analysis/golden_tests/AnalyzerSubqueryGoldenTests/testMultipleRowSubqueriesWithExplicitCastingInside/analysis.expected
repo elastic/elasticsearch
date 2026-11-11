@@ -1,0 +1,7 @@
+Limit[1000[INTEGER],false,false]
+\_BranchPlan[[unnamed_view_1=SUBQUERY, unnamed_view_2=SUBQUERY, unnamed_view_3=SUBQUERY]]
+  |_Eval[[TO_INTEGER(x{r}#0) AS x#1]]
+  | \_Row[[1[KEYWORD] AS x#0]]
+  |_Eval[[TO_INTEGER(x{r}#2) AS x#3]]
+  | \_Row[[1.5[DOUBLE] AS x#2]]
+  \_Row[[3[INTEGER] AS x#4]]

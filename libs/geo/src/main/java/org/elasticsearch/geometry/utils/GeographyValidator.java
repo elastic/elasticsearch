@@ -24,7 +24,9 @@ import org.elasticsearch.geometry.Rectangle;
 
 /**
  * Validator that checks that lats are between -90 and +90 and lons are between -180 and +180 and altitude is present only if
- * ignoreZValue is set to true
+ * ignoreZValue is set to true. It also validates a rectangle/envelope's y-ordinates (maxY cannot be less than minY),
+ * but deliberately does not validate x-ordinate ordering: unlike {@link CartesianValidator}, a geographic envelope may
+ * legitimately have minX greater than maxX, to represent one that crosses the antimeridian.
  */
 public class GeographyValidator implements GeometryValidator {
 
@@ -88,6 +90,17 @@ public class GeographyValidator implements GeometryValidator {
             throw new IllegalArgumentException("found Z value [" + zValue + "] but [ignore_z_value] parameter is [" + ignoreZValue + "]");
         }
     }
+
+    @Override
+    public void validateCoordinate(double x, double y, double z) {
+        checkLongitude(x);
+        checkLatitude(y);
+        checkAltitude(z);
+    }
+
+    // validateBBox is intentionally not overridden here: the default implementation (maxY >= minY only,
+    // no x-ordinate check) is exactly the geographic policy, since minX may exceed maxX for an
+    // antimeridian-crossing envelope.
 
     @Override
     public void validate(Geometry geometry) {
@@ -169,6 +182,7 @@ public class GeographyValidator implements GeometryValidator {
                 checkLongitude(rectangle.getMaxX());
                 checkAltitude(rectangle.getMinZ());
                 checkAltitude(rectangle.getMaxZ());
+                validateBBox(rectangle.getMinX(), rectangle.getMaxX(), rectangle.getMaxY(), rectangle.getMinY());
                 return null;
             }
         });

@@ -13,6 +13,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 public class MulSerializationTests extends AbstractArithmeticSerializationTests<Mul> {
     @Override
     protected Mul create(Source source, Expression left, Expression right) {
-        return new Mul(source, left, right);
+        return new Mul(source, left, right, randomBoolean());
     }
 }

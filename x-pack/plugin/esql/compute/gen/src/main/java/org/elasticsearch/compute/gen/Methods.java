@@ -238,6 +238,9 @@ public class Methods {
         if (t.equals(Types.LONG_RANGE) || t.equals(Types.LONG_RANGE_BLOCK)) {
             return "appendLongRange";
         }
+        if (t.equals(Types.DOUBLE_RANGE) || t.equals(Types.DOUBLE_RANGE_BLOCK)) {
+            return "appendDoubleRange";
+        }
         throw new IllegalArgumentException("unknown append method for [" + t + "]");
     }
 
@@ -306,6 +309,9 @@ public class Methods {
         if (t.equals(LONG_RANGE_BLOCK_BUILDER)) {
             return "newLongRangeBlockBuilder";
         }
+        if (t.equals(Types.DOUBLE_RANGE_BLOCK_BUILDER)) {
+            return "newDoubleRangeBlockBuilder";
+        }
         throw new IllegalArgumentException("unknown build method for [" + t + "]");
     }
 
@@ -340,6 +346,9 @@ public class Methods {
         }
         if (elementType.equals(Types.LONG_RANGE)) {
             return "getLongRange";
+        }
+        if (elementType.equals(Types.DOUBLE_RANGE)) {
+            return "getDoubleRange";
         }
         throw new IllegalArgumentException("unknown get method for [" + elementType + "]");
     }

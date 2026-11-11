@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.s3;
 
+import fixture.aws.AwsCredentialsUtils;
 import fixture.aws.DynamicRegionSupplier;
 import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
@@ -37,35 +38,64 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
+import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3RestTestCase {
 
     private static final String PREFIX = getIdentifierPrefix("RepositoryS3ContentIntegrityRestIT");
-    private static final String BUCKET = PREFIX + "bucket";
-    private static final String BASE_PATH = PREFIX + "base_path";
     private static final String ACCESS_KEY = PREFIX + "access-key";
     private static final String SECRET_KEY = PREFIX + "secret-key";
 
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
+    private static final Supplier<String> bucketSupplier = testClassIdentifierSupplier("bucket");
+    private static final Supplier<String> basePathSupplier = testClassIdentifierSupplier("base_path");
 
     private static final TestTlsCertificate testTlsCertificate = TestTlsCertificate.generate("localhost");
 
     private static final TestTrustStore trustStore = new TestTrustStore(testTlsCertificate::getPemCertificateStream);
+
+    private static final List<TestConfig> TEST_CONFIGS;
+
+    static {
+        final var testConfigs = new ArrayList<TestConfig>();
+        for (final boolean https : new boolean[] { false, true }) {
+            for (final boolean chunkedEncoding : new boolean[] { false, true }) {
+                for (final boolean alwaysSignRequests : new boolean[] { false, true }) {
+                    for (final boolean legacyContentMd5 : new boolean[] { false, true }) {
+                        testConfigs.add(new TestConfig(https, chunkedEncoding, alwaysSignRequests, legacyContentMd5));
+                    }
+                }
+            }
+        }
+        TEST_CONFIGS = List.copyOf(testConfigs);
+    }
 
     private static final class ContentIntegrityS3HttpFixture extends S3HttpFixture {
         ContentIntegrityS3HttpFixture(TestTlsCertificate tlsCertificate) {
             super(
                 true,
                 tlsCertificate,
-                BUCKET,
-                BASE_PATH,
+                bucketSupplier,
+                basePathSupplier,
                 S3ConsistencyModel::randomConsistencyModel,
-                fixedAccessKey(ACCESS_KEY, regionSupplier, "s3")
+                (authorizationHeader, sessionTokenHeader) -> authorizationHeader != null
+                    && TEST_CONFIGS.stream()
+                        .anyMatch(
+                            testConfig -> AwsCredentialsUtils.isValidAwsV4SignedAuthorizationHeader(
+                                testConfig.getAccessKey(),
+                                regionSupplier.get(),
+                                "s3",
+                                authorizationHeader
+                            )
+                        )
             );
         }
 
@@ -75,17 +105,43 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
             final var delegate = asInstanceOf(S3HttpHandler.class, super.createHandler());
             return exchange -> {
                 final var request = delegate.parseRequest(exchange);
+                final var testConfig = TestConfig.fromAuthorizationHeader(exchange.getRequestHeaders().getFirst("Authorization"));
+                final var contentSha256Header = exchange.getRequestHeaders().getFirst(S3HttpHandler.CONTENT_SHA256_HEADER);
                 if ((request.isUploadPartRequest() || request.isPutObjectRequest())
                     && Optional.ofNullable(exchange.getRequestHeaders().get(S3HttpHandler.COPY_SOURCE_HEADER))
                         .orElse(List.of())
                         .isEmpty()) {
                     assertThat(
-                        exchange.getRequestHeaders().getFirst(S3HttpHandler.CONTENT_SHA256_HEADER),
-                        anyOf(
-                            matchesPattern(S3HttpHandler.SHA256_PATTERN),
-                            equalTo(TestConfig.fromPath(request.path()).getExpectedContentSha256Header())
+                        contentSha256Header,
+                        anyOf(matchesPattern(S3HttpHandler.SHA256_PATTERN), equalTo(testConfig.getExpectedUploadContentSha256Header()))
+                    );
+                }
+                if (testConfig.alwaysSignRequests) {
+                    assertThat(
+                        contentSha256Header,
+                        allOf(
+                            anyOf(
+                                // We either have a SHA256 hash of the body, covered by the request signature, ...
+                                matchesPattern(S3HttpHandler.SHA256_PATTERN),
+                                // ... or there's a properly-signed footer
+                                equalTo("STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER")
+                            ),
+
+                            // Redundant check given the above condition but this is the thing that the S3 docs tell users to forbid:
+                            // https://docs.aws.amazon.com/AmazonS3/latest/developerguide/bucket-policy-s3-sigv4-conditions.html
+                            not("UNSIGNED-PAYLOAD"),
+
+                            // Other possibilities that can also imply an unsigned body, even if not excluded by the suggested condition:
+                            not(nullValue()),
+                            not("STREAMING-UNSIGNED-PAYLOAD-TRAILER")
                         )
                     );
+                }
+                final var contentMd5Header = exchange.getRequestHeaders().getFirst("Content-MD5");
+                if (request.isMultiObjectDeleteRequest() && testConfig.legacyContentMd5) {
+                    assertThat(contentMd5Header, notNullValue());
+                } else {
+                    assertThat(contentMd5Header, nullValue());
                 }
                 delegate.handle(exchange);
             };
@@ -95,18 +151,6 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
     private static final S3HttpFixture httpS3Fixture = new ContentIntegrityS3HttpFixture(null);
 
     private static final S3HttpFixture httpsS3Fixture = new ContentIntegrityS3HttpFixture(testTlsCertificate);
-
-    private static final List<TestConfig> TEST_CONFIGS;
-
-    static {
-        final var testConfigs = new ArrayList<TestConfig>();
-        for (final boolean https : new boolean[] { false, true }) {
-            for (final boolean chunkedEncoding : new boolean[] { false, true }) {
-                testConfigs.add(new TestConfig(https, chunkedEncoding));
-            }
-        }
-        TEST_CONFIGS = List.copyOf(testConfigs);
-    }
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
@@ -140,7 +184,7 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
 
     @Override
     protected String getBucketName() {
-        return BUCKET;
+        return bucketSupplier.get();
     }
 
     @Override
@@ -160,44 +204,54 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
 
     /// Test suite is parametric in this config.
     public static final class TestConfig {
-        private static final String DISABLE_CHUNKED_ENCODING = "disable_chunked_encoding";
-
         private final boolean https;
         private final boolean chunkedEncoding;
+        private final boolean alwaysSignRequests;
+        private final boolean legacyContentMd5;
 
-        TestConfig(boolean https, boolean chunkedEncoding) {
+        TestConfig(boolean https, boolean chunkedEncoding, boolean alwaysSignRequests, boolean legacyContentMd5) {
             this.https = https;
             this.chunkedEncoding = chunkedEncoding;
+            this.alwaysSignRequests = alwaysSignRequests;
+            this.legacyContentMd5 = legacyContentMd5;
         }
 
         @Override
         public String toString() {
-            return Strings.format("{scheme=%s,chunkedEncoding=%s}", https ? "https" : "http", chunkedEncoding);
+            return Strings.format(
+                "{scheme=%s,chunkedEncoding=%s,alwaysSignRequests=%s,legacyContentMd5=%s}",
+                https ? "https" : "http",
+                chunkedEncoding,
+                alwaysSignRequests,
+                legacyContentMd5
+            );
         }
 
         Settings getRepositorySettings() {
             final var builder = Settings.builder();
-            if (chunkedEncoding) {
-                if (randomBoolean()) {
-                    builder.put(DISABLE_CHUNKED_ENCODING, false);
-                } else {
-                    builder.putNull(DISABLE_CHUNKED_ENCODING);
-                }
-            } else {
-                builder.put(DISABLE_CHUNKED_ENCODING, true);
-            }
+            addBooleanSettingDefaultFalse(builder, "disable_chunked_encoding", chunkedEncoding == false);
+            addBooleanSettingDefaultFalse(builder, "always_sign_requests", alwaysSignRequests);
+            addBooleanSettingDefaultFalse(builder, "legacy_content_md5", legacyContentMd5);
             return builder.build();
         }
 
-        String getExpectedContentSha256Header() {
-            return https
+        private void addBooleanSettingDefaultFalse(Settings.Builder builder, String key, boolean value) {
+            if (value == false && randomBoolean()) {
+                builder.putNull(key);
+            } else {
+                builder.put(key, value);
+            }
+        }
+
+        String getExpectedUploadContentSha256Header() {
+            return (https && alwaysSignRequests == false)
                 ? (chunkedEncoding ? "STREAMING-UNSIGNED-PAYLOAD-TRAILER" : "UNSIGNED-PAYLOAD")
                 : (chunkedEncoding ? "STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER" : "STREAMING-AWS4-HMAC-SHA256-PAYLOAD");
         }
 
         void applyClientSettings(LocalClusterSpecBuilder<?> builder) {
             final String client = getClientName();
-            builder.keystore("s3.client." + client + ".access_key", ACCESS_KEY);
+            builder.keystore("s3.client." + client + ".access_key", getAccessKey());
             builder.keystore("s3.client." + client + ".secret_key", SECRET_KEY);
             builder.setting("s3.client." + client + ".endpoint", getS3Fixture()::getAddress);
             builder.setting("s3.client." + client + ".path_style_access", () -> "true", n -> https || randomBoolean());
@@ -208,20 +262,49 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         }
 
         String getClientName() {
-            return "content_integrity_client_" + (https ? "https" : "http") + "_chunked_encoding_" + chunkedEncoding;
+            return "content_integrity_client_"
+                + (https ? "https" : "http")
+                + "_chunked_encoding_"
+                + chunkedEncoding
+                + "_always_sign_requests_"
+                + alwaysSignRequests
+                + "_legacy_content_md5_"
+                + legacyContentMd5;
         }
 
         String getRepositoryBasePath() {
-            return BASE_PATH + "/" + (https ? "https" : "http") + "_chunked_encoding_" + chunkedEncoding;
+            return basePathSupplier.get()
+                + "/"
+                + (https ? "https" : "http")
+                + "_chunked_encoding_"
+                + chunkedEncoding
+                + "_always_sign_requests_"
+                + alwaysSignRequests
+                + "_legacy_content_md5_"
+                + legacyContentMd5;
         }
 
-        static TestConfig fromPath(String path) {
-            for (final var testConfig : TEST_CONFIGS) {
-                if (path.contains(testConfig.getRepositoryBasePath())) {
-                    return testConfig;
+        String getAccessKey() {
+            return ACCESS_KEY
+                + "-"
+                + (https ? "https" : "http")
+                + "-"
+                + chunkedEncoding
+                + "-"
+                + alwaysSignRequests
+                + "-"
+                + legacyContentMd5;
+        }
+
+        static TestConfig fromAuthorizationHeader(String authorizationHeader) {
+            if (authorizationHeader != null) {
+                for (final var testConfig : TEST_CONFIGS) {
+                    if (authorizationHeader.contains(testConfig.getAccessKey())) {
+                        return testConfig;
+                    }
                 }
             }
-            throw new AssertionError("no case matches request URI [" + path + "]");
+            throw new AssertionError("no case matches authorization header [" + authorizationHeader + "]");
         }
     }
 }

@@ -26,7 +26,7 @@ public class GetServiceAccountResponse extends ActionResponse implements ToXCont
     }
 
     public GetServiceAccountResponse(StreamInput in) throws IOException {
-        this.serviceAccountInfos = in.readArray(ServiceAccountInfo::new, ServiceAccountInfo[]::new);
+        this.serviceAccountInfos = in.readArray(ServiceAccountInfo::readFrom, ServiceAccountInfo[]::new);
     }
 
     public ServiceAccountInfo[] getServiceAccountInfos() {

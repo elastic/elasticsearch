@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.monitoring.exporter.ExportException;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -35,6 +37,11 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * methods are not synchronized.
  */
 public class LocalBulk extends ExportBulk {
+
+    /**
+     * The number of document-level exceptions to unconditionally log in the event of a bulk request failure.
+     */
+    private static final int MAX_EXCEPTIONS_TO_LOG = 10;
 
     private final Logger logger;
     private final Client client;
@@ -129,13 +136,38 @@ public class LocalBulk extends ExportBulk {
             .forEach(exception::addExportException);
 
         if (exception.hasExportExceptions()) {
-            for (ExportException e : exception) {
-                logger.warn("unexpected error while indexing monitoring document", e);
-            }
+            logLimitedExceptionSummary(exception);
             listener.onFailure(exception);
         } else {
             listener.onResponse(null);
         }
     }
 
+    /**
+     * Log the first {@link #MAX_EXCEPTIONS_TO_LOG} exceptions, and any unique ones after that
+     * <p>
+     * We log the first {@link #MAX_EXCEPTIONS_TO_LOG} exceptions unconditionally just in case
+     * our uniqueness heuristic has some blind spots (e.g., if they are all wrapped by some
+     * wrapper exception that {@link ExceptionsHelper#unwrapCause(Throwable)} is not aware of).
+     *
+     * @param exception The {@link ExportException} containing the doc-level exceptions
+     */
+    private void logLimitedExceptionSummary(ExportException exception) {
+        final var loggedCauses = new HashSet<>();
+        int skippedCount = 0;
+        int loggedCount = 0;
+
+        for (ExportException e : exception) {
+            final var unwrappedCause = ExceptionsHelper.unwrapCause(e.getCause());
+            if (loggedCauses.add(unwrappedCause.getClass()) || loggedCount < MAX_EXCEPTIONS_TO_LOG) {
+                logger.warn("unexpected error while indexing monitoring document", e);
+                loggedCount++;
+            } else {
+                skippedCount++;
+            }
+        }
+        if (skippedCount > 0) {
+            logger.warn("{} exceptions occurred, skipped logging {} of them", skippedCount + loggedCount, skippedCount);
+        }
+    }
 }

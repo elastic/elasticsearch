@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -101,16 +101,6 @@ public class NativePrivilegeStore {
         Setting.Property.NodeScope
     );
 
-    /**
-     * Determines how long get privileges calls will wait for an available security index.
-     * The default value of 0 bypasses all waiting-related logic entirely.
-     */
-    private static final TimeValue SECURITY_INDEX_WAIT_TIMEOUT = TimeValue.parseTimeValue(
-        System.getProperty("es.security.security_index.wait_timeout", null),
-        TimeValue.ZERO,
-        "system property <es.security.security_index.wait_timeout>"
-    );
-
     private static final Collector<Tuple<String, String>, ?, Map<String, List<String>>> TUPLES_TO_MAP = Collectors.toMap(
         Tuple::v1,
         t -> CollectionUtils.newSingletonArrayList(t.v2()),
@@ -156,9 +146,7 @@ public class NativePrivilegeStore {
         Collection<String> names,
         ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
     ) {
-        // timeout of 0 means skip wait attempt entirely
-        final boolean waitForAvailableSecurityIndex = false == SECURITY_INDEX_WAIT_TIMEOUT.equals(TimeValue.ZERO);
-        getPrivileges(applications, names, waitForAvailableSecurityIndex, listener);
+        getPrivileges(applications, names, true, listener);
     }
 
     public void getPrivileges(
@@ -225,58 +213,56 @@ public class NativePrivilegeStore {
         if (projectSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
         } else if (projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            final ElasticsearchException unavailableReason = projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS);
-            if (false == waitForAvailableSecurityIndex || false == unavailableReason instanceof UnavailableShardsException) {
-                listener.onFailure(unavailableReason);
+            if (false == waitForAvailableSecurityIndex) {
+                listener.onFailure(projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
                 return;
             }
-            projectSecurityIndex.onIndexAvailableForSearch(new ActionListener<>() {
-                @Override
-                public void onResponse(Void unused) {
-                    innerGetPrivileges(applications, false, listener);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.warn("Failure while waiting for security index [" + projectSecurityIndex.getConcreteIndexName() + "]", e);
-                    // Call get privileges once more to get most up-to-date failure (or result, in case of an unlucky time-out)
-                    innerGetPrivileges(applications, false, listener);
-                }
-            }, SECURITY_INDEX_WAIT_TIMEOUT);
+            securityIndexManager.tryAwaitIndexAvailableForSearch(
+                ActionListener.wrap(
+                    latest -> latest.checkIndexVersionThenExecute(listener::onFailure, () -> searchPrivileges(applications, listener)),
+                    e -> {
+                        if (e instanceof IndexNotFoundException) {
+                            listener.onResponse(Collections.emptyList());
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    }
+                )
+            );
         } else {
-            projectSecurityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                final TermQueryBuilder typeQuery = QueryBuilders.termQuery(
-                    ApplicationPrivilegeDescriptor.Fields.TYPE.getPreferredName(),
-                    DOC_TYPE_VALUE
-                );
-                final Tuple<QueryBuilder, Predicate<String>> applicationNameQueryAndPredicate = getApplicationNameQueryAndPredicate(
-                    applications
-                );
+            projectSecurityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> searchPrivileges(applications, listener));
+        }
+    }
 
-                final QueryBuilder query;
-                if (applicationNameQueryAndPredicate.v1() != null) {
-                    query = QueryBuilders.boolQuery().filter(typeQuery).filter(applicationNameQueryAndPredicate.v1());
-                } else {
-                    query = QueryBuilders.boolQuery().filter(typeQuery);
-                }
+    private void searchPrivileges(Collection<String> applications, ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
+        final TermQueryBuilder typeQuery = QueryBuilders.termQuery(
+            ApplicationPrivilegeDescriptor.Fields.TYPE.getPreferredName(),
+            DOC_TYPE_VALUE
+        );
+        final Tuple<QueryBuilder, Predicate<String>> applicationNameQueryAndPredicate = getApplicationNameQueryAndPredicate(applications);
 
-                final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
-                try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
-                    SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
-                        .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
-                        .setQuery(query)
-                        .setSize(1000)
-                        .setFetchSource(true)
-                        .request();
-                    logger.trace(() -> format("Searching for [%s] privileges with query [%s]", applications, Strings.toString(query)));
-                    ScrollHelper.fetchAllByEntity(
-                        client,
-                        request,
-                        new ContextPreservingActionListener<>(supplier, listener),
-                        hit -> buildPrivilege(hit.getId(), hit.getSourceRef(), applicationNameQueryAndPredicate.v2())
-                    );
-                }
-            });
+        final QueryBuilder query;
+        if (applicationNameQueryAndPredicate.v1() != null) {
+            query = QueryBuilders.boolQuery().filter(typeQuery).filter(applicationNameQueryAndPredicate.v1());
+        } else {
+            query = QueryBuilders.boolQuery().filter(typeQuery);
+        }
+
+        final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
+            SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
+                .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
+                .setQuery(query)
+                .setSize(1000)
+                .setFetchSource(true)
+                .request();
+            logger.trace(() -> format("Searching for [%s] privileges with query [%s]", applications, Strings.toString(query)));
+            ScrollHelper.fetchAllByEntity(
+                client,
+                request,
+                new ContextPreservingActionListener<>(supplier, listener),
+                hit -> buildPrivilege(hit.getId(), hit.getSourceRef(), applicationNameQueryAndPredicate.v2())
+            );
         }
     }
 

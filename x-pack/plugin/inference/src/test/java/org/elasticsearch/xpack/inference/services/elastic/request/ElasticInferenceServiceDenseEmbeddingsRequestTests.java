@@ -7,18 +7,19 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.inference.InferenceRequestMetadata;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InferenceStringGroupTests;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.telemetry.InferenceProductContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUsageContext;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -26,15 +27,15 @@ import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_ORIGIN;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_USE_CASE;
 import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequestTests.randomElasticInferenceServiceRequestMetadata;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -88,11 +89,10 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
         var request = createRequest(taskType, input, inputType);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
+        var requestMap = entityAsMap(httpPost.getBodyText());
 
         if (inputType == InputType.UNSPECIFIED) {
             assertThat(requestMap.size(), is(2));
@@ -139,11 +139,10 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
         var request = createRequest(taskType, inputs, InputType.SEARCH);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap.size(), is(3));
         if (taskType == TEXT_EMBEDDING) {
             assertThat(request.getURI().getPath(), endsWith(TEST_TEXT_DENSE_PATH_SUFFIX));
@@ -162,8 +161,7 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
         var request = createRequest(randomFrom(TEXT_EMBEDDING, EMBEDDING), input, InputType.UNSPECIFIED);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
         var traceParent = request.getTraceContext().traceParent();
         var traceState = request.getTraceContext().traceState();
@@ -203,24 +201,29 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
                 ),
                 List.of(input),
                 new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-                new ElasticInferenceServiceRequestMetadata(
-                    new InferenceProductContext(TEST_PRODUCT_USE_CASE, TEST_PRODUCT_ORIGIN),
-                    TEST_ES_VERSION
-                ),
+                capturedMetadata(),
                 inputType,
+                null,
                 CCMAuthenticationApplierFactory.NOOP_APPLIER
             );
 
             var httpRequest = RequestTests.getHttpRequestSync(request);
 
-            assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-            var httpPost = (HttpPost) httpRequest.httpRequestBase();
+            var httpPost = httpRequest.httpRequest();
 
-            var headers = httpPost.getHeaders(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+            var headers = httpPost.getHeaders(PRODUCT_USE_CASE.httpHeader());
             assertThat(headers.length, is(2));
-            assertThat(headers[0].getValue(), is(inputType.toString()));
+            assertThat(headers[0].getValue(), is(ElasticInferenceServiceUsageContext.fromInputType(inputType).productUseCaseHeaderValue()));
             assertThat(headers[1].getValue(), is(TEST_PRODUCT_USE_CASE));
+            assertThat(httpPost.getHeaders(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER).length, is(1));
         }
+    }
+
+    private static ElasticInferenceServiceRequestMetadata capturedMetadata() {
+        var threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader(PRODUCT_USE_CASE.httpHeader(), TEST_PRODUCT_USE_CASE);
+        threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, TEST_PRODUCT_ORIGIN);
+        return ElasticInferenceServiceRequest.extractRequestMetadataFromThreadContext(threadContext);
     }
 
     public void testDecorate_HttpRequest_WithAuthorizationHeader() {
@@ -236,17 +239,20 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
                 List.of(input),
                 new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
                 new ElasticInferenceServiceRequestMetadata(
-                    new InferenceProductContext(TEST_PRODUCT_USE_CASE, TEST_PRODUCT_ORIGIN),
+                    InferenceRequestMetadata.builder()
+                        .put(PRODUCT_USE_CASE, TEST_PRODUCT_USE_CASE)
+                        .put(PRODUCT_ORIGIN, TEST_PRODUCT_ORIGIN)
+                        .build(),
                     TEST_ES_VERSION
                 ),
                 inputType,
+                null,
                 new CCMAuthenticationApplierFactory.AuthenticationHeaderApplier(new SecureString(TEST_SECRET.toCharArray()))
             );
 
             var httpRequest = RequestTests.getHttpRequestSync(request);
 
-            assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-            var httpPost = (HttpPost) httpRequest.httpRequestBase();
+            var httpPost = httpRequest.httpRequest();
 
             var headers = httpPost.getHeaders(HttpHeaders.AUTHORIZATION);
             assertThat(headers.length, is(1));
@@ -267,6 +273,7 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
             new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
             randomElasticInferenceServiceRequestMetadata(),
             inputType,
+            null,
             CCMAuthenticationApplierFactory.NOOP_APPLIER
         );
     }

@@ -1,0 +1,401 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.escf;
+
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.simdjson.JsonDocumentParser;
+import org.elasticsearch.simdjson.SimdJsonParserPool;
+import org.elasticsearch.sourcebatch.LeafSink;
+import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
+import org.elasticsearch.sourcebatch.SourceValueType;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentString;
+import org.elasticsearch.xcontent.XContentType;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * Unit tests for {@link EscfDocumentHandler} routing and KEY_VALUE integration.
+ * Wire-format correctness for KV blobs is covered by {@link org.elasticsearch.sourcebatch.KeyValueWriterTests}.
+ */
+public class EscfDocumentHandlerTests extends ESTestCase {
+
+    private static byte[] expectedObjectKv(String objectJson) throws IOException {
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY,
+                new BytesArray(objectJson),
+                XContentType.JSON
+            )
+        ) {
+            parser.nextToken();
+            return SourceBatchEncodeHelper.serializeKeyValue(parser);
+        }
+    }
+
+    private static byte[] encodeItemsArrayViaHandler(String objectJson) throws IOException {
+        EscfBatchBuilder backend = newBackend();
+        EscfRowBuffer row = backend.beginRow();
+        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, LeafSink.NO_OP, false);
+
+        handler.startArray("items");
+        handler.arrayElemStartObject();
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY,
+                new BytesArray(objectJson),
+                XContentType.JSON
+            )
+        ) {
+            parser.nextToken();
+            walkObjectFields(parser, handler);
+        }
+        handler.arrayElemEndObject();
+        handler.endArray();
+        row.finishRow();
+
+        assertEquals("items", backend.columnPath(0));
+        return firstKeyValueBytes((byte[]) row.scratchVar(0));
+    }
+
+    private static byte[] encodeItemsArrayViaSimdWalk(String doc, String innerObjectJson) throws IOException {
+        assumeTrue("simdjson ESCF encoding required", EscfEncoder.isSimdEnabled());
+        byte[] bytes = doc.getBytes(StandardCharsets.UTF_8);
+        EscfBatchBuilder backend = newBackend();
+        EscfRowBuffer row = backend.beginRow();
+        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, LeafSink.NO_OP, false);
+
+        JsonDocumentParser docParser = SimdJsonParserPool.getDefault().forCurrentThread();
+        docParser.parseDocument(bytes, 0, bytes.length, handler);
+        docParser.publishFieldNames();
+        row.finishRow();
+
+        assertEquals("items", backend.columnPath(0));
+        byte[] actual = firstKeyValueBytes((byte[]) row.scratchVar(0));
+        assertArrayEquals(expectedObjectKv(innerObjectJson), actual);
+        return actual;
+    }
+
+    /** First element of a UNION inline array must be KEY_VALUE; returns its payload bytes. */
+    private static byte[] firstKeyValueBytes(byte[] packedUnionArray) {
+        assertEquals(SourceValueType.KEY_VALUE, packedUnionArray[0]);
+        int len = ByteUtils.readIntLE(packedUnionArray, 1);
+        byte[] kv = new byte[len];
+        System.arraycopy(packedUnionArray, 5, kv, 0, len);
+        return kv;
+    }
+
+    private static EscfBatchBuilder newBackend() {
+        return new EscfBatchBuilder(new BytesRefRecycler(new MockPageCacheRecycler(org.elasticsearch.common.settings.Settings.EMPTY)));
+    }
+
+    private static void walkObjectFields(XContentParser parser, EscfDocumentHandler handler) throws IOException {
+        assert parser.currentToken() == XContentParser.Token.START_OBJECT;
+        if (parser.nextToken() == XContentParser.Token.END_OBJECT) {
+            return;
+        }
+        walkObjectFieldsContent(parser, handler);
+    }
+
+    private static void walkObjectFieldsContent(XContentParser parser, EscfDocumentHandler handler) throws IOException {
+        while (parser.currentToken() != XContentParser.Token.END_OBJECT) {
+            walkField(parser, handler);
+            parser.nextToken();
+        }
+    }
+
+    private static void walkField(XContentParser parser, EscfDocumentHandler handler) throws IOException {
+        if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
+            throw new IllegalStateException("Expected FIELD_NAME but got " + parser.currentToken());
+        }
+        String name = parser.currentName();
+        XContentParser.Token token = parser.nextToken();
+        switch (token) {
+            case VALUE_STRING -> {
+                XContentString.UTF8Bytes str = parser.optimizedText().bytes();
+                handler.stringField(name, str.bytes(), str.offset(), str.length());
+            }
+            case VALUE_NUMBER -> {
+                long val = parser.longValue();
+                handler.longField(name, val, val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE, new byte[0], 0, 0);
+            }
+            case VALUE_BOOLEAN -> handler.booleanField(name, parser.booleanValue(), new byte[0], 0, 0);
+            case VALUE_NULL -> handler.nullField(name);
+            case START_OBJECT -> {
+                handler.startObject(name);
+                if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                    walkObjectFieldsContent(parser, handler);
+                }
+                handler.endObject();
+            }
+            case START_ARRAY -> {
+                handler.startArray(name);
+                walkArrayElements(parser, handler);
+                handler.endArray();
+            }
+            default -> throw new IllegalStateException("Unexpected token " + token);
+        }
+    }
+
+    private static void walkArrayElements(XContentParser parser, EscfDocumentHandler handler) throws IOException {
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            switch (token) {
+                case VALUE_STRING -> {
+                    XContentString.UTF8Bytes str = parser.optimizedText().bytes();
+                    handler.arrayElemString(str.bytes(), str.offset(), str.length());
+                }
+                case VALUE_NUMBER -> {
+                    long val = parser.longValue();
+                    handler.arrayElemLong(val, val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE);
+                }
+                case VALUE_BOOLEAN -> handler.arrayElemBoolean(parser.booleanValue());
+                case VALUE_NULL -> handler.arrayElemNull();
+                case START_OBJECT -> {
+                    handler.arrayElemStartObject();
+                    if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                        walkObjectFieldsContent(parser, handler);
+                    }
+                    handler.arrayElemEndObject();
+                }
+                case START_ARRAY -> {
+                    handler.arrayElemStartArray();
+                    walkArrayElements(parser, handler);
+                    handler.arrayElemEndArray();
+                }
+                default -> throw new IllegalStateException("Unexpected token " + token);
+            }
+        }
+    }
+
+    public void testObjectInArrayKvMatchesHelper() throws IOException {
+        String inner = """
+            {"a":1,"b":"x"}""";
+        assertArrayEquals(expectedObjectKv(inner), encodeItemsArrayViaHandler(inner));
+    }
+
+    public void testNestedObjectInArrayKvMatchesHelper() throws IOException {
+        String inner = """
+            {"outer":{"inner":42}}""";
+        assertArrayEquals(expectedObjectKv(inner), encodeItemsArrayViaHandler(inner));
+    }
+
+    public void testArrayInsideObjectInArrayKvMatchesHelper() throws IOException {
+        String inner = """
+            {"tags":["a","b"],"n":1}""";
+        assertArrayEquals(expectedObjectKv(inner), encodeItemsArrayViaHandler(inner));
+    }
+
+    public void testRootScalarsGoToRowBuffer() {
+        EscfBatchBuilder backend = newBackend();
+        EscfRowBuffer row = backend.beginRow();
+        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, LeafSink.NO_OP, false);
+
+        byte[] hello = "hello".getBytes(StandardCharsets.UTF_8);
+        handler.longField("n", 42, true, new byte[] { '4', '2' }, 0, 2);
+        handler.stringField("s", hello, 0, hello.length);
+        row.finishRow();
+
+        assertEquals("n", backend.columnPath(0));
+        assertEquals("s", backend.columnPath(1));
+        assertEquals(SourceValueType.INT, row.scratchType(0));
+        assertEquals(42, row.scratchNumeric(0));
+        assertEquals(SourceValueType.STRING, row.scratchType(1));
+    }
+
+    public void testRawTextModeSinkReceivesSourceBytes() {
+        EscfBatchBuilder backend = newBackend();
+        EscfRowBuffer row = backend.beginRow();
+
+        List<String> paths = new ArrayList<>();
+        List<String> texts = new ArrayList<>();
+        LeafSink sink = new LeafSink() {
+            @Override
+            public boolean passRawText() {
+                return true;
+            }
+
+            @Override
+            public void onTextPrimitive(int columnIndex, String dottedPath, byte type, XContentString.UTF8Bytes textBytes) {
+                paths.add(dottedPath);
+                texts.add(new String(textBytes.bytes(), textBytes.offset(), textBytes.length(), StandardCharsets.UTF_8));
+            }
+        };
+
+        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, true);
+        handler.longField("n", 99, true, new byte[] { '9', '9' }, 0, 2);
+        handler.booleanField("b", true, new byte[] { 't', 'r', 'u', 'e' }, 0, 4);
+        row.finishRow();
+
+        assertTrue(paths.contains("n"));
+        assertTrue(paths.contains("b"));
+        assertEquals("99", texts.get(paths.indexOf("n")));
+        assertEquals("true", texts.get(paths.indexOf("b")));
+    }
+
+    public void testRootArrayFiresOnArrayLeaf() {
+        EscfBatchBuilder backend = newBackend();
+        EscfRowBuffer row = backend.beginRow();
+        AtomicInteger arrayEvents = new AtomicInteger();
+        LeafSink sink = new LeafSink() {
+            @Override
+            public boolean passRawText() {
+                return false;
+            }
+
+            @Override
+            public void onArrayLeaf(int columnIndex, String dottedPath) {
+                assertEquals("tags", dottedPath);
+                arrayEvents.incrementAndGet();
+            }
+        };
+        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, false);
+
+        byte[] tag = "a".getBytes(StandardCharsets.UTF_8);
+        handler.startArray("tags");
+        handler.arrayElemString(tag, 0, tag.length);
+        handler.endArray();
+        row.finishRow();
+
+        assertEquals(1, arrayEvents.get());
+        assertEquals("tags", backend.columnPath(0));
+    }
+
+    public void testSimdWalkObjectInArrayMatchesHelper() throws IOException {
+        String inner = """
+            {"tags":["a","b"],"n":1}""";
+        encodeItemsArrayViaSimdWalk("""
+            {"items":[{"tags":["a","b"],"n":1}]}""", inner);
+    }
+
+    /**
+     * Regression test for the kv-inline-array nesting bug: when an object element of an outer array
+     * contains an array field whose elements themselves contain array fields, the inner
+     * {@link EscfDocumentHandler#writeKvStartArray} call fired while {@code kvInlineArrayBuild} was
+     * already {@code true}, overwriting {@code kvInlineArrayDepth}. The subsequent
+     * {@link EscfDocumentHandler#writeKvEndArray} for the innermost array reset
+     * {@code kvInlineArrayBuild=false}, so the middle array's {@code endArray} fell through to
+     * {@code finishArrayAccumulation()} and was added as a raw element of the outer accumulator
+     * instead of being nested inside the object's KV bytes.
+     *
+     * <p>This test drives the handler directly (without simdjson) to isolate the event-dispatch logic.
+     */
+    public void testDoubleNestedArrayInsideObjectInArrayKvMatchesHandler() throws IOException {
+        // items: [ { inner: [ { leaf: ["x"] } ], n: 1 } ]
+        // "inner" triggers writeKvStartArray once; "leaf" triggers it again while still active.
+        String inner = """
+            {"inner":[{"leaf":["x"]}],"n":1}""";
+        assertArrayEquals(expectedObjectKv(inner), encodeItemsArrayViaHandler(inner));
+    }
+
+    /**
+     * Same regression as {@link #testDoubleNestedArrayInsideObjectInArrayKvMatchesHandler} but
+     * exercised through the simdjson path.
+     */
+    public void testSimdWalkDoubleNestedArrayMatchesHelper() throws IOException {
+        assumeTrue("simdjson ESCF encoding required", EscfEncoder.isSimdEnabled());
+        String inner = """
+            {"inner":[{"leaf":["x"]}],"n":1}""";
+        encodeItemsArrayViaSimdWalk("""
+            {"items":[{"inner":[{"leaf":["x"]}],"n":1}]}""", inner);
+    }
+
+    /**
+     * Stress test for the kv-inline-array nesting stack at depth 3: array → object → array → object
+     * → array → object → array. Verifies that the stack introduced by the nesting-bug fix handles
+     * more than one level of saved state correctly.
+     *
+     * <p>This test drives the handler directly (without simdjson) to isolate the event-dispatch logic.
+     */
+    public void testTripleNestedArrayInsideObjectInArrayKvMatchesHandler() throws IOException {
+        // items: [ { criteria: [ { conditions: [ { values: ["x"], k: 1 } ], m: 2 } ], n: 3 } ]
+        // "criteria" pushes stack depth 0, "conditions" pushes depth 1, "values" pushes depth 2.
+        String inner = """
+            {"criteria":[{"conditions":[{"values":["x"],"k":1}],"m":2}],"n":3}""";
+        assertArrayEquals(expectedObjectKv(inner), encodeItemsArrayViaHandler(inner));
+    }
+
+    /**
+     * Same triple-nesting regression as {@link #testTripleNestedArrayInsideObjectInArrayKvMatchesHandler}
+     * but exercised through the simdjson path.
+     */
+    public void testSimdWalkTripleNestedArrayMatchesHelper() throws IOException {
+        assumeTrue("simdjson ESCF encoding required", EscfEncoder.isSimdEnabled());
+        String inner = """
+            {"criteria":[{"conditions":[{"values":["x"],"k":1}],"m":2}],"n":3}""";
+        encodeItemsArrayViaSimdWalk("""
+            {"items":[{"criteria":[{"conditions":[{"values":["x"],"k":1}],"m":2}],"n":3}]}""", inner);
+    }
+
+    /**
+     * Property-based round-trip: generates random JSON objects with arbitrary nesting — including
+     * sibling array fields, multiple-element arrays, and deep nesting chains — and verifies that
+     * the handler event-dispatch path produces KV bytes that match the reference serializer.
+     * When simdjson is available the simdjson path is exercised as well, so all three agree.
+     *
+     * <p>This covers structural state bugs (stale stack depth, bleed between sibling arrays after a
+     * pop, etc.) that fixed-shape hand-crafted tests cannot exhaust.
+     */
+    public void testRandomObjectInArrayRoundTrips() throws IOException {
+        int iters = randomIntBetween(20, 60);
+        for (int i = 0; i < iters; i++) {
+            String inner = randomJsonObject(0);
+            assertArrayEquals(expectedObjectKv(inner), encodeItemsArrayViaHandler(inner));
+            encodeItemsArrayViaSimdWalk("{\"items\":[" + inner + "]}", inner);
+        }
+    }
+
+    private String randomJsonObject(int depth) {
+        int fieldCount = randomIntBetween(1, 4);
+        StringBuilder sb = new StringBuilder("{");
+        for (int i = 0; i < fieldCount; i++) {
+            if (i > 0) sb.append(',');
+            // Field names are positional ("f0", "f1", ...) to guarantee uniqueness within this object.
+            sb.append("\"f").append(i).append("\":").append(randomJsonValue(depth));
+        }
+        sb.append('}');
+        return sb.toString();
+    }
+
+    private String randomJsonValue(int depth) {
+        // Bound recursion: only emit primitives beyond depth 4.
+        int choice = depth >= 4 ? randomIntBetween(0, 3) : randomIntBetween(0, 5);
+        return switch (choice) {
+            case 0 -> "\"" + randomAlphaOfLength(randomIntBetween(1, 6)) + "\"";
+            case 1 -> String.valueOf(randomIntBetween(-1000, 1000));
+            case 2 -> Boolean.toString(randomBoolean());
+            case 3 -> "null";
+            case 4 -> randomJsonArray(depth + 1);
+            case 5 -> randomJsonObject(depth + 1);
+            default -> throw new AssertionError("unreachable");
+        };
+    }
+
+    private String randomJsonArray(int depth) {
+        int len = randomIntBetween(0, 3);
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < len; i++) {
+            if (i > 0) sb.append(',');
+            sb.append(randomJsonValue(depth));
+        }
+        sb.append(']');
+        return sb.toString();
+    }
+}

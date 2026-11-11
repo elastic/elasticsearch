@@ -12,6 +12,8 @@ import org.elasticsearch.compute.data.UninitializedArrays;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.PrimitiveIterator;
 
 /**
  * Represents a set of selected row ranges within a row group as sorted, non-overlapping
@@ -304,6 +306,36 @@ final class RowRanges {
         long runEnd = Math.min(ends[rangeIdx], windowEnd);
         int length = (int) (runEnd - first);
         return new Run(skipBefore, length);
+    }
+
+    /**
+     * Returns a fresh iterator over every selected row index in ascending order.
+     */
+    PrimitiveIterator.OfLong rowIndexes() {
+        return new PrimitiveIterator.OfLong() {
+            private int rangeIndex;
+            private long next = starts.length == 0 ? 0 : starts[0];
+
+            @Override
+            public boolean hasNext() {
+                return rangeIndex < starts.length;
+            }
+
+            @Override
+            public long nextLong() {
+                if (hasNext() == false) {
+                    throw new NoSuchElementException();
+                }
+                long result = next++;
+                if (next == ends[rangeIndex]) {
+                    rangeIndex++;
+                    if (rangeIndex < starts.length) {
+                        next = starts[rangeIndex];
+                    }
+                }
+                return result;
+            }
+        };
     }
 
     record Run(int skipBefore, int length) {}

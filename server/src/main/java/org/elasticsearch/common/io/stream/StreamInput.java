@@ -58,6 +58,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -871,14 +872,14 @@ public abstract class StreamInput extends InputStream {
      * @return The immutable map
      */
     public <K, V> Map<K, V> readImmutableMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
-        final int size = readVInt();
+        final int size = readArraySize();
         if (size == 0) {
             return Map.of();
         } else if (size == 1) {
             return Map.of(keyReader.read(this), valueReader.read(this));
         }
         @SuppressWarnings({ "rawtypes", "unchecked" })
-        Map.Entry<K, V> entries[] = new Map.Entry[size];
+        Map.Entry<K, V>[] entries = new Map.Entry[size];
         for (int i = 0; i < size; ++i) {
             entries[i] = Map.entry(keyReader.read(this), valueReader.read(this));
         }
@@ -893,7 +894,7 @@ public abstract class StreamInput extends InputStream {
      */
     public <K, V> ImmutableOpenMap<K, V> readImmutableOpenMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader)
         throws IOException {
-        final int size = readVInt();
+        final int size = readArraySize();
         if (size == 0) {
             return ImmutableOpenMap.of();
         }
@@ -1210,6 +1211,23 @@ public abstract class StreamInput extends InputStream {
      * {@code null} otherwise.
      */
     public NamedWriteableRegistry namedWriteableRegistry() {
+        return null;
+    }
+
+    /**
+     * Charges memory that objects read from this stream keep beyond the bytes they were read from. A stream that charges holds the charge
+     * for as long as the message it reads is handled, such as until the transport request read from it responds. Most streams charge
+     * nothing. A wrapper must pass this to the stream it wraps, as {@link FilterStreamInput} does, or the charge is silently left to the
+     * caller.
+     *
+     * @param bytes the estimated heap of the objects built from the bytes read, beyond those bytes
+     * @param label the breaker label to charge under
+     * @return {@code null} if nothing was charged, otherwise a supplier of whether the charge is still held. The objects can outlive it,
+     *         and the caller then accounts for the bytes itself.
+     * @throws org.elasticsearch.common.breaker.CircuitBreakingException if the charge trips the breaker, in which case it is not charged
+     */
+    @Nullable
+    public BooleanSupplier chargeDecodedBytes(long bytes, String label) {
         return null;
     }
 

@@ -1,0 +1,5 @@
+area: Codec
+issues: []
+pr: 152986
+summary: Fix synthetic `_id` bloom filter merge corruption
+type: bug

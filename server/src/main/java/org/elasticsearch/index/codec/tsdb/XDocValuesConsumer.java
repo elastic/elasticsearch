@@ -51,8 +51,10 @@ public abstract class XDocValuesConsumer extends DocValuesConsumer {
     /**
      * Merges the binary docvalues from <code>MergeState</code>.
      *
-     * <p>The default implementation calls {@link #addBinaryField}, passing a DocValuesProducer that
-     * merges and filters deleted documents on the fly.
+     * <p>The implementation uses {@link MergedBinaryDocValues} instead of the Lucene default so
+     * that the current source segment's reader remains reachable. This allows the per-field merge
+     * loop in {@link AbstractTSDBDocValuesConsumer#addBinaryField} to copy verbatim compressed
+     * blocks for single-doc values that exceed the block byte threshold, without decompressing them.
      */
     public void mergeBinaryField(MergeStats mergeStats, FieldInfo mergeFieldInfo, final MergeState mergeState) throws IOException {
         addBinaryField(mergeFieldInfo, new TsdbDocValuesProducer(mergeStats) {
@@ -61,7 +63,7 @@ public abstract class XDocValuesConsumer extends DocValuesConsumer {
                 if (fieldInfo != mergeFieldInfo) {
                     throw new IllegalArgumentException("wrong fieldInfo");
                 }
-                return getMergedBinaryDocValues(mergeFieldInfo, mergeState);
+                return MergedBinaryDocValues.create(mergeFieldInfo, mergeState);
             }
         });
     }

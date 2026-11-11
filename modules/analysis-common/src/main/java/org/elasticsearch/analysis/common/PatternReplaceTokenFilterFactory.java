@@ -25,6 +25,7 @@ public class PatternReplaceTokenFilterFactory extends AbstractTokenFilterFactory
     private final Pattern pattern;
     private final String replacement;
     private final boolean all;
+    private final Object sharingKey;
 
     public PatternReplaceTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
@@ -36,10 +37,18 @@ public class PatternReplaceTokenFilterFactory extends AbstractTokenFilterFactory
         this.pattern = Regex.compile(sPattern, settings.get("flags"));
         this.replacement = settings.get("replacement", "");
         this.all = settings.getAsBoolean("all", true);
+        this.sharingKey = new Key(pattern.pattern(), pattern.flags(), replacement, all);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new PatternReplaceFilter(tokenStream, pattern, replacement, all);
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(String pattern, int flags, String replacement, boolean all) {}
 }

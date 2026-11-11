@@ -8,12 +8,45 @@
 package org.elasticsearch.xpack.dlm.frozen;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
+
+import java.util.List;
 
 public class DLMFrozenTransitionSettings {
 
+    /**
+     * When {@code false}, {@link DLMFrozenTransitionService} will not submit any new frozen-tier
+     * transitions to the executor. In-flight transitions that are already running will continue
+     * to completion; only the submission of new work is suppressed.
+     */
+    public static final Setting<Boolean> TRANSITION_ENABLED_SETTING = Setting.boolSetting(
+        "dlm.frozen_transitions.enabled",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * The amount of time an index can be stuck (repeatedly erroring, eligible but unable to be marked, or marked but
+     * not yet attempted) before the {@code dlm_frozen_transitions} health indicator reports YELLOW for it.
+     */
+    public static final Setting<TimeValue> HEALTH_STUCK_THRESHOLD_SETTING = Setting.timeSetting(
+        "dlm.frozen_transitions.health.stuck_threshold",
+        TimeValue.timeValueHours(24),
+        TimeValue.timeValueMinutes(1),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /** All settings owned by this class, for convenient registration in plugins and test cluster setup. */
+    public static final List<Setting<?>> ALL_SETTINGS = List.of(TRANSITION_ENABLED_SETTING, HEALTH_STUCK_THRESHOLD_SETTING);
+
     private volatile int errorRetryInterval;
+    private volatile boolean transitionEnabled;
+    private volatile TimeValue healthStuckThreshold;
 
     /**
      * Sets internal settings to their initial values
@@ -21,6 +54,8 @@ public class DLMFrozenTransitionSettings {
      */
     public DLMFrozenTransitionSettings(Settings settings) {
         this.errorRetryInterval = DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.get(settings);
+        this.transitionEnabled = TRANSITION_ENABLED_SETTING.get(settings);
+        this.healthStuckThreshold = HEALTH_STUCK_THRESHOLD_SETTING.get(settings);
     }
 
     /**
@@ -44,10 +79,20 @@ public class DLMFrozenTransitionSettings {
                 DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING,
                 this::updateErrorInterval
             );
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(TRANSITION_ENABLED_SETTING, this::updateTransitionEnabled);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(HEALTH_STUCK_THRESHOLD_SETTING, this::updateHealthStuckThreshold);
     }
 
     private void updateErrorInterval(int newInterval) {
         this.errorRetryInterval = newInterval;
+    }
+
+    private void updateTransitionEnabled(boolean enabled) {
+        this.transitionEnabled = enabled;
+    }
+
+    private void updateHealthStuckThreshold(TimeValue newThreshold) {
+        this.healthStuckThreshold = newThreshold;
     }
 
     /**
@@ -56,5 +101,22 @@ public class DLMFrozenTransitionSettings {
      */
     public int getErrorRetryInterval() {
         return errorRetryInterval;
+    }
+
+    /**
+     * @return {@code true} when new frozen-tier transitions should be submitted. In-flight transitions
+     *         already executing are unaffected when this is set to {@code false}.
+     * @see #TRANSITION_ENABLED_SETTING
+     */
+    public boolean isTransitionEnabled() {
+        return transitionEnabled;
+    }
+
+    /**
+     * @return the latest property value for the health stuck threshold
+     * @see #HEALTH_STUCK_THRESHOLD_SETTING
+     */
+    public TimeValue getHealthStuckThreshold() {
+        return healthStuckThreshold;
     }
 }

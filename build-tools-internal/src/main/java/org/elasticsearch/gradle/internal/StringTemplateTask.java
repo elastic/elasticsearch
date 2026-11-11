@@ -80,7 +80,12 @@ public abstract class StringTemplateTask extends DefaultTask {
                         st.add(entry.getKey(), entry.getValue());
                     }
                 }
-                String output = st.render();
+                // ST's default AutoIndentWriter renders newlines using the platform's
+                // line.separator, so on Windows the output is CRLF regardless of the
+                // input template's own (LF) line endings. Normalize to LF explicitly so
+                // generated sources are consistent across OSes and match what spotless
+                // (configured with LineEnding.UNIX) expects.
+                String output = st.render().replace("\r\n", "\n");
                 Files.createDirectories(outputRootFolder.toPath().resolve(spec.outputFile).getParent());
                 Files.writeString(new File(outputRootFolder, spec.outputFile).toPath(), output, UTF_8);
                 getLogger().info("StringTemplateTask generated {}", spec.outputFile);

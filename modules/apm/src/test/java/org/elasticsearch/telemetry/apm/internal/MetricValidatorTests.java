@@ -11,6 +11,8 @@ package org.elasticsearch.telemetry.apm.internal;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Map;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class MetricValidatorTests extends ESTestCase {
@@ -86,6 +88,15 @@ public class MetricValidatorTests extends ESTestCase {
         MetricValidator.validateMetricName("es.thread_pool.searchable_snapshots_cache_fetch_async.total");
         MetricValidator.validateMetricName("es.thread_pool.searchable_snapshots_cache_prewarming.total");
         MetricValidator.validateMetricName("es.thread_pool.security-crypto.total");
+    }
+
+    public void testDataStreamDatasetAttributeAllowedOnAnyMetric() {
+        MetricValidator.assertValidAttributeNames("jvm.memory.heap.used", Map.of("data_stream.dataset", "apm.internal"));
+        MetricValidator.assertValidAttributeNames("es.somemodule.somemetric.total", Map.of("data_stream.dataset", "apm.internal"));
+        expectThrows(
+            AssertionError.class,
+            () -> MetricValidator.assertValidAttributeNames("jvm.memory.heap.used", Map.of("not_an_es_attribute", "x"))
+        );
     }
 
     public static String metricNameWithLength(int length) {

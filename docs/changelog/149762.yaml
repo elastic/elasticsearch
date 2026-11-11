@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 149694
-pr: 149762
-summary: Fix inconsistent data type with counter types referenced by subqueries
-type: bug

@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,7 +49,7 @@ public class DriverTaskRunner {
         );
     }
 
-    public void executeDrivers(Task parentTask, List<Driver> drivers, Executor workerExecutor, ActionListener<Void> listener) {
+    public void executeDrivers(Task parentTask, List<Driver> drivers, DriverExecutor workerExecutor, ActionListener<Void> listener) {
         var runner = new DriverRunner(transportService.getThreadPool().getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> driverListener) {
@@ -72,11 +72,11 @@ public class DriverTaskRunner {
         runner.runToCompletion(drivers, listener);
     }
 
-    private static class DriverRequest extends LegacyActionRequest implements CompositeIndicesRequest {
+    private static class DriverRequest extends UntypedActionRequest implements CompositeIndicesRequest {
         private final Driver driver;
-        private final Executor executor;
+        private final DriverExecutor executor;
 
-        DriverRequest(Driver driver, Executor executor) {
+        DriverRequest(Driver driver, DriverExecutor executor) {
             this.driver = driver;
             this.executor = executor;
         }

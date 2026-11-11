@@ -82,6 +82,8 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
             "\\.evaluation-.*",
             // Security index:
             "\\.entities\\.v\\d+\\..*",
+            // AI indices (Context Engine):
+            "\\.ai-index-.*",
             // indices or data streams defined in files in x-pack/plugin/core/template-resources/src/main/resources/monitoring-*:
             "\\.monitoring-es-8-.*",
             "\\.monitoring-logstash-8-.*",

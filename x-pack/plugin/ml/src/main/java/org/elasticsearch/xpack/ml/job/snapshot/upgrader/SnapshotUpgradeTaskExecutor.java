@@ -257,10 +257,12 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
 
     @Override
     protected String[] indicesOfInterest(SnapshotUpgradeTaskParams params) {
-        return new String[] {
-            AnomalyDetectorsIndex.jobStateIndexPattern(),
-            MlConfigIndex.indexName(),
-            AnomalyDetectorsIndex.resultsWriteAlias(params.getJobId()) };
+        String[] statePatterns = AnomalyDetectorsIndex.jobStateIndexPatterns();
+        String[] indices = new String[statePatterns.length + 2];
+        System.arraycopy(statePatterns, 0, indices, 0, statePatterns.length);
+        indices[statePatterns.length] = MlConfigIndex.indexName();
+        indices[statePatterns.length + 1] = AnomalyDetectorsIndex.resultsWriteAlias(params.getJobId());
+        return indices;
     }
 
     @Override

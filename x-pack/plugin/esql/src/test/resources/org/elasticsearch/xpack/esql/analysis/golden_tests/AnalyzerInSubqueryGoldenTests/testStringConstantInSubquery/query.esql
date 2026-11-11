@@ -1,0 +1,2 @@
+FROM employees
+| WHERE "Georgi" IN (FROM employees | KEEP first_name)

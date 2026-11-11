@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -27,11 +28,13 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.FailingFieldPlugin;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
 import org.junit.After;
 import org.junit.Before;
 
@@ -74,6 +77,9 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
+        // EncryptionService binding for the always-registered data-source CRUD actions (see AbstractEsqlIntegTestCase).
+        // Must precede the ESQL plugin: EsqlPlugin.createComponents reads EncryptionServiceRegistry, populated by this stub.
+        plugins.add(org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin.class);
         plugins.add(EsqlPluginWithEnterpriseOrTrialLicense.class);
         plugins.add(EsqlAsyncActionIT.LocalStateEsqlAsync.class); // allows the async_search DELETE action
         plugins.add(CrossClusterAsyncQueryIT.InternalExchangePlugin.class);
@@ -81,14 +87,16 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
         plugins.add(FailingPauseFieldPlugin.class);
         plugins.add(FailingFieldPlugin.class);
         plugins.add(CrossClusterAsyncQueryIT.CountingPauseFieldPlugin.class);
-        // EncryptionService binding for the always-registered data-source CRUD actions (see AbstractEsqlIntegTestCase).
-        plugins.add(org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin.class);
         return plugins;
     }
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put(super.nodeSettings()).put(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.getKey(), false).build();
+        return Settings.builder()
+            .put(super.nodeSettings())
+            .put(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.getKey(), false)
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueSeconds(10))
+            .build();
     }
 
     public static class InternalExchangePlugin extends Plugin {
@@ -97,7 +105,7 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
             return List.of(
                 Setting.timeSetting(
                     ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING,
-                    TimeValue.timeValueSeconds(30),
+                    TimeValue.timeValueSeconds(10),
                     Setting.Property.NodeScope
                 )
             );
@@ -134,6 +142,26 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
         SimplePauseFieldPlugin.release();
         FailingPauseFieldPlugin.release();
         CrossClusterAsyncQueryIT.CountingPauseFieldPlugin.release();
+    }
+
+    @After
+    public void ensureExchangesAreReleased() throws Exception {
+        for (Map.Entry<String, InternalTestCluster> entry : clusters().entrySet()) {
+            String clusterAlias = entry.getKey();
+            InternalTestCluster testCluster = entry.getValue();
+            for (String node : testCluster.getNodeNames()) {
+                TransportEsqlQueryAction esqlQueryAction = testCluster.getInstance(TransportEsqlQueryAction.class, node);
+                ExchangeService exchangeService = esqlQueryAction.exchangeService();
+                assertBusy(() -> {
+                    if (exchangeService.lifecycleState() == Lifecycle.State.STARTED) {
+                        assertTrue(
+                            "Leftover exchanges " + exchangeService + " on node " + node + " in cluster " + clusterAlias,
+                            exchangeService.isEmpty()
+                        );
+                    }
+                }, 60, TimeUnit.SECONDS);
+            }
+        }
     }
 
     protected void assertClusterInfoSuccess(EsqlExecutionInfo.Cluster cluster, int numShards) {
@@ -391,6 +419,34 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
             assertThat(cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
             assertThat(cluster.getSkippedShards(), equalTo(0));
             assertThat(cluster.getFailedShards(), equalTo(0));
+        }
+    }
+
+    /**
+     * Extends {@link #assertCCSExecutionInfoDetails} with exact shard-level checks for each cluster.
+     * Every cluster that appears in execution info must appear in {@code expectedTotalShardsPerCluster}
+     * and vice-versa; mismatches (unexpected cluster, missing cluster, wrong count) all cause assertion
+     * failures. Include the local cluster (key {@code ""}) when the query accesses local indices.
+     */
+    protected static void assertCCSExecutionInfoDetailsWithShards(
+        EsqlExecutionInfo executionInfo,
+        Map<String, Integer> expectedTotalShardsPerCluster
+    ) {
+        assertCCSExecutionInfoDetails(executionInfo);
+        assertThat(
+            "mismatch in the number of expected clusters in the status output",
+            executionInfo.clusterAliases().size(),
+            equalTo(expectedTotalShardsPerCluster.size())
+        );
+        for (String clusterAlias : executionInfo.clusterAliases()) {
+            Integer expected = expectedTotalShardsPerCluster.get(clusterAlias);
+            assertNotNull("cluster [" + clusterAlias + "] found in execution info but not in expected map", expected);
+            EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
+            assertThat("cluster [" + clusterAlias + "] total shards", cluster.getTotalShards(), equalTo(expected));
+            assertThat("cluster [" + clusterAlias + "] all shards should have succeeded", cluster.getSuccessfulShards(), equalTo(expected));
+        }
+        for (String clusterAlias : expectedTotalShardsPerCluster.keySet()) {
+            assertNotNull("expected cluster [" + clusterAlias + "] is missing from execution info", executionInfo.getCluster(clusterAlias));
         }
     }
 

@@ -21,7 +21,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -61,7 +61,7 @@ public class IndexingShardCacheBlobReader implements CacheBlobReader {
         this.preferredNodeId = preferredNodeId;
         this.client = client;
         this.chunkSizeBytes = chunkSize.getBytes();
-        this.fillVBCCExecutor = threadPool.executor(StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL);
+        this.fillVBCCExecutor = threadPool.executor(StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL);
     }
 
     @Override
@@ -81,29 +81,23 @@ public class IndexingShardCacheBlobReader implements CacheBlobReader {
 
     @Override
     public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
-        assert Objects.equals(EsExecutors.executorName(Thread.currentThread()), StatelessPlugin.SHARD_READ_THREAD_POOL) == false
+        assert Objects.equals(EsExecutors.executorName(Thread.currentThread()), StatelessThreadPools.SHARD_READ_THREAD_POOL) == false
             : Thread.currentThread().getName() + " is a shard read thread";
         getVirtualBatchedCompoundCommitChunk(bccTermAndGen, position, length, preferredNodeId, ActionListener.wrap(rbr -> {
             // The InboundHandler decrements the GetVirtualBatchedCompoundCommitChunkResponse (and thus the data). So we need to retain the
             // data, which is later decrementing in the close function of the getRangeInputStream()'s InputStream.
             ReleasableBytesReference reference = rbr.retain();
             final var streamInput = new FilterStreamInput(reference.streamInput()) {
-
-                private volatile boolean closed;
-
                 @Override
                 public void close() throws IOException {
                     try {
                         super.close();
                     } finally {
                         reference.decRef();
-                        closed = true;
                     }
                 }
             };
-            fillVBCCExecutor.execute(
-                ActionRunnable.supply(ActionListener.runAfter(listener, () -> { assert streamInput.closed; }), () -> streamInput)
-            );
+            fillVBCCExecutor.execute(ActionRunnable.supply(listener, () -> streamInput));
         }, originalException -> {
             // It is possible that the executor for the failure path is the same as the one waiting for the future. This can happen
             // when the action fails locally without the request being sent out.
@@ -149,7 +143,7 @@ public class IndexingShardCacheBlobReader implements CacheBlobReader {
 
     @Override
     public String executorName() {
-        return StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL;
+        return StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL;
     }
 
     @Override

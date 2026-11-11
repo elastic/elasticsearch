@@ -23,18 +23,23 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoaderLayer;
+import org.elasticsearch.index.mapper.blockloader.docvalues.LongToBytesRefBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.spatial.XYQueriesUtils;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
@@ -43,6 +48,7 @@ import org.elasticsearch.xpack.spatial.script.field.CartesianPointDocValuesField
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSourceType;
 
 import java.io.IOException;
+import java.nio.ByteOrder;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -58,26 +64,21 @@ import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPrefere
 public class PointFieldMapper extends AbstractPointGeometryFieldMapper<CartesianPoint> {
     public static final String CONTENT_TYPE = "point";
 
-    private static Builder builder(FieldMapper in) {
-        return ((PointFieldMapper) in).builder;
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
-        final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
-        final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
-        final Parameter<Boolean> stored = Parameter.storeParam(m -> builder(m).stored.get(), false);
+        final Parameter<Boolean> indexed = Parameter.indexParam(true);
+        final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(true);
+        final Parameter<Boolean> stored = Parameter.storeParam(false);
 
         final Parameter<Explicit<Boolean>> ignoreMalformed;
-        final Parameter<Explicit<Boolean>> ignoreZValue = ignoreZValueParam(m -> builder(m).ignoreZValue.get());
+        final Parameter<Explicit<Boolean>> ignoreZValue = ignoreZValueParam();
         final Parameter<CartesianPoint> nullValue;
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name, boolean ignoreMalformedByDefault) {
             super(name);
-            this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
+            this.ignoreMalformed = ignoreMalformedParam(ignoreMalformedByDefault);
             this.nullValue = nullValueParam(
-                m -> builder(m).nullValue.get(),
                 (n, c, o) -> o == null ? null : parseNullValue(o, ignoreZValue.get().value(), ignoreMalformed.get().value()),
                 () -> null,
                 XContentBuilder::field
@@ -135,6 +136,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
                 parser,
                 nullValue.get(),
                 context.isSourceSynthetic(),
+                context.isStrictColumnar(),
                 meta.get()
             );
             return new PointFieldMapper(leafName(), ft, builderParams(this, context), parser, this);
@@ -143,8 +145,6 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
     }
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings())));
-
-    private final Builder builder;
 
     public PointFieldMapper(
         String simpleName,
@@ -162,7 +162,6 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
             builder.nullValue.get(),
             parser
         );
-        this.builder = builder;
     }
 
     @Override
@@ -188,17 +187,34 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
     }
 
     @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        // In columnar modes _source is rebuilt from doc-value columns only. Rather than fall back to _ignored_source
+        // (which columnar drops), reconstruct the point by decoding its own XY doc values. Synthetic source mode keeps
+        // the existing fallback behavior unchanged.
+        if (fieldType().isColumnar && fieldType().hasDocValues()) {
+            return new SyntheticSourceSupport.Native(() -> {
+                final CartesianPoint point = new CartesianPoint();
+                return new CompositeSyntheticFieldLoader(
+                    leafName(),
+                    fullPath(),
+                    new SortedNumericDocValuesSyntheticFieldLoaderLayer(fullPath(), (b, value) -> {
+                        point.resetFromEncoded(value);
+                        point.toXContent(b, ToXContent.EMPTY_PARAMS);
+                    })
+                );
+            });
+        }
+        return super.syntheticSourceSupport();
+    }
+
+    @Override
     public PointFieldType fieldType() {
         return (PointFieldType) mappedFieldType;
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), builder.ignoreMalformed.getDefaultValue().value()).init(this);
-    }
-
     public static class PointFieldType extends AbstractPointFieldType<CartesianPoint> implements ShapeQueryable {
         private final boolean isSyntheticSource;
+        private final boolean isColumnar;
 
         private PointFieldType(
             String name,
@@ -208,15 +224,17 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
             CartesianPointParser parser,
             CartesianPoint nullValue,
             boolean isSyntheticSource,
+            boolean isColumnar,
             Map<String, String> meta
         ) {
             super(name, IndexType.points(indexed, hasDocValues), stored, parser, nullValue, meta);
             this.isSyntheticSource = isSyntheticSource;
+            this.isColumnar = isColumnar;
         }
 
         // only used in test
         public PointFieldType(String name) {
-            this(name, true, false, true, null, null, false, Collections.emptyMap());
+            this(name, true, false, true, null, null, false, false, Collections.emptyMap());
         }
 
         @Override
@@ -247,13 +265,26 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            // Columnar: a point is rebuilt entirely from its own XY doc values, so always read from doc values - the
+            // encoded longs for DOC_VALUES, or their WKB for any other preference (see PlannerUtils.toElementType).
+            // No _source parsing and no _ignored_source fallback.
+            if (isColumnar) {
+                if (blContext.fieldExtractPreference() == DOC_VALUES) {
+                    return new LongsBlockLoader(name());
+                }
+                return new LongToBytesRefBlockLoader(name(), encoded -> {
+                    CartesianPoint point = new CartesianPoint();
+                    point.resetFromEncoded(encoded);
+                    return new BytesRef(WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN));
+                });
+            }
+
             if (blContext.fieldExtractPreference() == DOC_VALUES && hasDocValues()) {
                 return new LongsBlockLoader(name());
             }
 
-            // columnar_stored pre-builds _source as a single blob; skip the per-field fallback loader.
             // Multi fields don't have fallback synthetic source.
-            if (isSyntheticSource && blContext.mappingLookup().isSourceColumnarStored() == false && blContext.parentField(name()) == null) {
+            if (isSyntheticSource && blContext.parentField(name()) == null) {
                 return blockLoaderFromFallbackSyntheticSource(blContext);
             }
 

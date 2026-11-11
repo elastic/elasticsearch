@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.blobcache.BlobCachePlugin;
@@ -324,10 +325,11 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         int shardCount = getNumShards(indexName).totalNumShards;
         assertBusy(() -> {
             final RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries(indexName).get();
-            assertThat(recoveryResponse.toString(), recoveryResponse.shardRecoveryStates().get(indexName).size(), equalTo(shardCount));
+            assertThat(recoveryResponse.toString(), recoveryResponse.shardRecoveryInfos().get(indexName).size(), equalTo(shardCount));
 
-            for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
-                for (RecoveryState recoveryState : recoveryStates) {
+            for (List<ShardRecoveryInfo> recoveryInfos : recoveryResponse.shardRecoveryInfos().values()) {
+                for (var recoveryInfo : recoveryInfos) {
+                    RecoveryState recoveryState = recoveryInfo.recoveryState();
                     RecoveryState.Index index = recoveryState.getIndex();
                     assertThat(
                         Strings.toString(recoveryState, true, true),
@@ -358,8 +360,9 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         assertBusy(() -> {
             RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries(index).get();
             assertThat(recoveryResponse.hasRecoveries(), equalTo(true));
-            for (List<RecoveryState> value : recoveryResponse.shardRecoveryStates().values()) {
-                for (RecoveryState recoveryState : value) {
+            for (List<ShardRecoveryInfo> recoveryInfos : recoveryResponse.shardRecoveryInfos().values()) {
+                for (var recoveryInfo : recoveryInfos) {
+                    RecoveryState recoveryState = recoveryInfo.recoveryState();
                     assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
                 }
             }

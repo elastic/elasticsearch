@@ -157,8 +157,14 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
 
     @Override
+    protected List<QueryBuilder> subQueriesHiddenFromVisit(QueryBuilder builder) {
+        // the inner query is built when the query is built, but LateParsingQuery is a leaf that hides it from the visitor
+        return builder instanceof HasChildQueryBuilder q ? List.of(q.query()) : List.of();
+    }
+
+    @Override
     protected HasChildQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
-        return new HasChildQueryBuilder("type", queryBuilder, ScoreMode.None);
+        return new HasChildQueryBuilder(CHILD_DOC, queryBuilder, ScoreMode.None);
     }
 
     @Override
@@ -371,7 +377,8 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         );
         LateParsingQuery query = (LateParsingQuery) hasChildQueryBuilder.toQuery(searchExecutionContext);
         Similarity expected = SimilarityService.BUILT_IN.get(similarity).apply(Settings.EMPTY, IndexVersion.current(), null);
-        assertThat(((PerFieldSimilarityWrapper) query.getSimilarity()).get("custom_string"), instanceOf(expected.getClass()));
+        Similarity fieldSim = ((PerFieldSimilarityWrapper) query.getSimilarity()).get("custom_string");
+        assertThat(SimilarityService.unwrap(fieldSim), instanceOf(expected.getClass()));
     }
 
     public void testIgnoreUnmapped() throws IOException {

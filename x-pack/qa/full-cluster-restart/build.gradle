@@ -11,6 +11,10 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.bc-upgrade-test'
 
+// Each suite is parameterized over the old and upgraded cluster and the old-cluster run sets up the state the upgraded run
+// asserts on, so a parameter that passed must still run when the other one is retried.
+smartRetry.pruneIndividualTests.set(false)
+
 dependencies {
   // TODO: Remove core dependency and change tests to not use builders that are part of xpack-core.
   // Currently needed for MlConfigIndexMappingsFullClusterRestartIT and SLM classes used in

@@ -73,6 +73,10 @@ The following suggest response example includes the suggestion response for `my-
 
 Each options array contains an option object that includes the suggested text, its document frequency and score compared to the suggest entry text. The meaning of the score depends on the used suggester. The term suggester's score is based on the edit distance.
 
+::::{note}
+Using suggest across multiple indices with different analysis chains is not supported. The fields chosen need to have the same analysis. 
+::::
+
 
 ## Global suggest text [global-suggest] 
 

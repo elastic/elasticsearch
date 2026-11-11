@@ -142,11 +142,16 @@ class ValuesFromManyReader extends ValuesReader {
             long dangerZoneBytes = Long.MAX_VALUE; // TODO danger_zone if ascending
             while (i < forwards.length && estimated < dangerZoneBytes) {
                 p = forwards[i];
-                shard = docs.shards().getInt(p);
-                segment = docs.segments().getInt(p);
-                boolean changedSegment = operator.positionFieldWorkDocGuaranteedAscending(shard, segment);
-                if (changedSegment) {
+                int nextShard = docs.shards().getInt(p);
+                int nextSegment = docs.segments().getInt(p);
+                if (nextShard != shard || nextSegment != segment) {
+                    // The segment being left is read before the field work moves off it, because moving closes its
+                    // readers and a closed reader has handed back the memory it was accounted for.
                     readColumnAtATime(segmentStart, i);
+                    shard = nextShard;
+                    segment = nextSegment;
+                    boolean changedSegment = operator.positionFieldWorkDocGuaranteedAscending(shard, segment);
+                    assert changedSegment : "shard [" + shard + "] segment [" + segment + "] is the one just read";
                     segmentStart = i;
                     ctx = operator.ctx(shard, segment);
                     fieldsMoved(ctx, shard);

@@ -4,6 +4,9 @@
 * [`AVG_OVER_TIME`](../../functions-operators/time-series-aggregation-functions/avg_over_time.md) {applies_to}`stack: preview 9.2` {applies_to}`stack: ga 9.4`
   :::{include} ../generated/x-pack-esql/functions/briefSummary/avg_over_time.md
   :::
+* [`CHANGES`](../../functions-operators/time-series-aggregation-functions/changes.md) {applies_to}`stack: ga 9.6`
+  :::{include} ../generated/x-pack-esql/functions/briefSummary/changes.md
+  :::
 * [`COUNT_OVER_TIME`](../../functions-operators/time-series-aggregation-functions/count_over_time.md) {applies_to}`stack: preview 9.2` {applies_to}`stack: ga 9.4`
   :::{include} ../generated/x-pack-esql/functions/briefSummary/count_over_time.md
   :::

@@ -32,7 +32,10 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEF
 /**
  * REST handler for the Prometheus {@code GET} and {@code POST /api/v1/labels} endpoint.
  * Returns the sorted list of label names across all matching time series.
- * The optional {@code {index}} path parameter restricts the query to a specific index pattern;
+ *
+ * @see <a href="https://prometheus.io/docs/prometheus/latest/querying/api/#getting-label-names">Prometheus Label Names API</a>
+ *
+ * <p>The optional {@code {index}} path parameter restricts the query to a specific index pattern;
  * when omitted, the index expression defaults to {@link PromqlCommand#DEFAULT_PROMQL_INDEX_PATTERN}
  * (same as PromQL query APIs).
  */
@@ -87,10 +90,21 @@ public class PrometheusLabelsRestAction extends BaseRestHandler {
 
         String index = request.param(INDEX_PARAM, DEFAULT_PROMQL_INDEX_PATTERN);
         LogicalPlan plan = PrometheusLabelsPlanBuilder.buildPlan(index, matchSelectors, start, end, limit);
-        EsqlStatement statement = new EsqlStatement(plan, List.of());
-        PreparedEsqlQueryRequest esqlRequest = PreparedEsqlQueryRequest.sync(statement, "prometheus_labels");
+        EsqlStatement statement = new EsqlStatement(plan, PrometheusPlanBuilderUtils.QUERY_SETTINGS);
+        PreparedEsqlQueryRequest esqlRequest = new PromqlQueryRequest(
+            index,
+            statement,
+            "prometheus_labels",
+            LIMIT_PARAM,
+            limit == DEFAULT_LIMIT ? null : limit,
+            START_PARAM,
+            startParam,
+            END_PARAM,
+            endParam,
+            MATCH_PARAM,
+            matchSelectors
+        );
 
         return channel -> client.execute(EsqlQueryAction.INSTANCE, esqlRequest, PrometheusLabelsResponseListener.create(channel, limit));
     }
-
 }

@@ -125,12 +125,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         }
     }
 
-    @Override
-    public final void setUp() throws Exception {
-        // do not override setUp, use an @Before
-        super.setUp();
-    }
-
     @Before
     public final void startTestNode() throws Exception {
         // the seed has to be created regardless of whether it will be used or not, for repeatability
@@ -140,12 +134,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         if (NODE == null) {
             startNode(seed);
         }
-    }
-
-    @Override
-    public final void tearDown() throws Exception {
-        // do not override tearDown, use an @After
-        super.tearDown();
     }
 
     @After
@@ -243,11 +231,11 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     /**
-     * Whether the test node should enable index slicing validation.
-     * This adds the {@link IndexSettings#SLICE_VALIDATED} setting to all indices created in the cluster. In production, this happens
-     * via an x-pack plugin.
+     * Determines whether the columnar ID mode should be randomized in the test setup.
+     *
+     * @return {@code true} if the columnar ID mode should be randomized; otherwise, returns {@code false}.
      */
-    protected boolean enableIndexSlice() {
+    protected boolean randomizeColumnarIdMode() {
         return true;
     }
 
@@ -299,9 +287,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         Settings settings = settingBuilder.build();
 
         Collection<Class<? extends Plugin>> plugins = new ArrayList<>(getPlugins());
-        if (enableIndexSlice()) {
-            plugins.add(ESIntegTestCase.AlwaysValidateSlicePlugin.class);
-        }
         if (plugins.contains(getTestTransportPlugin()) == false) {
             plugins.add(getTestTransportPlugin());
         }
@@ -312,6 +297,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             plugins.add(ConcurrentSearchTestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
+        if (randomizeColumnarIdMode()) {
+            plugins.add(ESIntegTestCase.RandomizeColumnarIdModePlugin.class);
+        }
         Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings(), TEST_ENTITLEMENTS.addEntitledNodePaths(settings, null));
         try {
             node.start();

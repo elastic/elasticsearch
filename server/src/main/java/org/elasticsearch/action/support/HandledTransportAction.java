@@ -10,7 +10,9 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.Executor;
@@ -32,7 +34,6 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         this(actionName, true, transportService, actionFilters, requestReader, executor);
     }
 
-    @SuppressWarnings("this-escape")
     protected HandledTransportAction(
         String actionName,
         boolean canTripCircuitBreaker,
@@ -41,6 +42,22 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         Writeable.Reader<Request> requestReader,
         Executor executor
     ) {
+        this(actionName, canTripCircuitBreaker, transportService, actionFilters, requestReader, executor, null);
+    }
+
+    /**
+     * @param responseBreaker charged for the serialized response of a request received over the network, until it is written
+     */
+    @SuppressWarnings("this-escape")
+    protected HandledTransportAction(
+        String actionName,
+        boolean canTripCircuitBreaker,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> requestReader,
+        Executor executor,
+        @Nullable CircuitBreaker responseBreaker
+    ) {
         super(actionName, actionFilters, transportService.getTaskManager(), executor);
         transportService.registerRequestHandler(
             actionName,
@@ -48,7 +65,7 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
             false,
             canTripCircuitBreaker,
             requestReader,
-            (request, channel, task) -> executeDirect(task, request, new ChannelActionListener<>(channel))
+            (request, channel, task) -> executeDirect(task, request, new ChannelActionListener<>(channel, responseBreaker))
         );
     }
 }

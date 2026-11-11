@@ -43,7 +43,8 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
             DenseVectorFieldMapper.ElementType.BFLOAT16,
             DEFAULT_NUM_MERGE_WORKER,
             null,
-            random().nextInt(1, 20)
+            random().nextInt(1, 20),
+            false
         );
     }
 
@@ -55,7 +56,8 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
             DenseVectorFieldMapper.ElementType.BFLOAT16,
             DEFAULT_NUM_MERGE_WORKER,
             null,
-            random().nextInt(1, 20)
+            random().nextInt(1, 20),
+            false
         );
     }
 
@@ -67,7 +69,8 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
             DenseVectorFieldMapper.ElementType.BFLOAT16,
             numMergeWorkers,
             service,
-            random().nextInt(1, 20)
+            random().nextInt(1, 20),
+            false
         );
     }
 
@@ -84,7 +87,8 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
             DenseVectorFieldMapper.ElementType.BFLOAT16,
             numMergeWorkers,
             service,
-            hnswGraphThreshold
+            hnswGraphThreshold,
+            false
         );
     }
 
@@ -118,18 +122,19 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
             Locale.ROOT,
             expected,
             hnswGraphThreshold,
-            "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)"
+            "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s, useDirectIO=false, onDiskMerge=false)"
         );
         expected = format(
             Locale.ROOT,
             expected,
-            "ES93BFloat16FlatVectorsFormat(name=ES93BFloat16FlatVectorsFormat, flatVectorScorer=ES93GenericFlatVectorScorer(delegate=%s()))"
+            "ES93BFloat16FlatVectorsFormat(name=ES93BFloat16FlatVectorsFormat, flatVectorScorer=ES93GenericFlatVectorScorer(delegate=%s))"
         );
-        String defaultScorer = format(Locale.ROOT, expected, "DefaultFlatVectorScorer");
-        String memSegScorer = format(Locale.ROOT, expected, "Lucene99MemorySegmentFlatVectorsScorer");
+        String defaultScorer = format(Locale.ROOT, expected, "ESDefaultFlatVectorScorer(delegate=DefaultFlatVectorScorer())");
+        String memSegScorer = format(Locale.ROOT, expected, "ESDefaultFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())");
+        String nativeScorer = format(Locale.ROOT, expected, "PanamaFlatVectorScorer()");
 
         KnnVectorsFormat format = createFormat(10, 20, 1, null, hnswGraphThreshold);
-        assertThat(format, hasToString(is(oneOf(defaultScorer, memSegScorer))));
+        assertThat(format, hasToString(is(oneOf(defaultScorer, memSegScorer, nativeScorer))));
     }
 
     public void testSimpleOffHeapSize() throws IOException {
@@ -141,7 +146,8 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
             DenseVectorFieldMapper.ElementType.BFLOAT16,
             DEFAULT_NUM_MERGE_WORKER,
             null,
-            0
+            0,
+            false
         );
         IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         try (Directory dir = newDirectory()) {

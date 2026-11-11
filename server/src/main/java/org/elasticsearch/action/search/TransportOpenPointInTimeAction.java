@@ -278,9 +278,10 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         final SearchRequest searchRequest = new SearchRequest().indices(request.indices())
             .indicesOptions(request.indicesOptions())
             .preference(request.preference())
-            .routing(request.routing())
             .allowPartialSearchResults(request.allowPartialSearchResults())
-            .source(new SearchSourceBuilder().query(request.indexFilter()));
+            .source(new SearchSourceBuilder().query(request.indexFilter()))
+            .routing(request.routing())
+            .setRoutingFromSlice(request.isRoutingFromSlice());
         searchRequest.setMaxConcurrentShardRequests(request.maxConcurrentShardRequests());
         searchRequest.setCcsMinimizeRoundtrips(false);
 
@@ -342,7 +343,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                     searchResponseMetrics,
                     searchRequestAttributes,
-                    false
+                    false,
+                    clusterState
                 ).addListener(listener.delegateFailureAndWrap((searchResponseActionListener, canMatchResult) -> {
                     skippedByClusterAlias.forEach(
                         (cluster, count) -> canMatchResult.skippedByClusterAlias().merge(cluster, count, Integer::sum)
@@ -416,6 +418,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 clusterState,
                 task,
                 new ArraySearchPhaseResults<>(shardIterators.size()),
+                searchService.getCircuitBreaker(),
                 searchRequest.getMaxConcurrentShardRequests(),
                 clusters,
                 searchResponseMetrics,

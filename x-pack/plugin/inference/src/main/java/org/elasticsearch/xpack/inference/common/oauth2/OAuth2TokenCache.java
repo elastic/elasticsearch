@@ -50,7 +50,7 @@ import static org.elasticsearch.xpack.inference.registry.InferenceEndpointRegist
  * <p>Tokens are kept only in heap memory and are never persisted. Each node fetches its own
  * tokens independently.
  */
-public class OAuth2TokenCache extends DiagnosticsCache<CachedToken> {
+public class OAuth2TokenCache extends DiagnosticsCache<CachedToken> implements TokenCache {
 
     /**
      * 60-second buffer subtracted from a token's {@code expiresAt} when deciding whether a
@@ -220,6 +220,18 @@ public class OAuth2TokenCache extends DiagnosticsCache<CachedToken> {
      */
     void invalidateLocal(InferenceIdAndProject key) {
         cache.invalidate(key);
+    }
+
+    /**
+     * Removes the entry for the given inference endpoint from this node's local cache.
+     * Resolves the current project with {@link #projectResolver} the same way
+     * {@link #getToken} does, then delegates to {@link #invalidateLocal(InferenceIdAndProject)}.
+     *
+     * <p>Node-local only — does not broadcast to other nodes.
+     */
+    @Override
+    public void invalidateOnlLocalNode(String inferenceId) {
+        invalidateLocal(new InferenceIdAndProject(inferenceId, projectResolver.getProjectId()));
     }
 
     @Override

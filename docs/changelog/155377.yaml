@@ -1,0 +1,5 @@
+area: "ES|QL"
+issues: []
+pr: 155377
+summary: Speed up conversion of long to string for ES|QL type conversions
+type: enhancement

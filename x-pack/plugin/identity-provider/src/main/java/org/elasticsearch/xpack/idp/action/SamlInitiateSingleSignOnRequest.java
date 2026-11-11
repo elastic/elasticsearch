@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.idp.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,7 +19,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class SamlInitiateSingleSignOnRequest extends LegacyActionRequest {
+public class SamlInitiateSingleSignOnRequest extends UntypedActionRequest {
 
     private static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES = TransportVersion.fromName("idp_custom_saml_attributes");
 

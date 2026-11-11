@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 161957
+pr: 161984
+summary: Skip dataset leaves inside views in request filter
+type: bug

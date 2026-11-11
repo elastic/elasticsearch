@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -17,16 +15,17 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceRequestMetadata;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.telemetry.InferenceProductContext;
 import org.elasticsearch.inference.telemetry.InferenceStats;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
@@ -110,7 +109,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
             }
 
             var timer = InferenceTimer.start();
-            var productContext = InferenceProductContext.create(threadPool.getThreadContext());
+            var attribution = InferenceRequestMetadata.capture(threadPool.getThreadContext()::getHeader);
             // instead of a subscribably listener, use some wait to wait for the first one.
             var subscribableListener = SubscribableListener.<Boolean>newForked(
                 forkedListener -> { isBuiltinModelPut(model, forkedListener); }
@@ -130,7 +129,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
                 inferenceStats.deploymentDuration()
                     .withModel(model)
                     .withSuccess()
-                    .withProductContext(productContext)
+                    .withRequestMetadata(attribution)
                     .record(timer.elapsedMillis());
                 finalListener.onResponse(null);
             }, e -> {
@@ -147,14 +146,14 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
                     inferenceStats.deploymentDuration()
                         .withModel(model)
                         .withThrowable(timeoutException)
-                        .withProductContext(productContext)
+                        .withRequestMetadata(attribution)
                         .record(timer.elapsedMillis());
                     finalListener.onFailure(timeoutException);
                 } else {
                     inferenceStats.deploymentDuration()
                         .withModel(model)
                         .withThrowable(unwrapCause(e))
-                        .withProductContext(productContext)
+                        .withRequestMetadata(attribution)
                         .record(timer.elapsedMillis());
                     finalListener.onFailure(e);
                 }
@@ -290,37 +289,21 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
     }
 
     private void preferredVariantFromPlatformArchitecture(ActionListener<PreferredModelVariant> preferredVariantListener) {
-        // Find the cluster platform as the service may need that
-        // information when creating the model
-        MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(
-            preferredVariantListener.delegateFailureAndWrap((delegate, architectures) -> {
-                if (architectures.isEmpty() && isClusterInElasticCloud()) {
-                    // There are no ml nodes to check the current arch.
-                    // However, in Elastic cloud ml nodes run on Linux x86
-                    delegate.onResponse(PreferredModelVariant.LINUX_X86_OPTIMIZED);
-                } else {
-                    boolean homogenous = architectures.size() == 1;
-                    if (homogenous && architectures.iterator().next().equals("linux-x86_64")) {
-                        delegate.onResponse(PreferredModelVariant.LINUX_X86_OPTIMIZED);
-                    } else {
-                        delegate.onResponse(PreferredModelVariant.PLATFORM_AGNOSTIC);
-                    }
-                }
-            }),
+        MlPlatformArchitecturesUtil.resolveEffectiveArchitectures(
+            clusterService.getClusterSettings(),
             client,
-            inferenceExecutor
+            inferenceExecutor,
+            preferredVariantListener.map(architectures -> {
+                var variant = MlPlatformArchitecturesUtil.resolveModelPlatformVariant(architectures, clusterService.getClusterSettings());
+                return MlPlatformArchitecturesUtil.LINUX_X86_64.equals(variant)
+                    ? PreferredModelVariant.LINUX_X86_OPTIMIZED
+                    : PreferredModelVariant.PLATFORM_AGNOSTIC;
+            })
         );
     }
 
     protected ClusterService getClusterService() {
         return clusterService;
-    }
-
-    boolean isClusterInElasticCloud() {
-        // Use the ml lazy node count as a heuristic to determine if in Elastic cloud.
-        // A value > 0 means scaling should be available for ml nodes
-        var maxMlLazyNodes = clusterService.getClusterSettings().get(MachineLearningField.MAX_LAZY_ML_NODES);
-        return maxMlLazyNodes > 0;
     }
 
     public static InferModelAction.Request buildInferenceRequest(

@@ -29,14 +29,16 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         assertEquals(customMetadata, parsed.asMap());
     }
 
-    public void testTruncatingStepInfo() {
+    public void testManuallyTruncatingStepInfo() {
         Map<String, String> custom = createCustomMetadata();
         LifecycleExecutionState state = LifecycleExecutionState.fromCustomMetadata(custom);
         assertThat(custom.get("step_info"), equalTo(state.stepInfo()));
         String longStepInfo = "{\"key\": \""
             + randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH + 100)
             + "\"}";
-        LifecycleExecutionState newState = LifecycleExecutionState.builder(state).setStepInfo(longStepInfo).build();
+        LifecycleExecutionState newState = LifecycleExecutionState.builder(state)
+            .setStepInfo(LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(longStepInfo))
+            .build();
         assertThat(newState.stepInfo(), hasLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH));
         assertThat(newState.stepInfo(), endsWith("... (~111 chars truncated)\"}"));
     }

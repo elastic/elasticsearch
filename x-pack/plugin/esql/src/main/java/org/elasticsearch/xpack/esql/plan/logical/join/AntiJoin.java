@@ -9,12 +9,10 @@ package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
@@ -22,9 +20,11 @@ import java.util.List;
 /**
  * An anti join used to implement {@code WHERE field NOT IN (subquery)}.
  * <p>
- * Behaves identically to {@link SemiJoin} except it uses {@link JoinTypes#ANTI}.
+ * The dual of {@link SemiJoin}: it shares the {@link AbstractSubqueryJoin} dedup pipeline and only flips the hooks that distinguish
+ * {@code NOT IN} from {@code IN} — it uses {@link JoinTypes#ANTI}, wraps the inline filter in {@code Not}, keeps unmatched rows on the
+ * hash-join path ({@code IS NULL} on the sentinel), and short-circuits to {@code Filter(FALSE)} on any NULL right value.
  */
-public class AntiJoin extends SemiJoin {
+public class AntiJoin extends AbstractSubqueryJoin {
 
     public AntiJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
         super(source, left, right, config);
@@ -47,13 +47,8 @@ public class AntiJoin extends SemiJoin {
     }
 
     @Override
-    public boolean isAntiJoin() {
-        return true;
-    }
-
-    @Override
     protected LogicalPlan buildEmptyRightSidePlan(Source source) {
-        return new Filter(source, left(), Literal.TRUE);
+        return left();
     }
 
     @Override

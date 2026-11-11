@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -19,7 +19,7 @@ import java.io.IOException;
 /**
  * A request for checking a user's privileges
  */
-public final class GetUserPrivilegesRequest extends LegacyActionRequest implements UserRequest {
+public final class GetUserPrivilegesRequest extends UntypedActionRequest implements UserRequest {
 
     private static final TransportVersion TV_UNWRAP_ROLE = TransportVersion.fromName("get_user_priv_unwrap_role");
 

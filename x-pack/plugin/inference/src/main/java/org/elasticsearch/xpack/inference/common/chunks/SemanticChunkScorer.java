@@ -14,7 +14,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.core.common.chunks.ScoredChunk;
@@ -59,7 +59,7 @@ public class SemanticChunkScorer {
             return new ArrayList<>();
         }
 
-        MinimalServiceSettings modelSettings = fieldType.getModelSettings();
+        EndpointClusterState modelSettings = fieldType.getModelSettings();
         if (modelSettings == null) {
             // Null model settings mean that nothing was indexed yet, so we can short-circuit
             return new ArrayList<>();

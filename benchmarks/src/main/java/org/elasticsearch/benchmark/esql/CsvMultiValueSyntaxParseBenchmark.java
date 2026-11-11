@@ -7,14 +7,16 @@
 
 package org.elasticsearch.benchmark.esql;
 
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -55,6 +57,11 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 public class CsvMultiValueSyntaxParseBenchmark {
 
+    /** Shared identity for the in-memory fixture; CSV reads never consult the footer cache, so sharing is harmless. */
+    private record BenchIdentity() implements StorageIdentity {}
+
+    private static final BenchIdentity BENCH_IDENTITY = new BenchIdentity();
+
     @Param({ "100000" })
     int rowCount;
 
@@ -67,8 +74,8 @@ public class CsvMultiValueSyntaxParseBenchmark {
 
     @Setup(Level.Trial)
     public void setup() {
-        Utils.configureBenchmarkLogging();
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("bench")).build();
+        BenchmarkLogging.configure();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         csvData = generateStandardCsv(rowCount);
         // Reader (and its CsvMapper) constructed once per trial so the measurement loop reflects
         // only per-stream parse cost, not per-invocation mapper construction. In production the
@@ -118,6 +125,9 @@ public class CsvMultiValueSyntaxParseBenchmark {
     private static StorageObject createStorageObject(byte[] data) {
         return new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);
             }
@@ -140,6 +150,11 @@ public class CsvMultiValueSyntaxParseBenchmark {
             @Override
             public boolean exists() {
                 return true;
+            }
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return BENCH_IDENTITY;
             }
 
             @Override

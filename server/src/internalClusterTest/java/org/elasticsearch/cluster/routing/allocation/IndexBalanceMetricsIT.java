@@ -130,7 +130,7 @@ public class IndexBalanceMetricsIT extends ESIntegTestCase {
                 for (var name : IndexBalanceMetricsComputer.metricNames(tier)) {
                     assertThat(
                         name + " should publish no measurements when disabled",
-                        telemetryPlugin.getLongGaugeMeasurement(name),
+                        telemetryPlugin.getLongAsyncGaugeMeasurement(name),
                         empty()
                     );
                 }
@@ -194,7 +194,7 @@ public class IndexBalanceMetricsIT extends ESIntegTestCase {
             otherNodeTelemetryPlugin.collect();
             for (var tier : new String[] { "primary", "replica" }) {
                 for (var name : IndexBalanceMetricsComputer.metricNames(tier)) {
-                    assertThat(otherNodeTelemetryPlugin.getLongGaugeMeasurement(name), empty());
+                    assertThat(otherNodeTelemetryPlugin.getLongAsyncGaugeMeasurement(name), empty());
                 }
             }
         }
@@ -203,7 +203,7 @@ public class IndexBalanceMetricsIT extends ESIntegTestCase {
     private static void assertImbalanceMetrics(TestTelemetryPlugin plugin, String tier, int expectedTotal) {
         long sum = 0;
         for (var name : IndexBalanceMetricsComputer.metricNames(tier)) {
-            var measurements = plugin.getLongGaugeMeasurement(name);
+            var measurements = plugin.getLongAsyncGaugeMeasurement(name);
             assertThat(name + " should have exactly one measurement", measurements, hasSize(1));
             sum += measurements.get(0).getLong();
         }

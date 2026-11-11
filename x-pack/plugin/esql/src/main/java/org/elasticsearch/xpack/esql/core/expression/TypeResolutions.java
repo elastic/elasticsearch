@@ -23,12 +23,14 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentableInExpression;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialOrGrid;
 
 public final class TypeResolutions {
@@ -81,7 +83,7 @@ public final class TypeResolutions {
     }
 
     /**
-     * @see DataType#isRepresentable(DataType)
+     * @see DataType#isRepresentableInExpression(DataType)
      */
     public static TypeResolution isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(
         Expression e,
@@ -90,16 +92,18 @@ public final class TypeResolutions {
     ) {
         return isType(
             e,
-            dt -> isRepresentable(dt)
+            dt -> isRepresentableInExpression(dt)
                 && dt != DENSE_VECTOR
                 && dt != AGGREGATE_METRIC_DOUBLE
                 && dt != EXPONENTIAL_HISTOGRAM
                 && dt != HISTOGRAM
                 && dt != TDIGEST
-                && dt != DATE_RANGE,
+                && dt != DATE_RANGE
+                && dt != DOUBLE_RANGE,
             operationName,
             paramOrd,
-            "any type except counter types, dense_vector, aggregate_metric_double, tdigest, histogram, exponential_histogram, or date_range"
+            "any type except counter types, dense_vector, aggregate_metric_double, tdigest, histogram, exponential_histogram, date_range, "
+                + "or double_range"
         );
     }
 
@@ -111,17 +115,19 @@ public final class TypeResolutions {
         return isType(
             e,
             (t) -> isSpatialOrGrid(t) == false
-                && DataType.isRepresentable(t)
+                && DataType.isRepresentableInExpression(t)
                 && t != DENSE_VECTOR
                 && t != AGGREGATE_METRIC_DOUBLE
                 && t != EXPONENTIAL_HISTOGRAM
                 && t != HISTOGRAM
                 && t != TDIGEST
-                && t != DATE_RANGE,
+                && t != DATE_RANGE
+                && t != DOUBLE_RANGE
+                && t != FLATTENED,
             operationName,
             paramOrd,
             "any type except counter, spatial types, dense_vector, aggregate_metric_double, tdigest, histogram, "
-                + "exponential_histogram, or date_range"
+                + "exponential_histogram, date_range, double_range, or flattened"
         );
     }
 

@@ -39,6 +39,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -228,7 +229,19 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
                         );
                     }
                 }
-
+                TimeValue failureStoreFrozenAfter = Optional.ofNullable(indexTemplate.template())
+                    .map(Template::dataStreamOptions)
+                    .map(dataStreamOptions -> dataStreamOptions.failureStore().get())
+                    .map(failureStore -> failureStore.lifecycle().get())
+                    .map(DataStreamLifecycle.Template::frozenAfter)
+                    .map(ResettableValue::get)
+                    .orElse(null);
+                if (failureStoreFrozenAfter != null) {
+                    validationException = addValidationError(
+                        DataStreamLifecycle.FROZEN_AFTER_NOT_SUPPORTED_ON_FAILURES_ERROR_MESSAGE,
+                        validationException
+                    );
+                }
             }
             return validationException;
         }

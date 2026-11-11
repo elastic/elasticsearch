@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -22,13 +24,14 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
+import java.util.function.Consumer;
 
 /**
  * Wraps an NDJSON byte stream and exposes only bytes through the last {@code '\n'} in the stream,
  * dropping a trailing partial line (split boundary). Reads the delegate lazily and keeps at most a
  * small read buffer plus any uncommitted tail after the last newline seen so far.
  *
- * <p>If a line without a delimiter exceeds the configured {@code max_record_size}, {@link ErrorPolicy#isStrict()}
+ * <p>If a line without a delimiter exceeds the configured {@code external_max_record_size}, {@link ErrorPolicy#isStrict()}
  * causes an {@link IOException}; otherwise the buffered partial line is discarded as bogus and
  * reading continues. Discards are logged like {@link NdJsonPageDecoder} parse skips:
  * {@link Level#INFO} when {@link ErrorPolicy#logErrors()} is true, otherwise {@link Level#DEBUG}.
@@ -62,12 +65,20 @@ final class TrimLastPartialLineInputStream extends InputStream {
             DEFAULT_TRIM_CHUNK_SIZE,
             errorPolicy,
             sourceLocation,
-            new NdJsonRecordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES)
+            new NdJsonRecordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES),
+            null
         );
     }
 
     TrimLastPartialLineInputStream(InputStream delegate, int chunkSize, ErrorPolicy errorPolicy, String sourceLocation) {
-        this(delegate, chunkSize, errorPolicy, sourceLocation, new NdJsonRecordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES));
+        this(
+            delegate,
+            chunkSize,
+            errorPolicy,
+            sourceLocation,
+            new NdJsonRecordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES),
+            null
+        );
     }
 
     TrimLastPartialLineInputStream(
@@ -76,7 +87,7 @@ final class TrimLastPartialLineInputStream extends InputStream {
         String sourceLocation,
         NdJsonRecordSplitter recordSplitter
     ) {
-        this(delegate, DEFAULT_TRIM_CHUNK_SIZE, errorPolicy, sourceLocation, recordSplitter);
+        this(delegate, DEFAULT_TRIM_CHUNK_SIZE, errorPolicy, sourceLocation, recordSplitter, null);
     }
 
     TrimLastPartialLineInputStream(
@@ -85,6 +96,27 @@ final class TrimLastPartialLineInputStream extends InputStream {
         ErrorPolicy errorPolicy,
         String sourceLocation,
         NdJsonRecordSplitter recordSplitter
+    ) {
+        this(delegate, chunkSize, errorPolicy, sourceLocation, recordSplitter, null);
+    }
+
+    TrimLastPartialLineInputStream(
+        InputStream delegate,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        NdJsonRecordSplitter recordSplitter,
+        @Nullable Consumer<String> warningSink
+    ) {
+        this(delegate, DEFAULT_TRIM_CHUNK_SIZE, errorPolicy, sourceLocation, recordSplitter, warningSink);
+    }
+
+    TrimLastPartialLineInputStream(
+        InputStream delegate,
+        int chunkSize,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        NdJsonRecordSplitter recordSplitter,
+        @Nullable Consumer<String> warningSink
     ) {
         this.delegate = delegate;
         Check.isTrue(chunkSize > 0, "chunkSize must strictly positive");
@@ -95,7 +127,8 @@ final class TrimLastPartialLineInputStream extends InputStream {
         this.recordSplitter = recordSplitter;
         this.skipWarnings = SkipWarnings.of(
             errorPolicy,
-            "NDJSON read from [" + sourceLocation + "] discarded an oversized partial line (policy: " + errorPolicy.modeName() + ")"
+            "Line in [" + sourceLocation + "] exceeds [" + ByteSizeValue.ofBytes(recordSplitter.maxRecordBytes()) + "]; skipping it",
+            warningSink
         );
     }
 
@@ -231,22 +264,14 @@ final class TrimLastPartialLineInputStream extends InputStream {
 
     /** Same level choice as {@link NdJsonPageDecoder#onNdjsonLineParseError}. */
     private void logDiscardedOversizedPartial(long discardedBytes, String kind) {
-        skipWarnings.add(
-            "Skipping NDJSON ["
-                + kind
-                + "] of approximately ["
-                + discardedBytes
-                + "] bytes while trimming split suffix; limit is ["
-                + recordSplitter.maxRecordBytes()
-                + "]"
-        );
+        skipWarnings.add("about [" + discardedBytes + "] bytes skipped");
         logger.log(
             errorPolicy.logErrors() ? Level.INFO : Level.DEBUG,
             LoggerMessageFormat.format(
-                "Skipping NDJSON [{}] of approximately [{}] bytes while trimming split suffix; limit is [{}]",
-                kind,
+                "Skipping NDJSON line of about [{}] bytes over [{}] at a split boundary ({})",
                 discardedBytes,
-                recordSplitter.maxRecordBytes()
+                recordSplitter.maxRecordBytes(),
+                kind
             )
         );
     }

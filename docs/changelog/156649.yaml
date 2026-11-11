@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 156649
+summary: "PromQL: Add `histogram_fraction` for native histograms"
+type: enhancement

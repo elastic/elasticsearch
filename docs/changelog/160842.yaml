@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 160842
+summary: Carry the caller's cloud credential to the master for datafeeds embedded in `PUT _ml/anomaly_detectors`
+type: bug

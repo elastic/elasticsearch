@@ -58,12 +58,11 @@ import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
  * <p>
  * To make custom per-expression replacements, see {@link TransportVersionAware}.
  *
- * <h2>TRIPLE CAUTION: Backports of version-aware query planning PRs</h2>
+ * <h2>TRIPLE CAUTION: Stop before backporting version-aware query planning changes</h2>
  *
- * Because we use a single, global minimum transport version, backporting changes that introduce a version-sensitive planning
- * change need to be handled with great care. Backporting such a change to multiple prior versions leads to situations where
- * the minimum transport version indicates that a feature is supported, but some nodes don't actually support it
- * because they're not on the latest patch version.
+ * If you are considering such a backport, stop: it is probably not a good idea. Because we use a single, global minimum
+ * transport version, a backport can make the minimum version indicate that a feature is supported even though some nodes
+ * do not support it because they are not on the latest patch version.
  * <p>
  * Let's say we introduce an optimization in 9.5.0 that requires a different query plan that older nodes
  * don't support. Backporting this to 9.4.9 is likely fine, as the minimum transport version of a mixed 9.4.x/9.5+ setup
@@ -76,6 +75,13 @@ import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
  * Rolling upgrades from 9.3.7 to 9.4.8 would have the same problem. That's generally ok, as rolling upgrades should be performed
  * to the latest patch version of a given minor version; however, if 9.3.7 gets released before 9.4.9, users may not be
  * able to perform rolling upgrades safely at all.
+ * <p>
+ * It is especially dangerous to backport a version-sensitive change below another version-sensitive change that was not
+ * backported. Say change A shipped in 9.5.0 and was not backported, while change B shipped later and was backported to 9.4.
+ * A 9.4/9.5 mixed cluster can then plan with B but without A — a combination no contiguous version range can describe. A
+ * golden test that declares expectation changes at both A and B detects this combination and fails when deriving its ranges;
+ * this is not a global check for unsafe backports. If such a backport is truly unavoidable, the combination needs deliberate
+ * edge-case testing with explicitly pinned transport versions.
  *
  */
 public record Versioned<T>(T inner, TransportVersion minimumVersion) {}

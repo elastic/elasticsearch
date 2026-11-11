@@ -1,0 +1,4 @@
+TopN[[Order[k{r}#0,ASC,FIRST], Order[keyword{f}#1,ASC,LAST]],10[INTEGER],false]
+\_Aggregate[[long{f}#2, keyword{f}#1],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#3, long{f}#2 AS k#0, keyword{f}#1]]
+  \_TopNPreFilter[long{f}#2,10[INTEGER],true,true]
+    \_EsRelation[all_types][!alias_integer, boolean{f}#4, byte{f}#5, constant_keyword-foo{f}#6, date{f}#7, date_nanos{f}#8, dense_vector{f}#9, double{f}#10, float{f}#11, half_float{f}#12, integer{f}#13, ip{f}#14, keyword{f}#1, long{f}#2, scaled_float{f}#15, semantic_text{f}#16, short{f}#17, text{f}#18, unsigned_long{f}#19, version{f}#20, wildcard{f}#21]

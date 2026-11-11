@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
@@ -20,7 +21,9 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Map.entry;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class AuthenticationConsistencyTests extends ESTestCase {
 
@@ -33,6 +36,36 @@ public class AuthenticationConsistencyTests extends ESTestCase {
             );
             assertThat(e.getMessage(), equalTo(errorMessage));
         });
+    }
+
+    /**
+     * A service account user carries no roles, because a built-in account's privileges come from a role descriptor fixed
+     * by the account definition and any role name on the user would be ignored. A user-managed account is the one
+     * exception: its privileges <em>are</em> those role names. Both halves are asserted here, since the exemption is only
+     * as safe as the check that a built-in account cannot claim it.
+     */
+    public void testOnlyUserManagedServiceAccountsMayHaveRoles() throws IOException {
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> AuthenticationContextSerializer.decode(
+                encodeAuthentication(
+                    serviceAccountSubject(
+                        "elastic/kibana",
+                        new String[] { "role-a" },
+                        Map.of(ServiceAccountSettings.BUILTIN_SERVICE_ACCOUNT_FIELD, true)
+                    ),
+                    Authentication.AuthenticationType.TOKEN
+                )
+            )
+        );
+        assertThat(e.getMessage(), equalTo("Service account authentication user must have no role"));
+
+        final String[] roles = { "role-a", "role-b" };
+        final Authentication authentication = AuthenticationContextSerializer.decode(
+            AuthenticationTestHelper.builder().userManagedServiceAccount("my-namespace/my-service", roles).build().encode()
+        );
+        assertThat(authentication.isUserManagedServiceAccount(), is(true));
+        assertThat(authentication.getEffectiveSubject().getUser().roles(), arrayContaining(roles));
     }
 
     private Map<String, String> getErrorMessageToEncodedAuthentication() throws IOException {
@@ -335,6 +368,17 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                 )
             ),
             entry(
+                "Service account authentication for built-in account [elastic/kibana] cannot be user-managed",
+                encodeAuthentication(
+                    serviceAccountSubject(
+                        "elastic/kibana",
+                        Strings.EMPTY_ARRAY,
+                        Map.of(ServiceAccountSettings.USER_MANAGED_SERVICE_ACCOUNT_FIELD, true)
+                    ),
+                    Authentication.AuthenticationType.TOKEN
+                )
+            ),
+            entry(
                 "Service account authentication cannot run-as other user",
                 encodeAuthentication(
                     new Subject(userBar, realm2),
@@ -396,6 +440,13 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                     Authentication.AuthenticationType.REALM
                 )
             )
+        );
+    }
+
+    private static Subject serviceAccountSubject(String principal, String[] roles, Map<String, Object> metadata) {
+        return new Subject(
+            new User(principal, roles, "Service account - " + principal, null, metadata, true),
+            Authentication.RealmRef.newServiceAccountRealmRef("node")
         );
     }
 

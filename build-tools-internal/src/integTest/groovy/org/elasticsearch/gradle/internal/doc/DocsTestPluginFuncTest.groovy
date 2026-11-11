@@ -44,7 +44,7 @@ class DocsTestPluginFuncTest extends AbstractGradleFuncTest {
         docDir.mkdirs()
         addSampleDoc(docDir)
         buildApiRestrictionsDisabled = true
-        configurationCacheCompatible = false
+        disableConfigurationCache("DocsTestPlugin uses project references that are not configuration-cache safe")
 
         internalBuild()
 

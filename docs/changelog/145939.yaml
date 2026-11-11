@@ -1,5 +1,0 @@
-area: Infra/Metrics
-issues: []
-pr: 145939
-summary: Flush OTel traces at shutdown
-type: enhancement

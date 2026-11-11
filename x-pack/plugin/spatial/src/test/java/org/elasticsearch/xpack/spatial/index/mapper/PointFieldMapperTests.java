@@ -426,11 +426,6 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return syntheticSourceSupport(ignoreMalformed, false);
-    }
-
-    @Override
-    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnReader) {
         return new SyntheticSourceSupport() {
             private final boolean ignoreZValue = usually();
             private final CartesianPoint nullValue = usually() ? null : randomCartesianPoint();
@@ -559,5 +554,11 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
     @Override
     protected List<SortShortcutSupport> getSortShortcutSupport() {
         return List.of();
+    }
+
+    @Override
+    protected boolean supportsDynamicallyAddedMultiFields() {
+        // multi-fields have no effect on a point field, and adding one is only warned about
+        return false;
     }
 }

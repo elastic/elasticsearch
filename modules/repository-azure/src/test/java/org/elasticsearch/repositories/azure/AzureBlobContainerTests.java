@@ -11,19 +11,26 @@ package org.elasticsearch.repositories.azure;
 
 import com.sun.net.httpserver.HttpExchange;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.Base64;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomFiniteRetryingPurpose;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -69,6 +76,84 @@ public class AzureBlobContainerTests extends AbstractAzureServerTestCase {
             );
             final long elapsedTimeMillis = System.currentTimeMillis() - startTimeMillis;
             assertThat(elapsedTimeMillis, lessThan(tryTimeout.millis()));
+        }
+    }
+
+    /**
+     * Simulates a request body producer that stalls after the first upload buffer (e.g. slow reads of local files). The upload must be
+     * aborted by the configured write timeout rather than the SDK default of 60s.
+     */
+    public void testCanConfigureWriteTimeout() throws Exception {
+        final int uploadBufferSize = ByteSizeUnit.KB.toIntBytes(64);
+        final byte[] bytes = randomByteArrayOfLength(uploadBufferSize + randomIntBetween(1, uploadBufferSize));
+        httpServer.createContext("/account/container/write_blob_write_timeout", exchange -> {
+            logger.info("Received request: {} {}", exchange.getRequestMethod(), exchange.getRequestURI());
+            try {
+                // blocks until the client gives up and closes the connection
+                Streams.readFully(exchange.getRequestBody());
+            } catch (IOException e) {
+                // expected once the client closes the connection
+            } finally {
+                exchange.close();
+            }
+        });
+
+        final var tryTimeout = TimeValue.timeValueSeconds(60);
+        final var writeTimeoutMillis = randomLongBetween(100, 1000);
+        final BlobContainer blobContainer = builder().withMaxRetries(0)
+            .withTryTimeout(tryTimeout)
+            .withWriteTimeout(TimeValue.timeValueMillis(writeTimeoutMillis))
+            .build();
+
+        final CountDownLatch stalled = new CountDownLatch(1);
+        final CountDownLatch release = new CountDownLatch(1);
+        try {
+            final long startTimeMillis = System.currentTimeMillis();
+            final IOException writeBlobException = expectThrows(
+                IOException.class,
+                () -> blobContainer.writeBlobAtomic(
+                    randomPurpose(),
+                    "write_blob_write_timeout",
+                    bytes.length,
+                    (offset, length) -> new StallingInputStream(bytes, uploadBufferSize, stalled, release),
+                    false,
+                    Runnable::run
+                )
+            );
+            assertTrue("the request body producer should have stalled", stalled.await(0, TimeUnit.SECONDS));
+            assertThat(
+                ExceptionsHelper.stackTrace(writeBlobException),
+                containsString("Channel write operation timed out after " + writeTimeoutMillis + " milliseconds")
+            );
+            final long elapsedTimeMillis = System.currentTimeMillis() - startTimeMillis;
+            assertThat(elapsedTimeMillis, lessThan(tryTimeout.millis()));
+        } finally {
+            release.countDown();
+        }
+    }
+
+    /**
+     * Serves the first {@code stallAfter} bytes, then blocks until released.
+     */
+    private static class StallingInputStream extends ByteArrayInputStream {
+        private final int stallAfter;
+        private final CountDownLatch stalled;
+        private final CountDownLatch release;
+
+        StallingInputStream(byte[] bytes, int stallAfter, CountDownLatch stalled, CountDownLatch release) {
+            super(bytes);
+            this.stallAfter = stallAfter;
+            this.stalled = stalled;
+            this.release = release;
+        }
+
+        @Override
+        public synchronized int read(byte[] b, int off, int len) {
+            if (pos >= stallAfter) {
+                stalled.countDown();
+                safeAwait(release, TimeValue.timeValueSeconds(30));
+            }
+            return super.read(b, off, Math.min(len, pos < stallAfter ? stallAfter - pos : len));
         }
     }
 

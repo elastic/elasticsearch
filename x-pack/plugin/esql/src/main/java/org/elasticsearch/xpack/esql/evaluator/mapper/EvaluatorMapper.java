@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.evaluator.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -19,6 +20,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -83,10 +85,31 @@ public interface EvaluatorMapper {
     ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator);
 
     /**
+     * Fold this expression with {@link #doFold}. {@link AnyNullIsNull} expressions fold to {@code null} first if any
+     * argument folds to {@code null}, so {@link #doFold} doesn't have to handle them.
+     * <p>
+     * To customize folding, override {@link #doFold} instead of this method or {@link Expression#fold}.
+     * If a class must override {@link Expression#fold}, it should only delegate to
+     * {@code EvaluatorMapper.super.fold(source(), ctx)}.
+     * </p>
+     */
+    default Object fold(Source source, FoldContext ctx) {
+        if (this instanceof AnyNullIsNull && this instanceof Expression expression) {
+            Expression withFoldedArguments = AnyNullIsNull.foldArguments(expression, ctx);
+            if (withFoldedArguments == null) {
+                return null;
+            }
+            // replaceChildren keeps the class, so the copy is an EvaluatorMapper too
+            return ((EvaluatorMapper) withFoldedArguments).doFold(source, ctx);
+        }
+        return doFold(source, ctx);
+    }
+
+    /**
      * Fold using {@link #toEvaluator} so you don't need a "by hand"
      * implementation of {@link Expression#fold}.
      */
-    default Object fold(Source source, FoldContext ctx) {
+    default Object doFold(Source source, FoldContext ctx) {
         /*
          * OK! So! We're going to build a bunch of *stuff* that so that we can
          * call toEvaluator and use it without standing up an entire compute
@@ -171,6 +194,17 @@ public interface EvaluatorMapper {
         Block block = toEvaluator(foldChildren).get(driverCtx).eval(new Page(1));
         if (block.getPositionCount() != 1) {
             throw new IllegalStateException("generated odd block from fold [" + block + "]");
+        }
+        /*
+         * Constant folding runs synchronously on the coordinator's planning thread,
+         * outside any Driver that would ship a DriverCompletionInfo back to the
+         * response. We don't have a fancy place to stick the warnings, so we use
+         * the thread context for now. But one day we'll plumb a warnings accumulator
+         * in here too and can get rid of the spooky thread local.
+         */
+        driverCtx.finish();
+        for (String warning : driverCtx.warnings()) {
+            HeaderWarning.addWarning(warning);
         }
         return toJavaObject(block, 0);
     }

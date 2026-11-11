@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.inference.services.openshiftai.completion;
 
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiCompletionResponseHandler;
 
 /**
  * Handles non-streaming completion responses for OpenShift AI models, extending the OpenAI completion response handler.
  */
-public class OpenShiftAiCompletionResponseHandler extends OpenAiChatCompletionResponseHandler {
+public class OpenShiftAiCompletionResponseHandler extends OpenAiCompletionResponseHandler {
 
     /**
      * Constructs an OpenShiftAiCompletionResponseHandler with the specified request type and response parser.

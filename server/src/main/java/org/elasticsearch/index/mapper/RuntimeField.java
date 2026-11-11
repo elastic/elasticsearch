@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
@@ -192,6 +194,15 @@ public interface RuntimeField extends ToXContentFragment {
                 if (parserContext.getNamespaceValidator() != null) {
                     parserContext.getNamespaceValidator().validateNamespace(null, fieldName);
                 }
+                if (parserContext.getIndexSettings().isSliceEnabled() && SliceIndexing.isReservedFieldName(fieldName)) {
+                    throw new MapperParsingException(
+                        "["
+                            + fieldName
+                            + "] is a reserved field name and cannot be used when ["
+                            + IndexSettings.SLICE_ENABLED.getKey()
+                            + "] is true"
+                    );
+                }
                 runtimeFields.put(fieldName, builder.apply(typeParser.parse(fieldName, propNode, parserContext)));
                 propNode.remove("type");
                 MappingParser.checkNoRemainingFields(fieldName, propNode);
@@ -229,10 +240,6 @@ public interface RuntimeField extends ToXContentFragment {
         }).collect(Collectors.toUnmodifiableMap(MappedFieldType::name, mappedFieldType -> mappedFieldType, (t, t2) -> {
             throw new IllegalArgumentException("Found two runtime fields with same name [" + t.name() + "]");
         }));
-    }
-
-    static <T> Function<FieldMapper, T> initializerNotSupported() {
-        return mapper -> { throw new UnsupportedOperationException(); };
     }
 
     static Script parseScript(String name, MappingParserContext parserContext, Object scriptObject) {

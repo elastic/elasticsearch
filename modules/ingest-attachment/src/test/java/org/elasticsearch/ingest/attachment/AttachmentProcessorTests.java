@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -360,7 +361,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> attachmentData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        Map<String, Object> attachmentData = (Map<String, Object>) ingestDocument.getSource().get("target_field");
 
         assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
         assertThat(attachmentData.get("language"), is("en"));
@@ -493,7 +494,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         attachmentProcessor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> attachmentData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        Map<String, Object> attachmentData = (Map<String, Object>) ingestDocument.getSource().get("target_field");
         return attachmentData;
     }
 
@@ -703,6 +704,78 @@ public class AttachmentProcessorTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("source_field"));
     }
 
+    public void testMaxAttachmentFieldSizeEnforcedOnByteArray() {
+        processor = new AttachmentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "target_field",
+            EnumSet.of(AttachmentProcessor.Property.CONTENT),
+            10000,
+            false,
+            null,
+            null,
+            true,
+            100,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            "",
+            new SetOnce<>()
+        );
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", new byte[101]);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class, () -> processor.execute(ingestDocument));
+        assertThat(ex.getMessage(), containsString("exceeding the maximum allowed"));
+        assertThat(ex.getMessage(), containsString("source_field"));
+    }
+
+    /**
+     * The size of a string field is its length, as it is received (one base64 character is one byte), not the length that it decodes to.
+     */
+    public void testMaxAttachmentFieldSizeIsTheLengthOfAStringField() throws Exception {
+        processor = new AttachmentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "target_field",
+            EnumSet.of(AttachmentProcessor.Property.CONTENT),
+            10000,
+            false,
+            null,
+            null,
+            true,
+            8,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            "",
+            new SetOnce<>()
+        );
+        // 8 characters is exactly at the limit (and decodes to just 6 bytes)
+        Map<String, Object> atLimit = new HashMap<>();
+        atLimit.put("source_field", "QUJDREVG");
+        processor.execute(RandomDocumentPicks.randomIngestDocument(random(), atLimit));
+
+        // 12 characters is over the limit, even though it decodes to just 8 bytes, which is not over it
+        Map<String, Object> overLimit = new HashMap<>();
+        overLimit.put("source_field", "QUJDREVGR0g=");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), overLimit);
+        ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class, () -> processor.execute(ingestDocument));
+        assertThat(ex.getMessage(), containsString("exceeding the maximum allowed"));
+    }
+
+    public void testSourceFieldOfInvalidType() {
+        Object randomObject = randomFrom(new ArrayList<>(), new HashMap<>(), 12, 12.34);
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", randomObject);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Content field [source_field] of unknown type [" + randomObject.getClass().getName() + "], must be string or byte array"
+            )
+        );
+    }
+
     public void testMaxFieldBytesNotViolated() throws Exception {
         processor = new AttachmentProcessor(
             randomAlphaOfLength(10),
@@ -908,8 +981,34 @@ public class AttachmentProcessorTests extends ESTestCase {
         );
         int bytes = randomIntBetween(1, 100);
         assertThat(parseRandomStringAttachmentAndGetTargetField(bytes, processor), notNullValue());
-        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_BYTES_RECEIVED, bytes);
-        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_BYTES_PROCESSED, bytes);
+        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_RECEIVED, bytes);
+        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_PROCESSED, bytes);
+    }
+
+    public void testSizeMetricsOneMebibyteDocument() throws Exception {
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        SetOnce<AttachmentIngestMetrics> metricsRef = new SetOnce<>();
+        metricsRef.set(new AttachmentIngestMetrics(meterRegistry));
+        processor = new AttachmentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "target_field",
+            EnumSet.of(AttachmentProcessor.Property.CONTENT),
+            10000,
+            false,
+            null,
+            null,
+            false,
+            -1,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            "",
+            metricsRef
+        );
+        int bytes = 1_048_576;
+        assertThat(parseRandomStringAttachmentAndGetTargetField(bytes, processor), notNullValue());
+        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_RECEIVED, bytes);
+        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_PROCESSED, bytes);
     }
 
     public void testSizeMetricsIgnoreMissing() throws Exception {
@@ -935,11 +1034,13 @@ public class AttachmentProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         processor.execute(ingestDocument);
         assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_BYTES_RECEIVED),
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_RECEIVED),
             hasSize(0)
         );
         assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_BYTES_PROCESSED),
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_PROCESSED),
             hasSize(0)
         );
     }
@@ -968,9 +1069,10 @@ public class AttachmentProcessorTests extends ESTestCase {
         int bytes = randomIntBetween(1, 100);
         expectThrows(ElasticsearchParseException.class, () -> parseRandomStringAttachmentAndGetTargetField(bytes, processor));
 
-        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_BYTES_RECEIVED, bytes);
+        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_RECEIVED, bytes);
         assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_BYTES_PROCESSED),
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_PROCESSED),
             hasSize(0)
         );
     }
@@ -997,26 +1099,28 @@ public class AttachmentProcessorTests extends ESTestCase {
         );
         expectThrows(ElasticsearchParseException.class, () -> parseDocument("encrypted.pdf", processor));
         assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_BYTES_RECEIVED),
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_RECEIVED),
             hasSize(greaterThanOrEqualTo(1))
         );
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_BYTES_RECEIVED)
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_RECEIVED)
                 .getLast()
-                .getLong(),
-            greaterThan(0L)
+                .getDouble(),
+            greaterThan(0.0)
         );
         assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_BYTES_PROCESSED),
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_PROCESSED),
             hasSize(0)
         );
     }
 
-    private static void assertHistogramLastValue(RecordingMeterRegistry meterRegistry, String metricName, long expected) {
-        var measurements = meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, metricName);
+    private static void assertHistogramLastValue(RecordingMeterRegistry meterRegistry, String metricName, long rawBytes) {
+        var measurements = meterRegistry.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, metricName);
         assertThat(measurements, hasSize(greaterThanOrEqualTo(1)));
-        assertThat(measurements.get(measurements.size() - 1).getLong(), equalTo(expected));
+        assertThat(measurements.get(measurements.size() - 1).getDouble(), closeTo(AttachmentIngestMetrics.toMebibytes(rawBytes), 1e-12));
     }
 
     private static Object parseRandomStringAttachmentAndGetTargetField(int bytes, Processor processor) throws Exception {
@@ -1026,7 +1130,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         document.put("source_field", str.getBytes(StandardCharsets.US_ASCII));
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
-        return ingestDocument.getSourceAndMetadata().get("target_field");
+        return ingestDocument.getSource().get("target_field");
     }
 
     private Object getAsBinaryOrBase64(String filename) throws Exception {
@@ -1040,5 +1144,35 @@ public class AttachmentProcessorTests extends ESTestCase {
                 return Base64.getEncoder().encodeToString(bytes);
             }
         }
+    }
+
+    /**
+     * Pipelines are stored, so a malformed path in one has to be accepted when the processor is created, with the failure only coming
+     * when a document is run through it.
+     */
+    public void testMalformedTargetFieldFailsAtExecutionTime() throws Exception {
+        Processor processor = new AttachmentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "a..b",
+            EnumSet.allOf(AttachmentProcessor.Property.class),
+            10000,
+            false,
+            null,
+            null,
+            false,
+            -1,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            "",
+            new SetOnce<>()
+        );
+
+        // the source is fine, so it is the target that causes the failure
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", getAsBinaryOrBase64("text-in-english.txt"));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
     }
 }

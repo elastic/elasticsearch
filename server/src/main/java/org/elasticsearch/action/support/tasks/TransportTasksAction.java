@@ -61,6 +61,8 @@ public abstract class TransportTasksAction<
 
     protected final String transportNodeAction;
 
+    @SuppressWarnings("this-escape") // registers a NodeTransportHandler bound to this action; the handler is only invoked after
+                                     // construction.
     protected TransportTasksAction(
         String actionName,
         ClusterService clusterService,

@@ -32,6 +32,16 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class AnalysisTests extends ESTestCase {
+
+    public void testSha256Hex() {
+        String text = randomUnicodeOfLengthBetween(0, 200);
+        assertEquals(Analysis.sha256Hex(text), Analysis.sha256Hex(new String(text)));
+        assertNotEquals(Analysis.sha256Hex(text), Analysis.sha256Hex(text + "x"));
+        // a charset encoding would collapse both unpaired surrogates to one replacement character
+        assertNotEquals(Analysis.sha256Hex("\uD800"), Analysis.sha256Hex("\uDC00"));
+        assertEquals(64, Analysis.sha256Hex(text).length());
+    }
+
     public void testParseStemExclusion() {
         /* Comma separated list */
         Settings settings = Settings.builder().put("stem_exclusion", "foo,bar").build();
@@ -159,6 +169,20 @@ public class AnalysisTests extends ESTestCase {
             () -> Analysis.getWordList(env, nodeSettings, "foo.path", "bar.list", "soup.lenient", false, true)
         );
         assertThat(exc.getMessage(), containsString("[最終契約] in user dictionary at line [5]"));
+    }
+
+    /**
+     * A {@link Analysis.StableCharArraySet} built from a {@code null} set and one built from an empty
+     * set both hash to 0, so they collide and {@code equals()} is invoked to disambiguate. They must
+     * compare unequal (and the {@code null}-set receiver must not throw), so the two never share a
+     * cache slot.
+     */
+    public void testStableCharArraySetEqualsNullVsEmptyDoesNotNpe() {
+        Analysis.StableCharArraySet withNull = new Analysis.StableCharArraySet(null, false);
+        Analysis.StableCharArraySet withEmpty = new Analysis.StableCharArraySet(new CharArraySet(List.of(), false), false);
+        assertEquals("null and empty sets both produce hash 0", withNull.hashCode(), withEmpty.hashCode());
+        assertFalse("null set must not equal empty set — and must not throw NPE", withNull.equals(withEmpty));
+        assertFalse("empty set must not equal null set — and must not throw NPE", withEmpty.equals(withNull));
     }
 
     public void testParseDuplicatesWComments() throws IOException {

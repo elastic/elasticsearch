@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.BaseCollectorTestCase;
 import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
 import org.junit.Assert;
+import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
@@ -64,9 +65,8 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
 
     private LicenseService licenseService;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initLicenseService() {
         licenseService = mock(LicenseService.class);
     }
 
@@ -296,7 +296,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.cluster.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release. See the deprecation documentation for the next major version."
+                + "in a future release. See the breaking changes documentation for the next major version."
         );
     }
 
@@ -367,7 +367,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.cluster.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release. See the deprecation documentation for the next major version."
+                + "in a future release. See the breaking changes documentation for the next major version."
         );
     }
 
@@ -432,7 +432,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.cluster.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release. See the deprecation documentation for the next major version."
+                + "in a future release. See the breaking changes documentation for the next major version."
         );
     }
 

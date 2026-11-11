@@ -9,9 +9,12 @@
 
 package org.elasticsearch.index.query.support;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 
+import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.LinkedList;
 
@@ -43,6 +46,56 @@ public final class NestedScope {
      */
     public ObjectMapper previousLevel() {
         return levelStack.pop();
+    }
+
+    /**
+     * Returns the innermost enclosing level that is an ancestor of {@code path}, or {@code null} for the root. The
+     * enclosing levels are not always ancestors, for instance for a nested query in a knn filter on another object.
+     * A {@code null} level, pushed by a {@code reverse_nested} aggregation to the root, makes the root the current level.
+     */
+    @Nullable
+    public NestedObjectMapper nearestAncestorOf(String path) {
+        for (NestedObjectMapper level : levelStack) {
+            if (level == null) {
+                return null;
+            }
+            if (path.startsWith(level.fullPath() + ".")) {
+                return level;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Returns the innermost enclosing ancestor of the current level, or {@code null} for the root.
+     */
+    @Nullable
+    public NestedObjectMapper parentLevel() {
+        NestedObjectMapper current = levelStack.peek();
+        return current == null ? null : nearestAncestorOf(current.fullPath());
+    }
+
+    /**
+     * Temporarily makes {@code level} the current nested level.
+     *
+     * @param level an ancestor of the current level, or {@code null} for the root document space
+     * @return a {@link Releasable} that restores the levels that were unwound
+     */
+    public Releasable unwindTo(@Nullable NestedObjectMapper level) {
+        if (levelStack.peek() == level) {
+            return () -> {};
+        }
+
+        Deque<NestedObjectMapper> unwound = new ArrayDeque<>();
+        while (levelStack.isEmpty() == false && levelStack.peek() != level) {
+            unwound.push(levelStack.pop());
+        }
+        assert levelStack.peek() == level : "[" + level + "] is not an ancestor of the current nested level";
+        return () -> {
+            while (unwound.isEmpty() == false) {
+                levelStack.push(unwound.pop());
+            }
+        };
     }
 
 }

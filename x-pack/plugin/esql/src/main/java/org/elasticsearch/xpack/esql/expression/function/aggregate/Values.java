@@ -13,12 +13,14 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ValuesDoubleRangeAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ValuesLongRangeAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -29,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -38,8 +41,10 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentableInExpression;
 
-public class Values extends AggregateFunction implements ToAggregator {
+public class Values extends UnaryAggregateFunction implements ToAggregator, AnyNullIsNull, UnitAware.PreservesUnit {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Values", Values::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Values.class)
         .unary(Values::new)
@@ -65,7 +70,9 @@ public class Values extends AggregateFunction implements ToAggregator {
         Map.entry(DataType.GEOHASH, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.GEOTILE, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.GEOHEX, ValuesLongAggregatorFunctionSupplier::new),
-        Map.entry(DataType.BOOLEAN, ValuesBooleanAggregatorFunctionSupplier::new)
+        Map.entry(DataType.BOOLEAN, ValuesBooleanAggregatorFunctionSupplier::new),
+        Map.entry(DataType.DATE_RANGE, ValuesLongRangeAggregatorFunctionSupplier::new),
+        Map.entry(DataType.DOUBLE_RANGE, ValuesDoubleRangeAggregatorFunctionSupplier::new)
     );
 
     @FunctionInfo(
@@ -75,7 +82,9 @@ public class Values extends AggregateFunction implements ToAggregator {
             "cartesian_shape",
             "date",
             "date_nanos",
+            "date_range",
             "double",
+            "double_range",
             "flattened",
             "geo_point",
             "geo_shape",
@@ -121,7 +130,9 @@ public class Values extends AggregateFunction implements ToAggregator {
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "date_range",
                 "double",
+                "double_range",
                 "flattened",
                 "geo_point",
                 "geo_shape",
@@ -164,18 +175,24 @@ public class Values extends AggregateFunction implements ToAggregator {
     }
 
     @Override
-    public Values withFilter(Expression filter) {
-        return new Values(source(), field(), filter, window());
-    }
-
-    @Override
     public DataType dataType() {
         return field().dataType().noText();
     }
 
     @Override
     protected TypeResolution resolveType() {
-        return TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(field(), sourceText(), DEFAULT);
+        return isType(
+            field(),
+            dt -> isRepresentableInExpression(dt)
+                && dt != DataType.DENSE_VECTOR
+                && dt != DataType.AGGREGATE_METRIC_DOUBLE
+                && dt != DataType.EXPONENTIAL_HISTOGRAM
+                && dt != DataType.HISTOGRAM
+                && dt != DataType.TDIGEST,
+            sourceText(),
+            DEFAULT,
+            "any type except counter types, dense_vector, aggregate_metric_double, tdigest, histogram, or exponential_histogram"
+        );
     }
 
     @Override

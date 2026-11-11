@@ -1,0 +1,6 @@
+SET unmapped_fields="load"; FROM employees_gender_text, employees_no_gender
+| KEEP gender
+| FORK (WHERE true)
+       (WHERE true)
+| KEEP _fork, gender
+| SORT _fork

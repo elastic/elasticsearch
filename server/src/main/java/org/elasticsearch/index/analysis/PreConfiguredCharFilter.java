@@ -106,6 +106,12 @@ public class PreConfiguredCharFilter extends PreConfiguredAnalysisComponent<Char
                 public Reader create(Reader reader) {
                     return create.apply(reader, version);
                 }
+
+                @Override
+                public Object sharingKey() {
+                    // Cached per IndexVersion (see PreConfiguredAnalysisComponent#get).
+                    return this;
+                }
             };
         }
         return new CharFilterFactory() {
@@ -117,6 +123,12 @@ public class PreConfiguredCharFilter extends PreConfiguredAnalysisComponent<Char
             @Override
             public String name() {
                 return getName();
+            }
+
+            @Override
+            public Object sharingKey() {
+                // Cached per IndexVersion (see PreConfiguredAnalysisComponent#get).
+                return this;
             }
         };
     }

@@ -38,10 +38,8 @@ public class MonitoringBulkDocTests extends ESTestCase {
     private BytesReference source;
     private XContentType xContentType;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initMonitoringBulkDocFields() throws Exception {
         system = randomFrom(MonitoredSystem.values());
         type = randomAlphaOfLength(5);
         id = randomBoolean() ? randomAlphaOfLength(10) : null;

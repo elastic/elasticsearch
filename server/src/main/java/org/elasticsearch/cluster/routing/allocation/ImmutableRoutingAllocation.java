@@ -28,15 +28,17 @@ final class ImmutableRoutingAllocation extends RoutingAllocation {
      * @param clusterState cluster state before rerouting
      * @param clusterInfo {@link ClusterInfo} to use for allocation decisions
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
+     * @param preserveDecisionLabels whether decisions retain their decider label when not in debug mode
      */
     ImmutableRoutingAllocation(
         AllocationDeciders deciders,
         ClusterState clusterState,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
-        long currentNanoTime
+        long currentNanoTime,
+        boolean preserveDecisionLabels
     ) {
-        super(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
+        super(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, preserveDecisionLabels);
     }
 
     @Override

@@ -81,6 +81,111 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
         assertDefaultRerankConfig(rerankModel);
     }
 
+    public void testModelPlatformArchitecturesSetting_ArmRejectsX86Model() throws IOException {
+        setModelPlatformArchitectures("[\"linux-aarch64\"]");
+        try {
+            var e = expectThrows(ResponseException.class, () -> {
+                Request createEndpoint = new Request("PUT", "_inference/sparse_embedding/test-arm-x86-reject");
+                createEndpoint.setJsonEntity("""
+                    {
+                        "service": "elasticsearch",
+                        "service_settings": {
+                            "num_allocations": 1,
+                            "num_threads": 1,
+                            "model_id": ".elser_model_2_linux-x86_64"
+                        }
+                    }""");
+                client().performRequest(createEndpoint);
+            });
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(400));
+            assertThat(e.getMessage(), containsString("model id does not match any models available on this platform"));
+        } finally {
+            resetModelPlatformArchitectures();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testModelPlatformArchitecturesSetting_ArmAcceptsPlatformAgnostic() throws IOException {
+        setModelPlatformArchitectures("[\"linux-aarch64\"]");
+        try {
+            var endpointId = "test-arm-agnostic-accept";
+            Request createEndpoint = new Request("PUT", "_inference/sparse_embedding/" + endpointId);
+            createEndpoint.setJsonEntity("""
+                {
+                    "service": "elasticsearch",
+                    "service_settings": {
+                        "num_allocations": 1,
+                        "num_threads": 1,
+                        "model_id": ".elser_model_2"
+                    }
+                }""");
+            client().performRequest(createEndpoint);
+
+            var model = getModel(endpointId);
+            var serviceSettings = (Map<String, Object>) model.get("service_settings");
+            assertEquals(".elser_model_2", serviceSettings.get("model_id"));
+
+            deleteModel(endpointId);
+        } finally {
+            resetModelPlatformArchitectures();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testModelPlatformArchitecturesSetting_MixedAcceptsPlatformAgnosticRejectsX86() throws IOException {
+        setModelPlatformArchitectures("[\"linux-x86_64\", \"linux-aarch64\"]");
+        try {
+            var agnosticEndpointId = "test-mixed-agnostic";
+            Request createAgnostic = new Request("PUT", "_inference/sparse_embedding/" + agnosticEndpointId);
+            createAgnostic.setJsonEntity("""
+                {
+                    "service": "elasticsearch",
+                    "service_settings": {
+                        "num_allocations": 1,
+                        "num_threads": 1,
+                        "model_id": ".elser_model_2"
+                    }
+                }""");
+            client().performRequest(createAgnostic);
+
+            var agnosticModel = getModel(agnosticEndpointId);
+            var agnosticSettings = (Map<String, Object>) agnosticModel.get("service_settings");
+            assertEquals(".elser_model_2", agnosticSettings.get("model_id"));
+
+            deleteModel(agnosticEndpointId);
+
+            var e = expectThrows(ResponseException.class, () -> {
+                Request createX86 = new Request("PUT", "_inference/sparse_embedding/test-mixed-x86-reject");
+                createX86.setJsonEntity("""
+                    {
+                        "service": "elasticsearch",
+                        "service_settings": {
+                            "num_allocations": 1,
+                            "num_threads": 1,
+                            "model_id": ".elser_model_2_linux-x86_64"
+                        }
+                    }""");
+                client().performRequest(createX86);
+            });
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(400));
+            assertThat(e.getMessage(), containsString("model id does not match any models available on this platform"));
+        } finally {
+            resetModelPlatformArchitectures();
+        }
+    }
+
+    private static void setModelPlatformArchitectures(String architecturesJson) throws IOException {
+        Request request = new Request("PUT", "_cluster/settings");
+        request.setJsonEntity("{\"persistent\": {\"xpack.ml.model_platform_architectures\": " + architecturesJson + "}}");
+        client().performRequest(request);
+    }
+
+    private static void resetModelPlatformArchitectures() throws IOException {
+        Request request = new Request("PUT", "_cluster/settings");
+        request.setJsonEntity("{\"persistent\": {\"xpack.ml.model_platform_architectures\": null}}");
+        client().performRequest(request);
+    }
+
     public void testUpdateDefaultEndpointReturnsBadRequest() throws IOException {
         var e = expectThrows(ResponseException.class, () -> updateEndpoint(ElasticsearchInternalService.DEFAULT_E5_ID, """
             {

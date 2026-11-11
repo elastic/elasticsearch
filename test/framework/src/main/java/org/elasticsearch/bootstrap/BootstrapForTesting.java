@@ -24,12 +24,12 @@ import java.nio.file.Path;
 import java.util.Objects;
 
 /**
- * Initializes natives and installs test security manager
+ * Initializes natives and installs test entitlements
  * (init'd early by base classes to ensure it happens regardless of which
  * test case happens to be first, test ordering, etc).
  * <p>
  * The idea is to mimic as much as possible what happens with ES in production
- * mode (e.g. assign permissions and install security manager the same way)
+ * mode (e.g. assign permissions and install entitlements the same way)
  */
 public class BootstrapForTesting {
 

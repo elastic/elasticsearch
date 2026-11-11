@@ -300,7 +300,15 @@ public class Packages {
 
     public static void restartElasticsearch(Shell sh, Installation installation) throws Exception {
         if (isSystemd()) {
-            sh.run("systemctl restart elasticsearch.service");
+            // If the restart fails, systemctl does not include the reason in its output; capture the service status and recent
+            // journald logs so that intermittent restart failures can be diagnosed from the test failure alone. See #155704.
+            JournaldWrapper journald = new JournaldWrapper(sh);
+            Result result = sh.runIgnoreExitCode("systemctl restart elasticsearch.service");
+            if (result.isSuccess() == false) {
+                logger.warn(sh.runIgnoreExitCode("systemctl status elasticsearch.service").stdout());
+                logger.warn(journald.getLogs().stdout());
+                throw new Shell.ShellException("Restarting elasticsearch.service was not successful: " + result);
+            }
         } else {
             sh.run("service elasticsearch restart");
         }
@@ -344,7 +352,7 @@ public class Packages {
             if (cursor.isEmpty() == false) {
                 cmd += " --after-cursor='" + this.cursor + "'";
             }
-            return sh.run(cmd);
+            return sh.runIgnoreExitCode(cmd);
         }
     }
 

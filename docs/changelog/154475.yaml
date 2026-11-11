@@ -1,0 +1,6 @@
+pr: 154475
+summary: "Add `MV_LIKE` and `MV_RLIKE`, any-value pattern matching over multivalued fields"
+area: ES|QL
+type: feature
+issues:
+ - 154427

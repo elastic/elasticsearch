@@ -37,6 +37,10 @@ public class AzureOpenAiResponseHandler extends OpenAiResponseHandler {
 
     @Override
     protected RetryException buildExceptionHandling429(OutboundRequest outboundRequest, HttpResult result) {
+        if (isTokenLimitExceeded(result)) {
+            // Token-overflow 429s must not be retried; the request itself must be reduced in size
+            return new RetryException(false, buildError(RATE_LIMIT, outboundRequest, result));
+        }
         return new RetryException(true, buildError(buildRateLimitErrorMessage(result), outboundRequest, result));
     }
 

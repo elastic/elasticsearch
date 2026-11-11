@@ -11,6 +11,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.util.automaton.Automaton;
 
 /**
@@ -23,6 +24,15 @@ public class AutomatonQueryWithDescription extends AutomatonQuery {
 
     public AutomatonQueryWithDescription(Term term, Automaton automaton, String description) {
         super(term, automaton);
+        this.description = description;
+    }
+
+    /**
+     * Creates a query using a specific rewrite method (e.g. {@link MultiTermQuery#DOC_VALUES_REWRITE}
+     * for doc-values-only keyword fields that have no inverted index).
+     */
+    public AutomatonQueryWithDescription(Term term, Automaton automaton, String description, MultiTermQuery.RewriteMethod rewriteMethod) {
+        super(term, automaton, false, rewriteMethod);
         this.description = description;
     }
 

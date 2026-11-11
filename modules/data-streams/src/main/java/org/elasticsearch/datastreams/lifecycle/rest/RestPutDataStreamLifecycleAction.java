@@ -34,7 +34,7 @@ public class RestPutDataStreamLifecycleAction extends BaseRestHandler {
 
     private static final Set<String> CAPABILITIES = Set.of(
         RestPutComponentTemplateAction.SUPPORTS_DOWNSAMPLING_METHOD,
-        DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() ? RestPutComponentTemplateAction.SUPPORTS_FROZEN_AFTER : ""
+        RestPutComponentTemplateAction.SUPPORTS_FROZEN_AFTER
     );
 
     @Override

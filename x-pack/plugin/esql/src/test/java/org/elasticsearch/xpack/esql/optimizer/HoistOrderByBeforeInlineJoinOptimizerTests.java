@@ -48,6 +48,10 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalPlanOptimizerTests {
 
+    public HoistOrderByBeforeInlineJoinOptimizerTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     /*
      * Project[[emp_no{f}#12, avg{r}#6, languages{f}#15, gender{f}#14]]
      * \_TopN[[Order[emp_no{f}#12,ASC,LAST]],5[INTEGER],false]

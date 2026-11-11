@@ -80,6 +80,7 @@ public class NativeController implements MlController {
             false,
             true,
             false,
+            false,
             false
         );
         processPipes.connectLogStream();

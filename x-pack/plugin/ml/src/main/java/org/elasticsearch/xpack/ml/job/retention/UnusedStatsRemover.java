@@ -11,6 +11,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -43,10 +46,12 @@ public class UnusedStatsRemover implements MlDataRemover {
     private static final Logger LOGGER = LogManager.getLogger(UnusedStatsRemover.class);
 
     private final OriginSettingClient client;
+    private final ClusterService clusterService;
     private final TaskId parentTaskId;
 
-    public UnusedStatsRemover(OriginSettingClient client, TaskId parentTaskId) {
+    public UnusedStatsRemover(OriginSettingClient client, ClusterService clusterService, TaskId parentTaskId) {
         this.client = Objects.requireNonNull(client);
+        this.clusterService = Objects.requireNonNull(clusterService);
         this.parentTaskId = Objects.requireNonNull(parentTaskId);
     }
 
@@ -102,7 +107,15 @@ public class UnusedStatsRemover implements MlDataRemover {
     }
 
     private void executeDeleteUnusedStatsDocs(QueryBuilder dbq, float requestsPerSec, ActionListener<Boolean> listener) {
-        var indicesToQuery = WritableIndexExpander.getInstance().getWritableIndices(MlStatsIndex.indexPattern());
+        var writableIndices = WritableIndexExpander.getInstance().getWritableIndices(MlStatsIndex.indexPattern());
+
+        RoutingTable routingTable = clusterService.state().routingTable(client.projectResolver().getProjectId());
+
+        // Newly created indices appear in the cluster state before their shards can serve searches, thereby failing the whole query.
+        var indicesToQuery = writableIndices.stream().filter(index -> {
+            IndexRoutingTable indexRoutingTable = routingTable.index(index);
+            return indexRoutingTable != null && indexRoutingTable.readyForSearch();
+        }).toList();
 
         if (indicesToQuery.isEmpty()) {
             LOGGER.info("No writable indices found for unused stats documents");

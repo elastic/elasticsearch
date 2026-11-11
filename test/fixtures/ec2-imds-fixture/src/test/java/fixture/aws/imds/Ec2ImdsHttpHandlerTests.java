@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.anEmptyMap;
 
 public class Ec2ImdsHttpHandlerTests extends ESTestCase {
 
@@ -131,6 +132,52 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
         );
     }
 
+    public void testPodIdentityCredentialsEndpointReturnsAccountIdNotRoleArn() throws IOException {
+        final var credentialsEndpoint = "/" + randomIdentifier();
+        final Map<String, String> generatedCredentials = new HashMap<>();
+
+        final var handler = new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V1).alternativeCredentialsEndpoints(Set.of(credentialsEndpoint))
+            .podIdentityCredentialsResponse()
+            .newCredentialsConsumer(generatedCredentials::put)
+            .buildHandler();
+
+        final var credentialsResponse = handleRequest(handler, "GET", credentialsEndpoint);
+        assertThat(generatedCredentials, aMapWithSize(1));
+
+        assertEquals(RestStatus.OK, credentialsResponse.status());
+        final var responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), credentialsResponse.body().streamInput(), false);
+        assertEquals(Set.of("AccessKeyId", "Expiration", "AccountId", "SecretAccessKey", "Token"), responseMap.keySet());
+        assertEquals(generatedCredentials.keySet().iterator().next(), responseMap.get("AccessKeyId"));
+        assertEquals(generatedCredentials.values().iterator().next(), responseMap.get("Token"));
+    }
+
+    public void testAlternativeCredentialsEndpointRequiresAuthorizationToken() throws IOException {
+        final var authorizationToken = randomSecretKey();
+        final var credentialsEndpoint = "/" + randomIdentifier();
+        final Map<String, String> generatedCredentials = new HashMap<>();
+
+        final var handler = new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V1).alternativeCredentialsEndpoints(Set.of(credentialsEndpoint))
+            .authorizationTokenSupplier(() -> authorizationToken)
+            .newCredentialsConsumer(generatedCredentials::put)
+            .buildHandler();
+
+        assertEquals(RestStatus.FORBIDDEN, handleCredentialsRequest(handler, credentialsEndpoint, null).status());
+        assertEquals(
+            RestStatus.FORBIDDEN,
+            handleCredentialsRequest(handler, credentialsEndpoint, randomValueOtherThan(authorizationToken, ESTestCase::randomSecretKey))
+                .status()
+        );
+        assertThat(generatedCredentials, anEmptyMap());
+
+        final var credentialsResponse = handleCredentialsRequest(handler, credentialsEndpoint, authorizationToken);
+        assertThat(generatedCredentials, aMapWithSize(1));
+        assertValidCredentialsResponse(
+            credentialsResponse,
+            generatedCredentials.keySet().iterator().next(),
+            generatedCredentials.values().iterator().next()
+        );
+    }
+
     private static void assertValidCredentialsResponse(TestHttpResponse credentialsResponse, String accessKey, String sessionToken)
         throws IOException {
         assertEquals(RestStatus.OK, credentialsResponse.status());
@@ -180,6 +227,18 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
             headers.put("X-aws-ec2-metadata-token", List.of(token));
         }
 
+        return handleRequestWithHeaders(handler, method, uri, headers);
+    }
+
+    private static TestHttpResponse handleCredentialsRequest(Ec2ImdsHttpHandler handler, String uri, @Nullable String authorizationToken) {
+        final var headers = new Headers();
+        if (authorizationToken != null) {
+            headers.put("Authorization", List.of(authorizationToken));
+        }
+        return handleRequestWithHeaders(handler, "GET", uri, headers);
+    }
+
+    private static TestHttpResponse handleRequestWithHeaders(Ec2ImdsHttpHandler handler, String method, String uri, Headers headers) {
         final var httpExchange = new TestHttpExchange(method, uri, BytesArray.EMPTY, headers);
         try {
             handler.handle(httpExchange);

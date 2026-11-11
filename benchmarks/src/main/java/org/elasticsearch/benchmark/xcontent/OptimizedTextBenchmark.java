@@ -9,8 +9,8 @@
 
 package org.elasticsearch.benchmark.xcontent;
 
-import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.benchmark.index.mapper.MapperServiceFactory;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.MapperService;
@@ -53,7 +53,7 @@ import java.util.concurrent.TimeUnit;
 public class OptimizedTextBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     /**

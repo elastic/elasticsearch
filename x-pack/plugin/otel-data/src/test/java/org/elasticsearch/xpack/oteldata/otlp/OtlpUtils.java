@@ -13,6 +13,7 @@ import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.common.v1.KeyValueList;
 import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
+import io.opentelemetry.proto.metrics.v1.Exemplar;
 import io.opentelemetry.proto.metrics.v1.ExponentialHistogram;
 import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.Gauge;
@@ -26,6 +27,8 @@ import io.opentelemetry.proto.metrics.v1.Sum;
 import io.opentelemetry.proto.metrics.v1.Summary;
 import io.opentelemetry.proto.metrics.v1.SummaryDataPoint;
 import io.opentelemetry.proto.resource.v1.Resource;
+
+import com.google.protobuf.ByteString;
 
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 
@@ -79,6 +82,39 @@ public class OtlpUtils {
 
     public static KeyValue keyValue(String key, KeyValueList keyValueList) {
         return KeyValue.newBuilder().setKey(key).setValue(AnyValue.newBuilder().setKvlistValue(keyValueList).build()).build();
+    }
+
+    /** An array attribute over arbitrary element values, for shapes {@link #keyValue(String, String...)} cannot express. */
+    public static KeyValue keyValueArray(String key, AnyValue... values) {
+        return KeyValue.newBuilder()
+            .setKey(key)
+            .setValue(AnyValue.newBuilder().setArrayValue(ArrayValue.newBuilder().addAllValues(List.of(values)).build()).build())
+            .build();
+    }
+
+    /** An attribute carrying opaque bytes. */
+    public static KeyValue keyValueBytes(String key, byte[] value) {
+        return KeyValue.newBuilder().setKey(key).setValue(AnyValue.newBuilder().setBytesValue(ByteString.copyFrom(value)).build()).build();
+    }
+
+    public static AnyValue anyValue(String value) {
+        return AnyValue.newBuilder().setStringValue(value).build();
+    }
+
+    public static AnyValue anyValue(long value) {
+        return AnyValue.newBuilder().setIntValue(value).build();
+    }
+
+    public static AnyValue anyValue(KeyValueList value) {
+        return AnyValue.newBuilder().setKvlistValue(value).build();
+    }
+
+    public static AnyValue anyValueArray(AnyValue... values) {
+        return AnyValue.newBuilder().setArrayValue(ArrayValue.newBuilder().addAllValues(List.of(values)).build()).build();
+    }
+
+    public static AnyValue anyValueBytes(byte[] value) {
+        return AnyValue.newBuilder().setBytesValue(ByteString.copyFrom(value)).build();
     }
 
     private static Resource createResource(List<KeyValue> attributes) {
@@ -158,10 +194,20 @@ public class OtlpUtils {
     }
 
     public static NumberDataPoint createDoubleDataPoint(long timeUnixNano, long startTimeUnixNano, List<KeyValue> attributes) {
+        return createDoubleDataPoint(timeUnixNano, startTimeUnixNano, attributes, List.of());
+    }
+
+    public static NumberDataPoint createDoubleDataPoint(
+        long timeUnixNano,
+        long startTimeUnixNano,
+        List<KeyValue> attributes,
+        List<Exemplar> exemplars
+    ) {
         return NumberDataPoint.newBuilder()
             .setTimeUnixNano(timeUnixNano)
             .setStartTimeUnixNano(startTimeUnixNano)
             .addAllAttributes(attributes)
+            .addAllExemplars(exemplars)
             .setAsDouble(randomDouble())
             .build();
     }
@@ -171,11 +217,54 @@ public class OtlpUtils {
     }
 
     public static NumberDataPoint createLongDataPoint(long timeUnixNano, long startTimeUnixNano, List<KeyValue> attributes) {
+        return createLongDataPoint(timeUnixNano, startTimeUnixNano, attributes, List.of());
+    }
+
+    public static NumberDataPoint createLongDataPoint(
+        long timeUnixNano,
+        long startTimeUnixNano,
+        List<KeyValue> attributes,
+        List<Exemplar> exemplars
+    ) {
         return NumberDataPoint.newBuilder()
             .setTimeUnixNano(timeUnixNano)
             .setStartTimeUnixNano(startTimeUnixNano)
             .addAllAttributes(attributes)
+            .addAllExemplars(exemplars)
             .setAsInt(randomLong())
+            .build();
+    }
+
+    public static Exemplar createDoubleExemplar(
+        long timeUnixNano,
+        double value,
+        List<KeyValue> filteredAttributes,
+        ByteString traceId,
+        ByteString spanId
+    ) {
+        return Exemplar.newBuilder()
+            .setTimeUnixNano(timeUnixNano)
+            .setAsDouble(value)
+            .addAllFilteredAttributes(filteredAttributes)
+            .setTraceId(traceId)
+            .setSpanId(spanId)
+            .build();
+    }
+
+    public static Exemplar createLongExemplar(long timeUnixNano, long value) {
+        return Exemplar.newBuilder().setTimeUnixNano(timeUnixNano).setAsInt(value).build();
+    }
+
+    public static NumberDataPoint createNoValueDataPoint(long timestamp) {
+        return createNoValueDataPoint(timestamp, timestamp, List.of());
+    }
+
+    public static NumberDataPoint createNoValueDataPoint(long timeUnixNano, long startTimeUnixNano, List<KeyValue> attributes) {
+        // Neither as_double nor as_int is set, leaving the oneof value in the VALUE_NOT_SET state.
+        return NumberDataPoint.newBuilder()
+            .setTimeUnixNano(timeUnixNano)
+            .setStartTimeUnixNano(startTimeUnixNano)
+            .addAllAttributes(attributes)
             .build();
     }
 

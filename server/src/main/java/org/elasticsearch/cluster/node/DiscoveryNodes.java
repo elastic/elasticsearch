@@ -216,12 +216,12 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     }
 
     /**
-     * Get a {@link Map} of the coordinating only nodes (nodes which are neither master, nor data, nor ingest nodes) arranged by their ids
+     * Get a {@link Map} of the coordinating only nodes arranged by their ids
      *
      * @return {@link Map} of the coordinating only nodes arranged by their ids
      */
     public Map<String, DiscoveryNode> getCoordinatingOnlyNodes() {
-        return filteredNodes(nodes, n -> n.canContainData() == false && n.isMasterNode() == false && n.isIngestNode() == false);
+        return filteredNodes(nodes, DiscoveryNode::isCoordinatingOnlyNode);
     }
 
     private static final Comparator<DiscoveryNode> MASTERS_FIRST_COMPARATOR = Comparator.comparingInt(n -> n.isMasterNode() ? 0 : 1);

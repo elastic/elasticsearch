@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.ccm;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationTaskExecutor;
 
@@ -54,7 +54,7 @@ public class CCMService {
                     logger.debug("Successfully set CCM enabled in enablement service");
                     enablementListener.onResponse(null);
                 }, e -> {
-                    logger.atWarn().withThrowable(e).log("Failed to enable CCM in enablement service");
+                    logger.warn("Failed to enable CCM in enablement service", e);
                     enablementListener.onFailure(e);
                 }))
             )
@@ -72,7 +72,7 @@ public class CCMService {
                         logger.debug("Successfully enabled authorization task executor");
                         enableAuthExecutorListener.onResponse(null);
                     }, e -> {
-                        logger.atWarn().withThrowable(e).log("Failed to request start of CCM authorization task");
+                        logger.warn("Failed to request start of CCM authorization task", e);
                         // even if requesting start of the authorization task fails, we still consider CCM enabled because
                         // the cluster state listener will eventually start the task if it is missing
                         enableAuthExecutorListener.onResponse(null);
@@ -95,7 +95,7 @@ public class CCMService {
                     logger.debug("Successfully set CCM disabled in enablement service");
                     disableAuthExecutorListener.onResponse(null);
                 }, e -> {
-                    logger.atWarn().withThrowable(e).log("Failed to disable CCM in enablement service");
+                    logger.warn("Failed to disable CCM in enablement service", e);
                     disableAuthExecutorListener.onFailure(e);
                 })
             )
@@ -115,7 +115,7 @@ public class CCMService {
                         logger.debug("Successfully disabled CCM authorization task executor");
                         disableAuthExecutorListener.onResponse(null);
                     }, e -> {
-                        logger.atWarn().withThrowable(e).log("Stop request for CCM authorization task failed");
+                        logger.warn("Stop request for CCM authorization task failed", e);
                         // even if stopping the authorization task fails, we still consider CCM disabled because the tasks themselves
                         // should eventually stop after they check if ccm is enabled
                         disableAuthExecutorListener.onResponse(null);

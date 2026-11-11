@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158354
+summary: Fix ES|QL view resolution for cross-cluster index patterns on nodes without the `remote_cluster_client` role
+type: bug

@@ -34,11 +34,21 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
+
 public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationIntegTestCase {
+
+    /** The tests here create {@link TimeSeriesAggregationBuilder}s, which emit the deprecation warning. */
+    @Override
+    protected List<String> filteredWarnings() {
+        return appendToCopy(super.filteredWarnings(), TimeSeriesAggregationBuilder.DEPRECATION_MESSAGE);
+    }
+
     private static int numberOfDimensions;
     private static int numberOfDocuments;
 
@@ -67,7 +77,9 @@ public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationInte
             bulkIndexRequest.add(client().prepareIndex("index").setOpType(DocWriteRequest.OpType.CREATE).setSource(document));
         }
         BulkResponse bulkIndexResponse = bulkIndexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        assertFalse(bulkIndexResponse.hasFailures());
+        if (bulkIndexResponse.hasFailures()) {
+            fail("Bulk failures: " + bulkIndexResponse.buildFailureMessage());
+        }
         assertEquals(RestStatus.OK.getStatus(), client().admin().indices().prepareFlush("index").get().getStatus().getStatus());
     }
 

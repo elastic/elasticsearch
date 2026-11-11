@@ -51,6 +51,17 @@ template:
           # Explicitly map http.response.status_code to work around mapping conflict caused by non-semconv-compliant clients
           http.response.status_code:
             type: long
+          # Explicitly mapped so the ECS body.bytes aliases below have a concrete target
+          http.request.body.size:
+            type: long
+          http.response.body.size:
+            type: long
+      http.request.body.bytes:
+        type: alias
+        path: attributes.http.request.body.size
+      http.response.body.bytes:
+        type: alias
+        path: attributes.http.response.body.size
       links:
         synthetic_source_keep: arrays
         properties:

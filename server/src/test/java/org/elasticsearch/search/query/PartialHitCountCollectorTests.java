@@ -27,8 +27,11 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -41,9 +44,8 @@ public class PartialHitCountCollectorTests extends ESTestCase {
     private IndexSearcher searcher;
     private int numDocs;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initDirectoryAndSearcher() throws Exception {
         dir = newDirectory();
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
         numDocs = scaledRandomIntBetween(900, 1000);
@@ -64,16 +66,15 @@ public class PartialHitCountCollectorTests extends ESTestCase {
         searcher = newSearcher(reader);
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void closeDirectoryAndSearcher() throws Exception {
         searcher.getIndexReader().close();
         dir.close();
     }
 
     public void testEarlyTerminatesWithoutCollection() throws IOException {
         Query query = new NonCountingTermQuery(new Term("string", "a1"));
-        PartialHitCountCollector hitCountCollector = new PartialHitCountCollector(new HitsThresholdChecker(0)) {
+        Result result = searcher.search(query, createCollectorManager(() -> new PartialHitCountCollector(new HitsThresholdChecker(0)) {
             @Override
             public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
                 return new FilterLeafCollector(super.getLeafCollector(context)) {
@@ -83,10 +84,9 @@ public class PartialHitCountCollectorTests extends ESTestCase {
                     }
                 };
             }
-        };
-        searcher.search(query, hitCountCollector);
-        assertEquals(0, hitCountCollector.getTotalHits());
-        assertTrue(hitCountCollector.hasEarlyTerminated());
+        }));
+        assertEquals(0, result.totalHits);
+        assertTrue(result.terminatedAfter);
     }
 
     public void testHitCountFromWeightNoTracking() throws IOException {
@@ -210,10 +210,16 @@ public class PartialHitCountCollectorTests extends ESTestCase {
      * production code. Using {@link QueryPhaseCollectorManager} in this test would excessively broaden the scope of this test.
      */
     private static CollectorManager<PartialHitCountCollector, Result> createCollectorManager(HitsThresholdChecker hitsThresholdChecker) {
+        return createCollectorManager(() -> new PartialHitCountCollector(hitsThresholdChecker));
+    }
+
+    private static CollectorManager<PartialHitCountCollector, Result> createCollectorManager(
+        CheckedSupplier<PartialHitCountCollector, IOException> factory
+    ) {
         return new CollectorManager<>() {
             @Override
-            public PartialHitCountCollector newCollector() {
-                return new PartialHitCountCollector(hitsThresholdChecker);
+            public PartialHitCountCollector newCollector() throws IOException {
+                return factory.get();
             }
 
             @Override

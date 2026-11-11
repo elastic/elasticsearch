@@ -6,15 +6,19 @@
  */
 package org.elasticsearch.xpack.core.termsenum.action;
 
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+
+import static org.elasticsearch.xpack.core.termsenum.action.TermsEnumRequest.TERMS_ENUM_CPS_RESOLVED_EXPRESSIONS;
 
 /**
  * The response of the _terms_enum action.
@@ -28,10 +32,18 @@ public class TermsEnumResponse extends BroadcastResponse {
 
     private final boolean complete;
 
+    @Nullable
+    private final ResolvedIndexExpressions resolvedLocally;
+
     TermsEnumResponse(StreamInput in) throws IOException {
         super(in);
         terms = in.readStringCollectionAsList();
         complete = in.readBoolean();
+        if (in.getTransportVersion().supports(TERMS_ENUM_CPS_RESOLVED_EXPRESSIONS)) {
+            resolvedLocally = in.readOptionalWriteable(ResolvedIndexExpressions::new);
+        } else {
+            resolvedLocally = null;
+        }
     }
 
     public TermsEnumResponse(
@@ -42,9 +54,22 @@ public class TermsEnumResponse extends BroadcastResponse {
         List<DefaultShardOperationFailedException> shardFailures,
         boolean complete
     ) {
+        this(terms, totalShards, successfulShards, failedShards, shardFailures, complete, null);
+    }
+
+    public TermsEnumResponse(
+        List<String> terms,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> shardFailures,
+        boolean complete,
+        @Nullable ResolvedIndexExpressions resolvedLocally
+    ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.terms = terms == null ? Collections.emptyList() : terms;
         this.complete = complete;
+        this.resolvedLocally = resolvedLocally;
     }
 
     /**
@@ -58,11 +83,23 @@ public class TermsEnumResponse extends BroadcastResponse {
         return complete;
     }
 
+    /**
+     * Returns the resolved index expressions from this project, or null if not requested.
+     * Used by the coordinating project during cross-project search to validate index resolution.
+     */
+    @Nullable
+    public ResolvedIndexExpressions getResolvedLocally() {
+        return resolvedLocally;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringCollection(terms);
         out.writeBoolean(complete);
+        if (out.getTransportVersion().supports(TERMS_ENUM_CPS_RESOLVED_EXPRESSIONS)) {
+            out.writeOptionalWriteable(resolvedLocally);
+        }
     }
 
     @Override

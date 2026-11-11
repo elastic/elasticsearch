@@ -11,8 +11,11 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xcontent.ToXContent;
@@ -185,6 +188,31 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
     @Override
     protected Writeable.Reader<EqlSearchResponse> instanceReader() {
         return EqlSearchResponse::new;
+    }
+
+    public void testDirectoryMetricsSerializationRoundTrip() throws IOException {
+        long bytesRead = randomNonNegativeLong();
+        EqlSearchResponse response = createTestInstance();
+        response.setDirectoryMetrics(storeMetrics(bytesRead));
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(
+            List.of(new NamedWriteableRegistry.Entry(DirectoryMetrics.PluggableMetrics.class, StoreMetrics.NAME, StoreMetrics::new))
+        );
+        try {
+            EqlSearchResponse deserialized = copyWriteable(response, registry, EqlSearchResponse::new, TransportVersion.current());
+            try {
+                assertEquals(bytesRead, deserialized.directoryMetrics().metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead());
+            } finally {
+                deserialized.decRef();
+            }
+        } finally {
+            response.decRef();
+        }
+    }
+
+    private static DirectoryMetrics storeMetrics(long bytesRead) {
+        DirectoryMetrics.Builder builder = new DirectoryMetrics.Builder();
+        builder.add(StoreMetrics.NAME, new StoreMetrics(bytesRead));
+        return builder.build();
     }
 
     public static EqlSearchResponse randomEqlSearchResponse(XContentType xContentType) {

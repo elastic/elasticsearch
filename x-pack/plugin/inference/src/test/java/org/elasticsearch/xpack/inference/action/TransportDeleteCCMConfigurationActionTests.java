@@ -37,8 +37,7 @@ public class TransportDeleteCCMConfigurationActionTests extends ESTestCase {
     private TransportDeleteCCMConfigurationAction action;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createAction() throws Exception {
         var ccmFeature = mock(CCMFeature.class);
         when(ccmFeature.isCcmSupportedEnvironment()).thenReturn(true);
 

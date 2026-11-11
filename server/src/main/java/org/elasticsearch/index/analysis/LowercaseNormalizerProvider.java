@@ -29,4 +29,12 @@ public class LowercaseNormalizerProvider extends AbstractIndexAnalyzerProvider<L
     public LowercaseNormalizer get() {
         return analyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        // Stateless normalizer: every instance is interchangeable.
+        return SHARING_KEY;
+    }
+
+    private static final Object SHARING_KEY = new Object();
 }

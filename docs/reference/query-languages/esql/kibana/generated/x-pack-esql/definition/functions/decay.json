@@ -16,13 +16,19 @@
           "name" : "origin",
           "type" : "cartesian_point",
           "optional" : false,
-          "description" : "Central point from which the distances are calculated."
+          "description" : "Central point from which the distances are calculated.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "scale",
           "type" : "double",
           "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value."
+          "description" : "Distance from the origin where the function returns the decay value.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -47,13 +53,19 @@
           "name" : "origin",
           "type" : "date",
           "optional" : false,
-          "description" : "Central point from which the distances are calculated."
+          "description" : "Central point from which the distances are calculated.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "scale",
           "type" : "time_duration",
           "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value."
+          "description" : "Distance from the origin where the function returns the decay value.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -78,13 +90,19 @@
           "name" : "origin",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "Central point from which the distances are calculated."
+          "description" : "Central point from which the distances are calculated.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "scale",
           "type" : "time_duration",
           "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value."
+          "description" : "Distance from the origin where the function returns the decay value.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -109,13 +127,19 @@
           "name" : "origin",
           "type" : "double",
           "optional" : false,
-          "description" : "Central point from which the distances are calculated."
+          "description" : "Central point from which the distances are calculated.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "scale",
           "type" : "double",
           "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value."
+          "description" : "Distance from the origin where the function returns the decay value.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -140,13 +164,19 @@
           "name" : "origin",
           "type" : "geo_point",
           "optional" : false,
-          "description" : "Central point from which the distances are calculated."
+          "description" : "Central point from which the distances are calculated.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "scale",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value."
+          "description" : "Distance from the origin where the function returns the decay value.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -171,13 +201,19 @@
           "name" : "origin",
           "type" : "geo_point",
           "optional" : false,
-          "description" : "Central point from which the distances are calculated."
+          "description" : "Central point from which the distances are calculated.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "scale",
           "type" : "text",
           "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value."
+          "description" : "Distance from the origin where the function returns the decay value.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -202,13 +238,19 @@
           "name" : "origin",
           "type" : "integer",
           "optional" : false,
-          "description" : "Central point from which the distances are calculated."
+          "description" : "Central point from which the distances are calculated.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "scale",
           "type" : "integer",
           "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value."
+          "description" : "Distance from the origin where the function returns the decay value.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -233,13 +275,19 @@
           "name" : "origin",
           "type" : "long",
           "optional" : false,
-          "description" : "Central point from which the distances are calculated."
+          "description" : "Central point from which the distances are calculated.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "scale",
           "type" : "long",
           "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value."
+          "description" : "Distance from the origin where the function returns the decay value.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -264,13 +312,19 @@
           "name" : "origin",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Central point from which the distances are calculated."
+          "description" : "Central point from which the distances are calculated.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "scale",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value."
+          "description" : "Distance from the origin where the function returns the decay value.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",

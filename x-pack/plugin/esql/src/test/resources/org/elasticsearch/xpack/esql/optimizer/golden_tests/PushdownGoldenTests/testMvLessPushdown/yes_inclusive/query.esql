@@ -1,0 +1,3 @@
+    FROM employees
+    | KEEP salary
+    | WHERE mv_less(salary, 30000, {"include_bound": true})

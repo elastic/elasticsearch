@@ -1,5 +1,0 @@
-area: Inference
-issues: []
-pr: 149098
-summary: "[Inference API] Adding deployment type to Inference API telemetry"
-type: enhancement

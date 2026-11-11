@@ -1,0 +1,6 @@
+FROM employees
+| WHERE emp_no NOT IN (
+    FROM employees
+    | WHERE salary IN (FROM employees | KEEP salary)
+    | KEEP emp_no
+  )

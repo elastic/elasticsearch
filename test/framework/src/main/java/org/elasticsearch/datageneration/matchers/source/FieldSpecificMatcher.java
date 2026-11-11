@@ -10,6 +10,7 @@
 package org.elasticsearch.datageneration.matchers.source;
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
@@ -414,7 +415,14 @@ interface FieldSpecificMatcher {
 
             // Attempt to coerce string values into numbers
             if (value instanceof String s) {
-                try (var parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, "\"" + s + "\"")) {
+                // Escape the string so that control characters survive as JSON and are trimmed by number parsing like at index time.
+                try (
+                    var parser = XContentType.JSON.xContent()
+                        .createParser(
+                            XContentParserConfiguration.EMPTY,
+                            Strings.toString(XContentBuilder.builder(XContentType.JSON.xContent()).value(s))
+                        )
+                ) {
                     parser.nextToken();
                     return numberType.parse(parser, true);
                 } catch (Exception e) {

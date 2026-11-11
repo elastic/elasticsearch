@@ -23,7 +23,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
- * Implementation of delete-by-query using scrolling and bulk.
+ * Implementation of delete-by-query using paginated search and bulk requests.
  */
 public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByPaginatedSearchAction<DeleteByQueryRequest, TransportDeleteByQueryAction> {
 
@@ -35,7 +35,7 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByPaginatedSearch
         DeleteByQueryRequest request,
         ScriptService scriptService,
         ActionListener<BulkByPaginatedSearchResponse> listener,
-        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
         TimeValue maxTaskShutdownGracePeriod,
         ReindexSettings reindexSettings,
         CircuitBreaker requestBreaker
@@ -52,8 +52,8 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByPaginatedSearch
             listener,
             scriptService,
             null,
-            bulkByScrollSearchContextMetrics,
-            BulkByScrollSearchContextMetrics.TaskKind.DELETE_BY_QUERY,
+            bulkByPaginatedSearchSearchContextMetrics,
+            BulkByPaginatedSearchSearchContextMetrics.TaskKind.DELETE_BY_QUERY,
             false,
             maxTaskShutdownGracePeriod,
             reindexSettings,

@@ -275,15 +275,15 @@ fork3         | null           | 100    | 10100     | 10001
 forkWithUnsupportedAttributes
 required_capability: fork_v9
 
-FROM heights
+FROM ages
 | FORK (SORT description DESC | LIMIT 1 | EVAL x = length(description) )
        (SORT description ASC | LIMIT 1)
 | SORT _fork
 ;
 
-description:keyword | height_range:unsupported | x:integer | _fork:keyword
-Very Tall           | null                     | 9         | fork1
-Medium Height       | null                     | null      | fork2
+age_range:unsupported | description:keyword | x:integer | _fork:keyword
+null                  | Young Adult         | 11        | fork1
+null                  | Adolescent          | null      | fork2
 ;
 
 
@@ -673,7 +673,6 @@ United States of America  | South San Francisco | fork2         | San Francisco 
 ;
 
 forkBeforeMvExpand
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fork_v9
 
 FROM employees
@@ -695,7 +694,6 @@ emp_no:integer | job_positions:keyword | _fork:keyword
 ;
 
 forkBranchWithMvExpand
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fork_v9
 
 FROM employees
@@ -714,7 +712,6 @@ emp_no:integer | job_positions:keyword          | _fork:keyword
 ;
 
 forkAfterMvExpand
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fork_v9
 
 FROM employees
@@ -1335,6 +1332,51 @@ c:long
 2
 ;
 
+forkRegressionInlineStatsSortOnGeneratedColumnThenFilterFork
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+required_capability: inline_stats
+
+// Regression test for https://github.com/elastic/elasticsearch/issues/148386
+// The sorted column z is unused after FORK. Filtering on _fork used to fail with a ClassCastException
+// because a BytesRef block was read as an IntBlock. Reproducing it needs the extra columns that URI_PARTS adds.
+from employees
+| eval title = concat("https://example.com/", first_name, "#frag")
+| uri_parts x = title
+| rename gender AS ver
+| inline stats z = min(emp_no) by x.fragment
+| limit 1
+| fork (where z == 10001) (sort z)
+| where _fork == "fork1"
+| stats c = count(*)
+;
+
+c:long
+1
+;
+
+forkRegressionAllColumnsDroppedThenEval
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+
+// Regression test for https://github.com/elastic/elasticsearch/issues/146856
+// Dropping every column after FORK used to fail with "Output has changed from [emp_no] to [_doc]".
+from employees
+| fork (where true)
+| keep emp_no
+| drop emp_no
+| eval x = 1
+| limit 3
+;
+
+x:integer
+1
+1
+1
+;
+
 forkRegressionMvExpandSortAndKeepDropAll
 
 required_capability: fork_v9
@@ -1471,4 +1513,28 @@ FROM employees
 
 max_max:integer
 5
+;
+
+forkWithTsStatsAndLiteralAggregate
+required_capability: fork_v9
+required_capability: ts_command_v0
+required_capability: ts_stats_literal_agg_fix
+
+// Regression test: FORK branches whose TS STATS include a constant literal aggregate (e.g.
+// metric_type = "cost") must survive the optimizer without triggering
+// "Plan [...] optimized incorrectly due to missing references".
+TS k8s
+| FORK
+    (STATS metric_type = "cost", cnt = COUNT(COUNT_OVER_TIME(network.cost)) BY cluster)
+    (STATS metric_type = "cost_max", cnt = COUNT(MAX_OVER_TIME(network.cost)) BY cluster)
+| KEEP _fork, cluster, metric_type, cnt
+| SORT _fork, cluster;
+
+_fork:keyword | cluster:keyword | metric_type:keyword | cnt:long
+fork1         | prod            | cost                | 3
+fork1         | qa              | cost                | 3
+fork1         | staging         | cost                | 3
+fork2         | prod            | cost_max            | 3
+fork2         | qa              | cost_max            | 3
+fork2         | staging         | cost_max            | 3
 ;

@@ -8,48 +8,38 @@ package org.elasticsearch.xpack.encryption;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.xpack.encryption.spi.EncryptedData;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceState;
 
-import java.io.Closeable;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
- * Owns the in-memory cache of the project encryption key (PEK) material and serves it to {@link AesGcmEncryptionService}.
+ * Serves the project encryption key (PEK) material to {@link AesGcmEncryptionService}.
  *
- * <p>This service listens to cluster-state changes and rebuilds its local encrypted-key cache whenever
- * {@link ProjectEncryptionKeyMetadata} changes. Installation, rotation, and retirement of PEK material are owned by
- * {@link KeyRotationCoordinator}; this class is read-only with respect to cluster state.
+ * <p>Keys are read on demand from {@link ProjectEncryptionKeyMetadata} in the cluster state visible via {@link ClusterService#state()}.
+ * {@link ProjectEncryptionKeyMetadata.KeyEntry#bytes()} holds plaintext AES bytes (the password wrap only applies to the on-disk form), so
+ * no local copy of the keys is kept. Because {@link ClusterService#state()} may not be read while a cluster state is being applied,
+ * encryption and decryption must not be performed from a {@link org.elasticsearch.cluster.ClusterStateApplier}.
  *
- * <p>Plaintext PEKs are derived lazily on first {@link #getActiveKey}/{@link #getKey} call: the wrapped bytes are unwrapped under the
- * password identified by the metadata's {@code passwordId} (resolved from secure settings) and cached in-memory for subsequent reads.
- * On a secure-settings reload, {@link #reload(Settings)} drops the plaintext cache so the next access re-derives under whatever
- * password is now configured.
+ * <p>Installation, rotation, and retirement of PEK material are owned by {@link KeyRotationCoordinator}; this class is read-only with
+ * respect to cluster state. Password material is supplied via a {@link Supplier} owned by {@link EncryptionPlugin} and updated atomically
+ * on secure-settings reload.
  */
-class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider, Closeable {
+class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider {
 
     private static final Logger logger = LogManager.getLogger(ProjectEncryptionKeyService.class);
-
-    static final FeatureFlag PROJECT_ENCRYPTION_KEY_FEATURE_FLAG = new FeatureFlag("project_encryption_key");
 
     // Prevents key generation in a mixed-version cluster. Without this, TransportVersion filtering
     // would omit the PEK custom from cluster state sent to old nodes (they lack the transport version
@@ -59,204 +49,111 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
 
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
-    private final ClusterStateListener clusterStateListener = this::onClusterStateChanged;
-    private volatile Settings cachedSettings;
-    private volatile KeyCache cache = KeyCache.EMPTY;
+    private final Supplier<Settings> settingsSupplier;
+    private volatile boolean encryptionRequired = true;
+    private final Set<String> missingKeyIdWarnings = ConcurrentHashMap.newKeySet();
 
-    private ProjectEncryptionKeyService(ClusterService clusterService, ProjectResolver projectResolver, Settings settings) {
+    private ProjectEncryptionKeyService(
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        Supplier<Settings> settingsSupplier
+    ) {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
-        this.cachedSettings = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);
+        this.settingsSupplier = settingsSupplier;
     }
 
-    static ProjectEncryptionKeyService create(ClusterService clusterService, ProjectResolver projectResolver, Settings settings) {
-        ProjectEncryptionKeyService service = new ProjectEncryptionKeyService(clusterService, projectResolver, settings);
-        clusterService.addListener(service.clusterStateListener);
+    static ProjectEncryptionKeyService create(
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        Supplier<Settings> settingsSupplier
+    ) {
+        ProjectEncryptionKeyService service = new ProjectEncryptionKeyService(clusterService, projectResolver, settingsSupplier);
+        clusterService.getClusterSettings()
+            .initializeAndWatch(ProjectEncryptionKeyPasswordSettings.ENCRYPTION_REQUIRED, v -> service.encryptionRequired = v);
         return service;
     }
 
-    @Override
-    public void close() {
-        clusterService.removeListener(clusterStateListener);
-    }
-
     /**
-     * Re-binds the service to the password material in {@code settings} (after a secure-settings reload). If the password id
-     * the cached PEKs were unwrapped under is no longer present in the new snapshot, drops the decrypted cache so the next
-     * {@link #getActiveKey}/{@link #getKey} call re-derives under whatever is now configured.
-     */
-    void reload(Settings settings) {
-        this.cachedSettings = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);
-        KeyCache snapshot = cache;
-        if (snapshot == KeyCache.EMPTY || (snapshot.decryptedKeys.isEmpty() && snapshot.lockedKeyIds.isEmpty())) {
-            return;
-        }
-        if (ProjectEncryptionKeyPasswordSettings.hasPassword(this.cachedSettings, snapshot.passwordId)) {
-            if (snapshot.lockedKeyIds.isEmpty() == false) {
-                cache = new KeyCache(snapshot.activeKeyId, snapshot.passwordId, snapshot.encryptedKeys, snapshot.decryptedKeys, Set.of());
-                logger.debug("project encryption key locked keys cleared after secure settings reload");
-            }
-            return;
-        }
-        cache = new KeyCache(snapshot.activeKeyId, snapshot.passwordId, snapshot.encryptedKeys, Map.of(), Set.of());
-        logger.debug("project encryption key cache invalidated after secure settings reload");
-    }
-
-    /**
-     * Returns the active password id from the most recent snapshot of secure settings (initial settings or last
-     * {@link #reload(Settings)}). May be {@code null} if no active password is configured.
+     * Returns the active password id from the current password settings snapshot. May be {@code null} if no active password is configured.
      */
     @Nullable
     String getActivePasswordId() {
-        return ProjectEncryptionKeyPasswordSettings.getActivePasswordId(cachedSettings);
+        return ProjectEncryptionKeyPasswordSettings.getActivePasswordId(settingsSupplier.get());
     }
 
-    private void onClusterStateChanged(ClusterChangedEvent event) {
-        ClusterState state = event.state();
+    /**
+     * Returns whether this node can wrap the PEK for its next on-disk cluster-state persist, i.e., an active password id is configured
+     * and the matching password material is present in the current settings snapshot.
+     */
+    boolean canWrapForDisk() {
+        Settings s = settingsSupplier.get();
+        String id = ProjectEncryptionKeyPasswordSettings.getActivePasswordId(s);
+        return ProjectEncryptionKeyPasswordSettings.hasPassword(s, id);
+    }
 
-        if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            logger.debug("project encryption key: cluster not recovered yet, skipping");
-            return;
-        }
-
-        if (event.changedCustomProjectMetadataSet().contains(ProjectEncryptionKeyMetadata.TYPE) == false) {
-            return;
-        }
-
-        ProjectState projectState = projectResolver.getProjectState(state);
-        ProjectEncryptionKeyMetadata metadata = projectState.metadata().custom(ProjectEncryptionKeyMetadata.TYPE);
-
+    /**
+     * Returns the current {@link EncryptionServiceState} of this node based on the visible cluster-state metadata and secure settings.
+     */
+    public EncryptionServiceState state() {
+        ProjectEncryptionKeyMetadata metadata = currentMetadata();
         if (metadata == null) {
-            if (this.cache != KeyCache.EMPTY) {
-                logger.debug("project encryption key cache cleared after metadata removed");
-                this.cache = KeyCache.EMPTY;
-            }
-            return;
+            // Awaiting first key install. DISABLED only when no password is configured at all; otherwise READY
+            // (the coordinator will install the first key shortly after the password appears in settings).
+            return getActivePasswordId() == null ? EncryptionServiceState.DISABLED : EncryptionServiceState.READY;
         }
+        if (metadata.isUnwrapFailed()) {
+            return EncryptionServiceState.UNAVAILABLE_DECRYPTION_FAILED;
+        }
+        // Keys are carried in plaintext over the wire (since PRIMARY_ENCRYPTION_KEY_CLEARTEXT_TRANSPORT), so
+        // once a key is installed the node can always encrypt/decrypt without a password.
+        return EncryptionServiceState.READY;
+    }
 
-        Map<String, EncryptedData> encryptedKeys = HashMap.newHashMap(metadata.getKeys().size());
-        for (String keyId : metadata.getKeys().keySet()) {
-            encryptedKeys.put(keyId, metadata.getEncryptedKey(keyId));
-        }
-        // The passwordId may have changed, or even if it hasn't the cluster-state update may have rewrapped entries (password rotation).
-        this.cache = new KeyCache(metadata.getActiveKeyId(), metadata.getPasswordId(), Map.copyOf(encryptedKeys), Map.of(), Set.of());
-        logger.debug(
-            "project encryption key cache updated: activeKeyId={}, passwordId={}",
-            metadata.getActiveKeyId(),
-            metadata.getPasswordId()
-        );
+    /** Returns whether callers must refuse to store secrets when the service is not {@link EncryptionServiceState#READY}. */
+    public boolean isEncryptionRequired() {
+        return encryptionRequired;
     }
 
     @Override
     @Nullable
     public AesGcmEncryptionService.ActiveKey getActiveKey() {
-        KeyCache snapshot = cache;
-        if (snapshot.activeKeyId == null) {
+        ProjectEncryptionKeyMetadata metadata = currentMetadata();
+        if (metadata == null || metadata.isUnwrapFailed()) {
             return null;
         }
-        SecretKey key = unwrapAndCache(snapshot, snapshot.activeKeyId);
-        if (key == null) {
-            return null;
-        }
-        return new AesGcmEncryptionService.ActiveKey(snapshot.activeKeyId, key);
+        String activeKeyId = metadata.getActiveKeyId();
+        return new AesGcmEncryptionService.ActiveKey(activeKeyId, toSecretKey(metadata.getKeys().get(activeKeyId)));
     }
 
     @Override
     @Nullable
     public SecretKey getKey(String keyId) {
-        return unwrapAndCache(cache, keyId);
+        ProjectEncryptionKeyMetadata metadata = currentMetadata();
+        if (metadata == null || metadata.isUnwrapFailed()) {
+            return null;
+        }
+        ProjectEncryptionKeyMetadata.KeyEntry entry = metadata.getKeys().get(keyId);
+        if (entry == null) {
+            if (missingKeyIdWarnings.add(keyId)) {
+                logger.warn("project encryption key [{}] is not in cluster state (active key is [{}])", keyId, metadata.getActiveKeyId());
+            }
+            return null;
+        }
+        return toSecretKey(entry);
     }
 
     @Nullable
-    private SecretKey unwrapAndCache(KeyCache snapshot, String keyId) {
-        SecretKey decrypted = snapshot.decryptedKeys.get(keyId);
-        if (decrypted != null) {
-            return decrypted;
-        }
-        if (snapshot.lockedKeyIds.contains(keyId)) {
-            // Already failed for this cache snapshot; skip PBKDF2 until the cache is reset by a reload or cluster-state change.
+    private ProjectEncryptionKeyMetadata currentMetadata() {
+        ClusterState state = clusterService.state();
+        if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return null;
         }
-        EncryptedData encrypted = snapshot.encryptedKeys.get(keyId);
-        if (encrypted == null) {
-            return null;
-        }
-        try (SecureString password = ProjectEncryptionKeyPasswordSettings.getPassword(cachedSettings, snapshot.passwordId)) {
-            if (password == null) {
-                logger.error(
-                    "project encryption key cannot be unlocked: secure setting [{}{}] is not configured",
-                    ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX,
-                    snapshot.passwordId
-                );
-                installLocked(snapshot, keyId);
-                return null;
-            }
-            byte[] plaintext;
-            try {
-                plaintext = PasswordBasedEncryption.unwrap(encrypted, password.getChars());
-            } catch (ElasticsearchException e) {
-                logger.error(
-                    () -> "project encryption key unwrap failed for keyId [" + keyId + "] under password id [" + snapshot.passwordId + "]",
-                    e
-                );
-                installLocked(snapshot, keyId);
-                return null;
-            }
-            try {
-                SecretKey secretKey = new SecretKeySpec(plaintext, "AES");
-                installDecrypted(snapshot, keyId, secretKey);
-                return secretKey;
-            } finally {
-                Arrays.fill(plaintext, (byte) 0);
-            }
-        }
+        ProjectMetadata project = state.metadata().projects().get(projectResolver.getProjectId());
+        return project == null ? null : project.custom(ProjectEncryptionKeyMetadata.TYPE);
     }
 
-    private synchronized void installDecrypted(KeyCache snapshotAtUnwrap, String keyId, SecretKey secretKey) {
-        KeyCache current = cache;
-        if (current.encryptedKeys != snapshotAtUnwrap.encryptedKeys) {
-            // Cache rotated under us; a fresh cluster-state update has installed new encrypted keys and dropped the decrypted cache. The
-            // next access will re-derive against the new snapshot.
-            return;
-        }
-        if (current.decryptedKeys.containsKey(keyId)) {
-            return;
-        }
-        Map<String, SecretKey> newDecrypted = new HashMap<>(current.decryptedKeys);
-        newDecrypted.put(keyId, secretKey);
-        cache = new KeyCache(
-            current.activeKeyId,
-            current.passwordId,
-            current.encryptedKeys,
-            Map.copyOf(newDecrypted),
-            current.lockedKeyIds
-        );
-    }
-
-    private synchronized void installLocked(KeyCache snapshotAtUnwrap, String keyId) {
-        KeyCache current = cache;
-        if (current.encryptedKeys != snapshotAtUnwrap.encryptedKeys) {
-            return;
-        }
-        if (current.lockedKeyIds.contains(keyId)) {
-            return;
-        }
-        Set<String> newLocked = new HashSet<>(current.lockedKeyIds);
-        newLocked.add(keyId);
-        cache = new KeyCache(current.activeKeyId, current.passwordId, current.encryptedKeys, current.decryptedKeys, Set.copyOf(newLocked));
-    }
-
-    private record KeyCache(
-        @Nullable String activeKeyId,
-        @Nullable String passwordId,
-        Map<String, EncryptedData> encryptedKeys,
-        Map<String, SecretKey> decryptedKeys,
-        Set<String> lockedKeyIds
-    ) {
-        static final KeyCache EMPTY = new KeyCache(null, null, Map.of(), Map.of(), Set.of());
-
-        KeyCache {
-            assert activeKeyId == null || encryptedKeys.containsKey(activeKeyId);
-        }
+    private static SecretKey toSecretKey(ProjectEncryptionKeyMetadata.KeyEntry entry) {
+        return new SecretKeySpec(entry.bytes(), "AES");
     }
 }

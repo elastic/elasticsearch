@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.mapper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 
@@ -28,7 +28,7 @@ class DenseVectorMapperConfigurator {
     }
 
     interface DefaultIndexOptionsResolver {
-        DenseVectorFieldMapper.DenseVectorIndexOptions resolve(IndexVersion indexVersion, MinimalServiceSettings modelSettings);
+        DenseVectorFieldMapper.DenseVectorIndexOptions resolve(IndexVersion indexVersion, EndpointClusterState modelSettings);
     }
 
     private final DefaultElementTypeResolver defaultElementTypeResolver;
@@ -48,7 +48,7 @@ class DenseVectorMapperConfigurator {
     void configure(
         DenseVectorFieldMapper.Builder builder,
         IndexVersion indexVersion,
-        MinimalServiceSettings modelSettings,
+        EndpointClusterState modelSettings,
         @Nullable ExtendedDenseVectorIndexOptions extendedIndexOptions
     ) {
         if (SUPPORTED_TASK_TYPES.contains(modelSettings.taskType()) == false) {

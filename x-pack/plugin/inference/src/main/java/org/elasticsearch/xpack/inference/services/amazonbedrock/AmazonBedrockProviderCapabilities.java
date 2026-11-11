@@ -45,7 +45,7 @@ public final class AmazonBedrockProviderCapabilities {
         AmazonBedrockProvider.AMAZONTITAN,
         SimilarityMeasure.COSINE,
         AmazonBedrockProvider.COHERE,
-        SimilarityMeasure.DOT_PRODUCT
+        SimilarityMeasure.COSINE
     );
 
     private static final Map<AmazonBedrockProvider, Integer> embeddingsDefaultChunkSize = Map.of(

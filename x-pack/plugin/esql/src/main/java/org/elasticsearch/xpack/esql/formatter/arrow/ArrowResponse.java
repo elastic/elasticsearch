@@ -38,42 +38,67 @@ import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
     public static class Column {
-        private final BlockArrowFormatter converter;
+        private final DataType esqlType;
         private final String name;
-        private boolean multivalued;
 
         public Column(DataType esqlType, String name) {
-            this.converter = ESQL_FORMATTERS.get(esqlType);
-            if (converter == null) {
-                throw new IllegalArgumentException("ES|QL type [" + esqlType.outputType() + "] is not supported by the Arrow format");
-            }
+            this.esqlType = esqlType;
             this.name = name;
         }
     }
 
-    private final List<Column> columns;
+    private record IndexedColumn(Column column, BlockArrowFormatter converter, int blockIndex, boolean multivalued) {}
+
+    private final List<IndexedColumn> columns;
     private Iterator<ResponseSegment> segments;
     private ResponseSegment currentSegment;
 
     public ArrowResponse(List<Column> columns, List<Page> pages) {
-        this.columns = columns;
+        this(columns, pages, new boolean[columns.size()]);
+    }
 
-        // Find multivalued columns
-        int colSize = columns.size();
-        for (int col = 0; col < colSize; col++) {
-            for (Page page : pages) {
-                if (page.getBlock(col).mayHaveMultivaluedFields()) {
-                    columns.get(col).multivalued = true;
-                    break;
+    /**
+     * Builds an Arrow response, omitting columns marked in {@code dropColumns} while retaining their original page block indexes.
+     */
+    public ArrowResponse(List<Column> columns, List<Page> pages, boolean[] dropColumns) {
+        if (columns.size() != dropColumns.length) {
+            throw new IllegalArgumentException(
+                "Expected one drop-columns entry per column, but got ["
+                    + dropColumns.length
+                    + "] entries for ["
+                    + columns.size()
+                    + "] columns"
+            );
+        }
+        List<IndexedColumn> indexedColumns = new ArrayList<>(columns.size());
+        for (int blockIndex = 0; blockIndex < columns.size(); blockIndex++) {
+            if (dropColumns[blockIndex] == false) {
+                Column column = columns.get(blockIndex);
+                BlockArrowFormatter converter = ESQL_FORMATTERS.get(column.esqlType);
+                if (converter == null) {
+                    throw new IllegalArgumentException(
+                        "ES|QL type [" + column.esqlType.outputType() + "] is not supported by the Arrow format"
+                    );
                 }
+                boolean multivalued = false;
+                for (Page page : pages) {
+                    if (page.getBlock(blockIndex).mayHaveMultivaluedFields()) {
+                        multivalued = true;
+                        break;
+                    }
+                }
+                indexedColumns.add(new IndexedColumn(column, converter, blockIndex, multivalued));
             }
         }
+        this.columns = List.copyOf(indexedColumns);
 
         currentSegment = new SchemaResponse(this);
         List<ResponseSegment> rest = new ArrayList<>(pages.size());
@@ -211,17 +236,23 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
         private Schema arrowSchema() {
             return new Schema(response.columns.stream().map(c -> {
-                var fieldType = c.converter.arrowFieldType();
-                if (c.multivalued) {
+                var field = c.converter().arrowField(c.column().name);
+                if (c.multivalued()) {
                     // A variable-sized list is a vector of offsets and a child vector of values
                     // See https://arrow.apache.org/docs/format/Columnar.html#variable-size-list-layout
-                    var listType = new FieldType(true, LIST_FIELD_TYPE.getType(), null, fieldType.getMetadata());
+                    var fieldType = field.getFieldType();
+                    // Copy the ESQL type metadata at the list level
+                    var listMetadata = Map.of(
+                        BlockArrowFormatter.ESQL_TYPE_METADATA,
+                        fieldType.getMetadata().get(BlockArrowFormatter.ESQL_TYPE_METADATA)
+                    );
+                    var listType = new FieldType(true, LIST_FIELD_TYPE.getType(), null, listMetadata);
                     // Value vector is non-nullable (ES|QL multivalues cannot contain nulls).
-                    var valueType = new FieldType(false, fieldType.getType(), fieldType.getDictionary(), null);
+                    var valueType = new FieldType(false, fieldType.getType(), fieldType.getDictionary(), fieldType.getMetadata());
                     // The nested vector is named "$data$", following what the Arrow/Java library does.
-                    return new Field(c.name, listType, List.of(new Field("$data$", valueType, null)));
+                    return new Field(c.column().name, listType, List.of(new Field("$data$", valueType, field.getChildren())));
                 } else {
-                    return new Field(c.name, fieldType, null);
+                    return field;
                 }
             }).toList());
         }
@@ -259,15 +290,18 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             // See https://arrow.apache.org/docs/format/Columnar.html#recordbatch-message
 
             // Field metadata
-            List<ArrowFieldNode> nodes = new ArrayList<>(page.getBlockCount());
+            List<ArrowFieldNode> nodes = new ArrayList<>(response.columns.size());
 
             // Buffers added to the record batch. They're used to track data size so that Arrow can compute offsets
             // but contain no data. Actual writing will be done by the bufWriters. This avoids having to deal with
             // Arrow's memory management, and in the future will allow direct write from ESQL block vectors.
-            List<ArrowBuf> bufs = new ArrayList<>(page.getBlockCount() * 2);
+            List<ArrowBuf> bufs = new ArrayList<>(response.columns.size() * 2);
 
             // Closures that will actually write a Block's data. Maps 1:1 to `bufs`.
-            List<BlockArrowFormatter.BufWriter> bufWriters = new ArrayList<>(page.getBlockCount() * 2);
+            List<BlockArrowFormatter.BufWriter> bufWriters = new ArrayList<>(response.columns.size() * 2);
+
+            // Resources captured by deferred buffer writers.
+            List<Releasable> releasables = new ArrayList<>();
 
             // Give Arrow a WriteChannel that will iterate on `bufWriters` when requested to write a buffer.
             WriteChannel arrowOut = new WriteChannel(arrowOut(out)) {
@@ -301,40 +335,36 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
                 }
             };
 
-            // Create Arrow buffers for each of the blocks in this page
-            for (int b = 0; b < page.getBlockCount(); b++) {
-                var column = response.columns.get(b);
-                var converter = column.converter;
+            try {
+                // Create Arrow buffers for each of the blocks in this page
+                for (IndexedColumn indexedColumn : response.columns) {
+                    var converter = indexedColumn.converter();
 
-                Block block = page.getBlock(b);
-                if (column.multivalued) {
-                    // List node.
-                    nodes.add(new ArrowFieldNode(block.getPositionCount(), converter.nullValuesCount(block)));
-                    // Value vector, does not contain nulls.
-                    nodes.add(new ArrowFieldNode(BlockArrowFormatter.valueCount(block), 0));
-                } else {
-                    nodes.add(new ArrowFieldNode(block.getPositionCount(), converter.nullValuesCount(block)));
+                    Block block = page.getBlock(indexedColumn.blockIndex());
+                    converter.addFieldNodes(block, indexedColumn.multivalued(), nodes);
+                    converter.convert(block, indexedColumn.multivalued(), bufs, bufWriters, releasables);
                 }
-                converter.convert(block, column.multivalued, bufs, bufWriters);
-            }
 
-            // Consistency check
-            if (bufs.size() != bufWriters.size()) {
-                throw new IllegalStateException(
-                    "Inconsistent Arrow buffers: [" + bufs.size() + "] buffers and [" + bufWriters.size() + "] writers"
+                // Consistency check
+                if (bufs.size() != bufWriters.size()) {
+                    throw new IllegalStateException(
+                        "Inconsistent Arrow buffers: [" + bufs.size() + "] buffers and [" + bufWriters.size() + "] writers"
+                    );
+                }
+
+                // Create the batch and serialize it
+                ArrowRecordBatch batch = new ArrowRecordBatch(
+                    page.getPositionCount(),
+                    nodes,
+                    bufs,
+                    NoCompressionCodec.DEFAULT_BODY_COMPRESSION,
+                    true, // align buffers
+                    false // retain buffers
                 );
+                MessageSerializer.serialize(arrowOut, batch);
+            } finally {
+                Releasables.close(releasables);
             }
-
-            // Create the batch and serialize it
-            ArrowRecordBatch batch = new ArrowRecordBatch(
-                page.getPositionCount(),
-                nodes,
-                bufs,
-                NoCompressionCodec.DEFAULT_BODY_COMPRESSION,
-                true, // align buffers
-                false // retain buffers
-            );
-            MessageSerializer.serialize(arrowOut, batch);
 
             done = true; // one day we should respect sizeHint here. kindness.
         }
@@ -362,53 +392,67 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
         }
     }
 
+    private static final BlockArrowFormatter TO_BE_IMPLEMENTED_MARKER = new BlockArrowFormatter(DataType.UNSUPPORTED, MinorType.NULL) {
+        @Override
+        public void convert(
+            Block block,
+            boolean multivalued,
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            List<Releasable> releasables
+        ) {}
+    };
+
     /**
      * Converters for every ES|QL type
      */
     static final EnumMap<DataType, BlockArrowFormatter> ESQL_FORMATTERS;
 
+    // DataTypes that don't have an Arrow formatter but should for completeness with other formats
+    // See https://github.com/elastic/elasticsearch/issues/146394
+    static final EnumSet<DataType> TO_BE_IMPLEMENTED_FORMATTERS;
+
     static {
         ESQL_FORMATTERS = new EnumMap<>(DataType.class);
+        TO_BE_IMPLEMENTED_FORMATTERS = EnumSet.noneOf(DataType.class);
         for (var type : DataType.values()) {
             var formatter = formatterForType(type);
-            if (formatter != null) {
+            assert (formatter != null) == DataType.isRepresentableInOutput(type)
+                : "Unexpected Arrow formatter registration for [" + type + "]";
+            if (formatter == TO_BE_IMPLEMENTED_MARKER) {
+                TO_BE_IMPLEMENTED_FORMATTERS.add(type);
+            } else if (formatter != null) {
                 ESQL_FORMATTERS.put(type, formatter);
             }
         }
     }
 
     /**
-     * Converters for every ES|QL type. Returns null if the type is not supported in the output.
+     * Converters for every ES|QL response type. Returns null for types excluded by
+     * {@link DataType#isRepresentableInOutput(DataType)}, or {@link #TO_BE_IMPLEMENTED_MARKER} for pending formatters.
      */
     private static BlockArrowFormatter formatterForType(DataType type) {
+        // Explicitly list every unsupported type so that compilation fails when we add a new type and must take care of it.
+        //
         // For reference:
         // - DataType: list of ESQL data types (not all are present in outputs)
+        // - ResponseValueUtils: conversions to a toString-able representation for text output
         // - PositionToXContent: conversions for ESQL JSON output
-        // - EsqlDataTypeConverter: conversions to ESQL datatypes
-        // Missing: multi-valued values
         return switch (type) {
-            case UNSUPPORTED -> new BlockArrowFormatter.AsNull(type);
-            case NULL -> new BlockArrowFormatter.AsNull(type);
+            case UNSUPPORTED, NULL -> new BlockArrowFormatter.AsNull(type);
 
             case BOOLEAN -> new BlockArrowFormatter.AsBoolean(type);
 
-            case INTEGER -> new BlockArrowFormatter.AsInt32(type);
-            case COUNTER_INTEGER -> new BlockArrowFormatter.AsInt32(type);
-
-            case LONG -> new BlockArrowFormatter.AsInt64(type);
-            // FIXME: counters: are they signed?
-            case COUNTER_LONG -> new BlockArrowFormatter.AsInt64(type);
+            case INTEGER, COUNTER_INTEGER -> new BlockArrowFormatter.AsInt32(type);
+            case LONG, COUNTER_LONG -> new BlockArrowFormatter.AsInt64(type);
             case UNSIGNED_LONG -> new BlockArrowFormatter.AsInt64(type, MinorType.UINT8);
 
-            case DOUBLE -> new BlockArrowFormatter.AsFloat64(type);
-            case COUNTER_DOUBLE -> new BlockArrowFormatter.AsFloat64(type);
+            case DOUBLE, COUNTER_DOUBLE -> new BlockArrowFormatter.AsFloat64(type);
 
-            case KEYWORD -> new BlockArrowFormatter.AsVarChar(type);
-            case TEXT -> new BlockArrowFormatter.AsVarChar(type);
+            case KEYWORD, TEXT -> new BlockArrowFormatter.AsVarChar(type);
 
-            // date: array of int64 milliseconds since epoch
-            // FIXME: is it signed?
             case DATETIME -> new BlockArrowFormatter.AsInt64(type, MinorType.TIMESTAMPMILLI);
+            case DATE_NANOS -> new BlockArrowFormatter.AsInt64(type, MinorType.TIMESTAMPNANO);
 
             // ip are represented as 16-byte ipv6 addresses. We shorten mapped ipv4 addresses to 4 bytes.
             // Another option would be to use a fixed size binary to avoid the offset array. But with mostly
@@ -416,10 +460,8 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case IP -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARBINARY, ValueConversions::shortenIpV4Addresses);
 
             // geo_point: Keep WKB format (JSON converts to WKT)
-            case GEO_POINT -> new BlockArrowFormatter.AsVarBinary(type);
-            case GEO_SHAPE -> new BlockArrowFormatter.AsVarBinary(type);
-            case CARTESIAN_POINT -> new BlockArrowFormatter.AsVarBinary(type);
-            case CARTESIAN_SHAPE -> new BlockArrowFormatter.AsVarBinary(type);
+            // FIXME: use GeoArrow
+            case GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> new BlockArrowFormatter.AsVarBinary(type);
 
             // version: convert to string
             case VERSION -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::versionToString);
@@ -428,31 +470,32 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             // TODO: support also CBOR and SMILE with an additional formatting parameter
             case SOURCE -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::sourceToJson);
 
-            // Explicitly list every unsupported type so that compilation fails when we add a new type and can take care of it.
+            case DATE_RANGE -> new BlockArrowFormatter.AsDateRange(type);
+            case DOUBLE_RANGE -> new BlockArrowFormatter.AsDoubleRange(type);
+
+            case TSID_DATA_TYPE -> new BlockArrowFormatter.AsVarBinary(type);
+            case DENSE_VECTOR -> TO_BE_IMPLEMENTED_MARKER;
+
+            case AGGREGATE_METRIC_DOUBLE -> TO_BE_IMPLEMENTED_MARKER;
+            case EXPONENTIAL_HISTOGRAM -> TO_BE_IMPLEMENTED_MARKER;
+            case FLATTENED -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::sourceToJson);
+            case GEOHASH -> TO_BE_IMPLEMENTED_MARKER;
+            case GEOHEX -> TO_BE_IMPLEMENTED_MARKER;
+            case GEOTILE -> TO_BE_IMPLEMENTED_MARKER;
+            case HISTOGRAM -> TO_BE_IMPLEMENTED_MARKER;
+            case TDIGEST -> TO_BE_IMPLEMENTED_MARKER;
+
+            // Types that should not appear in ESQL outputs
             case SHORT -> null;
             case BYTE -> null;
             case FLOAT -> null;
             case HALF_FLOAT -> null;
             case SCALED_FLOAT -> null;
-
-            case DATE_NANOS -> null;
-            case DATE_RANGE -> null;
-
             case OBJECT -> null;
             case DATE_PERIOD -> null;
             case TIME_DURATION -> null;
-            case GEOHASH -> null;
-            case GEOTILE -> null;
-            case GEOHEX -> null;
             case DOC_DATA_TYPE -> null;
-            case TSID_DATA_TYPE -> null;
             case PARTIAL_AGG -> null;
-            case AGGREGATE_METRIC_DOUBLE -> null;
-            case EXPONENTIAL_HISTOGRAM -> null;
-            case TDIGEST -> null;
-            case HISTOGRAM -> null;
-            case DENSE_VECTOR -> null;
-            case FLATTENED -> null;
         };
     }
 }

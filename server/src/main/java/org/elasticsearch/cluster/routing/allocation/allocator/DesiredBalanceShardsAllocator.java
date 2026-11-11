@@ -89,6 +89,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final AtomicReference<DesiredBalance> currentDesiredBalanceRef = new AtomicReference<>(DesiredBalance.NOT_MASTER);
     private volatile boolean resetCurrentDesiredBalance = false;
     private final Set<String> processedNodeShutdowns = new HashSet<>();
+
+    private volatile RecoveryDirectCancellationCallback recoveryCancellationCallback = RecoveryDirectCancellationCallback.NO_OP;
+
     private final NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator;
     private final DesiredBalanceMetrics desiredBalanceMetrics;
     private final AllocationBalancingRoundMetrics balancingRoundMetrics;
@@ -111,8 +114,21 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     @FunctionalInterface
+    public interface RecoveryDirectCancellationCallback {
+        RecoveryDirectCancellationCallback NO_OP = (desiredBalance, routingAllocation, convergedWithLatestInput) -> {};
+
+        void apply(DesiredBalance desiredBalance, RoutingAllocation routingAllocation, boolean convergedWithLatestInput);
+    }
+
+    @FunctionalInterface
     public interface ShardAllocationExplainer {
         ShardAllocationDecision explain(ShardRouting shard, RoutingAllocation allocation);
+    }
+
+    public void setRecoveryDirectCancellationCallback(RecoveryDirectCancellationCallback recoveryCancellationCallback) {
+        assert this.recoveryCancellationCallback == RecoveryDirectCancellationCallback.NO_OP
+            : "direct cancellation action should only be set once";
+        this.recoveryCancellationCallback = recoveryCancellationCallback;
     }
 
     public DesiredBalanceShardsAllocator(
@@ -179,18 +195,21 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     return;
                 }
 
+                final var previousDesiredBalance = new AtomicReference<DesiredBalance>();
                 recordTime(
                     cumulativeComputationTime,
                     // We set currentDesiredBalance back to INITIAL when the node stands down as master in onNoLongerMaster.
                     // However, it is possible that we revert the effect here by setting it again since the computation is async
                     // and does not check whether the node is master. This should have little to no practical impact. But it may
                     // lead to unexpected behaviours for tests. See also https://github.com/elastic/elasticsearch/pull/116904
-                    () -> setCurrentDesiredBalance(
-                        desiredBalanceComputer.compute(
-                            initialDesiredBalance,
-                            desiredBalanceInput,
-                            pendingDesiredBalanceMoves,
-                            this::isFresh
+                    () -> previousDesiredBalance.set(
+                        setCurrentDesiredBalance(
+                            desiredBalanceComputer.compute(
+                                initialDesiredBalance,
+                                desiredBalanceInput,
+                                pendingDesiredBalanceMoves,
+                                this::isFresh
+                            )
                         )
                     )
                 );
@@ -211,15 +230,48 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                         "Desired balance computation for [{}] terminated early with partial result, scheduling reconciliation",
                         index
                     );
+                    // We cancel even on a partial (not-yet-converged) balance to avoid delaying freeing recovery slots
+                    // on data nodes. This is consistent with reconciling on the same partial balance below. The
+                    // cancellation service restricts which recoveries it cancels when the balance has not converged.
+                    //
+                    // Skip the restricted pass if the assignments did not change. It never escalates a cancellation, so
+                    // a rerun on the same assignments can only find something new if a canRemain decision flipped
+                    // without any assignment change. The cause of such a flip (e.g. a shutdown or an allocation filter)
+                    // usually moves other shards too (so `hasChanges` is true), and the unconditional full pass on
+                    // convergence covers the remaining cases.
+                    if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
+                        final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
+                        recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation, false);
+                    }
                     submitReconcileTask(currentDesiredBalance);
                     var newInput = DesiredBalanceInput.create(indexGenerator.incrementAndGet(), desiredBalanceInput.routingAllocation());
                     desiredBalanceComputation.compareAndEnqueue(desiredBalanceInput, newInput);
                 } else if (isFresh(desiredBalanceInput)) {
                     logger.debug("Desired balance computation for [{}] is completed, scheduling reconciliation", index);
                     computationsConverged.inc();
+
+                    // Unlike the non-converged branches, run the full cancellation pass even if the assignments did not
+                    // change. The same assignments may previously only have been seen by the restricted pass (e.g. when
+                    // they were computed from an input that was then superseded), and `canRemain` decisions may have
+                    // changed without the assignments changing.
+                    //
+                    // TODO: A reconcile round from a recent balance could be in progress while a new balance gets computed,
+                    // in which case the currentAllocation captured below could miss an initializing shard created by
+                    // that concurrent reconciliation. This is not a correctness problem, as recovery cancellation
+                    // is best-effort, but we should find a way to catch those cases.
+                    final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
+                    recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation, true);
                     submitReconcileTask(currentDesiredBalance);
                 } else {
-                    logger.debug("Desired balance computation for [{}] is discarded as newer one is submitted", index);
+                    logger.debug("Desired balance computation for [{}] is superseded by newer input", index);
+                    // Trigger cancellation even if the desired balance computation got superseded by a newer input.
+                    // On a large busy cluster with a steady stream of new input (e.g. during a rolling upgrade) a
+                    // computation may not converge for a long time. As for STOP_EARLY above, the cancellation service
+                    // restricts which recoveries it cancels, and the pass is skipped if the assignments did not change.
+                    if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
+                        final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
+                        recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation, false);
+                    }
                 }
             }
 
@@ -282,6 +334,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
         var index = indexGenerator.incrementAndGet();
         logger.debug("Executing allocate for [{}]", index);
+        // This captures the listener even if the surrounding cluster state update fails (e.g. it is not committed because the master
+        // steps down). The listener is then still completed by a later convergence or failed by onNoLongerMaster, so callers must
+        // handle it completing independently of the outcome of the cluster state update.
         pendingListenersQueue.add(index, listener);
         // This can only run on master, so unset not-master if exists
         if (currentDesiredBalanceRef.compareAndSet(DesiredBalance.NOT_MASTER, DesiredBalance.BECOME_MASTER_INITIAL)) {
@@ -338,12 +393,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         return moves;
     }
 
-    private void setCurrentDesiredBalance(DesiredBalance newDesiredBalance) {
+    private DesiredBalance setCurrentDesiredBalance(DesiredBalance newDesiredBalance) {
         while (true) {
             final var oldDesiredBalance = currentDesiredBalanceRef.get();
             if (oldDesiredBalance == DesiredBalance.NOT_MASTER) {
                 logger.debug("discard desired balance for [{}] since node is no longer master", newDesiredBalance.lastConvergedIndex());
-                return;
+                return DesiredBalance.NOT_MASTER;
             }
 
             if (currentDesiredBalanceRef.compareAndSet(oldDesiredBalance, newDesiredBalance)) {
@@ -357,7 +412,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     logger.debug("Desired balance updated for [{}]", newDesiredBalance.lastConvergedIndex());
                 }
                 computedShardMovements.inc(DesiredBalance.shardMovements(oldDesiredBalance, newDesiredBalance));
-                break;
+                return oldDesiredBalance;
             }
         }
     }
@@ -379,7 +434,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         recordTime(cumulativeReconciliationTime, () -> {
             final var allocationStats = desiredBalanceReconciler.reconcile(desiredBalance, allocation);
             final var desiredBalanceStats = getStats();
-            updateDesireBalanceMetrics(desiredBalance, allocation, allocationStats, desiredBalanceStats);
+            updateDesiredBalanceMetrics(desiredBalance, allocation, allocationStats, desiredBalanceStats);
         });
 
         if (logger.isTraceEnabled()) {
@@ -418,11 +473,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     /**
      * Used as the argument for the {@code ensureNotCancelled} {@code Runnable} when calling the
      * {@code nodeAllocationStatsAndWeightsCalculator} since there is no cancellation mechanism when called from
-     * {@code updateDesireBalanceMetrics()}.
+     * {@code updateDesiredBalanceMetrics()}.
      */
     private static final Runnable NEVER_CANCELLED = () -> {};
 
-    private void updateDesireBalanceMetrics(
+    private void updateDesiredBalanceMetrics(
         DesiredBalance desiredBalance,
         RoutingAllocation routingAllocation,
         DesiredBalanceMetrics.AllocationStats allocationStats,

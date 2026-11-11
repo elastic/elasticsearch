@@ -1,0 +1,5 @@
+@timestamp:date,dim:keyword,val:long,extra_label:keyword
+2024-01-01T00:00:00.000Z,a,1,label_a
+2024-01-01T00:00:00.000Z,b,10,label_b
+2024-01-01T00:01:00.000Z,a,2,label_a
+2024-01-01T00:01:00.000Z,b,20,label_b

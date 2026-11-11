@@ -1,7 +1,0 @@
-area: Inference
-issues:
- - 147062
- - 150084
-pr: 150150
-summary: Validate inference embedding model before checking for existing uses
-type: bug

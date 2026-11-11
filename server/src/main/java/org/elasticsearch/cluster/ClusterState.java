@@ -27,8 +27,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -63,6 +65,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -70,6 +73,8 @@ import java.util.TreeSet;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
@@ -230,6 +235,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         this.stateUUID = stateUUID;
         this.clusterName = clusterName;
         this.metadata = metadata;
+        assert assertNoUnknownRecoveryPrioritiesInRoutingTable(routingTable);
         this.routingTable = routingTable;
         this.nodes = nodes;
         this.compatibilityVersions = Map.copyOf(compatibilityVersions);
@@ -243,6 +249,20 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         this.minVersions = blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
             ? new CompatibilityVersions(TransportVersion.minimumCompatible(), Map.of()) // empty map because cluster state is unknown
             : CompatibilityVersions.minimumVersions(compatibilityVersions.values());
+    }
+
+    private boolean assertNoUnknownRecoveryPrioritiesInRoutingTable(GlobalRoutingTable routingTable) {
+        List<ShardRouting> shardRoutingsWithUnknownRecoveryPriority = StreamSupport.stream(routingTable.spliterator(), false)
+            .flatMap(project -> StreamSupport.stream(project.spliterator(), false))
+            .flatMap(IndexRoutingTable::allShards)
+            // Get all shards from the IndexShardRoutingTable, including relocation targets which are included in getAllInitializingShards()
+            // but not in allShards(), deduping because getAllInitializingShards() also includes some shards that _are_ in allShards():
+            .flatMap(shard -> Stream.concat(shard.allShards(), shard.getAllInitializingShards().stream()).distinct())
+            .filter(shard -> shard.recoveryPriority() == RecoveryPriority.UNKNOWN)
+            .toList();
+        assert shardRoutingsWithUnknownRecoveryPriority.isEmpty()
+            : "Cluster state contained shard routings with UNKNOWN recovery priority [" + shardRoutingsWithUnknownRecoveryPriority + "]";
+        return true;
     }
 
     private static boolean assertConsistentRoutingNodes(
@@ -1191,6 +1211,20 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             if (UNKNOWN_UUID.equals(uuid)) {
                 uuid = UUIDs.randomBase64UUID();
             }
+
+            // Build the routing table before the reuse check below: initializeProjects may rebuild the project map (reordering
+            // projects) when adding a project, so the cached RoutingNodes must be compared against the final table.
+            if (metadata == null) {
+                if (routingTable == null) {
+                    routingTable = GlobalRoutingTable.EMPTY_ROUTING_TABLE;
+                }
+            } else if (routingTable == null) {
+                var projectRouting = Maps.transformValues(metadata.projects(), ignore -> RoutingTable.EMPTY_ROUTING_TABLE);
+                routingTable = new GlobalRoutingTable(ImmutableOpenMap.builder(projectRouting).build());
+            } else {
+                routingTable = routingTable.initializeProjects(metadata.projects().keySet());
+            }
+
             final RoutingNodes routingNodes;
             if (previous != null && this.routingTable.hasSameIndexRouting(previous.routingTable) && this.nodes == previous.nodes) {
                 // routing table contents and nodes haven't changed so we can try to reuse the previous state's routing nodes which are
@@ -1206,18 +1240,6 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 for (DiscoveryNode node : nodes) {
                     nodeFeatures.putIfAbsent(node.getId(), Set.of());
                 }
-            }
-
-            // Build routing table if required
-            if (metadata == null) {
-                if (routingTable == null) {
-                    routingTable = GlobalRoutingTable.EMPTY_ROUTING_TABLE;
-                }
-            } else if (routingTable == null) {
-                var projectRouting = Maps.transformValues(metadata.projects(), ignore -> RoutingTable.EMPTY_ROUTING_TABLE);
-                routingTable = new GlobalRoutingTable(ImmutableOpenMap.builder(projectRouting).build());
-            } else {
-                routingTable = routingTable.initializeProjects(metadata.projects().keySet());
             }
 
             return new ClusterState(

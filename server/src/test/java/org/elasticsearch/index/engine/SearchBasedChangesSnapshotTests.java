@@ -10,20 +10,28 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.NoMergePolicy;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.EngineTestUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.Before;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -37,12 +45,36 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
+
+    protected boolean columnarId;
+
+    @Before
+    public void initializeColumnarId() throws Exception {
+        columnarId = randomBoolean();
+    }
+
     @Override
     protected Settings indexSettings() {
         return Settings.builder()
             .put(super.indexSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) // always enable soft-deletes
             .build();
+    }
+
+    @Override
+    protected String defaultMapping() {
+        String mapping = super.defaultMapping();
+        if (columnarId) {
+            var parsedMapping = XContentHelper.convertToMap(XContentFactory.xContent(mapping), mapping, true);
+            parsedMapping.put(IdFieldMapper.NAME, Map.of("mode", "columnar"));
+            try {
+                return Strings.toString(XContentFactory.jsonBuilder().map(parsedMapping));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        } else {
+            return mapping;
+        }
     }
 
     protected abstract Translog.Snapshot newRandomSnapshot(
@@ -114,7 +146,7 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
             fromSeqNo = between(0, numOps);
             toSeqNo = randomLongBetween(fromSeqNo, numOps * 2);
 
-            Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+            Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT);
             try (
                 Translog.Snapshot snapshot = newRandomSnapshot(
                     engine.engineConfig.getMapperService(),
@@ -134,7 +166,7 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
                 IOUtils.close(searcher);
             }
 
-            searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+            searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT);
             try (
                 Translog.Snapshot snapshot = newRandomSnapshot(
                     engine.engineConfig.getMapperService(),
@@ -160,7 +192,7 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
         } else {
             fromSeqNo = randomLongBetween(0, refreshedSeqNo);
             toSeqNo = randomLongBetween(refreshedSeqNo + 1, numOps * 2);
-            Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+            Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT);
             try (
                 Translog.Snapshot snapshot = newRandomSnapshot(
                     engine.engineConfig.getMapperService(),
@@ -179,7 +211,7 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
             } finally {
                 IOUtils.close(searcher);
             }
-            searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+            searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT);
             try (
                 Translog.Snapshot snapshot = newRandomSnapshot(
                     engine.engineConfig.getMapperService(),
@@ -203,7 +235,7 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
                 IOUtils.close(searcher);
             }
             toSeqNo = randomLongBetween(fromSeqNo, refreshedSeqNo);
-            searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+            searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT);
             try (
                 Translog.Snapshot snapshot = newRandomSnapshot(
                     engine.engineConfig.getMapperService(),
@@ -266,7 +298,7 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
         }
         long maxSeqNo = engine.getLocalCheckpointTracker().getMaxSeqNo();
         engine.refresh("test");
-        Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+        Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT);
         final boolean accessStats = randomBoolean();
         try (
             Translog.Snapshot snapshot = newRandomSnapshot(
@@ -383,11 +415,17 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
                     pullOperations(engine);
                 }
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
+                assertThat(
+                    engine.config().getMapperService().isUseColumnarId(),
+                    equalTo(leader.config().getMapperService().isUseColumnarId())
+                );
                 // have to verify without source since we are randomly testing without _source
-                List<DocIdSeqNoAndSource> docsWithoutSourceOnFollower = getDocIds(engine, true).stream()
+                List<DocIdSeqNoAndSource> docsWithoutSourceOnFollower = EngineTestUtils.getDocIds(engine, true)
+                    .stream()
                     .map(d -> new DocIdSeqNoAndSource(d.id(), null, d.seqNo(), d.primaryTerm(), d.version()))
                     .toList();
-                List<DocIdSeqNoAndSource> docsWithoutSourceOnLeader = getDocIds(leader, true).stream()
+                List<DocIdSeqNoAndSource> docsWithoutSourceOnLeader = EngineTestUtils.getDocIds(leader, true)
+                    .stream()
                     .map(d -> new DocIdSeqNoAndSource(d.id(), null, d.seqNo(), d.primaryTerm(), d.version()))
                     .toList();
                 assertThat(docsWithoutSourceOnFollower, equalTo(docsWithoutSourceOnLeader));

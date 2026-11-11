@@ -9,11 +9,15 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.inference.configuration.InferenceServiceFeatures;
+import org.elasticsearch.inference.configuration.NonStreamingChatFeatureTests;
+
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 
 public class InferenceServiceConfigurationTestUtils {
@@ -23,15 +27,16 @@ public class InferenceServiceConfigurationTestUtils {
             .setName(randomAlphaOfLength(6))
             .setTaskTypes(getRandomTaskTypes())
             .setConfigurations(getRandomServiceConfiguration(10))
+            .setFeatures(getRandomFeatures())
             .build();
     }
 
-    private static EnumSet<TaskType> getRandomTaskTypes() {
+    static EnumSet<TaskType> getRandomTaskTypes() {
         TaskType[] values = TaskType.values();
         return EnumSet.of(values[randomInt(values.length - 1)]);
     }
 
-    private static Map<String, SettingsConfiguration> getRandomServiceConfiguration(int numFields) {
+    static Map<String, SettingsConfiguration> getRandomServiceConfiguration(int numFields) {
         var numConfigFields = randomInt(numFields);
         Map<String, SettingsConfiguration> configuration = new HashMap<>();
         for (int i = 0; i < numConfigFields; i++) {
@@ -39,5 +44,9 @@ public class InferenceServiceConfigurationTestUtils {
         }
 
         return configuration;
+    }
+
+    public static InferenceServiceFeatures getRandomFeatures() {
+        return randomBoolean() ? null : InferenceServiceFeatures.of(NonStreamingChatFeatureTests.randomInstance());
     }
 }

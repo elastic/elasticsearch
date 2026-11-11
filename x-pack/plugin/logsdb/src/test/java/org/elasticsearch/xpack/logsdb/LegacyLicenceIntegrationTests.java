@@ -14,17 +14,13 @@ import org.elasticsearch.license.AbstractLicensesIntegrationTestCase;
 import org.elasticsearch.license.GetFeatureUsageRequest;
 import org.elasticsearch.license.GetFeatureUsageResponse;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.TransportGetFeatureUsageAction;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Collection;
@@ -42,7 +38,7 @@ public class LegacyLicenceIntegrationTests extends AbstractLicensesIntegrationTe
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(P.class);
+        return List.of(LogsDBLocalStateXPackPlugin.class);
     }
 
     @Before
@@ -124,24 +120,5 @@ public class LegacyLicenceIntegrationTests extends AbstractLicensesIntegrationTe
             .findAny()
             .orElse(null);
         assertThat(featureUsage, matcher);
-    }
-
-    public static class P extends LocalStateCompositeXPackPlugin {
-
-        public P(final Settings settings, final Path configPath) {
-            super(settings, configPath);
-            plugins.add(new LogsDBPlugin(settings) {
-                @Override
-                protected XPackLicenseState getLicenseState() {
-                    return P.this.getLicenseState();
-                }
-
-                @Override
-                protected LicenseService getLicenseService() {
-                    return P.this.getLicenseService();
-                }
-            });
-        }
-
     }
 }

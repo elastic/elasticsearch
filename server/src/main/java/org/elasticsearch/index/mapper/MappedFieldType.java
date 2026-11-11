@@ -42,8 +42,10 @@ import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -55,6 +57,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -189,6 +192,19 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Whether the mapping guarantees at most one value per document for this field ({@code multi_value=false}). Readers such as
+     * field caps, and through it ES|QL, may rely on it. {@code false} means "no guarantee", not "multi-valued".
+     * <p>
+     * The guarantee applies to what block loaders read: doc values, stored fields and the index. With {@code on_failure=ignore} a second
+     * value is kept in {@code _source} only, so a reader of {@code _source} can still see more than one value.
+     * <p>
+     * {@code multi_value} and {@code on_failure} cannot be updated, so the guarantee cannot be removed later.
+     */
+    public boolean isStaticallySingleValued() {
+        return false;
+    }
+
+    /**
      * @return true if field has been marked as a dimension field
      */
     public boolean isDimension() {
@@ -202,6 +218,33 @@ public abstract class MappedFieldType {
      */
     public boolean isVectorEmbedding() {
         return false;
+    }
+
+    /**
+     * Returns the {@link FieldAndFormat} that retrieves this field's embeddings via the {@code fields} API.
+     *
+     * @param vectorType the type of vector the caller requires, or {@code null} if the caller accepts any vector type.
+     * @return the embeddings field-and-format.
+     * @throws IllegalArgumentException if this field cannot produce embeddings of the requested type. Fields that expose no embeddings at
+     *                                  all always throw, whatever type is requested.
+     */
+    public FieldAndFormat embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
+        throw unsupportedEmbeddings(vectorType);
+    }
+
+    /**
+     * Builds the exception to throw when this field cannot produce embeddings of the type
+     * {@link #embeddingsFieldAndFormat(VectorType)} was asked for.
+     */
+    protected final IllegalArgumentException unsupportedEmbeddings(@Nullable VectorType vectorType) {
+        return new IllegalArgumentException(
+            "Field ["
+                + name()
+                + "] of type ["
+                + typeName()
+                + "] does not support "
+                + (vectorType == null ? "embeddings" : "[" + vectorType + "] embeddings")
+        );
     }
 
     /**
@@ -257,10 +300,21 @@ public abstract class MappedFieldType {
      * {@link ConstantScoreQuery} around a {@link BooleanQuery} whose {@link Occur#SHOULD} clauses
      * are generated with {@link #termQuery}. */
     public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
+        return defaultTermsQuery(values, this::termQuery, context);
+    }
+
+    /**
+     * The default way of building a terms query.
+     */
+    protected static Query defaultTermsQuery(
+        Collection<?> values,
+        BiFunction<Object, SearchExecutionContext, Query> termQuery,
+        SearchExecutionContext context
+    ) {
         Set<?> dedupe = new HashSet<>(values);
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (Object value : dedupe) {
-            builder.add(termQuery(value, context), Occur.SHOULD);
+            builder.add(termQuery.apply(value, context), Occur.SHOULD);
         }
         return new ConstantScoreQuery(builder.build());
     }

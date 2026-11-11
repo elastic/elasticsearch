@@ -22,7 +22,6 @@ import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
@@ -39,11 +38,9 @@ import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
  * <br>
  * Replies {@code 100 Continue} to requests with allowed maxContentLength.
  * <br>
- * Replies {@code 413 Request Entity Too Large} when content size exceeds maxContentLength.
- *
- * Channel can be reused for requests with "Expect:100-Continue" header that exceed allowed content length,
- * as long as request does not include content. If oversized request already contains content then
- * we cannot safely proceed and connection will be closed.
+ * Replies {@code 413 Request Entity Too Large} when content size exceeds maxContentLength and closes the
+ * connection. Clients may send request bodies without waiting for {@code 100 Continue}, so early rejection
+ * must not reset HTTP framing and reuse the connection while body bytes remain owed.
  * <br><br>
  * TODO: move to RestController to allow content limits per RestHandler.
  *  Ideally we should be able to handle Continue and oversized request in the RestController.
@@ -80,22 +77,13 @@ public class Netty4HttpContentSizeHandler extends ChannelInboundHandlerAdapter {
         new DefaultHttpHeaders().add(CONTENT_LENGTH, 0).add(CONNECTION, HttpHeaderValues.CLOSE),
         EmptyHttpHeaders.INSTANCE
     );
-    static final FullHttpResponse TOO_LARGE = new DefaultFullHttpResponse(
-        HttpVersion.HTTP_1_1,
-        HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE,
-        Unpooled.EMPTY_BUFFER,
-        new DefaultHttpHeaders().add(CONTENT_LENGTH, 0),
-        EmptyHttpHeaders.INSTANCE
-    );
 
     private final int maxContentLength;
-    private final HttpRequestDecoder decoder; // need to reset decoder after sending 413
     private int currentContentLength; // chunked encoding does not provide content length, need to track actual length
     private boolean ignoreContent;
 
-    public Netty4HttpContentSizeHandler(HttpRequestDecoder decoder, int maxContentLength) {
+    public Netty4HttpContentSizeHandler(int maxContentLength) {
         this.maxContentLength = maxContentLength;
-        this.decoder = decoder;
     }
 
     @Override
@@ -130,13 +118,7 @@ public class Netty4HttpContentSizeHandler extends ChannelInboundHandlerAdapter {
 
         boolean isOversized = HttpUtil.getContentLength(request, -1) > maxContentLength;
         if (isOversized) {
-            if (isContinueExpected) {
-                // Client is allowed to send content without waiting for Continue.
-                // See https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.1-11.3
-                // this content will result in HttpRequestDecoder failure and send downstream
-                decoder.reset();
-            }
-            ctx.writeAndFlush(TOO_LARGE.retainedDuplicate()).addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
+            ctx.writeAndFlush(TOO_LARGE_CLOSE.retainedDuplicate()).addListener(ChannelFutureListener.CLOSE);
             ctx.read();
         } else {
             ignoreContent = false;

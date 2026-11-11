@@ -186,14 +186,20 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         GetStackTracesResponseBuilder responseBuilder
     ) {
         StopWatch watch = new StopWatch("getResampledIndex");
-        EventsIndex mediumDownsampled = EventsIndex.MEDIUM_DOWNSAMPLED;
+        EventsIndex mediumDownsampled = request.isOtelSchema()
+            ? EventsIndex.MEDIUM_DOWNSAMPLED.withOtelSuffix()
+            : EventsIndex.MEDIUM_DOWNSAMPLED;
         client.prepareSearch(mediumDownsampled.getName())
             .setSize(0)
             .setQuery(request.getQuery())
             .setTrackTotalHits(true)
             .execute(ActionListener.wrap(searchResponse -> {
                 long sampleCount = searchResponse.getHits().getTotalHits().value();
-                EventsIndex resampledIndex = mediumDownsampled.getResampledIndex(request.getSampleSize(), sampleCount);
+                EventsIndex resampledIndex = mediumDownsampled.getResampledIndex(
+                    request.getSampleSize(),
+                    sampleCount,
+                    request.isOtelSchema()
+                );
                 log.debug(
                     "User requested [{}] samples, [{}] samples matched in [{}]. Picking [{}]",
                     request.getSampleSize(),
@@ -209,7 +215,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 // checking for existence in all cases.
                 if (e instanceof IndexNotFoundException) {
                     String missingIndex = ((IndexNotFoundException) e).getIndex().getName();
-                    EventsIndex fullIndex = EventsIndex.FULL_INDEX;
+                    EventsIndex fullIndex = request.isOtelSchema() ? EventsIndex.FULL_INDEX.withOtelSuffix() : EventsIndex.FULL_INDEX;
                     log.debug("Index [{}] does not exist. Using [{}] instead.", missingIndex, fullIndex.getName());
                     searchRandomSampledProfilingEvents(submitTask, client, request, submitListener, responseBuilder, fullIndex);
                 } else {
@@ -285,30 +291,40 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             .addAggregation(new MinAggregationBuilder("min_time").field("@timestamp"))
             .addAggregation(new MaxAggregationBuilder("max_time").field("@timestamp"))
             .addAggregation(randomSampler)
-            .execute(handleEventsGroupedByStackTrace(submitTask, client, responseBuilder, submitListener, searchResponse -> {
-                long totalSamples = 0;
-                SingleBucketAggregation sample = searchResponse.getAggregations().get("sample");
-                Terms stacktraces = sample.getAggregations().get("group_by");
+            .execute(
+                handleEventsGroupedByStackTrace(
+                    submitTask,
+                    client,
+                    responseBuilder,
+                    submitListener,
+                    request.isOtelSchema(),
+                    searchResponse -> {
+                        long totalSamples = 0;
+                        SingleBucketAggregation sample = searchResponse.getAggregations().get("sample");
+                        Terms stacktraces = sample.getAggregations().get("group_by");
 
-                // When we retrieve data for generic events, we need to adapt the handler similar to searchEventGroupedByStackTrace().
+                        // When we retrieve data for generic events, we need to adapt the handler similar to
+                        // searchEventGroupedByStackTrace().
 
-                // aggregation
-                Map<TraceEventID, TraceEvent> stackTraceEvents = new HashMap<>();
-                for (Terms.Bucket stacktraceBucket : stacktraces.getBuckets()) {
-                    long count = stacktraceBucket.getDocCount();
-                    totalSamples += count;
+                        // aggregation
+                        Map<TraceEventID, TraceEvent> stackTraceEvents = new HashMap<>();
+                        for (Terms.Bucket stacktraceBucket : stacktraces.getBuckets()) {
+                            long count = stacktraceBucket.getDocCount();
+                            totalSamples += count;
 
-                    String stackTraceID = stacktraceBucket.getKeyAsString();
+                            String stackTraceID = stacktraceBucket.getKeyAsString();
 
-                    TraceEventID eventID = new TraceEventID("", "", "", stackTraceID, DEFAULT_SAMPLING_FREQUENCY);
-                    TraceEvent event = stackTraceEvents.computeIfAbsent(eventID, k -> new TraceEvent());
-                    event.count += count;
-                    subGroups.collectResults(stacktraceBucket, event);
-                }
-                responseBuilder.setTotalSamples(totalSamples);
-                log.debug("Found [{}] stacktrace events.", stackTraceEvents.size());
-                return stackTraceEvents;
-            }));
+                            TraceEventID eventID = new TraceEventID("", "", "", stackTraceID, DEFAULT_SAMPLING_FREQUENCY);
+                            TraceEvent event = stackTraceEvents.computeIfAbsent(eventID, k -> new TraceEvent());
+                            event.count += count;
+                            subGroups.collectResults(stacktraceBucket, event);
+                        }
+                        responseBuilder.setTotalSamples(totalSamples);
+                        log.debug("Found [{}] stacktrace events.", stackTraceEvents.size());
+                        return stackTraceEvents;
+                    }
+                )
+            );
     }
 
     private void searchRandomSampledProfilingEvents(
@@ -398,106 +414,121 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                         )
                     )
             )
-            .execute(handleEventsGroupedByStackTrace(submitTask, client, responseBuilder, submitListener, searchResponse -> {
-                StopWatch watch = new StopWatch("createStackTraceEvents");
-                SingleBucketAggregation sample = searchResponse.getAggregations().get("sample");
-                InternalComposite stacktraces = sample.getAggregations().get("group_by");
-                RandomGenerator rng = new Random(rngSeed);
-                long indexSamplingFactor = Math.round(1 / eventsIndex.getSampleRate()); // for example, 5^2 = 25 for profiling-events-5pow02
-                int bucketCount = stacktraces.getBuckets().size();
-                long eventCount = sample.getDocCount();
-                long maxSamplingFrequency = getAggValueAsLong(searchResponse, "max_freq") <= 0
-                    ? (long) DEFAULT_SAMPLING_FREQUENCY
-                    : getAggValueAsLong(searchResponse, "max_freq");
+            .execute(
+                handleEventsGroupedByStackTrace(
+                    submitTask,
+                    client,
+                    responseBuilder,
+                    submitListener,
+                    request.isOtelSchema(),
+                    searchResponse -> {
+                        StopWatch watch = new StopWatch("createStackTraceEvents");
+                        SingleBucketAggregation sample = searchResponse.getAggregations().get("sample");
+                        InternalComposite stacktraces = sample.getAggregations().get("group_by");
+                        RandomGenerator rng = new Random(rngSeed);
+                        long indexSamplingFactor = Math.round(1 / eventsIndex.getSampleRate()); // for example, 5^2 = 25 for
+                                                                                                // profiling-events-5pow02
+                        int bucketCount = stacktraces.getBuckets().size();
+                        long eventCount = sample.getDocCount();
+                        long maxSamplingFrequency = getAggValueAsLong(searchResponse, "max_freq") <= 0
+                            ? (long) DEFAULT_SAMPLING_FREQUENCY
+                            : getAggValueAsLong(searchResponse, "max_freq");
 
-                log.debug(
-                    "Got {} events from {} buckets, indexSamplingFactor {}, upscaled events {}",
-                    eventCount,
-                    bucketCount,
-                    indexSamplingFactor,
-                    eventCount * indexSamplingFactor
-                );
+                        log.debug(
+                            "Got {} events from {} buckets, indexSamplingFactor {}, upscaled events {}",
+                            eventCount,
+                            bucketCount,
+                            indexSamplingFactor,
+                            eventCount * indexSamplingFactor
+                        );
 
-                // Since the random sampler aggregation does not support sampling rates between 0.5 and 1.0,
-                // we can have up to 2x more events in the response as requested by the user.
-                // In order to reduce latency for stacktrace and stackframe lookups, we add another sampling factor
-                // to reduce the number of events to match the user request (which reduces the number of unique stacktrace ids).
-                boolean needAdditionalDownsampling = eventCount > request.getSampleSize();
-                double downSamplingRate = needAdditionalDownsampling
-                    ? (double) request.getSampleSize() / eventCount
-                    : responseBuilder.getSamplingRate();
+                        // Since the random sampler aggregation does not support sampling rates between 0.5 and 1.0,
+                        // we can have up to 2x more events in the response as requested by the user.
+                        // In order to reduce latency for stacktrace and stackframe lookups, we add another sampling factor
+                        // to reduce the number of events to match the user request (which reduces the number of unique stacktrace ids).
+                        boolean needAdditionalDownsampling = eventCount > request.getSampleSize();
+                        double downSamplingRate = needAdditionalDownsampling
+                            ? (double) request.getSampleSize() / eventCount
+                            : responseBuilder.getSamplingRate();
 
-                eventCount = 0;
-                boolean mixedFrequency = false;
-                Map<TraceEventID, TraceEvent> stackTraceEvents = new HashMap<>(bucketCount);
-                for (InternalComposite.InternalBucket stacktraceBucket : stacktraces.getBuckets()) {
-                    long sampledCount;
-                    if (needAdditionalDownsampling) {
-                        sampledCount = downsampleEvents(rng, downSamplingRate, stacktraceBucket.getDocCount());
-                        if (sampledCount <= 0) {
-                            bucketCount--;
-                            continue; // skip bucket
-                        }
-                    } else {
-                        sampledCount = stacktraceBucket.getDocCount();
-                    }
-
-                    long count = roundWithRandom((sampledCount * indexSamplingFactor) / downSamplingRate, rng);
-                    eventCount += sampledCount;
-
-                    TraceEventID eventID = getTraceEventID(stacktraceBucket);
-                    stackTraceEvents.compute(eventID, (k, event) -> {
-                        if (event == null) {
-                            event = new TraceEvent(count);
-                        } else {
-                            event.count += count;
-                        }
-
-                        if (aggregationFields != null && aggregationFields.length > 0) {
-                            if (event.subGroups == null) {
-                                event.subGroups = SubGroup.root(aggregationFields[0]);
+                        eventCount = 0;
+                        boolean mixedFrequency = false;
+                        Map<TraceEventID, TraceEvent> stackTraceEvents = new HashMap<>(bucketCount);
+                        for (InternalComposite.InternalBucket stacktraceBucket : stacktraces.getBuckets()) {
+                            long sampledCount;
+                            if (needAdditionalDownsampling) {
+                                sampledCount = downsampleEvents(rng, downSamplingRate, stacktraceBucket.getDocCount());
+                                if (sampledCount <= 0) {
+                                    bucketCount--;
+                                    continue; // skip bucket
+                                }
+                            } else {
+                                sampledCount = stacktraceBucket.getDocCount();
                             }
 
-                            SubGroup parent = event.subGroups;
-                            for (String fieldName : aggregationFields) {
-                                Object o = stacktraceBucket.getKey().get(fieldName);
-                                String val = o == null ? "" : o.toString();
-                                parent.addCount(val, count);
-                                parent = parent.getSubGroup(val);
+                            long count = roundWithRandom((sampledCount * indexSamplingFactor) / downSamplingRate, rng);
+                            eventCount += sampledCount;
+
+                            TraceEventID eventID = getTraceEventID(stacktraceBucket);
+                            stackTraceEvents.compute(eventID, (k, event) -> {
+                                if (event == null) {
+                                    event = new TraceEvent(count);
+                                } else {
+                                    event.count += count;
+                                }
+
+                                if (aggregationFields != null && aggregationFields.length > 0) {
+                                    if (event.subGroups == null) {
+                                        event.subGroups = SubGroup.root(aggregationFields[0]);
+                                    }
+
+                                    SubGroup parent = event.subGroups;
+                                    for (String fieldName : aggregationFields) {
+                                        Object o = stacktraceBucket.getKey().get(fieldName);
+                                        String val = o == null ? "" : o.toString();
+                                        parent.addCount(val, count);
+                                        parent = parent.getSubGroup(val);
+                                    }
+                                }
+                                return event;
+                            });
+
+                            if (eventID.samplingFrequency() != DEFAULT_SAMPLING_FREQUENCY) {
+                                mixedFrequency = true;
                             }
                         }
-                        return event;
-                    });
 
-                    if (eventID.samplingFrequency() != DEFAULT_SAMPLING_FREQUENCY) {
-                        mixedFrequency = true;
-                    }
-                }
+                        AtomicLong upscaledEventCount = new AtomicLong(eventCount * indexSamplingFactor);
+                        if (mixedFrequency) {
+                            upscaledEventCount.set(0);
 
-                AtomicLong upscaledEventCount = new AtomicLong(eventCount * indexSamplingFactor);
-                if (mixedFrequency) {
-                    upscaledEventCount.set(0);
-
-                    // Events have different frequencies.
-                    // Scale the count up to the maximum sampling frequency.
-                    stackTraceEvents.forEach((eventID, event) -> {
-                        if (eventID.samplingFrequency() != maxSamplingFrequency) {
-                            double samplingFactor = maxSamplingFrequency / eventID.samplingFrequency();
-                            event.count = roundWithRandom(event.count * samplingFactor, rng);
+                            // Events have different frequencies.
+                            // Scale the count up to the maximum sampling frequency.
+                            stackTraceEvents.forEach((eventID, event) -> {
+                                if (eventID.samplingFrequency() != maxSamplingFrequency) {
+                                    double samplingFactor = maxSamplingFrequency / eventID.samplingFrequency();
+                                    event.count = roundWithRandom(event.count * samplingFactor, rng);
+                                }
+                                upscaledEventCount.addAndGet(event.count);
+                            });
                         }
-                        upscaledEventCount.addAndGet(event.count);
-                    });
-                }
 
-                log.debug(watch::report);
+                        log.debug(watch::report);
 
-                responseBuilder.setSamplingRate(downSamplingRate);
-                responseBuilder.setSamplingFrequency(maxSamplingFrequency);
-                responseBuilder.setTotalSamples(upscaledEventCount.get());
-                log.debug("Use [{}] events in [{}] buckets, upscaled to [{}] events).", eventCount, bucketCount, upscaledEventCount.get());
+                        responseBuilder.setSamplingRate(downSamplingRate);
+                        responseBuilder.setSamplingFrequency(maxSamplingFrequency);
+                        responseBuilder.setTotalSamples(upscaledEventCount.get());
+                        log.debug(
+                            "Use [{}] events in [{}] buckets, upscaled to [{}] events).",
+                            eventCount,
+                            bucketCount,
+                            upscaledEventCount.get()
+                        );
 
-                return stackTraceEvents;
-            }));
+                        return stackTraceEvents;
+                    }
+                )
+            );
     }
 
     private static long roundWithRandom(double value, RandomGenerator r) {
@@ -542,6 +573,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         Client client,
         GetStackTracesResponseBuilder responseBuilder,
         ActionListener<GetStackTracesResponse> submitListener,
+        boolean otelSchema,
         Function<SearchResponse, Map<TraceEventID, TraceEvent>> stacktraceCollector
     ) {
         StopWatch watch = new StopWatch("eventsGroupedByStackTrace");
@@ -556,7 +588,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 responseBuilder.setStart(Instant.ofEpochMilli(minTime));
                 responseBuilder.setEnd(Instant.ofEpochMilli(maxTime));
                 responseBuilder.setStackTraceEvents(stackTraceEvents);
-                retrieveStackTraces(submitTask, client, responseBuilder, submitListener);
+                retrieveStackTraces(submitTask, client, responseBuilder, submitListener, otelSchema);
             } else {
                 submitListener.onResponse(responseBuilder.build());
             }
@@ -580,7 +612,8 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         CancellableTask submitTask,
         Client client,
         GetStackTracesResponseBuilder responseBuilder,
-        ActionListener<GetStackTracesResponse> submitListener
+        ActionListener<GetStackTracesResponse> submitListener,
+        boolean otelSchema
     ) {
         if (submitTask.notifyIfCancelled(submitListener)) {
             return;
@@ -594,7 +627,9 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         log.info("Using [{}] hostIds and [{}] stacktraceIds.", hostIds.size(), stacktraceIds.size());
 
         ClusterState clusterState = clusterService.state();
-        List<Index> indices = resolver.resolve(clusterState, "profiling-stacktraces", responseBuilder.getStart(), responseBuilder.getEnd());
+        List<Index> indices = otelSchema
+            ? resolver.resolveDataStream(clusterState, "profiling-stacktraces.otel-*", responseBuilder.getStart(), responseBuilder.getEnd())
+            : resolver.resolve(clusterState, "profiling-stacktraces", responseBuilder.getStart(), responseBuilder.getEnd());
         // Avoid parallelism if there is potential we are on spinning disks (frozen tier uses searchable snapshots)
         int sliceCount = IndexAllocation.isAnyOnWarmOrColdTier(clusterState, indices) ? 1 : desiredSlices;
         log.trace("Using [{}] slice(s) to lookup stacktraces.", sliceCount);
@@ -609,7 +644,8 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             stacktraceIds.size(),
             // We need to expect a set of slices for each resolved index, plus one for the host metadata.
             slicedEventIds.size() * indices.size() + (hostIds.isEmpty() ? 0 : 1),
-            hostIds.size()
+            hostIds.size(),
+            otelSchema
         );
         for (List<String> slice : slicedEventIds) {
             mget(client, indices, slice, ActionListener.wrap(handler::onStackTraceResponse, submitListener::onFailure));
@@ -620,7 +656,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         }
 
         // Retrieve the host metadata in parallel. Assume low-cardinality and do not split the query.
-        client.prepareSearch("profiling-hosts")
+        client.prepareSearch(otelSchema ? "profiling-hosts.otel-*" : "profiling-hosts")
             .setTrackTotalHits(false)
             .setQuery(
                 QueryBuilders.boolQuery()
@@ -673,6 +709,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         private final StopWatch watch = new StopWatch("retrieveStackTraces");
         private final StopWatch hostsWatch = new StopWatch("retrieveHostMetadata");
         private final Map<String, HostMetadata> hostMetadata;
+        private final boolean otelSchema;
 
         private StackTraceHandler(
             CancellableTask submitTask,
@@ -682,7 +719,8 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             ActionListener<GetStackTracesResponse> submitListener,
             int stackTraceCount,
             int expectedResponses,
-            int expectedHosts
+            int expectedHosts,
+            boolean otelSchema
         ) {
             this.submitTask = submitTask;
             this.clusterState = clusterState;
@@ -695,6 +733,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             this.responseBuilder = responseBuilder;
             this.submitListener = submitListener;
             this.hostMetadata = new HashMap<>(expectedHosts);
+            this.otelSchema = otelSchema;
         }
 
         public void onStackTraceResponse(MultiGetResponse multiGetItemResponses) {
@@ -707,7 +746,9 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                     String id = trace.getId();
                     // Duplicates are expected as we query multiple indices - do a quick pre-check before we deserialize a response
                     if (stackTracePerId.containsKey(id) == false) {
-                        StackTrace stacktrace = StackTrace.fromSource(trace.getResponse().getSource());
+                        StackTrace stacktrace = otelSchema
+                            ? StackTrace.fromOtelSource(trace.getResponse().getSource())
+                            : StackTrace.fromSource(trace.getResponse().getSource());
                         // Guard against concurrent access and ensure we only handle each item once
                         if (stackTracePerId.putIfAbsent(id, stacktrace) == null) {
                             totalFrames.addAndGet(stacktrace.frameIds.length);
@@ -723,7 +764,9 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         public void onHostsResponse(SearchResponse searchResponse) {
             SearchHit[] hits = searchResponse.getHits().getHits();
             for (SearchHit hit : hits) {
-                HostMetadata host = HostMetadata.fromSource(hit.getSourceAsMap());
+                HostMetadata host = otelSchema
+                    ? HostMetadata.fromOtelSource(hit.getSourceAsMap())
+                    : HostMetadata.fromSource(hit.getSourceAsMap());
                 hostMetadata.put(host.hostID, host);
             }
             log.debug(hostsWatch::report);
@@ -780,7 +823,8 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                     responseBuilder,
                     new ArrayList<>(stackFrameIds),
                     new ArrayList<>(executableIds),
-                    submitListener
+                    submitListener,
+                    otelSchema
                 );
             }
         }
@@ -793,23 +837,18 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         GetStackTracesResponseBuilder responseBuilder,
         List<String> stackFrameIds,
         List<String> executableIds,
-        ActionListener<GetStackTracesResponse> submitListener
+        ActionListener<GetStackTracesResponse> submitListener,
+        boolean otelSchema
     ) {
         if (submitTask.notifyIfCancelled(submitListener)) {
             return;
         }
-        List<Index> stackFrameIndices = resolver.resolve(
-            clusterState,
-            "profiling-stackframes",
-            responseBuilder.getStart(),
-            responseBuilder.getEnd()
-        );
-        List<Index> executableIndices = resolver.resolve(
-            clusterState,
-            "profiling-executables",
-            responseBuilder.getStart(),
-            responseBuilder.getEnd()
-        );
+        List<Index> stackFrameIndices = otelSchema
+            ? resolver.resolveDataStream(clusterState, "profiling-stackframes.otel-*", responseBuilder.getStart(), responseBuilder.getEnd())
+            : resolver.resolve(clusterState, "profiling-stackframes", responseBuilder.getStart(), responseBuilder.getEnd());
+        List<Index> executableIndices = otelSchema
+            ? resolver.resolveDataStream(clusterState, "profiling-executables.otel-*", responseBuilder.getStart(), responseBuilder.getEnd())
+            : resolver.resolve(clusterState, "profiling-executables", responseBuilder.getStart(), responseBuilder.getEnd());
         // Avoid parallelism if there is potential we are on spinning disks (frozen tier uses searchable snapshots)
         int stackFrameSliceCount = IndexAllocation.isAnyOnWarmOrColdTier(clusterState, stackFrameIndices) ? 1 : desiredDetailSlices;
         int executableSliceCount = IndexAllocation.isAnyOnWarmOrColdTier(clusterState, executableIndices) ? 1 : desiredDetailSlices;
@@ -822,16 +861,26 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         List<List<String>> slicedStackFrameIds = sliced(stackFrameIds, stackFrameSliceCount);
         List<List<String>> slicedExecutableIds = sliced(executableIds, executableSliceCount);
 
+        // When ids are empty or indices are absent (e.g. OTel data streams not yet created on a
+        // fresh cluster), take a fast path and fire a single empty callback. The CountDown must
+        // match the exact number of callbacks that will fire; the slices*indices product yields 0
+        // when indices is empty, which throws IllegalArgumentException in CountDown's constructor.
+        boolean stackFrameFastPath = stackFrameIds.isEmpty() || stackFrameIndices.isEmpty();
+        boolean executableFastPath = executableIds.isEmpty() || executableIndices.isEmpty();
+        int expectedStackFrameSlices = stackFrameFastPath ? 1 : slicedStackFrameIds.size() * stackFrameIndices.size();
+        int expectedExecutableSlices = executableFastPath ? 1 : slicedExecutableIds.size() * executableIndices.size();
+
         DetailsHandler handler = new DetailsHandler(
             responseBuilder,
             submitListener,
             executableIds.size(),
             stackFrameIds.size(),
-            slicedExecutableIds.size() * executableIndices.size(),
-            slicedStackFrameIds.size() * stackFrameIndices.size()
+            expectedExecutableSlices,
+            expectedStackFrameSlices,
+            otelSchema
         );
 
-        if (stackFrameIds.isEmpty()) {
+        if (stackFrameFastPath) {
             handler.onStackFramesResponse(new MultiGetResponse(new MultiGetItemResponse[0]));
         } else {
             for (List<String> slice : slicedStackFrameIds) {
@@ -839,7 +888,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             }
         }
         // no data dependency - we can do this concurrently
-        if (executableIds.isEmpty()) {
+        if (executableFastPath) {
             handler.onExecutableDetailsResponse(new MultiGetResponse(new MultiGetItemResponse[0]));
         } else {
             for (List<String> slice : slicedExecutableIds) {
@@ -858,6 +907,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
      */
     static class DetailsHandler {
         private static final String[] PATH_FILE_NAME = new String[] { "Executable", "file", "name" };
+        private static final String[] PATH_FILE_NAME_OTEL = new String[] { "resource", "attributes", "process.executable.name" };
         private final GetStackTracesResponseBuilder builder;
         private final ActionListener<GetStackTracesResponse> submitListener;
         private final Map<String, String> executables;
@@ -866,6 +916,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         private final CountDown countDown;
         private final AtomicInteger totalInlineFrames = new AtomicInteger();
         private final StopWatch watch = new StopWatch("retrieveStackTraceDetails");
+        private final boolean otelSchema;
 
         DetailsHandler(
             GetStackTracesResponseBuilder builder,
@@ -873,12 +924,14 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             int executableCount,
             int stackFrameCount,
             int expectedExecutableSlices,
-            int expectedStackFrameSlices
+            int expectedStackFrameSlices,
+            boolean otelSchema
         ) {
             this.builder = builder;
             this.submitListener = submitListener;
             this.executables = new ConcurrentHashMap<>(executableCount);
             this.stackFrames = new ConcurrentHashMap<>(stackFrameCount);
+            this.otelSchema = otelSchema;
             // for deciding when we're finished it is irrelevant where a slice originated, so we can
             // simplify state handling by treating them equally.
             this.countDown = new CountDown(expectedExecutableSlices + expectedStackFrameSlices);
@@ -891,7 +944,9 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 } else if (frame.getResponse().isExists()) {
                     // Duplicates are expected as we query multiple indices - do a quick pre-check before we deserialize a response
                     if (stackFrames.containsKey(frame.getId()) == false) {
-                        StackFrame stackFrame = StackFrame.fromSource(frame.getResponse().getSource());
+                        StackFrame stackFrame = otelSchema
+                            ? StackFrame.fromOtelSource(frame.getResponse().getSource())
+                            : StackFrame.fromSource(frame.getResponse().getSource());
                         if (stackFrame.isEmpty() == false) {
                             if (stackFrames.putIfAbsent(frame.getId(), stackFrame) == null) {
                                 totalInlineFrames.addAndGet(stackFrame.inlineFrameCount());
@@ -913,10 +968,15 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                     // Duplicates are expected as we query multiple indices - do a quick pre-check before we deserialize a response
                     if (executables.containsKey(executable.getId()) == false) {
                         Map<String, Object> source = executable.getResponse().getSource();
-                        String fileName = ObjectPath.eval(PATH_FILE_NAME, source);
-                        if (fileName == null) {
-                            // If synthetic source is disabled, read from dotted field names.
-                            fileName = (String) source.get("Executable.file.name");
+                        String fileName;
+                        if (otelSchema) {
+                            fileName = ObjectPath.eval(PATH_FILE_NAME_OTEL, source);
+                        } else {
+                            fileName = ObjectPath.eval(PATH_FILE_NAME, source);
+                            if (fileName == null) {
+                                // If synthetic source is disabled, read from dotted field names.
+                                fileName = (String) source.get("Executable.file.name");
+                            }
                         }
                         if (fileName != null) {
                             executables.putIfAbsent(executable.getId(), fileName);

@@ -59,6 +59,7 @@ import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -101,11 +102,6 @@ public class PercolatorFieldMapper extends FieldMapper {
     static final String QUERY_BUILDER_FIELD_NAME = "query_builder_field";
     static final String RANGE_FIELD_NAME = "range_field";
     static final String MINIMUM_SHOULD_MATCH_FIELD_NAME = "minimum_should_match_field";
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), searchExecutionContext, mapUnmappedFieldsAsText, indexSettings, clusterTransportVersion).init(this);
-    }
 
     static class Builder extends FieldMapper.Builder {
 
@@ -170,7 +166,6 @@ public class PercolatorFieldMapper extends FieldMapper {
                 rangeFieldMapper,
                 minimumShouldMatchFieldMapper,
                 mapUnmappedFieldsAsText,
-                indexSettings,
                 clusterTransportVersion
             );
         }
@@ -361,7 +356,6 @@ public class PercolatorFieldMapper extends FieldMapper {
     private final NumberFieldMapper minimumShouldMatchFieldMapper;
     private final RangeFieldMapper rangeFieldMapper;
     private final boolean mapUnmappedFieldsAsText;
-    private final IndexSettings indexSettings;
     private final Supplier<TransportVersion> clusterTransportVersion;
 
     PercolatorFieldMapper(
@@ -375,7 +369,6 @@ public class PercolatorFieldMapper extends FieldMapper {
         RangeFieldMapper rangeFieldMapper,
         NumberFieldMapper minimumShouldMatchFieldMapper,
         boolean mapUnmappedFieldsAsText,
-        IndexSettings indexSettings,
         Supplier<TransportVersion> clusterTransportVersion
     ) {
         super(simpleName, mappedFieldType, builderParams);
@@ -386,7 +379,6 @@ public class PercolatorFieldMapper extends FieldMapper {
         this.minimumShouldMatchFieldMapper = minimumShouldMatchFieldMapper;
         this.rangeFieldMapper = rangeFieldMapper;
         this.mapUnmappedFieldsAsText = mapUnmappedFieldsAsText;
-        this.indexSettings = indexSettings;
         this.clusterTransportVersion = clusterTransportVersion;
     }
 
@@ -396,8 +388,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(DocumentParserContext context) throws IOException {
-        SearchExecutionContext executionContext = this.searchExecutionContext.get();
+    public ParseResult parse(DocumentParserContext context) throws IOException {
         if (context.doc().getField(queryBuilderField.fullPath()) != null) {
             // If a percolator query has been defined in an array object then multiple percolator queries
             // could be provided. In order to prevent this we fail if we try to parse more than one query
@@ -405,20 +396,36 @@ public class PercolatorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("a document can only contain one percolator query");
         }
 
-        executionContext = PercolateQueryBuilder.newPercolateSearchContext(executionContext, isMapUnmappedFieldAsText());
+        var executionContext = PercolateQueryBuilder.newPercolateSearchContext(
+            this.searchExecutionContext.get(),
+            isMapUnmappedFieldAsText()
+        );
 
         QueryBuilder queryBuilder = parseQueryBuilder(context);
-        // Fetching of terms, shapes and indexed scripts happen during this rewrite:
+        // Resolve terms lookups and indexed shapes without folding constant fields; constant fields need to be folded at runtime rather
+        // than index time because of FLS.
+        QueryRewriteContext fetchContext = new QueryRewriteContext(
+            executionContext.getParserConfig(),
+            executionContext.getClient(),
+            executionContext::nowInMillis
+        );
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
-        Rewriteable.rewriteAndFetch(queryBuilder, executionContext, future);
+        Rewriteable.rewriteAndFetch(queryBuilder, fetchContext, future);
         queryBuilder = future.actionGet();
 
         IndexVersion indexVersion = context.indexSettings().getIndexVersionCreated();
         createQueryBuilderField(indexVersion, clusterTransportVersion.get(), queryBuilderField, queryBuilder, context);
 
-        QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(new SearchExecutionContext(executionContext));
+        QueryBuilder queryBuilderForProcessing = Rewriteable.rewrite(queryBuilder, executionContext);
         Query query = queryBuilderForProcessing.toQuery(executionContext);
-        processQuery(query, context);
+        if (executionContext.containsConstantField()) {
+            // The percolate result can depend on the executing user's FLS rules, including in negated clauses, so neither candidate pruning
+            // nor verification may be cached here.
+            context.doc().add(new StringField(extractionResultField.fullPath(), EXTRACTION_FAILED, Field.Store.NO));
+        } else {
+            processQuery(query, context);
+        }
+        return new ParseResult.Indexed();
     }
 
     static QueryBuilder parseQueryBuilder(DocumentParserContext context) {

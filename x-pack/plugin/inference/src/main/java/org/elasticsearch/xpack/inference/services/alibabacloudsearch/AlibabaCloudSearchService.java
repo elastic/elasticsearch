@@ -206,12 +206,17 @@ public class AlibabaCloudSearchService extends SenderService<AlibabaCloudSearchM
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             EMBEDDING_MAX_BATCH_SIZE,
+            getRegexReadLimitFactor(),
             alibabaCloudSearchModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
             var action = alibabaCloudSearchModel.accept(actionCreator, taskSettings);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                timeout,
+                request.listener()
+            );
         }
     }
 
@@ -220,6 +225,8 @@ public class AlibabaCloudSearchService extends SenderService<AlibabaCloudSearchM
         if (model instanceof AlibabaCloudSearchEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
 
+            var similarityFromModel = serviceSettings.similarity();
+            var similarityToUse = SimilarityMeasure.similarityOrDefault(similarityFromModel);
             var updatedServiceSettings = new AlibabaCloudSearchEmbeddingsServiceSettings(
                 new AlibabaCloudSearchServiceSettings(
                     serviceSettings.getCommonSettings().modelId(),
@@ -228,7 +235,7 @@ public class AlibabaCloudSearchService extends SenderService<AlibabaCloudSearchM
                     serviceSettings.getCommonSettings().getHttpSchema(),
                     serviceSettings.getCommonSettings().rateLimitSettings()
                 ),
-                SimilarityMeasure.DOT_PRODUCT,
+                similarityToUse,
                 embeddingSize,
                 serviceSettings.getMaxInputTokens()
             );
@@ -242,6 +249,11 @@ public class AlibabaCloudSearchService extends SenderService<AlibabaCloudSearchM
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.minimumCompatible();
+    }
+
+    @Override
+    public boolean usesParserForServiceSettings() {
+        return true;
     }
 
     @Override

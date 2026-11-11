@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -27,6 +28,25 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         "values_source_reader",
         ValuesSourceReaderOperatorStatus::readFrom
     );
+    public static final ProfileSchema<ValuesSourceReaderOperatorStatus> PROFILE_SCHEMA = ProfileSchema.of(
+        ValuesSourceReaderOperatorStatus.class,
+        (builder, status, params) -> status.writeProfile(builder)
+    )
+        .required("readers_built", ProfileSchema.dynamicObject(ProfileSchema.integer()))
+        .optional("converters_used", ProfileSchema.dynamicObject(ProfileSchema.integer()))
+        .required("values_loaded", ProfileSchema.integer())
+        .required("bytes_read", ProfileSchema.integer())
+        .required("bytes_decoded", ProfileSchema.integer())
+        .required("source_docs_loaded", ProfileSchema.integer())
+        .required("source_field_reads", ProfileSchema.integer())
+        .required("source_bytes_loaded", ProfileSchema.integer())
+        .required("process_nanos", ProfileSchema.integer())
+        .optional("process_time", ProfileSchema.string())
+        .required("pages_received", ProfileSchema.integer())
+        .required("pages_emitted", ProfileSchema.integer())
+        .required("rows_received", ProfileSchema.integer())
+        .required("rows_emitted", ProfileSchema.integer())
+        .build();
     private static final TransportVersion CONVERTERS_USED = TransportVersion.fromName("esql_vsr_converters_used");
 
     private static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = TransportVersion.fromName(
@@ -34,11 +54,21 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
     );
     private static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES = TransportVersion.fromName("esql_split_on_big_values");
     private static final TransportVersion ESQL_LUCENE_OPERATOR_BYTES_READ = TransportVersion.fromName("esql_lucene_operator_bytes_read");
+    private static final TransportVersion ESQL_VSR_SOURCE_LOAD_PROFILE = TransportVersion.fromName("esql_vsr_source_load_profile");
+    private static final TransportVersion ESQL_BYTES_DECODED = TransportVersion.fromName("esql_bytes_decoded");
 
     private final Map<String, Integer> readersBuilt;
     private final Map<String, Integer> convertersUsed;
     private final long valuesLoaded;
     private final long bytesRead;
+    /** The bytes the loaded values spell, against {@link #bytesRead} the bytes they were read from. */
+    private final long bytesDecoded;
+    /** Number of documents where at least one source-backed field was read. */
+    private final long sourceDocsLoaded;
+    /** Number of source-backed field read attempts (roughly docs x source-backed fields). */
+    private final long sourceFieldReads;
+    /** Sum of last materialized source payload size per row-stride document read. */
+    private final long sourceBytesLoaded;
 
     public ValuesSourceReaderOperatorStatus(
         Map<String, Integer> readersBuilt,
@@ -49,13 +79,21 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         long rowsReceived,
         long rowsEmitted,
         long valuesLoaded,
-        long bytesRead
+        long bytesRead,
+        long bytesDecoded,
+        long sourceDocsLoaded,
+        long sourceFieldReads,
+        long sourceBytesLoaded
     ) {
         super(processNanos, pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
         this.readersBuilt = readersBuilt;
         this.convertersUsed = convertersUsed;
         this.valuesLoaded = valuesLoaded;
         this.bytesRead = bytesRead;
+        this.bytesDecoded = bytesDecoded;
+        this.sourceDocsLoaded = sourceDocsLoaded;
+        this.sourceFieldReads = sourceFieldReads;
+        this.sourceBytesLoaded = sourceBytesLoaded;
     }
 
     static ValuesSourceReaderOperatorStatus readFrom(StreamInput in) throws IOException {
@@ -85,6 +123,10 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
             : Map.of();
         long valuesLoaded = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
         long bytesRead = supportsBytesRead(in.getTransportVersion()) ? in.readVLong() : 0;
+        long bytesDecoded = supportsBytesDecoded(in.getTransportVersion()) ? in.readVLong() : 0;
+        long sourceDocsLoaded = supportsSourceLoadProfile(in.getTransportVersion()) ? in.readVLong() : 0;
+        long sourceFieldReads = supportsSourceLoadProfile(in.getTransportVersion()) ? in.readVLong() : 0;
+        long sourceBytesLoaded = supportsSourceLoadProfile(in.getTransportVersion()) ? in.readVLong() : 0;
         return new ValuesSourceReaderOperatorStatus(
             readersBuilt,
             convertersUsed,
@@ -94,7 +136,11 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
             rowsReceived,
             rowsEmitted,
             valuesLoaded,
-            bytesRead
+            bytesRead,
+            bytesDecoded,
+            sourceDocsLoaded,
+            sourceFieldReads,
+            sourceBytesLoaded
         );
     }
 
@@ -119,10 +165,22 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         if (supportsBytesRead(out.getTransportVersion())) {
             out.writeVLong(bytesRead);
         }
+        if (supportsBytesDecoded(out.getTransportVersion())) {
+            out.writeVLong(bytesDecoded);
+        }
+        if (supportsSourceLoadProfile(out.getTransportVersion())) {
+            out.writeVLong(sourceDocsLoaded);
+            out.writeVLong(sourceFieldReads);
+            out.writeVLong(sourceBytesLoaded);
+        }
     }
 
     private static boolean supportsBytesRead(TransportVersion version) {
         return version.supports(ESQL_LUCENE_OPERATOR_BYTES_READ);
+    }
+
+    private static boolean supportsBytesDecoded(TransportVersion version) {
+        return version.supports(ESQL_BYTES_DECODED);
     }
 
     private static boolean supportsSplitOnBigValues(TransportVersion version) {
@@ -131,6 +189,10 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
 
     private static boolean supportsValuesLoaded(TransportVersion version) {
         return version.supports(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED);
+    }
+
+    private static boolean supportsSourceLoadProfile(TransportVersion version) {
+        return version.supports(ESQL_VSR_SOURCE_LOAD_PROFILE);
     }
 
     @Override
@@ -157,7 +219,23 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public long bytesDecoded() {
+        return bytesDecoded;
+    }
+
+    public long sourceDocsLoaded() {
+        return sourceDocsLoaded;
+    }
+
+    public long sourceFieldReads() {
+        return sourceFieldReads;
+    }
+
+    public long sourceBytesLoaded() {
+        return sourceBytesLoaded;
+    }
+
+    private XContentBuilder writeProfile(XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.startObject("readers_built");
         for (Map.Entry<String, Integer> e : readersBuilt.entrySet()) {
@@ -173,8 +251,21 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         }
         builder.field("values_loaded", valuesLoaded);
         builder.field("bytes_read", bytesRead);
+        // How far the bytes read expanded: the values they spell, in the same units.
+        builder.field("bytes_decoded", bytesDecoded);
+        // Breadth: how many docs needed source-backed extraction at least once.
+        builder.field("source_docs_loaded", sourceDocsLoaded);
+        // Frequency: how often source-backed fields were read across docs.
+        builder.field("source_field_reads", sourceFieldReads);
+        // Volume: cumulative source payload bytes materialized while reading.
+        builder.field("source_bytes_loaded", sourceBytesLoaded);
         innerToXContent(builder);
         return builder.endObject();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return PROFILE_SCHEMA.write(builder, this, params);
     }
 
     @Override
@@ -184,12 +275,25 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         return readersBuilt.equals(status.readersBuilt)
             && convertersUsed.equals(status.convertersUsed)
             && valuesLoaded == status.valuesLoaded
-            && bytesRead == status.bytesRead;
+            && bytesRead == status.bytesRead
+            && bytesDecoded == status.bytesDecoded
+            && sourceDocsLoaded == status.sourceDocsLoaded
+            && sourceFieldReads == status.sourceFieldReads
+            && sourceBytesLoaded == status.sourceBytesLoaded;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), readersBuilt, valuesLoaded, bytesRead);
+        return Objects.hash(
+            super.hashCode(),
+            readersBuilt,
+            valuesLoaded,
+            bytesRead,
+            bytesDecoded,
+            sourceDocsLoaded,
+            sourceFieldReads,
+            sourceBytesLoaded
+        );
     }
 
     @Override

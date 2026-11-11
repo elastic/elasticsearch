@@ -10,9 +10,14 @@ package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
+import io.opentelemetry.proto.metrics.v1.Metric;
 import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
 
+import org.elasticsearch.cluster.routing.TsidLayout;
+import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.util.ArrayList;
@@ -27,6 +32,7 @@ import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createGaugeMetric;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createHistogramMetric;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createLongDataPoint;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createMetricsRequest;
+import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createNoValueDataPoint;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createResourceMetrics;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createScopeMetrics;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createSumMetric;
@@ -38,15 +44,64 @@ import static org.hamcrest.Matchers.containsString;
 
 public class DataPointGroupingContextTests extends ESTestCase {
 
-    private final DataPointGroupingContext context = new DataPointGroupingContext(new BufferedByteStringAccessor());
+    private final DataPointGroupingContext context = new DataPointGroupingContext(
+        new BufferedByteStringAccessor(),
+        MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
+    );
     private final long nowUnixNanos = System.currentTimeMillis() * 1_000_000L;
 
+    /** Metric order can change between scrapes without changing the identity of the time series. */
+    public void testMetricNamesHashIgnoresMetricOrder() throws Exception {
+        Metric a = createGaugeMetric("a", "", List.of(createDoubleDataPoint(nowUnixNanos)));
+        Metric b = createGaugeMetric("b", "", List.of(createDoubleDataPoint(nowUnixNanos)));
+        Metric c = createGaugeMetric("c", "", List.of(createDoubleDataPoint(nowUnixNanos)));
+        List<List<Metric>> permutations = List.of(
+            List.of(a, b, c),
+            List.of(c, b, a),
+            List.of(a, c, b),
+            List.of(b, a, c),
+            List.of(b, c, a),
+            List.of(c, a, b)
+        );
+        var groups = new ArrayList<DataPointGroupingContext.DataPointGroup>();
+        for (List<Metric> metrics : permutations) {
+            context.groupDataPoints(createMetricsRequest(metrics));
+            context.consume(groups::add);
+        }
+        assertEquals(permutations.size(), groups.size());
+        var hasher = new BufferedMurmur3Hasher(0);
+        String expectedHash = groups.getFirst().getMetricNamesHash(hasher);
+        var layout = TsidLayout.forVersion(IndexVersion.current());
+        var expectedTsid = groups.getFirst().buildMetricTsid(expectedHash, layout);
+        for (var group : groups) {
+            String hash = group.getMetricNamesHash(hasher);
+            assertEquals(expectedTsid, group.buildMetricTsid(hash, layout));
+            assertEquals(expectedHash, hash);
+        }
+    }
+
     public void testGroupingSameGroup() throws Exception {
-        // Group data points
         ExportMetricsServiceRequest metricsRequest = createMetricsRequest(
             List.of(
                 createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos))),
                 createGaugeMetric("system.memory.usage", "", List.of(createDoubleDataPoint(nowUnixNanos))),
+                createSummaryMetric("summary", "", List.of(createSummaryDataPoint(nowUnixNanos, List.of())))
+            )
+        );
+        context.groupDataPoints(metricsRequest);
+        assertEquals(3, context.totalItems());
+        assertEquals(0, context.getIgnoredItems());
+        assertEquals("", context.getIgnoredItemsMessage(10));
+
+        AtomicInteger groupCount = new AtomicInteger(0);
+        context.consume(dataPointGroup -> groupCount.incrementAndGet());
+        assertEquals(1, groupCount.get());
+    }
+
+    public void testGroupingDifferentTemporality() throws Exception {
+        ExportMetricsServiceRequest metricsRequest = createMetricsRequest(
+            List.of(
+                createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos))),
                 createSumMetric(
                     "http.requests.count",
                     "",
@@ -67,18 +122,18 @@ public class DataPointGroupingContextTests extends ESTestCase {
                     "",
                     List.of(HistogramDataPoint.newBuilder().setTimeUnixNano(nowUnixNanos).setStartTimeUnixNano(nowUnixNanos).build()),
                     AGGREGATION_TEMPORALITY_DELTA
-                ),
-                createSummaryMetric("summary", "", List.of(createSummaryDataPoint(nowUnixNanos, List.of())))
+                )
             )
         );
         context.groupDataPoints(metricsRequest);
-        assertEquals(6, context.totalItems());
+        assertEquals(4, context.totalItems());
         assertEquals(0, context.getIgnoredItems());
         assertEquals("", context.getIgnoredItemsMessage(10));
 
         AtomicInteger groupCount = new AtomicInteger(0);
         context.consume(dataPointGroup -> groupCount.incrementAndGet());
-        assertEquals(1, groupCount.get());
+        // gauge (null temporality), cumulative counter, and delta histograms are in separate groups
+        assertEquals(3, groupCount.get());
     }
 
     public void testGroupingDifferentTargetIndex() throws Exception {
@@ -141,6 +196,25 @@ public class DataPointGroupingContextTests extends ESTestCase {
         AtomicInteger groupCount = new AtomicInteger(0);
         context.consume(dataPointGroup -> groupCount.incrementAndGet());
         assertEquals(1, groupCount.get());
+    }
+
+    public void testGroupingIgnoresNumberDataPointWithoutValue() throws Exception {
+        // A NumberDataPoint whose oneof value is unset must be filtered out during grouping rather than
+        // reaching document building, where it would leave a dangling field name and corrupt the document.
+        ExportMetricsServiceRequest metricsRequest = createMetricsRequest(
+            List.of(
+                createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos))),
+                createGaugeMetric("system.memory.usage", "", List.of(createNoValueDataPoint(nowUnixNanos)))
+            )
+        );
+        context.groupDataPoints(metricsRequest);
+        assertEquals(2, context.totalItems());
+        assertEquals(1, context.getIgnoredItems());
+        assertThat(context.getIgnoredItemsMessage(10), containsString("number data point without a value, ignoring system.memory.usage"));
+
+        List<String> metricNames = new ArrayList<>();
+        context.consume(dataPointGroup -> dataPointGroup.dataPoints().forEach(dp -> metricNames.add(dp.getMetricName())));
+        assertThat(metricNames, containsInAnyOrder("system.cpu.usage"));
     }
 
     public void testGroupingDuplicateNameDifferentTimeSeries() throws Exception {

@@ -40,6 +40,7 @@ public class FirstOverTimeTests extends AbstractAggregationTestCase {
         var suppliers = new ArrayList<TestCaseSupplier>();
         FunctionAppliesTo expHistogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
         FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
+        FunctionAppliesTo booleanGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.7.0", "", true);
 
         var valuesSuppliers = List.of(
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
@@ -50,6 +51,7 @@ public class FirstOverTimeTests extends AbstractAggregationTestCase {
                 .map(s -> s.withAppliesTo(expHistogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
                 .toList(),
             MultiRowTestCaseSupplier.tdigestCases(1, 100).stream().map(s -> s.withAppliesTo(histogramGaAppliesTo)).toList(),
+            MultiRowTestCaseSupplier.booleanCases(1, 1000).stream().map(s -> s.withAppliesTo(booleanGaAppliesTo)).toList(),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
@@ -73,7 +75,7 @@ public class FirstOverTimeTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new FirstOverTime(source, args.get(0), Literal.TRUE, AggregateFunction.NO_WINDOW, args.get(1));
+        return new FirstOverTime(source, args.get(0), args.get(1), Literal.TRUE, AggregateFunction.NO_WINDOW);
     }
 
     @Override
@@ -129,5 +131,15 @@ public class FirstOverTimeTests extends AbstractAggregationTestCase {
         var preview = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
         DocsV3Support.Param window = new DocsV3Support.Param(DataType.TIME_DURATION, List.of(preview));
         return List.of(params.get(0), window);
+    }
+
+    /**
+     * Filters out implicitly injected parameters to ensure CONSTANT hint validation
+     * only checks declared @Param arguments.
+     */
+    public static List<TestCaseSupplier.TypedData> providedParameters(List<TestCaseSupplier.TypedData> params) {
+        assertThat(params, hasSize(2));
+        assertThat(params.get(1).type(), equalTo(DataType.DATETIME));
+        return List.of(params.get(0));
     }
 }

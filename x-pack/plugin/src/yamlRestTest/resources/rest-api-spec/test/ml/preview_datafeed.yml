@@ -879,3 +879,101 @@ setup:
   - match: { 0.time: 1487377800000 }
   - match: { 0.airline: foo }
   - match: { 0.responsetime: 1.0 }
+---
+"Test preview aggregation datafeed without summary count field":
+  # Previewing an inline aggregated datafeed against a job that has no summary_count_field_name
+  # must be rejected like it is when the datafeed is created, rather than failing with a 500
+  - do:
+      catch: bad_request
+      ml.preview_datafeed:
+        start: "2017-02-18T00:00:00Z"
+        end: "2017-02-18T02:00:00Z"
+        body: >
+          {
+            "datafeed_config": {
+              "indexes":"airline-data",
+              "aggregations": {
+                "buckets": {
+                  "histogram": {
+                    "field": "time",
+                    "interval": 3600000
+                  },
+                  "aggregations": {
+                    "time": {
+                      "max": {
+                        "field": "time"
+                      }
+                    },
+                    "airline": {
+                      "terms": {
+                        "field": "airline",
+                        "size": 100
+                      },
+                      "aggregations": {
+                        "responsetime": {
+                          "sum": {
+                             "field": "responsetime"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "job_config": {
+              "analysis_config" : {
+                  "bucket_span": "1h",
+                  "detectors" :[{"function":"sum","field_name":"responsetime","by_field_name":"airline"}]
+              },
+              "data_description" : {
+                  "time_field":"time"
+              }
+            }
+          }
+  - match: { error.reason: "A job configured with a datafeed with aggregations must set summary_count_field_name; use doc_count or suitable alternative" }
+---
+"Test preview aggregation datafeed without max time aggregation":
+  - do:
+      catch: bad_request
+      ml.preview_datafeed:
+        body: >
+          {
+            "datafeed_config": {
+              "indexes":"airline-data",
+              "aggregations": {
+                "buckets": {
+                  "histogram": {
+                    "field": "time",
+                    "interval": 3600000
+                  },
+                  "aggregations": {
+                    "airline": {
+                      "terms": {
+                        "field": "airline",
+                        "size": 100
+                      },
+                      "aggregations": {
+                        "responsetime": {
+                          "sum": {
+                             "field": "responsetime"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "job_config": {
+              "analysis_config" : {
+                  "bucket_span": "1h",
+                  "summary_count_field_name": "doc_count",
+                  "detectors" :[{"function":"sum","field_name":"responsetime","by_field_name":"airline"}]
+              },
+              "data_description" : {
+                  "time_field":"time"
+              }
+            }
+          }
+  - match: { error.reason: "Missing max aggregation for time_field [time]" }

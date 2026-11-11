@@ -1,0 +1,16 @@
+{
+    "properties": {
+        "id": { "type": "keyword" },
+        "unmapped": {
+            "properties": {
+                "foo": { "type": "keyword" },
+                "bar": { "type": "keyword" },
+                "deep": {
+                    "properties": {
+                        "leaf": { "type": "keyword" }
+                    }
+                }
+            }
+        }
+    }
+}

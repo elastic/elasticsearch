@@ -23,6 +23,8 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -112,6 +114,7 @@ import org.elasticsearch.xpack.transform.rest.action.RestStartTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestStopTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpdateTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpgradeTransformsAction;
+import org.elasticsearch.xpack.transform.telemetry.TransformCrossProjectMetrics;
 import org.elasticsearch.xpack.transform.telemetry.TransformMeterRegistry;
 import org.elasticsearch.xpack.transform.transforms.TransformPersistentTasksExecutor;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
@@ -119,6 +122,7 @@ import org.elasticsearch.xpack.transform.transforms.scheduling.TransformSchedule
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -143,6 +147,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     private final Settings settings;
     private final SetOnce<TransformServices> transformServices = new SetOnce<>();
     private final SetOnce<TransformConfigAutoMigration> transformConfigAutoMigration = new SetOnce<>();
+    private final SetOnce<TransformMeterRegistry> transformMeterRegistry = new SetOnce<>();
     private final SetOnce<TransformAuditor> transformAuditor = new SetOnce<>();
     private final TransformExtension transformExtension = new DefaultTransformExtension();
 
@@ -150,17 +155,23 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     public static final TimeValue DEFAULT_TRANSFORM_FREQUENCY = TimeValue.timeValueSeconds(60);
 
     /**
-     * Hard-coded timeout used for {@link org.elasticsearch.action.support.master.MasterNodeRequest#masterNodeTimeout()} for requests to
-     * the master node from transforms code. Wherever possible, prefer to use a user-controlled timeout instead of this.
+     * Hard-coded timeout used for
+     * {@link org.elasticsearch.action.support.master.MasterNodeRequest#masterNodeTimeout()}
+     * for requests to
+     * the master node from transforms code. Wherever possible, prefer to use a
+     * user-controlled timeout instead of this.
      *
-     * @see <a href="https://github.com/elastic/elasticsearch/issues/107984">#107984</a>
+     * @see <a href=
+     *      "https://github.com/elastic/elasticsearch/issues/107984">#107984</a>
      */
     public static final TimeValue HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT = TimeValue.THIRTY_SECONDS;
 
     public static final int DEFAULT_FAILURE_RETRIES = 10;
     // How many times the transform task can retry on a non-critical failure.
-    // This cluster-level setting is deprecated, the users should be using transform-level setting instead.
-    // In order to ensure BWC, this cluster-level setting serves as a fallback in case the transform-level setting is not specified.
+    // This cluster-level setting is deprecated, the users should be using
+    // transform-level setting instead.
+    // In order to ensure BWC, this cluster-level setting serves as a fallback in
+    // case the transform-level setting is not specified.
     public static final Setting<Integer> NUM_FAILURE_RETRIES_SETTING = Setting.intSetting(
         "xpack.transform.num_transform_failure_retries",
         DEFAULT_FAILURE_RETRIES,
@@ -196,7 +207,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             return;
         }
 
-        // Enable Transform upgrade mode before upgrading the system indices to ensure nothing writes to them during the upgrade
+        // Enable Transform upgrade mode before upgrading the system indices to ensure
+        // nothing writes to them during the upgrade
         var originClient = new OriginSettingClient(client, TRANSFORM_ORIGIN);
         originClient.execute(
             SetTransformUpgradeModeAction.INSTANCE,
@@ -209,7 +221,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     public void indicesMigrationComplete(Map<String, Object> preUpgradeMetadata, Client client, ActionListener<Boolean> listener) {
         var wasAlreadyInUpgradeMode = (boolean) preUpgradeMetadata.getOrDefault("already_in_upgrade_mode", false);
         if (wasAlreadyInUpgradeMode) {
-            // Transform was already in upgrade mode before system indices upgrade started - we shouldn't disable it
+            // Transform was already in upgrade mode before system indices upgrade started -
+            // we shouldn't disable it
             listener.onResponse(true);
             return;
         }
@@ -292,6 +305,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(
             clusterService,
             services.indexNameExpressionResolver(),
+            services.projectResolver(),
             client,
             services.xContentRegistry(),
             transformParsingContext
@@ -305,12 +319,26 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         );
         this.transformAuditor.set(auditor);
         Clock clock = Clock.systemUTC();
-        TransformCheckpointService checkpointService = new TransformCheckpointService(
-            clock,
-            settings,
-            services.linkedProjectConfigService(),
+
+        // Built once and reused: SecurityContext is a stateless wrapper around the shared
+        // ThreadContext singleton; per-request state lives in the ThreadContext's thread-local view.
+        // Null when security is disabled, which useSecondaryAuthIfAvailable handles as a no-op pass-through.
+        var securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
+            ? new SecurityContext(settings, services.threadPool().getThreadContext())
+            : null;
+        var cloudCredentialManager = new TransformCloudCredentialManager(
+            services.threadPool(),
+            securityContext,
+            getTransformExtension().getCloudCredentialManager(),
+            getTransformExtension().getCloudApiKeyService(),
             configManager,
             auditor
+        );
+        TransformCheckpointService checkpointService = new TransformCheckpointService(
+            clock,
+            configManager,
+            auditor,
+            cloudCredentialManager
         );
         TransformScheduler scheduler = new TransformScheduler(
             clock,
@@ -332,21 +360,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             hasLinkedProjects = projectId -> false;
         }
 
-        // Built once and reused: SecurityContext is a stateless wrapper around the shared
-        // ThreadContext singleton; per-request state lives in the ThreadContext's thread-local view.
-        // Null when security is disabled, which useSecondaryAuthIfAvailable handles as a no-op pass-through.
-        var securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
-            ? new SecurityContext(settings, services.threadPool().getThreadContext())
-            : null;
-        var cloudCredentialManager = new TransformCloudCredentialManager(
-            services.threadPool(),
-            securityContext,
-            getTransformExtension().getCloudCredentialManager(),
-            getTransformExtension().getCloudApiKeyService(),
-            configManager,
-            auditor
-        );
-
         transformServices.set(
             new TransformServices(
                 configManager,
@@ -357,21 +370,37 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                 crossProjectModeDecider,
                 hasLinkedProjects,
                 services.projectResolver(),
-                cloudCredentialManager
+                cloudCredentialManager,
+                clock
             )
         );
 
-        var transformMeterRegistry = TransformMeterRegistry.create(services.telemetryProvider().getMeterRegistry());
+        var meterRegistry = services.telemetryProvider().getMeterRegistry();
+        this.transformMeterRegistry.set(TransformMeterRegistry.create(meterRegistry));
         transformConfigAutoMigration.set(
-            new TransformConfigAutoMigration(configManager, auditor, transformMeterRegistry, services.threadPool())
+            new TransformConfigAutoMigration(configManager, auditor, transformMeterRegistry.get(), services.threadPool())
         );
 
-        return List.of(
-            transformServices.get(),
-            clusterStateListener,
-            new TransformExtensionHolder(getTransformExtension()),
-            transformConfigAutoMigration.get()
+        var components = new ArrayList<>(
+            List.of(
+                transformServices.get(),
+                clusterStateListener,
+                new TransformExtensionHolder(getTransformExtension()),
+                transformConfigAutoMigration.get()
+            )
         );
+        // the CPS gauges only exist on transform nodes of CPS-enabled clusters
+        if (crossProjectModeDecider.crossProjectEnabled() && DiscoveryNode.hasRole(settings, DiscoveryNodeRole.TRANSFORM_ROLE)) {
+            components.add(
+                new TransformCrossProjectMetrics(
+                    meterRegistry,
+                    services.threadPool(),
+                    TransformCrossProjectMetrics.POLL_INTERVAL_SETTING.get(settings),
+                    transformNode
+                )
+            );
+        }
+        return components;
     }
 
     @Override
@@ -385,6 +414,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         // the transform services should have been created
         assert transformServices.get() != null;
         assert transformConfigAutoMigration.get() != null;
+        assert transformMeterRegistry.get() != null;
 
         return List.of(
             new TransformPersistentTasksExecutor(
@@ -395,14 +425,15 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                 settingsModule.getSettings(),
                 getTransformExtension(),
                 expressionResolver,
-                transformConfigAutoMigration.get()
+                transformConfigAutoMigration.get(),
+                transformMeterRegistry.get()
             )
         );
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(NUM_FAILURE_RETRIES_SETTING, SCHEDULER_FREQUENCY);
+        return List.of(NUM_FAILURE_RETRIES_SETTING, SCHEDULER_FREQUENCY, TransformCrossProjectMetrics.POLL_INTERVAL_SETTING);
     }
 
     @Override
@@ -446,8 +477,10 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return templates -> {
-            // These are all legacy templates that were created in old versions. None are needed now.
-            // The "internal" indices became system indices and the "notifications" indices now use composable templates.
+            // These are all legacy templates that were created in old versions. None are
+            // needed now.
+            // The "internal" indices became system indices and the "notifications" indices
+            // now use composable templates.
             templates.remove(".data-frame-internal-1");
             templates.remove(".data-frame-internal-2");
             templates.remove(".transform-internal-003");
@@ -583,7 +616,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                 true,
                 // Set force=false in order to let transforms finish gracefully.
                 false,
-                // Do not give it too much time. If there is a problem, there will be another try with force=true.
+                // Do not give it too much time. If there is a problem, there will be another
+                // try with force=true.
                 TimeValue.timeValueSeconds(10),
                 true,
                 false

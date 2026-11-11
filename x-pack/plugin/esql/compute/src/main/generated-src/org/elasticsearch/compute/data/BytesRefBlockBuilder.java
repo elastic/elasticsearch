@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
@@ -38,6 +39,16 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
 
     @Override
     public BytesRefBlockBuilder appendBytesRef(BytesRef value) {
+        ensureCapacity();
+        values.append(value);
+        hasNonNullValue = true;
+        valueCount++;
+        updatePosition();
+        return this;
+    }
+
+    @Override
+    public BytesRefBlockBuilder appendBytesReference(BytesReference value) {
         ensureCapacity();
         values.append(value);
         hasNonNullValue = true;
@@ -92,6 +103,13 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     @Override
     protected void writeNullValue() {
         values.append(BytesRefBlock.NULL_VALUE);
+    }
+
+    @Override
+    public BytesRefBlockBuilder cancelPositionEntry() {
+        values.truncateTo(firstValueIndexes[positionCount]);
+        super.cancelPositionEntry();
+        return this;
     }
 
     @Override

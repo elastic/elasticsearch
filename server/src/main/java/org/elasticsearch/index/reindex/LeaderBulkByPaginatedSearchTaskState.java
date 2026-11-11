@@ -26,7 +26,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
+import java.util.function.BooleanSupplier;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -46,7 +46,7 @@ public class LeaderBulkByPaginatedSearchTaskState {
      * How many subtasks are still running
      */
     private final AtomicInteger runningSubtasks;
-    private final SetOnce<Supplier<Optional<String>>> nodeToRelocateToSupplier;
+    private final SetOnce<BooleanSupplier> hasNodeToRelocateToSupplier;
     /**
      * The latest PIT ID from slice responses. Updated on each completion so we close the most recent context.
      */
@@ -59,17 +59,18 @@ public class LeaderBulkByPaginatedSearchTaskState {
     private volatile float relocationRequestsPerSecond;
     private boolean capturedRpsForRelocation = false;
 
+    @SuppressWarnings("this-escape")
     public LeaderBulkByPaginatedSearchTaskState(BulkByPaginatedSearchTask task, int slices, float requestsPerSecond) {
         this.task = task;
         this.slices = slices;
         results = new AtomicArray<>(slices);
         runningSubtasks = new AtomicInteger(slices);
-        this.nodeToRelocateToSupplier = new SetOnce<>();
+        this.hasNodeToRelocateToSupplier = new SetOnce<>();
         setRequestsPerSecondWithRelocationGuard(requestsPerSecond);
     }
 
     /**
-     * Returns the number of slices this BulkByScrollRequest will use
+     * Returns the number of slices this BulkByPaginatedSearchRequest will use
      */
     public int getSlices() {
         return slices;
@@ -136,19 +137,20 @@ public class LeaderBulkByPaginatedSearchTaskState {
     public void onSliceFailure(ActionListener<BulkByPaginatedSearchResponse> listener, int sliceId, Exception e) {
         results.setOnce(sliceId, new Result(sliceId, e));
         recordSliceCompletionAndRespondIfAllDone(listener);
-        // TODO cancel when a slice fails?
+        // TODO - https://github.com/elastic/elasticsearch/issues/150877
+        // Cancel when a slice fails?
     }
 
-    public void setNodeToRelocateToSupplier(Supplier<Optional<String>> nodeToRelocateToSupplier) {
-        this.nodeToRelocateToSupplier.set(Objects.requireNonNull(nodeToRelocateToSupplier));
+    public void setHasNodeToRelocateToSupplier(BooleanSupplier hasNodeToRelocateToSupplier) {
+        this.hasNodeToRelocateToSupplier.set(Objects.requireNonNull(hasNodeToRelocateToSupplier));
     }
 
-    public Optional<String> getNodeToRelocateTo() {
-        final Supplier<Optional<String>> supplier = this.nodeToRelocateToSupplier.get();
+    public boolean hasNodeToRelocateTo() {
+        final BooleanSupplier supplier = this.hasNodeToRelocateToSupplier.get();
         if (supplier == null) {
             throw new IllegalStateException("Node to relocate to supplier should be set before, if this method is called");
         }
-        return supplier.get();
+        return supplier.getAsBoolean();
     }
 
     /// Updates the source-of-truth total RPS for this leader task. Called by rethrottle before fanning out to children.
@@ -176,7 +178,7 @@ public class LeaderBulkByPaginatedSearchTaskState {
             return;
         }
 
-        if (task.isRelocationRequested() && getNodeToRelocateTo().isPresent()) {
+        if (task.isRelocationRequested() && hasNodeToRelocateTo()) {
             final BulkByPaginatedSearchResponse relocationResponse = relocationResponseIfNeeded().orElse(null);
             if (relocationResponse != null) {
                 listener.onResponse(relocationResponse);

@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.inference.services;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TestPlainActionFuture;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceStringGroup;
@@ -24,6 +24,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.NonStreamingChatFeature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -45,7 +46,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.inference.InferenceString.fromStringList;
-import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
+import static org.elasticsearch.inference.InferenceStringTests.createRandomNonTextEmbeddingInput;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.xpack.inference.Utils.TIMEOUT;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
@@ -75,7 +76,13 @@ public abstract class InferenceServiceTestCase extends ESTestCase {
     public void doInit() throws IOException {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        clientManager = HttpClientManager.create(
+            Settings.EMPTY,
+            threadPool,
+            mockClusterServiceEmpty(),
+            mock(ThrottlerManager.class),
+            new TestCircuitBreaker()
+        );
     }
 
     @After
@@ -173,7 +180,20 @@ public abstract class InferenceServiceTestCase extends ESTestCase {
     }
 
     public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel_KeepsSimilarity() throws IOException {
-        testUpdateModelWithEmbeddingDetails(SimilarityMeasure.COSINE, SimilarityMeasure.COSINE);
+        try (var inferenceService = createInferenceService()) {
+            boolean supportsEmbeddingTaskType = supportsTaskType(inferenceService, TaskType.TEXT_EMBEDDING)
+                || supportsTaskType(inferenceService, TaskType.EMBEDDING);
+            Assume.assumeTrue(supportsEmbeddingTaskType);
+
+            var embeddingSize = randomNonNegativeInt();
+            // Verify that every existing similarity value is preserved, including dot_product.
+            // This proves that updating an existing endpoint does not retroactively change its similarity.
+            for (var similarity : SimilarityMeasure.values()) {
+                var model = createEmbeddingModel(similarity);
+                var updatedModel = inferenceService.updateModelWithEmbeddingDetails(model, embeddingSize);
+                assertEquals(similarity, updatedModel.getServiceSettings().similarity());
+            }
+        }
     }
 
     private void testUpdateModelWithEmbeddingDetails(SimilarityMeasure similarityInModel, SimilarityMeasure expectedSimilarity)
@@ -205,11 +225,12 @@ public abstract class InferenceServiceTestCase extends ESTestCase {
     }
 
     /**
-     * This should be overridden by services that do not use {@link SimilarityMeasure#DOT_PRODUCT} as their default similarity
+     * This should be overridden by services that do not use {@link SimilarityMeasure#COSINE} as their default similarity for float
+     * dense embeddings.
      * @return the default {@link SimilarityMeasure} for the service
      */
     public SimilarityMeasure getDefaultSimilarity() {
-        return SimilarityMeasure.DOT_PRODUCT;
+        return SimilarityMeasure.COSINE;
     }
 
     // streaming tests
@@ -229,6 +250,27 @@ public abstract class InferenceServiceTestCase extends ESTestCase {
         }
     }
 
+    /**
+     * Validates that services which report {@link InferenceService#supportsNonStreamingChatCompletion()} true
+     * also expose that via the {@code features.non_streaming_chat} entry in their configuration, so that
+     * API consumers can discover the capability through {@code GET _inference/_services}.
+     */
+    public void testSupportsNonStreamingChatCompletion_IsReportedInConfiguration() throws IOException {
+        try (var service = createInferenceService()) {
+            if (service.supportsNonStreamingChatCompletion() == false) {
+                return;
+            }
+
+            // ElasticInferenceService.getConfiguration() throws because its config depends on authorization
+            var configuration = service instanceof ElasticInferenceService
+                ? ElasticInferenceService.createConfiguration(ElasticInferenceService.IMPLEMENTED_TASK_TYPES)
+                : service.getConfiguration();
+
+            assertNotNull(configuration.getFeatures());
+            assertTrue(configuration.getFeatures().has(NonStreamingChatFeature.SUPPORTED_INSTANCE));
+        }
+    }
+
     public void testChunkedInferDoesNotSupportMultipleItemsPerContent() throws IOException {
         try (var inferenceService = createInferenceService()) {
             var multipleItemsInput = new InferenceStringGroup(fromStringList(List.of("input1", "input2")));
@@ -245,7 +287,7 @@ public abstract class InferenceServiceTestCase extends ESTestCase {
         try (var inferenceService = createInferenceService()) {
             Assume.assumeFalse(inferenceService.supportsNonTextEmbeddingContent());
 
-            var nonTextInput = new InferenceStringGroup(createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+            var nonTextInput = new InferenceStringGroup(createRandomNonTextEmbeddingInput());
             var exceptionMessage = Strings.format(
                 "The %s service does not support embedding with non-text inputs",
                 inferenceService.name()

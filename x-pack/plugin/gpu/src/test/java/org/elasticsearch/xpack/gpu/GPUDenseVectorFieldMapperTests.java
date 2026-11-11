@@ -13,9 +13,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.gpu.GPUSupport;
+import org.elasticsearch.gpu.codec.ES97GpuHnswBBQVectorsFormat;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
+import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests;
 import org.elasticsearch.plugins.Plugin;
@@ -25,8 +27,10 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 
 public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests {
 
@@ -39,13 +43,16 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
 
     @Override
     protected Collection<Plugin> getPlugins() {
-        var plugin = new GPUPlugin(Settings.EMPTY, gpuSupport) {
+        return Collections.singletonList(newGpuPlugin());
+    }
+
+    private static GPUPlugin newGpuPlugin() {
+        return new GPUPlugin(Settings.EMPTY, gpuSupport) {
             @Override
             protected boolean isGpuIndexingFeatureAllowed() {
                 return true;
             }
         };
-        return Collections.singletonList(plugin);
     }
 
     @Override
@@ -61,9 +68,45 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
     public void testKnnQuantizedHNSWVectorsFormat() throws IOException {
         // TOD improve the test with custom parameters
         KnnVectorsFormat knnVectorsFormat = getKnnVectorsFormat("int8_hnsw");
-        String expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
+        String expectedStr = "ES814HnswScalarQuantizedVectorsFormat(name=ES814HnswScalarQuantizedVectorsFormat, "
             + "maxConn=12, beamWidth=22, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";
-        assertTrue(knnVectorsFormat.toString().startsWith(expectedStr));
+        assertThat(knnVectorsFormat.toString(), startsWith(expectedStr));
+    }
+
+    @Override
+    public void testKnnBBQHNSWVectorsFormat() throws IOException {
+        MapperService mapperService = createMapperService(indexOptionsMapping("bbq_hnsw"));
+        String expectedStr = "ES93HnswBinaryQuantizedVectorsFormat(name=ES93HnswBinaryQuantizedVectorsFormat, "
+            + "maxConn=12, beamWidth=22, hnswGraphThreshold=300, flatVectorFormat=ES93BinaryQuantizedVectorsFormat";
+        assertThat(getKnnVectorsFormat(mapperService).toString(), startsWith(expectedStr));
+
+        // The mapper wraps the format, and the GPU format has the same name and string as the CPU one, so check that the
+        // plugin provides the GPU format for this field
+        DenseVectorFieldMapper.DenseVectorFieldType fieldType = (DenseVectorFieldMapper.DenseVectorFieldType) mapperService.fieldType(
+            "field"
+        );
+        KnnVectorsFormat pluginFormat = newGpuPlugin().getVectorsFormatProvider()
+            .getKnnVectorsFormat(
+                mapperService.getIndexSettings(),
+                fieldType.getIndexOptions(),
+                fieldType.similarity(),
+                fieldType.getElementType(),
+                null,
+                1,
+                null
+            );
+        assertThat(pluginFormat, instanceOf(ES97GpuHnswBBQVectorsFormat.class));
+    }
+
+    /**
+     * The GPU formats for hnsw and int8_hnsw don't support {@code on_disk_merge} yet, as {@link GPUPlugin} doesn't pass it
+     * to them, so the test only covers the index types whose formats carry it.
+     */
+    @Override
+    protected List<String> onDiskMergeIndexTypes() {
+        return super.onDiskMergeIndexTypes().stream()
+            .filter(type -> type.equals("hnsw") == false && type.equals("int8_hnsw") == false)
+            .toList();
     }
 
     @Override
@@ -80,8 +123,12 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
     }
 
     private KnnVectorsFormat getKnnVectorsFormat(String indexOptionsType) throws IOException {
+        return getKnnVectorsFormat(createMapperService(indexOptionsMapping(indexOptionsType)));
+    }
+
+    private XContentBuilder indexOptionsMapping(String indexOptionsType) throws IOException {
         final int dims = randomIntBetween(128, 4096);
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
+        return fieldMapping(b -> {
             b.field("type", "dense_vector");
             b.field("dims", dims);
             b.field("index", true);
@@ -89,13 +136,13 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
             b.startObject("index_options");
             b.field("type", indexOptionsType);
             b.endObject();
-        }));
+        });
+    }
+
+    private static KnnVectorsFormat getKnnVectorsFormat(MapperService mapperService) {
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
-        if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-            codec = deduplicateFieldInfosCodec.delegate();
-        }
-        assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
-        return ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+        return ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
     }
 }

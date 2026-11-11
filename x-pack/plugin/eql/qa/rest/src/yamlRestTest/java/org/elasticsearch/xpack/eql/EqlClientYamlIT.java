@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -29,7 +30,7 @@ public class EqlClientYamlIT extends ESClientYamlSuiteTestCase {
         return cluster.getHttpAddresses();
     }
 
-    public EqlClientYamlIT(final ClientYamlTestCandidate testCandidate) {
+    public EqlClientYamlIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

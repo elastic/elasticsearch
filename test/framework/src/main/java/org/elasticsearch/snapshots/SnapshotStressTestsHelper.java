@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequestBuilder;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -51,6 +52,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.monitor.jvm.HotThreads;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.InternalTestCluster;
@@ -1209,18 +1211,32 @@ public class SnapshotStressTestsHelper {
                         .cluster()
                         .prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repositoryName)
                         .setCurrentSnapshot()
-                        .execute(mustSucceed(getSnapshotsResponse -> {
-                            if (getSnapshotsResponse.getSnapshots()
-                                .stream()
-                                .noneMatch(snapshotInfo -> snapshotInfo.snapshotId().getName().equals(snapshotName))) {
-
-                                logger.info("--> snapshot [{}:{}] no longer running", repositoryName, snapshotName);
-                                Releasables.close(onCompletion);
-                                onSuccess.run();
-                            } else {
-                                pollForSnapshotCompletion(client, repositoryName, snapshotName, onCompletion, onSuccess);
+                        .execute(new ActionListener<>() {
+                            @Override
+                            public void onResponse(GetSnapshotsResponse getSnapshotsResponse) {
+                                if (getSnapshotsResponse.getSnapshots()
+                                    .stream()
+                                    .noneMatch(snapshotInfo -> snapshotInfo.snapshotId().getName().equals(snapshotName))) {
+                                    logger.info("--> snapshot [{}:{}] no longer running", repositoryName, snapshotName);
+                                    Releasables.close(onCompletion);
+                                    onSuccess.run();
+                                } else {
+                                    pollForSnapshotCompletion(client, repositoryName, snapshotName, onCompletion, onSuccess);
+                                }
                             }
-                        }))
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                if (ExceptionsHelper.unwrapCause(e) instanceof NodeClosedException) {
+                                    // Node restarts are allowed after blockNodeRestarts() is released when the snapshot starts.
+                                    // The getSnapshots request may transiently fail; retry until the snapshot completes.
+                                    pollForSnapshotCompletion(client, repositoryName, snapshotName, onCompletion, onSuccess);
+                                } else {
+                                    Releasables.close(onCompletion);
+                                    logAndFailTest(e);
+                                }
+                            }
+                        })
                 )
             );
         }

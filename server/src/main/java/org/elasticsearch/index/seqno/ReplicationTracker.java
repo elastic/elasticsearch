@@ -1279,7 +1279,15 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                     }
                 }
             } finally {
-                pendingInSync.remove(allocationId);
+                /*
+                 * If the allocation ID is still in pendingInSync when we get here, then we did not complete normally. We bailed out of the
+                 * thread running waitForLocalCheckpointToAdvance(), likely because the recovery was cancelled and the thread was
+                 * interrupted before updateLocalCheckpoint() completed. So we need to recompute the global checkpoint to avoid problems,
+                 * including an assertion in the invariant() method.
+                 */
+                if (pendingInSync.remove(allocationId)) {
+                    updateGlobalCheckpointOnPrimary();
+                }
             }
         } else {
             cps.inSync = true;

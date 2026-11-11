@@ -583,11 +583,6 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.3.8#javaRestTest
   method: testMergeKeywordAndFlattenedKey {NONE}
   issue: https://github.com/elastic/elasticsearch/issues/165491
-- class: org.elasticsearch.xpack.searchablesnapshots.store.input.FrozenIndexInputTests
-  tasks:
-  - :x-pack:plugin:searchable-snapshots:test
-  method: testRandomReads
-  issue: https://github.com/elastic/elasticsearch/issues/165519
 - class: org.elasticsearch.xpack.stateless.StatelessComponentsOrderIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest

@@ -112,7 +112,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         Property.NodeScope
     );
     private volatile boolean diskThresholdEnabled;
-    private volatile boolean diskInfoUpdateEnabled;
+    private volatile boolean snapshotRestoreAllocationEnabled;
     private volatile WriteLoadDeciderStatus writeLoadConstraintEnabled;
     private volatile WriteLoadDeciderShardWriteLoadType writeLoadDeciderShardWriteLoadType;
     private volatile TimeValue updateFrequency;
@@ -169,7 +169,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
             this::setDiskThresholdEnabled
         );
-        clusterSettings.initializeAndWatchIfRegistered(SNAPSHOT_RESTORE_ALLOCATION_ENABLED, this::setDiskInfoUpdateEnabled);
+        clusterSettings.initializeAndWatchIfRegistered(SNAPSHOT_RESTORE_ALLOCATION_ENABLED, this::setSnapshotRestoreAllocationEnabled);
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, this::setWriteLoadConstraintEnabled);
         clusterSettings.initializeAndWatch(
             WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING,
@@ -181,8 +181,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         this.diskThresholdEnabled = diskThresholdEnabled;
     }
 
-    private void setDiskInfoUpdateEnabled(boolean diskInfoUpdateEnabled) {
-        this.diskInfoUpdateEnabled = diskInfoUpdateEnabled;
+    private void setSnapshotRestoreAllocationEnabled(boolean snapshotRestoreAllocationEnabled) {
+        this.snapshotRestoreAllocationEnabled = snapshotRestoreAllocationEnabled;
     }
 
     private void setWriteLoadConstraintEnabled(WriteLoadDeciderStatus writeLoadConstraintEnabled) {
@@ -244,7 +244,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private volatile Map<ShardId, Double> shardSearchLaneRequirements = Map.of();
         private volatile IndicesStatsSummary indicesStatsSummary;
 
-        private final boolean collectStoreStats = diskThresholdEnabled || diskInfoUpdateEnabled;
+        private final boolean collectStoreStats = diskThresholdEnabled || snapshotRestoreAllocationEnabled;
         private final List<ActionListener<ClusterInfo>> thisRefreshListeners;
         private final RefCountingRunnable fetchRefs = new RefCountingRunnable(this::callListeners);
 

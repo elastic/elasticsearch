@@ -20,9 +20,9 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Internal function that mutates metadata container {@link DataType#TIME_SERIES_METADATA_DATA_TYPE}; the value replaces the dimension values,
- * and a missing or empty value removes the dimension. Several values write a multi-valued dimension, which keeps its sorted
- * position, so the result stays canonical.
+ * Internal function that mutates metadata container {@link DataType#TIME_SERIES_METADATA_DATA_TYPE}; the value replaces the
+ * dimension values, and a missing or empty value removes the dimension. Several values write a multi-valued dimension, which keeps
+ * its sorted position, so the result stays canonical.
  */
 public final class TimeSeriesMetadataSet extends AbstractTimeSeriesMetadataFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

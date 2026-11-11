@@ -57,10 +57,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * Pins the rule the ES|QL usage counters depend on: a query is counted once, on the node that received it.
- * {@code EsqlUsageTransportAction} reports {@code _xpack/usage} by summing every node's counters, so counting a query
- * again on a data node, on a remote cluster, on a node serving an ENRICH or LOOKUP JOIN lookup, or when an async
- * query is polled would inflate the totals.
+ * One query, one count, on the node that received it.
+ * {@code _xpack/usage} sums every node, so this fails if a data node, a remote, a lookup, or an async poll counts it again.
  */
 public class EsqlQueryCountedOnceIT extends AbstractEnrichBasedCrossClusterTestCase {
 
@@ -78,7 +76,7 @@ public class EsqlQueryCountedOnceIT extends AbstractEnrichBasedCrossClusterTestC
         return plugins;
     }
 
-    // A failing remote must fail the query rather than be skipped, so the failure path is always taken.
+    // A failing remote has to fail the query. Skipping it would never hit this path.
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
         return Map.of(REMOTE_CLUSTER_1, false, REMOTE_CLUSTER_2, false);
@@ -89,8 +87,7 @@ public class EsqlQueryCountedOnceIT extends AbstractEnrichBasedCrossClusterTestC
         InternalTestCluster local = cluster(LOCAL_CLUSTER);
         int missingDataNodes = MIN_LOCAL_DATA_NODES - local.numDataNodes();
         if (missingDataNodes > 0) {
-            // Same roles as the cluster's own non-master nodes: ensureAtLeastNumDataNodes would add data-only nodes, which
-            // cannot coordinate a cross-cluster query.
+            // ensureAtLeastNumDataNodes adds data-only nodes, and those cannot coordinate a cross-cluster query.
             local.startNodes(missingDataNodes, NodeRoles.removeRoles(Set.of(DiscoveryNodeRole.MASTER_ROLE)));
         }
         createSpreadIndex(SPREAD_INDEX, Map.of("properties", Map.of("user", Map.of("type", "keyword"), "host", Map.of("type", "ip"))));
@@ -245,11 +242,6 @@ public class EsqlQueryCountedOnceIT extends AbstractEnrichBasedCrossClusterTestC
         }
     }
 
-    /**
-     * Runs {@code query}, which must send exactly one ES|QL query to {@code coordinator}, and checks that the query was
-     * counted once, by the coordinator alone: in the summed {@code _xpack/usage} counters of the local cluster, in each
-     * node's counters, in every remote cluster's counters, and in the APM counters.
-     */
     private void assertCountedOnce(String coordinator, boolean success, Set<FeatureMetric> features, CheckedRunnable<Exception> query)
         throws Exception {
         Map<String, Map<String, Counters>> before = statsByClusterAndNode();
@@ -285,10 +277,7 @@ public class EsqlQueryCountedOnceIT extends AbstractEnrichBasedCrossClusterTestC
         assertCommandsPublishedOnceByCoordinator(coordinator, success);
     }
 
-    /**
-     * Every command a query uses adds one to {@link PlanTelemetryManager#FEATURE_METRICS}, so after one query each
-     * measurement is exactly 1, and only the coordinator has any.
-     */
+    /** APM command counters show up only on the coordinator, and FROM is one of them. */
     private void assertCommandsPublishedOnceByCoordinator(String coordinator, boolean success) {
         for (String cluster : allClusters()) {
             for (String node : cluster(cluster).getNodeNames()) {

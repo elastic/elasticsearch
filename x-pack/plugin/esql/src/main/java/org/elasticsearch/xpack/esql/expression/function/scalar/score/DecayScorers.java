@@ -182,8 +182,9 @@ final class DecayScorers {
             if (diff >= 0) {
                 return decayOfDistance.score(Math.max(0, diff - offset));
             }
-            // the subtraction overflowed, so diff holds the exact distance as an unsigned long above Long.MAX_VALUE
-            return decayOfDistance.score(NumericUtils.unsignedLongToDouble(NumericUtils.asLongUnsigned(diff)) - offset);
+            // the subtraction overflowed, so diff holds the exact distance as an unsigned long above Long.MAX_VALUE;
+            // offset is below it, so subtracting in unsigned arithmetic is exact
+            return decayOfDistance.score(NumericUtils.unsignedLongToDouble(NumericUtils.asLongUnsigned(diff - offset)));
         }
 
         @Override

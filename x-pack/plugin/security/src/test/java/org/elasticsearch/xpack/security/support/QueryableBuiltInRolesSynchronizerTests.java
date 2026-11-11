@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -32,6 +33,7 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.FixForMultiProject;
@@ -61,6 +63,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -71,6 +74,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -109,20 +113,23 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         taskQueue = mockTaskQueue(clusterService);
 
-        QueryableBuiltInRolesProviderFactory rolesProviderFactory = mock(QueryableBuiltInRolesProviderFactory.class);
         reservedRolesProvider = mock(QueryableReservedRolesProvider.class);
-        when(rolesProviderFactory.createProvider(any(), any())).thenReturn(reservedRolesProvider);
-
         featureService = mock(FeatureService.class);
 
-        synchronizer = new QueryableBuiltInRolesSynchronizer(
+        synchronizer = createSynchronizer(threadPool);
+    }
+
+    private QueryableBuiltInRolesSynchronizer createSynchronizer(ThreadPool syncThreadPool) {
+        QueryableBuiltInRolesProviderFactory rolesProviderFactory = mock(QueryableBuiltInRolesProviderFactory.class);
+        when(rolesProviderFactory.createProvider(any(), any())).thenReturn(reservedRolesProvider);
+        return new QueryableBuiltInRolesSynchronizer(
             clusterService,
             featureService,
             rolesProviderFactory,
             nativeRolesStore,
             mock(ReservedRolesStore.class),
             mock(FileRolesStore.class),
-            threadPool
+            syncThreadPool
         );
     }
 
@@ -567,6 +574,284 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
         assertThat(synchronizer.isSynchronizationInProgress(), equalTo(false));
     }
 
+    public void testStaleDuplicateTaskSuccessIsIgnored() {
+        // A MarkRolesAsSyncedTask listener notified twice (e.g. a stale notification around a master failover)
+        // must not end the sync slot twice: the first completion releases the slot and a second endSync() used
+        // to spin forever on the master service thread.
+        final ClusterState clusterState = markShardsAvailable(createClusterStateWithOpenSecurityIndex()).nodes(localNodeMaster())
+            .blocks(emptyClusterBlocks())
+            .build();
+        when(clusterService.state()).thenReturn(clusterState);
+        when(featureService.clusterHasFeature(any(), eq(QUERYABLE_BUILT_IN_ROLES_FEATURE))).thenReturn(true);
+
+        final QueryableBuiltInRoles builtInRoles = buildQueryableBuiltInRoles(Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR));
+        when(reservedRolesProvider.getRoles()).thenReturn(builtInRoles);
+        mockEnabledNativeStore(builtInRoles.roleDescriptors(), Set.of());
+
+        doAnswer(i -> {
+            assertThat(synchronizer.isSynchronizationInProgress(), equalTo(true));
+            MarkRolesAsSyncedTask task = i.getArgument(1);
+            var result = task.execute(clusterService.state());
+            task.success(result.v2());
+            task.success(result.v2()); // stale duplicate notification, must be dropped
+            return null;
+        }).when(taskQueue).submitTask(any(), any(), any());
+
+        synchronizer.clusterChanged(event(clusterState));
+
+        assertThat(synchronizer.isSynchronizationInProgress(), equalTo(false));
+        assertThat(synchronizer.getFailedSyncAttempts(), equalTo(0));
+    }
+
+    public void testTaskFailureThenStaleSuccessDoesNotCorruptSyncState() {
+        // Reproduces the incident scenario: the mark-roles-as-synced task listener is first notified of a
+        // failure (master failover), which ends the sync slot, and then a stale success notification arrives
+        // for the same task. The stale notification must be dropped and later syncs must still work.
+        final ClusterState clusterState = markShardsAvailable(createClusterStateWithOpenSecurityIndex()).nodes(localNodeMaster())
+            .blocks(emptyClusterBlocks())
+            .build();
+        when(clusterService.state()).thenReturn(clusterState);
+        when(featureService.clusterHasFeature(any(), eq(QUERYABLE_BUILT_IN_ROLES_FEATURE))).thenReturn(true);
+
+        final QueryableBuiltInRoles builtInRoles = buildQueryableBuiltInRoles(Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR));
+        when(reservedRolesProvider.getRoles()).thenReturn(builtInRoles);
+        mockEnabledNativeStore(builtInRoles.roleDescriptors(), Set.of());
+
+        doAnswer(i -> {
+            MarkRolesAsSyncedTask task = i.getArgument(1);
+            task.onFailure(new NotMasterException("simulated master failover"));
+            var result = task.execute(clusterService.state());
+            task.success(result.v2()); // stale success after the failure notification, must be dropped
+            return null;
+        }).when(taskQueue).submitTask(any(), any(), any());
+
+        synchronizer.clusterChanged(event(clusterState));
+
+        assertThat(synchronizer.isSynchronizationInProgress(), equalTo(false));
+        // NotMasterException is an expected failure and is not counted
+        assertThat(synchronizer.getFailedSyncAttempts(), equalTo(0));
+
+        // a subsequent sync completes normally
+        doAnswer(i -> {
+            MarkRolesAsSyncedTask task = i.getArgument(1);
+            var result = task.execute(clusterService.state());
+            task.success(result.v2());
+            return null;
+        }).when(taskQueue).submitTask(any(), any(), any());
+
+        synchronizer.clusterChanged(event(clusterState));
+
+        assertThat(synchronizer.isSynchronizationInProgress(), equalTo(false));
+        assertThat(synchronizer.getFailedSyncAttempts(), equalTo(0));
+        verify(taskQueue, times(2)).submitTask(any(), any(), any());
+    }
+
+    public void testRejectedExecutionDoesNotLeakSyncSlot() {
+        final ClusterState clusterState = setupSyncWithSuperuserRole();
+        final var executor = EsExecutors.newFixed(
+            getTestName(),
+            1,
+            2,
+            EsExecutors.daemonThreadFactory("queryable-built-in-roles-tests", getTestName()),
+            threadPool.getThreadContext(),
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+        );
+        final CountDownLatch releaseWorker = new CountDownLatch(1);
+        final CountDownLatch queueDrained = new CountDownLatch(2);
+        try {
+            // Occupy the worker and fill its queue so the real executor invokes ActionRunnable.onRejection().
+            executor.execute(() -> safeAwait(releaseWorker));
+            executor.execute(queueDrained::countDown);
+            executor.execute(queueDrained::countDown);
+            when(threadPool.generic()).thenReturn(executor);
+            synchronizer = createSynchronizer(threadPool);
+
+            synchronizer.clusterChanged(event(clusterState));
+
+            assertFalse(synchronizer.isSynchronizationInProgress());
+            assertThat(synchronizer.getFailedSyncAttempts(), equalTo(1));
+            verify(nativeRolesStore, times(0)).putRoles(any(), any(), eq(false), any());
+            verifyNoInteractions(taskQueue);
+
+            releaseWorker.countDown();
+            safeAwait(queueDrained);
+            synchronizer.clusterChanged(event(clusterState));
+            // A barrier also waits for the sync's completion callback, which runs on the worker.
+            safeGet(executor.submit(() -> {}));
+
+            assertFalse(synchronizer.isSynchronizationInProgress());
+            assertThat(synchronizer.getFailedSyncAttempts(), equalTo(0));
+            verify(taskQueue).submitTask(any(), any(), any());
+        } finally {
+            releaseWorker.countDown();
+            assertTrue(terminate(executor));
+        }
+    }
+
+    public void testExceptionInSyncTaskDoesNotLeakSyncSlot() {
+        final ClusterState clusterState = setupSyncWithSuperuserRole();
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
+        synchronizer = createSynchronizer(deterministicTaskQueue.getThreadPool());
+        doThrow(new IllegalStateException("failed before notifying the listener")).when(nativeRolesStore)
+            .putRoles(any(), any(), eq(false), any());
+
+        synchronizer.clusterChanged(event(clusterState));
+        assertTrue(synchronizer.isSynchronizationInProgress());
+        // Execute after clusterChanged returns so its outer catch cannot handle the exception.
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        assertFalse(synchronizer.isSynchronizationInProgress());
+        assertThat(synchronizer.getFailedSyncAttempts(), equalTo(1));
+        verifyNoInteractions(taskQueue);
+
+        mockEnabledNativeStore(Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR), Set.of());
+        synchronizer.clusterChanged(event(clusterState));
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        assertFalse(synchronizer.isSynchronizationInProgress());
+        assertThat(synchronizer.getFailedSyncAttempts(), equalTo(0));
+        verify(taskQueue).submitTask(any(), any(), any());
+    }
+
+    public void testStaleTaskCompletionDoesNotEndLaterSync() {
+        final ClusterState clusterState = setupSyncWithSuperuserRole();
+        final List<MarkRolesAsSyncedTask> tasks = captureSyncTasks();
+        synchronizer.clusterChanged(event(clusterState));
+        final MarkRolesAsSyncedTask firstTask = tasks.getFirst();
+        firstTask.onFailure(new NotMasterException("first sync lost mastership"));
+        assertFalse(synchronizer.isSynchronizationInProgress());
+
+        synchronizer.clusterChanged(event(clusterState));
+        assertThat(tasks.size(), equalTo(2));
+        assertTrue(synchronizer.isSynchronizationInProgress());
+
+        // Both kinds of stale completion must leave the second sync and its failure counter untouched.
+        firstTask.success(firstTask.getNewRoleDigests());
+        firstTask.onFailure(new IllegalStateException("stale failure"));
+        assertTrue(synchronizer.isSynchronizationInProgress());
+        assertThat(synchronizer.getFailedSyncAttempts(), equalTo(0));
+
+        completeSyncTask(tasks.get(1));
+        assertFalse(synchronizer.isSynchronizationInProgress());
+        assertThat(tasks.size(), equalTo(2));
+    }
+
+    public void testPendingSyncUsesLatestRolesAndClusterState() {
+        final ClusterState clusterState = setupSyncWithSuperuserRole();
+        final List<MarkRolesAsSyncedTask> tasks = captureSyncTasks();
+        synchronizer.clusterChanged(event(clusterState));
+
+        for (int i = 0; i < 3; i++) {
+            synchronizer.clusterChanged(event(clusterState));
+        }
+        assertThat(tasks.size(), equalTo(1));
+
+        final RoleDescriptor viewerRole = ReservedRolesStore.roleDescriptor("viewer");
+        final QueryableBuiltInRoles latestRoles = buildQueryableBuiltInRoles(
+            Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR, viewerRole)
+        );
+        when(reservedRolesProvider.getRoles()).thenReturn(latestRoles);
+        // The pending sync should see the first sync's published digests and only upsert the newly added role.
+        mockEnabledNativeStore(Set.of(viewerRole), Set.of());
+        completeSyncTask(tasks.getFirst());
+
+        assertTrue(synchronizer.isSynchronizationInProgress());
+        assertThat(tasks.size(), equalTo(2));
+        assertThat(tasks.get(1).getNewRoleDigests(), equalTo(latestRoles.rolesDigest()));
+        verify(nativeRolesStore).putRoles(eq(WriteRequest.RefreshPolicy.IMMEDIATE), eq(Set.of(viewerRole)), eq(false), any());
+        verify(nativeRolesStore, times(2)).putRoles(any(), any(), eq(false), any());
+
+        completeSyncTask(tasks.get(1));
+        assertFalse(synchronizer.isSynchronizationInProgress());
+        assertThat(synchronizer.getFailedSyncAttempts(), equalTo(0));
+        assertThat(tasks.size(), equalTo(2));
+    }
+
+    public void testPendingSyncDoesNotRewriteAlreadySyncedRoles() {
+        final ClusterState clusterState = setupSyncWithSuperuserRole();
+        final List<MarkRolesAsSyncedTask> tasks = captureSyncTasks();
+        synchronizer.clusterChanged(event(clusterState));
+        synchronizer.clusterChanged(event(clusterState));
+
+        // Publishing the first sync's digests makes the pending sync complete synchronously without another write.
+        completeSyncTask(tasks.getFirst());
+
+        assertFalse(synchronizer.isSynchronizationInProgress());
+        assertThat(synchronizer.getFailedSyncAttempts(), equalTo(0));
+        assertThat(tasks.size(), equalTo(1));
+        verify(nativeRolesStore, times(1)).putRoles(any(), any(), eq(false), any());
+    }
+
+    public void testPendingSyncIsSkippedAfterLosingMaster() {
+        final ClusterState clusterState = setupSyncWithSuperuserRole();
+        final List<MarkRolesAsSyncedTask> tasks = captureSyncTasks();
+        synchronizer.clusterChanged(event(clusterState));
+        synchronizer.clusterChanged(event(clusterState));
+
+        when(clusterService.state()).thenReturn(ClusterState.builder(clusterState).nodes(localNodeNotMaster()).build());
+        tasks.getFirst().onFailure(new NotMasterException("lost mastership with a pending sync"));
+
+        assertFalse(synchronizer.isSynchronizationInProgress());
+        assertThat(synchronizer.getFailedSyncAttempts(), equalTo(0));
+        assertThat(tasks.size(), equalTo(1));
+        verify(nativeRolesStore, times(1)).putRoles(any(), any(), eq(false), any());
+
+        when(clusterService.state()).thenReturn(clusterState);
+        synchronizer.clusterChanged(event(clusterState));
+        assertThat(tasks.size(), equalTo(2));
+        completeSyncTask(tasks.get(1));
+        assertFalse(synchronizer.isSynchronizationInProgress());
+    }
+
+    public void testPendingRolesProviderFailureDoesNotLeakSyncSlot() {
+        final ClusterState clusterState = setupSyncWithSuperuserRole();
+        final List<MarkRolesAsSyncedTask> tasks = captureSyncTasks();
+        synchronizer.clusterChanged(event(clusterState));
+        synchronizer.clusterChanged(event(clusterState));
+
+        final QueryableBuiltInRoles roles = buildQueryableBuiltInRoles(Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR));
+        when(reservedRolesProvider.getRoles()).thenThrow(new IllegalStateException("failed to load pending roles")).thenReturn(roles);
+        tasks.getFirst().onFailure(new NotMasterException("first sync lost mastership"));
+
+        assertFalse(synchronizer.isSynchronizationInProgress());
+        assertThat(synchronizer.getFailedSyncAttempts(), equalTo(1));
+        assertThat(tasks.size(), equalTo(1));
+
+        synchronizer.clusterChanged(event(clusterState));
+        assertThat(tasks.size(), equalTo(2));
+        completeSyncTask(tasks.get(1));
+        assertFalse(synchronizer.isSynchronizationInProgress());
+        assertThat(synchronizer.getFailedSyncAttempts(), equalTo(0));
+    }
+
+    private ClusterState setupSyncWithSuperuserRole() {
+        final ClusterState clusterState = markShardsAvailable(createClusterStateWithOpenSecurityIndex()).nodes(localNodeMaster())
+            .blocks(emptyClusterBlocks())
+            .build();
+        when(clusterService.state()).thenReturn(clusterState);
+        when(featureService.clusterHasFeature(any(), eq(QUERYABLE_BUILT_IN_ROLES_FEATURE))).thenReturn(true);
+        final QueryableBuiltInRoles roles = buildQueryableBuiltInRoles(Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR));
+        when(reservedRolesProvider.getRoles()).thenReturn(roles);
+        mockEnabledNativeStore(roles.roleDescriptors(), Set.of());
+        return clusterState;
+    }
+
+    private List<MarkRolesAsSyncedTask> captureSyncTasks() {
+        // Hold the master tasks to control callback ordering without starting a cluster; each task is real.
+        final List<MarkRolesAsSyncedTask> tasks = new ArrayList<>();
+        doAnswer(i -> {
+            tasks.add(i.getArgument(1));
+            return null;
+        }).when(taskQueue).submitTask(any(), any(), any());
+        return tasks;
+    }
+
+    private void completeSyncTask(MarkRolesAsSyncedTask task) {
+        final var result = task.execute(clusterService.state());
+        when(clusterService.state()).thenReturn(result.v1());
+        task.success(result.v2());
+    }
+
     private Set<String> randomReservedRoles(int count) {
         assert count >= 0;
         if (count == 0) {
@@ -810,6 +1095,25 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
         assertTrue(sync.inProgress());
         assertFalse(sync.endSync());
         assertFalse(sync.inProgress());
+    }
+
+    public void testRolesSyncEndSyncWithoutStartFailsFast() {
+        // A second endSync() for the same slot used to spin forever in the CAS loop, hanging the calling
+        // thread (the master service thread in production). It must fail fast instead. With assertions
+        // enabled (always true in tests) the assert fires before the IllegalStateException is thrown.
+        var sync = new QueryableBuiltInRolesSynchronizer.RolesSync();
+        expectThrows(AssertionError.class, sync::endSync);
+        assertFalse(sync.inProgress());
+
+        // same after a full acquire/release cycle
+        assertTrue(sync.startSync());
+        assertFalse(sync.endSync());
+        expectThrows(AssertionError.class, sync::endSync);
+        assertFalse(sync.inProgress());
+
+        // the state machine remains usable after the failed call
+        assertTrue(sync.startSync());
+        assertFalse(sync.endSync());
     }
 
     private static ClusterState.Builder createClusterStateWithOpenSecurityIndex() {

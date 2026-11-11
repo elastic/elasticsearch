@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -225,50 +226,96 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
     }
 
     private void doSyncBuiltInRoles(final QueryableBuiltInRoles roles) {
-        try {
-            final Map<String, String> indexedRolesDigests = readIndexedBuiltInRolesDigests(clusterService.state());
-            if (roles.rolesDigest().equals(indexedRolesDigests)) {
-                logger.debug("Security index already contains the latest built-in roles indexed, skipping roles synchronization");
+        // The sync slot held by this invocation must be ended exactly once. The notifyOnce wrapper drops any
+        // second completion, e.g. a cluster state update task listener erroneously notified again after a
+        // master failover, which would otherwise release a slot it no longer owns and corrupt the RolesSync
+        // state machine. The success log also lives inside the guarded listener, so a dropped stale completion
+        // logs nothing. A plain ActionListener (not ActionListener#wrap) is used deliberately: wrap reroutes
+        // exceptions thrown by the onResponse consumer into the onFailure consumer, which would run the
+        // sync-ending logic twice for a single completion.
+        final ActionListener<Void> syncEndListener = ActionListener.notifyOnce(new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                logger.info("Successfully synced [{}] built-in roles to .security index", roles.roleDescriptors().size());
                 resetFailedSyncAttempts();
-                endSyncAndRetryIfNeeded();
-            } else {
-                executor.execute(() -> applyRoleChanges(indexedRolesDigests, roles, ActionListener.wrap(v -> {
-                    logger.info("Successfully synced [{}] built-in roles to .security index", roles.roleDescriptors().size());
-                    resetFailedSyncAttempts();
-                    endSyncAndRetryIfNeeded();
-                }, e -> {
-                    handleException(e);
-                    endSyncAndRetryIfNeeded();
-                })));
+                endSyncAndRunPendingSync();
             }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    handleException(e);
+                } finally {
+                    // the slot must be ended even if the exception handling itself fails, or it would leak
+                    endSyncAndRunPendingSync();
+                }
+            }
+        });
+        final Map<String, String> indexedRolesDigests;
+        try {
+            indexedRolesDigests = readIndexedBuiltInRolesDigests(clusterService.state());
         } catch (Exception e) {
-            logger.error("Failed to sync built-in roles", e);
-            failedSyncAttempts.incrementAndGet();
-            endSyncAndRetryIfNeeded();
+            syncEndListener.onFailure(e);
+            return;
+        }
+        if (roles.rolesDigest().equals(indexedRolesDigests)) {
+            logger.debug("Security index already contains the latest built-in roles indexed, skipping roles synchronization");
+            // completed inline rather than through syncEndListener so that the "Successfully synced" log only
+            // fires when changes were actually applied, and so that an exception from ending the slot (the
+            // endSync corruption tripwire) propagates to the caller instead of being fed back into the already
+            // consumed notifyOnce listener, which would silently swallow it
+            resetFailedSyncAttempts();
+            endSyncAndRunPendingSync();
+        } else {
+            // ActionRunnable (rather than a bare lambda) guarantees the listener is completed even if the
+            // executor rejects the task or applyRoleChanges throws before using the listener; otherwise the
+            // sync slot would leak and built-in roles would never be synced again on this node.
+            try {
+                executor.execute(ActionRunnable.wrap(syncEndListener, listener -> applyRoleChanges(indexedRolesDigests, roles, listener)));
+            } catch (Exception e) {
+                // the executor threw instead of delivering the rejection to the runnable, so the listener has
+                // not been notified yet
+                syncEndListener.onFailure(e);
+            }
         }
     }
 
-    private void endSyncAndRetryIfNeeded() {
-        if (sync.endSync()) {
-            boolean shouldRetry = false;
+    /**
+     * Ends the sync slot held by the completed sync and, if a sync request arrived while that sync was running
+     * (coalesced into the {@code RUNNING_WITH_PENDING_REQUEST} state), runs the pending sync against fresh cluster state.
+     * This is not failure-retry logic: a failed sync is not re-attempted here, it only gets another chance on a
+     * future trigger (and only while under {@link #MAX_FAILED_SYNC_ATTEMPTS}).
+     */
+    private void endSyncAndRunPendingSync() {
+        // Each loop iteration holds the sync slot (state RUNNING) after endSync() returned true. Nothing in the
+        // loop body may throw, as an exception escaping while the slot is held would either leak the slot or
+        // lead an enclosing listener to end it a second time.
+        while (sync.endSync()) {
             try {
-                shouldRetry = shouldSyncBuiltInRoles(clusterService.state());
+                if (shouldSyncBuiltInRoles(clusterService.state())) {
+                    logger.debug("Running pending built-in roles synchronization");
+                    doSyncBuiltInRoles(rolesProvider.getRoles());
+                    return; // doSyncBuiltInRoles took over the sync slot and ends it via its own listener
+                }
             } catch (Exception e) {
-                logger.warn("Failed to evaluate retry conditions for built-in roles synchronization", e);
+                // same expected/unexpected classification as handleException applies on the main failure path:
+                // transient conditions must not count toward MAX_FAILED_SYNC_ATTEMPTS
+                if (isExpectedFailure(e)) {
+                    logger.info("Failed to run pending built-in roles synchronization", e);
+                } else {
+                    logger.warn("Failed to run pending built-in roles synchronization", e);
+                    failedSyncAttempts.incrementAndGet();
+                }
             }
-            if (shouldRetry) {
-                logger.debug("Retrying synchronization of built-in roles due to pending changes");
-                doSyncBuiltInRoles(rolesProvider.getRoles());
-            } else {
-                endSyncAndRetryIfNeeded();
-            }
+            // pending sync not needed anymore (or it failed to start): loop to either serve another pending
+            // request or release the slot
         }
     }
 
     static class RolesSync {
         private static final int IDLE = 0;
         private static final int RUNNING = 1;
-        private static final int RUNNING_PENDING = 2;
+        private static final int RUNNING_WITH_PENDING_REQUEST = 2;
 
         private final AtomicInteger state = new AtomicInteger(IDLE);
 
@@ -278,19 +325,36 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
                 if (s == IDLE) {
                     if (state.compareAndSet(IDLE, RUNNING)) return true;
                 } else if (s == RUNNING) {
-                    if (state.compareAndSet(RUNNING, RUNNING_PENDING)) return false;
+                    if (state.compareAndSet(RUNNING, RUNNING_WITH_PENDING_REQUEST)) return false;
                 } else {
-                    return false; // already RUNNING_PENDING
+                    return false; // already RUNNING_WITH_PENDING_REQUEST
                 }
             }
         }
 
+        /**
+         * Ends the sync slot acquired by a previous successful {@link #startSync()}. Must be called exactly once
+         * per acquired slot. Returns {@code true} if a sync request arrived while the slot was held (the slot
+         * stays held and the caller must run another sync), or {@code false} if the slot was released.
+         *
+         * @throws IllegalStateException if no sync is in progress. This indicates a double completion for a
+         *         single slot. Failing fast here is essential: the CAS loop below can never make progress from
+         *         IDLE and would otherwise spin forever on the calling thread, typically the master service
+         *         thread, hanging the entire cluster. Note the contrast with the notifyOnce listener in
+         *         doSyncBuiltInRoles, which silently drops duplicate completions: that wrapper can prove a
+         *         second notification is a stale duplicate of its own slot, whereas at this level a stale call
+         *         is indistinguishable from state corruption (if another sync is RUNNING it would silently
+         *         steal that sync's slot), so any call that reaches this state must be surfaced, not ignored.
+         */
         boolean endSync() {
             while (true) {
                 int s = state.get();
-                assert s != IDLE : "endSync should only be called when a sync is in progress";
-                if (s == RUNNING_PENDING) {
-                    if (state.compareAndSet(RUNNING_PENDING, RUNNING)) return true;
+                if (s == IDLE) {
+                    String message = "endSync called while no sync is in progress";
+                    assert false : message;
+                    throw new IllegalStateException(message);
+                } else if (s == RUNNING_WITH_PENDING_REQUEST) {
+                    if (state.compareAndSet(RUNNING_WITH_PENDING_REQUEST, RUNNING)) return true;
                 } else {
                     if (state.compareAndSet(RUNNING, IDLE)) return false;
                 }

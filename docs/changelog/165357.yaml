@@ -2,5 +2,5 @@ area: PromQL
 issues:
  - 136248
 pr: 165357
-summary: "Feature(promql): add `count_values` aggregation"
+summary: "PromQL: add `count_values` aggregation"
 type: feature

@@ -1,0 +1,5 @@
+area: "Columnar, Codec"
+issues: []
+pr: 162356
+summary: "Feat(columnar): add skip bounds for plain keyword primary sort"
+type: enhancement

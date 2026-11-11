@@ -479,6 +479,54 @@ count:long | color:text
 2          | green
 ;
 
+knnWithKOptionFollowedByStats
+required_capability: knn_function_v5
+required_capability: knn_function_options_k_visit_percentage
+required_capability: fn_knn_k_option_without_limit
+
+from colors
+// STATS stops the limit-to-k pushdown, so the explicit k option is what bounds knn.
+| where knn(rgb_vector, [255,255,238], {"k": 5}) and color == "green"
+| stats count = count(*)
+;
+
+count:long
+1
+;
+
+knnFollowedByLimitFollowedByStats
+required_capability: knn_function_v5
+required_capability: knn_function_options_k_visit_percentage
+required_capability: fn_knn_k_option_without_limit
+
+// limit 2 should be pushed down to knn
+from colors
+| where knn(rgb_vector, [255,255,238]) and hex_code like "#FFF*"
+| limit 2
+| stats count = count(*)
+;
+
+count:long
+2
+;
+
+knnFollowedByLimitFollowedByStatsFollowedByLimit
+required_capability: knn_function_v5
+required_capability: knn_function_options_k_visit_percentage
+required_capability: fn_knn_k_option_without_limit
+
+// limit 100 after stats should not override limit 2
+from colors
+| where knn(rgb_vector, [255,255,238]) and hex_code like "#FFF*"
+| limit 2
+| stats count = count(*)
+| limit 100
+;
+
+count:long
+2
+;
+
 knnAfterSimpleRename
 required_capability: knn_function_v5
 required_capability: fix_full_text_functions_on_renamed_fields

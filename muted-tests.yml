@@ -460,11 +460,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testNormalAndHedgeUploadsWithRandomDelays
   issue: https://github.com/elastic/elasticsearch/issues/164751
-- class: org.elasticsearch.xpack.esql.action.ExternalWorkerFirstStateIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testWorkerWithoutAnyAppliedStateIsHeldBack
-  issue: https://github.com/elastic/elasticsearch/issues/164755
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   tasks:
   - :qa:smoke-test-multinode:yamlRestTest
@@ -574,43 +569,19 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testIsolatedNodeRunningGCDoesNotDeleteNewIndexData
   issue: https://github.com/elastic/elasticsearch/issues/165370
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecNullIT
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   tasks:
-  - :x-pack:plugin:esql:qa:server:multi-clusters:v8.19.26#csvSpecTests#oldToNew
-  method: test {csv-spec:null.foldCastCaseWithoutMatchArgument}
-  issue: https://github.com/elastic/elasticsearch/issues/165422
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecNullIT
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.2.8#javaRestTest
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.3.8#javaRestTest
+  method: testMergeKeywordAndFlattenedKey {STORED}
+  issue: https://github.com/elastic/elasticsearch/issues/165487
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   tasks:
-  - :x-pack:plugin:esql:qa:server:multi-clusters:v8.19.26#csvSpecTests#oldToNew
-  method: test {csv-spec:null.foldNullArgumentWithCaseSiblingAfterStats}
-  issue: https://github.com/elastic/elasticsearch/issues/165424
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecNullIT
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.3.8#javaRestTest
+  method: testMergeKeywordAndFlattenedKey {null}
+  issue: https://github.com/elastic/elasticsearch/issues/165489
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   tasks:
-  - :x-pack:plugin:esql:qa:server:multi-clusters:v8.19.26#csvSpecTests#oldToNew
-  method: test {csv-spec:null.foldNullArgumentsInManyFunctions}
-  issue: https://github.com/elastic/elasticsearch/issues/165426
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecNullIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:multi-clusters:v8.19.26#csvSpecTests#oldToNew
-  method: test {csv-spec:null.foldCaseWithoutMatchArgumentWithOptions}
-  issue: https://github.com/elastic/elasticsearch/issues/165428
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecNullIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v8.19.26#csvSpecTestsOldCoordinator
-  method: test {csv-spec:null.foldCastCaseWithoutMatchArgument}
-  issue: https://github.com/elastic/elasticsearch/issues/165430
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecNullIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v8.19.26#csvSpecTestsOldCoordinator
-  method: test {csv-spec:null.foldCaseWithoutMatchArgumentWithOptions}
-  issue: https://github.com/elastic/elasticsearch/issues/165432
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecNullIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v8.19.26#csvSpecTestsOldCoordinator
-  method: test {csv-spec:null.foldNullArgumentsInManyFunctions}
-  issue: https://github.com/elastic/elasticsearch/issues/165434
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecNullIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v8.19.26#csvSpecTestsOldCoordinator
-  method: test {csv-spec:null.foldNullArgumentWithCaseSiblingAfterStats}
-  issue: https://github.com/elastic/elasticsearch/issues/165436
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.3.8#javaRestTest
+  method: testMergeKeywordAndFlattenedKey {NONE}
+  issue: https://github.com/elastic/elasticsearch/issues/165491

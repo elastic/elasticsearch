@@ -1291,7 +1291,8 @@ public class NumberFieldMapper extends FieldMapper {
                 throw new UnsupportedOperationException("ROUND_TO not supported for byte");
             }
 
-            private boolean isOutOfRange(Object value) {
+            @Override
+            boolean isOutOfRange(Object value) {
                 double doubleValue = objectToDouble(value);
                 return doubleValue < Byte.MIN_VALUE || doubleValue > Byte.MAX_VALUE;
             }
@@ -1452,7 +1453,8 @@ public class NumberFieldMapper extends FieldMapper {
                 throw new UnsupportedOperationException("ROUND_TO not supported for short");
             }
 
-            private boolean isOutOfRange(Object value) {
+            @Override
+            boolean isOutOfRange(Object value) {
                 double doubleValue = objectToDouble(value);
                 return doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE;
             }
@@ -1473,6 +1475,11 @@ public class NumberFieldMapper extends FieldMapper {
                     return ((Number) value).intValue();
                 }
                 return (int) doubleValue;
+            }
+
+            @Override
+            boolean isOutOfRange(Object value) {
+                return isOutOfRange(objectToDouble(value));
             }
 
             private boolean isOutOfRange(double value) {
@@ -1742,7 +1749,7 @@ public class NumberFieldMapper extends FieldMapper {
                 if (hasDecimalPart(value)) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
-                if (isOutOfLongRange(value)) {
+                if (isOutOfRange(value)) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] is out of range");
                 }
 
@@ -1797,7 +1804,7 @@ public class NumberFieldMapper extends FieldMapper {
                 if (value instanceof Byte b) {
                     return encodeLongIndexTerm(b);
                 }
-                if (hasDecimalPart(value) || isOutOfLongRange(value)) {
+                if (hasDecimalPart(value) || isOutOfRange(value)) {
                     return null;
                 }
                 return encodeLongIndexTerm(parse(value, true));
@@ -1953,6 +1960,17 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
                 return new RoundToLongsFromDocValuesBlockLoader(fieldName, points);
+            }
+
+            @Override
+            boolean isOutOfRange(Object value) {
+                if (value instanceof Long) {
+                    return false;
+                }
+                String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
+                BigDecimal bigDecimalValue = Numbers.newBigDecimal(stringValue);
+                return bigDecimalValue.compareTo(BigDecimal.valueOf(Long.MAX_VALUE)) > 0
+                    || bigDecimalValue.compareTo(BigDecimal.valueOf(Long.MIN_VALUE)) < 0;
             }
         };
 
@@ -2210,15 +2228,12 @@ public class NumberFieldMapper extends FieldMapper {
 
         public abstract IndexFieldData.Builder getFieldDataBuilder(MappedFieldType ft, ValuesSourceType valuesSourceType);
 
-        /** Whether {@code value}, which has no decimal part, lies outside the range of a {@code long}. */
-        static boolean isOutOfLongRange(Object value) {
-            if (value instanceof Long) {
-                return false;
-            }
-            String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
-            BigDecimal bigDecimalValue = Numbers.newBigDecimal(stringValue);
-            return bigDecimalValue.compareTo(BigDecimal.valueOf(Long.MAX_VALUE)) > 0
-                || bigDecimalValue.compareTo(BigDecimal.valueOf(Long.MIN_VALUE)) < 0;
+        /**
+         * Whether {@code value} lies outside the range of this whole-number type, so that no value of a field of this type can
+         * equal it. Floating-point types have no such range.
+         */
+        boolean isOutOfRange(Object value) {
+            throw new UnsupportedOperationException("[" + name + "] is not a whole-number type");
         }
 
         public IndexFieldData.Builder getValueFetcherFieldDataBuilder(

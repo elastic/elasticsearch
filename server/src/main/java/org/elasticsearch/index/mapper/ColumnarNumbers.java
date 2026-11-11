@@ -35,7 +35,7 @@ enum ColumnarNumbers {
             if (NumberType.hasDecimalPart(value)) {
                 return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
             }
-            if (NumberType.isOutOfLongRange(value)) {
+            if (NumberType.LONG.isOutOfRange(value)) {
                 return Queries.newMatchNoDocsQuery("Value [" + value + "] is out of range");
             }
             long v = NumberType.LONG.parse(value, true).longValue();

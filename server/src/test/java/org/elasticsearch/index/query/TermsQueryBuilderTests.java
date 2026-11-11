@@ -25,10 +25,13 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -47,17 +50,25 @@ import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 
 public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuilder> {
     private List<Object> randomTerms;
@@ -499,6 +510,57 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         assertEquals(before, cb.getUsed());
     }
 
+    /**
+     * Terms read from a stream that charges what they decode to, as a node's inbound transport requests do, are charged there once and
+     * not again when a shard builds its query, as long as the stream holds the charge. Once it is released, for instance when a scroll
+     * keeps the request after it responded, the query charges them again.
+     */
+    public void testTermsChargedOnReadAreChargedForTheQueryOnlyOnceReleased() throws IOException {
+        TermsQueryBuilder original = new TermsQueryBuilder(KEYWORD_FIELD_NAME, randomTermsList(5_000));
+        Map<String, Long> chargedOnRead = new HashMap<>();
+        AtomicBoolean held = new AtomicBoolean(true);
+        TermsQueryBuilder deserialized;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeNamedWriteable(original);
+            // Stands in for the stream a node reads a transport request from, which charges the request breaker until it responds
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry()) {
+                @Override
+                public BooleanSupplier chargeDecodedBytes(long bytes, String label) {
+                    chargedOnRead.merge(label, bytes, Long::sum);
+                    return held::get;
+                }
+            }) {
+                deserialized = (TermsQueryBuilder) in.readNamedWriteable(QueryBuilder.class);
+            }
+        }
+        long decodedBytes = deserialized.getValues().decodedBytesOverWire();
+        assertThat(decodedBytes, greaterThan(0L));
+        assertEquals(Map.of(ChildMemoryCircuitBreaker.CATEGORY_TERMS, decodedBytes), chargedOnRead);
+
+        CircuitBreaker cb = createCircuitBreakerService();
+        long before = cb.getUsed();
+        SearchExecutionContext whileHeld = new SearchExecutionContext(createSearchExecutionContext(), cb);
+        try {
+            deserialized.toQuery(whileHeld);
+            assertFalse("terms charged on read register no shared charge", whileHeld.hasQueryConstructionReleasables());
+            assertEquals(whileHeld.getQueryConstructionMemoryUsed(), cb.getUsed() - before);
+        } finally {
+            whileHeld.releaseQueryConstructionMemory();
+        }
+        assertEquals(before, cb.getUsed());
+
+        held.set(false);
+        SearchExecutionContext afterRelease = new SearchExecutionContext(createSearchExecutionContext(), cb);
+        try {
+            deserialized.toQuery(afterRelease);
+            assertTrue("released terms are charged by the query again", afterRelease.hasQueryConstructionReleasables());
+            assertEquals(decodedBytes + afterRelease.getQueryConstructionMemoryUsed(), cb.getUsed() - before);
+        } finally {
+            afterRelease.releaseQueryConstructionMemory();
+        }
+        assertEquals(before, cb.getUsed());
+    }
+
     public void testDeserializedTermsTripBreaker() throws IOException {
         TermsQueryBuilder deserialized = copyQuery(new TermsQueryBuilder(KEYWORD_FIELD_NAME, randomTermsList(5_000)));
         long decodedBytes = deserialized.getValues().decodedBytesOverWire();
@@ -583,6 +645,72 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             long heapOverWire = RamUsageTester.ramUsed(deserialized.getValues()) + listReferences - serializedBytes;
             assertEquals(original.fieldName(), heapOverWire, deserialized.getValues().decodedBytesOverWire(), heapOverWire * 0.05);
         }
+    }
+
+    /**
+     * A {@code terms} list parsed from a request is held by the coordinator for as long as the search, while the request body it came
+     * from is charged to the in-flight requests breaker. The parsed form must therefore stay close to the size of that body, or the
+     * breaker undercounts what the coordinator retains (#162788).
+     */
+    public void testParsedTermsStayCloseToRequestBodySize() throws IOException {
+        List<String> terms = randomTermsList(60_000);
+        String json = "{\"terms\": {\"" + KEYWORD_FIELD_NAME + "\": [\"" + String.join("\",\"", terms) + "\"]}}";
+        TermsQueryBuilder parsed = (TermsQueryBuilder) parseQuery(json);
+        // RamUsageTester cannot look inside JDK lists and leaves out their reference array
+        long retained = RamUsageTester.ramUsed(parsed.getValues()) + (long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * terms.size();
+        long bodyBytes = json.getBytes(StandardCharsets.UTF_8).length;
+        assertThat("parsed [" + retained + "] bytes from a [" + bodyBytes + "] byte body", retained, lessThan(3 * bodyBytes));
+    }
+
+    /**
+     * A parsed list mixes ASCII terms, which are narrowed straight from the chars, with terms of every other width, which go through the
+     * list's shared buffer. Each must come out as the same UTF-8 as {@code new BytesRef(String)}, in an array of exactly its size.
+     */
+    public void testParsedTermsAreExactSizedUtf8() throws IOException {
+        List<String> terms = new ArrayList<>();
+        for (int i = 0; i < 500; i++) {
+            terms.add(switch (i % 5) {
+                case 0 -> randomAlphaOfLengthBetween(1, 100);
+                case 1 -> randomRealisticUnicodeOfLengthBetween(1, 100);
+                case 2 -> new String(Character.toChars(0x1F600 + randomIntBetween(0, 0x3F))).repeat(randomIntBetween(1, 30));
+                case 3 -> String.valueOf((char) randomIntBetween(0x4E00, 0x9FFF)).repeat(randomIntBetween(1, 30));
+                case 4 -> randomAlphaOfLengthBetween(1, 10) + randomFrom("\u00E9", "\u65E5", "\uD83D\uDE00");
+                default -> throw new AssertionError();
+            });
+        }
+        XContentBuilder json = XContentFactory.jsonBuilder().startObject().startObject("terms");
+        json.array(KEYWORD_FIELD_NAME, terms.toArray(String[]::new));
+        json.endObject().endObject();
+
+        TermsQueryBuilder parsed = (TermsQueryBuilder) parseQuery(Strings.toString(json));
+
+        Iterator<?> actual = parsed.getValues().iterator();
+        for (String term : terms) {
+            BytesRef expected = new BytesRef(term);
+            BytesRef bytes = (BytesRef) actual.next();
+            assertEquals(term, expected, bytes);
+            assertEquals(term, 0, bytes.offset);
+            assertEquals(term, bytes.length, bytes.bytes.length);
+        }
+        assertFalse(actual.hasNext());
+    }
+
+    /** The limit is on bytes, so a term that fits in chars can still be too long once it is encoded. */
+    public void testParsedTermLongerThanIndexableLengthInBytesIsRejected() throws IOException {
+        String asciiAtLimit = "a".repeat(IndexWriter.MAX_TERM_LENGTH);
+        assertThat(parseSingleTerm(asciiAtLimit).length, equalTo(IndexWriter.MAX_TERM_LENGTH));
+
+        // 3 bytes per char: 10,922 chars fit in 32,766 bytes and 10,923 do not
+        String cjkAtLimit = "中".repeat(IndexWriter.MAX_TERM_LENGTH / 3);
+        assertThat(parseSingleTerm(cjkAtLimit).length, equalTo(IndexWriter.MAX_TERM_LENGTH));
+        expectThrows(IllegalArgumentException.class, () -> parseSingleTerm(cjkAtLimit + "中"));
+
+        expectThrows(IllegalArgumentException.class, () -> parseSingleTerm(asciiAtLimit + "a"));
+    }
+
+    private BytesRef parseSingleTerm(String term) throws IOException {
+        TermsQueryBuilder parsed = (TermsQueryBuilder) parseQuery("{\"terms\": {\"" + KEYWORD_FIELD_NAME + "\": [\"" + term + "\"]}}");
+        return (BytesRef) parsed.getValues().iterator().next();
     }
 
     private static List<String> randomTermsList(int count) {

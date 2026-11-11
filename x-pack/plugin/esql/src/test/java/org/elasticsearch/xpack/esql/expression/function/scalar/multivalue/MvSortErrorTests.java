@@ -66,7 +66,7 @@ public class MvSortErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
         if (type == DataType.NULL) {
             return false;
         }
-        return DataType.isRepresentable(type) == false
+        return DataType.isRepresentableInExpression(type) == false
             || DataType.isSpatialOrGrid(type)
             || type == DENSE_VECTOR
             || type == AGGREGATE_METRIC_DOUBLE

@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.UntypedActionRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
@@ -31,7 +30,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
@@ -40,9 +38,6 @@ import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
@@ -50,7 +45,6 @@ import org.elasticsearch.xpack.core.downsample.DownsampleShardIndexerStatus;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -79,25 +73,10 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         final DownsampleShardTaskParams params,
         final PersistentTaskState state
     ) {
-        // NOTE: query the downsampling target index so that we can start the downsampling task from the latest indexed tsid.
-        final SearchRequest searchRequest = new SearchRequest(params.downsampleIndex());
-        // _tsid is not part of the metadata returned with a hit by default, it has to be requested explicitly.
-        searchRequest.source().sort(TimeSeriesIdFieldMapper.NAME, SortOrder.DESC).size(1).fetchField(TimeSeriesIdFieldMapper.NAME);
-        searchRequest.preference("_shards:" + params.shardId().id());
-        client.search(searchRequest, ActionListener.wrap(searchResponse -> {
-            delegate(task, params, extractTsId(searchResponse.getHits().getHits()));
-        }, e -> delegate(task, params, null)));
-    }
-
-    private static BytesRef extractTsId(SearchHit[] lastDownsampleTsidHits) {
-        if (lastDownsampleTsidHits.length == 0) {
-            return null;
-        } else {
-            var searchHit = Arrays.stream(lastDownsampleTsidHits).findFirst().get();
-            var field = searchHit.field(TimeSeriesIdFieldMapper.NAME);
-            // The fetched value is the formatted representation of the tsid, decode it back to the raw bytes used by the query.
-            return field != null ? DocValueFormat.TIME_SERIES_ID.parseBytesRef(field.getValue()) : null;
-        }
+        // We used to search the target index here to determine the lastDownsampleTsid in order to resume. However,
+        // this was not a guaranteed safe point, and we reverted it https://github.com/elastic/elasticsearch/pull/164605
+        // We opened https://github.com/elastic/elasticsearch/issues/164609 to investigate how to reinstate it.
+        delegate(task, params, null);
     }
 
     @Override

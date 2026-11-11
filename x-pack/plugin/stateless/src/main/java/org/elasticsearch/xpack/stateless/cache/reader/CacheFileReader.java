@@ -30,7 +30,7 @@ import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
@@ -46,7 +46,7 @@ import java.util.function.LongSupplier;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.threadpool.ThreadPool.Names.SEARCH;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL;
 
 /**
  * Used by {@link BlobCacheIndexInput} to read data from the cache using a given {@link StatelessSharedBlobCacheService.CacheFile} instance.
@@ -405,8 +405,8 @@ public class CacheFileReader {
                 cacheBlobReader,
                 () -> writeBuffer.get().clear(),
                 bytesCopied -> {},
-                StatelessPlugin.SHARD_READ_THREAD_POOL,
-                StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                StatelessThreadPools.SHARD_READ_THREAD_POOL,
+                StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
             ),
             "lucene-prefetch:" + cacheFile.getCacheKey().fileName(),
             listener.delegateResponse((l, e) -> {
@@ -566,8 +566,8 @@ public class CacheFileReader {
                     cacheBlobReader,
                     () -> writeBuffer.get().clear(),
                     bytesCopied -> {},
-                    StatelessPlugin.SHARD_READ_THREAD_POOL,
-                    StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                    StatelessThreadPools.SHARD_READ_THREAD_POOL,
+                    StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
                 );
                 // Determine madvise advice for this read. For compound sub-files, only ranges
                 // that fall entirely within the exclusive interior get MADV_RANDOM; boundary
@@ -592,24 +592,43 @@ public class CacheFileReader {
                 if (e instanceof AlreadyClosedException || e.getCause() instanceof AlreadyClosedException) {
                     assert bytesRead == 0 : "expecting bytes read to be 0 but got: " + bytesRead + " for " + cacheFile.getCacheKey();
                     int len = length - bytesRead;
+                    // Wait for running callbacks of the failed attempt and stop the rest, so none overwrites the bypass read's bytes
+                    byteBufferReference.finish(0);
                     // TODO ideally we would make it async, but it should be safe
                     // since the future is created on the shard read thread pool or GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL.
                     // ObjectStoreCacheBlobReader is completed on the same thread and before actually waiting on the future, and
                     // IndexingShardCacheBlobReader completes on FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL, so the
                     // reader must bypass FillCacheMemoryPressure — waiting here would block this pool behind speculative fills,
                     // possibly the same pool a deferred read would resume on.
-                    var readFuture = new PlainActionFuture<Integer>();
-                    cacheBlobReader.getRangeInputStream(position, len, readFuture.map(in -> {
-                        try (in) {
-                            final int read = Streams.read(in, b, len);
-                            if (read == -1) {
-                                BlobCacheUtils.throwEOF(position, len);
+                    final ByteBufferReference bypassReference = new ByteBufferReference(b);
+                    try {
+                        var readFuture = new PlainActionFuture<Integer>();
+                        cacheBlobReader.getRangeInputStream(position, len, readFuture.map(in -> {
+                            try (in) {
+                                // The listener may run on another thread, and may still be running if the wait below fails, so it writes
+                                // through a slice of the bypassReference rather than to b directly. If the reference is already finished
+                                // the wait below has failed and the read has been abandoned, so nobody is waiting for the bytes.
+                                final ByteBuffer dst = bypassReference.tryAcquire(0, len);
+                                if (dst == null) {
+                                    return 0;
+                                }
+                                try {
+                                    final int read = Streams.read(in, dst, len);
+                                    if (read == -1) {
+                                        BlobCacheUtils.throwEOF(position, len);
+                                    }
+                                    return read;
+                                } finally {
+                                    bypassReference.release();
+                                }
                             }
-                            return read;
-                        }
-                    }));
-                    bytesRead += cacheFile.recordWait(len, readFuture);
-                    blobCacheMetrics.recordBypassRead();
+                        }));
+                        bytesRead += cacheFile.recordWait(len, readFuture);
+                        bypassReference.finish(bytesRead);
+                        blobCacheMetrics.recordBypassRead();
+                    } finally {
+                        bypassReference.finish(0);
+                    }
                 } else {
                     throw e;
                 }

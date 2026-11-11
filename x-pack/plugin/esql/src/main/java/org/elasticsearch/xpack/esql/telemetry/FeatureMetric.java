@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
+import org.elasticsearch.xpack.esql.plan.logical.Describe;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -59,7 +60,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
@@ -139,6 +140,7 @@ public enum FeatureMetric {
     // unmatched node would trip the "Command not mapped for telemetry" check. The shared bitset keeps the count at one per query.
     IP_LOCATION(plan -> plan instanceof IpLocation || plan instanceof UnresolvedIpLocation),
     DEDUP(Dedup.class::isInstance),
+    DESCRIBE(Describe.class::isInstance),
     HIGHLIGHT(Highlight.class::isInstance),
     // IN_SUBQUERY is collected by InSubqueryResolver on the pre-resolution plan (when the
     // InSubquery expression is still in place); by the time the Analyzer/Verifier walk runs,
@@ -169,7 +171,7 @@ public enum FeatureMetric {
         // MarkJoin's enclosing command (WHERE, EVAL, or the STATS whose per-aggregate WHERE produced it) already
         // records the telemetry; STATS itself is counted via the Aggregate exclusion above.
         MarkJoin.class,
-        InnerJoin.class, // produced by PROMQL vector-matching translation; rolled into the PROMQL counter via PromqlCommand
+        HashJoin.class, // produced by PROMQL vector-matching translation; rolled into the PROMQL counter via PromqlCommand
         UnionAll.class // synthesized FROM/subquery/view union; SUBQUERY and VIEW metrics cover the user-facing constructs
     );
 

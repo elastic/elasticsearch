@@ -319,6 +319,7 @@ final class SubPlansExecutor {
                     rootTask,
                     new ComputeContext(
                         childSessionId,
+                        computeService.queryId(rootTask),
                         description,
                         LOCAL_CLUSTER,
                         flags,
@@ -327,8 +328,7 @@ final class SubPlansExecutor {
                         foldContext,
                         exchange::exchangeSource,
                         parent == null ? null : () -> parent.exchange.exchangeSink(() -> {}),
-                        false,
-                        null
+                        false
                     ),
                     plan,
                     computeService.plannerSettings().get(),

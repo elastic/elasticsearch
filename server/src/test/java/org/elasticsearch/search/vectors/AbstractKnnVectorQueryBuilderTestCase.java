@@ -108,6 +108,12 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         return createKnnVectorQueryBuilder(VECTOR_FIELD, 1, 10, null, null, null).addFilterQuery(queryBuilder);
     }
 
+    @Override
+    protected List<QueryBuilder> subQueriesHiddenFromVisit(QueryBuilder builder) {
+        // the filters are built with the one-argument toQuery and are not visited by the knn query
+        return builder instanceof KnnVectorQueryBuilder knn ? knn.filterQueries() : List.of();
+    }
+
     protected boolean isQuantizedElementType() {
         return QUANTIZED_INDEX_TYPES.contains(indexType);
     }

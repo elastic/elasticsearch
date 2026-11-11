@@ -341,6 +341,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     parentTask,
                     new ComputeContext(
                         localSessionId,
+                        computeService.queryId(parentTask),
                         "remote_reduce",
                         clusterAlias,
                         flags,
@@ -349,8 +350,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         configuration.newFoldContext(),
                         exchangeSource::createExchangeSource,
                         () -> exchangeSink.createExchangeSink(() -> {}),
-                        false,
-                        null
+                        false
                     ),
                     coordinatorPlan,
                     computeService.plannerSettings().get(),

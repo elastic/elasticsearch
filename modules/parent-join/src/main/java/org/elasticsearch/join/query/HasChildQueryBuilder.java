@@ -343,6 +343,8 @@ public class HasChildQueryBuilder extends LeafQueryBuilder<HasChildQueryBuilder>
             throw new QueryShardException(context, "[" + NAME + "] no parent join field [" + parentJoinField + "] configured");
         }
 
+        // The one-argument toQuery charges the inner query to the breaker. LateParsingQuery is a leaf, so the outer
+        // visitor never reaches the inner query, and it is charged only once.
         Query parentFilter = joiner.parentFilter(type);
         Query childFilter = joiner.filter(type);
         Query filteredQuery = Queries.filtered(query.toQuery(context), childFilter);

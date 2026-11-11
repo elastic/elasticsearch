@@ -1027,7 +1027,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
     }
 
     /**
-     * Omitting {@code inference_id} keeps it once a document is indexed, otherwise adopts the current default.
+     * Omitting {@code inference_id} keeps the persisted one, with or without indexed documents.
      */
     public void testMergeWithRandomInferenceIdUpdate() throws IOException {
         final String fieldName = "field";
@@ -1068,17 +1068,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
                 null
             );
 
-            final String expectedInferenceId;
-            if (updateInferenceId != null) {
-                expectedInferenceId = updateInferenceId;
-            } else if (indexDocument) {
-                expectedInferenceId = createdInferenceId;
-            } else {
-                expectedInferenceId = getInferenceId(
-                    createSemanticMapperServiceWithIndexVersion(fieldMapping(this::minimalMapping), indexVersion),
-                    fieldName
-                );
-            }
+            final String expectedInferenceId = updateInferenceId == null ? createdInferenceId : updateInferenceId;
             final EndpointClusterState expectedSettings = new EndpointClusterState(defaultModel(expectedInferenceId));
             if (indexDocument && createdSettings.canMergeWith(expectedSettings) == false) {
                 Exception exc = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, update));

@@ -434,8 +434,8 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
             Builder semanticIncoming = (Builder) incoming;
 
-            // With model settings persisted, keep the existing inference_id: the default may now resolve to an incompatible endpoint
-            if (semanticIncoming.inferenceId.isSet() == false && modelSettings.get() != null) {
+            // Keep the existing inference_id when omitted: the default may now resolve to a different endpoint
+            if (semanticIncoming.inferenceId.isSet() == false) {
                 semanticIncoming.setInferenceId(inferenceId.get());
             }
             final boolean isInferenceIdUpdate = semanticIncoming.inferenceId.get().equals(inferenceId.get()) == false;

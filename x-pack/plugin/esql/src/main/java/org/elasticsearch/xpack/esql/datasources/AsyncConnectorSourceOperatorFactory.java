@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Source-operator factory that executes a connector query on a background thread and feeds pages
@@ -66,6 +67,8 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
     @Nullable
     private volatile Limiter observedLimiter;
     private final AtomicBoolean started = new AtomicBoolean();
+    /** Live {@link #get} producers, including parked ones. The connector closes when this hits 0. */
+    private final AtomicInteger outstandingProducers = new AtomicInteger();
     private final Object filteredLimitRampLock = new Object();
     private int filteredLimitRunning;
     private int filteredLimitCap = AsyncExternalSourceOperatorFactory.FILTERED_LIMIT_READER_RAMP;
@@ -129,13 +132,21 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         long maxBufferBytes = (long) maxBufferSize * Operator.TARGET_PAGE_SIZE;
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
         driverContext.addAsyncAction();
+        outstandingProducers.incrementAndGet();
 
         // Single completion listener: exactly one of {finish(false), onFailure(e)} fires, and
-        // driverContext.removeAsyncAction() plus connector.close() run exactly once via runAfter.
+        // driverContext.removeAsyncAction() runs once. Connector.close() waits until the last
+        // producer (running or parked) has finished, so a sibling still in execute() cannot see
+        // a closed Flight client.
         ActionListener<Void> completionListener = ActionListener.assertOnce(
             ActionListener.runAfter(ActionListener.wrap(v -> buffer.finish(false), buffer::onFailure), () -> {
-                closeConnectorQuietly();
-                driverContext.removeAsyncAction();
+                try {
+                    if (outstandingProducers.decrementAndGet() == 0) {
+                        closeConnectorQuietly();
+                    }
+                } finally {
+                    driverContext.removeAsyncAction();
+                }
             })
         );
 

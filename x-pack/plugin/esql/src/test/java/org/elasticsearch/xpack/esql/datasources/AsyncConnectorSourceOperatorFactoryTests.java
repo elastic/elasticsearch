@@ -38,6 +38,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -91,6 +92,7 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
 
             assertThat(executeCount.get(), equalTo(1));
             assertThat(sliceQueue.remaining(), equalTo(splitCount - 1));
+            assertThat(connector.closeCount.get(), equalTo(1));
         } finally {
             proceed.countDown();
             pool.shutdownNow();
@@ -143,6 +145,54 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
             }
             assertThat(executeCount.get(), equalTo(1));
             assertThat(sliceQueue.remaining(), equalTo(splitCount - 1));
+            assertThat(connector.closeCount.get(), equalTo(1));
+        } finally {
+            proceed.countDown();
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * Two drivers both start (no observed limiter). The first to finish must not close the
+     * shared connector while the sibling is still in {@code execute()}.
+     */
+    public void testSiblingProducerDoesNotSeeClosedConnector() throws Exception {
+        int splitCount = 4;
+        int drivers = 2;
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < splitCount; i++) {
+            splits.add(new StubSplit("s" + i));
+        }
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
+        CountDownLatch entered = new CountDownLatch(drivers);
+        CountDownLatch proceed = new CountDownLatch(1);
+        AtomicInteger executeCount = new AtomicInteger();
+        LatchedConnector connector = new LatchedConnector(executeCount, entered, proceed);
+        QueryRequest request = new QueryRequest("target", List.of("col"), List.of(), Map.of(), 100, TEST_BLOCK_FACTORY);
+        ExecutorService pool = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory("test", "acsof-close"));
+        try {
+            AsyncConnectorSourceOperatorFactory factory = new AsyncConnectorSourceOperatorFactory(connector, request, 10, pool, sliceQueue);
+
+            CountDownLatch done = new CountDownLatch(drivers);
+            List<SourceOperator> operators = new ArrayList<>(drivers);
+            for (int i = 0; i < drivers; i++) {
+                DriverContext ctx = mockDriverContext();
+                doAnswer(inv -> {
+                    done.countDown();
+                    return null;
+                }).when(ctx).removeAsyncAction();
+                operators.add(factory.get(ctx));
+            }
+            assertTrue(entered.await(30, TimeUnit.SECONDS));
+            proceed.countDown();
+            assertTrue(done.await(30, TimeUnit.SECONDS));
+            for (SourceOperator operator : operators) {
+                drainRows(operator);
+                operator.close();
+            }
+            assertThat(executeCount.get(), equalTo(splitCount));
+            assertThat(connector.closeCount.get(), equalTo(1));
         } finally {
             proceed.countDown();
             pool.shutdownNow();
@@ -269,6 +319,8 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
         private final AtomicInteger executeCount;
         private final CountDownLatch entered;
         private final CountDownLatch proceed;
+        private final AtomicInteger closeCount = new AtomicInteger();
+        private final AtomicBoolean closed = new AtomicBoolean();
 
         LatchedConnector(AtomicInteger executeCount, CountDownLatch entered, CountDownLatch proceed) {
             this.executeCount = executeCount;
@@ -283,6 +335,9 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
 
         @Override
         public ResultCursor execute(QueryRequest request, ExternalSplit split) {
+            if (closed.get()) {
+                throw new IllegalStateException("Connector is closed");
+            }
             assertEquals(FormatReader.NO_LIMIT, request.rowLimit());
             executeCount.incrementAndGet();
             entered.countDown();
@@ -294,11 +349,17 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
                 Thread.currentThread().interrupt();
                 throw new AssertionError(e);
             }
+            if (closed.get()) {
+                throw new IllegalStateException("Connector is closed");
+            }
             return cursor();
         }
 
         @Override
-        public void close() {}
+        public void close() {
+            closed.set(true);
+            closeCount.incrementAndGet();
+        }
 
         private static ResultCursor cursor() {
             return cursor(null, null, null);

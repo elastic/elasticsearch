@@ -72,6 +72,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -87,6 +88,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
@@ -1375,6 +1377,89 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
      * {@code f._keyed} but not {@code f._keyed.counts} would otherwise hide the counts, and the keyed doc values would be decoded in the
      * wrong layout, corrupting or failing synthetic source.
      */
+    /**
+     * The {@code .offsets} sidecar of a flattened field points into its keyed values, not into its root. A role that grants only the root
+     * sees no keyed values, so it must not see the offsets either: otherwise synthetic source rebuilds the arrays with {@code null}s in
+     * place of the hidden values.
+     */
+    public void testFlattenedOffsetsHiddenWithKeyedValues() throws Exception {
+        String source = flattenedSyntheticSource(b -> {}, "exact", b -> b.array("tags", "web", "api"), "labels");
+        assertEquals("{}", source);
+    }
+
+    /**
+     * A role that grants the keys of a flattened field ({@code labels.*}) sees its keyed values, so it must see the {@code .offsets}
+     * sidecar too. Otherwise synthetic source loses array order and duplicates.
+     */
+    public void testFlattenedOffsetsVisibleWithKeyedValues() throws Exception {
+        CheckedConsumer<XContentBuilder, IOException> labels = b -> b.array("tags", "web", "api", "web");
+        assertEquals("{\"labels\":{\"tags\":[\"web\",\"api\",\"web\"]}}", flattenedSyntheticSource(b -> {}, "exact", labels, "labels.*"));
+    }
+
+    /**
+     * Values of a flattened field that trip {@code ignore_above} are kept in {@code <f>._keyed._ignored}, and its {@code .offsets} point
+     * into them as well as into the keyed values. A role that grants the keyed values must see the ignored ones too, or synthetic source
+     * drops them, or fails when the offsets point at a value it cannot see.
+     */
+    public void testFlattenedIgnoredValuesFollowKeyedValues() throws Exception {
+        String preserveLeafArrays = randomFrom("lossy", "exact");
+        CheckedConsumer<XContentBuilder, IOException> mapping = b -> b.field("ignore_above", 3);
+        CheckedConsumer<XContentBuilder, IOException> labels = b -> b.array("key1", "aaaa", "b");
+        assertEquals(
+            flattenedSyntheticSource(mapping, preserveLeafArrays, labels, "*"),
+            flattenedSyntheticSource(mapping, preserveLeafArrays, labels, "labels", "labels._keyed")
+        );
+    }
+
+    /**
+     * Indexes one document with a flattened field {@code labels} and returns its synthetic source as seen by a role granting
+     * {@code grantedFields}. Randomly uses the time-series doc values format, which changes how the keyed and ignored values are stored.
+     */
+    private String flattenedSyntheticSource(
+        CheckedConsumer<XContentBuilder, IOException> mappingParams,
+        String preserveLeafArrays,
+        CheckedConsumer<XContentBuilder, IOException> labels,
+        String... grantedFields
+    ) throws IOException {
+        IndexVersion indexVersion = IndexVersion.current();
+        Settings mapperSettings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.use_time_series_doc_values_format", randomBoolean())
+            .build();
+        var format = IgnoredSourceFieldMapper.ignoredSourceFormat(createIndexSettings(indexVersion, mapperSettings));
+        MapperService mapperService = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+            b.startObject("labels").field("type", "flattened").field("preserve_leaf_arrays", preserveLeafArrays);
+            mappingParams.accept(b);
+            b.endObject();
+        }));
+        DocumentMapper mapper = mapperService.documentMapper();
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.startObject("labels");
+                labels.accept(b);
+                b.endObject();
+            }));
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            iw.addDocuments(doc.docs());
+            iw.close();
+
+            var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(grantedFields, null));
+            try (
+                DirectoryReader indexReader = FieldSubsetReader.wrap(
+                    wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                    filter,
+                    format,
+                    SecurityIndexReaderWrapper.isMapped(mapperService.mappingLookup())
+                )
+            ) {
+                return syntheticSource(mapper, indexReader, doc.docs().size() - 1);
+            }
+        }
+    }
+
     public void testFlattenedCompanionsFollowParent() throws Exception {
         String counts = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
         String keyed = "f" + FlattenedFieldMapper.KEYED_FIELD_SUFFIX;

@@ -11,6 +11,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
@@ -51,6 +52,7 @@ import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -181,7 +183,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             }
 
             // Resolved before .offsets, so that the counts of a flattened field's binary .offsets sidecar (<field>.offsets.counts) follow
-            // <field> too.
+            // the sidecar too.
             String countsSuffix = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
             if (name.endsWith(countsSuffix) && isMapped.apply(fi.getName()) == false) {
                 String parent = stripSuffix(name, countsSuffix);
@@ -197,7 +199,12 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             if (name.endsWith(FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX) && isMapped.apply(fi.getName()) == false) {
                 String parent = stripSuffix(name, FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX);
                 if (companionParentExists(in.getFieldInfos(), parent, isMapped)) {
-                    name = parent;
+                    // Only a flattened field writes its offsets as binary doc values, and they point into its keyed values rather than
+                    // into the field itself, so they follow <field>._keyed. The doc values type is checked rather than whether the keyed
+                    // values exist, as a segment made only of arrays of nulls has offsets but no keyed values.
+                    FieldInfo offsets = in.getFieldInfos().fieldInfo(name);
+                    boolean flattened = offsets != null && offsets.getDocValuesType() == DocValuesType.BINARY;
+                    name = flattened ? parent + FlattenedFieldMapper.KEYED_FIELD_SUFFIX : parent;
                 }
             }
 
@@ -236,6 +243,16 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
         if (fieldName.endsWith(ignoreMalformed)) {
             return stripSuffix(fieldName, ignoreMalformed);
+        }
+
+        // A flattened field keeps the values that trip ignore_above in a <field>._keyed._ignored companion. Its .offsets point into these
+        // as well as into the keyed values, so both must follow the keyed values' FLS decision.
+        String keyedIgnored = FlattenedFieldMapper.KEYED_IGNORED_VALUES_FIELD_SUFFIX;
+        if (fieldName.endsWith(keyedIgnored + counts)) {
+            return stripSuffix(fieldName, keyedIgnored + counts) + FlattenedFieldMapper.KEYED_FIELD_SUFFIX;
+        }
+        if (fieldName.endsWith(keyedIgnored)) {
+            return stripSuffix(fieldName, keyedIgnored) + FlattenedFieldMapper.KEYED_FIELD_SUFFIX;
         }
 
         // Columnar shape fields store normalized geometries in an unmapped companion used to rebuild synthetic source.

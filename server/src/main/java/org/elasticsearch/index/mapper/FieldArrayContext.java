@@ -26,7 +26,7 @@ import java.util.TreeMap;
 
 public class FieldArrayContext {
 
-    protected static final String OFFSETS_FIELD_NAME_SUFFIX = ".offsets";
+    public static final String OFFSETS_FIELD_NAME_SUFFIX = ".offsets";
     protected final Map<String, Offsets> offsetsPerField = new HashMap<>();
 
     public void recordOffset(String field, Comparable<?> value) {

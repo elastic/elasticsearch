@@ -583,7 +583,16 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         var projected = new ArrayList<NamedExpression>(output());
         var evals = new ArrayList<Alias>();
         List<Attribute> declared = promqlPlan().output();
-        List<String> named = PromqlLabels.labelNames(declared.stream().filter(a -> PromqlLabels.isTagsLabel(a) == false).toList());
+        // A column exposed only to order the result is read from the container but stays in _timeseries too
+        Set<NameId> orderingOnly = new HashSet<>();
+        promqlPlan().forEachDown(LogicalPlan.class, p -> {
+            if (p instanceof ResultOrderingFunction ordering) {
+                ordering.orderingOnlyColumns().forEach(column -> orderingOnly.add(column.id()));
+            }
+        });
+        List<String> named = PromqlLabels.labelNames(
+            declared.stream().filter(a -> PromqlLabels.isTagsLabel(a) == false && orderingOnly.contains(a.id()) == false).toList()
+        );
         Source source = promqlPlan().source();
         Alias rendered = null;
         for (int i = 0; i < projected.size(); i++) {

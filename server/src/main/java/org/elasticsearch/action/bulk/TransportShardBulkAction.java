@@ -233,7 +233,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             preResolvedUpdates
         );
         long startBatchTime = System.nanoTime();
-        if (shardBatchIndexer.canUseBatchIndexing(request)) {
+        if (shardBatchIndexer.canUseBatchIndexing(request, primary.indexSettings())) {
             shardBatchIndexer.performBatchIndexOnPrimary(
                 request.items(),
                 request.getBulkShardBatch().getBatch(),
@@ -897,7 +897,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ActionListener.completeWith(listener, () -> {
             final long startBulkTime = System.nanoTime();
             final Translog.Location location;
-            if (shardBatchIndexer.canUseBatchIndexing(request)) {
+            if (shardBatchIndexer.canUseBatchIndexing(request, replica.indexSettings())) {
                 ShardBatchIndexer.ReplicaBatchResult batchResult = shardBatchIndexer.performBatchIndexOnReplica(
                     request.items(),
                     request.getBulkShardBatch().getBatch(),

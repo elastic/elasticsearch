@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.logging.activity.QueryLoggerContext;
+import org.elasticsearch.common.logging.activity.QueryCaptureContext;
 import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -26,9 +26,13 @@ import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
+import org.elasticsearch.xpack.esql.querylog.EsqlCaptureContext;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogProducer;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -109,11 +113,28 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    public void testAnalyzeOnlyIsNotLogged() throws Exception {
+        setupIndex("index-analyze-only", "192.168.0.1");
+        var parser = new EsqlParser(new EsqlConfig(new EsqlFunctionRegistry()));
+        var inferenceSettings = new InferenceSettings(clusterService().state().metadata().settings());
+
+        String query = "FROM index-analyze-only | LIMIT 1";
+        try (var ignored = run(PreparedEsqlQueryRequest.analyzeOnly(parser.parse(query, new QueryParams(), inferenceSettings), query))) {
+            assertNull(appender.getLastEventAndReset());
+        }
+        String failing = "FROM index-analyze-only | KEEP missing";
+        expectThrows(
+            VerificationException.class,
+            () -> run(PreparedEsqlQueryRequest.analyzeOnly(parser.parse(failing, new QueryParams(), inferenceSettings), failing))
+        );
+        assertNull(appender.getLastEventAndReset());
+    }
+
     public void testLoggingParseFailure() {
         String query = SET_SETTINGS + "FROM";
         expectThrows(ParsingException.class, () -> run(query));
         var message = getMessageData(appender.getLastEventAndReset());
-        assertMessageFailure(message, EsqlLogContext.TYPE, query, ParsingException.class, null);
+        assertMessageFailure(message, EsqlCaptureContext.TYPE, query, ParsingException.class, null);
         assertThat(message.keySet().stream().filter(k -> k.startsWith(EsqlLogProducer.SETTINGS_PREFIX)).toList(), empty());
     }
 
@@ -136,7 +157,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(request)) {
             var event = appender.getLastEventAndReset();
             var message = getMessageData(event);
-            assertMessageSuccess(message, EsqlLogContext.TYPE, query);
+            assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);
             assertSettingsLogged(message, query);
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(numDocs)));
             var params = (Map<String, Object>) getMessageField(event, QUERY_FIELD_PARAMS);
@@ -159,7 +180,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(request)) {
             var event = appender.getLastEventAndReset();
             var message = getMessageData(event);
-            assertMessageSuccess(message, EsqlLogContext.TYPE, query);
+            assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);
             assertSettingsLogged(message, query);
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(numDocs)));
             var params = (Map<String, Object>) getMessageField(event, QUERY_FIELD_PARAMS);
@@ -184,7 +205,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             try (var resp = run(query)) {
                 var event = appender.getLastEventAndReset();
                 var message = getMessageData(event);
-                assertMessageSuccess(message, EsqlLogContext.TYPE, query);
+                assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);
                 assertSettingsLogged(message, query);
                 assertThat(message.get(EsqlLogProducer.SETTINGS_PREFIX + "wildcards_match_views"), equalTo("false"));
                 assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(2L * numDocs)));
@@ -254,7 +275,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             // When the request was randomly promoted to a PreparedEsqlQueryRequest the logged
             // query will be the plan representation rather than the original query string.
             var loggedQuery = message.get(QUERY_FIELD_QUERY);
-            assertMessageSuccess(message, EsqlLogContext.TYPE, query);
+            assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);
             assertSettingsLogged(message, query);
             if (hits > 0) {
                 // Zero hits may mean no shards were used, so we can't assert that
@@ -288,7 +309,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             }
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(hits)));
             if (filter != null) {
-                assertThat(message.get(QUERY_FIELD_FILTER), equalTo(QueryLoggerContext.filterToLogString(filter).get()));
+                assertThat(message.get(QUERY_FIELD_FILTER), equalTo(QueryCaptureContext.filterToLogString(filter).get()));
             } else {
                 assertNull(message.get(QUERY_FIELD_FILTER));
             }
@@ -299,7 +320,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
     private void assertFailedQuery(String query, String expectedMessage, Class<? extends Throwable> expectedException) {
         expectThrows(VerificationException.class, () -> run(query));
         var message = getMessageData(appender.getLastEventAndReset());
-        assertMessageFailure(message, EsqlLogContext.TYPE, query, expectedException, expectedMessage);
+        assertMessageFailure(message, EsqlCaptureContext.TYPE, query, expectedException, expectedMessage);
         assertSettingsLogged(message, query);
     }
 
@@ -319,7 +340,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
 
     /**
      * When the request succeeds with partial results (some shards fail), the activity log records
-     * shards.successful and shards.failed from EsqlLogContext.shardInfo().
+     * shards.successful and shards.failed from EsqlCaptureContext.shardInfo().
      */
     public void testLoggingPartialShardFailure() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -344,7 +365,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         var event = appender.getLastEventAndReset();
         assertNotNull(event);
         var message = getMessageData(event);
-        assertMessageSuccess(message, EsqlLogContext.TYPE, query);
+        assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);
         assertSettingsLogged(message, query);
         assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThanOrEqualTo(1));
         assertThat(Integer.valueOf(message.getOrDefault(QUERY_FIELD_SHARDS + "skipped", "0")), equalTo(0));
@@ -390,7 +411,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
 
         var event = appender.getLastEventAndReset();
         var message = getMessageData(event);
-        assertMessageSuccess(message, EsqlLogContext.TYPE, query);
+        assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);
         assertSettingsLogged(message, query);
         assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(numDocs)));
         var params = (Map<String, Object>) getMessageField(event, QUERY_FIELD_PARAMS);
@@ -415,7 +436,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
 
         var event = appender.getLastEventAndReset();
         var message = getMessageData(event);
-        assertMessageSuccess(message, EsqlLogContext.TYPE, query);
+        assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);
         assertSettingsLogged(message, query);
         assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(numDocs)));
         var params = (Map<String, Object>) getMessageField(event, QUERY_FIELD_PARAMS);
@@ -435,7 +456,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         var event = appender.getLastEventAndReset();
         assertNotNull("expected a query-log failure event", event);
         var message = getMessageData(event);
-        assertMessageFailure(message, EsqlLogContext.TYPE, query, VerificationException.class, "count(*)");
+        assertMessageFailure(message, EsqlCaptureContext.TYPE, query, VerificationException.class, "count(*)");
         assertSettingsLogged(message, query);
     }
 
@@ -451,7 +472,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         var event = appender.getLastEventAndReset();
         assertNotNull("expected a query-log event for the streaming query", event);
         var message = getMessageData(event);
-        assertMessageSuccess(message, EsqlLogContext.TYPE, query);
+        assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);
         assertSettingsLogged(message, query);
         assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(expectedHits)));
         if (expectedHits > 0) {
@@ -464,7 +485,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             assertNotNull(message.get(QUERY_FIELD_INDICES));
         }
         if (filter != null) {
-            assertThat(message.get(QUERY_FIELD_FILTER), equalTo(QueryLoggerContext.filterToLogString(filter).get()));
+            assertThat(message.get(QUERY_FIELD_FILTER), equalTo(QueryCaptureContext.filterToLogString(filter).get()));
         } else {
             assertNull(message.get(QUERY_FIELD_FILTER));
         }

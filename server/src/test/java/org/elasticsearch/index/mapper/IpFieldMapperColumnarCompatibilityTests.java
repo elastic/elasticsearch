@@ -12,14 +12,16 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
@@ -58,10 +60,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
     }
 
     private static Settings columnarSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
     }
 
     public void testSingleValue() throws IOException {
@@ -146,6 +145,34 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
             mapping(b -> b.startObject(FIELD).field("type", "ip").endObject()),
             columnarSettings(),
             batch("array containing null", 1L, doc("d1", 1L, "{\"f\":[\"10.0.0.1\",null,\"10.0.0.2\"]}"), doc("d2", 2L, "{}"))
+        );
+    }
+
+    /**
+     * A bare null is the field being absent, while a null inside the field's own array keeps its slot. Mixing the shapes in one batch, in
+     * random order, checks that the columnar path tells them apart per document the way the row path does.
+     */
+    public void testBareNullsAndNullArraysInOneBatch() throws IOException {
+        List<String> sources = new ArrayList<>(
+            List.of(
+                "{\"f\":null}",
+                "{\"f\":null}",
+                "{\"f\":[null]}",
+                "{\"f\":[null,null]}",
+                "{\"f\":\"" + NetworkAddress.format(randomIp(randomBoolean())) + "\"}",
+                "{\"f\":[\"" + NetworkAddress.format(randomIp(randomBoolean())) + "\",null]}",
+                "{}"
+            )
+        );
+        Collections.shuffle(sources, random());
+        Doc[] docs = new Doc[sources.size()];
+        for (int i = 0; i < docs.length; i++) {
+            docs[i] = doc("d" + i, i + 1, sources.get(i));
+        }
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "ip").endObject()),
+            columnarSettings(),
+            batch("bare nulls and null arrays", 1L, docs)
         );
     }
 

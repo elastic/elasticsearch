@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Page;
@@ -124,6 +125,11 @@ public class Driver implements Releasable, Describable {
      */
     private long finishNanos;
 
+    /** Where the time of this driver that its source operator does not attribute to shards is charged, or {@code null}. */
+    private TaskLoadAttribution.Target loadTarget;
+    /** The time since the last status update already reported by a source operator when it closed. */
+    private long reportedByClosedSource;
+
     /**
      * Creates a new driver with a chain of operators.
      * @param sessionId session Id
@@ -199,6 +205,8 @@ public class Driver implements Releasable, Describable {
      * time accumulated since the last status update is not included in the reported totals.
      */
     SubscribableListener<Void> run(TimeValue maxTime, int maxIterations, LongSupplier currentTimeNanosSupplier) {
+        // the driver charges its time itself, to the shards its source reads or to its load target
+        TaskLoadAttribution.attribute(TaskLoadAttribution.CHARGED_BY_TASK);
         return driverContext.meteredCpu(() -> runLoop(maxTime, maxIterations, currentTimeNanosSupplier));
     }
 
@@ -440,7 +448,9 @@ public class Driver implements Releasable, Describable {
                     if (op instanceof SourceOperator sourceOperator) {
                         long now = currentTimeNanosSupplier.getAsLong();
                         // report one last time before closing
-                        sourceOperator.reportSearchLoad(now - lastStatusUpdate, now);
+                        if (sourceOperator.reportSearchLoad(now - lastStatusUpdate - reportedByClosedSource, now)) {
+                            reportedByClosedSource = now - lastStatusUpdate;
+                        }
                     }
                     op.close();
                     if (op.finalStatusAfterAsyncActions()) {
@@ -476,9 +486,20 @@ public class Driver implements Releasable, Describable {
         }
     }
 
+    // TODO: Remove this
     public static void start(
         ThreadContext threadContext,
         Executor executor,
+        Driver driver,
+        int maxIterations,
+        ActionListener<Void> listener
+    ) {
+        start(threadContext, new ComputeExecutor(executor, threadContext), driver, maxIterations, listener);
+    }
+
+    public static void start(
+        ThreadContext threadContext,
+        DriverExecutor executor,
         Driver driver,
         int maxIterations,
         ActionListener<Void> listener
@@ -495,7 +516,8 @@ public class Driver implements Releasable, Describable {
                 executor,
                 driver,
                 driver.completionListener,
-                currentTimeNanosSupplier
+                currentTimeNanosSupplier,
+                false
             );
         }
     }
@@ -571,10 +593,11 @@ public class Driver implements Releasable, Describable {
         TimeValue maxTime,
         int maxIterations,
         ThreadContext threadContext,
-        Executor executor,
+        DriverExecutor executor,
         Driver driver,
         ActionListener<Void> listener,
-        LongSupplier currentTimeNanosSupplier
+        LongSupplier currentTimeNanosSupplier,
+        boolean resumed
     ) {
         AbstractRunnable task = new AbstractRunnable() {
             @Override
@@ -585,10 +608,19 @@ public class Driver implements Releasable, Describable {
                     return;
                 }
                 if (fut.isDone()) {
-                    schedule(maxTime, maxIterations, threadContext, executor, driver, listener, currentTimeNanosSupplier);
+                    schedule(maxTime, maxIterations, threadContext, executor, driver, listener, currentTimeNanosSupplier, false);
                 } else {
                     ActionListener<Void> readyListener = ActionListener.wrap(
-                        ignored -> schedule(maxTime, maxIterations, threadContext, executor, driver, listener, currentTimeNanosSupplier),
+                        ignored -> schedule(
+                            maxTime,
+                            maxIterations,
+                            threadContext,
+                            executor,
+                            driver,
+                            listener,
+                            currentTimeNanosSupplier,
+                            true
+                        ),
                         this::onFailure
                     );
                     fut.addListener(ContextPreservingActionListener.wrapPreservingContext(readyListener, threadContext));
@@ -617,7 +649,7 @@ public class Driver implements Releasable, Describable {
             }
         };
         task = (AbstractRunnable) threadContext.preserveContext(task); // Preserve warnings and such
-        driver.scheduler.scheduleOrRunTask(executor, task);
+        driver.scheduler.scheduleOrRunTask(executor, task, resumed);
     }
 
     private static IsBlockedResult oneOf(List<IsBlockedResult> results) {
@@ -686,12 +718,28 @@ public class Driver implements Releasable, Describable {
         );
     }
 
+    /**
+     * Charges the time of this driver that its source operator does not attribute to shards to {@code loadTarget}. Must be set
+     * before the driver starts.
+     */
+    public void loadTarget(TaskLoadAttribution.Target loadTarget) {
+        assert started.get() == false : "driver already started";
+        this.loadTarget = loadTarget;
+    }
+
     private void reportSearchLoad(long extraDriverNanos, long now) {
-        activeOperators.stream()
+        if (extraDriverNanos <= 0) {
+            return;
+        }
+        boolean attributed = activeOperators.stream()
             .filter(o -> o instanceof SourceOperator)
             .map(o -> (SourceOperator) o)
             .findFirst()
-            .ifPresent(sourceOperator -> sourceOperator.reportSearchLoad(extraDriverNanos, now));
+            .map(sourceOperator -> sourceOperator.reportSearchLoad(extraDriverNanos, now))
+            .orElse(false);
+        if (attributed == false && loadTarget != null) {
+            TaskLoadAttribution.charge(loadTarget, extraDriverNanos, now);
+        }
     }
 
     /**
@@ -719,6 +767,9 @@ public class Driver implements Releasable, Describable {
      * @param status the status of the overall driver request
      */
     private void updateStatus(long extraDriverNanos, int extraIterations, DriverStatus.Status status, String reason, long nowNanos) {
+        // Search load stays on the time the driver held a thread, it's an autoscaling signal rather than billing.
+        reportSearchLoad(extraDriverNanos - reportedByClosedSource, nowNanos);
+        reportedByClosedSource = 0;
         driverContext.cpuTracker().checkpoint();
         long cpuNanos = driverContext.cpuNanos();
         this.status.getAndUpdate(prev -> {
@@ -747,9 +798,6 @@ public class Driver implements Releasable, Describable {
                     }
                 }
             }
-            // Search load stays on the time the driver held a thread, it's an autoscaling signal rather than billing.
-            reportSearchLoad(extraDriverNanos, nowNanos);
-
             return new DriverStatus(
                 sessionId,
                 shortDescription,

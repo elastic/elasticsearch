@@ -9,6 +9,11 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -26,13 +31,17 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -245,5 +254,75 @@ public class IncrementalBulkServiceTests extends ESTestCase {
         assertThat(indexingPressure.stats().getCoordinatingRejections(), equalTo(1L));
         assertThat(indexingPressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
         assertThat(taskManager.getTasks().values(), empty());
+    }
+
+    /**
+     * When a later chunk fails as a whole after an earlier chunk succeeded, the final response is the combination of the chunks'
+     * responses. Items of the failing chunk that had already failed individually (and were nulled out of the request) must still
+     * get a failure entry so that the response keeps one entry per submitted item.
+     */
+    public void testLaterChunkFailureKeepsEntryForNulledItems() {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        Client client = mock(Client.class);
+        // split after every chunk so that the first chunk is submitted by addItems
+        Settings settings = Settings.builder()
+            .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "1b")
+            .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "1b")
+            .build();
+        IncrementalBulkService service = new IncrementalBulkService(
+            client,
+            new IndexingPressure(settings),
+            MeterRegistry.NOOP,
+            newTaskManager(taskQueue.getThreadPool()),
+            taskQueue.getThreadPool(),
+            ClusterSettings.createBuiltInClusterSettings(Settings.EMPTY)
+        );
+
+        // first batch is successful; any later batch is marked as a failure
+        AtomicBoolean first = new AtomicBoolean(false);
+        RuntimeException failure = new RuntimeException("bulk failed");
+        doAnswer(invocation -> {
+            BulkRequest request = invocation.getArgument(0);
+            List<DocWriteRequest<?>> requests = request.requests();
+            ActionListener<BulkResponse> listener = invocation.getArgument(1);
+
+            if (first.compareAndSet(false, true)) {
+                BulkItemResponse[] itemResponses = new BulkItemResponse[requests.size()];
+                for (int i = 0; i < requests.size(); i++) {
+                    itemResponses[i] = BulkItemResponse.success(i, DocWriteRequest.OpType.INDEX, mock(DocWriteResponse.class));
+                }
+                listener.onResponse(new BulkResponse(itemResponses, 42L));
+            } else {
+                // remove all item requests, just as BulkOperation does
+                Collections.fill(requests, null);
+                listener.onFailure(failure);
+            }
+            return null;
+        }).when(client).bulk(any(), any());
+
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+        try (var handler = service.newBulkRequest()) {
+            handler.addItems(List.of(new IndexRequest("index").id("1").source("{}", XContentType.JSON)), () -> {}, () -> {});
+            handler.lastItems(
+                List.of(
+                    new IndexRequest("index").id("2").source("{}", XContentType.JSON),
+                    new IndexRequest("index").id("3").source("{}", XContentType.JSON)
+                ),
+                () -> {},
+                future
+            );
+        }
+
+        BulkItemResponse[] items = future.actionGet().getItems();
+        assertThat(items.length, equalTo(3));
+        assertFalse(items[0].isFailed());
+        assertThat(items[1].getFailure().getId(), equalTo("2"));
+        assertThat(items[1].getFailure().getCause(), sameInstance(failure));
+        assertThat(items[2].getFailure().getId(), equalTo("3"));
+        assertThat(items[2].getFailure().getCause(), sameInstance(failure));
+    }
+
+    private static TaskManager newTaskManager(ThreadPool threadPool) {
+        return new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
     }
 }

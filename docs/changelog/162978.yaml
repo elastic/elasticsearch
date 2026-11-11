@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162978
+summary: Fix shard lookup in `LuceneQueryEvaluator`
+type: bug

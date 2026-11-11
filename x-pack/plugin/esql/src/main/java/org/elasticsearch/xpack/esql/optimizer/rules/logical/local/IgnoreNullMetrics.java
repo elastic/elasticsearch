@@ -7,16 +7,20 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -38,13 +42,15 @@ import java.util.Set;
 public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSeriesAggregate> {
     @Override
     public LogicalPlan rule(TimeSeriesAggregate agg) {
+        AttributeMap<Attribute> castMetrics = metricsBehindCasts(agg.child());
         Set<Attribute> metrics = new HashSet<>();
         agg.forEachExpression(Attribute.class, attr -> {
-            if (attr.isMetric()) {
-                metrics.add(attr);
+            Attribute metric = metricOf(attr, castMetrics);
+            if (metric != null) {
+                metrics.add(metric);
             }
         });
-        if (metrics.isEmpty() || hasNonMetricInput(agg)) {
+        if (metrics.isEmpty() || hasNonMetricInput(agg, castMetrics)) {
             return agg;
         }
         Expression conditional = null;
@@ -68,7 +74,7 @@ public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSe
      * never been filtered out, and aggregations rely on seeing them, like {@code absent_over_time} or buckets reporting {@code null}.
      * </p>
      */
-    private static boolean hasNonMetricInput(TimeSeriesAggregate agg) {
+    private static boolean hasNonMetricInput(TimeSeriesAggregate agg, AttributeMap<Attribute> castMetrics) {
         Holder<Boolean> found = new Holder<>(false);
         agg.forEachExpression(AggregateFunction.class, af -> {
             // VALUES and DIMENSION_VALUES only carry the grouping keys from the per time series aggregation to the final one
@@ -77,13 +83,34 @@ public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSe
             }
             for (Expression field : af.fields()) {
                 for (Attribute attr : field.references()) {
-                    if (attr.isMetric() == false && attr.isDimension() == false && attr.semanticEquals(agg.timestamp()) == false) {
+                    if (metricOf(attr, castMetrics) == null
+                        && attr.isDimension() == false
+                        && attr.semanticEquals(agg.timestamp()) == false) {
                         found.set(true);
                     }
                 }
             }
         });
         return found.get();
+    }
+
+    private static Attribute metricOf(Attribute attr, AttributeMap<Attribute> castMetrics) {
+        return attr.isMetric() ? attr : castMetrics.get(attr);
+    }
+
+    private static AttributeMap<Attribute> metricsBehindCasts(LogicalPlan plan) {
+        AttributeMap.Builder<Attribute> castMetrics = AttributeMap.builder();
+        while (plan instanceof Eval eval) {
+            for (Alias alias : eval.fields()) {
+                if (alias.child() instanceof FromAggregateMetricDouble cast
+                    && cast.field() instanceof Attribute field
+                    && field.isMetric()) {
+                    castMetrics.put(alias.toAttribute(), field);
+                }
+            }
+            plan = eval.child();
+        }
+        return castMetrics.build();
     }
 
     /**

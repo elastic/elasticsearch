@@ -19,10 +19,13 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -31,6 +34,7 @@ import org.elasticsearch.search.query.ThrowingQueryBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -71,6 +75,41 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
 
             return List.of(slowRunningSpec, throwingSpec);
         }
+    }
+
+    /**
+     * With minimize_roundtrips, the coordinating node charges the local and remote responses while it merges them, and the hits the merged
+     * response keeps until it is released. The local response arrives already charged, so charging it twice or releasing it twice would
+     * leave the breaker away from zero.
+     */
+    public void testMinimizeRoundtripsResponseChargedUntilReleased() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+        // Test clusters sometimes give a node a no-op request breaker, so coordinate on one with a real breaker.
+        List<String> coordinators = Arrays.stream(cluster(LOCAL_CLUSTER).getNodeNames())
+            .filter(node -> requestBreaker(node) instanceof NoopCircuitBreaker == false)
+            .toList();
+        assumeFalse("every local node has a no-op request breaker", coordinators.isEmpty());
+        String coordinator = randomFrom(coordinators);
+        CircuitBreaker breaker = requestBreaker(coordinator);
+
+        SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
+        searchRequest.setCcsMinimizeRoundtrips(true);
+        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10));
+        SearchResponse response = cluster(LOCAL_CLUSTER).client(coordinator).search(searchRequest).actionGet();
+        try {
+            assertThat(response.getClusters().getClusterStateCount(Cluster.Status.SUCCESSFUL), equalTo(2));
+            assertThat(response.getHits().getHits().length, greaterThan(0));
+            assertThat(breaker.getUsed(), greaterThan(0L));
+        } finally {
+            response.decRef();
+        }
+        assertBusy(() -> assertThat(breaker.getUsed(), equalTo(0L)));
+    }
+
+    private CircuitBreaker requestBreaker(String localNode) {
+        return cluster(LOCAL_CLUSTER).getInstance(CircuitBreakerService.class, localNode).getBreaker(CircuitBreaker.REQUEST);
     }
 
     public void testClusterDetailsAfterSuccessfulCCS() throws Exception {

@@ -174,6 +174,11 @@ public class RestShardsAction extends AbstractCatAction {
             "alias:iifvc,indexingIndexFailedDueToVersionConflict;default:false;text-align:right;"
                 + "desc:number of failed indexing ops due to version conflict"
         );
+        table.addCell(
+            "indexing.index_failed_due_to_too_many_docs",
+            "alias:iiftmd,indexingIndexFailedDueToTooManyDocs;default:false;text-align:right;"
+                + "desc:number of failed indexing ops due to the shard reaching the maximum number of documents"
+        );
 
         table.addCell("merges.current", "alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges");
         table.addCell(
@@ -379,6 +384,7 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getIndexing, i -> i.getTotal().getIndexCount()));
             table.addCell(getOrNull(commonStats, CommonStats::getIndexing, i -> i.getTotal().getIndexFailedCount()));
             table.addCell(getOrNull(commonStats, CommonStats::getIndexing, i -> i.getTotal().getIndexFailedDueToVersionConflictCount()));
+            table.addCell(getOrNull(commonStats, CommonStats::getIndexing, i -> i.getTotal().getIndexFailedDueToTooManyDocsCount()));
 
             table.addCell(getOrNull(commonStats, CommonStats::getMerge, MergeStats::getCurrent));
             table.addCell(getOrNull(commonStats, CommonStats::getMerge, MergeStats::getCurrentNumDocs));

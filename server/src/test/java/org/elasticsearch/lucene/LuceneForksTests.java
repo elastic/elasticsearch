@@ -38,7 +38,9 @@ public class LuceneForksTests extends ESTestCase {
         for (Fork fork : LuceneForks.ALL) {
             assertTrue("duplicate registry entry " + fork.className(), seen.add(fork.className()));
             Class<?> clazz = Class.forName(fork.className());
-            assertThat(clazz.getSimpleName(), startsWith("X"));
+            if (fork.kind() == LuceneForks.Kind.FORK) {
+                assertThat(clazz.getSimpleName(), startsWith("X"));
+            }
         }
     }
 
@@ -51,6 +53,16 @@ public class LuceneForksTests extends ESTestCase {
         assertThat(message, containsString("a.b.XFoo"));
         assertThat(message, containsString("apache/lucene#1"));
         assertThat(message, containsString("Delete XFoo."));
+    }
+
+    public void testWorkaroundExpiry() {
+        Fork workaround = LuceneForks.workaround("a.b.Baz", "apache/lucene#2", 10, 6, 0, "Remove the check in Baz.");
+        assertEquals(LuceneForks.Kind.WORKAROUND, workaround.kind());
+        assertFalse(workaround.isExpired(Version.fromBits(10, 5, 2)));
+        assertTrue(workaround.isExpired(Version.fromBits(10, 6, 0)));
+        String message = workaround.expiryMessage(Version.fromBits(10, 6, 0));
+        assertThat(message, containsString("workaround in a.b.Baz"));
+        assertThat(message, containsString("Remove the check in Baz."));
     }
 
     public void testPermanentForksNeverExpire() {

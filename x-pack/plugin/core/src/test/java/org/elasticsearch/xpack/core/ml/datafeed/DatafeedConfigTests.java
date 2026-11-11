@@ -424,6 +424,44 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertThat(conf.build().getMaxEmptySearches(), is(nullValue()));
     }
 
+    public void testDefaultMaxConsecutiveExtractionFailuresIsNull() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndices(Collections.singletonList("index"));
+        assertThat(builder.build().getMaxConsecutiveExtractionFailures(), is(nullValue()));
+    }
+
+    public void testCheckValid_GivenInvalidMaxConsecutiveExtractionFailures() {
+        DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> conf.setMaxConsecutiveExtractionFailures(randomFrom(-2, 0))
+        );
+        assertThat(e.getMessage(), containsString("Invalid max_consecutive_extraction_failures value"));
+    }
+
+    public void testCheckValid_GivenMaxConsecutiveExtractionFailuresMinusOneResetsToDefault() {
+        DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
+        conf.setIndices(Collections.singletonList("whatever"));
+        conf.setMaxConsecutiveExtractionFailures(-1);
+        assertThat(conf.build().getMaxConsecutiveExtractionFailures(), is(nullValue()));
+    }
+
+    public void testCheckValid_GivenPositiveMaxConsecutiveExtractionFailures() {
+        DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
+        conf.setIndices(Collections.singletonList("whatever"));
+        conf.setMaxConsecutiveExtractionFailures(42);
+        assertThat(conf.build().getMaxConsecutiveExtractionFailures(), equalTo(42));
+    }
+
+    public void testMaxConsecutiveExtractionFailuresSurvivesSerializationRoundTrip() throws IOException {
+        DatafeedConfig.Builder builder = createRandomizedDatafeedConfigBuilder("job1", randomValidDatafeedId(), 3600000);
+        builder.setMaxConsecutiveExtractionFailures(randomIntBetween(1, 100));
+        DatafeedConfig config = builder.build();
+        DatafeedConfig deserialized = copyInstance(config);
+        assertThat(deserialized.getMaxConsecutiveExtractionFailures(), equalTo(config.getMaxConsecutiveExtractionFailures()));
+        assertThat(deserialized, equalTo(config));
+    }
+
     public void testCheckValid_GivenEmptyIndices() {
         DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
         conf.setIndices(Collections.emptyList());
@@ -786,6 +824,26 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(12), xContentRegistry()));
     }
 
+    public void testDefaultFrequencyGivenEsqlQueryShouldSnapToGroupingInterval() {
+        DatafeedConfig oneHourGrouping = createEsqlDatafeedBuilder().setGroupingInterval(TimeValue.timeValueHours(1)).build();
+        assertEquals(TimeValue.timeValueHours(1), oneHourGrouping.defaultFrequency(TimeValue.timeValueHours(1), xContentRegistry()));
+        assertEquals(TimeValue.timeValueHours(1), oneHourGrouping.defaultFrequency(TimeValue.timeValueHours(12), xContentRegistry()));
+
+        DatafeedConfig fiveMinuteGrouping = createEsqlDatafeedBuilder().setGroupingInterval(TimeValue.timeValueMinutes(5)).build();
+        assertEquals(TimeValue.timeValueMinutes(5), fiveMinuteGrouping.defaultFrequency(TimeValue.timeValueMinutes(5), xContentRegistry()));
+        assertEquals(
+            TimeValue.timeValueMinutes(10),
+            fiveMinuteGrouping.defaultFrequency(TimeValue.timeValueMinutes(20), xContentRegistry())
+        );
+
+        DatafeedConfig oneMinuteGrouping = createEsqlDatafeedBuilder().setGroupingInterval(TimeValue.timeValueMinutes(1)).build();
+        assertEquals(TimeValue.timeValueMinutes(1), oneMinuteGrouping.defaultFrequency(TimeValue.timeValueSeconds(60), xContentRegistry()));
+        assertEquals(
+            TimeValue.timeValueMinutes(2),
+            oneMinuteGrouping.defaultFrequency(TimeValue.timeValueSeconds(240), xContentRegistry())
+        );
+    }
+
     public void testSerializationOfComplexAggs() throws IOException {
         MaxAggregationBuilder maxTime = new MaxAggregationBuilder("timestamp").field("timestamp");
         AvgAggregationBuilder avgAggregationBuilder = new AvgAggregationBuilder("bytes_in_avg").field("system.network.in.bytes");
@@ -968,7 +1026,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     @Override
     protected DatafeedConfig mutateInstance(DatafeedConfig instance) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(instance);
-        switch (between(0, CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled() ? 14 : 12)) {
+        switch (between(0, CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled() ? 15 : 13)) {
             case 0:
                 builder.setId(instance.getId() + randomValidDatafeedId());
                 break;
@@ -1068,13 +1126,20 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                 }
                 break;
             case 13:
+                if (instance.getMaxConsecutiveExtractionFailures() == null) {
+                    builder.setMaxConsecutiveExtractionFailures(randomIntBetween(1, 100));
+                } else {
+                    builder.setMaxConsecutiveExtractionFailures(instance.getMaxConsecutiveExtractionFailures() + 1);
+                }
+                break;
+            case 14:
                 if (instance.getCloudInternalCredential() == null) {
                     builder.setCloudInternalCredential(randomPersistedCloudCredential());
                 } else {
                     builder.setCloudInternalCredential(null);
                 }
                 break;
-            case 14:
+            case 15:
                 if (instance.getProjectRouting() == null) {
                     builder.setProjectRouting("_alias:" + randomAlphaOfLengthBetween(1, 10) + "-*");
                 } else {
@@ -1109,6 +1174,10 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         }
         if (version.supports(DatafeedConfig.DATAFEED_CLOUD_INTERNAL_CREDENTIAL) == false) {
             builder.setCloudInternalCredential(null);
+        }
+        if (DatafeedConfig.maxConsecutiveExtractionFailuresOnWire(version) == false) {
+            // Absent on the wire below the original version and within the reverted window (before it was re-added).
+            builder.setMaxConsecutiveExtractionFailures(null);
         }
         return builder.build();
     }
@@ -2074,8 +2143,9 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         if (in.getTransportVersion().supports(DatafeedConfig.DATAFEED_CLOUD_INTERNAL_CREDENTIAL)) {
             in.readOptionalWriteable(PersistedCloudCredential::new);
         }
-        if (in.getTransportVersion().supports(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)
-            && in.getTransportVersion().supports(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED) == false) {
+        // The field is on the wire for the original feature era and again once it was re-added, so a pre-ES|QL version
+        // that supports the re-added transport version (a backport to a branch without ES|QL datafeeds) carries it too.
+        if (DatafeedConfig.maxConsecutiveExtractionFailuresOnWire(in.getTransportVersion())) {
             in.readOptionalInt();
         }
         return indicesOptions;

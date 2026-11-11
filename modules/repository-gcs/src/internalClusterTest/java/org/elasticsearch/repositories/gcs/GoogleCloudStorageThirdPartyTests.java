@@ -18,6 +18,7 @@ import com.google.cloud.storage.StorageException;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobVersionMismatchException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,7 +38,6 @@ import org.junit.ClassRule;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.NoSuchFileException;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
@@ -174,8 +174,8 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
                 container.writeBlob(randomPurpose(), blobKey, new BytesArray(updatedValue), false);
 
                 // Read the rest of the stream, it should throw because the contents changed
-                String message = assertThrows(NoSuchFileException.class, () -> readFully(inputStream)).getMessage();
-                assertThat(message, containsString("unavailable on resume (contents changed, or object deleted):"));
+                String message = assertThrows(BlobVersionMismatchException.class, () -> readFully(inputStream)).getMessage();
+                assertThat(message, containsString("is no longer available: contents were modified"));
             } catch (Exception e) {
                 fail(e);
             }

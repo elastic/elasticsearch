@@ -123,6 +123,39 @@ teardown:
   - match: { _source.field_to_html_strip: "\nthis \nis\n a test" }
 
 ---
+"Test remove processor with template snippets and ignore_missing":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "remove" : {
+                  "field" : "{{foo}}",
+                  "ignore_missing": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: {
+          message: "test"
+        }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.message: "test" }
+
+---
 "Test metadata":
   - do:
       cluster.health:

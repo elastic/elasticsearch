@@ -39,7 +39,7 @@ import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.InternalFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -124,6 +124,11 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     private final NavigableMap<Long, InternalDataReader> internalDataReadersByOffset = new ConcurrentSkipListMap<>();
     private final AtomicLong currentOffset = new AtomicLong();
     private final AtomicLong logicalSize = new AtomicLong();
+    // Size fields technically don't need to be atomic since they are written under a lock.
+    // But having them volatile produces a warning in the IDE, and there is pretty much no logical difference between the two anyway.
+    private final AtomicLong headersSizeBytes = new AtomicLong();
+    private final AtomicLong replicatedContentSizeBytes = new AtomicLong();
+    private final AtomicLong copiedGenerationalFilesSizeBytes = new AtomicLong();
     private final AtomicReference<Thread> appendingCommitThread = new AtomicReference<>();
     private final BlobFile blobFile;
     private final PrimaryTermAndGeneration primaryTermAndGeneration;
@@ -346,11 +351,13 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 referencedFiles.put(commitFile, blobLocation);
             }
         }
+        copiedGenerationalFilesSizeBytes.addAndGet(copiedGenerationalFilesSize);
 
         var replicatedContent = useInternalFilesReplicatedContent
             ? getReplicatedContent(ccTermAndGen, currentOffset.get(), internalFiles, internalFilesSize, reference.getDirectory())
             : ReplicatedContent.EMPTY;
         var replicatedContentHeader = replicatedContent.header();
+        replicatedContentSizeBytes.addAndGet(replicatedContentHeader.dataSizeInBytes());
 
         // We replicate referenced .si files into hollow commits as extra content appended after the internal files in the compound commit.
         final List<InternalFile> extraContentFiles = reference.isHollow() ? new ArrayList<>() : List.of();
@@ -374,6 +381,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             timestampFieldValueRange
         );
         final int headerLength = Math.toIntExact(headerReader.headerSize());
+        headersSizeBytes.addAndGet(headerLength);
 
         final long sizeInBytes = headerLength + replicatedContentHeader.dataSizeInBytes() + internalFilesSize + extraContentSize;
         if (logger.isDebugEnabled()) {
@@ -861,6 +869,22 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         return logicalSize.get();
     }
 
+    /// Returns the total size (the sum) of headers of all compound commits in this batched commit.
+    public long headersSizeInBytes() {
+        return headersSizeBytes.get();
+    }
+
+    /// Returns the size of copied generational files in this batched commit.
+    /// Such files are copied into the first commit of a BCC only.
+    public long copiedGenerationalFilesSizeInBytes() {
+        return copiedGenerationalFilesSizeBytes.get();
+    }
+
+    /// Returns the total size (the sum) of replicated content of all compound commits in this batched commit.
+    public long replicatedContentSizeInBytes() {
+        return replicatedContentSizeBytes.get();
+    }
+
     public Map<String, BlobLocation> getInternalLocations() {
         return internalLocations;
     }
@@ -935,10 +959,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         assert length >= 0 : "invalid length " + length;
         assert offset + length <= currentOffset.get() : "range [" + offset + ", " + length + "] more than " + currentOffset.get();
         assert ThreadPool.assertCurrentThreadPool(
-            StatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL,
-            StatelessPlugin.SHARD_WRITE_THREAD_POOL,
-            StatelessPlugin.PREWARM_THREAD_POOL,
-            StatelessPlugin.UPLOAD_PREWARM_THREAD_POOL
+            StatelessThreadPools.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL,
+            StatelessThreadPools.SHARD_WRITE_THREAD_POOL,
+            StatelessThreadPools.PREWARM_THREAD_POOL,
+            StatelessThreadPools.UPLOAD_PREWARM_THREAD_POOL
         );
 
         if (tryIncRef()) {

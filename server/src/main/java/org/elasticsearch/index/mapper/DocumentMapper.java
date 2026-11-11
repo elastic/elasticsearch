@@ -38,28 +38,21 @@ public class DocumentMapper {
      * @return the newly created document mapper
      */
     public static DocumentMapper createEmpty(MapperService mapperService) {
-        RootObjectMapper root = new RootObjectMapper.Builder(
-            MapperService.SINGLE_MAPPING_NAME,
-            mapperService.getIndexMode().isStrictColumnar() ? ObjectMapper.Defaults.SUBOBJECTS_COLUMNAR : ObjectMapper.Defaults.SUBOBJECTS
-        ).build(
-            MapperBuilderContext.root(
-                false,
-                false,
-                MapperService.MergeReason.MAPPING_UPDATE,
-                mapperService.getIndexMode().isStrictColumnar(),
-                false
-            )
+        boolean strictColumnar = mapperService.getIndexMode().isStrictColumnar();
+        MappingBuilder mappingBuilder = new MappingBuilder(
+            new RootObjectMapper.Builder(
+                MapperService.SINGLE_MAPPING_NAME,
+                strictColumnar ? ObjectMapper.Defaults.SUBOBJECTS_COLUMNAR : ObjectMapper.Defaults.SUBOBJECTS
+            ),
+            mapperService.getMetadataBuilders(),
+            null,
+            strictColumnar
         );
-        MetadataFieldMapper[] metadata = mapperService.getMetadataBuilders()
-            .values()
-            .stream()
-            .map(MetadataFieldMapper.Builder::build)
-            .toArray(MetadataFieldMapper[]::new);
-        Mapping mapping = new Mapping(root, metadata, null);
+        Mapping mapping = mappingBuilder.build(MapperService.MergeReason.MAPPING_UPDATE);
         return new DocumentMapper(
             mapperService.documentParser(),
             mapping,
-            mapping.toCompressedXContent(),
+            mappingBuilder.toCompressedXContent(),
             IndexVersion.current(),
             mapperService.getMapperMetrics(),
             mapperService.index().getName(),
@@ -78,7 +71,7 @@ public class DocumentMapper {
     ) {
         this.documentParser = documentParser;
         this.type = mapping.getRoot().fullPath();
-        this.mappingLookup = MappingLookup.fromMapping(mapping, indexMode);
+        this.mappingLookup = MappingLookup.fromMapping(mapping, indexMode, source);
         this.mappingSource = source;
         this.mapperMetrics = mapperMetrics;
         this.indexVersion = version;

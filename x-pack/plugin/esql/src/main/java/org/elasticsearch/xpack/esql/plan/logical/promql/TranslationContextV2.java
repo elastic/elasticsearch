@@ -49,7 +49,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
-import org.elasticsearch.xpack.esql.plan.logical.promql.LabelTranslationContext.IntermediateResult.Kind;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2.IntermediateResult.Kind;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Instant;
@@ -68,7 +68,7 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combi
  * a pushdown rule does after translation. This context also preserves aggregation boundaries and assembles the command
  * output.
  */
-public record LabelTranslationContext(
+public record TranslationContextV2(
     PromqlCommand cmd,
     AnalyzerContext analyzer,
     /* Alias for the step bucket expression used in all aggregation groupings. May be null for empty indices. */
@@ -81,7 +81,7 @@ public record LabelTranslationContext(
     private static final Instant EPOCH_MIN = Instant.EPOCH;
     private static final Instant EPOCH_MAX = Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999);
 
-    public LabelTranslationContext(PromqlCommand cmd, AnalyzerContext analyzer) {
+    public TranslationContextV2(PromqlCommand cmd, AnalyzerContext analyzer) {
         this(cmd, analyzer, null, null);
     }
 
@@ -90,7 +90,7 @@ public record LabelTranslationContext(
      * intermediate results travel back up.
      */
     public IntermediateResult translate(LogicalPlan node) {
-        return LabelTranslator.translate(node, this);
+        return TranslatorV2.translate(node, this);
     }
 
     /** The labels of a vector without labels. */
@@ -115,7 +115,7 @@ public record LabelTranslationContext(
     public IntermediateResult translateIntermediate(LogicalPlan branch, NameId stepId, NameId valueId) {
         Expression branchTime = cmd.collectEvaluationTimestampForBranch(branch);
         Alias step = canCreateStepBucket() ? emitStepBucketExpression(stepId, branchTime) : null;
-        var run = new LabelTranslationContext(cmd, analyzer, step, branchTime);
+        var run = new TranslationContextV2(cmd, analyzer, step, branchTime);
         return run.finishIntermediate(branch, run.translate(branch), valueId);
     }
 
@@ -139,7 +139,7 @@ public record LabelTranslationContext(
             ids.put(ref.id(), fresh.id());
             branchTime = fresh;
         }
-        var run = new LabelTranslationContext(cmd, analyzer, step, branchTime);
+        var run = new TranslationContextV2(cmd, analyzer, step, branchTime);
         return run.finishIntermediate(branch, reid(translated, ids), valueId);
     }
 

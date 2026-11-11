@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.promql.LabelTranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2.IntermediateResult;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.time.Instant;
@@ -40,7 +40,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Translates a {@link PromqlCommand} over a label container: the query translated by {@link LabelTranslationContext}, projected
+ * Translates a {@link PromqlCommand} over a label container: the query translated by {@link TranslationContextV2}, projected
  * to the command's declared output, each declared label read off the result's label container.
  */
 public final class PromqlCommandLabelTranslation {
@@ -53,7 +53,7 @@ public final class PromqlCommandLabelTranslation {
 
     /** The command's ES|QL plan. */
     public static LogicalPlan translate(PromqlCommand cmd, AnalyzerContext analyzer) {
-        var context = new LabelTranslationContext(cmd, analyzer);
+        var context = new TranslationContextV2(cmd, analyzer);
         IntermediateResult result = context.translateIntermediate(cmd.promqlPlan(), cmd.stepId(), cmd.valueId());
         boolean constant = result.kind().constant;
         return finish(cmd, emitFinalProjection(cmd, result.plan(), result.labels(), constant, context), constant);
@@ -92,7 +92,7 @@ public final class PromqlCommandLabelTranslation {
         LogicalPlan plan,
         @Nullable Expression labels,
         boolean constant,
-        LabelTranslationContext context
+        TranslationContextV2 context
     ) {
         var lookupMap = new HashMap<String, Attribute>();
         for (var attr : plan.output()) {
@@ -120,7 +120,7 @@ public final class PromqlCommandLabelTranslation {
                 Attribute label = declared.get(i - 2);
                 if (PromqlLabels.isTagsLabel(label)) {
                     Expression rest = labels == null
-                        ? LabelTranslationContext.emptyLabels(source)
+                        ? TranslationContextV2.emptyLabels(source)
                         : new TimeSeriesMetadataFilter(labels.source(), labels, PromqlLabels.labelLiterals(labels.source(), named), true);
                     Alias labelContainer = new Alias(source, attr.name(), rest);
                     evals.add(labelContainer);
@@ -182,7 +182,7 @@ public final class PromqlCommandLabelTranslation {
     }
 
     /** A label's text as the declared label's type: a label read from the container is text, a dimension may not be. */
-    private static Expression asType(Expression text, DataType type, LabelTranslationContext context) {
+    private static Expression asType(Expression text, DataType type, TranslationContextV2 context) {
         if (type == DataType.KEYWORD || type == DataType.NULL) {
             return text;
         }

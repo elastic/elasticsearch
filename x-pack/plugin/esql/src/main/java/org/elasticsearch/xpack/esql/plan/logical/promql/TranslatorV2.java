@@ -9,17 +9,17 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.promql.LabelTranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2.IntermediateResult;
 
 /**
- * Translates each PromQL node over a label container, {@link LabelTranslationContext}, next to the translation over label
+ * Translates each PromQL node over a label container, {@link TranslationContextV2}, next to the translation over label
  * columns that {@link PromqlPlan#translate} still does. A node joins once its translation over the label container exists.
  */
-final class LabelTranslator {
+final class TranslatorV2 {
 
-    private LabelTranslator() {}
+    private TranslatorV2() {}
 
-    static IntermediateResult translate(LogicalPlan node, LabelTranslationContext context) {
+    static IntermediateResult translate(LogicalPlan node, TranslationContextV2 context) {
         switch (node) {
             default -> throw new QlIllegalArgumentException(
                 "PromQL plan node [{}] does not translate over a label container yet",

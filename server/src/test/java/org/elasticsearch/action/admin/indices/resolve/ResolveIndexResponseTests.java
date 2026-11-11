@@ -70,7 +70,16 @@ public class ResolveIndexResponseTests extends AbstractXContentSerializingTestCa
 
     @Override
     protected Response mutateInstance(Response instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        List<ResolvedIndex> indices = new ArrayList<>(instance.getIndices());
+        List<ResolvedAlias> aliases = new ArrayList<>(instance.getAliases());
+        List<ResolvedDataStream> dataStreams = new ArrayList<>(instance.getDataStreams());
+        switch (between(0, 2)) {
+            case 0 -> indices.add(createTestResolvedIndexInstance());
+            case 1 -> aliases.add(createTestResolvedAliasInstance());
+            case 2 -> dataStreams.add(createTestResolvedDataStreamInstance());
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new Response(indices, aliases, dataStreams);
     }
 
     private static ResolvedIndex createTestResolvedIndexInstance() {

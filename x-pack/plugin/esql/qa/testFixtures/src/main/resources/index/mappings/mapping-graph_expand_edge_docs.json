@@ -1,0 +1,13 @@
+{
+  "properties": {
+    "src": {
+      "type": "keyword"
+    },
+    "kind": {
+      "type": "keyword"
+    },
+    "dst": {
+      "type": "keyword"
+    }
+  }
+}

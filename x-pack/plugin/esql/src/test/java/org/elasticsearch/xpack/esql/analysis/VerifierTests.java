@@ -5266,7 +5266,7 @@ public class VerifierTests extends AnalyzerTestCase {
             "FROM test* | KEEP multi_typed | DEDUP",
             equalTo(
                 "1:33: DEDUP cannot compare columns with conflicting types: [multi_typed] with types [integer, long];"
-                    + " convert each to a single type first, for example EVAL multi_typed = multi_typed::keyword, or DROP it"
+                    + " convert each to a single type first, for example EVAL `multi_typed` = `multi_typed`::keyword, or DROP it"
             )
         );
     }
@@ -5278,9 +5278,45 @@ public class VerifierTests extends AnalyzerTestCase {
             equalTo(
                 "1:14: DEDUP cannot compare columns with conflicting types: [multi_typed] with types [integer, long],"
                     + " [other_multi_typed] with types [keyword, text];"
-                    + " convert each to a single type first, for example EVAL multi_typed = multi_typed::keyword, or DROP it"
+                    + " convert each to a single type first, for example EVAL `multi_typed` = `multi_typed`::keyword, or DROP it"
             )
         );
+    }
+
+    public void testDedupQuotesUnionTypeFieldNameInConversionExample() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        assertQuotedUnionTypeExample("emp-no", "`emp-no`");
+        assertQuotedUnionTypeExample("emp`no", "`emp``no`");
+    }
+
+    private void assertQuotedUnionTypeExample(String name, String quoted) {
+        String query = "FROM test* | KEEP " + quoted + " | DEDUP";
+        TestAnalyzer analyzer = unionTypeColumnAnalyzer(name);
+        analyzer.error(
+            query,
+            equalTo(
+                "1:"
+                    + (query.indexOf("DEDUP") + 1)
+                    + ": DEDUP cannot compare columns with conflicting types: ["
+                    + name
+                    + "] with types [integer, long];"
+                    + " convert each to a single type first, for example EVAL "
+                    + quoted
+                    + " = "
+                    + quoted
+                    + "::keyword, or DROP it"
+            )
+        );
+        analyzer.query("FROM test* | EVAL " + quoted + " = " + quoted + "::long | DEDUP");
+    }
+
+    /** One union-type column, named so the conversion example has to quote it. */
+    private TestAnalyzer unionTypeColumnAnalyzer(String name) {
+        Map<String, EsField> mapping = Map.of(
+            name,
+            new InvalidMappedField(name, Map.of("integer", Set.of("test1"), "long", Set.of("test2")))
+        );
+        return analyzer().addIndex("test*", IndexResolution.valid(EsIndexGenerator.esIndex("test*", mapping))).stripErrorPrefix(true);
     }
 
     public void testDedupRejectsUnionTypeColumnConvertedAfterDedup() {

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.parser.ParserUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -99,7 +100,8 @@ public class Dedup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryA
             String columns = unionTyped.stream()
                 .map(ua -> "[" + ua.name() + "] with types " + new TreeSet<>(ua.originalTypes()))
                 .collect(Collectors.joining(", "));
-            String example = unionTyped.getFirst().name();
+            // name() is unquoted. A field such as emp-no has to be quoted or the suggested EVAL does not parse.
+            String example = ParserUtils.quoteIdString(unionTyped.getFirst().name());
             failures.add(
                 fail(
                     this,

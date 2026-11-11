@@ -12,7 +12,8 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringRenderable;
@@ -36,6 +37,9 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMat
 public class LabelMatcher implements NodeStringRenderable {
 
     public static final String NAME = "__name__";
+
+    /** Characters that are literals in RE2 but operators in Lucene {@link RegExp}; see {@link #rlikePattern}. */
+    private static final String LUCENE_ONLY_OPERATORS = "\"#&<@~";
 
     public enum Matcher {
         EQ("=", false),
@@ -132,16 +136,12 @@ public class LabelMatcher implements NodeStringRenderable {
             result = Operations.union(automata);
         } else if (isMultiValue()) {
             // Multi-value regex: union of all regex patterns
-            List<Automaton> automata = values.stream().map(v -> new RegExp(v).toAutomaton()).toList();
+            List<Automaton> automata = values.stream().map(LabelMatcher::regexAutomaton).toList();
             result = Operations.union(automata);
         } else {
             // Single value
             String v = getFirstValue();
-            try {
-                result = matcher.isRegex() ? new RegExp(v).toAutomaton() : Automata.makeString(v);
-            } catch (IllegalArgumentException ex) {
-                throw new QlIllegalArgumentException(ex, "Cannot parse regex {}", v);
-            }
+            result = matcher.isRegex() ? regexAutomaton(v) : Automata.makeString(v);
         }
         result = MinimizationOperations.minimize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         // negate if needed
@@ -150,6 +150,51 @@ public class LabelMatcher implements NodeStringRenderable {
         }
         automaton = result;
         return automaton;
+    }
+
+    /**
+     * Lowers a PromQL regex to an {@link RLikePattern}, so that the matcher's automaton and the {@code RLIKE} filter
+     * agree on what it matches. PromQL regexes use RE2 syntax, where {@code " # & < @ ~} are literals, but
+     * {@link RLikePattern} parses Lucene {@link RegExp} syntax, where they are operators (quoted string, empty language,
+     * intersection, interval, any string, complement). They are escaped outside character classes; inside one Lucene
+     * reads them literally already and an escaped character cannot start a range.
+     */
+    public static RLikePattern rlikePattern(String regex) {
+        StringBuilder sb = new StringBuilder(regex.length());
+        boolean inClass = false;
+        for (int i = 0, n = regex.length(); i < n; i++) {
+            char c = regex.charAt(i);
+            if (c == '\\' && i + 1 < n) {
+                sb.append(c).append(regex.charAt(++i));
+            } else if (inClass) {
+                inClass = c != ']';
+                sb.append(c);
+            } else if (c == '[') {
+                inClass = true;
+                sb.append(c);
+                // a ']' right after '[' or '[^' is a literal, not the end of the class
+                if (i + 1 < n && regex.charAt(i + 1) == '^') {
+                    sb.append(regex.charAt(++i));
+                }
+                if (i + 1 < n && regex.charAt(i + 1) == ']') {
+                    sb.append(regex.charAt(++i));
+                }
+            } else {
+                if (LUCENE_ONLY_OPERATORS.indexOf(c) >= 0) {
+                    sb.append('\\');
+                }
+                sb.append(c);
+            }
+        }
+        return new RLikePattern(sb.toString());
+    }
+
+    private static Automaton regexAutomaton(String regex) {
+        try {
+            return rlikePattern(regex).createAutomaton(false);
+        } catch (IllegalArgumentException e) {
+            throw new InvalidArgumentException(e, "Invalid regular expression [{}]: {}", regex, e.getMessage());
+        }
     }
 
     public boolean matchesAll() {

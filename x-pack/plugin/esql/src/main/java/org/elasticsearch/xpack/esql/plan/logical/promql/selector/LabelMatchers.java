@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringRenderable;
@@ -121,7 +120,7 @@ public class LabelMatchers implements NodeStringRenderable {
             // each value is a regex, combine with OR; plain literals match exact with an IN clause
             condition = matcher.matcher().isRegex()
                 ? Predicates.combineOr(
-                    matcher.values().stream().<Expression>map(v -> new RLike(source, field, new RLikePattern(v))).toList()
+                    matcher.values().stream().<Expression>map(v -> new RLike(source, field, LabelMatcher.rlikePattern(v))).toList()
                 )
                 : new In(source, field, matcher.values().stream().<Expression>map(v -> Literal.keyword(source, v)).toList());
             if (matcher.isNegation()) {
@@ -136,7 +135,7 @@ public class LabelMatchers implements NodeStringRenderable {
                 condition = fragments != null && fragments.isEmpty() == false
                     ? operatorFn(source, field, fragments)
                     // fallback: RLIKE over the full pattern, anchored per PromQL semantics
-                    : new RLike(source, field, new RLikePattern(matcher.getFirstValue()));
+                    : new RLike(source, field, LabelMatcher.rlikePattern(matcher.getFirstValue()));
                 if (matcher.isNegation()) {
                     condition = new Not(source, condition);
                 }
@@ -165,7 +164,7 @@ public class LabelMatchers implements NodeStringRenderable {
                 case PROPER_PREFIX -> new And(source, new NotEquals(source, field, value), new StartsWith(source, field, value));
                 case SUFFIX -> new EndsWith(source, field, value);
                 case PROPER_SUFFIX -> new And(source, new NotEquals(source, field, value), new EndsWith(source, field, value));
-                case REGEX -> new RLike(source, field, new RLikePattern(f.value()));
+                case REGEX -> new RLike(source, field, LabelMatcher.rlikePattern(f.value()));
             };
         }).toList();
 

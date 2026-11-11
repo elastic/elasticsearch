@@ -7,13 +7,17 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 
+import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher.Matcher;
 
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class LabelMatcherTests extends ESTestCase {
 
@@ -138,6 +142,76 @@ public class LabelMatcherTests extends ESTestCase {
 
         LabelMatcher specific = new LabelMatcher("label", "value", Matcher.EQ);
         assertFalse(specific.matchesNone());
+    }
+
+    /** RE2 reads Lucene-only operators as literals: quoting, empty language, intersection, interval, any string, complement. */
+    public void testRegexLuceneOnlyOperatorsAreLiterals() {
+        for (String regex : List.of("\"q\"x", "#", "a&b", "a<1-3>", "@", "~a")) {
+            LabelMatcher matcher = new LabelMatcher("label", regex, Matcher.REG);
+            assertThat(regex, AutomatonUtils.matchesExact(matcher.automaton()), equalTo(regex));
+
+            LabelMatcher negated = new LabelMatcher("label", regex, Matcher.NREG);
+            assertFalse(regex, Operations.run(negated.automaton(), regex));
+            assertTrue(regex, Operations.run(negated.automaton(), "q"));
+            assertFalse(regex, negated.matchesAll());
+        }
+    }
+
+    public void testRegexLuceneOnlyOperatorsInsideExpression() {
+        LabelMatcher matcher = new LabelMatcher("label", "(a<1-3>|b)", Matcher.REG);
+        assertTrue(Operations.run(matcher.automaton(), "a<1-3>"));
+        assertTrue(Operations.run(matcher.automaton(), "b"));
+        assertFalse(Operations.run(matcher.automaton(), "a1"));
+
+        matcher = new LabelMatcher("label", "x|#|a.*@", Matcher.REG);
+        assertTrue(Operations.run(matcher.automaton(), "x"));
+        assertTrue(Operations.run(matcher.automaton(), "#"));
+        assertTrue(Operations.run(matcher.automaton(), "abc@"));
+        assertFalse(Operations.run(matcher.automaton(), "abc"));
+        assertFalse(matcher.matchesEmpty());
+    }
+
+    public void testRegexEscapes() {
+        // an escaped operator stays a single literal
+        LabelMatcher matcher = new LabelMatcher("label", "a\\<1-3>\\&", Matcher.REG);
+        assertThat(AutomatonUtils.matchesExact(matcher.automaton()), equalTo("a<1-3>&"));
+        // an escaped backslash does not escape the operator after it
+        matcher = new LabelMatcher("label", "\\\\#", Matcher.REG);
+        assertThat(AutomatonUtils.matchesExact(matcher.automaton()), equalTo("\\#"));
+    }
+
+    public void testRegexCharacterClass() {
+        LabelMatcher matcher = new LabelMatcher("label", "[#-@]", Matcher.REG);
+        assertTrue(Operations.run(matcher.automaton(), "#"));
+        assertTrue(Operations.run(matcher.automaton(), "1"));
+        assertTrue(Operations.run(matcher.automaton(), "@"));
+        assertFalse(Operations.run(matcher.automaton(), "a"));
+
+        // a ']' right after '[' or '[^' is a literal; the '&' after the class is an RE2 literal again
+        matcher = new LabelMatcher("label", "[]~]&", Matcher.REG);
+        assertTrue(Operations.run(matcher.automaton(), "]&"));
+        assertTrue(Operations.run(matcher.automaton(), "~&"));
+        matcher = new LabelMatcher("label", "[^]]&", Matcher.REG);
+        assertTrue(Operations.run(matcher.automaton(), "a&"));
+        assertFalse(Operations.run(matcher.automaton(), "]&"));
+    }
+
+    /** The {@code RLIKE} filter must match exactly what the matcher's automaton matches. */
+    public void testRlikePatternAgreesWithAutomaton() {
+        for (String regex : List.of("(a<1-3>|b)", "(a&b)", "(#)", "(@)", "(~a)", "(\"q\"x)", "[#-@]&.*", "a\\<1-3>|\\\\#")) {
+            Automaton expected = new LabelMatcher("label", regex, Matcher.REG).automaton();
+            Automaton actual = LabelMatcher.rlikePattern(regex).createAutomaton(false);
+            assertTrue(regex, AutomatonTestUtil.sameLanguage(expected, actual));
+        }
+        assertThat(LabelMatcher.rlikePattern("[#&]#&<@~\"\\#").pattern(), equalTo("[#&]\\#\\&\\<\\@\\~\\\"\\#"));
+    }
+
+    public void testInvalidRegex() {
+        for (String regex : List.of("(", "[a", "\\")) {
+            LabelMatcher matcher = new LabelMatcher("label", regex, Matcher.REG);
+            InvalidArgumentException e = expectThrows(InvalidArgumentException.class, matcher::automaton);
+            assertThat(e.getMessage(), startsWith("Invalid regular expression [" + regex + "]"));
+        }
     }
 
     public void testIsNegation() {

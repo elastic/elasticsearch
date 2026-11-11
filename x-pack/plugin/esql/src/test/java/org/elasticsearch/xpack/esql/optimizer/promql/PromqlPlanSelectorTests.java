@@ -183,6 +183,15 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(rLike.pattern().pattern(), equalTo("f.o"));
     }
 
+    /** The RLIKE fallback escapes operators that are literals in PromQL (RE2) but not in Lucene regex syntax. */
+    public void testLabelSelectorRegexLuceneOnlyOperatorsAreLiterals() {
+        var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!~\"(a<1-3>|~b&c)\"})");
+        var not = collectInnermostSelectorFilter(plan, Not.class);
+        var rLike = as(not.field(), RLike.class);
+        assertThat(as(rLike.field(), FieldAttribute.class).name(), equalTo("pod"));
+        assertThat(rLike.pattern().pattern(), equalTo("(a\\<1-3>|\\~b\\&c)"));
+    }
+
     public void testLabelSelectors() {
         var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!=\"foo\",cluster=~\"bar|baz\",region!~\"us-.*\"})");
         assertTrue(anyFilterContains(plan, Not.class));

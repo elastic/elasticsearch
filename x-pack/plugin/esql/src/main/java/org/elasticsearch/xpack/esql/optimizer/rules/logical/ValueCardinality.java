@@ -217,7 +217,7 @@ enum ValueCardinality {
     }
 
     /**
-     * The same question for an output of an earlier {@code STATS}: an aggregate function or a grouping key.
+     * The same question for an output of an earlier {@code STATS}: a grouping key or an aggregate.
      */
     private static ValueCardinality ofAggregateOutput(Attribute attribute, Aggregate aggregate) {
         NamedExpression output = aggregate.aggregates().stream().filter(o -> o.id().equals(attribute.id())).findFirst().orElse(null);
@@ -233,14 +233,17 @@ enum ValueCardinality {
         }
 
         Expression unwrapped = Alias.unwrap(output);
-        assert unwrapped instanceof AggregateFunction
-            : "output [" + output.name() + "] is neither a grouping key nor an aggregate function";
-        if (unwrapped instanceof Count) {
-            return SINGLE;
+        if (unwrapped instanceof AggregateFunction) {
+            if (unwrapped instanceof Count) {
+                return SINGLE;
+            }
+            // TODO support other aggregate functions.
+            // Some can return a list (VALUES, TOP, ...).
+            return MAYBE_MULTI;
         }
 
-        // TODO support other aggregate functions.
-        // Some can return a list (VALUES, TOP, ...).
+        // Not an aggregate function. On a plan that is not optimized yet, an output can be an expression over aggregates, such as
+        // COUNT(*) + 1, or a filtered aggregate.
         return MAYBE_MULTI;
     }
 

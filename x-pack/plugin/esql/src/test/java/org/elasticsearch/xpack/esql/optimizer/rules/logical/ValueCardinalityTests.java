@@ -198,6 +198,18 @@ public class ValueCardinalityTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(cardinalityOfKey(query, "languages"), equalTo(SINGLE));
     }
 
+    /**
+     * On an analyzed plan, an output of a {@code STATS} can be an expression over aggregates, or an aggregate with a filter, instead
+     * of one aggregate function. Both are unknown, and asking about them must not fail an assertion.
+     */
+    public void testEarlierAggregateOutputThatIsNotAnAggregateFunctionIsUnknown() {
+        String expression = "FROM test | STATS c = COUNT(*) + 1 | STATS n = COUNT(*) BY c";
+        assertThat(cardinalityOfKey(expression, "c"), equalTo(MAYBE_MULTI));
+
+        String filtered = "FROM test | STATS c = COUNT(*) WHERE salary > 1 | STATS n = COUNT(*) BY c";
+        assertThat(cardinalityOfKey(filtered, "c"), equalTo(MAYBE_MULTI));
+    }
+
     public void testEarlierAggregateValuesIsUnknown() {
         String query = "FROM test | STATS v = VALUES(languages) BY first_name | STATS n = COUNT(*) BY v";
         assertThat(cardinalityOfKey(query, "v"), equalTo(MAYBE_MULTI));

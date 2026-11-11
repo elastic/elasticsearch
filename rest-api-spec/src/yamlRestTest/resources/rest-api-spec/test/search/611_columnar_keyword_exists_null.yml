@@ -1,0 +1,113 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "columnar index mode required"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              indexed:
+                type: keyword
+                index: true
+              unindexed:
+                type: keyword
+                index: false
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{ "indexed": "a", "unindexed": "a" }'
+          - '{ "index": { "_id": "value_and_null" } }'
+          - '{ "indexed": [ "b", null ], "unindexed": [ "b", null ] }'
+          - '{ "index": { "_id": "only_null" } }'
+          - '{ "indexed": [ null ], "unindexed": [ null ] }'
+          - '{ "index": { "_id": "missing" } }'
+          - '{ "other": "c" }'
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: test
+        ignore_unavailable: true
+
+---
+exists total equals the hits returned for a keyword field without an index:
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: unindexed } }
+          size: 10
+          track_total_hits: true
+          _source: false
+
+  - length: { hits.hits: 3 }
+  - match: { hits.total.value: 3 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: unindexed } }
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 3 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: unindexed } }
+
+  - match: { count: 3 }
+
+---
+exists total equals the hits returned for an indexed keyword field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "exists total excludes documents that hold only nulls"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: indexed } }
+          size: 10
+          track_total_hits: true
+          _source: false
+
+  - length: { hits.hits: 3 }
+  - match: { hits.total.value: 3 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: indexed } }
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 3 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: indexed } }
+
+  - match: { count: 3 }

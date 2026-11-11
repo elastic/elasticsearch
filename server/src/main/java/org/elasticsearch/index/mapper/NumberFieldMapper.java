@@ -40,7 +40,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.columnar.ColumnarFieldType;
-import org.elasticsearch.columnar.ColumnarNumericRangeQuery;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
@@ -66,12 +65,10 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedDoubleIndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedNumericIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.ColumnarLongIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
-import org.elasticsearch.index.mapper.blockloader.docvalues.ColumnarLongsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
@@ -1745,7 +1742,7 @@ public class NumberFieldMapper extends FieldMapper {
                 if (hasDecimalPart(value)) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
-                if (isOutOfRange(value)) {
+                if (isOutOfLongRange(value)) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] is out of range");
                 }
 
@@ -1800,7 +1797,7 @@ public class NumberFieldMapper extends FieldMapper {
                 if (value instanceof Byte b) {
                     return encodeLongIndexTerm(b);
                 }
-                if (hasDecimalPart(value) || isOutOfRange(value)) {
+                if (hasDecimalPart(value) || isOutOfLongRange(value)) {
                     return null;
                 }
                 return encodeLongIndexTerm(parse(value, true));
@@ -1884,48 +1881,6 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            Query columnarTermQuery(String field, Object value, IndexType indexType) {
-                if (hasDecimalPart(value)) {
-                    return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
-                }
-                if (isOutOfRange(value)) {
-                    return Queries.newMatchNoDocsQuery("Value [" + value + "] is out of range");
-                }
-                long v = parse(value, true);
-                Query dvQuery = new ColumnarNumericRangeQuery(field, v, v);
-                return indexType.hasPoints() ? new IndexOrDocValuesQuery(LongPoint.newExactQuery(field, v), dvQuery) : dvQuery;
-            }
-
-            @Override
-            Query columnarRangeQuery(
-                String field,
-                Object lowerTerm,
-                Object upperTerm,
-                boolean includeLower,
-                boolean includeUpper,
-                IndexType indexType
-            ) {
-                return longRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (l, u) -> {
-                    Query dvQuery = new ColumnarNumericRangeQuery(field, l, u);
-                    if (indexType.hasTerms()) {
-                        Query termsQuery = new TermRangeQuery(field, encodeLongIndexTerm(l), encodeLongIndexTerm(u), true, true);
-                        return new IndexOrDocValuesQuery(termsQuery, dvQuery);
-                    }
-                    return indexType.hasPoints() ? new IndexOrDocValuesQuery(LongPoint.newRangeQuery(field, l, u), dvQuery) : dvQuery;
-                });
-            }
-
-            @Override
-            IndexFieldData.Builder getColumnarFieldDataBuilder(MappedFieldType ft, ValuesSourceType valuesSourceType) {
-                return new ColumnarLongIndexFieldData.Builder(ft.name(), valuesSourceType, LongDocValuesField::new, ft.indexType);
-            }
-
-            @Override
-            BlockLoader columnarBlockLoader(String fieldName) {
-                return new ColumnarLongsBlockLoader(fieldName);
-            }
-
-            @Override
             public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
                 String name,
                 ValuesSourceType valuesSourceType,
@@ -1998,16 +1953,6 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
                 return new RoundToLongsFromDocValuesBlockLoader(fieldName, points);
-            }
-
-            private boolean isOutOfRange(Object value) {
-                if (value instanceof Long) {
-                    return false;
-                }
-                String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
-                BigDecimal bigDecimalValue = Numbers.newBigDecimal(stringValue);
-                return bigDecimalValue.compareTo(BigDecimal.valueOf(Long.MAX_VALUE)) > 0
-                    || bigDecimalValue.compareTo(BigDecimal.valueOf(Long.MIN_VALUE)) < 0;
             }
         };
 
@@ -2265,35 +2210,15 @@ public class NumberFieldMapper extends FieldMapper {
 
         public abstract IndexFieldData.Builder getFieldDataBuilder(MappedFieldType ft, ValuesSourceType valuesSourceType);
 
-        /** A term query on a field whose doc values the ColumNAR codec stores, see {@link DocValuesDiskFormat#COLUMNAR}. */
-        Query columnarTermQuery(String field, Object value, IndexType indexType) {
-            throw columnarUnsupported();
-        }
-
-        /** A range query on a field whose doc values the ColumNAR codec stores, see {@link DocValuesDiskFormat#COLUMNAR}. */
-        Query columnarRangeQuery(
-            String field,
-            Object lowerTerm,
-            Object upperTerm,
-            boolean includeLower,
-            boolean includeUpper,
-            IndexType indexType
-        ) {
-            throw columnarUnsupported();
-        }
-
-        /** Field data for a field whose doc values the ColumNAR codec stores, see {@link DocValuesDiskFormat#COLUMNAR}. */
-        IndexFieldData.Builder getColumnarFieldDataBuilder(MappedFieldType ft, ValuesSourceType valuesSourceType) {
-            throw columnarUnsupported();
-        }
-
-        /** Loads the doc values of a field the ColumNAR codec stores, see {@link DocValuesDiskFormat#COLUMNAR}. */
-        BlockLoader columnarBlockLoader(String fieldName) {
-            throw columnarUnsupported();
-        }
-
-        private IllegalStateException columnarUnsupported() {
-            return new IllegalStateException("[" + name + "] fields are not stored with the ColumNAR codec");
+        /** Whether {@code value}, which has no decimal part, lies outside the range of a {@code long}. */
+        static boolean isOutOfLongRange(Object value) {
+            if (value instanceof Long) {
+                return false;
+            }
+            String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
+            BigDecimal bigDecimalValue = Numbers.newBigDecimal(stringValue);
+            return bigDecimalValue.compareTo(BigDecimal.valueOf(Long.MAX_VALUE)) > 0
+                || bigDecimalValue.compareTo(BigDecimal.valueOf(Long.MIN_VALUE)) < 0;
         }
 
         public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
@@ -2475,6 +2400,9 @@ public class NumberFieldMapper extends FieldMapper {
         private final boolean readInArrayOrder;
         private final boolean indexTerms;
         private final DocValuesDiskFormat diskFormat;
+        /** The readers of the field's ColumNAR column, or {@code null} when the ColumNAR codec doesn't store its doc values. */
+        @Nullable
+        private final ColumnarNumbers columnar;
 
         public NumberFieldType(
             String name,
@@ -2529,8 +2457,8 @@ public class NumberFieldMapper extends FieldMapper {
             DocValuesDiskFormat diskFormat
         ) {
             super(name, indexType, isStored, meta);
-            assert diskFormat != DocValuesDiskFormat.COLUMNAR || type == NumberType.LONG : "only long fields are stored with ColumNAR";
             this.diskFormat = diskFormat;
+            this.columnar = diskFormat == DocValuesDiskFormat.COLUMNAR ? ColumnarNumbers.of(type) : null;
             this.type = Objects.requireNonNull(type);
             this.coerce = coerce;
             this.nullValue = nullValue;
@@ -2661,7 +2589,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return new TermQuery(new Term(name(), term));
             }
             if (diskFormat == DocValuesDiskFormat.COLUMNAR) {
-                return type.columnarTermQuery(name(), value, indexType);
+                return columnar.termQuery(name(), value, indexType);
             }
             return type.termQuery(name(), value, indexType);
         }
@@ -2715,7 +2643,7 @@ public class NumberFieldMapper extends FieldMapper {
         ) {
             failIfNotIndexedNorDocValuesFallback(context);
             if (diskFormat == DocValuesDiskFormat.COLUMNAR) {
-                return type.columnarRangeQuery(name(), lowerTerm, upperTerm, includeLower, includeUpper, indexType);
+                return columnar.rangeQuery(name(), lowerTerm, upperTerm, includeLower, includeUpper, indexType);
             }
             return type.rangeQuery(
                 name(),
@@ -2750,7 +2678,7 @@ public class NumberFieldMapper extends FieldMapper {
                 if (diskFormat == DocValuesDiskFormat.COLUMNAR) {
                     // supportsBlockLoaderConfig refuses every function for these fields, so none is asked for.
                     assert cfg == null : "no function is fused into a ColumNAR numeric block loader";
-                    return type.columnarBlockLoader(name());
+                    return columnar.blockLoader(name());
                 }
                 if (cfg == null) {
                     return type.blockLoaderFromDocValues(name(), readInArrayOrder);
@@ -2812,7 +2740,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
                 return diskFormat == DocValuesDiskFormat.COLUMNAR
-                    ? type.getColumnarFieldDataBuilder(this, valuesSourceType)
+                    ? columnar.fieldDataBuilder(this, valuesSourceType)
                     : type.getFieldDataBuilder(this, valuesSourceType);
             }
 

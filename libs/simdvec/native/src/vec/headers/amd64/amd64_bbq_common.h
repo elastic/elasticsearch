@@ -126,6 +126,31 @@ static inline void dotd2q_inner_bulk(
     }
 }
 
+// Bulk driver for kernels that score a whole 2-bit striped doc (both bit planes) in one call: vectors are
+// scored one after another. There is no software prefetch: on the CPUs measured, prefetching the next
+// vectors was slower than relying on the hardware prefetchers for sequential blocks, and did not help
+// sparse selections either.
+template <
+    typename TData,
+    const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
+    int64_t(*dotd2q_op)(const int8_t* a, const int8_t* q, const int32_t length),
+    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output
+>
+static inline void dotd2q4_inner_bulk(
+    const TData* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    for (int c = 0; c < count; c++) {
+        const int8_t* a0 = mapper(a, c, offsets, pitch);
+        results[out_mapper(offsets, c)] = (f32_t)dotd2q_op(a0, query, length);
+    }
+}
+
 template <
     typename TData,
     const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),

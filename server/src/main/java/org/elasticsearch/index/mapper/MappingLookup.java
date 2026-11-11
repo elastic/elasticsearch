@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -74,6 +75,8 @@ public final class MappingLookup {
     private final Mapping mapping;
     private final int totalFieldsCount;
     private final IndexMode indexMode;
+    @Nullable
+    private final CompressedXContent mappingSource;
 
     // cached booleans from the _source field mapper
     private final boolean isSourceEnabled;
@@ -90,6 +93,19 @@ public final class MappingLookup {
      * @return the newly created lookup instance
      */
     public static MappingLookup fromMapping(Mapping mapping, IndexMode indexMode) {
+        return fromMapping(mapping, indexMode, null);
+    }
+
+    /**
+     * Creates a new {@link MappingLookup} that also holds the source that the mapping was created from, which is what a dynamic
+     * update of an existing field is built from.
+     *
+     * @param mapping the mapping
+     * @param indexMode the mode of the index
+     * @param mappingSource the source of the mapping, if there is one
+     * @return the newly created lookup instance
+     */
+    public static MappingLookup fromMapping(Mapping mapping, IndexMode indexMode, @Nullable CompressedXContent mappingSource) {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
@@ -102,7 +118,15 @@ public final class MappingLookup {
         for (Mapper child : mapping.getRoot()) {
             collect(child, newObjectMappers, newFieldMappers, newFieldAliasMappers, newPassThroughSources);
         }
-        return new MappingLookup(mapping, newFieldMappers, newObjectMappers, newFieldAliasMappers, newPassThroughSources, indexMode);
+        return new MappingLookup(
+            mapping,
+            newFieldMappers,
+            newObjectMappers,
+            newFieldAliasMappers,
+            newPassThroughSources,
+            indexMode,
+            mappingSource
+        );
     }
 
     private static void collect(
@@ -157,7 +181,7 @@ public final class MappingLookup {
         Collection<PassThroughFieldSource> passThroughSources,
         IndexMode indexMode
     ) {
-        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers, passThroughSources, indexMode);
+        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers, passThroughSources, indexMode, null);
     }
 
     public static MappingLookup fromMappers(
@@ -166,7 +190,7 @@ public final class MappingLookup {
         Collection<ObjectMapper> objectMappers,
         IndexMode indexMode
     ) {
-        return new MappingLookup(mapping, mappers, objectMappers, List.of(), List.of(), indexMode);
+        return new MappingLookup(mapping, mappers, objectMappers, List.of(), List.of(), indexMode, null);
     }
 
     private MappingLookup(
@@ -175,8 +199,10 @@ public final class MappingLookup {
         Collection<ObjectMapper> objectMappers,
         Collection<FieldAliasMapper> aliasMappers,
         Collection<PassThroughFieldSource> passThroughSources,
-        IndexMode indexMode
+        IndexMode indexMode,
+        @Nullable CompressedXContent mappingSource
     ) {
+        this.mappingSource = mappingSource;
         this.totalFieldsCount = mapping.getRoot().getTotalFieldsCount();
         this.mapping = mapping;
         Map<String, Mapper> fieldMappers = new HashMap<>();
@@ -763,6 +789,14 @@ public final class MappingLookup {
     }
 
     /**
+     * @return the source that the mapping was created from, or {@code null} if this lookup was not created with one
+     */
+    @Nullable
+    public CompressedXContent mappingSource() {
+        return mappingSource;
+    }
+
+    /**
      * Returns the passthrough status for {@code field}. Mapper-backed passthrough sources are resolved directly;
      * auto-flattened objects in strict columnar index modes are resolved from the root mapping's prefix properties.
      *
@@ -789,31 +823,6 @@ public final class MappingLookup {
             return properties.passthrough() != null;
         }
         return null;
-    }
-
-    /**
-     * Whether the mapping guarantees that a block loader sees at most one value per document for {@code field}; see
-     * {@link FieldMapper#guaranteesSingleValue()}. {@code false} means "not guaranteed", including for unknown fields and fields whose
-     * mapper cannot enforce it.
-     * <p>
-     * An alias, explicit or from a passthrough object, has the guarantee of its target.
-     */
-    public boolean isStaticallySingleValued(String field) {
-        MappedFieldType fieldType = fieldTypeLookup.get(field);
-        return fieldType != null && isStaticallySingleValued(fieldType);
-    }
-
-    /**
-     * Whether the mapping guarantees that a block loader sees at most one value per document for the field that {@code fieldType}
-     * describes. The field type of an alias is the one of its target, so an alias has the guarantee of its target. A runtime field,
-     * for example from the request, replaces the field type of the mapped field it shadows. Its values do not come from the mapper,
-     * so it has no guarantee: the field type must be the one of the mapper.
-     */
-    public boolean isStaticallySingleValued(MappedFieldType fieldType) {
-        String target = fieldType.name();
-        return fieldMappers.get(target) instanceof FieldMapper fieldMapper
-            && fieldMapper.fieldType() == fieldType
-            && fieldMapper.guaranteesSingleValue();
     }
 
     /**

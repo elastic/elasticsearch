@@ -56,7 +56,8 @@ public final class TestTaskSelector {
      *       {@code sles-15}, ...), while flakiness pins a single image; the {@code .docker*} variants also
      *       need prod registry credentials the flakiness steps do not set.</li>
      *   <li><b>ephemeral per job is not clean per iteration.</b> Flakiness re-runs each target N times within
-     *       one job ({@code -Dtests.iters} for java targets, {@code repeat-rest-test.sh} for REST ones). A
+     *       one job ({@code -Dtests.iters}, split across {@code repeat-gradle-run.sh} runs above a per-run
+     *       cap, for java targets; {@code repeat-gradle-run.sh} runs for REST ones). A
      *       destructive test mutates the host on the first iteration - packages installed, users added,
      *       systemd units written - so the remaining iterations measure that contamination, not flakiness.
      *       A fresh VM per job does not help, because the repeats are inside the job.</li>

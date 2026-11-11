@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -3715,13 +3716,13 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             return routing.relocate(
                 randomNodeId(),
                 ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
         }
         if (allocation.state == UNAVAILABLE) {
             return routing.moveToUnassigned(
                 Optional.ofNullable(allocation.unassignedInfo).orElse(randomFrom(nodeLeft(), decidersNo())),
-                ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                RecoveryPriority.UNASSIGNED_UNEXPECTED
             );
         }
         if (allocation.state == RESTARTING) {
@@ -3738,7 +3739,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                     Set.of(),
                     allocation.nodeId
                 ),
-                ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                RecoveryPriority.UNASSIGNED_UNEXPECTED
             );
         }
 

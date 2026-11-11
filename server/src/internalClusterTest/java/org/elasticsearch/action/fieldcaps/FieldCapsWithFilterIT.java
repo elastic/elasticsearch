@@ -15,6 +15,7 @@ import org.apache.lucene.index.PointValues;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -56,7 +57,7 @@ public class FieldCapsWithFilterIT extends ESIntegTestCase {
 
         @Override
         public ShardLongFieldRange getRawFieldRange(String field) {
-            try (Searcher searcher = acquireSearcher("test")) {
+            try (Searcher searcher = acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 final DirectoryReader directoryReader = searcher.getDirectoryReader();
 
                 final byte[] minPackedValue = PointValues.getMinPackedValue(directoryReader, field);

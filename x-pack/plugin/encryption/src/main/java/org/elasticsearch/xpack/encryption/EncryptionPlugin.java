@@ -41,16 +41,15 @@ import java.util.function.Supplier;
 import static java.util.Collections.singletonList;
 
 /**
- * Plugin for the project encryption key (PEK) lifecycle. Wires up the key cache, rotation coordinator, AES-GCM encryption service, and
+ * Plugin for the project encryption key (PEK) lifecycle. Wires up the key service, rotation coordinator, AES-GCM encryption service, and
  * health indicator. Loads {@link EncryptedDataHandlerProvider} contributions from other plugins and forwards secure-settings reloads.
  */
 public class EncryptionPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, ReloadablePlugin, HealthPlugin {
 
     private final List<EncryptedDataHandlerProvider> encryptedDataHandlerProviders = new ArrayList<>();
-    private final SetOnce<ProjectEncryptionKeyService> pekService = new SetOnce<>();
     private final SetOnce<KeyRotationCoordinator> coordinator = new SetOnce<>();
     private final SetOnce<ProjectEncryptionKeyHealthIndicatorService> healthIndicatorService = new SetOnce<>();
-    private final SetOnce<SnapshotEncryptedDataWarningFilter> snapshotWarningFilter = new SetOnce<>();
+    private final SetOnce<SnapshotEncryptedDataFilter> snapshotEncryptedDataFilter = new SetOnce<>();
 
     private volatile Settings pekSettings;
 
@@ -85,8 +84,9 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
         EncryptionServiceRegistry.setEncryptionService(encryptionService);
         List<EncryptedDataHandler<?>> handlers = encryptedDataHandlerProviders.stream().flatMap(p -> p.getHandlers().stream()).toList();
         EncryptedDataHandlerRegistry handlerRegistry = new EncryptedDataHandlerRegistry(handlers);
-        snapshotWarningFilter.set(
-            new SnapshotEncryptedDataWarningFilter(services.clusterService(), services.projectResolver(), handlerRegistry)
+        EncryptedDataHandlerRegistry.setInstance(handlerRegistry);
+        snapshotEncryptedDataFilter.set(
+            new SnapshotEncryptedDataFilter(services.clusterService(), services.projectResolver(), handlerRegistry, pekService::state)
         );
         KeyRotationCoordinator coordinator = KeyRotationCoordinator.create(
             services.clusterService(),
@@ -104,7 +104,6 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
             pekService
         );
 
-        this.pekService.set(pekService);
         this.coordinator.set(coordinator);
         this.healthIndicatorService.set(healthIndicator);
 
@@ -143,7 +142,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(this.coordinator.get(), this.pekService.get());
+        IOUtils.close(this.coordinator.get());
     }
 
     @Override
@@ -153,7 +152,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
 
     @Override
     public Collection<MappedActionFilter> getMappedActionFilters() {
-        return singletonList(snapshotWarningFilter.get());
+        return singletonList(snapshotEncryptedDataFilter.get());
     }
 
     @Override

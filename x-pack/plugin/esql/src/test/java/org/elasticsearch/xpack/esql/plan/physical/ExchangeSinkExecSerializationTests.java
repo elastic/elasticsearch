@@ -95,9 +95,11 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  1152897b - make IndexProperties Writeable: inline VInt(0) per 601 indices (+601 -1 for removed trailing map)
          *  1152898b - added slice selection to EsRelation (1 byte for the absent optional string)
          *  1159898b - added passthrough flag to EsField
-         *  1166898b - added single valued flag to EsField (1 byte per field)
+         *  1160499b - added created index version
+         *  1162302b - use the current index version (4-byte VInt per index)
+         *  1169302b - added single valued flag to EsField (1 byte per field)
          */
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1166898));
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1169302L));
     }
 
     /**
@@ -124,9 +126,11 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  2304520b - make IndexProperties Writeable: inline VInt(0) per 601 indices (+601 -1 for removed trailing map)
          *  2304521b - added slice selection to EsRelation (1 byte for the absent optional string)
          *  2311521b - added passthrough flag to EsField
-         *  2318521b - added single valued flag to EsField (1 byte per field)
+         *  2312122b - added created index version
+         *  2313925b - use the current index version (4-byte VInt per index)
+         *  2320925b - added single valued flag to EsField (1 byte per field)
          */
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2318521));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2320925L));
     }
 
     private void testManyTypeConflicts(boolean withParent, ByteSizeValue expected) throws IOException {
@@ -204,6 +208,8 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          * 4998b - added split indices to EsRelation #138396
          * 4999b - added shardCounts to EsRelation (1 byte for empty-map VInt)
          * 5098b - make IndexProperties Writeable: inline VInt(0) per 100 indices (+100 -1 for removed trailing map)
+         * 5199b - added created index version
+         * 5499b - use the current index version (4-byte VInt per index)
          */
 
         var index = EsIndexGenerator.esIndex(
@@ -213,7 +219,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
                 .mapToObj(i -> "partial-.ds-index-service-logs-2025.01.01-000" + i)
                 .collect(toMap(Function.identity(), i -> IndexMode.STANDARD))
         );
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(5099));
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(5499));
     }
 
     /**

@@ -61,12 +61,11 @@ public final class ExternalStatsRequirementExtractor {
     private ExternalStatsRequirementExtractor() {}
 
     /**
-     * Returns the literal {@code tablePath} of every {@link UnresolvedExternalRelation} that has an
-     * <b>ungrouped</b> {@link Aggregate} ancestor with no {@link Filter}, {@link Limit}, or
-     * {@link Sample} on the walk from that aggregate down to the relation. The path-key derivation
-     * is identical to {@code PreAnalyzer} and {@code EsqlSession#extractExternalSourceSpecs}
-     * ({@code BytesRefs.toString(literal.value())}), so every key here is the {@code path} of a spec the
-     * session derives.
+     * Returns every {@link UnresolvedExternalRelation} that has an <b>ungrouped</b> {@link Aggregate}
+     * ancestor with no {@link Filter}, {@link Limit}, or {@link Sample} on the walk from that aggregate
+     * down to the relation, as the spec it denotes. The derivation is {@link ExternalSourceSpec#ofOrNull},
+     * which is also what {@code EsqlSession#extractExternalSourceSpecs} uses, so every spec here is one
+     * the session derives too -- a relation the two disagreed about would carry a demand nothing claims.
      *
      * @param unresolvedPlan the root of the unresolved logical plan
      * @return the specs whose resolution must eagerly aggregate global stats

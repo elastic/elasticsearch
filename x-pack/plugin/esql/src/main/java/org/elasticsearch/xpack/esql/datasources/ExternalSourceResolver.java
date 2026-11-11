@@ -785,7 +785,7 @@ public class ExternalSourceResolver {
             return;
         }
         List<ExternalSourceSpec> specs = new ArrayList<>(paths.size());
-        // The demand sets are spec-keyed now, so a path-keyed caller's sets are lifted the same way its paths are:
+        // The demand sets are spec-keyed, so a path-keyed caller's sets are lifted the same way its paths are:
         // one path carries one configuration here, which is the premise this whole path-keyed form rests on.
         Set<ExternalSourceSpec> specsRequiringStats = pathsRequiringStats == null ? null : new HashSet<>();
         Set<ExternalSourceSpec> specsReadingNoRows = pathsReadingNoRows == null ? null : new HashSet<>();

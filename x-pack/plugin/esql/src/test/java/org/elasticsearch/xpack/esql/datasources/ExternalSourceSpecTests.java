@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -166,6 +168,35 @@ public class ExternalSourceSpecTests extends ESTestCase {
      * config with {@code putAll}, so a nested map is shared and mutable; a one-level copy would let a later put
      * change this spec's {@code hashCode} and make the analyzer's rebuilt key miss.
      */
+    /**
+     * The list arm of the deep copy, which a dataset reaches without trying: {@code Dataset.PARSER} reads
+     * {@code settings} with {@code p.map()}, so a JSON array arrives as a {@code List}, and
+     * {@code DatasetRewriter.mergeSettings} {@code putAll}s it into the config by reference. A list holding a map
+     * is the strongest shape, since it needs both arms to recurse: without the list arm the map inside it stays
+     * shared, and mutating it moves this spec's {@code hashCode} while it is a key in the resolution map, which is
+     * the miss {@link #testANestedMutationCannotMoveTheKey} pins for a map one level up.
+     */
+    public void testAMutationInsideAListCannotMoveTheKey() {
+        Map<String, Object> inner = new HashMap<>(Map.of("field", "amount"));
+        List<Object> columns = new ArrayList<>(List.of(inner));
+        Map<String, Object> config = new HashMap<>(Map.of("format", "csv", "columns", columns));
+
+        ExternalSourceSpec spec = new ExternalSourceSpec("s3://bucket/data/*.csv", config);
+        int before = spec.hashCode();
+
+        inner.put("field", "total");
+        columns.add("appended");
+        config.put("format", "tsv");
+
+        assertThat("the spec must not see a mutation of the caller's list or of a map inside it", spec.hashCode(), equalTo(before));
+        assertThat(
+            spec,
+            equalTo(
+                new ExternalSourceSpec("s3://bucket/data/*.csv", Map.of("format", "csv", "columns", List.of(Map.of("field", "amount"))))
+            )
+        );
+    }
+
     public void testANestedMutationCannotMoveTheKey() {
         Map<String, Object> datasource = new HashMap<>(Map.of("access_key", "id"));
         Map<String, Object> config = config(Map.of("format", "csv"));

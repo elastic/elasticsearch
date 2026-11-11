@@ -65,6 +65,10 @@ public record ExternalSourceSpec(String path, Map<String, Object> config) {
             list.forEach(element -> copy.add(deepCopyValue(element)));
             return Collections.unmodifiableList(copy);
         }
+        // Everything else is kept by reference, which includes an array: a non-secret data-source setting can be a
+        // byte[] after a generic-serialization round-trip, and two equal arrays are not equal to Map.equals. That
+        // cannot separate two relations within one query -- both read the same parent.settings() instance, and a
+        // spec never outlives the query that derived it -- so it is a copy nobody needs rather than a missing arm.
         return value;
     }
 

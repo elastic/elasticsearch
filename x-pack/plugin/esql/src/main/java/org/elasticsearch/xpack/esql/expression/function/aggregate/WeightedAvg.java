@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,7 +36,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class WeightedAvg extends AggregateFunction implements OnlySurrogateExpression, AnyNullIsNull {
+public class WeightedAvg extends AggregateFunction implements OnlySurrogateExpression, AnyNullIsNull, UnitAware.PreservesUnit {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(WeightedAvg.class)
         .binary(WeightedAvg::new)
         .name("weighted_avg");

@@ -10,6 +10,7 @@ import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -117,5 +118,21 @@ public record FieldSemantics(String field, Role role, @Nullable String metricTyp
 
     private static String join(TreeSet<String> values) {
         return values.isEmpty() ? null : String.join(",", values);
+    }
+
+    /**
+     * The {@code _meta.field} entry of a result column.
+     */
+    public Map<String, Object> toColumnMetadata() {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("name", field);
+        map.put("role", role.label());
+        if (metricType != null) {
+            map.put("metric_type", metricType);
+        }
+        if (description != null) {
+            map.put("description", description);
+        }
+        return map;
     }
 }

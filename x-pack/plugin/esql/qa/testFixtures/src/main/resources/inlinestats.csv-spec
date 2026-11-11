@@ -5122,6 +5122,7 @@ emp_no:integer | languages:integer | gender:keyword |       hire_date:date     |
 // A multi-valued grouping key joins every group of the row, so first_hired is multi-valued and both comparisons are null for
 // those rows. Filtering the groups before the join would leave some rows with a single value and return 10066 and 10071 too.
 aggFilter_FirstSeenShape_MultiValuedKey_PastInlineJoin
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 required_capability: fix_inline_stats_group_by_null
 

@@ -95,6 +95,15 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
                         break;
                     }
                 }
+                if (multivalued && converter.supportsMultivalued() == false) {
+                    throw new IllegalStateException(
+                        "Column ["
+                            + column.name
+                            + "] of ES|QL type ["
+                            + column.esqlType.outputType()
+                            + "] has multivalued fields, which the Arrow format does not support for this type"
+                    );
+                }
                 indexedColumns.add(new IndexedColumn(column, converter, blockIndex, multivalued));
             }
         }

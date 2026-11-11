@@ -49,6 +49,14 @@ public abstract class BlockArrowFormatter {
         return new Field(name, fieldType, null);
     }
 
+    /**
+     * Whether this formatter can encode a column as an Arrow list. Columns whose blocks report multivalued fields
+     * are rejected up front for formatters that can't, since the schema is sent before any page is converted.
+     */
+    public boolean supportsMultivalued() {
+        return true;
+    }
+
     // Block.nullValuesCount was more efficient but was removed in https://github.com/elastic/elasticsearch/pull/108916
     protected int nullValuesCount(Block block) {
         if (block.mayHaveNulls() == false) {
@@ -703,6 +711,11 @@ public abstract class BlockArrowFormatter {
                     new Field("value_count", countType, null)
                 )
             );
+        }
+
+        @Override
+        public boolean supportsMultivalued() {
+            return false;
         }
 
         @Override

@@ -569,6 +569,35 @@ public class ArrowResponseTests extends ESTestCase {
         }
     }
 
+    /**
+     * No production path builds an aggregate summary with a multivalued metric, so a hand-built block must be rejected
+     * before the schema is sent rather than producing a list schema with struct pages.
+     */
+    public void testAggregateMetricDoubleRejectsMultivaluedMetric() {
+        DoubleBlock min;
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(1)) {
+            builder.beginPositionEntry().appendDouble(1.0).appendDouble(2.0).endPositionEntry();
+            min = builder.build();
+        }
+        AggregateMetricDoubleBlock block = blockFactory.newAggregateMetricDoubleBlock(
+            min,
+            blockFactory.newConstantDoubleBlockWith(2.0, 1),
+            blockFactory.newConstantDoubleBlockWith(3.0, 1),
+            blockFactory.newConstantIntBlockWith(2, 1)
+        );
+        try (Page page = new Page(block)) {
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> new ArrowResponse(List.of(new ArrowResponse.Column(DataType.AGGREGATE_METRIC_DOUBLE, "metric")), List.of(page))
+            );
+            assertEquals(
+                "Column [metric] of ES|QL type [aggregate_metric_double] has multivalued fields, "
+                    + "which the Arrow format does not support for this type",
+                e.getMessage()
+            );
+        }
+    }
+
     private static void assertAggregateMetricDoubleSchema(StructVector vector) {
         Field field = vector.getField();
         assertEquals(Types.MinorType.STRUCT.getType(), field.getType());
@@ -1213,8 +1242,13 @@ public class ArrowResponseTests extends ESTestCase {
         }
 
         static TestColumn create(String name, DataType type, boolean multivalue) {
-            // Aggregate summaries are single-valued, including those produced from multivalued numeric inputs.
-            return new TestColumn(name, type, VALUE_TYPES.get(type), multivalue && type != DataType.AGGREGATE_METRIC_DOUBLE);
+            return new TestColumn(name, type, VALUE_TYPES.get(type), multivalue && supportsMultivalued(type));
+        }
+
+        // Aggregate summaries are single-valued, including those produced from multivalued numeric inputs.
+        private static boolean supportsMultivalued(DataType type) {
+            BlockArrowFormatter formatter = ArrowResponse.ESQL_FORMATTERS.get(type);
+            return formatter == null || formatter.supportsMultivalued();
         }
     }
 

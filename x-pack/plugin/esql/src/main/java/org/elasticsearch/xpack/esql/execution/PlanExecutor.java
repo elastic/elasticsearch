@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.telemetry.QueryCallerClassifier;
 import org.elasticsearch.xpack.esql.telemetry.QueryEntryPoint;
 import org.elasticsearch.xpack.esql.telemetry.QueryMetric;
 import org.elasticsearch.xpack.esql.telemetry.QueryPath;
+import org.elasticsearch.xpack.esql.telemetry.QueryPathCounters;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
@@ -82,6 +83,7 @@ public class PlanExecutor {
     private final PromqlFunctionRegistry promqlFunctionRegistry;
     private final Mapper mapper;
     private final Metrics metrics;
+    private final QueryPathCounters queryPathCounters = new QueryPathCounters();
     private final List<QuerySettingDef<?>> applicableSettings;
     private final Verifier verifier;
     private final PlanTelemetryManager planTelemetryManager;
@@ -446,7 +448,7 @@ public class PlanExecutor {
         }
         countFinishedQuery(finishCounted, caller, request.entryPoint(), directClient, planTelemetry, false);
         metrics.failed(planTelemetry.leadingCommand());
-        metrics.failed(QueryPath.of(caller, directClient, planTelemetry.leadingCommand()));
+        queryPathCounters.failed(QueryPath.of(caller, directClient, planTelemetry.leadingCommand()));
         planTelemetryManager.publish(planTelemetry, false);
         recordExternalSourceQuery(
             dataSourceModule.externalSourceMetrics(),
@@ -481,7 +483,7 @@ public class PlanExecutor {
     ) {
         if (finishCounted.compareAndSet(false, true)) {
             metrics.total(planTelemetry.leadingCommand());
-            metrics.total(QueryPath.of(caller, directClient, planTelemetry.leadingCommand()), planTelemetry.usedFeatures());
+            queryPathCounters.total(QueryPath.of(caller, directClient, planTelemetry.leadingCommand()), planTelemetry.usedFeatures());
             planTelemetryManager.publishQuery(caller, entryPoint, directClient, planTelemetry.leadingCommand(), success);
         }
     }
@@ -569,6 +571,10 @@ public class PlanExecutor {
 
     public Metrics metrics() {
         return this.metrics;
+    }
+
+    public QueryPathCounters queryPathCounters() {
+        return queryPathCounters;
     }
 
     public DataSourceModule dataSourceModule() {

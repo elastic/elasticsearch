@@ -86,6 +86,7 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
     protected EsqlStatsResponse.NodeStatsResponse nodeOperation(EsqlStatsRequest.NodeStatsRequest request, Task task) {
         EsqlStatsResponse.NodeStatsResponse statsResponse = new EsqlStatsResponse.NodeStatsResponse(clusterService.localNode());
         Counters counters = planExecutor.metrics().stats();
+        planExecutor.queryPathCounters().populate(counters);
         DataSourceModule module = planExecutor.dataSourceModule();
         DataSourceUsageAccumulator acc = module != null ? module.externalSourceMetrics().usageAccumulator() : null;
         if (acc != null) {

@@ -1049,7 +1049,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 ActionListener.wrap(r -> fail("this shouldn't happen"), failure::set)
             );
             assertThat(failure.get(), instanceOf(IllegalStateException.class));
-            Counters stats = planExecutor.metrics().stats();
+            Counters stats = nodeStats(planExecutor);
             assertThat(stats.get("leading_commands.from.total"), equalTo(1L));
             assertThat(stats.get("leading_commands.from.failed"), equalTo(1L));
             assertThat(stats.get("entry_points.query.total"), equalTo(1L));
@@ -1090,7 +1090,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 planRunnerFor(executionInfo),
                 ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
             );
-            Counters stats = planExecutor.metrics().stats();
+            Counters stats = nodeStats(planExecutor);
             assertThat(stats.get("queries._all.total"), equalTo(0L));
             assertThat(stats.get("entry_points.query.total"), equalTo(0L));
             assertThat(stats.get("leading_commands.from.total"), equalTo(0L));
@@ -1115,10 +1115,10 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 planRunnerFor(executionInfo),
                 ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
             );
-            Map<String, Object> path = queryPath(planExecutor.metrics().stats(), "kibana", "discover", "from");
+            Map<String, Object> path = queryPath(nodeStats(planExecutor), "kibana", "discover", "from");
             assertThat(path, hasEntry("total", 1L));
             assertThat(path, not(hasKey("failed")));
-            assertThat(path.get("commands"), equalTo(usedFeatures(planExecutor.metrics().stats())));
+            assertThat(path.get("commands"), equalTo(usedFeatures(nodeStats(planExecutor))));
             assertThat(path.get("commands"), equalTo(Map.of("from", 1L, "where", 1L, "keep", 1L)));
         }
     }
@@ -1136,7 +1136,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 planRunnerFor(executionInfo),
                 ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
             );
-            Counters stats = planExecutor.metrics().stats();
+            Counters stats = nodeStats(planExecutor);
             @SuppressWarnings("unchecked")
             Map<String, Long> commands = (Map<String, Long>) queryPath(stats, "rest", "other", "from").get("commands");
             assertThat(commands, hasEntry("let", 1L));
@@ -1157,8 +1157,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 planRunnerFor(executionInfo),
                 ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
             );
-            assertThat(queryPaths(planExecutor.metrics().stats()).keySet(), equalTo(Set.of("rest")));
-            assertThat(queryPath(planExecutor.metrics().stats(), "rest", directClient.toString(), "from"), hasEntry("total", 1L));
+            assertThat(queryPaths(nodeStats(planExecutor)).keySet(), equalTo(Set.of("rest")));
+            assertThat(queryPath(nodeStats(planExecutor), "rest", directClient.toString(), "from"), hasEntry("total", 1L));
         }
     }
 
@@ -1174,7 +1174,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 planRunnerFor(executionInfo),
                 ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
             );
-            assertThat(queryPath(planExecutor.metrics().stats(), "fleet", QueryPath.NO_SOURCE, "from"), hasEntry("total", 1L));
+            assertThat(queryPath(nodeStats(planExecutor), "fleet", QueryPath.NO_SOURCE, "from"), hasEntry("total", 1L));
         }
     }
 
@@ -1189,7 +1189,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 (role, p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen"),
                 ActionListener.wrap(r -> fail("this shouldn't happen"), e -> assertThat(e, instanceOf(VerificationException.class)))
             );
-            Counters stats = planExecutor.metrics().stats();
+            Counters stats = nodeStats(planExecutor);
             assertThat(queryPath(stats, "rest", "python", "from"), equalTo(Map.of("total", 1L, "failed", 1L)));
             assertThat(usedFeatures(stats), equalTo(Map.of()));
         }
@@ -1207,7 +1207,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 ActionListener.wrap(r -> fail("this shouldn't happen"), e -> assertThat(e, instanceOf(ParsingException.class)))
             );
             assertThat(
-                queryPaths(planExecutor.metrics().stats()),
+                queryPaths(nodeStats(planExecutor)),
                 equalTo(Map.of("rest", Map.of("other", Map.of("unknown", Map.of("total", 1L, "failed", 1L)))))
             );
         }
@@ -1237,7 +1237,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     ActionListener.wrap(r -> {}, e -> {})
                 );
             }
-            Counters stats = planExecutor.metrics().stats();
+            Counters stats = nodeStats(planExecutor);
             Map<String, Long> totalByCaller = new HashMap<>();
             Map<String, Long> failedByCaller = new HashMap<>();
             Map<String, Long> commands = new HashMap<>();
@@ -1263,6 +1263,12 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             }
             assertThat(commands, equalTo(usedFeatures(stats)));
         }
+    }
+
+    private static Counters nodeStats(PlanExecutor planExecutor) {
+        Counters counters = planExecutor.metrics().stats();
+        planExecutor.queryPathCounters().populate(counters);
+        return counters;
     }
 
     @SuppressWarnings("unchecked")

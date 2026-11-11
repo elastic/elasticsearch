@@ -17,6 +17,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -345,9 +348,6 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         }), columnarSettings(), batch("ipv6 multi_value=false", 1L, doc("d1", 1L, "{\"f\":\"2001:db8::1\"}"), doc("d2", 2L, "{}")));
     }
 
-    @AwaitsFix(
-        bugUrl = "columnar mapColumnBatch does not implement ignore_malformed for ip fields; malformed values fall back to the row path"
-    )
     public void testIgnoreMalformed() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "ip").field("ignore_malformed", true).endObject()),
@@ -669,5 +669,172 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
             b.startObject(FIELD).field("type", "ip").field("multi_value", false).field("null_value", "0.0.0.0").endObject();
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[null,\"192.168.0.1\"]}"));
+    }
+
+    private static XContentBuilder ignoreMalformedMapping(XContentBuilder b, boolean multiValue) throws IOException {
+        return b.startObject(FIELD).field("type", "ip").field("ignore_malformed", true).field("multi_value", multiValue).endObject();
+    }
+
+    /** Malformed values in single-valued documents are skipped per value, and kept for synthetic source. */
+    public void testIgnoreMalformedSingleValues() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> ignoreMalformedMapping(b, false)),
+            columnarSettings(),
+            batch(
+                "ignore_malformed single values",
+                1L,
+                doc("d1", 1L, "{\"f\":\"not-an-ip\"}"),
+                doc("d2", 2L, "{\"f\":\"10.0.0.1\"}"),
+                doc("d3", 3L, "{}"),
+                doc("d4", 4L, "{\"f\":\"300.1.1.1\"}")
+            )
+        );
+    }
+
+    /** Malformed elements take no array-order slot, wherever they are in the array and however many a document has. */
+    public void testIgnoreMalformedInArrays() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> ignoreMalformedMapping(b, true)),
+            columnarSettings(),
+            batch(
+                "ignore_malformed arrays",
+                1L,
+                doc("d1", 1L, "{\"f\":[\"bad\",\"10.0.0.2\",\"10.0.0.1\"]}"),
+                doc("d2", 2L, "{\"f\":[\"10.0.0.2\",\"bad\",\"10.0.0.2\"]}"),
+                doc("d3", 3L, "{\"f\":[\"10.0.0.1\",\"2001:db8::1\",\"bad\"]}"),
+                doc("d4", 4L, "{\"f\":[\"zzz\",\"aaa\",\"mmm\"]}"),
+                doc("d5", 5L, "{\"f\":[\"bad\"]}"),
+                doc("d6", 6L, "{\"f\":[\"10.0.0.9\",\"bad1\",\"10.0.0.8\",\"bad2\"]}"),
+                doc("d7", 7L, "{}")
+            )
+        );
+    }
+
+    public void testIgnoreMalformedWithNullValue() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "ip").field("ignore_malformed", true).field("null_value", "0.0.0.0").endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "ignore_malformed with null_value",
+                1L,
+                doc("d1", 1L, "{\"f\":[\"bad\",null,\"10.0.0.1\"]}"),
+                doc("d2", 2L, "{\"f\":[null,\"bad\"]}"),
+                doc("d3", 3L, "{\"f\":null}")
+            )
+        );
+    }
+
+    /** In TSDB, malformed values go to the ._ignore_malformed column, which sorts a document's values. */
+    public void testTsdbIgnoreMalformed() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "ip").field("time_series_dimension", true).field("ignore_malformed", true).endObject();
+        }),
+            tsdbIpSettings(),
+            batch(
+                "TSDB ip ignore_malformed",
+                1L,
+                doc(ipTsdbId(IP_TS_A), IP_ROUTING, IP_TSID, 1L, "{\"f\":[\"zzz\",\"aaa\",\"10.0.0.1\"],\"@timestamp\":" + IP_TS_A + "}"),
+                doc(ipTsdbId(IP_TS_A + 1000L), IP_ROUTING, IP_TSID, 2L, "{\"f\":\"bad\",\"@timestamp\":" + (IP_TS_A + 1000L) + "}"),
+                doc(ipTsdbId(IP_TS_A + 2000L), IP_ROUTING, IP_TSID, 3L, "{\"f\":\"10.0.0.1\",\"@timestamp\":" + (IP_TS_A + 2000L) + "}")
+            )
+        );
+    }
+
+    /** Without ignore_malformed the row path raises the per-document error, so the batch falls back. */
+    public void testMalformedWithoutIgnoreMalformedFallsBack() throws IOException {
+        final MapperService mapperService = createMapperService(columnarSettings(), mapping(b -> {
+            b.startObject(FIELD).field("type", "ip").endObject();
+        }));
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[\"10.0.0.1\",\"not-an-ip\"]}")
+        );
+    }
+
+    /**
+     * A number or boolean in an ip field is a malformed address, which the row path keeps as the number or boolean it was written as
+     * (an int when it fits one, a long otherwise), so the batch path must too, rather than fall the batch back.
+     */
+    public void testIgnoreMalformedNonStringTokens() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> ignoreMalformedMapping(b, false)),
+            columnarSettings(),
+            batch(
+                "ignore_malformed numbers and booleans",
+                1L,
+                doc("d1", 1L, "{\"f\":12345}"),
+                doc("d2", 2L, "{\"f\":9999999999}"),
+                doc("d3", 3L, "{\"f\":1.5}"),
+                doc("d4", 4L, "{\"f\":-7}"),
+                doc("d5", 5L, "{\"f\":true}"),
+                doc("d6", 6L, "{\"f\":false}"),
+                doc("d7", 7L, "{\"f\":\"10.0.0.1\"}")
+            )
+        );
+    }
+
+    public void testIgnoreMalformedNonStringTokensInArrays() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> ignoreMalformedMapping(b, true)),
+            columnarSettings(),
+            batch(
+                "ignore_malformed non-string arrays",
+                1L,
+                doc("d1", 1L, "{\"f\":[1,2,3]}"),
+                doc("d2", 2L, "{\"f\":[1.5,2.5,\"10.0.0.1\"]}"),
+                doc("d3", 3L, "{\"f\":[\"bad\",true,12345,\"10.0.0.2\"]}"),
+                doc("d4", 4L, "{\"f\":[\"10.0.0.3\",null,5000000000]}"),
+                doc("d5", 5L, "{\"f\":[false,null]}")
+            )
+        );
+    }
+
+    public void testTsdbIgnoreMalformedNonStringTokens() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "ip").field("time_series_dimension", true).field("ignore_malformed", true).endObject();
+        }),
+            tsdbIpSettings(),
+            batch(
+                "TSDB ip ignore_malformed non-string",
+                1L,
+                doc(ipTsdbId(IP_TS_A), IP_ROUTING, IP_TSID, 1L, "{\"f\":[true,12345,\"bad\"],\"@timestamp\":" + IP_TS_A + "}"),
+                doc(ipTsdbId(IP_TS_A + 1000L), IP_ROUTING, IP_TSID, 2L, "{\"f\":7,\"@timestamp\":" + (IP_TS_A + 1000L) + "}")
+            )
+        );
+    }
+
+    /**
+     * Where the batch path cannot write what the row path keeps for a malformed value, the field is not eligible for it at all,
+     * instead of failing when a malformed value turns up and sending its whole batch back to the row path.
+     */
+    public void testIgnoreMalformedOnOldLayoutIsNotColumnar() throws IOException {
+        final IndexVersion old = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.STORE_IGNORED_MALFORMED_IN_BINARY_DOC_VALUES)
+        );
+        final MapperService mapperService = createMapperService(old, tsdbIpSettings(), mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "ip").field("time_series_dimension", true).field("ignore_malformed", true).endObject();
+        }));
+        final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
+        assertFalse(mapper.supportsColumnarParse(mapperService.getIndexSettings()));
+    }
+
+    /**
+     * A null element makes the source a union column rather than an array column; the external multi_value=false check must still
+     * count its leaves, for arrays with or without a null_value.
+     */
+    public void testMultiValueFalseUnionArrayRejectsTwoValues() throws IOException {
+        final MapperService mapperService = createMapperService(columnarSettings(), mapping(b -> {
+            b.startObject(FIELD).field("type", "ip").field("multi_value", false).field("null_value", "0.0.0.0").endObject();
+        }));
+        expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[null,null]}"));
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[[\"10.0.0.1\"],\"10.0.0.2\",null]}")
+        );
     }
 }

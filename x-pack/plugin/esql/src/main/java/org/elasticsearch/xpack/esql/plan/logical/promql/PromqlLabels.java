@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -88,7 +89,9 @@ public final class PromqlLabels {
 
     /** Whether {@code label} is the tags label: the label container holding every label not declared beside it. */
     public static boolean isTagsLabel(Attribute label) {
-        return label instanceof UnresolvedPromqlLabelAttribute reference && reference.isTagsLabel();
+        // a node that does not declare the tags label yet declares the _timeseries attribute in its place
+        return label instanceof UnresolvedPromqlLabelAttribute reference && reference.isTagsLabel()
+            || MetadataAttribute.isTimeSeriesAttribute(label);
     }
 
     /** Label names as the keyword literals the label container functions take. */

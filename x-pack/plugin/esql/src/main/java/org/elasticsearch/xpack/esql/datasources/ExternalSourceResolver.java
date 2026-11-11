@@ -717,7 +717,8 @@ public class ExternalSourceResolver {
         return false;
     }
 
-    public final void resolve(List<ExternalSourceSpec> specs, ActionListener<ExternalSourceResolution> listener) {
+    // Package-private: production resolves through the widest spec-keyed form; this one is for same-package tests.
+    final void resolve(List<ExternalSourceSpec> specs, ActionListener<ExternalSourceResolution> listener) {
         resolve(specs, null, null, null, null, listener);
     }
 

@@ -1213,6 +1213,38 @@ public class EsqlSessionTests extends ESTestCase {
     }
 
     /**
+     * The eager-stats half of the same separation, which the no-rows test above does not reach. One spec under an
+     * ungrouped aggregate and one under a positive {@code LIMIT}, over one resource: only the aggregating spec
+     * owes all-file statistics. Forget the configuration when building the key here and every dataset-backed spec
+     * falls out of the set, because a dataset's config is never empty — the planning-time statistics path would go
+     * silently unused.
+     */
+    public void testTwoSpecsOverOnePathKeepTheirOwnStatsDemand() {
+        String path = "s3://bucket/logs/**";
+        Map<String, Object> asCsv = Map.of("format", "csv");
+        Map<String, Object> asTsv = Map.of("format", "tsv");
+        UnresolvedExternalRelation aggregating = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), asCsv);
+        UnresolvedExternalRelation limited = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), asTsv);
+        LogicalPlan plan = new UnionAll(
+            EMPTY,
+            List.of(
+                new Aggregate(EMPTY, aggregating, List.of(), List.of()),
+                new Limit(EMPTY, new Literal(EMPTY, 10, DataType.INTEGER), limited)
+            ),
+            List.of()
+        );
+
+        CapturedExternalResolve captured = captureExternalResolve(plan, path);
+
+        assertThat(captured.specs(), hasSize(2));
+        assertEquals(
+            "only the aggregating spec owes all-file statistics",
+            Set.of(new ExternalSourceSpec(path, asCsv)),
+            captured.specsRequiringStats()
+        );
+    }
+
+    /**
      * The pruning inputs are per spec, not per resource. Two datasets over one path whose {@code partition_spec}
      * binds a different column each get the hints and folder range their own spec earns: one binds
      * {@code @timestamp} and takes the request's bounds, the other binds {@code ts} and takes nothing. Keyed by the

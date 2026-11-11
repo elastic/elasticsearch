@@ -74,10 +74,11 @@ public record ExternalSourceSpec(String path, Map<String, Object> config) {
      * @throws IllegalStateException if the path is not a non-null literal, which post-parsing it always is
      */
     public static ExternalSourceSpec of(UnresolvedExternalRelation relation) {
-        Expression tablePath = relation.tablePath();
-        if (tablePath instanceof Literal literal && literal.value() != null) {
-            return new ExternalSourceSpec(BytesRefs.toString(literal.value()), relation.config());
+        ExternalSourceSpec spec = ofOrNull(relation);
+        if (spec != null) {
+            return spec;
         }
+        Expression tablePath = relation.tablePath();
         throw new IllegalStateException(
             "UnresolvedExternalRelation tablePath is not a non-null Literal: ["
                 + (tablePath == null ? "null" : tablePath.sourceText())
@@ -92,7 +93,9 @@ public record ExternalSourceSpec(String path, Map<String, Object> config) {
      */
     public static ExternalSourceSpec ofOrNull(UnresolvedExternalRelation relation) {
         Expression tablePath = relation.tablePath();
-        return tablePath instanceof Literal literal && literal.value() != null ? of(relation) : null;
+        return tablePath instanceof Literal literal && literal.value() != null
+            ? new ExternalSourceSpec(BytesRefs.toString(literal.value()), relation.config())
+            : null;
     }
 
     /**

@@ -28,9 +28,9 @@ import java.util.Set;
  * plan is emptied. The parsed plan is available there, which is what makes the shape knowable in time.
  * <p>This says only that no rows will be read; how much of the glob a schema needs is the dataset's business,
  * and the resolver decides it.
- * <p>Unlike {@link ExternalStatsRequirementExtractor}, which unions, this subtracts: a path read for its rows in
- * <em>any</em> branch must resolve as a reading query. Resolution is keyed by {@link ExternalSourceSpec} and this
- * set by path, so subtracting is what keeps that safe — a path with two specs is excluded if either reads rows.
+ * <p>Unlike {@link ExternalStatsRequirementExtractor}, which unions, this subtracts: a spec read for its rows in
+ * <em>any</em> branch must resolve as a reading query. Keyed by {@link ExternalSourceSpec}, as resolution is, so
+ * a resource read two ways is two entries and one of them reading rows does not bind the other.
  * <p>{@code LIMIT 0 BY k} is a {@code LimitBy} and an unfolded zero is not a {@link Literal}; both are missed,
  * and both only leave work switched on.
  */

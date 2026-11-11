@@ -1,0 +1,5 @@
+pr: 164207
+summary: Grant the Attack Discovery role remote read on endpoint events
+area: Authorization
+type: enhancement
+issues: []

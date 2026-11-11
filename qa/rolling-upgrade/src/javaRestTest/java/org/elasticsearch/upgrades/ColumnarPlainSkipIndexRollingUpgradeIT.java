@@ -123,7 +123,7 @@ public class ColumnarPlainSkipIndexRollingUpgradeIT extends AbstractRollingUpgra
                 "mappings": {
                   "properties": {
                     "@timestamp": { "type": "date" },
-                    "trace_id": { "type": "keyword", "index": false, "doc_values": { "multi_value": false } }
+                    "trace_id": { "type": "keyword", "index": false }
                   }
                 }
               }

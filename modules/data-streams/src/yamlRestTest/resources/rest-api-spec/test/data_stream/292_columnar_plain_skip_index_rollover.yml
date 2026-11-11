@@ -26,7 +26,6 @@ setup:
                 trace_id:
                   type: keyword
                   index: false
-                  multi_value: false
 
 ---
 "Rollover a columnar data stream sorted on a keyword":

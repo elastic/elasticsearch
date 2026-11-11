@@ -10,6 +10,7 @@ import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
+import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldArrayContext;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -194,19 +196,19 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
             // The .offsets sidecar records array order for its parent field's doc values, so its visibility must follow the parent.
             // Filtering it independently would leave orphaned offsets behind a hidden field, and synthetic source reconstruction would
-            // then read offsets pointing at absent values. Only treat it as a companion when the parent exists as a field in the
-            // underlying index, so a user field that merely ends with the suffix but has no such parent is unaffected.
+            // then read offsets pointing at absent values. Only treat it as a companion when the parent exists, so a user field that
+            // merely ends with the suffix but has no such parent is unaffected.
             if (name.endsWith(FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX) && isMapped.apply(fi.getName()) == false) {
-                String parent = name.substring(0, name.length() - FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX.length());
-                if (in.getFieldInfos().fieldInfo(parent) != null) {
+                String parent = stripSuffix(name, FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX);
+                if (companionParentExists(in.getFieldInfos(), parent, isMapped)) {
                     name = parent;
                 }
             }
 
             String countsSuffix = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
             if (name.endsWith(countsSuffix) && isMapped.apply(fi.getName()) == false) {
-                String parent = name.substring(0, name.length() - countsSuffix.length());
-                if (parent.isEmpty() == false && in.getFieldInfos().fieldInfo(parent) != null) {
+                String parent = stripSuffix(name, countsSuffix);
+                if (parent.isEmpty() == false && companionParentExists(in.getFieldInfos(), parent, isMapped)) {
                     name = parent;
                 }
             }
@@ -270,7 +272,22 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             return stripSuffix(fieldName, onFailure);
         }
 
+        // A columnar geo_shape field stores its normalized geometries in a <field>.source_geometry companion so synthetic source
+        // can be rebuilt
+        if (fieldName.endsWith(AbstractShapeGeometryFieldMapper.SOURCE_GEOMETRY_FIELD_NAME_SUFFIX)) {
+            return stripSuffix(fieldName, AbstractShapeGeometryFieldMapper.SOURCE_GEOMETRY_FIELD_NAME_SUFFIX);
+        }
+
         return fieldName;
+    }
+
+    /**
+     * Whether {@code parent} exists, so that a field named {@code parent + suffix} is its companion. The mapping is checked as well as the
+     * segment: a companion can be written without its parent (e.g. a document whose array holds only nulls), so a segment made only of
+     * such documents has the companion but not the parent. The segment is still checked for parents that are not mapped field types.
+     */
+    private static boolean companionParentExists(FieldInfos fieldInfos, String parent, Function<String, Boolean> isMapped) {
+        return isMapped.apply(parent) || fieldInfos.fieldInfo(parent) != null;
     }
 
     private static String stripSuffix(String value, String suffix) {
@@ -472,6 +489,25 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     @Override
     public SortedSetDocValues getSortedSetDocValues(String field) throws IOException {
         return hasField(field) ? super.getSortedSetDocValues(field) : null;
+    }
+
+    @Override
+    public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
+        if (hasField(field) == false || isFilteredCountsField(field)) {
+            return null;
+        }
+        return super.getDocValuesSkipper(field);
+    }
+
+    /**
+     * Returns whether {@code field} is a counts field that stays visible but whose numeric doc values this reader filters:
+     * {@code _ignored_source.counts}, which {@link #getNumericDocValues} hides, and {@code _unmapped._keyed.counts}, which it
+     * reduces to the slots of granted unmapped fields. The skipper stored for such a field summarizes the unfiltered values,
+     * including those of hidden fields, so it must not be exposed. Returning no skipper is always correct: readers treat it
+     * as optional and read the doc values without one.
+     */
+    private boolean isFilteredCountsField(String field) {
+        return isIgnoredSourceCountsField(field) || UNMAPPED_SINK_COUNTS.equals(field);
     }
 
     /**

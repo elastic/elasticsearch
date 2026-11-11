@@ -91,9 +91,6 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
     private final double dateFactor;
     private final Warnings warnings;
 
-    // track lastSliceIndex to allow flushing the raw buffer when the slice index changed
-    private int lastSliceIndex = -1;
-
     public RateIntGroupingAggregatorFunction(
         List<Integer> channels,
         DriverContext driverContext,
@@ -101,6 +98,7 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         boolean isDateNanos,
         Warnings warnings
     ) {
+        super(channels.get(3));
         this.channels = channels;
         this.driverContext = driverContext;
         this.isRateOverTime = isRateOverTime;
@@ -131,17 +129,13 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
     }
 
     @Override
-    public boolean canEmitPartialResultsPeriodically() {
-        return false;
-    }
-
-    @Override
     public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
         // manage nulls via buffers/reducedStates arrays
     }
 
     @Override
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
+        maybeFlushOnNewSlice(page);
         IntBlock valuesBlock = page.getBlock(channels.get(0));
         if (valuesBlock.areAllValuesNull()) {
             return new AddInput() {
@@ -174,15 +168,8 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         }
         BytesRefBlock temporalityBlock = page.getBlock(channels.get(2));
         TemporalityAccessor temporalityAccessor = TemporalityAccessor.create(temporalityBlock, Temporality.CUMULATIVE);
-        IntVector sliceIndices = ((IntBlock) page.getBlock(channels.get(3))).asVector();
-        assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
         LongVector futureMaxTimestamps = ((LongBlock) page.getBlock(channels.get(4))).asVector();
         assert futureMaxTimestamps != null : "expected future max timestamps vector in time-series aggregation";
-        int sliceIndex = sliceIndices.getInt(0);
-        if (sliceIndex > lastSliceIndex) {
-            flushRawBuffers();
-            lastSliceIndex = sliceIndex;
-        }
         return new AddInput() {
             @Override
             public void add(int positionOffset, IntArrayBlock groupIds) {

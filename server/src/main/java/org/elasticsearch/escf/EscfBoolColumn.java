@@ -48,6 +48,15 @@ final class EscfBoolColumn extends EscfColumn {
         return values != null && values.get(row);
     }
 
+    // A boolean is one bit, which rounds to 0 bytes (SourceValueType.elemDataSize(TRUE/FALSE) == 0).
+    @Override
+    public int sizeInBytes(int row) {
+        return 0;
+    }
+
+    @Override
+    public void addSizesInBytes(int[] sizes) {}
+
     @Override
     EscfColumn sliceInternal(int from, int count) {
         return new EscfBoolColumn(count, windowValidity(validity, from, count), windowBitSet(values, from, count));

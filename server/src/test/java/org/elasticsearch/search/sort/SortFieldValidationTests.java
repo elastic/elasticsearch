@@ -105,6 +105,33 @@ public class SortFieldValidationTests extends ESTestCase {
         assertThat(mergedDocIds(sort, intShard, longShard, unmapped), equalTo(List.of(0, 1, 10)));
     }
 
+    public void testPlaceholderWithIntShardOnly() {
+        for (boolean inGivenOrder : new boolean[] { true, false }) {
+            TopFieldDocs intShard = shard(numeric(SortField.Type.INT, false), 0, 3, 7);
+            TopFieldDocs unmapped = shard(placeholder(false, SortField.STRING_LAST), 10, (Object) null);
+
+            Sort sort = validate(inGivenOrder, intShard, unmapped);
+
+            // no widening happens: the type stays INT and the placeholder must be an Integer
+            assertThat(sort.getSort()[0].getType(), equalTo(SortField.Type.INT));
+            assertThat(((FieldDoc) unmapped.scoreDocs[0]).fields[0], equalTo(Integer.MAX_VALUE));
+            assertThat(mergedDocIds(sort, intShard, unmapped), equalTo(List.of(0, 1, 10)));
+        }
+    }
+
+    public void testPlaceholderWithIntShardMissingFirst() {
+        for (boolean inGivenOrder : new boolean[] { true, false }) {
+            TopFieldDocs intShard = shard(numeric(SortField.Type.INT, false), 0, 3, 7);
+            TopFieldDocs unmapped = shard(placeholder(false, SortField.STRING_FIRST), 10, (Object) null);
+
+            Sort sort = validate(inGivenOrder, intShard, unmapped);
+
+            assertThat(sort.getSort()[0].getType(), equalTo(SortField.Type.INT));
+            assertThat(((FieldDoc) unmapped.scoreDocs[0]).fields[0], equalTo(Integer.MIN_VALUE));
+            assertThat(mergedDocIds(sort, unmapped, intShard), equalTo(List.of(10, 0, 1)));
+        }
+    }
+
     public void testPlaceholderWithFloatAndLongShards() {
         TopFieldDocs floatShard = shard(numeric(SortField.Type.FLOAT, false), 0, 1.5f);
         TopFieldDocs longShard = shard(numeric(SortField.Type.LONG, false), 1, 8L);

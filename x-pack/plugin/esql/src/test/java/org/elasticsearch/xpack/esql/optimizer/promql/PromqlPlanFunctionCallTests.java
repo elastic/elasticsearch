@@ -15,12 +15,16 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
@@ -210,6 +214,26 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         FieldAttribute field = as(toCounter.field(), FieldAttribute.class);
         assertThat(field.name(), equalTo("network.eth0.tx"));
         assertFalse(isCounter(field.dataType()));
+    }
+
+    /**
+     * Regression for #164055: PromQL rate/irate/increase over a gauge inserts {@code TO_COUNTER}, which
+     * triggers nested-agg rewriting when the range window is shorter than the step. {@code WindowFilter}
+     * must keep its {@link Bucket} out of the children list so {@code toEvaluator()} does not see a
+     * {@code ReferenceAttribute}.
+     */
+    public void testPromqlRateOverGaugeWithWindowSmallerThanStepKeepsWindowFilterBucket() {
+        for (String fn : List.of("rate", "irate", "increase")) {
+            LogicalPlan plan = planPromql("PROMQL index=k8s start=$now-1h end=$now step=10m value=(sum(" + fn + "(network.eth0.tx[5m])))");
+            Holder<WindowFilter> holder = new Holder<>();
+            plan.forEachExpressionDown(WindowFilter.class, holder::set);
+            assertNotNull(fn, holder.get());
+            WindowFilter windowFilter = holder.get();
+            // Bucket must not be a rewriteable child; toEvaluator() casts it to Bucket.
+            assertThat(fn, windowFilter.children(), hasSize(2));
+            assertFalse(fn, windowFilter.children().stream().anyMatch(Bucket.class::isInstance));
+            assertNotNull(fn, windowFilter.toEvaluator(AbstractFunctionTestCase.toEvaluator()));
+        }
     }
 
     public void testCounterRequiredFunctionSkipsWrapForCounterInput() {

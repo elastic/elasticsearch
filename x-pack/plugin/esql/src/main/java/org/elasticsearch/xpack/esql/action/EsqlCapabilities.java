@@ -1672,6 +1672,15 @@ public class EsqlCapabilities {
          */
         INCREASE,
         DELTA_TS_AGG,
+
+        /**
+         * Fix {@code delta}/{@code idelta}/{@code rate}/{@code irate}/{@code increase} with a window shorter than
+         * the time bucket. Previously, the optimizer could replace the {@code Bucket} child of {@code WindowFilter}
+         * with an {@code Attribute}, causing a {@code ClassCastException} in {@code toEvaluator()}. The fix removes
+         * {@code bucket} from the children list so it is invisible to optimizer rewrites.
+         */
+        FIX_WINDOW_FILTER_BUCKET_CHILD,
+
         CLAMP_FUNCTIONS,
 
         /**

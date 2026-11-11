@@ -561,7 +561,7 @@ public class TableFunctionResolverTests extends ESTestCase {
         assertThat("nothing may have been asked", function.bindings.get(), equalTo(0));
     }
 
-    /** And one call short of the ceiling is not refused, so the check discriminates rather than always firing. */
+    /** And a query exactly at the ceiling is not refused, so the check discriminates rather than always firing. */
     public void testAQueryAtTheCeilingIsAllowed() {
         Numbers function = new Numbers();
         List<LogicalPlan> calls = new ArrayList<>();

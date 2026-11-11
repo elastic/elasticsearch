@@ -47,8 +47,8 @@ public class TableFunctionResolver {
      * does I/O, and they go out together rather than in turn, so a source list is a way to spend one query string
      * on as many concurrent requests as it has room for, with nothing refusing it until those requests are done.
      * <p>
-     * Set to {@link QueryPragmas#MAX_PARSED_BRANCH_COUNT}, the ceiling the parser already puts on how many
-     * branches a {@code FORK} may have, so one number bounds how wide a query may get however it got wide.
+     * Set to {@link QueryPragmas#MAX_PARSED_BRANCH_COUNT}, the ceiling the parser already puts on a parsed
+     * plan's leaf branches, so one number bounds how wide a query may get however it got wide.
      */
     public static final int MAX_CALLS_PER_QUERY = QueryPragmas.MAX_PARSED_BRANCH_COUNT;
 

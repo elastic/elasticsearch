@@ -6831,11 +6831,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * One resolve call, one glob, two configurations: two resolutions come back, each retrievable under its own read,
-     * and the store was listed once per read.
+     * and the store was listed once per spec.
      * <p>
-     * This is the resolver's half of the defect. Both reads are in the one call the session makes, and keyed by the
+     * This is the resolver's half of the defect. Both specs are in the one call the session makes, and keyed by the
      * resource alone the second would overwrite the first in the accumulation map — one entry back, one listing, and
-     * whichever relation lost the race reading its files under the other's settings. The two configurations here are
+     * whichever relation lost the race listed and inferred under the other's settings. The two configurations here are
      * the pair the suite already knows produce different listings (first-file-wins sorts by {@code list}, union-by-name
      * by {@code name}), so a shared entry would also be the wrong file order.
      */

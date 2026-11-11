@@ -53,9 +53,15 @@ public record ExternalSourceSpec(String path, Map<String, Object> config) {
         );
     }
 
-    /** The generated record {@code toString} would print the credentials in {@code config}; one debug log renders these. */
+    /**
+     * The resource, and the dataset name when the read came from one. Nothing derived from {@code config}: the
+     * generated record {@code toString} would print the credentials outright, and a hash of the map is a function of
+     * a secret that is plaintext on a cluster which opted out of state encryption. One debug log renders these.
+     */
     @Override
     public String toString() {
-        return path + "#" + Integer.toHexString(config.hashCode());
+        Object context = config.get(ExternalSourceResolver.DATASET_CONTEXT_KEY);
+        Object name = context instanceof Map<?, ?> map ? map.get("dataset") : null;
+        return name == null ? path : path + "[" + name + "]";
     }
 }

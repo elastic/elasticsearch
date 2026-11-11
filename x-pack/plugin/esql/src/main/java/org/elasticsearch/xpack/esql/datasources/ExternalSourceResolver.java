@@ -717,13 +717,13 @@ public class ExternalSourceResolver {
         return false;
     }
 
-    public final void resolve(List<ExternalSourceSpec> reads, ActionListener<ExternalSourceResolution> listener) {
-        resolve(reads, null, null, null, null, listener);
+    public final void resolve(List<ExternalSourceSpec> specs, ActionListener<ExternalSourceResolution> listener) {
+        resolve(specs, null, null, null, null, listener);
     }
 
     /**
-     * The one-path-read-one-way form: each path is lifted to a read under its entry in {@code pathConfigs}, and the
-     * two path-keyed maps are re-keyed onto those reads.
+     * The one-path-read-one-way form: each path is lifted to a spec under its entry in {@code pathConfigs}, and the
+     * two path-keyed maps are re-keyed onto those specs.
      * <p>
      * A path appearing once carries one configuration, so lifting it loses nothing. A plan does not: two relations can
      * read one path under two configurations, which is two reads and two resolutions, and a path-keyed call can only
@@ -741,16 +741,6 @@ public class ExternalSourceResolver {
         ActionListener<ExternalSourceResolution> listener
     ) {
         resolve(paths, pathConfigs, null, null, null, null, null, listener);
-    }
-
-    /** As {@link #resolve(List, Map, ActionListener)}, with path-keyed partition-filter hints. */
-    public final void resolve(
-        List<String> paths,
-        Map<String, Map<String, Object>> pathConfigs,
-        @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
-        ActionListener<ExternalSourceResolution> listener
-    ) {
-        resolve(paths, pathConfigs, filterHints, null, null, null, null, listener);
     }
 
     /** As {@link #resolve(List, Map, ActionListener)}, with declared mappings and the eager-stats set. */
@@ -793,33 +783,22 @@ public class ExternalSourceResolver {
             resolve((List<ExternalSourceSpec>) null, null, declaredMappings, pathsRequiringStats, pathsReadingNoRows, null, listener);
             return;
         }
-        List<ExternalSourceSpec> reads = new ArrayList<>(paths.size());
-        Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> readHints = filterHints == null
+        List<ExternalSourceSpec> specs = new ArrayList<>(paths.size());
+        Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> specHints = filterHints == null
             ? null
             : new HashMap<>();
-        Map<ExternalSourceSpec, FolderRangePredicate> readRanges = folderRanges == null ? null : new HashMap<>();
+        Map<ExternalSourceSpec, FolderRangePredicate> specRanges = folderRanges == null ? null : new HashMap<>();
         for (String path : paths) {
-            ExternalSourceSpec read = new ExternalSourceSpec(path, pathConfigs.getOrDefault(path, Map.of()));
-            reads.add(read);
-            if (readHints != null && filterHints.get(path) != null) {
-                readHints.put(read, filterHints.get(path));
+            ExternalSourceSpec spec = new ExternalSourceSpec(path, pathConfigs.getOrDefault(path, Map.of()));
+            specs.add(spec);
+            if (specHints != null && filterHints.get(path) != null) {
+                specHints.put(spec, filterHints.get(path));
             }
-            if (readRanges != null && folderRanges.get(path) != null) {
-                readRanges.put(read, folderRanges.get(path));
+            if (specRanges != null && folderRanges.get(path) != null) {
+                specRanges.put(spec, folderRanges.get(path));
             }
         }
-        resolve(reads, readHints, declaredMappings, pathsRequiringStats, pathsReadingNoRows, readRanges, listener);
-    }
-
-    /** As below, with no schema discovery information: no path is told its rows are all discarded. */
-    public final void resolve(
-        List<ExternalSourceSpec> reads,
-        @Nullable Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
-        @Nullable Map<String, DatasetMapping> declaredMappings,
-        @Nullable Set<String> pathsRequiringStats,
-        ActionListener<ExternalSourceResolution> listener
-    ) {
-        resolve(reads, filterHints, declaredMappings, pathsRequiringStats, null, listener);
+        resolve(specs, specHints, declaredMappings, pathsRequiringStats, pathsReadingNoRows, specRanges, listener);
     }
 
     /**
@@ -841,14 +820,14 @@ public class ExternalSourceResolver {
      *        {@link SchemaDiscoveryPathExtractor#pathsReadingNoRows}.
      */
     public final void resolve(
-        List<ExternalSourceSpec> reads,
+        List<ExternalSourceSpec> specs,
         @Nullable Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         @Nullable Map<String, DatasetMapping> declaredMappings,
         @Nullable Set<String> pathsRequiringStats,
         @Nullable Set<String> pathsReadingNoRows,
         ActionListener<ExternalSourceResolution> listener
     ) {
-        resolve(reads, filterHints, declaredMappings, pathsRequiringStats, pathsReadingNoRows, null, listener);
+        resolve(specs, filterHints, declaredMappings, pathsRequiringStats, pathsReadingNoRows, null, listener);
     }
 
     /**
@@ -866,11 +845,10 @@ public class ExternalSourceResolver {
      * fresh query would not.
      * <p>
      * The one overridable overload, and the one the session calls: every other is {@code final} and delegates here, so a
-     * test double that overrides this sees every resolution. Overriding a narrower one used to capture nothing and run
-     * the real resolver instead.
+     * test double that overrides this sees every resolution.
      */
     public void resolve(
-        List<ExternalSourceSpec> reads,
+        List<ExternalSourceSpec> specs,
         @Nullable Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         @Nullable Map<String, DatasetMapping> declaredMappings,
         @Nullable Set<String> pathsRequiringStats,
@@ -880,7 +858,7 @@ public class ExternalSourceResolver {
     ) {
         objectChangeRetryAhead = true;
         resolveOnce(
-            reads,
+            specs,
             filterHints,
             declaredMappings,
             pathsRequiringStats,
@@ -892,15 +870,15 @@ public class ExternalSourceResolver {
                     l.onFailure(e);
                     return;
                 }
-                LOGGER.debug("an external object changed during resolution; resolving {} again", reads);
+                LOGGER.debug("an external object changed during resolution; resolving {} again", specs);
                 invalidateUsedCacheEntries();
-                resolveOnce(reads, filterHints, declaredMappings, pathsRequiringStats, pathsReadingNoRows, folderRanges, l);
+                resolveOnce(specs, filterHints, declaredMappings, pathsRequiringStats, pathsReadingNoRows, folderRanges, l);
             })
         );
     }
 
     private void resolveOnce(
-        List<ExternalSourceSpec> reads,
+        List<ExternalSourceSpec> specs,
         @Nullable Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         @Nullable Map<String, DatasetMapping> declaredMappings,
         @Nullable Set<String> pathsRequiringStats,
@@ -908,7 +886,7 @@ public class ExternalSourceResolver {
         @Nullable Map<ExternalSourceSpec, FolderRangePredicate> folderRanges,
         ActionListener<ExternalSourceResolution> listener
     ) {
-        if (reads == null || reads.isEmpty()) {
+        if (specs == null || specs.isEmpty()) {
             listener.onResponse(ExternalSourceResolution.EMPTY);
             return;
         }
@@ -948,13 +926,13 @@ public class ExternalSourceResolver {
         ActionListener<ExternalSourceResolution> resolveListener = restorableContext == null
             ? listener
             : new ContextPreservingActionListener<>(restorableContext, listener);
-        Map<ExternalSourceSpec, ExternalSourceResolution.ResolvedSource> resolved = Maps.newHashMapWithExpectedSize(reads.size());
+        Map<ExternalSourceSpec, ExternalSourceResolution.ResolvedSource> resolved = Maps.newHashMapWithExpectedSize(specs.size());
         // The dispatched resolution can complete and carry planning on to finish() before this thread's measurement
         // settles, so commit the planning CPU spent preparing it first.
         planningCpu.checkpoint();
         metadataReadExecutor.execute(
             () -> resolveNextPath(
-                reads,
+                specs,
                 0,
                 filterHints,
                 declaredMappings,
@@ -972,7 +950,7 @@ public class ExternalSourceResolver {
      * sequentially so the accumulation map needs no synchronization and the first failure short-circuits the rest.
      */
     private void resolveNextPath(
-        List<ExternalSourceSpec> reads,
+        List<ExternalSourceSpec> specs,
         int index,
         @Nullable Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         @Nullable Map<String, DatasetMapping> declaredMappings,
@@ -982,15 +960,15 @@ public class ExternalSourceResolver {
         Map<ExternalSourceSpec, ExternalSourceResolution.ResolvedSource> resolved,
         ActionListener<ExternalSourceResolution> listener
     ) {
-        if (index == reads.size()) {
+        if (index == specs.size()) {
             listener.onResponse(new ExternalSourceResolution(resolved, bufferedWarnings()));
             return;
         }
-        ExternalSourceSpec read = reads.get(index);
-        String path = read.path();
-        Map<String, Object> config = read.config();
-        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = filterHints != null ? filterHints.get(read) : null;
-        FolderRangePredicate folderRange = folderRanges != null ? folderRanges.get(read) : null;
+        ExternalSourceSpec spec = specs.get(index);
+        String path = spec.path();
+        Map<String, Object> config = spec.config();
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = filterHints != null ? filterHints.get(spec) : null;
+        FolderRangePredicate folderRange = folderRanges != null ? folderRanges.get(spec) : null;
         // How much of this path the query actually needs. The two sets are exclusive by construction, so they
         // collapse into one value here rather than travelling down the resolution rails side by side.
         ResolutionDemand demand = ResolutionDemand.of(path, pathsRequiringStats, pathsReadingNoRows);
@@ -1030,7 +1008,7 @@ public class ExternalSourceResolver {
                 finalSource = resolvedSource;
                 effectiveReadSpec = declaredReadSpec;
             }
-            resolved.put(read, finalSource.withDeclaredReadSpec(effectiveReadSpec));
+            resolved.put(spec, finalSource.withDeclaredReadSpec(effectiveReadSpec));
             LOGGER.debug("Successfully resolved external source: {}", path);
             // Dispatch to the executor rather than calling directly: on a cache-hit the callback fires
             // synchronously, so a direct recursive call would stack one frame per path and overflow the
@@ -1040,7 +1018,7 @@ public class ExternalSourceResolver {
             planningCpu.checkpoint();
             metadataReadExecutor.execute(
                 () -> resolveNextPath(
-                    reads,
+                    specs,
                     index + 1,
                     filterHints,
                     declaredMappings,

@@ -442,7 +442,7 @@ public class EsqlSessionTests extends ESTestCase {
     }
 
     /**
-     * Two datasets over one resource that read it <em>differently</em> are two reads, and both must survive to the
+     * Two datasets over one resource that read it <em>differently</em> are two specs, and both must survive to the
      * resolver: one bucket read as CSV and as TSV yields different columns. Keyed by
      * the resource alone, the second relation's configuration overwrote the first and both relations then resolved
      * against whichever was visited last.
@@ -452,25 +452,25 @@ public class EsqlSessionTests extends ESTestCase {
         Map<String, Object> asCsv = configWith("format", "csv");
         Map<String, Object> asTsv = configWith("format", "tsv");
 
-        List<ExternalSourceSpec> reads = EsqlSession.extractExternalSourceSpecs(twoRelationsOnOnePath(path, asCsv, asTsv));
+        List<ExternalSourceSpec> specs = EsqlSession.extractExternalSourceSpecs(twoRelationsOnOnePath(path, asCsv, asTsv));
 
-        assertThat("two reads of one resource must both survive", reads, hasSize(2));
-        assertThat(reads, equalTo(List.of(new ExternalSourceSpec(path, asCsv), new ExternalSourceSpec(path, asTsv))));
+        assertThat("two specs over one resource must both survive", specs, hasSize(2));
+        assertThat(specs, equalTo(List.of(new ExternalSourceSpec(path, asCsv), new ExternalSourceSpec(path, asTsv))));
     }
 
-    /** One resource read the same way twice is one read, so the two relations share a listing and a schema. */
+    /** One resource read the same way twice is one spec, so the two relations share a listing and a schema. */
     public void testOneResourceReadOneWayTwiceCollapsesToOneSpec() {
         String path = "s3://bucket/sales";
 
-        List<ExternalSourceSpec> reads = EsqlSession.extractExternalSourceSpecs(
+        List<ExternalSourceSpec> specs = EsqlSession.extractExternalSourceSpecs(
             twoRelationsOnOnePath(path, configWith("format", "csv"), configWith("format", "csv"))
         );
 
-        assertThat("equal configurations are one read", reads, equalTo(List.of(new ExternalSourceSpec(path, configWith("format", "csv")))));
+        assertThat("equal configurations are one spec", specs, equalTo(List.of(new ExternalSourceSpec(path, configWith("format", "csv")))));
     }
 
     /**
-     * Two datasets over one resource are two reads even when only their {@code _dataset_context} differs. The context
+     * Two datasets over one resource are two specs even when only their {@code _dataset_context} differs. The context
      * does not change which bytes are read, but {@code ExternalSourceResolver} annotates a classified failure with it,
      * so collapsing the two would report one dataset's failure under the other's name.
      */
@@ -482,11 +482,11 @@ public class EsqlSessionTests extends ESTestCase {
         second.put(ExternalSourceResolver.DATASET_CONTEXT_KEY, Map.of("dataset", "b", "datasource", "src", "type", "s3"));
         assertThat("the two configs must be unequal as maps, or this test proves nothing", first, not(equalTo(second)));
 
-        List<ExternalSourceSpec> reads = EsqlSession.extractExternalSourceSpecs(twoRelationsOnOnePath(path, first, second));
+        List<ExternalSourceSpec> specs = EsqlSession.extractExternalSourceSpecs(twoRelationsOnOnePath(path, first, second));
 
         assertThat(
-            "two named datasets are two reads",
-            reads,
+            "two named datasets are two specs",
+            specs,
             equalTo(List.of(new ExternalSourceSpec(path, first), new ExternalSourceSpec(path, second)))
         );
     }
@@ -504,9 +504,9 @@ public class EsqlSessionTests extends ESTestCase {
             configWith("format", "ndjson")
         );
 
-        List<ExternalSourceSpec> reads = EsqlSession.extractExternalSourceSpecs(new UnionAll(EMPTY, List.of(left, right), List.of()));
+        List<ExternalSourceSpec> specs = EsqlSession.extractExternalSourceSpecs(new UnionAll(EMPTY, List.of(left, right), List.of()));
 
-        assertThat(reads.stream().map(ExternalSourceSpec::path).toList(), equalTo(List.of("s3://bucket/left", "s3://bucket/right")));
+        assertThat(specs.stream().map(ExternalSourceSpec::path).toList(), equalTo(List.of("s3://bucket/left", "s3://bucket/right")));
     }
 
     private static Map<String, Object> configWith(String key, Object value) {
@@ -1147,11 +1147,10 @@ public class EsqlSessionTests extends ESTestCase {
 
     /**
      * A read whose {@code partition_spec} binds {@code @timestamp} earns the request's own time bounds as listing
-     * hints with no {@code WHERE} in the query at all — the Kibana time-picker shape. The per-read loop must call
-     * {@link PartitionSpec#addTimestampBounds} even though {@code PartitionFilterHintExtractor} found nothing for
-     * this path, because that method reads the configs rather than the hints and creates the entry itself. An
-     * earlier revision of this PR skipped the call on a null and lost both the {@code year} IN and the folder
-     * range, listing the whole glob.
+     * hints with no {@code WHERE} in the query at all — the Kibana time-picker shape. The per-spec loop calls
+     * {@link PartitionSpec#withTimestampBounds} even when {@code PartitionFilterHintExtractor} found nothing for
+     * this path: the bounds come from the spec's own {@code partition_spec} and the request filter, not from the
+     * hints, so skipping the call on a null hint list loses both the {@code year} IN and the folder range.
      */
     public void testPreAnalyzeExternalSourcesAppliesTimestampBoundsWithNoQueryFilter() {
         String path = "s3://bucket/logs/**";
@@ -1170,9 +1169,9 @@ public class EsqlSessionTests extends ESTestCase {
             )
         );
 
-        ExternalSourceSpec read = captured.reads().get(0);
+        ExternalSourceSpec spec = captured.specs().get(0);
         assertNotNull("bounds alone must produce listing hints", captured.filterHints());
-        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = captured.filterHints().get(read);
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = captured.filterHints().get(spec);
         assertNotNull("the read must carry the projected hints", hints);
         assertThat(hints.stream().map(PartitionFilterHintExtractor.PartitionFilterHint::columnName).toList(), equalTo(List.of("year")));
         assertEquals(PartitionFilterHintExtractor.Operator.IN, hints.get(0).operator());
@@ -1181,7 +1180,7 @@ public class EsqlSessionTests extends ESTestCase {
         assertEquals(List.of(2026), hints.get(0).values());
 
         assertNotNull("bounds alone must produce a folder range", captured.folderRanges());
-        assertNotNull("the read must carry the folder range", captured.folderRanges().get(read));
+        assertNotNull("the spec must carry the folder range", captured.folderRanges().get(spec));
     }
 
     /**
@@ -1194,26 +1193,24 @@ public class EsqlSessionTests extends ESTestCase {
 
     /**
      * The forwarded hints, re-keyed by resource. Hints reach the resolver per read, and these plans hold one read of
-     * each resource, so the two keyings carry the same information here; a plan with two reads of one resource would
+     * each resource, so the two keyings carry the same information here; a plan with two specs over one resource would
      * collide, and this throws rather than drop one.
      */
     private static Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> captureFilterHints(LogicalPlan plan, String path) {
-        Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> byRead = captureExternalResolve(plan, path)
+        Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> bySpec = captureExternalResolve(plan, path)
             .filterHints();
-        if (byRead == null) {
+        if (bySpec == null) {
             return null;
         }
         Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> byPath = new HashMap<>();
-        byRead.forEach((read, hints) -> {
-            if (byPath.put(read.path(), hints) != null) {
-                throw new AssertionError("two reads of [" + read.path() + "]; assert on the read-keyed map instead");
-            }
+        bySpec.forEach((spec, hints) -> {
+            assertNull("two specs over [" + spec.path() + "]; assert on the spec-keyed map instead", byPath.put(spec.path(), hints));
         });
         return byPath;
     }
 
     private record CapturedExternalResolve(
-        List<ExternalSourceSpec> reads,
+        List<ExternalSourceSpec> specs,
         Set<String> pathsRequiringStats,
         Set<String> pathsReadingNoRows,
         Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
@@ -1229,20 +1226,19 @@ public class EsqlSessionTests extends ESTestCase {
         String path,
         @Nullable QueryDslTimestampBoundsExtractor.TimestampBounds listingBounds
     ) {
-        AtomicReference<List<ExternalSourceSpec>> capturedReads = new AtomicReference<>();
+        AtomicReference<List<ExternalSourceSpec>> capturedSpecs = new AtomicReference<>();
         AtomicReference<Set<String>> capturedStats = new AtomicReference<>();
         AtomicReference<Set<String>> capturedNoRows = new AtomicReference<>();
         AtomicReference<Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>>> capturedHints =
             new AtomicReference<>();
         AtomicReference<Map<ExternalSourceSpec, FolderRangePredicate>> capturedFolderRanges = new AtomicReference<>();
         AtomicBoolean resolveCalled = new AtomicBoolean();
-        // The arity the session calls. Overriding a narrower overload would capture nothing and silently run the
-        // real resolver instead, which is how this fake first went blind; every other overload is final now, so
-        // that mistake no longer compiles.
+        // The arity the session calls, and the only overridable one: every other overload is final and delegates
+        // here, so a fake cannot override a narrower one and silently run the real resolver instead.
         ExternalSourceResolver capturingResolver = new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, null) {
             @Override
             public void resolve(
-                List<ExternalSourceSpec> reads,
+                List<ExternalSourceSpec> specs,
                 Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
                 Map<String, DatasetMapping> declaredMappings,
                 Set<String> pathsRequiringStats,
@@ -1251,7 +1247,7 @@ public class EsqlSessionTests extends ESTestCase {
                 ActionListener<ExternalSourceResolution> listener
             ) {
                 resolveCalled.set(true);
-                capturedReads.set(reads);
+                capturedSpecs.set(specs);
                 capturedStats.set(pathsRequiringStats);
                 capturedNoRows.set(pathsReadingNoRows);
                 capturedHints.set(filterHints);
@@ -1288,15 +1284,15 @@ public class EsqlSessionTests extends ESTestCase {
         );
         future.actionGet();
         assertTrue("resolve must be invoked when externalSourcePaths is non-empty", resolveCalled.get());
-        // The reads come from the plan's relations, not from preAnalysis.externalSourcePaths(); these plans hold one
+        // The specs come from the plan's relations, not from preAnalysis.externalSourcePaths(); these plans hold one
         // relation, so one read of `path` is what the session owes the resolver.
         assertThat(
-            "the session must forward the plan's own reads",
-            capturedReads.get().stream().map(ExternalSourceSpec::path).toList(),
+            "the session must forward the plan's own specs",
+            capturedSpecs.get().stream().map(ExternalSourceSpec::path).toList(),
             equalTo(List.of(path))
         );
         return new CapturedExternalResolve(
-            capturedReads.get(),
+            capturedSpecs.get(),
             capturedStats.get(),
             capturedNoRows.get(),
             capturedHints.get(),

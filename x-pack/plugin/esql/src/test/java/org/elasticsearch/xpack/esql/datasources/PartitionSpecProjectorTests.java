@@ -385,36 +385,19 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         Instant start = Instant.parse("2024-06-01T00:00:00Z");
         Instant end = Instant.parse("2025-01-01T00:00:00Z");
         PartitionSpec spec = PartitionSpec.parse("year(@timestamp), month(@timestamp)");
-        Map<String, List<PartitionFilterHint>> hints = PartitionSpec.addTimestampBounds(
-            Map.of(),
-            Map.of("s3://logs/**", Map.of(PartitionSpec.CONFIG_PARTITION_SPEC, "year(@timestamp), month(@timestamp)")),
-            start,
-            end
-        );
-        List<PartitionFilterHint> projected = spec.projectListingHints(hints.get("s3://logs/**"));
+        List<PartitionFilterHint> projected = spec.projectListingHints(spec.withTimestampBounds(null, start, end));
         assertEquals(List.of(2024, 2025), inValues(projected, "year"));
         assertEquals(List.of(6, 7, 8, 9, 10, 11, 12, 1), inValues(projected, "month"));
-        assertTrue(
-            PartitionSpec.addTimestampBounds(
-                Map.of(),
-                Map.of("s3://logs/**", Map.of(PartitionSpec.CONFIG_PARTITION_SPEC, "year(ts)")),
-                start,
-                end
-            ).isEmpty()
-        );
+        // A spec binding some other column earns no bounds at all, so its hints come back exactly as they went in.
+        assertNull(PartitionSpec.parse("year(ts)").withTimestampBounds(null, start, end));
     }
 
     public void testClosedRangeEndingAtYearStartStillIncludesThatYear() {
         Instant start = Instant.parse("2024-06-01T00:00:00Z");
         Instant end = Instant.parse("2026-01-01T00:00:00Z");
         PartitionSpec spec = PartitionSpec.parse("year(@timestamp), month(@timestamp)");
-        Map<String, List<PartitionFilterHint>> hints = PartitionSpec.addTimestampBounds(
-            Map.of(),
-            Map.of("s3://logs/**", Map.of(PartitionSpec.CONFIG_PARTITION_SPEC, "year(@timestamp), month(@timestamp)")),
-            start,
-            end
-        );
-        assertEquals(List.of(2024, 2025, 2026), inValues(spec.projectListingHints(hints.get("s3://logs/**")), "year"));
+        List<PartitionFilterHint> bounds = spec.withTimestampBounds(null, start, end);
+        assertEquals(List.of(2024, 2025, 2026), inValues(spec.projectListingHints(bounds), "year"));
     }
 
     public void testDateNanosExclusiveGreaterThanKeepsContainingMillisecondFolder() {

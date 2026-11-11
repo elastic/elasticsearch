@@ -868,6 +868,13 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 }
             }
             for (PendingRelocation staleRelocation : staleRelocations) {
+                logger.debug(
+                    "[{}]: discarding stale queued primary relocation to [{}] with allocation ID [{}] : [{}]",
+                    staleRelocation.request().shardId(),
+                    staleRelocation.request().targetNode().descriptionWithoutAttributes(),
+                    staleRelocation.request().targetAllocationId(),
+                    staleRelocation.shard().routingEntry()
+                );
                 staleRelocation.listener()
                     .onFailure(
                         new IllegalIndexShardStateException(

@@ -11,9 +11,11 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedTableFunctionRelation;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -35,6 +37,20 @@ import java.util.concurrent.Executor;
  * diagnostic at its own position rather than by whatever the next stage would have made of it.
  */
 public class TableFunctionResolver {
+
+    /**
+     * The most calls one query may make, counted over the whole plan once views have been expanded.
+     * <p>
+     * A fixed ceiling rather than a setting, in front of a check that already exists: the configurable branch
+     * count ({@code esql.query.max_branch_count}, 20 by default) is checked on the <i>optimized</i> plan, which
+     * is long after every call in this query has been made. Each call is an outbound request for a function that
+     * does I/O, and they go out together rather than in turn, so a source list is a way to spend one query string
+     * on as many concurrent requests as it has room for, with nothing refusing it until those requests are done.
+     * <p>
+     * Set to {@link QueryPragmas#MAX_PARSED_BRANCH_COUNT}, the ceiling the parser already puts on how many
+     * branches a {@code FORK} may have, so one number bounds how wide a query may get however it got wide.
+     */
+    public static final int MAX_CALLS_PER_QUERY = QueryPragmas.MAX_PARSED_BRANCH_COUNT;
 
     private final TableFunctionRegistry registry;
     private final Executor executor;
@@ -72,6 +88,20 @@ public class TableFunctionResolver {
         });
         if (leaves.isEmpty()) {
             listener.onResponse(parsed);
+            return;
+        }
+        if (leaves.size() > MAX_CALLS_PER_QUERY) {
+            // Before the shape checks below, and before anything is asked: a query this wide has to lose calls
+            // whatever is wrong with the ones it has, and the position is the first call it has no room for, so
+            // the message points at where cutting starts.
+            listener.onFailure(
+                new ParsingException(
+                    leaves.get(MAX_CALLS_PER_QUERY).call().source(),
+                    "a query may call up to [{}] table functions, found [{}]",
+                    MAX_CALLS_PER_QUERY,
+                    leaves.size()
+                )
+            );
             return;
         }
 

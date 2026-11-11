@@ -3,7 +3,7 @@
 #define VEC_COMMON_H
 
 #include <stdint.h>
-#include <string.h>
+#include <algorithm>
 #include <type_traits>
 #include <utility>
 
@@ -167,8 +167,9 @@ static inline T tree_reduce(const T values[N]) {
 // Reads bytes (1, 2, 4 or 8) bytes at p into the low bytes of a uint64_t.
 template <int bytes>
 static inline uint64_t load_bytes(const int8_t* p) {
+    static_assert(bytes == 1 || bytes == 2 || bytes == 4 || bytes == 8, "bytes must be 1, 2, 4 or 8");
     uint64_t value = 0;
-    memcpy(&value, p, bytes);
+    std::copy_n(p, bytes, reinterpret_cast<int8_t*>(&value));
     return value;
 }
 

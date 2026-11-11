@@ -452,6 +452,9 @@ toc:
               - file: esql/esql-data-federation-schema.md
               - file: esql/esql-data-federation-dataset-settings.md
           - file: esql/esql-data-federation-querying.md
+          - file: esql/esql-data-federation-costs.md
+            children:
+              - file: esql/esql-data-federation-costs-s3.md
           - file: esql/esql-data-federation-security.md
           - file: esql/esql-data-federation-cluster-settings.md
       - file: esql/esql-advanced.md
@@ -459,6 +462,7 @@ toc:
           - file: esql/esql-process-data-with-dissect-grok.md
           - file: esql/esql-enrich-data.md
           - file: esql/esql-lookup-join.md
+          - file: esql/esql-runtime-search.md
       - file: esql/esql-types-and-fields.md
         children:
           - file: esql/esql-implicit-casting.md
@@ -500,7 +504,7 @@ toc:
           - file: promql/operators/unary.md
           - file: promql/operators/label-matching.md
       - file: promql/promql-grafana.md
-      - file: promql/promql-limitations.md
+      - file: promql/prometheus-compatibility.md
   - file: sql.md
     children:
       - file: sql/sql-getting-started.md

@@ -48,6 +48,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
 public class ObjectMapper extends Mapper {
@@ -124,18 +125,11 @@ public class ObjectMapper extends Mapper {
         /**
          * Get the root-level dynamic setting for a Mapping
          *
-         * If no dynamic settings are explicitly configured, we default to {@link #TRUE}, unless the implicit flattened
-         * {@code _unmapped} sink is present, in which case unmapped fields default to being absorbed ({@link #FLATTENED}).
+         * If no dynamic settings are explicitly configured, we default to {@link #TRUE}.
          */
         static Dynamic getRootDynamic(MappingLookup mappingLookup) {
             Dynamic rootDynamic = mappingLookup.getMapping().getRoot().dynamic;
-            if (rootDynamic != null) {
-                return rootDynamic;
-            }
-            if (mappingLookup.getMapping().getMetadataMapperByName(FlattenedFieldMapper.UNMAPPED_SINK_NAME) != null) {
-                return FLATTENED;
-            }
-            return Defaults.DYNAMIC;
+            return rootDynamic != null ? rootDynamic : Defaults.DYNAMIC;
         }
     }
 
@@ -261,6 +255,17 @@ public class ObjectMapper extends Mapper {
         }
 
         /**
+         * Descends into the children: an object contributes no field of its own.
+         */
+        @Override
+        public void collectFieldBuilders(@Nullable String parentPath, BiConsumer<String, Mapper.Builder> consumer) {
+            String fullPath = fullPath(parentPath);
+            for (Mapper.Builder child : mappersBuilders) {
+                child.collectFieldBuilders(fullPath, consumer);
+            }
+        }
+
+        /**
          * The context this builder's children are normalized and built under
          */
         protected MapperBuilderContext childContext(MapperBuilderContext context) {
@@ -310,6 +315,69 @@ public class ObjectMapper extends Mapper {
                 && builder instanceof ObjectMapper.Builder
                 && builder instanceof NestedObjectMapper.Builder == false;
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            toXContent(builder, params, null);
+            return builder;
+        }
+
+        void toXContent(XContentBuilder builder, Params params, ToXContent custom) throws IOException {
+            builder.startObject(leafName());
+            if (mappersBuilders.isEmpty() && custom == null) {
+                // only write the object content type if there are no properties, otherwise, it is automatically detected
+                builder.field("type", CONTENT_TYPE);
+            }
+            if (dynamic != null) {
+                builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
+            }
+            if (enabled.value() != Defaults.ENABLED) {
+                builder.field("enabled", enabled.value());
+            }
+            if (subobjects != null && subobjects.explicit()) {
+                builder.field("subobjects", subobjects.value().printedValue);
+            }
+            if (sourceKeepMode.isPresent()) {
+                builder.field("synthetic_source_keep", sourceKeepMode.get());
+            }
+            if (custom != null) {
+                custom.toXContent(builder, params);
+            }
+
+            doXContent(builder, params);
+            serializeChildren(builder, params);
+            builder.endObject();
+        }
+
+        /**
+         * Writes the children under {@code properties}, sorted by name, which keeps the serialized
+         * mapping deterministic across nodes. A flattened child has a dotted name, which sorts the same way its full path does.
+         */
+        protected final void serializeChildren(XContentBuilder builder, Params params) throws IOException {
+            List<Mapper.Builder> sortedChildren = mappersBuilders.stream()
+                .filter(this::isSerializedAsProperty)
+                .sorted(Comparator.comparing(Mapper.Builder::leafName))
+                .toList();
+            if (sortedChildren.isEmpty() == false) {
+                builder.startObject("properties");
+                for (Mapper.Builder child : sortedChildren) {
+                    child.toXContent(builder, params);
+                }
+                builder.endObject();
+            }
+        }
+
+        /**
+         * Whether a child is written under {@code properties}. Metadata fields are written elsewhere, by the mapping.
+         */
+        protected boolean isSerializedAsProperty(Mapper.Builder child) {
+            return child instanceof MetadataFieldMapper.Builder == false;
+        }
+
+        /**
+         * Writes whatever a subclass adds after the settings common to all objects and before the children.
+         */
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {}
 
         /**
          * Builds the children of this builder. Requires that {@link #normalize} has already been applied to the tree. That is done
@@ -671,6 +739,27 @@ public class ObjectMapper extends Mapper {
             }
         }
 
+        /**
+         * {@code dynamic: flattened} absorbs unmapped fields into the {@code _unmapped} sink, so it is accepted only where the sink exists
+         * (see {@link UnmappedSinkFieldMapper#isEnabled}), and only at the root: in strict columnar mode a sub-object's {@code dynamic} is
+         * kept in {@code prefix_properties}, which does not accept {@code flattened}.
+         */
+        private static void validateDynamicFlattened(IndexSettings indexSettings, Builder builder) {
+            if (indexSettings.getMode().isStrictColumnar() == false) {
+                throw new MapperParsingException("dynamic [flattened] is only supported in strict columnar mode");
+            }
+            if (UnmappedSinkFieldMapper.isEnabled(indexSettings) == false) {
+                throw new MapperParsingException(
+                    "dynamic [flattened] is not supported on indices created before ["
+                        + IndexVersions.UNMAPPED_SINK_ON_STRICT_COLUMNAR.toReleaseVersion()
+                        + "]"
+                );
+            }
+            if (builder instanceof RootObjectMapper.Builder == false) {
+                throw new MapperParsingException("dynamic [flattened] is only supported on the root object");
+            }
+        }
+
         @SuppressWarnings({ "unchecked", "rawtypes" })
         protected static boolean parseObjectOrDocumentTypeProperties(
             String fieldName,
@@ -687,6 +776,9 @@ public class ObjectMapper extends Mapper {
                         throw new MapperParsingException("dynamic [runtime] is not supported in strict columnar mode");
                     }
                     builder.dynamic(Dynamic.RUNTIME);
+                } else if (value.equalsIgnoreCase("flattened") && FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled()) {
+                    validateDynamicFlattened(parserContext.getIndexSettings(), builder);
+                    builder.dynamic(Dynamic.FLATTENED);
                 } else {
                     boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");
                     builder.dynamic(dynamic ? Dynamic.TRUE : Dynamic.FALSE);
@@ -1020,63 +1112,6 @@ public class ObjectMapper extends Mapper {
      */
     protected void validateSubField(Mapper mapper, MappingLookup mappers) {
         mapper.validate(mappers);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        toXContent(builder, params, null);
-        return builder;
-    }
-
-    void toXContent(XContentBuilder builder, Params params, ToXContent custom) throws IOException {
-        builder.startObject(leafName());
-        if (mappers.isEmpty() && custom == null) {
-            // only write the object content type if there are no properties, otherwise, it is automatically detected
-            builder.field("type", CONTENT_TYPE);
-        }
-        if (dynamic != null) {
-            builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
-        }
-        if (isEnabled() != Defaults.ENABLED) {
-            builder.field("enabled", enabled.value());
-        }
-        if (subobjects.explicit()) {
-            builder.field("subobjects", subobjects.value().printedValue);
-        }
-        if (sourceKeepMode.isPresent()) {
-            builder.field("synthetic_source_keep", sourceKeepMode.get());
-        }
-        if (custom != null) {
-            custom.toXContent(builder, params);
-        }
-
-        doXContent(builder, params);
-        serializeMappers(builder, params);
-        builder.endObject();
-    }
-
-    protected void serializeMappers(XContentBuilder builder, Params params) throws IOException {
-        // sort the mappers so we get consistent serialization format
-        Mapper[] sortedMappers = mappers.values().toArray(Mapper[]::new);
-        Arrays.sort(sortedMappers, Comparator.comparing(Mapper::fullPath));
-
-        int count = 0;
-        for (Mapper mapper : sortedMappers) {
-            if (mapper instanceof MetadataFieldMapper) {
-                continue;
-            }
-            if (count++ == 0) {
-                builder.startObject("properties");
-            }
-            mapper.toXContent(builder, params);
-        }
-        if (count > 0) {
-            builder.endObject();
-        }
-    }
-
-    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-
     }
 
     public ObjectMapper findParentMapper(String leafFieldPath) {

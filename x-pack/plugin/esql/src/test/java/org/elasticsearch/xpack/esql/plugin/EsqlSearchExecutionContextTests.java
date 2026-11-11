@@ -21,11 +21,12 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class EsqlSearchExecutionContextTests extends MapperServiceTestCase {
 
-    private static final Set<String> READ_BY_THE_PLAN = Set.of("mapped", "attrs.bar", "unmapped");
+    private static final Set<String> READ_BY_THE_PLAN = Set.of("mapped", "attrs.bar", "unmapped", "object");
     private static final String MAPPING = """
         { "_doc": { "dynamic": false, "properties": {
           "mapped": { "type": "keyword" },
-          "attrs": { "type": "flattened" }
+          "attrs": { "type": "flattened" },
+          "object": { "properties": { "leaf": { "type": "keyword" } } }
         } } }""";
 
     /**
@@ -45,6 +46,9 @@ public class EsqlSearchExecutionContextTests extends MapperServiceTestCase {
         assertThat(context.getFieldType("unmapped"), instanceOf(KeywordScriptFieldType.class));
         assertTrue("the shard reads the field, so a query on it is not rewritten to match nothing", context.isMappedField("unmapped"));
         assertTrue(context.readsFromSource("unmapped"));
+
+        assertNull("an object holds no value of its own, so the shard reads none", context.getFieldType("object"));
+        assertFalse(context.readsFromSource("object"));
     }
 
     /** A name the plan does not read keeps the resolution of the mapping: the plan reads it as null. */
@@ -54,6 +58,30 @@ public class EsqlSearchExecutionContextTests extends MapperServiceTestCase {
 
         assertFalse(context.isMappedField("attrs.bar"));
         assertFalse(context.isMappedField("unmapped"));
+    }
+
+    /** Where the query reads keys, a name under a flattened field is its key, whatever the plan reads. */
+    public void testReadsAKeyWhereTheQueryReadsKeys() throws IOException {
+        SearchExecutionContext base = createSearchExecutionContext(createMapperService(MAPPING));
+        EsqlSearchExecutionContext context = new EsqlSearchExecutionContext(base, QueryWarnings.EMIT, Set.of(), true);
+
+        assertTrue(context.readsKey("attrs.bar"));
+        assertTrue(context.isMappedField("attrs.bar"));
+        assertFalse(context.readsKey("mapped"));
+        assertFalse(context.readsKey("unmapped"));
+        assertFalse(new EsqlSearchExecutionContext(base, QueryWarnings.EMIT, READ_BY_THE_PLAN).readsKey("attrs.bar"));
+    }
+
+    /** Field-level security hides a key as it hides a mapped field: the shard does not read it. */
+    public void testFieldLevelSecurityHidesAKey() throws IOException {
+        SearchExecutionContext base = createSearchExecutionContext(createMapperService(MAPPING));
+        base.setFieldVisibilityPredicate(name -> name.equals("attrs.bar") == false);
+        EsqlSearchExecutionContext context = new EsqlSearchExecutionContext(base, QueryWarnings.EMIT, Set.of("attrs.bar"), true);
+
+        assertFalse(context.readsKey("attrs.bar"));
+        assertFalse(context.isMappedField("attrs.bar"));
+        assertFalse(context.isFieldMapped("attrs.bar"));
+        assertTrue(context.readsKey("attrs.baz"));
     }
 
     /** Field-level security hides an unmapped field as it hides a mapped one: the shard does not resolve it. */

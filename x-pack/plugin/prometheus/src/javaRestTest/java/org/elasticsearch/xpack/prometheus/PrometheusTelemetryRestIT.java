@@ -33,7 +33,8 @@ public class PrometheusTelemetryRestIT extends AbstractPrometheusRestIT {
         "prometheus_labels",
         "prometheus_label_values",
         "prometheus_series",
-        "prometheus_metadata"
+        "prometheus_metadata",
+        "prometheus_query_exemplars"
     );
 
     public void testInstantQueryIsCountedAsPromql() throws IOException {

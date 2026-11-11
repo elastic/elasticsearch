@@ -180,6 +180,11 @@ tests:
   - :modules:transport-netty4:pooledInternalClusterTest
   method: testLimitsInFlightRequests
   issue: https://github.com/elastic/elasticsearch/issues/165412
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  tasks:
+  - :qa:mixed-cluster:v8.17.10#yamlRestTest
+  method: test {yaml=indices.create/20_synthetic_source/synthetic_source with copy_to inside nested object}
+  issue: https://github.com/elastic/elasticsearch/issues/165482
 
 # Examples:
 #

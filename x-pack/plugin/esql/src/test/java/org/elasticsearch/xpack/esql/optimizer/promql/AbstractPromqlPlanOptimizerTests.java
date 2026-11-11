@@ -57,7 +57,7 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
      */
     protected boolean typedLabelContainer() {
         return EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled()
-            && DataType.TSMD_DATA_TYPE.supportedVersion()
+            && DataType.TIME_SERIES_METADATA_DATA_TYPE.supportedVersion()
                 .supportedOn(minimumVersionAtLeast(TimeSeriesCollapse.TS_COLLAPSE), Build.current().isSnapshot());
     }
 

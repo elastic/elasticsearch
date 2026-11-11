@@ -1170,9 +1170,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         if (current instanceof PendingAllocationState.InFlight || current instanceof PendingAllocationState.FailureReported) {
             return Optional.empty();
         }
-        var candidate = new PendingAllocationState.InFlight(threadPool.relativeTimeInMillis(), primaryTerm);
-        pendingAllocationStates.put(key, candidate);
-        return Optional.of(candidate);
+        var inFlightTicket = new PendingAllocationState.InFlight(threadPool.relativeTimeInMillis(), primaryTerm);
+        pendingAllocationStates.put(key, inFlightTicket);
+        return Optional.of(inFlightTicket);
     }
 
     private void createShardWhenLockAvailable(

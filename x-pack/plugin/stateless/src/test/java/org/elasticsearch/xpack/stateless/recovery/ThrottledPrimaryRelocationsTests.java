@@ -289,6 +289,59 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         assertNotNull(capturedListener.get());
     }
 
+    public void testRunnerThrowingReleasesSlot() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var started = new AtomicInteger();
+        final var clusterService = mockClusterService();
+        final var throttle = new ThrottledPrimaryRelocations(
+            clusterService,
+            taskQueue::scheduleNow,
+            (parentClient, request, shard, listener) -> {
+                if (started.getAndIncrement() == 0) {
+                    throw new AlreadyClosedException("simulated synchronous failure");
+                }
+                listener.onResponse(EMPTY_START_RELOCATION_RESPONSE);
+            },
+            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+        );
+        throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
+        throttle.start();
+        applyOutgoingThrottleSettings(clusterService, 1, Double.MAX_VALUE);
+
+        final var shardId1 = new ShardId(randomIndexName(), randomUUID(), 0);
+        final var shardId2 = new ShardId(randomIndexName(), randomUUID(), 0);
+        final var shard1 = mockShard(shardId1);
+        final var shard2 = mockShard(shardId2);
+        final var failures = new ArrayList<Exception>();
+        final var result = new AtomicReference<StartRelocationResponse>();
+
+        throttle.enqueueRelocation(
+            null,
+            createStartRelocationRequest(DiscoveryNodeUtils.create(randomIdentifier()), shardId1),
+            shard1,
+            ActionListener.wrap(ignored -> fail("expected failure"), failures::add)
+        );
+        throttle.enqueueRelocation(
+            null,
+            createStartRelocationRequest(DiscoveryNodeUtils.create(randomIdentifier()), shardId2),
+            shard2,
+            ActionListener.wrap(result::set, e -> fail("unexpected relocation failure: " + e))
+        );
+        assertThat(throttle.activeRelocationCount(), equalTo(1));
+        assertThat(throttle.queuedRelocationCount(), equalTo(1));
+
+        taskQueue.runAllRunnableTasks();
+
+        assertThat(started.get(), equalTo(2));
+        assertThat(failures, hasSize(1));
+        assertThat(failures.getFirst(), instanceOf(AlreadyClosedException.class));
+        assertNotNull(result.get());
+        assertThat(throttle.activeRelocationCount(), equalTo(0));
+        assertThat(throttle.queuedRelocationCount(), equalTo(0));
+        assertTrue(shard1.recoveryStats().noCurrentRecoveries());
+        assertTrue(shard2.recoveryStats().noCurrentRecoveries());
+    }
+
     public void testMultipleSlotsAllowParallelRelocations() {
         final var taskQueue = new DeterministicTaskQueue();
         final var listeners = new CompositeRecoverySchedulingListener();

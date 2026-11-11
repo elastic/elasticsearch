@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
@@ -861,7 +862,12 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 );
                 // The generic executor has an unbounded queue and the threadpool shuts down after this service is
                 // stopped (and drains the queue), so the `execute` call cannot throw `EsRejectedExecutionException`.
-                executor.execute(() -> runner.run(relocation.parentClient(), relocation.request(), relocation.shard(), wrappedListener));
+                executor.execute(
+                    ActionRunnable.wrap(
+                        wrappedListener,
+                        l -> runner.run(relocation.parentClient(), relocation.request(), relocation.shard(), l)
+                    )
+                );
             }
         }
 

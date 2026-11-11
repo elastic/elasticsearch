@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed.delayeddatacheck;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -18,7 +17,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
-import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDelayedDataDetector;
 
 import java.util.List;
 import java.util.Objects;
@@ -44,16 +43,13 @@ public class DelayedDataDetectorFactory {
      * @param datafeedConfig The {@link DatafeedConfig} for which to create the {@link DelayedDataDetector}
      * @param client The {@link Client} capable of taking action against the ES Cluster.
      * @param xContentRegistry The current NamedXContentRegistry with which to parse the query
-     * @param dataExtractorFactory The datafeed's {@link DataExtractorFactory}, re-used to re-run the query of an ES|QL datafeed;
-     *                             ignored (and may be null) for other datafeed types
      * @return A new {@link DelayedDataDetector}
      */
     public static DelayedDataDetector buildDetector(
         Job job,
         DatafeedConfig datafeedConfig,
         Client client,
-        NamedXContentRegistry xContentRegistry,
-        @Nullable DataExtractorFactory dataExtractorFactory
+        NamedXContentRegistry xContentRegistry
     ) {
         if (datafeedConfig.getDelayedDataCheckConfig().isEnabled()) {
             long window = validateAndCalculateWindowLength(
@@ -78,10 +74,10 @@ public class DelayedDataDetectorFactory {
                     job.getId(),
                     job.getDataDescription().getTimeField(),
                     summaryCountField,
-                    Objects.requireNonNull(
-                        dataExtractorFactory,
-                        "dataExtractorFactory is required for an ES|QL datafeed delayed-data check"
-                    ).withoutTimingStats(),
+                    datafeedConfig.getEsqlQuery(),
+                    datafeedConfig.getHeaders(),
+                    datafeedConfig.getProjectRouting(),
+                    datafeedConfig.getSourceTimeField(),
                     client
                 );
             }
@@ -128,7 +124,7 @@ public class DelayedDataDetectorFactory {
         return currentWindow.millis();
     }
 
-    static List<Bucket> getFinalizedBuckets(Client client, String jobId, long bucketSpan, long start, long end) {
+    public static List<Bucket> getFinalizedBuckets(Client client, String jobId, long bucketSpan, long start, long end) {
         GetBucketsAction.Request request = new GetBucketsAction.Request(jobId);
         request.setStart(Long.toString(start));
         request.setEnd(Long.toString(end));

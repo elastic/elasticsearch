@@ -30,9 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
@@ -165,9 +163,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         DatafeedContext context,
         ActionListener<DatafeedJob> listener
     ) {
-        DataExtractorFactory dataExtractorFactory = mock(DataExtractorFactory.class);
-        when(dataExtractorFactory.withoutTimingStats()).thenReturn(dataExtractorFactory);
-        datafeedJobBuilder.buildWithExtractorFactory(task, context, dataExtractorFactory, listener);
+        datafeedJobBuilder.buildWithExtractorFactory(task, context, mock(DataExtractorFactory.class), listener);
     }
 
     public void testBuild_GivenScrollDatafeedAndOldJobWithLatestRecordTimestampAfterLatestBucket() throws Exception {
@@ -258,41 +254,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             datafeed.build(),
             jobBuilder.build(),
             new RestartTimeInfo(8 * hour, recordStamp, true),
-            new DatafeedTimingStats(jobBuilder.getId())
-        );
-
-        buildDatafeedJob(newDatafeedTask("datafeed1"), datafeedContext, datafeedJobHandler);
-        assertBusy(() -> assertTrue(wasHandlerCalled.get()));
-    }
-
-    public void testBuildGivenEsqlDatafeedWithDelayedDataCheckEnabledShouldSucceed() throws Exception {
-        assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
-        DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setTimeField("time");
-        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
-        jobBuilder.setDataDescription(dataDescription);
-        jobBuilder.setCreateTime(new Date());
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(
-            Collections.singletonList(new Detector.Builder("count", null).build())
-        );
-        analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
-        analysisConfig.setSummaryCountFieldName("event_count");
-        jobBuilder.setAnalysisConfig(analysisConfig);
-        DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
-        datafeed.setEsqlQuery("FROM logs | STATS event_count = COUNT(*) BY time = BUCKET(@timestamp, 1 hour)");
-        datafeed.setSourceTimeField("@timestamp");
-        datafeed.setGroupingInterval(TimeValue.timeValueHours(1));
-        datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(8)));
-
-        AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
-        ActionListener<DatafeedJob> datafeedJobHandler = ActionTestUtils.assertNoFailureListener(
-            datafeedJob -> { wasHandlerCalled.set(true); }
-        );
-
-        DatafeedContext datafeedContext = new DatafeedContext(
-            datafeed.build(),
-            jobBuilder.build(),
-            new RestartTimeInfo(null, null, false),
             new DatafeedTimingStats(jobBuilder.getId())
         );
 

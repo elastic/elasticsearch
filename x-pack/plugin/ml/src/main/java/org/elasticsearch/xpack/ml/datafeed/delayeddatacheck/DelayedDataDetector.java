@@ -12,7 +12,4 @@ public interface DelayedDataDetector {
     List<DelayedDataDetectorFactory.BucketWithMissingData> detectMissingData(long endingTimeStamp);
 
     long getWindow();
-
-    /** Aborts a check running on another thread. That check reports no missing data. */
-    default void cancel() {}
 }

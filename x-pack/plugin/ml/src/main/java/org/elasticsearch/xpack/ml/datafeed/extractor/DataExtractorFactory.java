@@ -36,11 +36,6 @@ public interface DataExtractorFactory {
 
     default void includeProject(String projectAlias) {}
 
-    /** Same extractor wiring as this factory but re-queries do not update datafeed timing stats. */
-    default DataExtractorFactory withoutTimingStats() {
-        return this;
-    }
-
     /**
      * Creates a {@code DataExtractorFactory} for the given datafeed-job combination.
      * <p>

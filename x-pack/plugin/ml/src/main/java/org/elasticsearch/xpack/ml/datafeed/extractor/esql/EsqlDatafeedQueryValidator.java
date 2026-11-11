@@ -468,6 +468,7 @@ public class EsqlDatafeedQueryValidator {
     ) {
         boolean foundTimeField = false;
         boolean foundSummaryCountField = requiredSummaryCountField == null;
+        String summaryCountColumnType = null;
         for (ColumnInfo column : columns) {
             String name = column.name();
             if (timeField.equals(name)) {
@@ -475,6 +476,7 @@ public class EsqlDatafeedQueryValidator {
             }
             if (requiredSummaryCountField != null && requiredSummaryCountField.equals(name)) {
                 foundSummaryCountField = true;
+                summaryCountColumnType = column.outputType();
             }
         }
         if (foundTimeField == false || foundSummaryCountField == false) {
@@ -492,6 +494,19 @@ public class EsqlDatafeedQueryValidator {
                 Messages.getMessage(Messages.DATAFEED_ESQL_DELAYED_DATA_MISSING_SUMMARY_COUNT_COLUMN, requiredSummaryCountField)
             );
         }
+        if (requiredSummaryCountField != null && isIntegerCountColumnType(summaryCountColumnType) == false) {
+            throw new IllegalArgumentException(
+                Messages.getMessage(
+                    Messages.DATAFEED_ESQL_DELAYED_DATA_SUMMARY_COUNT_NOT_INTEGER,
+                    requiredSummaryCountField,
+                    summaryCountColumnType
+                )
+            );
+        }
+    }
+
+    private static boolean isIntegerCountColumnType(@Nullable String outputType) {
+        return "long".equals(outputType) || "integer".equals(outputType);
     }
 
     private void executeEsqlQueryAsync(

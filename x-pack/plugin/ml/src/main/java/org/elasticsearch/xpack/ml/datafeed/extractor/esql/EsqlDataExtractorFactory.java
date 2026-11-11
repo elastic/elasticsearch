@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -46,14 +45,5 @@ public record EsqlDataExtractorFactory(Client client, DatafeedConfig datafeed, J
             datafeed.getProjectRouting()
         );
         return new EsqlDataExtractor(client, ctx, timingStatsReporter);
-    }
-
-    @Override
-    public DataExtractorFactory withoutTimingStats() {
-        DatafeedTimingStatsReporter noOpReporter = new DatafeedTimingStatsReporter(
-            new DatafeedTimingStats(job.getId()),
-            (stats, refresh, listener) -> {}
-        );
-        return new EsqlDataExtractorFactory(client, datafeed, job, noOpReporter);
     }
 }

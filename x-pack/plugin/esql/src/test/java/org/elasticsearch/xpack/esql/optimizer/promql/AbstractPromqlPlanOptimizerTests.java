@@ -13,8 +13,10 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -23,6 +25,7 @@ import org.hamcrest.Matcher;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.empty;
@@ -43,6 +46,20 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
             .addEmptyIndex()
             .unmappedResolution(UnmappedResolution.NULLIFY)
             .minimumTransportVersion(minimumVersionAtLeast(TimeSeriesCollapse.TS_COLLAPSE));
+    }
+
+    /**
+     * The labels the {@code _timeseries} view of {@code plan}'s source leaves out, a typed label container or keyword alike: the
+     * loader reads the view without them. Null when the plan reads no view.
+     */
+    protected Set<String> viewExclusions(LogicalPlan plan) {
+        return plan.collect(EsRelation.class)
+            .stream()
+            .flatMap(relation -> relation.output().stream())
+            .filter(TimeSeriesMetadataAttribute.class::isInstance)
+            .map(attribute -> ((TimeSeriesMetadataAttribute) attribute).excludedFields())
+            .findFirst()
+            .orElse(null);
     }
 
     protected LogicalPlan planPromql(String query) {

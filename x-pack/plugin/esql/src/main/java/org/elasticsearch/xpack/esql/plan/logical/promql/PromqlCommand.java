@@ -7,19 +7,25 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -29,22 +35,35 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -95,6 +114,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     private final String valueColumnName;
     private final NameId valueId;
     private final NameId stepId;
+    private final NameId timeseriesId;
     private List<Attribute> output;
 
     // Range query constructor
@@ -110,7 +130,21 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         String valueColumnName,
         Expression timestamp
     ) {
-        this(source, child, promqlPlan, start, end, step, buckets, scrapeInterval, valueColumnName, new NameId(), new NameId(), timestamp);
+        this(
+            source,
+            child,
+            promqlPlan,
+            start,
+            end,
+            step,
+            buckets,
+            scrapeInterval,
+            valueColumnName,
+            new NameId(),
+            new NameId(),
+            new NameId(),
+            timestamp
+        );
     }
 
     // Full constructor
@@ -126,6 +160,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         String valueColumnName,
         NameId valueId,
         NameId stepId,
+        NameId timeseriesId,
         Expression timestamp
     ) {
         super(source, child);
@@ -138,6 +173,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         this.valueColumnName = valueColumnName;
         this.valueId = valueId;
         this.stepId = stepId;
+        this.timeseriesId = timeseriesId;
         this.timestamp = timestamp;
     }
 
@@ -156,6 +192,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             valueColumnName(),
             valueId(),
             stepId(),
+            timeseriesId(),
             timestamp()
         );
     }
@@ -174,6 +211,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             valueColumnName(),
             valueId(),
             stepId(),
+            timeseriesId(),
             timestamp()
         );
     }
@@ -194,6 +232,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             valueColumnName(),
             valueId(),
             stepId(),
+            timeseriesId(),
             timestamp()
         );
     }
@@ -222,6 +261,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             valueColumnName(),
             valueId(),
             stepId(),
+            timeseriesId(),
             timestamp()
         );
     }
@@ -314,6 +354,21 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         return stepId;
     }
 
+    /** The id of the {@code _timeseries} column the command exposes for its result's label container. */
+    public NameId timeseriesId() {
+        return timeseriesId;
+    }
+
+    /**
+     * Whether {@code _timeseries} is a typed label container for this query: the feature is on and every participating node reads
+     * it. Otherwise the translated plan is lowered to the keyword column.
+     */
+    public static boolean usesLabelContainer(AnalyzerContext analyzer) {
+        return EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled()
+            && DataType.TIME_SERIES_METADATA_DATA_TYPE.supportedVersion()
+                .supportedOn(analyzer.minimumVersion(), Build.current().isSnapshot());
+    }
+
     public ReferenceAttribute valueAttribute() {
         return new ReferenceAttribute(source(), null, valueColumnName, DataType.DOUBLE, Nullability.FALSE, valueId, false);
     }
@@ -330,18 +385,69 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     @Override
     public List<Attribute> output() {
         if (output == null) {
-            List<Attribute> additionalOutput = promqlPlan.output();
-            output = new ArrayList<>(additionalOutput.size() + 2);
+            List<Attribute> labels = promqlPlan.output();
+            output = new ArrayList<>(labels.size() + 2);
             output.add(valueAttribute());
             output.add(stepAttribute());
-            output.addAll(additionalOutput);
+            for (Attribute label : labels) {
+                // the result's label container is exposed as the one _timeseries column, under the command's own id
+                if (PromqlLabels.isTagsLabel(label)) {
+                    output.add(
+                        new ReferenceAttribute(
+                            source(),
+                            null,
+                            MetadataAttribute.TIMESERIES,
+                            // a typed label container is internal: the command exposes its keyword form
+                            DataType.KEYWORD,
+                            Nullability.TRUE,
+                            timeseriesId,
+                            false
+                        )
+                    );
+                    continue;
+                }
+                // A BY label named "value" (or rarely "step") would duplicate the sample/step columns. Keep the
+                // labels. prefix so Project names stay unique; the Prometheus response listener strips it for metric keys.
+                String canonical = PromqlLabels.labelName(label);
+                if (canonical.equals(valueColumnName) || canonical.equals(stepColumnName())) {
+                    String qualified = PromqlLabels.PROMETHEUS_LABELS_PREFIX + canonical;
+                    output.add(
+                        label.name().equals(qualified)
+                            ? label
+                            : new ReferenceAttribute(
+                                label.source(),
+                                null,
+                                qualified,
+                                label.dataType(),
+                                label.nullable(),
+                                label.id(),
+                                label.synthetic()
+                            )
+                    );
+                } else {
+                    output.add(label);
+                }
+            }
         }
         return output;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), promqlPlan, start, end, step, buckets, scrapeInterval, valueColumnName, valueId, stepId, timestamp);
+        return Objects.hash(
+            child(),
+            promqlPlan,
+            start,
+            end,
+            step,
+            buckets,
+            scrapeInterval,
+            valueColumnName,
+            valueId,
+            stepId,
+            timeseriesId,
+            timestamp
+        );
     }
 
     @Override
@@ -359,6 +465,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                 && Objects.equals(valueColumnName, other.valueColumnName)
                 && Objects.equals(valueId, other.valueId)
                 && Objects.equals(stepId, other.stepId)
+                && Objects.equals(timeseriesId, other.timeseriesId)
                 && Objects.equals(timestamp, other.timestamp);
         }
 
@@ -400,8 +507,169 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         );
     }
 
-    public void verify(Failures failures, int maxBranches, String limitSource) {
+    // Sentinel bounds for open-ended range queries (PROMQL step=X without explicit start/end): TStep requires explicit bounds,
+    // so pass the widest representable range. EPOCH/MAX_MILLIS_BEFORE_9999 avoid time boundary handling in the engine.
+    static final Instant EPOCH_MIN = Instant.EPOCH;
+    static final Instant EPOCH_MAX = Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999);
+
+    /**
+     * Translates this command into its ES|QL plan: every top-level branch translated, combined, and projected to the
+     * declared {@link #output()}: each declared label is read off the result's label container, which keeps the rest.
+     * {@code PushDownPromqlLabels} splits the containers into columns right after.
+     */
+    public LogicalPlan translate(AnalyzerContext analyzer) {
+        var context = new TranslationContext(this, analyzer);
+        LogicalPlan plan = promqlPlan();
+        // Set operators with matching modifiers translate themselves; arithmetic/comparison operators with
+        // {@code on}/{@code ignoring}/{@code group_*} use the join path below.
+        if (plan instanceof VectorBinaryOperator op && (plan instanceof VectorBinarySet) == false) {
+            VectorMatch match = op.match();
+            if (match.filter() != VectorMatch.Filter.NONE || match.grouping() != VectorMatch.Joining.NONE) {
+                IntermediateResult joined = op.translateAsLeftJoin(context);
+                return finish(emitFinalProjection(joined.plan(), joined.labels(), false, context), false);
+            }
+        }
+
+        // `or` is the only set operator that adds rows (more series), requiring a top-level multi-branch `UnionAll` that
+        // cannot compose as a single-value sub-expression.
+        List<LogicalPlan> branches = VectorBinarySet.flattenUnion(plan);
+        if (branches.size() == 1) {
+            IntermediateResult result = context.translateIntermediate(plan, stepId(), valueId());
+            boolean constant = result.kind().constant;
+            return finish(emitFinalProjection(result.plan(), result.labels(), constant, context), constant);
+        }
+        // Compile every branch as its own module (own step/value ids, own shifted evaluation timestamp), then link.
+        LogicalPlan union = VectorBinarySet.translateUnion(
+            context,
+            branches.stream().map(b -> context.translateIntermediate(b, new NameId(), new NameId())).toList()
+        );
+        Attribute labels = union.output().stream().filter(a -> a.name().equals(MetadataAttribute.TIMESERIES)).findFirst().orElseThrow();
+        return finish(emitFinalProjection(union, labels, false, context), false);
+    }
+
+    /** Keeps only steps within the query range; steps are anchored at {@code start} and offset-independent. */
+    private LogicalPlan emitByStepFilter(LogicalPlan plan) {
+        var source = source();
+        var step = stepAttribute();
+        var start = start();
+        var end = end();
+        var lo = new GreaterThanOrEqual(source, step, start.value() != null ? start : Literal.dateTime(source, EPOCH_MIN));
+        var hi = new LessThanOrEqual(source, step, end.value() != null ? end : Literal.dateTime(source, EPOCH_MAX));
+        return new Filter(source, plan, new And(source, lo, hi));
+    }
+
+    /** PromQL drops series with missing data: filter out rows whose value is null (null label columns are valid). */
+    public static LogicalPlan emitNullsFilter(Source source, LogicalPlan plan, Attribute value) {
+        return new Filter(source, plan, new IsNotNull(value.source(), value));
+    }
+
+    /** Every command drops missing samples and bounds its evaluation steps after exposing the public columns. */
+    private LogicalPlan finish(LogicalPlan plan, boolean localRelation) {
+        plan = emitNullsFilter(source(), plan, valueAttribute());
+        return localRelation ? plan : emitByStepFilter(plan);
+    }
+
+    /**
+     * Projects the command output. Value and step bind to the finished table's columns by name. Every label the command
+     * declares reads the result's label container {@code labels}, under its declared name, id and type, and the declared
+     * {@code _timeseries} is the container without them. A constant table carries no labels. Typed {@code _timeseries}
+     * stays internal: it binds under an id of its own and the command exposes its keyword form.
+     */
+    private LogicalPlan emitFinalProjection(LogicalPlan plan, @Nullable Expression labels, boolean constant, TranslationContext context) {
+        var lookupMap = new HashMap<String, Attribute>();
+        for (var attr : plan.output()) {
+            lookupMap.putIfAbsent(attr.name(), attr);
+        }
+        var projected = new ArrayList<NamedExpression>(output());
+        var evals = new ArrayList<Alias>();
+        List<Attribute> declared = promqlPlan().output();
+        List<String> named = PromqlLabels.labelNames(declared.stream().filter(a -> PromqlLabels.isTagsLabel(a) == false).toList());
+        Source source = promqlPlan().source();
+        Alias rendered = null;
+        for (int i = 0; i < projected.size(); i++) {
+            var attr = projected.get(i).toAttribute();
+            // the value and step lead the declared output, then the result's labels
+            if (i >= 2 && constant == false) {
+                Attribute label = declared.get(i - 2);
+                if (PromqlLabels.isTagsLabel(label)) {
+                    Expression rest = labels == null
+                        ? VectorBinarySet.emptyLabels(source)
+                        : new TimeSeriesMetadataFilter(labels.source(), labels, PromqlLabels.labelLiterals(labels.source(), named), true);
+                    Alias labelContainer = new Alias(source, attr.name(), rest);
+                    evals.add(labelContainer);
+                    rendered = new Alias(
+                        source,
+                        attr.name(),
+                        new ToString(source, labelContainer.toAttribute(), context.configuration()),
+                        attr.id()
+                    );
+                    projected.set(i, labelContainer.toAttribute());
+                    continue;
+                }
+                Expression value = labels == null
+                    ? new Literal(source, null, attr.dataType())
+                    : asType(
+                        new TimeSeriesMetadataPath(
+                            labels.source(),
+                            labels,
+                            Literal.keyword(labels.source(), PromqlLabels.labelName(label))
+                        ),
+                        attr.dataType(),
+                        context
+                    );
+                Alias alias = new Alias(source, attr.name(), value, attr.id());
+                evals.add(alias);
+                projected.set(i, alias.toAttribute());
+                continue;
+            }
+            var lookupAttr = lookupMap.get(attr.name());
+            if (lookupAttr != null && lookupAttr.semanticEquals(attr) == false) {
+                var alias = new Alias(lookupAttr.source(), attr.name(), lookupAttr, attr.id());
+                if (lookupAttr.resolved()) {
+                    // Remap the finished table's column onto the command's id via Eval, then project the attribute.
+                    evals.add(alias);
+                    projected.set(i, alias.toAttribute());
+                } else {
+                    // Union branches often expose an unresolved value/step until Bind resolves aggregates under them.
+                    // Wrapping that in Eval makes Alias.toAttribute() an UnresolvedAttribute that shadows the real
+                    // column by name once the child resolves (Unknown column [value]/result]). Keep the Alias in
+                    // the Project so ResolveRefs rebinds it after the union output is refreshed.
+                    projected.set(i, alias);
+                }
+            }
+        }
+        if (evals.isEmpty() == false) {
+            plan = new Eval(source(), plan, evals);
+        }
+        plan = new Project(source(), plan, projected);
+        if (rendered == null) {
+            return plan;
+        }
+        plan = new Eval(source(), plan, List.of(rendered));
+        // in the declared order: the Eval appends the rendered column
+        var exposed = new ArrayList<NamedExpression>(projected.size());
+        for (NamedExpression projection : projected) {
+            exposed.add(projection.name().equals(rendered.name()) ? rendered.toAttribute() : projection.toAttribute());
+        }
+        return new Project(source(), plan, exposed);
+    }
+
+    /** A label's text as the declared label's type: a label read from the container is text, a dimension may not be. */
+    private static Expression asType(Expression text, DataType type, TranslationContext context) {
+        if (type == DataType.KEYWORD || type == DataType.NULL) {
+            return text;
+        }
+        return EsqlDataTypeConverter.converterFunctionFactory(type).apply(text.source(), text, context.configuration());
+    }
+
+    /** Verifies the PromQL constructs translation supports. */
+    public void verify(Failures failures, AnalyzerContext analyzer) {
         LogicalPlan p = promqlPlan();
+        if (MetadataAttribute.isTimeSeriesAttributeName(valueColumnName) && PromqlLabels.getTagsLabel(p.output()) != null) {
+            // The result's label container is exposed under this name; a value column under it would shadow it.
+            failures.add(fail(this, "result column [{}] collides with the label container column", valueColumnName));
+            return;
+        }
         boolean hasStep = step.value() != null;
         boolean hasRangeAndBuckets = start.value() != null && end.value() != null && buckets.value() != null;
         if (isInstantQuery() == false && hasStep == false && hasRangeAndBuckets == false) {
@@ -424,70 +692,79 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                 fail(p, "invalid expression type \"range vector\" for range query, must be scalar or instant vector", p.sourceText())
             );
         } else if (p instanceof RangeSelector) {
-            // Prometheus answers an instant query over a range vector with a matrix of the raw samples in the window;
-            // nothing translates a range vector as such yet, so reject it here rather than fail in the optimizer.
+            // Instant range-vector results require returning the raw samples rather than one value per evaluation step.
             failures.add(fail(p, "range vector results are not supported at this time [{}]", p.sourceText()));
         }
+        var warnings = new ArrayList<String>();
+        verifyTree(p, failures, warnings, analyzer.maxBranchCountPerMerge(), analyzer.maxBranchCountPerMergeLimitSource());
+        if (failures.hasFailures() == false) {
+            warnings.forEach(HeaderWarning::addWarning);
+        }
+    }
 
-        // Validate entire plan
-        // UNION set operators that form a contiguous chain from the root (e.g. `(a or b) or c`) are all
-        // considered "top-level": they are flattened into a single UnionAll during translation.
+    private void verifyGroupingLabels(LogicalPlan plan, List<Attribute> groupings, Failures failures) {
+        for (Attribute grouping : groupings) {
+            String name = PromqlLabels.labelName(grouping.name());
+            if (stepColumnName().equals(name) || valueColumnName().equals(name)) {
+                failures.add(fail(plan, "label [{}] collides with the built-in [{}] output column [{}]", name, name, plan.sourceText()));
+            }
+        }
+    }
+
+    private static void verifySelector(Selector selector, Failures failures) {
+        if (selector.labelMatchers().nameLabel() != null && selector.labelMatchers().nameLabel().matcher().isRegex()) {
+            failures.add(fail(selector, "regex label selectors on __name__ are not supported at this time [{}]", selector.sourceText()));
+        }
+        if (selector.series() == null) {
+            failures.add(fail(selector, "__name__ label selector is required at this time [{}]", selector.sourceText()));
+        }
+        if (selector.evaluation() != null && selector.evaluation().at().value() != null) {
+            failures.add(fail(selector, "@ modifiers are not supported at this time [{}]", selector.sourceText()));
+        }
+    }
+
+    private void verifyTree(LogicalPlan p, Failures failures, List<String> warnings, int maxBranches, String limitSource) {
+        // Validate entire plan. Each contiguous `or` chain (top-level or nested) flattens to one UnionAll; reject
+        // chains that exceed the UnionAll branch limit here rather than during translation.
         Set<VectorBinarySet> topLevelUnions = collectTopLevelUnionChain(p);
-        if (topLevelUnions.isEmpty() == false) {
-            // A connected chain of U union nodes has U+1 leaf operands (branches), which the translator combines
-            // into a single UnionAll. Reject chains exceeding the UnionAll branch limit with a clear message here
-            // rather than failing later during translation.
-            int branchCount = topLevelUnions.size() + 1;
-            if (branchCount > maxBranches) {
+        Set<VectorBinarySet> countedUnionChains = new HashSet<>();
+        p.forEachDown(VectorBinarySet.class, setOp -> {
+            if (setOp.op() != VectorBinarySet.SetOp.UNION || countedUnionChains.contains(setOp)) {
+                return;
+            }
+            List<LogicalPlan> branches = VectorBinarySet.flattenUnion(setOp);
+            setOp.forEachDown(VectorBinarySet.class, nested -> {
+                if (nested.op() == VectorBinarySet.SetOp.UNION) {
+                    countedUnionChains.add(nested);
+                }
+            });
+            if (branches.size() > maxBranches) {
                 failures.add(
                     fail(
-                        p,
+                        setOp,
                         "PromQL set operator [or] supports up to [{}] operands, got [{}], exceeding the limit set by the {}",
                         maxBranches,
-                        branchCount,
+                        branches.size(),
                         limitSource
                     )
                 );
             }
-        }
+        });
         Holder<Boolean> root = new Holder<>(true);
         p.forEachDown(lp -> {
             switch (lp) {
-                case Selector s -> {
-                    if (s.labelMatchers().nameLabel() != null && s.labelMatchers().nameLabel().matcher().isRegex()) {
-                        failures.add(fail(s, "regex label selectors on __name__ are not supported at this time [{}]", s.sourceText()));
-                    }
-                    if (s.series() == null) {
-                        failures.add(fail(s, "__name__ label selector is required at this time [{}]", s.sourceText()));
-                    }
-                    if (s.evaluation() != null) {
-                        // Only constant per-selector time shift is supported at the moment.
-                        // TODO(sidosera): Support heterogeneous offset on binary operators.
-                        // https://github.com/elastic/elasticsearch/issues/158184
-                        if (s.evaluation().at().value() != null) {
-                            failures.add(fail(s, "@ modifiers are not supported at this time [{}]", s.sourceText()));
-                        }
-                    }
-                }
+                case Selector selector -> verifySelector(selector, failures);
                 case AcrossSeriesAggregate agg -> {
+                    verifyGroupingLabels(agg, agg.groupings(), failures);
                     if (agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT && usesWithoutGrouping(agg.child())) {
                         failures.add(fail(agg, "nested WITHOUT over WITHOUT is not supported at this time [{}]", agg.sourceText()));
                     }
-                    // Reject labels whose name collides with a built-in output column.
-                    // If this proves too restrictive, we could add an option to rename the built-in step column.
-                    for (Attribute grouping : agg.groupings()) {
-                        checkBuiltInColumnCollision(agg, PromqlLabels.labelName(grouping), failures);
-                    }
                 }
-                case AcrossSeriesReduction reduction -> {
-                    for (Attribute grouping : reduction.groupings()) {
-                        checkBuiltInColumnCollision(reduction, PromqlLabels.labelName(grouping), failures);
-                    }
-                }
+                case AcrossSeriesReduction reduction -> verifyGroupingLabels(reduction, reduction.groupings(), failures);
                 case HistogramFunctionCall histogram -> {
                     LogicalPlan buckets = histogram.child();
                     // Regrouping by every label but `le` needs the labels as named columns. A reduction or a WITHOUT over
-                    // raw series keeps them packed in one `_timeseries` column instead.
+                    // opaque series hides them in the label container instead.
                     if (hasConcreteLabels(buckets) == false && (usesReduction(buckets) || usesWithoutGrouping(buckets))) {
                         failures.add(
                             fail(
@@ -498,8 +775,14 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                                 histogram.sourceText()
                             )
                         );
-                    }
+                    } else if (readsNativeHistograms(buckets) == false
+                        && selectsMappedMetric(buckets)
+                        && inputLabel(buckets, HistogramFunctionCall.LE_LABEL) == null) {
+                            // like Prometheus: an input without buckets evaluates to nothing; one without series has nothing to say
+                            warnings.add(histogram.functionName() + ": input vector has no le label; no buckets to evaluate");
+                        }
                 }
+                case MetadataManipulationFunction relabel -> verifyRelabelInputs(relabel, failures);
                 case PromqlFunctionCall functionCall -> {
                     if (functionCall instanceof ResultOrderingFunction && root.get() == false) {
                         failures.add(
@@ -545,38 +828,37 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     if (binaryOperator instanceof VectorBinaryArithmetic || binaryOperator instanceof VectorBinaryComparison) {
                         boolean scalarOperand = PromqlPlan.returnsScalar(binaryOperator.left())
                             || PromqlPlan.returnsScalar(binaryOperator.right());
-                        // An unmatched operator over a vector-match result also translates as a join (default
-                        // matching on all shared labels), so it inherits the same operand requirements.
-                        boolean joinComposed = scalarOperand == false
-                            && (containsVectorMatch(binaryOperator.left()) || containsVectorMatch(binaryOperator.right()));
                         if (binaryOperator.match() != VectorMatch.NONE && scalarOperand) {
                             failures.add(fail(lp, "vector matching only allowed between instant vectors [{}]", lp.sourceText()));
-                        } else if ((binaryOperator.match() != VectorMatch.NONE || joinComposed)
-                            && (hasConcreteLabels(binaryOperator.left()) == false || hasConcreteLabels(binaryOperator.right()) == false)) {
-                                // TODO: Materialize match keys from runtime-defined labels.
-                                // https://github.com/elastic/elasticsearch/issues/157669
-                                // Operand shapes that produce them: without aggregations (#157671), label functions (#157672).
-                                failures.add(fail(lp, "vector matching requires operands with concrete label sets [{}]", lp.sourceText()));
-                            } else if (scalarOperand == false && pairsMetricsInSeparateSeries(binaryOperator)) {
-                                // Implicit ignoring(__name__) over opaque operands needs the same runtime-defined match keys.
-                                // https://github.com/elastic/elasticsearch/issues/157669
-                                failures.add(
-                                    fail(
-                                        lp,
-                                        "binary operations between different metrics require aggregating both operands by the "
-                                            + "labels to match on, such as sum by (instance) (a) / sum by (instance) (b) [{}]",
-                                        lp.sourceText()
-                                    )
-                                );
-                            }
-                    }
-                    if (binaryOperator instanceof VectorBinaryComparison comp) {
-                        if (comp.match() == VectorMatch.NONE && root.get() == false) {
+                        } else if (needsConcreteMatchKeys(binaryOperator)) {
+                            failures.add(fail(lp, "vector matching requires operands with concrete label sets [{}]", lp.sourceText()));
+                        } else if (scalarOperand == false && binaryOperator.readsDisjointSeries(child())) {
+                            // Implicit ignoring(__name__) over opaque operands needs the same runtime-defined match keys.
+                            // https://github.com/elastic/elasticsearch/issues/157669
                             failures.add(
-                                fail(lp, "comparison operators are only supported at the top-level at this time [{}]", lp.sourceText())
+                                fail(
+                                    lp,
+                                    "binary operations between different metrics require aggregating both operands by the "
+                                        + "labels to match on, such as sum by (instance) (a) / sum by (instance) (b) [{}]",
+                                    lp.sourceText()
+                                )
                             );
                         }
-                        if (comp.match() == VectorMatch.NONE && comp.right() instanceof LiteralSelector == false) {
+                    }
+                    if (binaryOperator instanceof VectorBinaryComparison comparison
+                        && comparison.match() == VectorMatch.NONE
+                        && root.get() == false) {
+                        failures.add(
+                            fail(lp, "comparison operators are only supported at the top-level at this time [{}]", lp.sourceText())
+                        );
+                    }
+                    if (binaryOperator instanceof VectorBinaryComparison comp) {
+                        // Filter-mode comparisons finish inside translateOverSharedFrame (literal RHS) or translateAsLeftJoin
+                        // (vector RHS). A non-literal scalar RHS (e.g. `v > scalar(w)`) is still unsupported for
+                        // unmatched comparisons; two instant vectors join like arithmetic.
+                        if (comp.match() == VectorMatch.NONE
+                            && comp.right() instanceof LiteralSelector == false
+                            && PromqlPlan.returnsScalar(comp.right())) {
                             failures.add(
                                 fail(
                                     lp,
@@ -587,6 +869,20 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         }
                         if (comp.boolMode() == false && PromqlPlan.returnsScalar(comp.left()) && PromqlPlan.returnsScalar(comp.right())) {
                             failures.add(fail(comp, "Comparisons [{}] between scalars must use the BOOL modifier", comp.op()));
+                        }
+                        if (comp.filterMode()
+                            && PromqlPlan.returnsScalar(comp.left())
+                            && PromqlPlan.returnsScalar(comp.right()) == false
+                            && comp.left() instanceof LiteralSelector == false) {
+                            // A filter keeps the vector's samples where a scalar function on the left compares true; translation
+                            // returns rows Prometheus does not until the typed label container translation lands.
+                            failures.add(
+                                fail(
+                                    lp,
+                                    "comparison filters with a non-literal scalar on the left are not supported at this time [{}]",
+                                    lp.sourceText()
+                                )
+                            );
                         }
                     }
                     if (binaryOperator instanceof VectorBinarySet setOp) {
@@ -609,7 +905,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     if (binaryOperator instanceof VectorBinarySet == false
                         && hasSourceBackedExpression(binaryOperator.left())
                         && hasSourceBackedExpression(binaryOperator.right())
-                        && collectAllOffsetsForBranch(binaryOperator).size() > 1) {
+                        && distinctOffsets(binaryOperator).size() > 1) {
                         // TODO: Support different offsets in binary operator operands.
                         // https://github.com/elastic/elasticsearch/issues/158184
                         failures.add(
@@ -628,6 +924,61 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         });
 
         verifyMetadataManipulationPlacement(p, null, failures);
+    }
+
+    /**
+     * Prometheus labels are strings, and {@code label_replace}/{@code label_join} have no meaning for other values: every label
+     * whose value a derivation reads must be a string where the input has it.
+     */
+    private void verifyRelabelInputs(MetadataManipulationFunction relabel, Failures failures) {
+        for (String label : relabel.valueLabels()) {
+            Attribute declared = inputLabel(relabel.child(), label);
+            if (declared != null && declared.dataType() != DataType.NULL && DataType.isString(declared.dataType()) == false) {
+                failures.add(
+                    fail(
+                        relabel,
+                        "{} requires string labels, [{}] is [{}]; map it as keyword [{}]",
+                        relabel.functionName(),
+                        label,
+                        declared.dataType().typeName(),
+                        relabel.sourceText()
+                    )
+                );
+            }
+        }
+    }
+
+    /**
+     * The label {@code name} of {@code input}'s result as its type declares it: one the result promotes, or a dimension of the
+     * source its label container keeps. Null when the result has no such label.
+     */
+    private @Nullable Attribute inputLabel(LogicalPlan input, String name) {
+        Attribute promoted = PromqlLabels.getLabel(
+            input.output().stream().filter(attribute -> PromqlLabels.isTagsLabel(attribute) == false).toList(),
+            name
+        );
+        if (promoted != null) {
+            return promoted;
+        }
+        Set<String> excluded = PromqlLabels.excluded(input);
+        if (excluded == null || excluded.contains(name) || PromqlLogicalPlanBuilder.tryFoldRelation(this, child()) != null) {
+            return null;
+        }
+        return PromqlLabels.getLabel(child(), name);
+    }
+
+    /** Whether {@code input} selects a metric the source maps: an unmapped one has no series, with or without {@code le}. */
+    private static boolean selectsMappedMetric(LogicalPlan input) {
+        return input.anyMatch(
+            node -> node instanceof Selector selector && selector.series().resolved() && selector.series().dataType() != DataType.NULL
+        );
+    }
+
+    /** Whether {@code input} selects native histograms, which carry their buckets in the value rather than in {@code le}. */
+    private static boolean readsNativeHistograms(LogicalPlan input) {
+        return input.anyMatch(
+            node -> node instanceof Selector selector && selector.series().resolved() && selector.series().dataType().isHistogram()
+        );
     }
 
     /**
@@ -698,7 +1049,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         if (identitySource instanceof AcrossSeriesAggregate agg && agg.grouping() == AcrossSeriesAggregate.Grouping.BY) {
             // Compare by label name, not attribute name: a destination written as `labels.pod` names the same label as the
             // aggregation's `pod`, which is how the analyzer shadows it and how translation resolves it.
-            String destination = PromqlLabels.labelName(relabel.destination());
+            String destination = PromqlLabels.labelName(relabel.destination().name());
             if (overwritesLabel(relabel, destination)) {
                 failures.add(
                     fail(
@@ -749,11 +1100,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     /**
      * The node that produces {@code plan}'s series identity: the nearest non-identity-transparent node (see
      * {@link PromqlPlan#isIdentityTransparent}) below, or {@code null} when the walk reaches raw series without passing one.
-     * <p>
-     * A relabel over an aggregate is only correct when this is a {@code by(...)} aggregation: that both makes the label set
-     * enumerable (an unaggregated vector still carries the opaque {@code _timeseries} identity) and materializes the source
-     * labels as columns the derived expression can read. A binary operator or a {@code topk}-style reduction reshapes
-     * identity in ways that do not leave the relabel's source labels readable as columns.
      */
     private static LogicalPlan identitySource(LogicalPlan plan) {
         LogicalPlan node = plan;
@@ -797,7 +1143,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
      */
     private static boolean overwritesLabel(MetadataManipulationFunction relabel, String destination) {
         for (Attribute label : relabel.child().output()) {
-            if (PromqlLabels.labelName(label).equals(destination)) {
+            if (PromqlLabels.isTagsLabel(label) == false && PromqlLabels.labelName(label).equals(destination)) {
                 return true;
             }
         }
@@ -838,28 +1184,24 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         }
     }
 
-    /**
-     * Collects the {@link VectorBinarySet} UNION nodes that form a contiguous chain starting at the plan root.
-     * PromQL {@code or} is left-associative, so {@code a or b or c} parses to {@code (a or b) or c}; explicit
-     * parentheses can also produce right-nested chains. All such union nodes are flattened into a single
-     * {@code UnionAll} during translation, so the verifier treats them all as top-level.
-     */
-    private static Set<VectorBinarySet> collectTopLevelUnionChain(LogicalPlan p) {
-        Set<VectorBinarySet> chain = new HashSet<>();
-        collectTopLevelUnionChain(p, chain);
-        return chain;
-    }
-
-    private static void collectTopLevelUnionChain(LogicalPlan p, Set<VectorBinarySet> chain) {
-        if (p instanceof VectorBinarySet setOp && setOp.op() == VectorBinarySet.SetOp.UNION) {
-            chain.add(setOp);
-            collectTopLevelUnionChain(setOp.left(), chain);
-            collectTopLevelUnionChain(setOp.right(), chain);
-        }
-    }
-
     private static boolean hasSourceBackedExpression(LogicalPlan plan) {
         return plan.anyMatch(p -> p instanceof Selector && (p instanceof LiteralSelector) == false);
+    }
+
+    /**
+     * Whether vector matching still needs every operand to name its labels up front: {@code on(...)}, {@code ignoring(...)},
+     * {@code group_left}/{@code group_right}, or an unmatched operator composed over a prior match, with an operand whose
+     * labels only its label container holds. Translation of those shapes returns rows Prometheus does not until the typed
+     * label container translation lands, so they stay rejected as before.
+     * TODO: Materialize match keys from runtime-defined labels.
+     * https://github.com/elastic/elasticsearch/issues/157669
+     */
+    private static boolean needsConcreteMatchKeys(VectorBinaryOperator op) {
+        boolean joinComposed = PromqlPlan.returnsScalar(op.left()) == false
+            && PromqlPlan.returnsScalar(op.right()) == false
+            && (containsVectorMatch(op.left()) || containsVectorMatch(op.right()));
+        return (op.match() != VectorMatch.NONE || joinComposed)
+            && (hasConcreteLabels(op.left()) == false || hasConcreteLabels(op.right()) == false);
     }
 
     private static boolean containsVectorMatch(LogicalPlan plan) {
@@ -913,72 +1255,15 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         return plan.anyMatch(AcrossSeriesReduction.class::isInstance);
     }
 
-    private static boolean aggregatesAcrossSeries(LogicalPlan plan) {
-        return plan.anyMatch(PromqlCommand::isAcrossSeries);
-    }
-
-    private static boolean isAcrossSeries(LogicalPlan plan) {
-        return plan instanceof AcrossSeriesAggregate || plan instanceof AcrossSeriesReduction || plan instanceof ScalarConversionFunction;
-    }
-
-    /** A scalar computed from a vector: {@code scalar(...)} of source-backed data, possibly inside scalar arithmetic. */
-    private static boolean scalarOfVector(LogicalPlan plan) {
-        return PromqlPlan.returnsScalar(plan)
-            && plan.anyMatch(p -> p instanceof ScalarConversionFunction scalar && hasSourceBackedExpression(scalar.child()));
-    }
-
-    /** Whether a vector's series carry labels: named label columns or a {@code _timeseries}. */
-    private static boolean hasLabels(LogicalPlan plan) {
-        return PromqlPlan.returnsScalar(plan) == false && plan.output().isEmpty() == false;
-    }
-
-    /** Whether a node matching {@code isAggregation} sits under another one. */
-    private static boolean usesNestedAggregation(LogicalPlan plan, Predicate<LogicalPlan> isAggregation) {
-        return plan.anyMatch(p -> isAggregation.test(p) && p instanceof UnaryPlan unary && unary.child().anyMatch(isAggregation));
-    }
-
-    private static boolean usesWithoutGrouping(LogicalPlan plan) {
-        return plan.anyMatch(p -> p instanceof AcrossSeriesAggregate agg && agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT);
-    }
-
     private static boolean hasConcreteLabels(LogicalPlan plan) {
-        return plan.output().stream().noneMatch(attribute -> MetadataAttribute.isTimeSeriesAttributeName(attribute.name()));
+        return PromqlLabels.getTagsLabel(plan.output()) == null;
     }
 
     /**
-     * Whether an opaque operand pairs different metrics on a source mapping {@code __name__} as a dimension, as Prometheus
-     * remote write does. Every metric then has series of its own, so folding both into one shared frame yields no rows.
+     * The distinct signed offsets of the source-backed selectors under {@code plan}. Literal selectors contribute none.
+     * An empty set means the branch has no offset-bearing selector (or only literals).
      */
-    private boolean pairsMetricsInSeparateSeries(VectorBinaryOperator op) {
-        if (hasConcreteLabels(op.left()) && hasConcreteLabels(op.right())) {
-            return false;
-        }
-        Set<String> left = metricNames(op.left());
-        Set<String> right = metricNames(op.right());
-        return left.isEmpty() == false
-            && right.isEmpty() == false
-            && left.equals(right) == false
-            && child().output()
-                .stream()
-                .anyMatch(a -> a instanceof FieldAttribute f && f.isDimension() && LabelMatcher.NAME.equals(PromqlLabels.labelName(f)));
-    }
-
-    private static Set<String> metricNames(LogicalPlan plan) {
-        Set<String> names = new HashSet<>();
-        for (Selector selector : plan.collect(Selector.class)) {
-            if (selector instanceof LiteralSelector == false && selector.series() instanceof Attribute series) {
-                names.add(series.name());
-            }
-        }
-        return names;
-    }
-
-    /**
-     * Collects the distinct signed offsets of the source-backed selectors under {@code plan}. Literal selectors
-     * carry no data window and are excluded. More than one distinct value within a merged binary operator is
-     * unsupported (see the verifier guard).
-     */
-    private static Set<Duration> collectAllOffsetsForBranch(LogicalPlan plan) {
+    public static Set<Duration> distinctOffsets(LogicalPlan plan) {
         Set<Duration> offsets = new HashSet<>();
         for (Selector selector : plan.collect(Selector.class)) {
             if (selector instanceof LiteralSelector == false && selector.evaluation() != null) {
@@ -1104,4 +1389,45 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         }
         throw new QlIllegalArgumentException("Expected [{}] to be a duration literal, got [{}]", paramName, expression);
     }
+
+    private static Set<VectorBinarySet> collectTopLevelUnionChain(LogicalPlan p) {
+        Set<VectorBinarySet> chain = new HashSet<>();
+        collectTopLevelUnionChain(p, chain);
+        return chain;
+    }
+
+    private static void collectTopLevelUnionChain(LogicalPlan p, Set<VectorBinarySet> chain) {
+        if (p instanceof VectorBinarySet setOp && setOp.op() == VectorBinarySet.SetOp.UNION) {
+            chain.add(setOp);
+            collectTopLevelUnionChain(setOp.left(), chain);
+            collectTopLevelUnionChain(setOp.right(), chain);
+        }
+    }
+
+    private static boolean scalarOfVector(LogicalPlan plan) {
+        return PromqlPlan.returnsScalar(plan)
+            && plan.anyMatch(p -> p instanceof ScalarConversionFunction scalar && hasSourceBackedExpression(scalar.child()));
+    }
+
+    /** Whether a vector's series carry labels: named label columns or the label container. */
+    private static boolean hasLabels(LogicalPlan plan) {
+        return PromqlPlan.returnsScalar(plan) == false && plan.output().isEmpty() == false;
+    }
+
+    private static boolean usesNestedAggregation(LogicalPlan plan, Predicate<LogicalPlan> isAggregation) {
+        return plan.anyMatch(p -> isAggregation.test(p) && p instanceof UnaryPlan unary && unary.child().anyMatch(isAggregation));
+    }
+
+    private static boolean aggregatesAcrossSeries(LogicalPlan plan) {
+        return plan.anyMatch(PromqlCommand::isAcrossSeries);
+    }
+
+    private static boolean isAcrossSeries(LogicalPlan plan) {
+        return plan instanceof AcrossSeriesAggregate || plan instanceof AcrossSeriesReduction || plan instanceof ScalarConversionFunction;
+    }
+
+    private static boolean usesWithoutGrouping(LogicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof AcrossSeriesAggregate agg && agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT);
+    }
+
 }

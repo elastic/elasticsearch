@@ -14,8 +14,10 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
@@ -41,6 +44,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -236,6 +240,8 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         List<Attribute> packDimensions = new ArrayList<>();
         List<Attribute> unpackDimensions = new ArrayList<>();
         List<Expression> secondPassGroupings = new ArrayList<>();
+        // Groupings computed from one dimension: constant within a series, they evaluate once per series, between the passes.
+        List<Alias> seriesTransforms = new ArrayList<>();
         Holder<NamedExpression> timeBucketRef = new Holder<>();
         Holder<Bucket> timeBucketSpecRef = new Holder<>();
         Consumer<NamedExpression> extractTimeBucket = e -> {
@@ -313,22 +319,75 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                 } else {
                     var unwrapped = Alias.unwrap(g);
                     if (unwrapped instanceof Attribute a) {
-                        addAttribute(g, a, firstPassAggs, secondPassGroupings, context, packDimensions, unpackDimensions, packPositions, i);
+                        if (a.semanticEquals(tsid.get())) {
+                            // _tsid is already a first-pass grouping. A VALUES alias would collide with its name
+                            // and be removed as an overridden aggregate, leaving the second pass with a missing input.
+                            secondPassGroupings.add(new Alias(g.source(), g.name(), tsid.get(), g.id()));
+                        } else {
+                            // After time and _tsid, PromQL groups only by logical labels or its scalar label container identity.
+                            addAttribute(
+                                g,
+                                a,
+                                firstPassAggs,
+                                secondPassGroupings,
+                                context,
+                                packDimensions,
+                                unpackDimensions,
+                                packPositions,
+                                aggregate.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND,
+                                i
+                            );
+                        }
                     } else {
                         assert g instanceof Alias : "g must be an Alias at this point";
                         if (unwrapped instanceof Bucket bucket && bucket.field().dataType().isHistogram()) {
                             Bucket secondPassBucket = histogramBucketForSecondPass(bucket, firstPassAggs);
                             secondPassGroupings.add(new Alias(g.source(), g.name(), secondPassBucket, g.id()));
-                        } else if (unwrapped instanceof Bucket && timeBucket == null) {
-                            throw new IllegalArgumentException(
-                                "Time-series aggregations require direct use of @timestamp which was not found. "
-                                    + "If @timestamp was renamed in EVAL, use the original @timestamp field instead."
-                            );
-                        } else {
-                            var valuesAgg = new Alias(g.source(), g.name(), new Values(g.source(), unwrapped));
-                            firstPassAggs.add(valuesAgg);
-                            secondPassGroupings.add(new Alias(g.source(), g.name(), valuesAgg.toAttribute(), g.id()));
-                        }
+                        } else if (aggregate.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND
+                            && unwrapped instanceof Bucket == false
+                            && unwrapped.references().size() == 1
+                            && unwrapped.references().iterator().next() instanceof Attribute dimension
+                            && dimension.isDimension()) {
+                                var valuesAgg = new Alias(
+                                    g.source(),
+                                    Attribute.rawTemporaryName(g.name(), "series"),
+                                    valuesAggregate(context, dimension, true)
+                                );
+                                firstPassAggs.add(valuesAgg);
+                                Alias transform = new Alias(
+                                    g.source(),
+                                    g.name(),
+                                    unwrapped.transformUp(Attribute.class, a -> a.semanticEquals(dimension) ? valuesAgg.toAttribute() : a)
+                                );
+                                seriesTransforms.add(transform);
+                                if (transform.dataType() == DataType.TIME_SERIES_METADATA_DATA_TYPE) {
+                                    // A label container is too large to pack: the second pass groups by it as it is.
+                                    secondPassGroupings.add(new Alias(g.source(), g.name(), transform.toAttribute(), g.id()));
+                                    continue;
+                                }
+                                packDimensions.add(transform.toAttribute());
+                                unpackDimensions.add(
+                                    new ReferenceAttribute(
+                                        g.source(),
+                                        null,
+                                        g.name(),
+                                        transform.dataType(),
+                                        Nullability.TRUE,
+                                        g.id(),
+                                        false
+                                    )
+                                );
+                                packPositions[i] = true;
+                            } else if (unwrapped instanceof Bucket && timeBucket == null) {
+                                throw new IllegalArgumentException(
+                                    "Time-series aggregations require direct use of @timestamp which was not found. "
+                                        + "If @timestamp was renamed in EVAL, use the original @timestamp field instead."
+                                );
+                            } else {
+                                var valuesAgg = new Alias(g.source(), g.name(), new Values(g.source(), unwrapped));
+                                firstPassAggs.add(valuesAgg);
+                                secondPassGroupings.add(new Alias(g.source(), g.name(), valuesAgg.toAttribute(), g.id()));
+                            }
                     }
                 }
             } else {
@@ -353,17 +412,18 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             false
         );
         checkWindow(firstPhase);
+        LogicalPlan perSeries = seriesTransforms.isEmpty() ? firstPhase : new Eval(firstPhase.source(), firstPhase, seriesTransforms);
         if (packDimensions.isEmpty()) {
             return new Aggregate(
                 firstPhase.source(),
-                firstPhase,
+                perSeries,
                 secondPassGroupings,
                 mergeExpressions(secondPassAggs, secondPassGroupings)
             );
         } else {
             PackDims packDims = new PackDims(
                 aggregate.source(),
-                firstPhase,
+                perSeries,
                 packDimensions,
                 PackDims.newPackedAttribute(aggregate.source())
             );
@@ -469,11 +529,18 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         List<Attribute> packDimensions,
         List<Attribute> unpackDimensions,
         boolean[] packPositions,
+        boolean promqlLabel,
         int position
     ) {
-        var valuesAgg = new Alias(group.source(), group.name(), valuesAggregate(context, attribute));
+        // PromQL labels retain their complete dimension value through aliases used for normalization and private names. A
+        // non-dimension field may change within a series, so it keeps every value it takes, as an ES|QL grouping does.
+        boolean dimension = attribute.isDimension() || (promqlLabel && attribute instanceof FieldAttribute == false);
+        var valuesAgg = new Alias(group.source(), group.name(), valuesAggregate(context, attribute, dimension));
         firstPassAggs.add(valuesAgg);
-        if (attribute.isDimension()) {
+        // A label container is too large to pack: the second pass groups by it as it is.
+        boolean labelContainer = promqlLabel
+            && (attribute instanceof TimeSeriesMetadataAttribute || attribute.dataType() == DataType.TIME_SERIES_METADATA_DATA_TYPE);
+        if (dimension && labelContainer == false) {
             packDimensions.add(valuesAgg.toAttribute());
             unpackDimensions.add(
                 new ReferenceAttribute(group.source(), null, group.name(), attribute.dataType(), Nullability.TRUE, group.id(), false)
@@ -500,8 +567,8 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         return merged;
     }
 
-    private AggregateFunction valuesAggregate(AnalyzerContext context, Attribute group) {
-        if (group.isDimension() && context.minimumVersion().supports(DimensionValues.DIMENSION_VALUES_VERSION)) {
+    private AggregateFunction valuesAggregate(AnalyzerContext context, Attribute group, boolean dimension) {
+        if (dimension && context.minimumVersion().supports(DimensionValues.DIMENSION_VALUES_VERSION)) {
             return new DimensionValues(group.source(), group);
         } else {
             return new Values(group.source(), group);
@@ -595,17 +662,27 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             if (packDims.child() instanceof TimeSeriesAggregate aggs) {
                 List<NamedExpression> newAggregates = new ArrayList<>();
                 List<Attribute> dims = new ArrayList<>();
+                AttributeSet packed = AttributeSet.of(packDims.dims());
                 for (NamedExpression agg : aggs.aggregates()) {
                     if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction fn) {
-                        if (fn instanceof DimensionValues dv) {
-                            dims.add((Attribute) dv.field());
+                        // Only the dimensions PackDims packs: a label container is grouped by as it is.
+                        if (fn instanceof DimensionValues dv && packed.contains(alias.toAttribute())) {
+                            // Late dimension extraction reads PackDimsAgg inputs directly from the source. An Eval alias
+                            // must instead retain its computed value through DimensionValues and the following PackDims.
+                            if (dv.field() instanceof FieldAttribute field && field.isDimension()) {
+                                dims.add(field);
+                            } else {
+                                return packDims;
+                            }
                         } else {
                             newAggregates.add(agg);
                         }
                     }
                 }
-                Attribute packed = packDims.packed();
-                newAggregates.add(new Alias(packDims.source(), packed.name(), PackDimsAgg.create(aggs.source(), dims), packed.id()));
+                Attribute packedDims = packDims.packed();
+                newAggregates.add(
+                    new Alias(packDims.source(), packedDims.name(), PackDimsAgg.create(aggs.source(), dims), packedDims.id())
+                );
                 return aggs.with(aggs.child(), aggs.groupings(), mergeExpressions(newAggregates, aggs.groupings()));
             }
             return packDims;

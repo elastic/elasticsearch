@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse.isZeroLimit;
 
@@ -40,16 +43,17 @@ public final class TranslateTimeSeriesCollapse extends AnalyzerRules.Parameteriz
             return collapse.child();
         }
         if (collapse.child() instanceof PromqlCommand pc) {
-            // pc.promqlPlan().output() is the dimension list by construction: PromqlCommand.output() is
-            // [value, step] ++ promqlPlan.output(). ResolvePromqlFunctions has reshaped promqlPlan during
-            // analysis, so by the time this optimizer rule runs the output is representative.
+            // The dimensions are the label columns the command declares after its value and step: its result's labels,
+            // with the result's label container as the one _timeseries column. promqlPlan's own output reads that label container
+            // through references the command binds, which would stay unbound above it.
             // Bounds expressions flow straight through; the Mapper folds them when building TimeSeriesCollapseExec.
+            List<Attribute> output = pc.output();
             return new TimeSeriesCollapse(
                 collapse.source(),
                 pc,
                 collapse.value(),
                 collapse.step(),
-                pc.promqlPlan().output(),
+                output.subList(2, output.size()),
                 pc.start(),
                 pc.end(),
                 pc.resolveTimeBucketSize()

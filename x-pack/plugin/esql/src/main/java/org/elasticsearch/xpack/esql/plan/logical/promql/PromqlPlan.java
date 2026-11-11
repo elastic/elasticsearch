@@ -9,21 +9,22 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Marker interface for PromQL-specific logical plan nodes.
  */
 public interface PromqlPlan {
     /**
-     * Returns any grouping attributes, for example those added via {@code by(...)},
-     * or {@link FieldAttribute#timeSeriesAttribute(Source)} (group by all).
+     * Returns the result's labels: the ones it promotes, for example those added via {@code by(...)}, and its tags label
+     * ({@link UnresolvedPromqlLabelAttribute#newTagsLabel}), the {@code _timeseries} label container, when it keeps labels it
+     * does not promote.
      * <p>
      * Note: The value and step column are added by {@link PromqlCommand#output()}
      * and should not be added by implementations of this interface.
@@ -31,15 +32,25 @@ public interface PromqlPlan {
     List<Attribute> output();
 
     /**
+     * The labels this node's tags label leaves out of its series: the ones it removes or writes and the ones its input left out.
+     * Meaningful only when {@link #output()} has a tags label; read through {@link PromqlLabels#excluded}. Translation states the
+     * same with the label container functions; the verifier reads it before translation. A node passes its input's on.
+     */
+    default Set<String> excludedLabels() {
+        return this instanceof UnaryPlan unary ? PromqlLabels.excludedWith(unary.child(), Set.of()) : Set.of();
+    }
+
+    /**
      * The PromQL return type of this plan node.
      */
     PromqlDataType returnType();
 
     /**
-     * Translates this node into an ES|QL plan. {@code translation} carries what the enclosing node
-     * {@link TranslationContext#required() requires} of this node's labels and the shared services: recursion into the child
-     * under a requirement, and the aggregation and {@link TranslationContext#eval eval} helpers
-     * every node composes its result from. Each node owns its translation the way it owns its {@link #output()}.
+     * This node's ES|QL plan, built bottom-up from its children's results. A node reads and writes the labels of its input as
+     * calls over its one label container and never looks at which columns its input carries: {@code PushDownPromqlLabels}
+     * splits the containers into columns right after translation. {@code translation} carries the shared services:
+     * recursion into the child, and the aggregation and {@link TranslationContext#eval eval} helpers every node composes
+     * its result from.
      */
     TranslationContext.IntermediateResult translate(TranslationContext translation);
 
@@ -52,33 +63,11 @@ public interface PromqlPlan {
      * ({@code by}/{@code without}), across-series reduction ({@code topk}/{@code bottomk}), and vector binary operators.
      * Per-series and value/type-shaping nodes (selectors, {@code rate}-style within-series aggregates, scalar/vector
      * conversions, {@code histogram_quantile}) are transparent for this purpose even when they reshape labels, because a
-     * relabel below them still feeds the same enclosing aggregation. This drives the supported-placement check for the
-     * label functions; see {@code PromqlCommand#verifyMetadataManipulationPlacement}.
+     * relabel below them still feeds the same enclosing aggregation. This is used by the original label-function translation,
+     * which is outside the aggregation prototype.
      */
     default boolean isIdentityTransparent() {
         return true;
-    }
-
-    /**
-     * Utility methods to check the return type of a PromqlPlan
-     *
-     * @param plan the logical plan to check
-     * @return true if the plan returns a range vector
-     * @throws IllegalArgumentException if the plan is not a PromqlPlan
-     */
-    static boolean returnsRangeVector(LogicalPlan plan) {
-        return getType(plan) == PromqlDataType.RANGE_VECTOR;
-    }
-
-    /**
-     * Utility methods to check the return type of a PromqlPlan
-     *
-     * @param plan the logical plan to check
-     * @return true if the plan returns an instant vector
-     * @throws IllegalArgumentException if the plan is not a PromqlPlan
-     */
-    static boolean returnsInstantVector(LogicalPlan plan) {
-        return getType(plan) == PromqlDataType.INSTANT_VECTOR;
     }
 
     /**

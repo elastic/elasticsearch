@@ -66,6 +66,20 @@ public final class ColumnarNumericSortField extends SortField {
         return maxMode;
     }
 
+    /**
+     * Whether a document in this segment may hold more than one value. The segment is sorted by each document's
+     * minimum or maximum only, so where this is true the index order is not the order of every value the field holds,
+     * and nothing may skip or stop early on it. A segment that cannot tell answers true.
+     */
+    public boolean isMaybeMultiValued(LeafReader reader) throws IOException {
+        BinaryDocValues values = reader.getBinaryDocValues(getField());
+        if (values == null) {
+            return false;
+        }
+        // Payloads that are not a column, such as those of another codec, say nothing of the segment as a whole.
+        return values instanceof ColumnarNumericBinaryDocValues columnar ? columnar.isSingleValued() == false : true;
+    }
+
     @Override
     public IndexSorter getIndexSorter() {
         return switch (getType()) {

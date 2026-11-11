@@ -3153,12 +3153,12 @@ public class NumberFieldMapper extends FieldMapper {
         }
         if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (fieldType.diskFormat == DocValuesDiskFormat.COLUMNAR) {
-                // The payload keeps the values in document order, so the offsets only need to say where the nulls go.
-                var offsets = context.getOffSetContext().docOrderOffsets(offsetsFieldName);
+                // The payload keeps the values in document order, so the offsets only need to say where the nulls go. As with
+                // recordNull below, a null that isn't an element of the field's own array is the field being absent.
                 if (value != null) {
-                    offsets.recordValue();
-                } else {
-                    offsets.recordNull();
+                    context.getOffSetContext().docOrderOffsets(offsetsFieldName).recordValue();
+                } else if (MultiValuedBinaryDocValuesField.keepsNullSlot(context, indexSettings.getMode())) {
+                    context.getOffSetContext().docOrderOffsets(offsetsFieldName).recordNull();
                 }
             } else if (value != null) {
                 // We cannot simply cast value to Comparable<> because we need to also capture the potential loss of precision that occurs
@@ -3166,7 +3166,7 @@ public class NumberFieldMapper extends FieldMapper {
                 long sortableLongValue = type.toSortableLong(value);
                 context.getOffSetContext().recordOffset(offsetsFieldName, sortableLongValue, offsetsFallback);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName, offsetsFallback);
+                context.getOffSetContext().recordNull(context, offsetsFieldName, offsetsFallback);
             }
         }
 

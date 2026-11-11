@@ -44,6 +44,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -345,41 +346,41 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
     }
 
     public void testEstimateBytesToWarmRatioZeroIsZero() {
-        BlobFileRanges first = range("blob-a", 0, 10);
-        BlobFileRanges second = range("blob-a", 5, 20);
+        BlobFileRanges first = range(1, 0, 10);
+        BlobFileRanges second = range(1, 5, 20);
         assertThat(estimateBytesToWarm(List.of(first, second), 0.0d), equalTo(0L));
     }
 
     public void testEstimateBytesToWarmRatioOneMatchesFullPrefix() {
-        BlobFileRanges first = range("blob-a", 0, 10);
-        BlobFileRanges second = range("blob-a", 5, 20);
+        BlobFileRanges first = range(1, 0, 10);
+        BlobFileRanges second = range(1, 5, 20);
         assertThat(estimateBytesToWarm(List.of(first, second), 1.0d), equalTo(25L));
         assertThat(estimateBytesToWarm(List.of(), 1.0d), equalTo(0L));
     }
 
     public void testEstimateBytesToWarmFractionalRatio() {
-        BlobFileRanges file = range("blob-a", 0, 100);
+        BlobFileRanges file = range(1, 0, 100);
         assertThat(estimateBytesToWarm(List.of(file), 0.4d), equalTo(40L));
     }
 
     public void testEstimateBytesToWarmUsesPerCommitRatio() {
         var oldCommit = new StatelessCompoundCommit.TimestampFieldValueRange(1, 2);
         var recentCommit = new StatelessCompoundCommit.TimestampFieldValueRange(10, 20);
-        BlobFileRanges oldRange = range("blob-a", 0, 40, oldCommit);
-        BlobFileRanges recentRange = range("blob-a", 40, 60, recentCommit);
+        BlobFileRanges oldRange = range(1, 0, 40, oldCommit);
+        BlobFileRanges recentRange = range(1, 40, 60, recentCommit);
         WarmingRatioProvider provider = (tsRange, resolved, now) -> oldCommit.equals(tsRange) ? 1.0d : 0.5d;
         assertThat(estimateBytesToWarm(shuffledList(List.of(oldRange, recentRange)), provider), equalTo(70L));
     }
 
     public void testEstimateBytesToWarmFilesOfOneCommitFormOneExtent() {
         var commit = new StatelessCompoundCommit.TimestampFieldValueRange(1, 2);
-        BlobFileRanges first = range("blob-a", 0, 30, commit);
-        BlobFileRanges second = range("blob-a", 50, 50, commit);
+        BlobFileRanges first = range(1, 0, 30, commit);
+        BlobFileRanges second = range(1, 50, 50, commit);
         assertThat(estimateBytesToWarm(List.of(first, second), 0.5d), equalTo(50L));
     }
 
     public void testEstimateBytesToWarmMissingRangeUsesResolverFallback() {
-        BlobFileRanges noRange = range("blob-a", 0, 50);
+        BlobFileRanges noRange = range(1, 0, 50);
         long fallback = 999L;
         WarmingRatioProvider provider = (tsRange, resolved, now) -> {
             assertNull(tsRange);
@@ -393,8 +394,8 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
     }
 
     public void testEstimateBytesToWarmSeveralBlobsAreSummed() {
-        BlobFileRanges blobA = range("blob-a", 0, 10);
-        BlobFileRanges blobB = range("blob-b", 3, 7);
+        BlobFileRanges blobA = range(1, 0, 10);
+        BlobFileRanges blobB = range(2, 3, 7);
         assertThat(estimateBytesToWarm(List.of(blobA, blobB), 1.0d), equalTo(20L));
     }
 
@@ -410,11 +411,11 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
         final var recent = new StatelessCompoundCommit.TimestampFieldValueRange(8_000L, 10_000L);
         final var old = new StatelessCompoundCommit.TimestampFieldValueRange(1L, 2L);
         // Non-time-based: header [0, 100), file [100, 140), gap [140, 200), file [200, 300). No timestamp range.
-        final BlobFileRanges plainFirst = range("plain", 100, 40);
-        final BlobFileRanges plainSecond = range("plain", 200, 100);
+        final BlobFileRanges plainFirst = range(1, 100, 40);
+        final BlobFileRanges plainSecond = range(1, 200, 100);
         // Time-based: header [0, 16), file [16, 100).
-        final BlobFileRanges recentFile = range("metrics", 16, 84, recent);
-        final BlobFileRanges oldFile = range("old-metrics", 32, 200, old);
+        final BlobFileRanges recentFile = range(2, 16, 84, recent);
+        final BlobFileRanges oldFile = range(3, 32, 200, old);
 
         final WarmingRatioProvider provider = (timestampRange, resolvedTimestamp, nowMillis) -> {
             assertThat(nowMillis, equalTo(now));
@@ -504,9 +505,10 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
     private void withBytesToWarm(ShardId shardId, long bytesToWarm) {
         // A real SearchDirectory needs a shared blob cache. The estimate only reads the current commit's blob file ranges.
         final SearchDirectory directory = mock(SearchDirectory.class);
-        final String blobName = "blob-" + shardId.getIndexName() + "-" + shardId.id();
         when(directory.getCurrentCommit()).thenReturn(commit(shardId));
-        when(directory.getCurrentCommitBlobFileRanges()).thenReturn(bytesToWarm > 0 ? List.of(range(blobName, 0, bytesToWarm)) : List.of());
+        when(directory.getCurrentCommitBlobFileRanges()).thenReturn(
+            bytesToWarm > 0 ? List.of(range(1L + shardId.id(), 0, bytesToWarm)) : List.of()
+        );
         directories.put(shardId, directory);
         final IndexShard indexShard = mockShard(shardId, newStore(shardId, directory));
         when(indicesService.getShardOrNull(shardId)).thenReturn(indexShard);
@@ -626,18 +628,18 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
         return TransportGetShardWarmingInfoAction.estimateBytesToWarm(ranges, ratioProvider, tsRange -> 0L, 0L);
     }
 
-    private static BlobFileRanges range(String blobName, long offset, long length) {
-        return range(blobName, offset, length, null);
+    private static BlobFileRanges range(long generation, long offset, long length) {
+        return range(generation, offset, length, null);
     }
 
     private static BlobFileRanges range(
-        String blobName,
+        long generation,
         long offset,
         long length,
         @Nullable StatelessCompoundCommit.TimestampFieldValueRange timestampRange
     ) {
         return new BlobFileRanges(
-            new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1, -1)), offset, length),
+            new BlobLocation(new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(generation), 1L), offset, length),
             timestampRange
         );
     }

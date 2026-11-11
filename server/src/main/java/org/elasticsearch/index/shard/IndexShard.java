@@ -4074,7 +4074,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert clusterStateVersion != latestPrimaryRelocationClusterStateVersion
                 : shardId + " two primary relocations started with cluster state version [" + clusterStateVersion + "]";
             if (clusterStateVersion < latestPrimaryRelocationClusterStateVersion) {
-                // A newer relocation already started, so this one is stale and will not complete.
+                // A newer relocation already started, so this one is stale and will not complete. Stale relocations are
+                // normally skipped before they start (see `StatelessPrimaryRelocationSourceService`), so this only happens
+                // if the routing changed between that check and this call.
                 return () -> {};
             }
             latestPrimaryRelocationClusterStateVersion = clusterStateVersion;

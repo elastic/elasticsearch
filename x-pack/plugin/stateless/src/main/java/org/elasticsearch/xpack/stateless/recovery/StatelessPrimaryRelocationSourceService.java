@@ -41,6 +41,7 @@ import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -846,13 +847,36 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         private void startRelocationsUpToLimit() {
             assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
             final List<PendingRelocation> relocationsToStart = new ArrayList<>();
+            final List<PendingRelocation> staleRelocations = new ArrayList<>();
             synchronized (this) {
                 while (activeRelocationCount < effectiveMaxConcurrentOutgoingRelocations && pendingRelocations.isEmpty() == false) {
                     final PendingRelocation relocation = pendingRelocations.poll();
+                    // Requests are only enqueued once the local cluster state is at least as recent as the target request one.
+                    assert clusterService.state().version() >= relocation.request().clusterStateVersion()
+                        : "dequeued " + relocation.request() + " before applying its cluster state version";
+                    // Updated by IndicesClusterStateService applier, so at least as recent as clusterService.state()
+                    final ShardRouting routing = relocation.shard().routingEntry();
+                    if (routing.relocating() == false
+                        || relocation.request().targetAllocationId().equals(routing.allocationId().getRelocationId()) == false) {
+                        staleRelocations.add(relocation);
+                        relocation.shard().recoveryStats().sourceQueuedRecoveryDiscarded();
+                        continue;
+                    }
                     relocationsToStart.add(relocation);
                     relocation.shard().recoveryStats().sourceRecoveryDequeuedAndStarted();
                     activeRelocationCount++;
                 }
+            }
+            for (PendingRelocation staleRelocation : staleRelocations) {
+                staleRelocation.listener()
+                    .onFailure(
+                        new IllegalIndexShardStateException(
+                            staleRelocation.request().shardId(),
+                            staleRelocation.shard().state(),
+                            ": shard is no longer relocating to [" + staleRelocation.request().targetAllocationId() + "]"
+                        )
+                    );
+                schedulingListeners().onQueuedPeerRecoveryDiscardedOnSource();
             }
             for (PendingRelocation relocation : relocationsToStart) {
                 schedulingListeners().onPeerRecoveryDequeuedAndStartedOnSource();

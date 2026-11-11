@@ -5132,6 +5132,28 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
      * With {@code ExternalSourceSpec} equality narrowed to the path this fails on the data node with
      * {@code external dataset [two_formats_tsv] definition changed while the query was planned}.
      */
+    /**
+     * The sibling of the two-formats case, for the pair the statistics reconcile cannot tell apart by itself.
+     * Both datasets read the one file as CSV and resolve the same columns, so their read-config fingerprints are
+     * equal and only the reader's own configuration -- the error policy -- differs. The contributions for the one
+     * path therefore agree on everything the reconcile treats as non-negotiable, which is what made the merge
+     * assert rather than refuse. It fails on the parent commit with
+     * {@code whole-file contributions for the same file must agree on row count, mtime, and config fingerprint}.
+     */
+    public void testTwoErrorPoliciesOverOneFileDoNotTripTheReconcile() throws Exception {
+        Path fixture = createTempFile("dataset-two-policies-", ".csv");
+        Files.writeString(fixture, String.join("\n", "a,b", "1,2", "3,4") + "\n");
+        String uri = fixture.toUri().toString();
+
+        registerDataSource("local_ds", Map.of());
+        registerDataset("policy_default", "local_ds", uri, Map.of("format", "csv"));
+        registerDataset("policy_skip", "local_ds", uri, Map.of("format", "csv", "error_mode", "skip_row"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM policy_default, policy_skip | STATS n = COUNT(a)"), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(4L))));
+        }
+    }
+
     public void testOneFileReadAsCsvAndAsTsvKeepsEachFormat() throws Exception {
         // Neutral extension: the resolver refuses a .csv file claimed as tsv, which is a different check.
         Path fixture = createTempFile("dataset-two-formats-", ".txt");

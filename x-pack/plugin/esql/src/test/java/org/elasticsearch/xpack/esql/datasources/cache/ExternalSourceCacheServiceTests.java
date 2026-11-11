@@ -3172,9 +3172,46 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testReconcileWholeFileContributionsWithMismatchedFingerprintTripsAssertion() throws Exception {
-        // Companion to the mtime test: config fingerprint disagreement between whole-file
-        // contributions is equally invalid and must be caught by the assertion.
+    public void testReconcileWholeFileContributionsWithMismatchedFingerprintIsASafeMiss() throws Exception {
+        // NOT the companion to the mtime test, though it was written as one. A format-config disagreement between
+        // two whole-file contributions for one path is a legitimate plan: external resolution keys a read by its
+        // resource AND its configuration, so two datasets over one file that set a different delimiter or error
+        // policy are two reads whose resolved columns -- and so whose read-config fingerprints -- can be identical.
+        // Measured: two such datasets in one query produce contributions agreeing on row count, mtime and read
+        // config, and differing only here. Asserting would fail an ordinary query on an assertions-enabled build.
+        // The merge refuses them instead, exactly as it refuses two different read configurations.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
+            // Stamped with the read configuration the contributions carry, so the commit is not refused for an
+            // unknown read configuration before the merge gate is reached: an entry seeded without one refuses
+            // every stamped contribution, which makes this assertion pass whatever the gate below does.
+            seedSchemaCacheWithReadConfig(service, key, path, "fp1", "config-own");
+
+            // Same mtime, same row count, same resolved read configuration; only the reader's own configuration differs.
+            Map<String, Object> first = wholeFileWithShape(mtime, "fp1", "config-own", 100L);
+            Map<String, Object> second = wholeFileWithShape(mtime, "fp2", "config-own", 100L);
+
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second)));
+
+            SchemaCacheEntry entry = warm(service, key);
+            assertFalse(
+                "two reads configured differently must not merge into one measurement",
+                entry.safeMetadata().containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+        }
+    }
+
+    public void testReconcileWholeFileContributionsWithMismatchedRowCountStillTripsAssertion() throws Exception {
+        // The dual of the test above, so the gate discriminates rather than having been widened into a no-op. One
+        // read, configured one way, measured twice and differently: that is a non-deterministic read and still an
+        // invariant violation.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
@@ -3186,8 +3223,8 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             );
             seedSchemaCache(service, key, path, "fp1");
 
-            Map<String, Object> first = wholeFileStats(mtime, "fp1", 100L);
-            Map<String, Object> second = wholeFileStats(mtime, "fp2", 100L); // different fingerprint, same row count
+            Map<String, Object> first = wholeFileWithShape(mtime, "fp1", "config-own", 100L);
+            Map<String, Object> second = wholeFileWithShape(mtime, "fp1", "config-own", 101L);
 
             expectThrows(AssertionError.class, () -> service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second))));
         }

@@ -81,7 +81,8 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
      *
      * @param in       reader to filter
      * @param filter   fields to filter.
-     * @param isMapped whether a field is mapped or not.
+     * @param isMapped whether a field is mapped or not. Keys of a field with dynamic keys (e.g. a flattened field) must not count as
+     *                 mapped, so that the companions such a field writes follow its FLS decision.
      */
     public static DirectoryReader wrap(
         DirectoryReader in,
@@ -179,6 +180,16 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 name = storedValueFallbackCompanionParent(fi.getName());
             }
 
+            // Resolved before .offsets, so that the counts of a flattened field's binary .offsets sidecar (<field>.offsets.counts) follow
+            // <field> too.
+            String countsSuffix = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+            if (name.endsWith(countsSuffix) && isMapped.apply(fi.getName()) == false) {
+                String parent = stripSuffix(name, countsSuffix);
+                if (parent.isEmpty() == false && companionParentExists(in.getFieldInfos(), parent, isMapped)) {
+                    name = parent;
+                }
+            }
+
             // The .offsets sidecar records array order for its parent field's doc values, so its visibility must follow the parent.
             // Filtering it independently would leave orphaned offsets behind a hidden field, and synthetic source reconstruction would
             // then read offsets pointing at absent values. Only treat it as a companion when the parent exists, so a user field that
@@ -186,14 +197,6 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             if (name.endsWith(FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX) && isMapped.apply(fi.getName()) == false) {
                 String parent = stripSuffix(name, FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX);
                 if (companionParentExists(in.getFieldInfos(), parent, isMapped)) {
-                    name = parent;
-                }
-            }
-
-            String countsSuffix = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
-            if (name.endsWith(countsSuffix) && isMapped.apply(fi.getName()) == false) {
-                String parent = stripSuffix(name, countsSuffix);
-                if (parent.isEmpty() == false && companionParentExists(in.getFieldInfos(), parent, isMapped)) {
                     name = parent;
                 }
             }

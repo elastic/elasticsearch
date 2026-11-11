@@ -109,6 +109,22 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
     }
 
     /**
+     * Whether a document in this segment may hold more than one value. The segment is sorted by each document's
+     * minimum or maximum only, so where this is true the index order is not the order of every value the field holds,
+     * and nothing may skip or stop early on it. A segment that cannot tell answers true.
+     */
+    public boolean isMaybeMultiValued(LeafReader reader) throws IOException {
+        // The companion counts every document's slots and is always written with a skipper, so its maximum answers
+        // for the whole segment. No companion means no document wrote one: the field is single-valued or absent.
+        String countsFieldName = getField() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        if (reader.getNumericDocValues(countsFieldName) == null) {
+            return false;
+        }
+        DocValuesSkipper countsSkipper = reader.getDocValuesSkipper(countsFieldName);
+        return countsSkipper == null || countsSkipper.maxValue() > 1;
+    }
+
+    /**
      * Decodes the minimum ({@code maxMode=false}) or maximum ({@code maxMode=true}) sort key from a document's raw
      * binary doc values payload with the given value {@code count}, dispatching to whichever decoder matches this
      * field's encoding ({@code arrayOrder}). Shared by {@link MinMaxBinaryDocValues#binaryValue()} and

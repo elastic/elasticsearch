@@ -42,6 +42,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -71,8 +72,10 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -92,6 +95,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Missing;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -897,6 +901,29 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sorts) throws IOException {
             return SortBuilder.buildSort(sorts, ctx, false);
+        }
+
+        @Override
+        public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sorts, boolean matchesAllDocs) throws IOException {
+            Optional<SortAndFormats> sort = buildSort(sorts);
+            if (matchesAllDocs && sort.isPresent() && canMatchTail(sorts)) {
+                LongValuesComparatorSource.maybeMarkAsMatchTail(ctx.getIndexSettings().getIndexSortConfig(), sort.get().sort);
+            }
+            return sort;
+        }
+
+        /**
+         * Whether a sort can read only the end of a segment that is sorted by the reverse of the sort.
+         * That reads {@code LIMIT + 1} documents of the segment, so it is only correct when those documents are
+         * the top N. That holds for a single key, because a second key could prefer a document before the end that has the
+         * same timestamp. It also holds when documents without a timestamp sort last, because a document
+         * without a timestamp that sorts first is not at the end of the segment.
+         */
+        private static boolean canMatchTail(List<SortBuilder<?>> sorts) {
+            return sorts.size() == 1
+                && sorts.get(0) instanceof FieldSortBuilder field
+                && field.order() == SortOrder.ASC
+                && (field.missing() == null || Missing.LAST.searchOrder().equals(field.missing()));
         }
 
         @Override

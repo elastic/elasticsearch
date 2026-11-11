@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Sort;
@@ -637,6 +638,72 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
 
         Index backingIndex = getBackingIndex(dataStreamName);
         checkTailSkipping(backingIndex, true);
+    }
+
+    /**
+     * A collector keeps one queue for all the segments of a shard, so a segment can start with a full queue. If that segment
+     * has fewer documents than the queue holds, the end of the segment is the whole segment. It used to fail because the
+     * start of the tail was negative.
+     */
+    public void testMatchTailWithSegmentSmallerThanHits() throws Exception {
+        final String dataStreamName = "test-logsdb-match-tail-with-segment-smaller-than-hits";
+
+        final String mapping = """
+            {
+              "_doc": {
+                "properties": {
+                  "@timestamp": {
+                    "type": "date"
+                  },
+                  "host.name": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }
+            """;
+
+        createDataStream(dataStreamName, mapping, s -> s.put("index.mapping.use_doc_values_skipper", "true"));
+
+        // A refresh after each batch gives a segment with 25 documents and a segment with 5 documents
+        int numHits = 10;
+        for (int batchSize : new int[] { 25, 5 }) {
+            List<DocWithId> docs = new ArrayList<>();
+            for (int i = 0; i < batchSize; i++) {
+                docs.add(doc("{\"@timestamp\":\"2025-01-01T13:00:%02d\",\"host.name\":\"foo\"}".formatted(docs.size() + i)));
+            }
+            indexDocuments(dataStreamName, shuffledList(docs));
+            client().admin().indices().prepareRefresh().execute().actionGet();
+        }
+
+        Index backingIndex = getBackingIndex(dataStreamName);
+        IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(backingIndex);
+        assertThat(indexService.numberOfShards(), equalTo(1));
+        IndexShard shard = indexService.getShard(0);
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+            SortField sf = shard.mapperService()
+                .fieldType("@timestamp")
+                .fielddataBuilder(FieldDataContext.noRuntimeFields("test", "test"))
+                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+                .sortField(null, MultiValueMode.MAX, null, false);
+            if (sf.getComparatorSource() instanceof LongValuesComparatorSource lv) {
+                lv.setMatchTailQuery();
+            }
+
+            // The collector is shared by the segments, so the queue is full when the second segment starts
+            Collector collector = new TopFieldCollectorManager(new Sort(sf), numHits, 4).newCollector();
+            var leaves = searcher.getLeafContexts()
+                .stream()
+                .sorted((a, b) -> Integer.compare(b.reader().maxDoc(), a.reader().maxDoc()))
+                .toList();
+            assertThat(leaves.size(), equalTo(2));
+            for (var leaf : leaves) {
+                LeafCollector leafCollector = collector.getLeafCollector(leaf);
+                for (int doc = 0; doc < leaf.reader().maxDoc(); doc++) {
+                    leafCollector.collect(doc);
+                }
+            }
+        }
     }
 
     public void testMatchTailWithMultipleHostnames() throws Exception {

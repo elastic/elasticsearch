@@ -16,6 +16,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -140,7 +141,7 @@ public class SortFieldValidationTests extends ESTestCase {
 
     public void testStringShardWithValuesStillConflictsWithNumericShard() {
         for (boolean inGivenOrder : new boolean[] { true, false }) {
-            TopFieldDocs strings = shard(placeholder(false, SortField.STRING_LAST), 0, new BytesRef("a"));
+            TopFieldDocs strings = shard(mappedString(false, SortField.STRING_LAST), 0, new BytesRef("a"));
             TopFieldDocs numbers = shard(numeric(SortField.Type.LONG, false), 1, 8L);
 
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validate(inGivenOrder, strings, numbers));
@@ -148,7 +149,25 @@ public class SortFieldValidationTests extends ESTestCase {
         }
     }
 
-    public void testStringShardWithSomeValuesStillConflictsWithNumericShard() {
+    /**
+     * A field mapped as a string conflicts with a numeric field even when none of the docs returned by its shard has a value: only
+     * the field name of the sort field tells placeholders apart, so the outcome doesn't depend on the values that a shard returns,
+     * for instance on the page when docs without a value are sorted first.
+     */
+    public void testMappedStringShardWithoutValuesStillConflictsWithNumericShard() {
+        for (Object missingFirstOrLast : new Object[] { SortField.STRING_FIRST, SortField.STRING_LAST }) {
+            for (boolean inGivenOrder : new boolean[] { true, false }) {
+                TopFieldDocs strings = shard(mappedString(false, missingFirstOrLast), 10, null, null);
+                TopFieldDocs numbers = shard(numeric(SortField.Type.LONG, false), 0, 5L, 12L);
+
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validate(inGivenOrder, strings, numbers));
+                assertThat(e.getMessage(), containsString("incompatible sort types"));
+            }
+        }
+    }
+
+    public void testPlaceholderWithSomeValuesStillConflictsWithNumericShard() {
+        // an unmapped field has no values, a shard returning some can't be a placeholder whose values may be replaced
         TopFieldDocs strings = shard(placeholder(false, SortField.STRING_LAST), 0, null, new BytesRef("a"));
         TopFieldDocs numbers = shard(numeric(SortField.Type.LONG, false), 2, 8L);
 
@@ -158,7 +177,7 @@ public class SortFieldValidationTests extends ESTestCase {
 
     public void testNullValuesWithCustomMissingValueStillConflictWithNumericShard() {
         // a sort field that is neither STRING_FIRST nor STRING_LAST fills the missing values itself, it can't be a placeholder
-        TopFieldDocs strings = shard(new SortField(FIELD, SortField.Type.STRING), 0, (Object) null);
+        TopFieldDocs strings = shard(new SortField(SearchExecutionContext.ANONYMOUS_FIELD_NAME, SortField.Type.STRING), 0, (Object) null);
         TopFieldDocs numbers = shard(numeric(SortField.Type.LONG, false), 1, 8L);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validate(true, strings, numbers));
@@ -221,7 +240,13 @@ public class SortFieldValidationTests extends ESTestCase {
         return new SortField(FIELD, type, reverse);
     }
 
+    /** The sort field of a shard where the field is unmapped, built from the anonymous field type of {@code unmapped_type}. */
     private static SortField placeholder(boolean reverse, Object missingFirstOrLast) {
+        return new SortField(SearchExecutionContext.ANONYMOUS_FIELD_NAME, SortField.Type.STRING, reverse, missingFirstOrLast);
+    }
+
+    /** The sort field of a shard where the field is mapped as a string. */
+    private static SortField mappedString(boolean reverse, Object missingFirstOrLast) {
         return new SortField(FIELD, SortField.Type.STRING, reverse, missingFirstOrLast);
     }
 

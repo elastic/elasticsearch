@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -360,7 +361,12 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         AggregationReduceContext reduceContext = InternalAggregationTestCase.mockReduceContext(builder).forFinalReduction(topHitsToRelease);
 
         for (boolean placeholderFirst : new boolean[] { true, false }) {
-            SortField placeholderSortField = new SortField("field", SortField.Type.STRING, false, SortField.STRING_LAST);
+            SortField placeholderSortField = new SortField(
+                SearchExecutionContext.ANONYMOUS_FIELD_NAME,
+                SortField.Type.STRING,
+                false,
+                SortField.STRING_LAST
+            );
             InternalTopHits placeholderShard = createTopHitsWithSortField("test", placeholderSortField, null, 0);
             InternalTopHits doubleShard = createTopHitsWithSortField("test", new SortField("field", SortField.Type.DOUBLE), 3.14, 1);
             try {

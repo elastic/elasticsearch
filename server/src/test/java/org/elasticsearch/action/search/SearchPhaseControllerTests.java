@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
@@ -1606,7 +1607,12 @@ public class SearchPhaseControllerTests extends ESTestCase {
             new FieldDoc[] { new FieldDoc(0, Float.NaN, new Object[] { 3.14 }), new FieldDoc(1, Float.NaN, new Object[] { 5.0 }) },
             new SortField[] { mappedSortField }
         );
-        SortField placeholderSortField = new SortField("field", SortField.Type.STRING, false, SortField.STRING_LAST);
+        SortField placeholderSortField = new SortField(
+            SearchExecutionContext.ANONYMOUS_FIELD_NAME,
+            SortField.Type.STRING,
+            false,
+            SortField.STRING_LAST
+        );
 
         // the unmapped docs are sorted after the docs that have a value, wherever the shards come in the list, and with pagination
         for (boolean placeholderFirst : new boolean[] { true, false }) {

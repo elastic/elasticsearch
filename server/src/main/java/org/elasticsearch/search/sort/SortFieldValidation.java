@@ -18,6 +18,7 @@ import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -164,17 +165,22 @@ public final class SortFieldValidation {
     }
 
     /**
-     * Finds the sort positions for which a shard only holds the placeholder produced by {@code unmapped_type}: a STRING sort whose
-     * every returned doc has a null sort value. When the field is mapped in some indices and not in others, the shards of the
-     * latter have docs but none can have a value for the field, so the placeholder type says nothing about the type of the field
-     * and must not conflict with the type of the shards where the field is mapped.
+     * Finds the sort positions for which a shard only holds the placeholder produced by {@code unmapped_type}: a STRING sort on the
+     * anonymous field type built for the unmapped field, whose every returned doc has a null sort value. When the field is mapped in
+     * some indices and not in others, the shards of the latter have docs but none can have a value for the field, so the placeholder
+     * type says nothing about the type of the field and must not conflict with the type of the shards where the field is mapped.
+     * The field name is what tells a placeholder apart from a field that is mapped as a string but has no value in the returned
+     * docs: the latter is a real mapping conflict with a numeric field, whatever values the shard happens to return.
      * Shards where the missing value was customized hold actual values, so they are never considered placeholders.
      */
     private static boolean[] findUnmappedPlaceholders(TopFieldDocs topFieldDocs) {
         SortField[] sortFields = topFieldDocs.fields;
         boolean[] placeholders = new boolean[sortFields.length];
         for (int i = 0; i < sortFields.length; i++) {
-            if (getType(sortFields[i]) == SortField.Type.STRING && isMissingFirstOrLast(sortFields[i])) {
+            if (SearchExecutionContext.ANONYMOUS_FIELD_NAME.equals(sortFields[i].getField())
+                && getType(sortFields[i]) == SortField.Type.STRING
+                && isMissingFirstOrLast(sortFields[i])) {
+                // an unmapped field has no values, the check only guards against overwriting actual values with the missing value
                 boolean allNull = true;
                 for (ScoreDoc scoreDoc : topFieldDocs.scoreDocs) {
                     if (((FieldDoc) scoreDoc).fields[i] != null) {

@@ -2477,4 +2477,29 @@ public class FieldSortIT extends ESIntegTestCase {
         );
         assertThat(exc.getCause().toString(), containsString("Can't sort on field [field]; the field has incompatible sort types"));
     }
+
+    /**
+     * A field mapped as a keyword in one index conflicts with the numeric mapping of another index even when none of the docs has a
+     * value for it: unlike an unmapped field, whose docs can be sorted as missing whatever the type of the field elsewhere.
+     */
+    public void testSortOnFieldWithValuesInOneIndexAndIncompatibleMappingWithoutValuesInAnother() {
+        assertAcked(
+            prepareCreate("index_mapped").setMapping("field", "type=double"),
+            prepareCreate("index_keyword").setMapping("field", "type=keyword", "other", "type=keyword")
+        );
+
+        prepareIndex("index_mapped").setId("1").setSource("field", 3.14).get();
+        prepareIndex("index_keyword").setId("2").setSource("other", "foo").get();
+        refresh();
+
+        for (String missing : new String[] { "_first", "_last" }) {
+            SearchPhaseExecutionException exc = expectThrows(
+                SearchPhaseExecutionException.class,
+                prepareSearch("index_mapped", "index_keyword").addSort(
+                    new FieldSortBuilder("field").unmappedType("keyword").missing(missing)
+                )
+            );
+            assertThat(exc.getCause().toString(), containsString("Can't sort on field [field]; the field has incompatible sort types"));
+        }
+    }
 }

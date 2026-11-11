@@ -22,6 +22,8 @@ setup:
               unindexed:
                 type: keyword
                 index: false
+              text:
+                type: text
 
   - do:
       bulk:
@@ -29,11 +31,11 @@ setup:
         refresh: true
         body:
           - '{ "index": { "_id": "value" } }'
-          - '{ "indexed": "a", "unindexed": "a" }'
+          - '{ "indexed": "a", "unindexed": "a", "text": "a" }'
           - '{ "index": { "_id": "value_and_null" } }'
-          - '{ "indexed": [ "b", null ], "unindexed": [ "b", null ] }'
+          - '{ "indexed": [ "b", null ], "unindexed": [ "b", null ], "text": [ "b", null ] }'
           - '{ "index": { "_id": "only_null" } }'
-          - '{ "indexed": [ null ], "unindexed": [ null ] }'
+          - '{ "indexed": [ null ], "unindexed": [ null ], "text": [ null ] }'
           - '{ "index": { "_id": "missing" } }'
           - '{ "other": "c" }'
 
@@ -137,5 +139,55 @@ exists total equals the hits returned for an indexed keyword field:
         index: test
         body:
           query: { exists: { field: indexed } }
+
+  - match: { count: 3 }
+
+---
+exists total equals the hits returned for a text field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "exists total excludes documents that hold only nulls"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: text } }
+          size: 10
+          track_total_hits: true
+          _source: false
+
+  - length: { hits.hits: 3 }
+  - match: { hits.total.value: 3 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            bool:
+              filter:
+                - exists: { field: text }
+                - ids: { values: [ only_null ] }
+          _source: false
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: only_null }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: text } }
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 3 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: text } }
 
   - match: { count: 3 }

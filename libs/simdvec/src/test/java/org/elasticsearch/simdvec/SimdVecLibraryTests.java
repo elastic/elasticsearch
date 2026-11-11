@@ -133,7 +133,7 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
 
     /**
      * A random mask over a block of {@code count} vectors, {@code count < 32}, that also selects vectors past the end of the block.
-     * The public masked bindings reject such masks, so tests pass them to the {@code _raw} bindings to check that the native
+     * The public masked bindings assert on such masks, so tests pass them to the {@code _raw} bindings to check that the native
      * kernels still never read vectors or write scores past the block.
      */
     protected static int randomInvalidBulkMask(int count) {

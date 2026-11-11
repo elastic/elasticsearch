@@ -220,7 +220,7 @@ public abstract class SimdVecLibrary {
         if (pitch < length) {
             throw new IllegalArgumentException("Pitch needs to be at least " + length);
         }
-        BulkMask.validate(mask, count);
+        assert BulkMask.validate(mask, count);
         dotProductI7uBulkMasked_raw(dataset, query, length, pitch, mask, count, scores);
     }
 
@@ -315,7 +315,7 @@ public abstract class SimdVecLibrary {
         if (pitch < documentBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + documentBytes);
         }
-        BulkMask.validate(mask, count);
+        assert BulkMask.validate(mask, count);
         dotProductI4BulkMasked_raw(dataset, query, documentBytes, pitch, mask, count, scores);
     }
 
@@ -807,7 +807,7 @@ public abstract class SimdVecLibrary {
         if (pitch < documentBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + documentBytes);
         }
-        BulkMask.validate(mask, count);
+        assert BulkMask.validate(mask, count);
         dotProductD1Q1BulkMasked_raw(dataset, query, documentBytes, pitch, mask, count, scores);
     }
 
@@ -851,7 +851,7 @@ public abstract class SimdVecLibrary {
         if (pitch < documentBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + documentBytes);
         }
-        BulkMask.validate(mask, count);
+        assert BulkMask.validate(mask, count);
         dotProductD1Q4BulkMasked_raw(dataset, query, documentBytes, pitch, mask, count, scores);
     }
 
@@ -910,7 +910,7 @@ public abstract class SimdVecLibrary {
         if (pitch < documentBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + documentBytes);
         }
-        BulkMask.validate(mask, count);
+        assert BulkMask.validate(mask, count);
         dotProductD2Q2BulkMasked_raw(dataset, query, documentBytes, pitch, mask, count, scores);
     }
 
@@ -954,7 +954,7 @@ public abstract class SimdVecLibrary {
         if (pitch < documentBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + documentBytes);
         }
-        BulkMask.validate(mask, count);
+        assert BulkMask.validate(mask, count);
         dotProductD2Q4BulkMasked_raw(dataset, query, documentBytes, pitch, mask, count, scores);
     }
 
@@ -998,7 +998,7 @@ public abstract class SimdVecLibrary {
         if (pitch < documentBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + documentBytes);
         }
-        BulkMask.validate(mask, count);
+        assert BulkMask.validate(mask, count);
         dotProductD2Q4PackedBulkMasked_raw(dataset, query, documentBytes, pitch, mask, count, scores);
     }
 
@@ -1042,7 +1042,7 @@ public abstract class SimdVecLibrary {
         if (pitch < documentBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + documentBytes);
         }
-        BulkMask.validate(mask, count);
+        assert BulkMask.validate(mask, count);
         dotProductD4Q4BulkMasked_raw(dataset, query, documentBytes, pitch, mask, count, scores);
     }
 

@@ -200,6 +200,56 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
         }
     }
 
+    /**
+     * {@code createDrivers} calls {@code get()} sequentially while the first producer already
+     * runs. A producer-only refcount would close the connector before the sibling {@code get()}.
+     */
+    public void testLateGetDoesNotSeeClosedConnector() throws Exception {
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch proceed = new CountDownLatch(1);
+        AtomicInteger executeCount = new AtomicInteger();
+        LatchedConnector connector = new LatchedConnector(executeCount, entered, proceed);
+        QueryRequest request = new QueryRequest("target", List.of("col"), List.of(), Map.of(), 100, TEST_BLOCK_FACTORY);
+        ExecutorService pool = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory("test", "acsof-late-get"));
+        try {
+            AsyncConnectorSourceOperatorFactory factory = new AsyncConnectorSourceOperatorFactory(connector, request, 10, pool);
+
+            CountDownLatch firstDone = new CountDownLatch(1);
+            DriverContext first = mockDriverContext();
+            doAnswer(inv -> {
+                firstDone.countDown();
+                return null;
+            }).when(first).removeAsyncAction();
+            SourceOperator op1 = factory.get(first);
+            assertTrue(entered.await(30, TimeUnit.SECONDS));
+            proceed.countDown();
+            assertTrue(firstDone.await(30, TimeUnit.SECONDS));
+            assertThat(connector.closeCount.get(), equalTo(0));
+
+            CountDownLatch secondDone = new CountDownLatch(1);
+            DriverContext second = mockDriverContext();
+            doAnswer(inv -> {
+                secondDone.countDown();
+                return null;
+            }).when(second).removeAsyncAction();
+            SourceOperator op2 = factory.get(second);
+            assertTrue(secondDone.await(30, TimeUnit.SECONDS));
+            assertThat(connector.closeCount.get(), equalTo(0));
+            assertThat(executeCount.get(), equalTo(2));
+
+            drainRows(op1);
+            drainRows(op2);
+            op1.close();
+            assertThat(connector.closeCount.get(), equalTo(0));
+            op2.close();
+            assertThat(connector.closeCount.get(), equalTo(1));
+        } finally {
+            proceed.countDown();
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
     public void testObservedRemainingZeroReleasesPageAfterBlockingNext() throws Exception {
         List<ExternalSplit> splits = List.of(new StubSplit("s0"));
         ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
@@ -330,11 +380,15 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
 
         @Override
         public ResultCursor execute(QueryRequest request, Split split) {
-            return cursor();
+            return latchedExecute(request);
         }
 
         @Override
         public ResultCursor execute(QueryRequest request, ExternalSplit split) {
+            return latchedExecute(request);
+        }
+
+        private ResultCursor latchedExecute(QueryRequest request) {
             if (closed.get()) {
                 throw new IllegalStateException("Connector is closed");
             }

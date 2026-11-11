@@ -16,6 +16,8 @@ import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -67,8 +69,15 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
     @Nullable
     private volatile Limiter observedLimiter;
     private final AtomicBoolean started = new AtomicBoolean();
-    /** Live {@link #get} producers, including parked ones. The connector closes when this hits 0. */
-    private final AtomicInteger outstandingProducers = new AtomicInteger();
+    /**
+     * Live count of in-flight producer tasks plus unclosed source operators created by {@link #get}.
+     * Each {@code get()} takes two refs: one released when that instance's producer finishes or
+     * fails, and one released from {@link AsyncExternalSourceOperator#close()}. Hitting zero
+     * closes the shared connector. Dual refs keep the Flight client alive until every operator
+     * built during {@code createDrivers} has closed, even if an earlier producer finishes while
+     * later {@code get()} calls are still pending.
+     */
+    private final AtomicInteger operatorRefCount = new AtomicInteger();
     private final Object filteredLimitRampLock = new Object();
     private int filteredLimitRunning;
     private int filteredLimitCap = AsyncExternalSourceOperatorFactory.FILTERED_LIMIT_READER_RAMP;
@@ -130,33 +139,69 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         started.set(true);
         QueryRequest request = baseRequest.withBlockFactory(driverContext.blockFactory());
         long maxBufferBytes = (long) maxBufferSize * Operator.TARGET_PAGE_SIZE;
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
-        driverContext.addAsyncAction();
-        outstandingProducers.incrementAndGet();
-
-        // Single completion listener: exactly one of {finish(false), onFailure(e)} fires, and
-        // driverContext.removeAsyncAction() runs once. Connector.close() waits until the last
-        // producer (running or parked) has finished, so a sibling still in execute() cannot see
-        // a closed Flight client.
-        ActionListener<Void> completionListener = ActionListener.assertOnce(
-            ActionListener.runAfter(ActionListener.wrap(v -> buffer.finish(false), buffer::onFailure), () -> {
-                try {
-                    if (outstandingProducers.decrementAndGet() == 0) {
-                        closeConnectorQuietly();
-                    }
-                } finally {
-                    driverContext.removeAsyncAction();
-                }
-            })
-        );
-
-        ProducerState state = new ProducerState(request, sliceQueue, buffer, driverContext);
+        Releasable operatorHold = null;
+        boolean refsTaken = false;
+        boolean producerOwnsHold = false;
+        boolean succeeded = false;
         try {
-            submitConnectorProducer(state, completionListener);
-        } catch (Exception e) {
-            completionListener.onFailure(e);
+            operatorRefCount.addAndGet(2);
+            refsTaken = true;
+            operatorHold = Releasables.releaseOnce(() -> driverContext.meteredCpu(() -> {
+                releaseOperator();
+                return null;
+            }));
+            AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
+            driverContext.addAsyncAction();
+
+            // Single completion listener: exactly one of {finish(false), onFailure(e)} fires, and
+            // driverContext.removeAsyncAction() runs once. Connector.close() waits until the last
+            // producer and operator hold are gone, so a sibling still in execute() — or a later
+            // get() during createDrivers — cannot see a closed Flight client.
+            ActionListener<Void> completionListener = ActionListener.assertOnce(
+                ActionListener.runAfter(ActionListener.wrap(v -> buffer.finish(false), buffer::onFailure), () -> {
+                    try {
+                        releaseOperator();
+                    } finally {
+                        driverContext.removeAsyncAction();
+                    }
+                })
+            );
+
+            ProducerState state = new ProducerState(request, sliceQueue, buffer, driverContext);
+            try {
+                submitConnectorProducer(state, completionListener);
+            } catch (Exception e) {
+                completionListener.onFailure(e);
+            }
+            producerOwnsHold = true;
+            SourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext, operatorHold);
+            succeeded = true;
+            return operator;
+        } finally {
+            if (succeeded == false) {
+                if (operatorHold != null) {
+                    try {
+                        operatorHold.close();
+                    } finally {
+                        if (producerOwnsHold == false) {
+                            releaseOperator();
+                        }
+                    }
+                } else if (refsTaken) {
+                    try {
+                        releaseOperator();
+                    } finally {
+                        releaseOperator();
+                    }
+                }
+            }
         }
-        return new AsyncExternalSourceOperator(buffer, driverContext);
+    }
+
+    private void releaseOperator() {
+        if (operatorRefCount.decrementAndGet() == 0) {
+            closeConnectorQuietly();
+        }
     }
 
     private void submitConnectorProducer(ProducerState state, ActionListener<Void> finishBuffer) {

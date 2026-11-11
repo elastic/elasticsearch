@@ -47,11 +47,8 @@ public final class ColumnarNumericSortField extends SortField {
     private final boolean maxMode;
 
     public ColumnarNumericSortField(String field, Type type, boolean reverse, boolean maxMode, @Nullable Object missingValue) {
-        super(field, requireSupported(type), reverse);
+        super(field, requireSupported(type), reverse, missingValue);
         this.maxMode = maxMode;
-        if (missingValue != null) {
-            setMissingValue(missingValue);
-        }
     }
 
     private static Type requireSupported(Type type) {

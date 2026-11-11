@@ -5,7 +5,8 @@ setup:
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      reason: "columnar index mode required"
+      cluster_features: [ "mapper.columnar.bare_null_is_absence" ]
+      reason: "exists matches documents that hold only nulls in columnar index modes"
 
   - do:
       indices.create:

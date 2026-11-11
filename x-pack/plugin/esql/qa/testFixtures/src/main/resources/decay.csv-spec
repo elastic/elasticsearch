@@ -943,17 +943,18 @@ required_capability: metadata_score
 required_capability: match_function
 required_capability: routing_function_update
 
+// exp decay keeping a quarter of the score per year from 2005 gives 1, 0.25 and 0.0625 to 2005, 2004 and 2003.
+// That outweighs the at most 2.2x spread of _score between these books, so the order comes from the decay.
 FROM books METADATA _score
 | WHERE MATCH(author, "Faulkner") AND year IS NOT NULL
-| EVAL boosted = _score * decay(year, 2011, 10)
-| SORT boosted DESC, book_no ASC
-| KEEP book_no, year
-| LIMIT 3;
+| EVAL boosted = _score * decay(year, 2005, 1, {"type": "exp", "decay": 0.25})
+| SORT boosted DESC
+| KEEP book_no, author, year
+| LIMIT 2;
 
-book_no:keyword | year:integer
-4724            | 2011
-4977            | 2011
-5119            | 2011
+book_no:keyword | author:text      | year:integer
+2883            | William Faulkner | 2005
+3293            | Danny Faulkner   | 2004
 ;
 
 maxDecayOverRows

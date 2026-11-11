@@ -1970,8 +1970,10 @@ public class EsqlSession {
      * condition on the loaded value. That is the one case in which leaving an index out changes the rows of the result: with
      * any other setting the missing field reads as {@code null}, which no condition on {@code @timestamp} accepts.
      * <p>
-     * Exemplars resolve data streams of their own from the indices that the query resolved, and are left out as well. So is
-     * any query whose request filter already filters on {@code @timestamp}, see {@link #filtersOnTimestamp}.
+     * Neither are they used when the request filter already filters on {@code @timestamp}, see {@link #filtersOnTimestamp}.
+     * <p>
+     * A query for exemplars reads the exemplar data streams of the metrics indices that its patterns resolve to. Like a
+     * request filter, the time range then also narrows those data streams to the ones whose metrics have data in the range.
      * <p>
      * A filter that leaves a pattern without any index is given up on, see {@link #analyzeWithRetry}: the query then gets the
      * mapping, and with that the columns, of the indices that it would have read without the filter.
@@ -1995,7 +1997,7 @@ public class EsqlSession {
         Map<String, ViewQuerySettings> viewSettings,
         Configuration configuration
     ) {
-        if (unmappedResolution.loadsUnmappedFields() || QuerySettings.EXEMPLARS.get(configuration.resolvedSettings()).enabled()) {
+        if (unmappedResolution.loadsUnmappedFields()) {
             return Map.of();
         }
         for (ViewQuerySettings settings : viewSettings.values()) {

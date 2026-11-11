@@ -102,6 +102,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLogTests.mockLogFieldProvider;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -331,6 +332,21 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
             logger.info("PromQL query failed", e);
         }
         assertThat(indexFilters, contains(new BoolQueryBuilder().filter(promqlRange).filter(timeSeries), timeSeries));
+    }
+
+    /**
+     * The metrics pattern of a query for exemplars is resolved with the time range of the query, like that of any other
+     * query. The exemplar data streams follow from the indices that it resolves to.
+     */
+    public void testExemplars() {
+        QueryBuilder timeSeries = QueryBuilders.termQuery("_index_mode", "time_series");
+        try {
+            analyze("SET exemplars=true; TS logs-*" + TIME_RANGE + " | STATS m = MAX(MAX_OVER_TIME(value))", null);
+        } catch (Exception e) {
+            // The indices of the test are not metrics data streams. What the query comes to does not matter here.
+            logger.info("exemplars query failed", e);
+        }
+        assertThat(indexFilters.get(0), equalTo(new BoolQueryBuilder().filter(TIME_FILTER).filter(timeSeries)));
     }
 
     private static boolean boundsTimestamp(QueryBuilder filter) {

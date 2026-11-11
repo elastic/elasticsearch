@@ -1234,8 +1234,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertThat(message, mappingSource, not(containsString("\"bits\"")));
             assertThat(message, mappingSource, not(containsString("rescore_vector")));
 
-            assertEquals(message, c.bits(), indexOptions.effectiveBits(dims));
-            DenseVectorFieldMapper.RescoreVector rescoreVector = indexOptions.effectiveRescoreVector(dims);
+            assertEquals(message, c.bits(), indexOptions.resolve(dims).bits());
+            DenseVectorFieldMapper.RescoreVector rescoreVector = indexOptions.resolve(dims).rescoreVector();
             if (c.oversample() == null) {
                 assertNull(message, rescoreVector);
             } else {
@@ -1269,9 +1269,9 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 var indexOptions = getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class);
                 assertFalse(message, indexOptions.usesAshFormat());
                 assertNull(message, indexOptions.getBits());
-                assertEquals(message, 2, indexOptions.defaultedBits());
-                assertEquals(message, 2, indexOptions.effectiveBits(dims));
-                assertEquals(message, 1.5f, indexOptions.effectiveRescoreVector(dims).oversample(), 0f);
+                assertEquals(message, 2, indexOptions.resolve(null).bits());
+                assertEquals(message, 2, indexOptions.resolve(dims).bits());
+                assertEquals(message, 1.5f, indexOptions.resolve(dims).rescoreVector().oversample(), 0f);
             }
         }
 
@@ -1287,8 +1287,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             MapperService mapperService = createMapperService(EXPERIMENTAL_FEATURES_ENABLED, ashMapping(dims, 2, null));
             var indexOptions = getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class);
             assertEquals(message, Integer.valueOf(2), indexOptions.getBits());
-            assertEquals(message, 2, indexOptions.effectiveBits(dims));
-            assertEquals(message, 1.5f, indexOptions.effectiveRescoreVector(dims).oversample(), 0f);
+            assertEquals(message, 2, indexOptions.resolve(dims).bits());
+            assertEquals(message, 1.5f, indexOptions.resolve(dims).rescoreVector().oversample(), 0f);
             assertThat(message, mapperService.documentMapper().mappingSource().toString(), containsString("\"bits\":2"));
             if (dims != null) {
                 assertEquals(message, 2, indexOptions.ashConfigResolver().resolve(dims).bitsPerDim());
@@ -1303,15 +1303,15 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         MapperService mapperService = createMapperService(EXPERIMENTAL_FEATURES_ENABLED, ashMapping(dims, null, null));
         var indexOptions = getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class);
         assertNull(indexOptions.getBits());
-        assertEquals(4, indexOptions.effectiveBits(dims));
-        assertNull(indexOptions.effectiveRescoreVector(dims));
+        assertEquals(4, indexOptions.resolve(dims).bits());
+        assertNull(indexOptions.resolve(dims).rescoreVector());
 
         // setting the bits pins them, and with them the default oversample for those bits, in the mapping
         merge(mapperService, ashMapping(dims, 2, null));
         indexOptions = getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class);
         assertEquals(Integer.valueOf(2), indexOptions.getBits());
-        assertEquals(2, indexOptions.effectiveBits(dims));
-        assertEquals(1.5f, indexOptions.effectiveRescoreVector(dims).oversample(), 0f);
+        assertEquals(2, indexOptions.resolve(dims).bits());
+        assertEquals(1.5f, indexOptions.resolve(dims).rescoreVector().oversample(), 0f);
         String mappingSource = mapperService.documentMapper().mappingSource().toString();
         assertThat(mappingSource, containsString("\"bits\":2"));
         assertThat(mappingSource, containsString("\"rescore_vector\":{\"oversample\":1.5}"));
@@ -1321,7 +1321,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         indexOptions = getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class);
         assertNull(indexOptions.getBits());
         assertNull(indexOptions.rescoreVector);
-        assertEquals(4, indexOptions.effectiveBits(dims));
+        assertEquals(4, indexOptions.resolve(dims).bits());
         mappingSource = mapperService.documentMapper().mappingSource().toString();
         assertThat(mappingSource, not(containsString("\"bits\"")));
         assertThat(mappingSource, not(containsString("rescore_vector")));
@@ -1333,8 +1333,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         MapperService mapperService = createMapperService(EXPERIMENTAL_FEATURES_ENABLED, ashMapping(3072, null, 2.5f));
         var indexOptions = getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class);
         assertNull(indexOptions.getBits());
-        assertEquals(4, indexOptions.effectiveBits(3072));
-        assertEquals(2.5f, indexOptions.effectiveRescoreVector(3072).oversample(), 0f);
+        assertEquals(4, indexOptions.resolve(3072).bits());
+        assertEquals(2.5f, indexOptions.resolve(3072).rescoreVector().oversample(), 0f);
     }
 
     public void testAshDerivedBitsFollowDynamicDims() throws IOException {
@@ -1351,7 +1351,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         assertEquals(3072, mapper.fieldType().getVectorDimensions());
         var indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) mapper.fieldType().getIndexOptions();
         assertNull(indexOptions.getBits());
-        assertEquals(4, indexOptions.effectiveBits(mapper.fieldType().getVectorDimensions()));
+        assertEquals(4, indexOptions.resolve(mapper.fieldType().getVectorDimensions()).bits());
         assertThat(mapperService.documentMapper().mappingSource().toString(), not(containsString("\"bits\"")));
     }
 

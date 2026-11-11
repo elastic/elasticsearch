@@ -124,7 +124,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
 
     public ESNextDiskASHVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, String sliceField) {
         this(
-            IvfSegmentConfig.AshConfig.defaults(),
+            AshConfigResolver.fixed(IvfSegmentConfig.AshConfig.defaults()),
             vectorPerCluster,
             centroidsPerParentCluster,
             DenseVectorFieldMapper.ElementType.FLOAT,
@@ -137,39 +137,6 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
             IvfFlushConfigSource.empty(),
             IvfMergeConfigResolver.useCodecDefault(),
             false
-        );
-    }
-
-    /** @param onDiskMerge whether merges use direct I/O for the raw vectors (the field's {@code on_disk_merge} option) */
-    public ESNextDiskASHVectorsFormat(
-        IvfSegmentConfig.AshConfig ashConfig,
-        int vectorPerCluster,
-        int centroidsPerParentCluster,
-        DenseVectorFieldMapper.ElementType elementType,
-        boolean useDirectIO,
-        ExecutorService mergingExecutorService,
-        int maxMergingWorkers,
-        ExecutorService quantizerExecutorService,
-        int flatVectorThreshold,
-        String sliceField,
-        IvfFlushConfigSource ivfFlushConfigSource,
-        IvfMergeConfigResolver ivfMergeConfigResolver,
-        boolean onDiskMerge
-    ) {
-        this(
-            AshConfigResolver.fixed(ashConfig),
-            vectorPerCluster,
-            centroidsPerParentCluster,
-            elementType,
-            useDirectIO,
-            mergingExecutorService,
-            maxMergingWorkers,
-            quantizerExecutorService,
-            flatVectorThreshold,
-            sliceField,
-            ivfFlushConfigSource,
-            ivfMergeConfigResolver,
-            onDiskMerge
         );
     }
 

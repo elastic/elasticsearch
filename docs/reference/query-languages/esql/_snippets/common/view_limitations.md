@@ -116,7 +116,7 @@ Only the following settings are supported in a view definition:
 |---|---|
 | [`unmapped_fields`](/reference/query-languages/esql/directives/set.md#esql-unmapped_fields) | `DEFAULT`, `NULLIFY`, and `LOAD` |
 | [`wildcards_match_views`](/reference/query-languages/esql/directives/set.md#esql-wildcards_match_views) | `true` and `false` |
-| [`wildcards_match_datasets`](/reference/query-languages/esql/directives/set.md#esql-wildcards_match_datasets) {applies_to}`stack: preview 9.6+` | `true` and `false` |
+| [`wildcards_match_datasets`](/reference/query-languages/esql/directives/set.md#esql-wildcards_match_datasets) {applies_to}`stack: preview 9.6+` {applies_to}`serverless: unavailable` | `true` and `false` |
 
 {applies_to}`{"stack": "preview 9.6+", "serverless": "preview"}` `LOAD_ALL`
 is not supported in a view definition.

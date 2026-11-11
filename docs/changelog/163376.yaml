@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 163376
-summary: Fix vector builder memory accounting
-type: bug

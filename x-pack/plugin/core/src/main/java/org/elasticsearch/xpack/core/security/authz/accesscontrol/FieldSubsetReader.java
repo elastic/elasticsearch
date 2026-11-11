@@ -215,19 +215,19 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
             // The .offsets sidecar records array order for its parent field's doc values, so its visibility must follow the parent.
             // Filtering it independently would leave orphaned offsets behind a hidden field, and synthetic source reconstruction would
-            // then read offsets pointing at absent values. Only treat it as a companion when the parent exists as a field in the
-            // underlying index, so a user field that merely ends with the suffix but has no such parent is unaffected.
+            // then read offsets pointing at absent values. Only treat it as a companion when the parent exists, so a user field that
+            // merely ends with the suffix but has no such parent is unaffected.
             if (name.endsWith(FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX) && isMapped.apply(fi.getName()) == false) {
-                String parent = name.substring(0, name.length() - FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX.length());
-                if (in.getFieldInfos().fieldInfo(parent) != null) {
+                String parent = stripSuffix(name, FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX);
+                if (companionParentExists(in.getFieldInfos(), parent, isMapped)) {
                     name = parent;
                 }
             }
 
             String countsSuffix = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
             if (name.endsWith(countsSuffix) && isMapped.apply(fi.getName()) == false) {
-                String parent = name.substring(0, name.length() - countsSuffix.length());
-                if (parent.isEmpty() == false && in.getFieldInfos().fieldInfo(parent) != null) {
+                String parent = stripSuffix(name, countsSuffix);
+                if (parent.isEmpty() == false && companionParentExists(in.getFieldInfos(), parent, isMapped)) {
                     name = parent;
                 }
             }
@@ -298,6 +298,15 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
 
         return fieldName;
+    }
+
+    /**
+     * Whether {@code parent} exists, so that a field named {@code parent + suffix} is its companion. The mapping is checked as well as the
+     * segment: a companion can be written without its parent (e.g. a document whose array holds only nulls), so a segment made only of
+     * such documents has the companion but not the parent. The segment is still checked for parents that are not mapped field types.
+     */
+    private static boolean companionParentExists(FieldInfos fieldInfos, String parent, Function<String, Boolean> isMapped) {
+        return isMapped.apply(parent) || fieldInfos.fieldInfo(parent) != null;
     }
 
     private static String stripSuffix(String value, String suffix) {

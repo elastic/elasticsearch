@@ -20,12 +20,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
 import org.elasticsearch.index.shard.IndexShard;
@@ -43,6 +45,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Parse-time tests for the batch-mapping fast path: drives {@link ShardBatchMapper} directly and
@@ -794,6 +798,84 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         } finally {
             closeShards(shard);
         }
+    }
+
+    /**
+     * A multi-field of a {@code nullability=false} field is required as well, but has no source column of its own: it is mapped from its
+     * parent's column. So it counts as present whenever the parent does, and the batch neither lists it in {@code _ignored} nor, under
+     * {@code on_failure=FAIL}, falls back to the row path. When the parent is absent, the multi-field is missing too, as on the row path,
+     * including when the parent itself is {@code nullability=true} and only the multi-field inherits the index-level {@code false}.
+     */
+    public void testRequiredMultiFieldIsPresentWhenItsParentIs() throws IOException {
+        final boolean parentNullable = randomBoolean();
+        final String mapping = Strings.format("""
+            {
+              "dynamic": "strict",
+              "properties": {
+                "f": { "type": "keyword", %s"fields": { "raw": { "type": "keyword" } } },
+                "other": { "type": "keyword", "nullability": true }
+              }
+            }""", parentNullable ? "\"nullability\": true, " : "");
+        final FieldMapper.DocValuesParameter.Values.OnFailure onFailure = randomFrom(
+            FieldMapper.DocValuesParameter.Values.OnFailure.values()
+        );
+        final Settings settings = Settings.builder()
+            .put(COLUMNAR_SETTINGS)
+            .put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false)
+            .put(FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.getKey(), onFailure)
+            .build();
+
+        IndexShard shard = newShardWithMapping(mapping, settings);
+        try {
+            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")) };
+            try (SourceBatch batch = EscfEncoder.encode(List.of(doc("f", randomAlphanumericOfLength(5))), XContentType.JSON)) {
+                EngineBatch result = mapBatch(shard, items, batch);
+                assertNotNull("a required multi-field must count as present when its parent is", result);
+                assertEquals(Set.of(), ignoredFieldsOfFirstDoc(result));
+            }
+            try (SourceBatch batch = EscfEncoder.encode(List.of(doc("other", randomAlphanumericOfLength(5))), XContentType.JSON)) {
+                EngineBatch result = mapBatch(shard, items, batch);
+                if (onFailure == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE) {
+                    assertNotNull("on_failure=IGNORE must not cause columnar fallback", result);
+                    assertEquals(parentNullable ? Set.of("f.raw") : Set.of("f", "f.raw"), ignoredFieldsOfFirstDoc(result));
+                } else {
+                    assertNull("a required field absent from the ESCF schema must cause columnar fallback", result);
+                }
+            }
+            // The parent's column exists but one document lacks it: the multi-field's own per-document check must catch that. Only checked
+            // with a nullable parent, since a required parent fails its own check first and the fallback would hide which check fired.
+            if (parentNullable) {
+                final BulkItemRequest[] twoItems = {
+                    new BulkItemRequest(0, indexRequest("doc1")),
+                    new BulkItemRequest(1, indexRequest("doc2")) };
+                final List<BytesReference> docs = List.of(
+                    doc("f", randomAlphanumericOfLength(5)),
+                    doc("other", randomAlphanumericOfLength(5))
+                );
+                try (SourceBatch batch = EscfEncoder.encode(docs, XContentType.JSON)) {
+                    assertNull(
+                        "a document without a required multi-field's parent must cause columnar fallback",
+                        mapBatch(shard, twoItems, batch)
+                    );
+                }
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    private static Set<String> ignoredFieldsOfFirstDoc(EngineBatch result) {
+        final MappedColumns mc = result.columns();
+        mc.fillPrimaryTerm(1L);
+        mc.setSeqNo(0, 1L);
+        mc.setVersion(0, 1L);
+        final MappedColumns.RowCursor cursor = mc.rowCursor();
+        cursor.advance();
+        return cursor.fields()
+            .stream()
+            .filter(fld -> "_ignored".equals(fld.name()))
+            .map(fld -> fld.binaryValue().utf8ToString())
+            .collect(Collectors.toSet());
     }
 
     public void testSingleValuedColumnarKeywordBatchWritesTheBareValue() throws IOException {

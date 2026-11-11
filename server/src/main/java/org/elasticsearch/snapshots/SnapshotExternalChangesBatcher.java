@@ -301,8 +301,11 @@ final class SnapshotExternalChangesBatcher {
                         // BwC path, older versions could create entries with unknown repo GEN in INIT or ABORTED state that did not
                         // yet write anything to the repository physically. This means we can simply remove these from the cluster
                         // state without having to do any additional cleanup.
+                        //
+                        // Obsolete since 8.0: all compatible nodes use the snapshot initialization introduced by #55918, so
+                        // UNKNOWN_REPO_GEN entries can no longer be created. See testBwcUnknownRepoGenEntryCleanup()
                         changed = true;
-                        logger.debug("[{}] was found in dangling INIT or ABORTED state", snapshotEntry);
+                        logger.error("[{}] was found in legacy dangling INIT or ABORTED state", snapshotEntry);
                     } else {
                         // Now we're down to completed or un-modified snapshots
                         if (snapshotEntry.state().completed()) {
@@ -319,18 +322,19 @@ final class SnapshotExternalChangesBatcher {
                     );
                 }
             }
-            final ClusterState res = SnapshotsServiceUtils.readyDeletions(
+            // startReadyDeletions is only needed for the `UNKNOWN_REPO_GEN` BwC path mentioned above.
+            final ClusterState updatedState = SnapshotsServiceUtils.startReadyDeletions(
                 updatedSnapshots != snapshotsInProgress
                     ? ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE, updatedSnapshots).build()
                     : currentState,
                 null
-            ).v1();
+            );
 
             taskContext.success(() -> {
                 onTaskCompletion();
-                clusterStateProcessed(res, finishedSnapshots);
+                clusterStateProcessed(updatedState, finishedSnapshots);
             });
-            return res;
+            return updatedState;
         }
 
         private void clusterStateProcessed(ClusterState newState, Collection<SnapshotsInProgress.Entry> finishedSnapshots) {

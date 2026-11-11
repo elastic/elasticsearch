@@ -97,8 +97,7 @@ public class APMTracerFlushTests extends ESTestCase {
 
         assertThat(supplier.calls, contains("attemptFlushTraces", "close"));
         // the tracing is shut down, so nothing is recorded anymore
-        final APMSpan span = (APMSpan) tracer.tracer().spanBuilder("name").startSpan();
-        assertThat(io.opentelemetry.api.trace.Span.fromContext(span.context()).isRecording(), is(false));
+        assertThat(tracer.tracer().spanBuilder("name").startSpan().isRecording(), is(false));
     }
 
     /**

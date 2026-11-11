@@ -15,6 +15,11 @@ enum NoopSpan implements Span {
     INSTANCE;
 
     @Override
+    public boolean isRecording() {
+        return false;
+    }
+
+    @Override
     public Span setAttribute(String key, boolean value) {
         return this;
     }

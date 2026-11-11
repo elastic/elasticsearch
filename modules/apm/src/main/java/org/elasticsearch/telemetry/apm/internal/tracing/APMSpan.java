@@ -14,32 +14,24 @@ import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.common.AttributesBuilder;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Context;
-import io.opentelemetry.instrumentation.api.instrumenter.SpanStatusBuilder;
 
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.tracing.Span;
 
-import static java.util.Objects.requireNonNull;
-
-public class APMSpan implements Span, SpanStatusBuilder {
+public class APMSpan extends AbstractSpan {
 
     private static final AttributeKey<String> EXCEPTION_TYPE = AttributeKey.stringKey("exception.type");
     private static final AttributeKey<String> EXCEPTION_MESSAGE = AttributeKey.stringKey("exception.message");
 
-    private final APMTracer tracer;
-    private final Context otelContext;
     private final io.opentelemetry.api.trace.Span otelSpan;
 
     APMSpan(APMTracer tracer, Context otelContext) {
-        this.tracer = tracer;
-        this.otelContext = otelContext;
+        super(tracer, otelContext);
         this.otelSpan = io.opentelemetry.api.trace.Span.fromContext(otelContext);
     }
 
-    /** The context that holds the span, which is what its children are started under. */
-    Context context() {
-        return otelContext;
+    @Override
+    public boolean isRecording() {
+        return otelSpan.isRecording();
     }
 
     @Override
@@ -70,6 +62,7 @@ public class APMSpan implements Span, SpanStatusBuilder {
         return this;
     }
 
+    @Override
     public void setAllAttributes(Attributes attributes) {
         otelSpan.setAllAttributes(attributes);
     }
@@ -97,28 +90,5 @@ public class APMSpan implements Span, SpanStatusBuilder {
     @Override
     public void end() {
         otelSpan.end();
-    }
-
-    @Override
-    public ThreadContext.StoredContext storeInThreadContext() {
-        final ThreadContext threadContext = tracer.threadContext();
-        final ThreadContext.StoredContext storedContext = threadContext.newStoredContextPreservingResponseHeaders();
-        updateThreadContext(threadContext, otelContext);
-        return storedContext;
-    }
-
-    private void updateThreadContext(ThreadContext threadContext, Context context) {
-        threadContext.putTransientAllowOverwrite(Task.APM_TRACE_CONTEXT, context);
-
-        // the propagator does not write an empty tracestate, so make sure that no stale value is left behind
-        threadContext.removeHeaders(Task.TRACE_PARENT_HTTP_HEADER, Task.TRACE_STATE);
-
-        // propagate current trace headers into thread context
-        if (tracer.isEnabled()) {
-            tracer.openTelemetry()
-                .getPropagators()
-                .getTextMapPropagator()
-                .inject(context, threadContext, (tc, key, value) -> requireNonNull(tc).putHeaderAllowOverwrite(key, value));
-        }
     }
 }

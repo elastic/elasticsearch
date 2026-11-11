@@ -357,6 +357,12 @@ tests:
   tasks:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:bcUpgradeTest
   issue: https://github.com/elastic/elasticsearch/issues/163562
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: "test {yaml=security/authz/90_tsdb_fls_hidden_timestamp_id/GET with the _id returned by search when field level security hides @timestamp}"
+  issue: https://github.com/elastic/elasticsearch/issues/163725
+- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
+  method: "test {yaml=security/authz/90_tsdb_fls_hidden_timestamp_id/GET with the _id returned by search when field level security hides @timestamp}"
+  issue: https://github.com/elastic/elasticsearch/issues/163725
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -509,11 +515,6 @@ tests:
   - :x-pack:plugin:ml:qa:single-node-tests:yamlRestTest
   method: test {yaml=ml/sparse_vector_search/Check sparse_vector should prune by default}
   issue: https://github.com/elastic/elasticsearch/issues/165040
-- class: org.elasticsearch.action.search.TransportSearchIT
-  tasks:
-  - :server:internalClusterTest
-  method: testCircuitBreakerReduceFail
-  issue: https://github.com/elastic/elasticsearch/issues/165046
 - class: org.elasticsearch.xpack.esql.action.CrossClusterLookupJoinFailuresIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
@@ -590,3 +591,13 @@ tests:
   - :server:test
   method: testCompoundFilters
   issue: https://github.com/elastic/elasticsearch/issues/165502
+- class: org.elasticsearch.search.vectors.KnnNestedFilterLevelTests
+  tasks:
+  - :server:test
+  method: testQueryTypesOnFieldsOfEachLevel
+  issue: https://github.com/elastic/elasticsearch/issues/165515
+- class: org.elasticsearch.xpack.searchablesnapshots.store.input.FrozenIndexInputTests
+  tasks:
+  - :x-pack:plugin:searchable-snapshots:test
+  method: testRandomReads
+  issue: https://github.com/elastic/elasticsearch/issues/165519

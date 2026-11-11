@@ -24,13 +24,29 @@ public class BinaryShapeDocValuesField extends CustomDocValuesField {
     private final List<IndexableField> fields;
     private final CoordinateEncoder coordinateEncoder;
     private final CentroidCalculator centroidCalculator;
+    private final boolean supportsReconstruction;
     private final List<Geometry> geometries;
 
+    /**
+     * Creates a field that writes the V2 format, which supports geometry reconstruction.
+     */
     public BinaryShapeDocValuesField(String name, CoordinateEncoder coordinateEncoder) {
+        this(name, coordinateEncoder, true);
+    }
+
+    /**
+     * @param supportsReconstruction when true, non-point shapes are written in the V2 format that supports
+     *                               geometry reconstruction. When false, the legacy triangle-tree format is
+     *                               written, which is required for indices created before
+     *                               {@code IndexVersions.GEOMETRY_DOC_VALUES_V2}, and is cheaper for transient
+     *                               encodings that only need the triangle tree.
+     */
+    public BinaryShapeDocValuesField(String name, CoordinateEncoder coordinateEncoder, boolean supportsReconstruction) {
         super(name);
         this.fields = new ArrayList<>();
         this.coordinateEncoder = coordinateEncoder;
         this.centroidCalculator = new CentroidCalculator();
+        this.supportsReconstruction = supportsReconstruction;
         this.geometries = new ArrayList<>();
     }
 
@@ -46,13 +62,17 @@ public class BinaryShapeDocValuesField extends CustomDocValuesField {
     public void add(List<IndexableField> fields, Geometry geometry) {
         this.fields.addAll(fields);
         this.centroidCalculator.add(geometry);
-        this.geometries.add(geometry);
+        if (supportsReconstruction) {
+            this.geometries.add(geometry);
+        }
     }
 
     @Override
     public BytesRef binaryValue() {
         try {
-            return GeometryDocValueWriter.write(fields, coordinateEncoder, centroidCalculator, geometries);
+            return supportsReconstruction
+                ? GeometryDocValueWriter.write(fields, coordinateEncoder, centroidCalculator, geometries)
+                : GeometryDocValueWriter.writeLegacy(fields, coordinateEncoder, centroidCalculator);
         } catch (IOException e) {
             throw new ElasticsearchException("failed to encode shape", e);
         }

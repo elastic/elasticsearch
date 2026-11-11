@@ -322,7 +322,11 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             String name = fieldType().name();
             BinaryShapeDocValuesField docValuesField = (BinaryShapeDocValuesField) context.doc().getByKey(name);
             if (docValuesField == null) {
-                docValuesField = new BinaryShapeDocValuesField(name, CoordinateEncoder.CARTESIAN);
+                docValuesField = new BinaryShapeDocValuesField(
+                    name,
+                    CoordinateEncoder.CARTESIAN,
+                    fieldType().supportsGeometryDocValueReconstruction()
+                );
                 context.doc().addWithKey(name, docValuesField);
             }
             docValuesField.add(fields, geometry);

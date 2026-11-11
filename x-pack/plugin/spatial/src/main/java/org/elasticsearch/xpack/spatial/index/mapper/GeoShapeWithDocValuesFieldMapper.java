@@ -519,7 +519,11 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             final String name = fieldType().name();
             BinaryShapeDocValuesField docValuesField = (BinaryShapeDocValuesField) context.doc().getByKey(name);
             if (docValuesField == null) {
-                docValuesField = new BinaryShapeDocValuesField(name, CoordinateEncoder.GEO);
+                docValuesField = new BinaryShapeDocValuesField(
+                    name,
+                    CoordinateEncoder.GEO,
+                    fieldType().supportsGeometryDocValueReconstruction()
+                );
                 context.doc().addWithKey(name, docValuesField);
             }
             // we pass the original geometry for both precise centroid calculation, and persisted geometry topology

@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.unit.Unit;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -34,6 +36,7 @@ import java.time.Instant;
 import java.time.Period;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAmount;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
@@ -41,7 +44,7 @@ import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongSubtractExact;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.SUB;
 
-public class Sub extends DateTimeArithmeticOperation implements BinaryComparisonInversible, AnyNullIsNull, NonFiniteSupport {
+public class Sub extends DateTimeArithmeticOperation implements BinaryComparisonInversible, AnyNullIsNull, NonFiniteSupport, UnitAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sub", Sub::new);
     public static final String OP_NAME = "Sub";
 
@@ -257,4 +260,9 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             return new DenseVectorScalarEvaluator.Factory(source, lhs, rhs, Sub::subDenseVectorElements, OP_NAME);
         }
     };
+
+    @Override
+    public Unit unit(Function<Expression, Unit> unitOf) {
+        return Unit.sameUnit(left(), right(), unitOf);
+    }
 }

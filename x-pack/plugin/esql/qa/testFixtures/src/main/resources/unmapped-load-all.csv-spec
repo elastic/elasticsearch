@@ -8022,6 +8022,8 @@ FROM partial_mapping_sample_data METADATA _score
 2024-10-23T13:52:55.015Z | 173.21.3.15 | 8268152 | Connection error? | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""8268154"",""unmapped.nested"":""c"",""language_code"":""3""}" | 0.06
 ;
 
+// Three documents have the message "Connection error?". Which one scores highest depends on how they are spread over the shards of the
+// index, so the first branch is limited to the one the result shows: it is not left to the scores to tie.
 fuseDropsUnmappedFields
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_completion_rerank_fuse_highlight_mmr
@@ -8031,7 +8033,7 @@ required_capability: match_operator_colon
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data METADATA _id, _index, _score
-| FORK ( WHERE message:"Connection error?" | SORT _score DESC, @timestamp | LIMIT 10)
+| FORK ( WHERE message:"Connection error?" AND @timestamp == "2024-10-23T13:51:54.732Z" | SORT _score DESC, @timestamp | LIMIT 10)
        ( WHERE message:"Connected to 10.1.0.3!" | SORT _score DESC, @timestamp | LIMIT 10)
 | FUSE
 | EVAL _score = ROUND(_score, 4)

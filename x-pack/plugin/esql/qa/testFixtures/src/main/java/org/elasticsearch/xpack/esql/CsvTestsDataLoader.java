@@ -373,6 +373,12 @@ public class CsvTestsDataLoader {
             .withSetting("k8s-settings.json")
             .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V8),
         new TestDataset(
+            "promql-long-dimension",
+            "promql-long-dimension-mappings.json",
+            "promql-long-dimension.csv",
+            "promql-long-dimension-settings.json"
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.PROMQL_SORT_BY_LABEL),
+        new TestDataset(
             "prom-metrics-name",
             "prom-metrics-name-mappings.json",
             "k8s-prometheus-name.csv",

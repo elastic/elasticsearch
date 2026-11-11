@@ -70,6 +70,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     private static final String LOOKUP_INDEX_FOR_UNMAPPED_FIELDS_LOAD_ALL = "lookup-index-dynamic-disabled";
     private static final String INDEX_UNMAPPED_CONTAINER = "index-unmapped-container";
     private static final String INDEX_UNMAPPED_SOURCE = "index-unmapped-source";
+    private static final String INDEX_FLATTENED_KEYS = "index-flattened-keys";
     private static final String INDEX_FULL_MAPPING = "index-full-mapping";
     /** The {@code _unmapped_fields} of the two {@link #INDEX_PARTIAL_MAPPING} documents for a user who may see all of them. */
     private static final Map<String, Object> PARTIAL_MAPPING_SALES = Map.of(
@@ -149,6 +150,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         )
         .user("fls_unmapped_load_all_lookup_join_user", "x-pack-test-password", "read_unmapped_load_all,fls_user2", false)
         .user("fls_unmapped_container_user", "x-pack-test-password", "fls_unmapped_container_except_k", false)
+        .user("fls_flattened_key_user", "x-pack-test-password", "fls_flattened_except_key", false)
         .user("lookup_unmapped_load_all_user", "x-pack-test-password", "read_unmapped_load_all,read_lookup_unmapped_load_all", false)
         .user(
             "fls_lookup_unmapped_load_all_user",
@@ -1713,6 +1715,48 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertMap(
             entityAsMap(runESQLCommand("test-admin", from + " | WHERE k == \"a\" | KEEP k, visible | LIMIT 10")),
             matchesMap().extraOk().entry("values", List.of(List.of("a", "v")))
+        );
+    }
+
+    /**
+     * Field-level security hides a key of a flattened field as it hides a mapped field: it reads as null and no filter on it
+     * matches, while the other keys read as usual.
+     */
+    public void testFLS_HidesAKeyOfAFlattenedField() throws Exception {
+        assumeTrue(
+            "a name under a flattened field is a field",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.FLATTENED_KEYS.capabilityName()))
+        );
+        createIndex(INDEX_FLATTENED_KEYS, Settings.EMPTY, "\"properties\": { \"attrs\": { \"type\": \"flattened\" } }");
+        Request indexDoc = new Request("PUT", INDEX_FLATTENED_KEYS + "/_doc/1?refresh=true");
+        indexDoc.setJsonEntity("""
+            { "attrs": { "bar": "a", "baz": "b" } }""");
+        client().performRequest(indexDoc);
+
+        String from = "FROM " + INDEX_FLATTENED_KEYS;
+        assertMap(
+            entityAsMap(runESQLCommand("test-admin", from + " | KEEP attrs.bar, attrs.baz | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(List.of("a", "b")))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_flattened_key_user", from + " | KEEP attrs.bar, attrs.baz | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(Arrays.asList(null, "b")))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_flattened_key_user", from + " | WHERE attrs.bar == \"a\" | STATS c = COUNT(*)")),
+            matchesMap().extraOk().entry("values", List.of(List.of(0)))
+        );
+
+        // Under load, an index that does not map attrs makes the key a field some shards may not map
+        createIndex(INDEX_FLATTENED_KEYS + "-other", Settings.EMPTY, "\"dynamic\": false, \"properties\": {}");
+        String load = "SET unmapped_fields=\"load\"; FROM " + INDEX_FLATTENED_KEYS + "*";
+        assertMap(
+            entityAsMap(runESQLCommand("fls_flattened_key_user", load + " | KEEP attrs.bar, attrs.baz | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(Arrays.asList(null, "b")))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_flattened_key_user", load + " | WHERE attrs.bar == \"a\" | STATS c = COUNT(*)")),
+            matchesMap().extraOk().entry("values", List.of(List.of(0)))
         );
     }
 

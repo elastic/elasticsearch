@@ -20,8 +20,8 @@ They apply only to the [{{prom}}-compatible HTTP API](/reference/query-languages
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 57 | Form-encoded `POST` | `Content-Type: application/x-www-form-urlencoded` | `406 Not Acceptable`.<br>{applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` Accepted when [security](/reference/elasticsearch/configuration-reference/security-settings.md) is enabled, [`xpack.security.http.ssl.enabled`](/reference/elasticsearch/configuration-reference/security-settings.md) is `true`, and the request is authenticated. TLS must terminate at {{es}}. Otherwise, use `GET` | Accepted | - |
-| 58 | `warnings` and `infos` | `quantile(2, x)` | Not returned. The only warning is `results truncated due to limit` | Returned | - |
+| 58 | Form-encoded `POST` | `Content-Type: application/x-www-form-urlencoded` | `406 Not Acceptable`.<br>{applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` Accepted when [security](/reference/elasticsearch/configuration-reference/security-settings.md) is enabled, [`xpack.security.http.ssl.enabled`](/reference/elasticsearch/configuration-reference/security-settings.md) is `true`, and the request is authenticated. TLS must terminate at {{es}}. Otherwise, use `GET` | Accepted | - |
+| 59 | `warnings` and `infos` | `quantile(2, x)` | Not returned. The only warning is `results truncated due to limit` | Returned | - |
 :::
 
 ### Expression queries [prometheus-compatibility-expression-queries]
@@ -37,7 +37,7 @@ They apply only to the [{{prom}}-compatible HTTP API](/reference/query-languages
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 59 | Query parameters that the [{{promql}} HTTP API](/reference/query-languages/promql/promql-http-api.md) doesn't list | `lookback_delta=1m`, `stats=all` | Configure clients to omit them. {{es}} returns `400 Bad Request` | [#149939]({{es-issue}}149939) |
+| 60 | Query parameters that the [{{promql}} HTTP API](/reference/query-languages/promql/promql-http-api.md) doesn't list | `lookback_delta=1m`, `stats=all` | Configure clients to omit them. {{es}} returns `400 Bad Request` | [#149939]({{es-issue}}149939) |
 :::
 
 ### Querying metric metadata [prometheus-compatibility-querying-metric-metadata]
@@ -53,7 +53,7 @@ They apply only to the [{{prom}}-compatible HTTP API](/reference/query-languages
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 60 | `help` in [`/api/v1/metadata`](/reference/query-languages/promql/promql-http-api.md#promql-http-api-metadata-endpoint) {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `GET /api/v1/metadata` | Empty | The metric's `HELP` text | [#157230]({{es-issue}}157230) |
+| 61 | `help` in [`/api/v1/metadata`](/reference/query-languages/promql/promql-http-api.md#promql-http-api-metadata-endpoint) {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `GET /api/v1/metadata` | Empty | The metric's `HELP` text | [#157230]({{es-issue}}157230) |
 :::
 
 ### Querying exemplars [prometheus-compatibility-querying-exemplars]
@@ -65,5 +65,5 @@ They apply only to the [{{prom}}-compatible HTTP API](/reference/query-languages
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 61 | Exemplar queries | `GET /api/v1/query_exemplars` | In Grafana, remove the links under **Data sources → Elasticsearch → Exemplars** | [#154786]({{es-issue}}154786) |
+| 62 | Exemplar queries | `GET /api/v1/query_exemplars` | In Grafana, remove the links under **Data sources → Elasticsearch → Exemplars** | [#154786]({{es-issue}}154786) |
 :::

@@ -42,14 +42,14 @@ public class SearchRecoveryTimeoutCalculationService {
     public static final String SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_TOTAL_METRIC =
         "es.blob_cache_warming.search_recovery.drain_timeout_heuristic.total";
     public static final String SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY = "es_drain_timeout_heuristic";
-    public static final String SEARCH_RECOVERY_WARM_AMOUNT_SHARE_STATUS_ATTRIBUTE_KEY = "es_warm_amount_share_status";
+    public static final String SEARCH_RECOVERY_SOURCE_WARMING_INFO_STATUS_ATTRIBUTE_KEY = "es_source_warming_info_status";
 
     public static final String OFFLINE_WARMING_TIMEOUT_REEVALUATION_PREFIX =
         SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_timeout_reevaluation";
 
-    /// When true, drain-path search recovery warming timeouts may use the warm-amount share fetched from the shutting-down source node.
-    public static final Setting<Boolean> SEARCH_OFFLINE_WARMING_WARM_AMOUNTS_ENABLED_SETTING = Setting.boolSetting(
-        SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".warm_amounts.enabled",
+    /// When true, drain-path search recovery warming timeouts may use the shard warming info fetched from the shutting-down source node.
+    public static final Setting<Boolean> SEARCH_OFFLINE_WARMING_SOURCE_WARMING_INFO_ENABLED_SETTING = Setting.boolSetting(
+        SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_source_warming_info.enabled",
         false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -128,8 +128,8 @@ public class SearchRecoveryTimeoutCalculationService {
                 "Number of warming timeouts calculated for drain-path search recovery warming, broken down by the ["
                     + SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY
                     + "] heuristic used for the timeout and the ["
-                    + SEARCH_RECOVERY_WARM_AMOUNT_SHARE_STATUS_ATTRIBUTE_KEY
-                    + "] of the source's warm-amount share",
+                    + SEARCH_RECOVERY_SOURCE_WARMING_INFO_STATUS_ATTRIBUTE_KEY
+                    + "] of the source's shard warming info",
                 "count"
             );
         DataNodeRecoveryThrottlingSettings.watchIncomingRecoveryLimits(
@@ -234,7 +234,7 @@ public class SearchRecoveryTimeoutCalculationService {
         long totalBytesToWarm,
         @Nullable SearchRecoveryTimeout previousPlan
     ) {
-        return searchRecoveryTimeout(state, indexShard, totalBytesToWarm, previousPlan, SourceWarmAmountShare.NOT_REQUESTED);
+        return searchRecoveryTimeout(state, indexShard, totalBytesToWarm, previousPlan, SourceShardWarmingInfo.NOT_REQUESTED);
     }
 
     public SearchRecoveryTimeout searchRecoveryTimeout(
@@ -242,7 +242,7 @@ public class SearchRecoveryTimeoutCalculationService {
         IndexShard indexShard,
         long totalBytesToWarm,
         @Nullable SearchRecoveryTimeout previousPlan,
-        SourceWarmAmountShare sourceWarmAmountShare
+        SourceShardWarmingInfo sourceShardWarmingInfo
     ) {
         final ShardRouting shardRouting = indexShard.routingEntry();
         assert shardRouting.isPromotableToPrimary() == false;
@@ -257,7 +257,7 @@ public class SearchRecoveryTimeoutCalculationService {
                     indexShard.shardId(),
                     totalBytesToWarm,
                     previousPlan,
-                    sourceWarmAmountShare
+                    sourceShardWarmingInfo
                 );
             }
             if (hasShuttingDownSearchNodeWithShards(state)) {
@@ -342,9 +342,7 @@ public class SearchRecoveryTimeoutCalculationService {
         return false;
     }
 
-    /// Returns the warming timeout for a shard whose relocation source is shutting down. One per-shard heuristic is
-    /// chosen, multiplied by `concurrentRelocations`, and capped at the remaining grace period.
-    /// The heuristic which affords the most amount of time to the shard wins.
+    /// Returns the warming timeout for a shard whose relocation source is shutting down, as the maximum of these heuristics:
     ///
     /// 1. _Equal-share_: `factor * (deadline - now) / shardsOnSource * concurrentRelocations`, ensuring every
     /// shard on the shutting-down source gets a fair slice of the remaining grace period.
@@ -352,7 +350,7 @@ public class SearchRecoveryTimeoutCalculationService {
     /// node's warming cache budget consumed by this shard's data multiplied by the remaining time,
     /// i.e. `(totalBytesToWarm / (cacheSize * cacheRatio)) * remaining * concurrentRelocations`.
     /// 3. _Warm-amount share_ (when the source answered for its current shutdown signal before this plan):
-    /// `(shardWarmAmount / sumOfWarmAmountsCompetingForTarget) * remaining * concurrentRelocations`. Both amounts are the source's
+    /// `(shardWarmAmount / sumOfWarmAmountsFromSourceToTarget) * remaining * concurrentRelocations`. Both amounts are the source's
     /// estimates. The source leaves copies already relocating to a different node out of the sum and keeps STARTED copies (no target
     /// yet) in it, and recomputes it on each request, so shards that finished relocating drop out of it.
     ///
@@ -374,7 +372,7 @@ public class SearchRecoveryTimeoutCalculationService {
         ShardId shardId,
         long totalBytesToWarm,
         @Nullable SearchRecoveryTimeout previousPlan,
-        SourceWarmAmountShare sourceWarmAmountShare
+        SourceShardWarmingInfo sourceShardWarmingInfo
     ) {
         final var shutdown = state.metadata().nodeShutdowns().get(sourceNodeId);
         assert shutdown != null;
@@ -435,17 +433,17 @@ public class SearchRecoveryTimeoutCalculationService {
         }
 
         // Warm-amount shares use the source's estimates of its current commits; they can differ from this target's WarmTarget plan.
-        final SourceWarmAmountShare.Status warmAmountShareStatus = sourceWarmAmountShare.status(shutdown.getStartedAtMillis());
+        final SourceShardWarmingInfo.Status warmingInfoStatus = sourceShardWarmingInfo.status(shutdown.getStartedAtMillis());
         final double warmAmountMs;
-        if (warmAmountShareStatus == SourceWarmAmountShare.Status.AVAILABLE) {
-            final var share = sourceWarmAmountShare.share();
-            assert share != null;
-            warmAmountMs = (share.shardAmount() / (double) share.competingSum()) * remaining;
+        if (warmingInfoStatus == SourceShardWarmingInfo.Status.AVAILABLE) {
+            final var warmingInfo = sourceShardWarmingInfo.warmingInfo();
+            assert warmingInfo != null;
+            warmAmountMs = (warmingInfo.shardBytesToWarm() / (double) warmingInfo.sourceBytesToWarm()) * remaining;
             logger.debug(
-                "{} warm amount share [{}/{}] bytes, target plans to warm [{}] bytes",
+                "{} source shard warming info [{}/{}] bytes, target plans to warm [{}] bytes",
                 shardId,
-                share.shardAmount(),
-                share.competingSum(),
+                warmingInfo.shardBytesToWarm(),
+                warmingInfo.sourceBytesToWarm(),
                 totalBytesToWarm
             );
         } else {
@@ -470,8 +468,8 @@ public class SearchRecoveryTimeoutCalculationService {
             Map.of(
                 SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY,
                 heuristic.name(),
-                SEARCH_RECOVERY_WARM_AMOUNT_SHARE_STATUS_ATTRIBUTE_KEY,
-                warmAmountShareStatus.attributeValue()
+                SEARCH_RECOVERY_SOURCE_WARMING_INFO_STATUS_ATTRIBUTE_KEY,
+                warmingInfoStatus.attributeValue()
             )
         );
         return new SearchRecoveryTimeout(

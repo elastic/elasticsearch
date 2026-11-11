@@ -37,11 +37,11 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
-import org.elasticsearch.xpack.stateless.cache.SourceWarmAmountShare;
+import org.elasticsearch.xpack.stateless.cache.SourceShardWarmingInfo;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
-import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportGetShardWarmAmountShareAction;
+import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportGetShardWarmingInfoAction;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Map;
@@ -60,7 +60,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-public class RequestSourceWarmAmountShareTests extends ESTestCase {
+public class RequestSourceShardWarmingInfoTests extends ESTestCase {
 
     private static final String SOURCE = "source";
     private static final String TARGET = "target";
@@ -70,41 +70,41 @@ public class RequestSourceWarmAmountShareTests extends ESTestCase {
     private final Client client = mock(Client.class);
     private final ClusterService clusterService = mock(ClusterService.class);
     private final Settings.Builder settings = Settings.builder()
-        .put(SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_WARM_AMOUNTS_ENABLED_SETTING.getKey(), true);
+        .put(SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_SOURCE_WARMING_INFO_ENABLED_SETTING.getKey(), true);
     private volatile ClusterState state;
 
     {
         when(clusterService.state()).thenAnswer(invocation -> state);
     }
 
-    public void testRequestsShareFromShuttingDownSourceForEveryRemovalType() {
+    public void testRequestsWarmingInfoFromShuttingDownSourceForEveryRemovalType() {
         for (var shutdownType : SingleNodeShutdownMetadata.Type.values()) {
             if (shutdownType.isRemovalType() == false) {
                 continue;
             }
             clearInvocations(client);
             state = targetState(shutdownType, TransportVersion.current(), true);
-            final var share = newListener().requestSourceWarmAmountShare(relocationTarget());
+            final var warmingInfo = newListener().requestSourceShardWarmingInfo(relocationTarget());
 
-            assertThat(shutdownType.toString(), share.isRequested(), is(true));
-            assertThat(share.shutdownSignalTimestamp(), equalTo(startedAtMillis));
-            assertThat(share.share(), nullValue());
+            assertThat(shutdownType.toString(), warmingInfo.isRequested(), is(true));
+            assertThat(warmingInfo.shutdownSignalTimestamp(), equalTo(startedAtMillis));
+            assertThat(warmingInfo.warmingInfo(), nullValue());
 
             final var sent = sentRequest();
             assertThat(sent.request().sourceNode(), sameInstance(state.nodes().get(SOURCE)));
             assertThat(
                 sent.request().nodeRequest(),
-                equalTo(new TransportGetShardWarmAmountShareAction.NodeRequest(TARGET, shardId, startedAtMillis))
+                equalTo(new TransportGetShardWarmingInfoAction.NodeRequest(TARGET, shardId, startedAtMillis))
             );
 
-            sent.listener().onResponse(new TransportGetShardWarmAmountShareAction.Response(600L, 1000L));
-            assertThat(share.share(), equalTo(new SourceWarmAmountShare.Share(600L, 1000L)));
+            sent.listener().onResponse(new TransportGetShardWarmingInfoAction.Response(600L, 1000L));
+            assertThat(warmingInfo.warmingInfo(), equalTo(new SourceShardWarmingInfo.WarmingInfo(600L, 1000L)));
         }
     }
 
-    public void testFailedRequestLeavesNoShare() {
+    public void testFailedRequestLeavesNoWarmingInfo() {
         state = targetState(randomRemovalType(), TransportVersion.current(), true);
-        final var share = newListener().requestSourceWarmAmountShare(relocationTarget());
+        final var warmingInfo = newListener().requestSourceShardWarmingInfo(relocationTarget());
 
         final DiscoveryNode sourceNode = state.nodes().get(SOURCE);
         sentRequest().listener()
@@ -115,11 +115,11 @@ public class RequestSourceWarmAmountShareTests extends ESTestCase {
                     new ElasticsearchException("simulated")
                 )
             );
-        assertThat(share.share(), equalTo(SourceWarmAmountShare.Share.NONE));
+        assertThat(warmingInfo.warmingInfo(), equalTo(SourceShardWarmingInfo.WarmingInfo.NONE));
     }
 
-    public void testNoRequestWhenWarmAmountsDisabled() {
-        settings.put(SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_WARM_AMOUNTS_ENABLED_SETTING.getKey(), false);
+    public void testNoRequestWhenSourceWarmingInfoDisabled() {
+        settings.put(SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_SOURCE_WARMING_INFO_ENABLED_SETTING.getKey(), false);
         state = targetState(randomRemovalType(), TransportVersion.current(), true);
         assertNotRequested(relocationTarget());
     }
@@ -151,7 +151,7 @@ public class RequestSourceWarmAmountShareTests extends ESTestCase {
     public void testNoRequestWhenClusterDoesNotSupportAction() {
         state = targetState(
             randomRemovalType(),
-            TransportVersionUtils.randomVersionNotSupporting(TransportGetShardWarmAmountShareAction.SHARD_WARM_AMOUNT_SHARE),
+            TransportVersionUtils.randomVersionNotSupporting(TransportGetShardWarmingInfoAction.SHARD_WARMING_INFO),
             true
         );
         assertNotRequested(relocationTarget());
@@ -162,7 +162,7 @@ public class RequestSourceWarmAmountShareTests extends ESTestCase {
     }
 
     private void assertNotRequested(IndexShard indexShard) {
-        assertThat(newListener().requestSourceWarmAmountShare(indexShard), sameInstance(SourceWarmAmountShare.NOT_REQUESTED));
+        assertThat(newListener().requestSourceShardWarmingInfo(indexShard), sameInstance(SourceShardWarmingInfo.NOT_REQUESTED));
         verifyNoInteractions(client);
     }
 
@@ -173,7 +173,7 @@ public class RequestSourceWarmAmountShareTests extends ESTestCase {
                 Set.of(
                     SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT,
                     StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING,
-                    SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_WARM_AMOUNTS_ENABLED_SETTING
+                    SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_SOURCE_WARMING_INFO_ENABLED_SETTING
                 )
             )
         );
@@ -190,17 +190,17 @@ public class RequestSourceWarmAmountShareTests extends ESTestCase {
     }
 
     private record SentRequest(
-        TransportGetShardWarmAmountShareAction.Request request,
-        ActionListener<TransportGetShardWarmAmountShareAction.Response> listener
+        TransportGetShardWarmingInfoAction.Request request,
+        ActionListener<TransportGetShardWarmingInfoAction.Response> listener
     ) {}
 
     @SuppressWarnings("unchecked")
     private SentRequest sentRequest() {
-        final var request = ArgumentCaptor.forClass(TransportGetShardWarmAmountShareAction.Request.class);
-        final ArgumentCaptor<ActionListener<TransportGetShardWarmAmountShareAction.Response>> listener = ArgumentCaptor.forClass(
+        final var request = ArgumentCaptor.forClass(TransportGetShardWarmingInfoAction.Request.class);
+        final ArgumentCaptor<ActionListener<TransportGetShardWarmingInfoAction.Response>> listener = ArgumentCaptor.forClass(
             ActionListener.class
         );
-        verify(client).execute(eq(TransportGetShardWarmAmountShareAction.TYPE), request.capture(), listener.capture());
+        verify(client).execute(eq(TransportGetShardWarmingInfoAction.TYPE), request.capture(), listener.capture());
         return new SentRequest(request.getValue(), listener.getValue());
     }
 

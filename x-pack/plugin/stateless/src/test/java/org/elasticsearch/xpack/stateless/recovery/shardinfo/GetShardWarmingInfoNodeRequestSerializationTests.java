@@ -12,9 +12,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportGetShardWarmAmountShareAction.NodeRequest;
+import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportGetShardWarmingInfoAction.NodeRequest;
 
-public class GetShardWarmAmountShareNodeRequestSerializationTests extends AbstractWireSerializingTestCase<NodeRequest> {
+public class GetShardWarmingInfoNodeRequestSerializationTests extends AbstractWireSerializingTestCase<NodeRequest> {
 
     @Override
     protected Writeable.Reader<NodeRequest> instanceReader() {
@@ -36,7 +36,7 @@ public class GetShardWarmAmountShareNodeRequestSerializationTests extends Abstra
             );
             case 1 -> new NodeRequest(
                 instance.targetNodeId(),
-                randomValueOtherThan(instance.shardId(), GetShardWarmAmountShareNodeRequestSerializationTests::randomShardId),
+                randomValueOtherThan(instance.shardId(), GetShardWarmingInfoNodeRequestSerializationTests::randomShardId),
                 instance.shutdownSignalTimestamp()
             );
             case 2 -> new NodeRequest(

@@ -55,23 +55,22 @@ import java.util.OptionalLong;
 import java.util.function.LongSupplier;
 import java.util.function.ToLongFunction;
 
-/// Asks the shutting-down source of a search shard relocation for that shard's estimated warm amount and the sum of the estimated warm
-/// amounts of all its shards competing for the same target. Sent by the target, see `StatelessSearchNodeRecoveryListener`, and used by
-/// the warm-amount heuristic of [org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService].
+/// Asks the shutting-down source of a search shard relocation for that shard's estimated bytes to warm and the sum of the estimated bytes
+/// to warm across all shards on the source that may relocate to the same target. Sent by the relocation target.
 ///
 /// The sum is recomputed on every request from the source's routing table, so shards that finished relocating drop out of it. The
 /// per-shard estimates are memoized for the source's current shutdown signal.
-public final class TransportGetShardWarmAmountShareAction extends TransportAction<
-    TransportGetShardWarmAmountShareAction.Request,
-    TransportGetShardWarmAmountShareAction.Response> {
+public final class TransportGetShardWarmingInfoAction extends TransportAction<
+    TransportGetShardWarmingInfoAction.Request,
+    TransportGetShardWarmingInfoAction.Response> {
 
-    public static final ActionType<Response> TYPE = new ActionType<>("internal:admin/stateless/search/warm_amount_share");
+    public static final ActionType<Response> TYPE = new ActionType<>("internal:admin/stateless/search/shard_warming_info");
     static final String NODE_ACTION_NAME = TYPE.name() + "[n]";
 
     /// The cluster must support this before a target sends the request: a node receiving an unknown action trips an assertion.
-    public static final TransportVersion SHARD_WARM_AMOUNT_SHARE = TransportVersion.fromName("shard_warm_amount_share");
+    public static final TransportVersion SHARD_WARMING_INFO = TransportVersion.fromName("shard_warming_info");
 
-    private static final Logger logger = LogManager.getLogger(TransportGetShardWarmAmountShareAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportGetShardWarmingInfoAction.class);
     private static final TimeValue REQUEST_TIMEOUT = TimeValue.THIRTY_SECONDS;
 
     private final TransportService transportService;
@@ -87,7 +86,7 @@ public final class TransportGetShardWarmAmountShareAction extends TransportActio
     private Map<ShardId, Long> memo = new HashMap<>();
 
     @Inject
-    public TransportGetShardWarmAmountShareAction(
+    public TransportGetShardWarmingInfoAction(
         ThreadPool threadPool,
         TransportService transportService,
         ActionFilters actionFilters,
@@ -105,7 +104,7 @@ public final class TransportGetShardWarmAmountShareAction extends TransportActio
             NODE_ACTION_NAME,
             threadPool.generic(),
             NodeRequest::new,
-            (request, channel, task) -> ActionListener.completeWith(new ChannelActionListener<>(channel), () -> computeShare(request))
+            (request, channel, task) -> ActionListener.completeWith(new ChannelActionListener<>(channel), () -> computeWarmingInfo(request))
         );
     }
 
@@ -120,31 +119,33 @@ public final class TransportGetShardWarmAmountShareAction extends TransportActio
         );
     }
 
-    /// Runs on the source. Responds [Response#NO_SHARE] when this shard is absent, or when a competing copy has no commit yet.
+    /// Runs on the source. Responds [Response#NONE] when this shard is absent, or when a shard that may relocate to the target has no
+    /// commit yet.
     // visible for testing
-    Response computeShare(NodeRequest request) {
+    Response computeWarmingInfo(NodeRequest request) {
         final ClusterState state = clusterService.state();
         final String localNodeId = state.nodes().getLocalNodeId();
         final RoutingNode localRoutingNode = state.getRoutingNodes().node(localNodeId);
         if (localRoutingNode == null) {
-            logger.debug("no routing node for local node [{}], no warm amount share for [{}]", localNodeId, request.shardId());
-            return Response.NO_SHARE;
+            logger.debug("no routing node for local node [{}], no warming info for [{}]", localNodeId, request.shardId());
+            return Response.NONE;
         }
         final long nowMillis = nowSupplier.getAsLong();
         synchronized (memoLock) {
             final Map<ShardId, Long> estimates = estimatesForSignal(state, localNodeId, request.shutdownSignalTimestamp());
-            long competingSum = 0L;
-            long shardAmount = -1L;
+            long sourceBytesToWarm = 0L;
+            long shardBytesToWarm = -1L;
             for (ShardRouting routing : localRoutingNode) {
                 if (routing.relocating() && request.targetNodeId().equals(routing.relocatingNodeId()) == false) {
-                    // already relocating to another target, so not competing for this one
+                    // already relocating to another target
                     continue;
                 }
                 final IndexShard shard = indicesService.getShardOrNull(routing.shardId());
                 if (shard == null) {
-                    // An initializing copy is not created yet, so it has no commit and will still compete. Any other missing copy is gone.
+                    // An initializing copy is not created yet, so it has no commit and may still relocate to the target. Any other missing
+                    // copy is gone.
                     if (routing.initializing()) {
-                        return Response.NO_SHARE;
+                        return Response.NONE;
                     }
                     continue;
                 }
@@ -152,37 +153,37 @@ public final class TransportGetShardWarmAmountShareAction extends TransportActio
                     continue;
                 }
                 final Long memoized = estimates.get(routing.shardId());
-                final long amount;
+                final long bytesToWarm;
                 if (memoized != null) {
-                    amount = memoized;
+                    bytesToWarm = memoized;
                 } else {
                     final OptionalLong estimate;
                     try {
-                        estimate = estimateShardWarmAmount(shard, nowMillis);
+                        estimate = estimateShardBytesToWarm(shard, nowMillis);
                     } catch (AlreadyClosedException e) {
                         // Store closed concurrently between isClosing() and directory(); it will not relocate to the target.
                         continue;
                     } catch (Exception e) {
-                        logger.warn(() -> "failed to estimate warm amount for " + routing.shardId(), e);
-                        return Response.NO_SHARE;
+                        logger.warn(() -> "failed to estimate bytes to warm for " + routing.shardId(), e);
+                        return Response.NONE;
                     }
                     if (estimate.isEmpty()) {
                         // No commit yet. Counting this as 0 would understate the sum: a ratio of 0 is a present commit instead.
-                        return Response.NO_SHARE;
+                        return Response.NONE;
                     }
-                    amount = estimate.getAsLong();
-                    estimates.put(routing.shardId(), amount);
+                    bytesToWarm = estimate.getAsLong();
+                    estimates.put(routing.shardId(), bytesToWarm);
                 }
-                competingSum += amount;
+                sourceBytesToWarm += bytesToWarm;
                 if (routing.shardId().equals(request.shardId())) {
-                    shardAmount = amount;
+                    shardBytesToWarm = bytesToWarm;
                 }
             }
-            if (shardAmount < 0L) {
-                logger.debug("[{}] is not on local node [{}], no warm amount share", request.shardId(), localNodeId);
-                return Response.NO_SHARE;
+            if (shardBytesToWarm < 0L) {
+                logger.debug("[{}] is not on local node [{}], no warming info", request.shardId(), localNodeId);
+                return Response.NONE;
             }
-            return new Response(shardAmount, competingSum);
+            return new Response(shardBytesToWarm, sourceBytesToWarm);
         }
     }
 
@@ -202,13 +203,13 @@ public final class TransportGetShardWarmAmountShareAction extends TransportActio
 
     /// Empty when the shard has no commit yet. A present 0 is a commit whose warming ratio is 0.
     // visible for testing
-    OptionalLong estimateShardWarmAmount(IndexShard shard, long nowMillis) {
+    OptionalLong estimateShardBytesToWarm(IndexShard shard, long nowMillis) {
         final SearchDirectory directory = SearchDirectory.unwrapDirectory(shard.store().directory());
         if (directory.getCurrentCommit() == null) {
             return OptionalLong.empty();
         }
         return OptionalLong.of(
-            estimateWarmAmount(
+            estimateBytesToWarm(
                 directory.getCurrentCommitBlobFileRanges(),
                 warmingRatioProviderFactory.create(shard.shardId()),
                 directory::resolveRegionTimestampMillis,
@@ -222,7 +223,7 @@ public final class TransportGetShardWarmAmountShareAction extends TransportActio
     /// each blob is warmed from 0 up to the furthest `ccStart + round(ccSize * ratio)` among its commits.
     /// Files carry no commit identity, so a commit is approximated by the files of one blob sharing a timestamp range,
     /// and its extent by those files' offsets (header bytes and no-longer-referenced files are not counted).
-    static long estimateWarmAmount(
+    static long estimateBytesToWarm(
         Collection<BlobFileRanges> ranges,
         WarmingRatioProvider ratioProvider,
         ToLongFunction<StatelessCompoundCommit.TimestampFieldValueRange> resolveTimestamp,
@@ -288,8 +289,8 @@ public final class TransportGetShardWarmAmountShareAction extends TransportActio
         }
     }
 
-    /// Sent to the source node: the share of `shardId` among the shards competing for `targetNodeId`, under the source's shutdown
-    /// signal started at `shutdownSignalTimestamp`.
+    /// Sent to the source node: the warming info for `shardId` and `targetNodeId` under the source's shutdown signal started at
+    /// `shutdownSignalTimestamp`.
     public static class NodeRequest extends AbstractTransportRequest {
 
         private final String targetNodeId;
@@ -344,54 +345,55 @@ public final class TransportGetShardWarmAmountShareAction extends TransportActio
         }
     }
 
-    /// `competingSum == 0` means there is no share: the source could not compute it, or every competing shard estimates to 0.
+    /// `sourceBytesToWarm == 0` means there is no usable warming info: the source could not compute it, or every shard on the source that
+    /// may relocate to the target estimates to 0.
     public static final class Response extends ActionResponse {
 
-        static final Response NO_SHARE = new Response(0L, 0L);
+        static final Response NONE = new Response(0L, 0L);
 
-        private final long shardAmount;
-        private final long competingSum;
+        private final long shardBytesToWarm;
+        private final long sourceBytesToWarm;
 
-        public Response(long shardAmount, long competingSum) {
-            assert shardAmount >= 0L && competingSum >= shardAmount : shardAmount + " / " + competingSum;
-            this.shardAmount = shardAmount;
-            this.competingSum = competingSum;
+        public Response(long shardBytesToWarm, long sourceBytesToWarm) {
+            assert shardBytesToWarm >= 0L && sourceBytesToWarm >= shardBytesToWarm : shardBytesToWarm + " / " + sourceBytesToWarm;
+            this.shardBytesToWarm = shardBytesToWarm;
+            this.sourceBytesToWarm = sourceBytesToWarm;
         }
 
         public Response(StreamInput in) throws IOException {
-            shardAmount = in.readVLong();
-            competingSum = in.readVLong();
+            shardBytesToWarm = in.readVLong();
+            sourceBytesToWarm = in.readVLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(shardAmount);
-            out.writeVLong(competingSum);
+            out.writeVLong(shardBytesToWarm);
+            out.writeVLong(sourceBytesToWarm);
         }
 
-        public long shardAmount() {
-            return shardAmount;
+        public long shardBytesToWarm() {
+            return shardBytesToWarm;
         }
 
-        public long competingSum() {
-            return competingSum;
+        public long sourceBytesToWarm() {
+            return sourceBytesToWarm;
         }
 
         @Override
         public boolean equals(Object o) {
             if (o == null || getClass() != o.getClass()) return false;
             Response that = (Response) o;
-            return shardAmount == that.shardAmount && competingSum == that.competingSum;
+            return shardBytesToWarm == that.shardBytesToWarm && sourceBytesToWarm == that.sourceBytesToWarm;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(shardAmount, competingSum);
+            return Objects.hash(shardBytesToWarm, sourceBytesToWarm);
         }
 
         @Override
         public String toString() {
-            return "Response{shardAmount=" + shardAmount + ", competingSum=" + competingSum + '}';
+            return "Response{shardBytesToWarm=" + shardBytesToWarm + ", sourceBytesToWarm=" + sourceBytesToWarm + '}';
         }
     }
 }

@@ -51,7 +51,7 @@ import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
-import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportGetShardWarmAmountShareAction.Response;
+import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportGetShardWarmingInfoAction.Response;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -73,7 +73,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class TransportGetShardWarmAmountShareActionTests extends ESTestCase {
+public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
 
     private static final String SOURCE = "source";
     private static final String TARGET = "target";
@@ -88,14 +88,14 @@ public class TransportGetShardWarmAmountShareActionTests extends ESTestCase {
     private final Map<ShardId, SearchDirectory> directories = new HashMap<>();
     private final List<Store> stores = new ArrayList<>();
     private volatile ClusterState state;
-    private final TransportGetShardWarmAmountShareAction action;
+    private final TransportGetShardWarmingInfoAction action;
 
-    public TransportGetShardWarmAmountShareActionTests() {
-        // A real pool starts threads. The constructor only reads generic() and the clock, and computeShare is called directly.
+    public TransportGetShardWarmingInfoActionTests() {
+        // A real pool starts threads. The constructor only reads generic() and the clock, and computeWarmingInfo is called directly.
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(clusterService.state()).thenAnswer(invocation -> state);
-        action = new TransportGetShardWarmAmountShareAction(
+        action = new TransportGetShardWarmingInfoAction(
             threadPool,
             // The constructor registers a handler. These tests never send a request, so the transport service is not used again.
             mock(TransportService.class),
@@ -114,47 +114,47 @@ public class TransportGetShardWarmAmountShareActionTests extends ESTestCase {
         IOUtils.close(stores);
     }
 
-    public void testShareAmongShardsCompetingForTarget() {
+    public void testWarmingInfoForShardsRelocatingToTarget() {
         final long startedAt = randomNonNegativeLong();
         state = sourceState(startedAt, relocating(0, TARGET), started(1), relocating(2, TARGET));
-        withAmounts(600L, 300L, 100L);
+        withBytesToWarm(600L, 300L, 100L);
 
-        assertThat(action.computeShare(request(0, startedAt)), equalTo(response(600L, 1000L)));
-        assertThat(action.computeShare(request(2, startedAt)), equalTo(response(100L, 1000L)));
+        assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(response(600L, 1000L)));
+        assertThat(action.computeWarmingInfo(request(2, startedAt)), equalTo(response(100L, 1000L)));
     }
 
     public void testExcludesShardsRelocatingToOtherTargets() {
         final long startedAt = randomNonNegativeLong();
         state = sourceState(startedAt, relocating(0, TARGET), relocating(1, OTHER_TARGET), started(2));
-        withAmounts(600L, 300L, 100L);
+        withBytesToWarm(600L, 300L, 100L);
 
-        // 300 goes to another target, so 600 of 700 competes for this one
-        assertThat(action.computeShare(request(0, startedAt)), equalTo(response(600L, 700L)));
+        // 300 goes to another target, so 600 and 100 remain for this target
+        assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(response(600L, 700L)));
     }
 
-    public void testRequestedShardRelocatingToOtherTargetIsNoShare() {
+    public void testRequestedShardRelocatingToOtherTargetIsNone() {
         final long startedAt = randomNonNegativeLong();
         state = sourceState(startedAt, relocating(0, OTHER_TARGET), relocating(1, TARGET));
-        withAmounts(600L, 300L);
+        withBytesToWarm(600L, 300L);
 
-        assertThat(action.computeShare(request(0, startedAt)), equalTo(Response.NO_SHARE));
-        assertThat(action.computeShare(request(1, startedAt)), equalTo(response(300L, 300L)));
+        assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(Response.NONE));
+        assertThat(action.computeWarmingInfo(request(1, startedAt)), equalTo(response(300L, 300L)));
     }
 
-    public void testSharesAcrossIndicesWithSameShardNumber() {
+    public void testSumsAcrossIndicesWithSameShardNumber() {
         final long startedAt = randomNonNegativeLong();
         final Index otherIndex = new Index("other-idx", randomUUID());
         final ShardId shard0 = new ShardId(index, 0);
         final ShardId otherShard0 = new ShardId(otherIndex, 0);
         final ShardId otherShard1 = new ShardId(otherIndex, 1);
         state = sourceState(startedAt, relocating(shard0, TARGET), relocating(otherShard0, TARGET), started(otherShard1));
-        withAmount(shard0, 600L);
-        withAmount(otherShard0, 300L);
-        withAmount(otherShard1, 100L);
+        withBytesToWarm(shard0, 600L);
+        withBytesToWarm(otherShard0, 300L);
+        withBytesToWarm(otherShard1, 100L);
 
-        assertThat(action.computeShare(request(shard0, startedAt)), equalTo(response(600L, 1000L)));
-        assertThat(action.computeShare(request(otherShard0, startedAt)), equalTo(response(300L, 1000L)));
-        assertThat(action.computeShare(request(otherShard1, startedAt)), equalTo(response(100L, 1000L)));
+        assertThat(action.computeWarmingInfo(request(shard0, startedAt)), equalTo(response(600L, 1000L)));
+        assertThat(action.computeWarmingInfo(request(otherShard0, startedAt)), equalTo(response(300L, 1000L)));
+        assertThat(action.computeWarmingInfo(request(otherShard1, startedAt)), equalTo(response(100L, 1000L)));
         assertEstimated(shard0, 1);
         assertEstimated(otherShard0, 1);
         assertEstimated(otherShard1, 1);
@@ -163,14 +163,14 @@ public class TransportGetShardWarmAmountShareActionTests extends ESTestCase {
     public void testSumIsFreshButEstimatesAreMemoized() {
         final long startedAt = randomNonNegativeLong();
         state = sourceState(startedAt, relocating(0, TARGET), relocating(1, TARGET), started(2));
-        withAmounts(600L, 300L, 100L);
+        withBytesToWarm(600L, 300L, 100L);
 
-        assertThat(action.computeShare(request(1, startedAt)), equalTo(response(300L, 1000L)));
+        assertThat(action.computeWarmingInfo(request(1, startedAt)), equalTo(response(300L, 1000L)));
 
         // shard 0 finished relocating and left the source
         state = sourceState(startedAt, relocating(1, TARGET), started(2));
-        assertThat(action.computeShare(request(1, startedAt)), equalTo(response(300L, 400L)));
-        assertThat(action.computeShare(request(2, startedAt)), equalTo(response(100L, 400L)));
+        assertThat(action.computeWarmingInfo(request(1, startedAt)), equalTo(response(300L, 400L)));
+        assertThat(action.computeWarmingInfo(request(2, startedAt)), equalTo(response(100L, 400L)));
 
         for (int shard = 0; shard < 3; shard++) {
             assertEstimated(shard, 1);
@@ -181,12 +181,12 @@ public class TransportGetShardWarmAmountShareActionTests extends ESTestCase {
     public void testNewShutdownSignalReestimates() {
         final long startedAt = randomLongBetween(0, Long.MAX_VALUE - 1);
         state = sourceState(startedAt, relocating(0, TARGET), started(1));
-        withAmounts(600L, 300L);
-        action.computeShare(request(0, startedAt));
+        withBytesToWarm(600L, 300L);
+        action.computeWarmingInfo(request(0, startedAt));
 
         final long restartedAt = startedAt + 1;
         state = sourceState(restartedAt, relocating(0, TARGET), started(1));
-        assertThat(action.computeShare(request(0, restartedAt)), equalTo(response(600L, 900L)));
+        assertThat(action.computeWarmingInfo(request(0, restartedAt)), equalTo(response(600L, 900L)));
         assertEstimated(0, 2);
         assertEstimated(1, 2);
     }
@@ -194,143 +194,143 @@ public class TransportGetShardWarmAmountShareActionTests extends ESTestCase {
     public void testMismatchedSignalIsAnsweredButNotMemoized() {
         final long startedAt = randomLongBetween(1, Long.MAX_VALUE);
         state = sourceState(startedAt, relocating(0, TARGET), started(1));
-        withAmounts(600L, 300L);
+        withBytesToWarm(600L, 300L);
 
         // the target still acts on an earlier signal of this node
         final var staleRequest = request(0, startedAt - 1);
-        assertThat(action.computeShare(staleRequest), equalTo(response(600L, 900L)));
-        assertThat(action.computeShare(staleRequest), equalTo(response(600L, 900L)));
+        assertThat(action.computeWarmingInfo(staleRequest), equalTo(response(600L, 900L)));
+        assertThat(action.computeWarmingInfo(staleRequest), equalTo(response(600L, 900L)));
         assertEstimated(0, 2);
 
         // nor did it reset the memo of the current signal
-        action.computeShare(request(0, startedAt));
-        action.computeShare(staleRequest);
-        action.computeShare(request(0, startedAt));
+        action.computeWarmingInfo(request(0, startedAt));
+        action.computeWarmingInfo(staleRequest);
+        action.computeWarmingInfo(request(0, startedAt));
         assertEstimated(0, 4);
     }
 
     public void testAnswersWithoutMemoizingWhenNotShuttingDown() {
         state = sourceState(null, relocating(0, TARGET), started(1));
-        withAmounts(600L, 300L);
+        withBytesToWarm(600L, 300L);
         final var request = request(0, randomNonNegativeLong());
 
-        assertThat(action.computeShare(request), equalTo(response(600L, 900L)));
-        action.computeShare(request);
+        assertThat(action.computeWarmingInfo(request), equalTo(response(600L, 900L)));
+        action.computeWarmingInfo(request);
         assertEstimated(0, 2);
     }
 
-    public void testRemovedOrClosingCompetingCopyIsSkipped() {
+    public void testRemovedOrClosingOtherCopyIsSkipped() {
         final long startedAt = randomNonNegativeLong();
         state = sourceState(startedAt, relocating(0, TARGET), started(1), started(2));
-        withAmounts(600L, 300L, 100L);
+        withBytesToWarm(600L, 300L, 100L);
 
         // shard 1 already removed from IndicesService, shard 2 store already closing
         when(indicesService.getShardOrNull(new ShardId(index, 1))).thenReturn(null);
         indicesService.getShardOrNull(new ShardId(index, 2)).store().close();
 
-        assertThat(action.computeShare(request(0, startedAt)), equalTo(response(600L, 600L)));
-        // Requested shard itself removed or closing is NO_SHARE
-        assertThat(action.computeShare(request(1, startedAt)), equalTo(Response.NO_SHARE));
-        assertThat(action.computeShare(request(2, startedAt)), equalTo(Response.NO_SHARE));
+        assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(response(600L, 600L)));
+        // Requested shard itself removed or closing is NONE
+        assertThat(action.computeWarmingInfo(request(1, startedAt)), equalTo(Response.NONE));
+        assertThat(action.computeWarmingInfo(request(2, startedAt)), equalTo(Response.NONE));
     }
 
     public void testMemoizedCopyClosingBeforeClusterStateUpdateIsSkipped() {
         final long startedAt = randomNonNegativeLong();
         state = sourceState(startedAt, relocating(0, TARGET), started(1));
-        withAmounts(600L, 300L);
+        withBytesToWarm(600L, 300L);
 
-        assertThat(action.computeShare(request(0, startedAt)), equalTo(response(600L, 900L)));
+        assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(response(600L, 900L)));
 
         // shard 1 closes before ClusterState removes it from localRoutingNode
         indicesService.getShardOrNull(new ShardId(index, 1)).store().close();
-        assertThat(action.computeShare(request(0, startedAt)), equalTo(response(600L, 600L)));
-        assertThat(action.computeShare(request(1, startedAt)), equalTo(Response.NO_SHARE));
+        assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(response(600L, 600L)));
+        assertThat(action.computeWarmingInfo(request(1, startedAt)), equalTo(Response.NONE));
     }
 
     public void testConcurrentStoreCloseDuringEstimateIsSkipped() {
         final long startedAt = randomNonNegativeLong();
         state = sourceState(startedAt, relocating(0, TARGET), started(1));
-        withAmounts(600L, 300L);
+        withBytesToWarm(600L, 300L);
         doThrow(new AlreadyClosedException("closed concurrently")).when(directories.get(new ShardId(index, 1)))
             .getCurrentCommitBlobFileRanges();
 
-        assertThat(action.computeShare(request(0, startedAt)), equalTo(response(600L, 600L)));
-        assertThat(action.computeShare(request(1, startedAt)), equalTo(Response.NO_SHARE));
+        assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(response(600L, 600L)));
+        assertThat(action.computeWarmingInfo(request(1, startedAt)), equalTo(Response.NONE));
     }
 
-    public void testFailedEstimateIsNoShareAndNotMemoized() {
+    public void testFailedEstimateIsNoneAndNotMemoized() {
         final long startedAt = randomNonNegativeLong();
         state = sourceState(startedAt, relocating(0, TARGET), started(1));
-        withAmounts(600L, 300L);
+        withBytesToWarm(600L, 300L);
         doThrow(new RuntimeException("directory failed")).when(directories.get(new ShardId(index, 1))).getCurrentCommitBlobFileRanges();
 
-        assertThat(action.computeShare(request(0, startedAt)), equalTo(Response.NO_SHARE));
+        assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(Response.NONE));
 
-        withAmount(1, 300L);
-        assertThat(action.computeShare(request(0, startedAt)), equalTo(response(600L, 900L)));
+        withBytesToWarm(1, 300L);
+        assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(response(600L, 900L)));
         assertEstimated(1, 1);
     }
 
-    public void testShardNotOnSourceIsNoShare() {
+    public void testShardNotOnSourceIsNone() {
         final long startedAt = randomNonNegativeLong();
         state = sourceState(startedAt, started(1));
-        withAmount(1, 300L);
+        withBytesToWarm(1, 300L);
 
-        assertThat(action.computeShare(request(0, startedAt)), equalTo(Response.NO_SHARE));
+        assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(Response.NONE));
     }
 
-    public void testNoLocalCopiesIsNoShare() {
+    public void testNoLocalCopiesIsNone() {
         final long startedAt = randomNonNegativeLong();
         state = sourceState(startedAt);
 
-        assertThat(action.computeShare(request(0, startedAt)), equalTo(Response.NO_SHARE));
+        assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(Response.NONE));
     }
 
-    public void testZeroAmountOfInitializingCopyWithCommitIsMemoized() {
+    public void testZeroBytesToWarmOfInitializingCopyWithCommitIsMemoized() {
         final long startedAt = randomNonNegativeLong();
         state = sourceState(startedAt, relocating(0, TARGET), initializing(1));
-        withAmounts(600L, 0L);
+        withBytesToWarm(600L, 0L);
 
-        assertThat(action.computeShare(request(0, startedAt)), equalTo(response(600L, 600L)));
-        action.computeShare(request(0, startedAt));
+        assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(response(600L, 600L)));
+        action.computeWarmingInfo(request(0, startedAt));
         assertEstimated(0, 1);
         assertEstimated(1, 1);
     }
 
-    public void testInitializingCopyNotCreatedYetIsNoShare() {
+    public void testInitializingCopyNotCreatedYetIsNone() {
         final long startedAt = randomNonNegativeLong();
         state = sourceState(startedAt, relocating(0, TARGET), initializing(1));
-        withAmount(0, 600L);
+        withBytesToWarm(0, 600L);
         when(indicesService.getShardOrNull(new ShardId(index, 1))).thenReturn(null);
 
-        assertThat(action.computeShare(request(0, startedAt)), equalTo(Response.NO_SHARE));
+        assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(Response.NONE));
 
-        withAmount(1, 300L);
-        assertThat(action.computeShare(request(0, startedAt)), equalTo(response(600L, 900L)));
+        withBytesToWarm(1, 300L);
+        assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(response(600L, 900L)));
         assertEstimated(1, 1);
     }
 
-    public void testNullCommitIsNoShareAndNotMemoized() {
+    public void testNullCommitIsNoneAndNotMemoized() {
         final long startedAt = randomNonNegativeLong();
         state = sourceState(startedAt, relocating(0, TARGET), started(1));
-        withAmount(0, 600L);
+        withBytesToWarm(0, 600L);
         withoutCommit(1);
 
-        assertThat(action.computeShare(request(0, startedAt)), equalTo(Response.NO_SHARE));
+        assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(Response.NONE));
         assertEstimated(1, 0);
 
-        withAmount(1, 400L);
-        assertThat(action.computeShare(request(0, startedAt)), equalTo(response(600L, 1000L)));
+        withBytesToWarm(1, 400L);
+        assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(response(600L, 1000L)));
         assertEstimated(1, 1);
     }
 
-    public void testZeroAmountOfStartedCopyIsMemoized() {
+    public void testZeroBytesToWarmOfStartedCopyIsMemoized() {
         final long startedAt = randomNonNegativeLong();
         state = sourceState(startedAt, relocating(0, TARGET), started(1));
-        withAmounts(0L, 0L);
+        withBytesToWarm(0L, 0L);
 
-        assertThat(action.computeShare(request(0, startedAt)), equalTo(Response.NO_SHARE));
-        action.computeShare(request(0, startedAt));
+        assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(Response.NONE));
+        action.computeWarmingInfo(request(0, startedAt));
         assertEstimated(0, 1);
         assertEstimated(1, 1);
     }
@@ -341,44 +341,44 @@ public class TransportGetShardWarmAmountShareActionTests extends ESTestCase {
         store.close();
         final IndexShard shard = mockShard(shardId, store);
 
-        expectThrows(AlreadyClosedException.class, () -> action.estimateShardWarmAmount(shard, 0L));
+        expectThrows(AlreadyClosedException.class, () -> action.estimateShardBytesToWarm(shard, 0L));
     }
 
-    public void testEstimateWarmAmountRatioZeroIsZero() {
+    public void testEstimateBytesToWarmRatioZeroIsZero() {
         BlobFileRanges first = range("blob-a", 0, 10);
         BlobFileRanges second = range("blob-a", 5, 20);
-        assertThat(estimateWarmAmount(List.of(first, second), 0.0d), equalTo(0L));
+        assertThat(estimateBytesToWarm(List.of(first, second), 0.0d), equalTo(0L));
     }
 
-    public void testEstimateWarmAmountRatioOneMatchesFullPrefix() {
+    public void testEstimateBytesToWarmRatioOneMatchesFullPrefix() {
         BlobFileRanges first = range("blob-a", 0, 10);
         BlobFileRanges second = range("blob-a", 5, 20);
-        assertThat(estimateWarmAmount(List.of(first, second), 1.0d), equalTo(25L));
-        assertThat(estimateWarmAmount(List.of(), 1.0d), equalTo(0L));
+        assertThat(estimateBytesToWarm(List.of(first, second), 1.0d), equalTo(25L));
+        assertThat(estimateBytesToWarm(List.of(), 1.0d), equalTo(0L));
     }
 
-    public void testEstimateWarmAmountFractionalRatio() {
+    public void testEstimateBytesToWarmFractionalRatio() {
         BlobFileRanges file = range("blob-a", 0, 100);
-        assertThat(estimateWarmAmount(List.of(file), 0.4d), equalTo(40L));
+        assertThat(estimateBytesToWarm(List.of(file), 0.4d), equalTo(40L));
     }
 
-    public void testEstimateWarmAmountUsesPerCommitRatio() {
+    public void testEstimateBytesToWarmUsesPerCommitRatio() {
         var oldCommit = new StatelessCompoundCommit.TimestampFieldValueRange(1, 2);
         var recentCommit = new StatelessCompoundCommit.TimestampFieldValueRange(10, 20);
         BlobFileRanges oldRange = range("blob-a", 0, 40, oldCommit);
         BlobFileRanges recentRange = range("blob-a", 40, 60, recentCommit);
         WarmingRatioProvider provider = (tsRange, resolved, now) -> oldCommit.equals(tsRange) ? 1.0d : 0.5d;
-        assertThat(estimateWarmAmount(shuffledList(List.of(oldRange, recentRange)), provider), equalTo(70L));
+        assertThat(estimateBytesToWarm(shuffledList(List.of(oldRange, recentRange)), provider), equalTo(70L));
     }
 
-    public void testEstimateWarmAmountFilesOfOneCommitFormOneExtent() {
+    public void testEstimateBytesToWarmFilesOfOneCommitFormOneExtent() {
         var commit = new StatelessCompoundCommit.TimestampFieldValueRange(1, 2);
         BlobFileRanges first = range("blob-a", 0, 30, commit);
         BlobFileRanges second = range("blob-a", 50, 50, commit);
-        assertThat(estimateWarmAmount(List.of(first, second), 0.5d), equalTo(50L));
+        assertThat(estimateBytesToWarm(List.of(first, second), 0.5d), equalTo(50L));
     }
 
-    public void testEstimateWarmAmountMissingRangeUsesResolverFallback() {
+    public void testEstimateBytesToWarmMissingRangeUsesResolverFallback() {
         BlobFileRanges noRange = range("blob-a", 0, 50);
         long fallback = 999L;
         WarmingRatioProvider provider = (tsRange, resolved, now) -> {
@@ -386,26 +386,26 @@ public class TransportGetShardWarmAmountShareActionTests extends ESTestCase {
             assertThat(resolved, equalTo(fallback));
             return 1.0d;
         };
-        assertThat(TransportGetShardWarmAmountShareAction.estimateWarmAmount(List.of(noRange), provider, tsRange -> {
+        assertThat(TransportGetShardWarmingInfoAction.estimateBytesToWarm(List.of(noRange), provider, tsRange -> {
             assertNull(tsRange);
             return fallback;
         }, 0L), equalTo(50L));
     }
 
-    public void testEstimateWarmAmountSeveralBlobsAreSummed() {
+    public void testEstimateBytesToWarmSeveralBlobsAreSummed() {
         BlobFileRanges blobA = range("blob-a", 0, 10);
         BlobFileRanges blobB = range("blob-b", 3, 7);
-        assertThat(estimateWarmAmount(List.of(blobA, blobB), 1.0d), equalTo(20L));
+        assertThat(estimateBytesToWarm(List.of(blobA, blobB), 1.0d), equalTo(20L));
     }
 
     /// One estimate over two blobs.
     ///
     /// The non-time-based blob has no timestamp range, so both of its files are one commit. A 100-byte header sits before the first file
     /// and a 60-byte gap sits between the files, so the commit extent is [100, 300). The ratio applies to those 200 bytes only.
-    /// The amount is the warm end offset, so the header is included: ratio 0.5 reaches byte 200, covering the first file and the gap
-    /// and stopping where the second file starts. The time-based blob has its own commit and ratio, a ratio of 0 drops a commit out,
-    /// and the blob amounts are summed.
-    public void testEstimateWarmAmountCombinesHeaderNonTimeBasedCommitAndTimeBasedCommit() {
+    /// The bytes to warm are the warm end offset, so the header is included: ratio 0.5 reaches byte 200, covering the first file and the
+    /// gap and stopping where the second file starts. The time-based blob has its own commit and ratio, a ratio of 0 drops a commit out,
+    /// and the blob bytes are summed.
+    public void testEstimateBytesToWarmCombinesHeaderNonTimeBasedCommitAndTimeBasedCommit() {
         final long now = 10_000L;
         final var recent = new StatelessCompoundCommit.TimestampFieldValueRange(8_000L, 10_000L);
         final var old = new StatelessCompoundCommit.TimestampFieldValueRange(1L, 2L);
@@ -426,10 +426,10 @@ public class TransportGetShardWarmAmountShareActionTests extends ESTestCase {
             return timestampRange.equals(recent) ? 1.0d : 0.0d;
         };
         assertThat(
-            TransportGetShardWarmAmountShareAction.estimateWarmAmount(
+            TransportGetShardWarmingInfoAction.estimateBytesToWarm(
                 shuffledList(List.of(plainFirst, recentFile, plainSecond, oldFile)),
                 provider,
-                TransportGetShardWarmAmountShareActionTests::resolvedTimestamp,
+                TransportGetShardWarmingInfoActionTests::resolvedTimestamp,
                 now
             ),
             // plain warms to 200, recent warms to 100, old is dropped: 300
@@ -445,19 +445,19 @@ public class TransportGetShardWarmAmountShareActionTests extends ESTestCase {
             : Math.max(timestampRange.midpointMillis(), SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP);
     }
 
-    private static Response response(long shardAmount, long competingSum) {
-        return new Response(shardAmount, competingSum);
+    private static Response response(long shardBytesToWarm, long sourceBytesToWarm) {
+        return new Response(shardBytesToWarm, sourceBytesToWarm);
     }
 
-    private TransportGetShardWarmAmountShareAction.NodeRequest request(int shard, long shutdownSignalTimestamp) {
+    private TransportGetShardWarmingInfoAction.NodeRequest request(int shard, long shutdownSignalTimestamp) {
         return request(new ShardId(index, shard), shutdownSignalTimestamp);
     }
 
-    private static TransportGetShardWarmAmountShareAction.NodeRequest request(ShardId shardId, long shutdownSignalTimestamp) {
-        return new TransportGetShardWarmAmountShareAction.NodeRequest(TARGET, shardId, shutdownSignalTimestamp);
+    private static TransportGetShardWarmingInfoAction.NodeRequest request(ShardId shardId, long shutdownSignalTimestamp) {
+        return new TransportGetShardWarmingInfoAction.NodeRequest(TARGET, shardId, shutdownSignalTimestamp);
     }
 
-    /// Asserts that the current commit of `shard` of [#index] was read, i.e. its amount estimated, `times` times.
+    /// Asserts that the current commit of `shard` of [#index] was read, i.e. its bytes to warm estimated, `times` times.
     private void assertEstimated(int shard, int times) {
         assertEstimated(new ShardId(index, shard), times);
     }
@@ -466,16 +466,16 @@ public class TransportGetShardWarmAmountShareActionTests extends ESTestCase {
         verify(directories.get(shardId), times(times)).getCurrentCommitBlobFileRanges();
     }
 
-    /// Gives shard `i` of [#index] a current commit of `amounts[i]` bytes in one blob, so that with [#UNIT_RATIO] it estimates to
-    /// `amounts[i]`.
-    private void withAmounts(long... amounts) {
-        for (int shard = 0; shard < amounts.length; shard++) {
-            withAmount(shard, amounts[shard]);
+    /// Gives shard `i` of [#index] a current commit of `bytesPerShard[i]` bytes in one blob, so that with [#UNIT_RATIO] it estimates to
+    /// `bytesPerShard[i]`.
+    private void withBytesToWarm(long... bytesPerShard) {
+        for (int shard = 0; shard < bytesPerShard.length; shard++) {
+            withBytesToWarm(shard, bytesPerShard[shard]);
         }
     }
 
-    private void withAmount(int shard, long amount) {
-        withAmount(new ShardId(index, shard), amount);
+    private void withBytesToWarm(int shard, long bytesToWarm) {
+        withBytesToWarm(new ShardId(index, shard), bytesToWarm);
     }
 
     private static StatelessCompoundCommit commit(ShardId shardId) {
@@ -492,7 +492,7 @@ public class TransportGetShardWarmAmountShareActionTests extends ESTestCase {
         );
     }
 
-    /// A competing copy whose shard exists but whose commit is not registered yet.
+    /// A copy whose shard exists on the source but whose commit is not registered yet.
     private void withoutCommit(int shard) {
         final ShardId shardId = new ShardId(index, shard);
         final SearchDirectory directory = mock(SearchDirectory.class);
@@ -501,12 +501,12 @@ public class TransportGetShardWarmAmountShareActionTests extends ESTestCase {
         when(indicesService.getShardOrNull(shardId)).thenReturn(indexShard);
     }
 
-    private void withAmount(ShardId shardId, long amount) {
+    private void withBytesToWarm(ShardId shardId, long bytesToWarm) {
         // A real SearchDirectory needs a shared blob cache. The estimate only reads the current commit's blob file ranges.
         final SearchDirectory directory = mock(SearchDirectory.class);
         final String blobName = "blob-" + shardId.getIndexName() + "-" + shardId.id();
         when(directory.getCurrentCommit()).thenReturn(commit(shardId));
-        when(directory.getCurrentCommitBlobFileRanges()).thenReturn(amount > 0 ? List.of(range(blobName, 0, amount)) : List.of());
+        when(directory.getCurrentCommitBlobFileRanges()).thenReturn(bytesToWarm > 0 ? List.of(range(blobName, 0, bytesToWarm)) : List.of());
         directories.put(shardId, directory);
         final IndexShard indexShard = mockShard(shardId, newStore(shardId, directory));
         when(indicesService.getShardOrNull(shardId)).thenReturn(indexShard);
@@ -618,12 +618,12 @@ public class TransportGetShardWarmAmountShareActionTests extends ESTestCase {
             .build();
     }
 
-    private static long estimateWarmAmount(List<BlobFileRanges> ranges, double ratio) {
-        return estimateWarmAmount(ranges, (tsRange, resolved, now) -> ratio);
+    private static long estimateBytesToWarm(List<BlobFileRanges> ranges, double ratio) {
+        return estimateBytesToWarm(ranges, (tsRange, resolved, now) -> ratio);
     }
 
-    private static long estimateWarmAmount(List<BlobFileRanges> ranges, WarmingRatioProvider ratioProvider) {
-        return TransportGetShardWarmAmountShareAction.estimateWarmAmount(ranges, ratioProvider, tsRange -> 0L, 0L);
+    private static long estimateBytesToWarm(List<BlobFileRanges> ranges, WarmingRatioProvider ratioProvider) {
+        return TransportGetShardWarmingInfoAction.estimateBytesToWarm(ranges, ratioProvider, tsRange -> 0L, 0L);
     }
 
     private static BlobFileRanges range(String blobName, long offset, long length) {

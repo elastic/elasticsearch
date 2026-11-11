@@ -828,12 +828,12 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         assertThat(evaluationsPerShard, everyItem(equalTo(1L)));
     }
 
-    /// Search shards draining off a shutting-down node get their warm-amount share from the source, and the share sizes each timeout.
+    /// Search shards draining off a shutting-down node get their warming info from the source, and the share sizes each timeout.
     /// The shards are pinned to the source until after the shutdown is registered, so joining the target does not move them first.
     /// Two shards fit in the default recovery throttle, so both relocate at once. Warming is held until both plans are computed, which
-    /// keeps both copies on the source, so each share is that shard's amount over the sum of both. That fraction of the remaining grace
+    /// keeps both copies on the source, so each share is that shard's bytes over the sum of both. That fraction of the remaining grace
     /// beats the equal share (a quarter of a half) and the data volume (a few KB against a 4MB warming cache).
-    public void testSearchRecoveryWarmingTimeoutUsesSourceWarmAmountShare() throws Exception {
+    public void testSearchRecoveryWarmingTimeoutUsesSourceShardWarmingInfo() throws Exception {
         final int numberOfShards = 2;
         final var nodeSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
@@ -842,7 +842,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             .put(STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
             .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), true)
             .put(DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING.getKey(), 1.0d)
-            .put(SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_WARM_AMOUNTS_ENABLED_SETTING.getKey(), true)
+            .put(SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_SOURCE_WARMING_INFO_ENABLED_SETTING.getKey(), true)
             .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING.getKey(), 0.25d)
             .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), TimeValue.timeValueSeconds(30))
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
@@ -881,8 +881,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             );
         }
         final var warmingServiceOnTargetNode = getSharedBlobCacheWarmingService(targetSearchNode);
-        warmingServiceOnTargetNode.setAwaitSourceWarmAmountShare(true);
-        // Held so neither relocation completes, and drops out of the sum, before the other shard's share is computed.
+        warmingServiceOnTargetNode.setAwaitSourceShardWarmingInfo(true);
+        // Held so neither relocation completes, and drops out of the sum, before the other shard's warming info is computed.
         warmingServiceOnTargetNode.holdSearchWarmingCompletion();
         try {
             markNodeForSigtermShutdown(sourceSearchNode);
@@ -894,25 +894,25 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 for (var evaluation : evaluations) {
                     assertThat(
                         evaluation.shardId() + " planned as " + evaluation.plan().timeoutContext(),
-                        evaluation.sourceWarmAmountShare(),
+                        evaluation.sourceShardWarmingInfo(),
                         notNullValue()
                     );
                 }
             });
 
             final var evaluations = warmingServiceOnTargetNode.searchRecoveryTimeoutEvaluations();
-            final long competingSum = evaluations.getFirst().sourceWarmAmountShare().competingSum();
-            long totalAmount = 0L;
+            final long sourceBytesToWarm = evaluations.getFirst().sourceShardWarmingInfo().sourceBytesToWarm();
+            long totalShardBytesToWarm = 0L;
             for (var evaluation : evaluations) {
-                final var share = evaluation.sourceWarmAmountShare();
-                assertNotNull("the source answered before the plan was computed", share);
-                assertThat(share.shardAmount(), greaterThan(0L));
-                assertThat(share.competingSum(), equalTo(competingSum));
-                assertThat(share.competingSum(), greaterThan(share.shardAmount()));
-                totalAmount += share.shardAmount();
+                final var warmingInfo = evaluation.sourceShardWarmingInfo();
+                assertNotNull("the source answered before the plan was computed", warmingInfo);
+                assertThat(warmingInfo.shardBytesToWarm(), greaterThan(0L));
+                assertThat(warmingInfo.sourceBytesToWarm(), equalTo(sourceBytesToWarm));
+                assertThat(warmingInfo.sourceBytesToWarm(), greaterThan(warmingInfo.shardBytesToWarm()));
+                totalShardBytesToWarm += warmingInfo.shardBytesToWarm();
                 assertThat(evaluation.plan().timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_AMOUNT));
             }
-            assertThat(competingSum, equalTo(totalAmount));
+            assertThat(sourceBytesToWarm, equalTo(totalShardBytesToWarm));
         } finally {
             warmingServiceOnTargetNode.releaseSearchWarmingCompletion();
         }
@@ -1813,23 +1813,23 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             IndexShard indexShard,
             long bytesToWarm,
             @Nullable SearchRecoveryTimeout previous,
-            SourceWarmAmountShare sourceWarmAmountShare
+            SourceShardWarmingInfo sourceShardWarmingInfo
         ) {
-            final var plan = super.searchRecoveryTimeout(state, indexShard, bytesToWarm, previous, sourceWarmAmountShare);
-            evaluations.add(new TimeoutEvaluation(indexShard.shardId(), bytesToWarm, plan, sourceWarmAmountShare.share()));
+            final var plan = super.searchRecoveryTimeout(state, indexShard, bytesToWarm, previous, sourceShardWarmingInfo);
+            evaluations.add(new TimeoutEvaluation(indexShard.shardId(), bytesToWarm, plan, sourceShardWarmingInfo.warmingInfo()));
             return plan;
         }
     }
 
     /**
      * A single {@link SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout} call, tagged with the shard, data volume and the
-     * source's warm-amount share as it was when the plan was computed ({@code null} if none had arrived).
+     * source's shard warming info as it was when the plan was computed ({@code null} if none had arrived).
      */
     private record TimeoutEvaluation(
         ShardId shardId,
         long totalBytesToWarm,
         SearchRecoveryTimeout plan,
-        @Nullable SourceWarmAmountShare.Share sourceWarmAmountShare
+        @Nullable SourceShardWarmingInfo.WarmingInfo sourceShardWarmingInfo
     ) {}
 
     /**
@@ -1867,7 +1867,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         private volatile boolean awaitWarmingForSearchRecovery = false;
         private volatile boolean awaitWarmingForIndexingRecovery = false;
-        private volatile boolean awaitSourceWarmAmountShare = false;
+        private volatile boolean awaitSourceShardWarmingInfo = false;
 
         private final RecordingSearchRecoveryTimeoutCalculationService recordingTimeoutCalculationService;
 
@@ -1924,9 +1924,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             this.awaitWarmingForIndexingRecovery = await;
         }
 
-        /** When set, search recovery warming starts, and so plans its timeout, only once a requested warm-amount share has arrived. */
-        void setAwaitSourceWarmAmountShare(boolean await) {
-            this.awaitSourceWarmAmountShare = await;
+        /** When set, search recovery warming starts, and so plans its timeout, only once requested source warming info has arrived. */
+        void setAwaitSourceShardWarmingInfo(boolean await) {
+            this.awaitSourceShardWarmingInfo = await;
         }
 
         List<TimeoutEvaluation> searchRecoveryTimeoutEvaluations() {
@@ -1994,13 +1994,13 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             BlobStoreCacheDirectory directory,
             WarmingRatioProvider warmingRatioProvider,
             @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
-            SourceWarmAmountShare sourceWarmAmountShare,
+            SourceShardWarmingInfo sourceShardWarmingInfo,
             ActionListener<Void> resumeRecoveryListener
         ) {
-            if (awaitSourceWarmAmountShare && sourceWarmAmountShare.isRequested() && sourceWarmAmountShare.share() == null) {
-                // Forked so that the waiting never blocks the thread that delivers the share
+            if (awaitSourceShardWarmingInfo && sourceShardWarmingInfo.isRequested() && sourceShardWarmingInfo.warmingInfo() == null) {
+                // Forked so that the waiting never blocks the thread that delivers the warming info
                 threadPool.generic().execute(() -> {
-                    assertTrue(waitUntil(() -> sourceWarmAmountShare.share() != null));
+                    assertTrue(waitUntil(() -> sourceShardWarmingInfo.warmingInfo() != null));
                     warmCacheForSearchShardRecovery(
                         clusterStateSupplier,
                         indexShard,
@@ -2008,7 +2008,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                         directory,
                         warmingRatioProvider,
                         endTargetsToWarm,
-                        sourceWarmAmountShare,
+                        sourceShardWarmingInfo,
                         resumeRecoveryListener
                     );
                 });
@@ -2043,7 +2043,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     directory,
                     warmingRatioProvider,
                     endTargetsToWarm,
-                    sourceWarmAmountShare,
+                    sourceShardWarmingInfo,
                     resumeRecoveryListener
                 );
             }

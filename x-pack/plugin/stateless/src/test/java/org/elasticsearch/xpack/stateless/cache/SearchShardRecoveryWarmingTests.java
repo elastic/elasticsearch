@@ -266,7 +266,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 mock(WarmingRatioProvider.class),
                 null,
-                SourceWarmAmountShare.NOT_REQUESTED,
+                SourceShardWarmingInfo.NOT_REQUESTED,
                 resume
             );
             // recovery is resumed
@@ -332,7 +332,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 mockDirectory(),
                 mock(WarmingRatioProvider.class),
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L, 1L)),
-                SourceWarmAmountShare.NOT_REQUESTED,
+                SourceShardWarmingInfo.NOT_REQUESTED,
                 resume
             );
             // recovery is NOT resumed
@@ -389,7 +389,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 mock(WarmingRatioProvider.class),
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L, 1L)),
-                SourceWarmAmountShare.NOT_REQUESTED,
+                SourceShardWarmingInfo.NOT_REQUESTED,
                 resume
             );
             // recovery resumed (synchronously)
@@ -448,7 +448,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 mockDirectory(),
                 mock(WarmingRatioProvider.class),
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), new WarmTarget(1L, 1L, 1L)),
-                SourceWarmAmountShare.NOT_REQUESTED,
+                SourceShardWarmingInfo.NOT_REQUESTED,
                 resume
             );
             // make sure warming started running
@@ -745,7 +745,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                     IndexShard indexShard,
                     long totalBytesToWarm,
                     @Nullable SearchRecoveryTimeout previous,
-                    SourceWarmAmountShare sourceWarmAmountShare
+                    SourceShardWarmingInfo sourceShardWarmingInfo
                 ) {
                     return planForBytesToWarmAndPreviousPlan.apply(totalBytesToWarm, previous);
                 }

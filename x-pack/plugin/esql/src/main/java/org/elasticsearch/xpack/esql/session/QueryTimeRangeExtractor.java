@@ -98,11 +98,11 @@ final class QueryTimeRangeExtractor {
     private static final Set<String> TO_DATE_NANOS = Set.of("to_date_nanos", "to_datenanos");
 
     /**
-     * How many calls the walks of the plan and of a filter condition may take. Both recurse, and neither is worth more: a plan or
-     * a condition beyond these is machine generated, and going without the time range just resolves the indices as before.
+     * How many calls the walk of the plan may take, and the walk of each filter condition. Both recurse, and neither is worth
+     * more: a plan or a condition beyond this is machine generated, and going without the time range just resolves the indices
+     * as before.
      */
-    private static final int MAX_PLAN_CALLS = 100;
-    private static final int MAX_CONDITION_CALLS = 100;
+    private static final int MAX_CALLS = 100;
 
     private QueryTimeRangeExtractor() {}
 
@@ -164,12 +164,12 @@ final class QueryTimeRangeExtractor {
 
     /**
      * The range that the query restricts each of its index patterns to, the widest one for a pattern that is read more than once.
-     * Empty for a plan that takes more than {@link #MAX_PLAN_CALLS} calls to walk: the patterns that the walk did not get to
+     * Empty for a plan that takes more than {@link #MAX_CALLS} calls to walk: the patterns that the walk did not get to
      * may be read without a time range, so nothing can be said about any of them.
      */
     static Map<IndexPattern, TimeRange> ranges(LogicalPlan parsed, Configuration configuration) {
         Map<IndexPattern, TimeRange> ranges = new HashMap<>();
-        return collect(parsed, TimeRange.UNBOUNDED, configuration, ranges, new Calls(MAX_PLAN_CALLS)) ? ranges : Map.of();
+        return collect(parsed, TimeRange.UNBOUNDED, configuration, ranges, new Calls(MAX_CALLS)) ? ranges : Map.of();
     }
 
     /** What is left of the calls that a recursion may make, which keeps it shallow and cheap on any plan or expression. */
@@ -212,7 +212,7 @@ final class QueryTimeRangeExtractor {
                 return true;
             }
             case Filter filter -> {
-                TimeRange filtered = range.intersect(rangeOf(filter.condition(), configuration, new Calls(MAX_CONDITION_CALLS)));
+                TimeRange filtered = range.intersect(rangeOf(filter.condition(), configuration, new Calls(MAX_CALLS)));
                 return collect(filter.child(), filtered, configuration, ranges, calls);
             }
             case Eval eval -> {

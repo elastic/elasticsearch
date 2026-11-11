@@ -38,12 +38,14 @@ import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.lucene.search.cost.QueryCacheEntryCostEstimator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -53,7 +55,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -166,6 +170,56 @@ public class IndicesQueryCacheTests extends ESTestCase {
         @Override
         public int hashCode() {
             return 31 * (31 * classHash() + delegate.hashCode()) + Boolean.hashCode(grantCaching);
+        }
+    }
+
+    /**
+     * Wraps a query so that its {@link Weight} is an {@link IndicesQueryCache.CachePopulationAccountingWeight} that records what the
+     * cache asks to reserve before building an entry, and grants or refuses it as the search's circuit breaker would.
+     */
+    private static class AccountingQuery extends Query {
+
+        private final Query delegate;
+        private final boolean grantCharge;
+        final List<Tuple<LeafReaderContext, Long>> charges = new CopyOnWriteArrayList<>();
+
+        AccountingQuery(Query delegate, boolean grantCharge) {
+            this.delegate = delegate;
+            this.grantCharge = grantCharge;
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            Weight inner = delegate.createWeight(searcher, scoreMode, boost);
+            return new IndicesQueryCache.CachePopulationAccountingWeight(inner) {
+                @Override
+                public boolean chargeCachePopulation(LeafReaderContext leaf, long bytes) {
+                    charges.add(Tuple.tuple(leaf, bytes));
+                    return grantCharge;
+                }
+            };
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            delegate.visit(visitor);
+        }
+
+        @Override
+        public String toString(String field) {
+            return "accounting(" + delegate.toString(field) + ")";
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return sameClassAs(obj)
+                && grantCharge == ((AccountingQuery) obj).grantCharge
+                && delegate.equals(((AccountingQuery) obj).delegate);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * (31 * classHash() + delegate.hashCode()) + Boolean.hashCode(grantCharge);
         }
     }
 
@@ -433,6 +487,57 @@ public class IndicesQueryCacheTests extends ESTestCase {
         cache.onClose(shard);
         cache.close();
         return cacheCount;
+    }
+
+    /**
+     * Before building an entry the cache asks the search, through its {@link IndicesQueryCache.CachePopulationAccountingWeight}, to
+     * reserve the heap the entry takes, sized like Lucene sizes the entry. A granted reservation populates the cache; a refused one
+     * leaves the cache as it was while the search still gets its hits, from an uncached scorer.
+     */
+    public void testCachePopulationIsChargedToTheAccountingWeight() throws IOException {
+        final int docs = randomIntBetween(1, 1000);
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
+        for (int i = 0; i < docs; i++) {
+            w.addDocument(new Document());
+        }
+        w.forceMerge(1);
+        DirectoryReader r = DirectoryReader.open(w);
+        w.close();
+        ShardId shard = new ShardId("index", "_na_", 0);
+        r = ElasticsearchDirectoryReader.wrap(r, shard);
+        IndexSearcher s = new IndexSearcher(r);
+        s.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
+
+        Settings settings = Settings.builder()
+            .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
+            .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
+            .build();
+        IndicesQueryCache cache = new IndicesQueryCache(settings);
+        s.setQueryCache(cache);
+
+        // DummyQuery reports a cost of maxDoc, so Lucene builds a dense entry and that is what the search is asked to reserve
+        final LeafReaderContext leaf = r.leaves().get(0);
+        final long denseBytes = new QueryCacheEntryCostEstimator(leaf.reader().maxDoc(), leaf.reader().maxDoc()).estimate();
+
+        AccountingQuery refused = new AccountingQuery(new DummyQuery(0), false);
+        assertEquals(docs, s.count(refused));
+        assertThat(refused.charges, contains(Tuple.tuple(leaf, denseBytes)));
+        assertEquals("a refused reservation leaves the cache as it was", 0L, cache.getStats(shard, () -> 0L).getCacheCount());
+
+        AccountingQuery granted = new AccountingQuery(new DummyQuery(1), true);
+        assertEquals(docs, s.count(granted));
+        assertThat(granted.charges, contains(Tuple.tuple(leaf, denseBytes)));
+        assertEquals(1L, cache.getStats(shard, () -> 0L).getCacheCount());
+
+        // the entry is in the cache now, so nothing is built or reserved for it anymore
+        assertEquals(docs, s.count(granted));
+        assertThat(granted.charges, hasSize(1));
+        assertEquals(1L, cache.getStats(shard, () -> 0L).getHitCount());
+
+        IOUtils.close(r, dir);
+        cache.onClose(shard);
+        cache.close();
     }
 
     public void testTwoShards() throws IOException {

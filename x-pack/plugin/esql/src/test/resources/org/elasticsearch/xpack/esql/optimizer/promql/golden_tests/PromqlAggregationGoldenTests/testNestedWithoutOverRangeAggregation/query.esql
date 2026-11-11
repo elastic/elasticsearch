@@ -1,0 +1,1 @@
+PROMQL index=k8s step=1h result=(max without(cluster)(sum without(pod)(avg_over_time(network.cost[1h]))))

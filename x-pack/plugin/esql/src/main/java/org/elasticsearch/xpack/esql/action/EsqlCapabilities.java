@@ -4289,6 +4289,12 @@ public class EsqlCapabilities {
         PROMQL_REDUCTION_WITHOUT(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * PromQL {@code without(...)} over another {@code without(...)}: each level leaves out its own labels from what the level
+         * below kept.
+         */
+        PROMQL_NESTED_WITHOUT(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Fix PromQL {@code count_over_time} and {@code present_over_time} over a series without a sample in the window,
          * and {@code count} over a group without a valued series: like Prometheus, they emit no element rather than
          * {@code 0}. {@code absent_over_time} likewise emits no element for a series with a sample, nor for a series its

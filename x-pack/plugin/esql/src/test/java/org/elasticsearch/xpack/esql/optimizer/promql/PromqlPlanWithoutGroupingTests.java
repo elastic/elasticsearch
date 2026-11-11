@@ -13,7 +13,6 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -22,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -46,11 +46,11 @@ import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -290,12 +290,16 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         );
     }
 
-    public void testNestedWithoutOverWithoutIsRejectedByVerifier() {
-        VerificationException e = assertThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=1h result=(sum without (region) (sum without (pod) (network.cost)))")
-        );
-        assertThat(e.getMessage(), containsString("nested WITHOUT over WITHOUT is not supported at this time"));
+    /**
+     * The outer WITHOUT regroups the inner result by a coarser view: the source reads its series leaving out both levels' labels,
+     * so nothing leaves labels out of a label container above it, whatever its representation.
+     */
+    public void testNestedWithoutOverWithoutReadsTheCoarserView() {
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1h result=(sum without (region) (sum without (pod) (network.cost)))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", MetadataAttribute.TIMESERIES)));
+        var filters = new ArrayList<TimeSeriesMetadataFilter>();
+        plan.forEachExpressionDown(TimeSeriesMetadataFilter.class, filters::add);
+        assertThat(filters, empty());
     }
 
     public void testNestedWithoutOverPartialByProducesConcreteOutput() {
@@ -314,14 +318,12 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem("step"));
     }
 
-    public void testWithoutOverByOverWithoutIsRejectedByVerifier() {
-        VerificationException e = assertThrows(
-            VerificationException.class,
-            () -> planPromql(
-                "PROMQL index=k8s step=1h result=(sum without (region) (sum by (cluster, region) (sum without (pod) (network.cost))))"
-            )
+    /** A WITHOUT over a BY regroups named labels: an inner WITHOUT below the BY changes nothing about it. */
+    public void testWithoutOverByOverWithoutProducesConcreteOutput() {
+        var plan = planPromql(
+            "PROMQL index=k8s step=1h result=(sum without (region) (sum by (cluster, region) (sum without (pod) (network.cost))))"
         );
-        assertThat(e.getMessage(), containsString("nested WITHOUT over WITHOUT is not supported at this time"));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "cluster")));
     }
 
     public void testByOverWithoutOverByProducesExactOutput() {

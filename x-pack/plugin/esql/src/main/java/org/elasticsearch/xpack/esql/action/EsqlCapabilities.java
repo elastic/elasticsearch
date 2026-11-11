@@ -2781,6 +2781,12 @@ public class EsqlCapabilities {
         FIX_PROMQL_WITHOUT_OUTPUT,
 
         /**
+         * PromQL {@code label_join} with no source labels removes the destination, as an empty label value does in Prometheus,
+         * rather than setting it to the empty string as nodes before 9.7 do.
+         */
+        FIX_PROMQL_LABEL_JOIN_EMPTY_REMOVES_LABEL,
+
+        /**
          * PromQL label matchers that accept the empty string (e.g. {@code {label=""}} or {@code {label!="foo"}})
          * also match time series where the label is absent ({@code NULL}), per PromQL spec.
          */

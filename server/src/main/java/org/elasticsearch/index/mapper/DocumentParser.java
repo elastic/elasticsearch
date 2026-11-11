@@ -1032,11 +1032,6 @@ public final class DocumentParser {
             }
 
             @Override
-            public Builder getMergeBuilder() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
             protected String contentType() {
                 throw new UnsupportedOperationException();
             }

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper.extras;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.AbstractShardBatchMapperResolveTestCase;
 import org.elasticsearch.index.mapper.MapperService;
@@ -79,9 +81,13 @@ public class MatchOnlyTextShardBatchMapperResolveTests extends AbstractShardBatc
     }
 
     public void testMatchOnlyTextDocValuesDisabledFallsBack() throws IOException {
-        MapperService ms = columnarMapperService(mapping(b -> {
-            b.startObject("f").field("type", "match_only_text").field("doc_values", false).endObject();
-        }));
+        MapperService ms = createMapperService(
+            randomVersionBeforeDocValuesNoOp(),
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+            mapping(b -> {
+                b.startObject("f").field("type", "match_only_text").field("doc_values", false).endObject();
+            })
+        );
         assertNull(ShardBatchMapper.resolveMappers(schemaOf("f"), ms.mappingLookup(), indexSettings));
     }
 

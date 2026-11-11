@@ -42,29 +42,31 @@ public class TestPlannerOptimizer {
     }
 
     /**
-     * @param flags the flags of the physical optimizer, such as whether the fetch phase is on
+     * @param flags the flags of the logical optimizer, such as whether the fetch phase is on
      */
     public TestPlannerOptimizer(Configuration config, Analyzer analyzer, EsqlFlags flags) {
         this(
             config,
             analyzer,
-            new LogicalPlanOptimizer(logicalOptimizerContext(config, FoldContext.small(), analyzer.context().minimumVersion())),
-            flags
+            new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), analyzer.context().minimumVersion(), flags))
         );
     }
 
     public TestPlannerOptimizer(Configuration config, Analyzer analyzer, LogicalPlanOptimizer logicalOptimizer) {
-        this(config, analyzer, logicalOptimizer, EsqlFlags.DEFAULTS);
-    }
-
-    private TestPlannerOptimizer(Configuration config, Analyzer analyzer, LogicalPlanOptimizer logicalOptimizer, EsqlFlags flags) {
         this.analyzer = analyzer;
         this.config = config;
         this.logicalOptimizer = logicalOptimizer;
 
-        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config, analyzer.context().minimumVersion(), flags));
+        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config, analyzer.context().minimumVersion()));
         mapper = new Mapper();
 
+    }
+
+    /**
+     * The optimized logical plan of the query, before the mapper turns it into a physical plan.
+     */
+    public LogicalPlan logicalPlan(String query) {
+        return logicalOptimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query)));
     }
 
     public PhysicalPlan plan(String query) {

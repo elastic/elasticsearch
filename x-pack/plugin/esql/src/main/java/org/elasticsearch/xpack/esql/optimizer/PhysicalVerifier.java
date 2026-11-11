@@ -83,6 +83,7 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
 
         if (isLocal == false) {
             checkDocumentsLeaveTheirNodeOnlyForAFetch(optimizedPlan, failures);
+            checkFetchesReadDocumentsThatLeftTheirNode(optimizedPlan, failures);
             if (optimizedPlan.output().stream().anyMatch(EsQueryExec::isDocAttribute)) {
                 failures.add(fail(optimizedPlan, "document identity [_doc] cannot be returned, found {}", optimizedPlan.output()));
             }
@@ -104,6 +105,20 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
                         fail(exchange, "document identity [_doc] can only cross an exchange for a fetch [{}]", exchange.nodeString())
                     );
                 }
+            }
+        });
+    }
+
+    /**
+     * A {@link FetchExec} loads the documents of the rows the data nodes sent, so its {@code _doc} crosses an exchange
+     * below it. The logical planner adds the fetch above a cut and relies on the mapper to put that exchange below it.
+     */
+    private static void checkFetchesReadDocumentsThatLeftTheirNode(PhysicalPlan plan, Failures failures) {
+        plan.forEachDown(FetchExec.class, fetch -> {
+            boolean crossed = fetch.child()
+                .anyMatch(node -> node instanceof ExchangeExec exchange && exchange.outputSet().contains(fetch.doc()));
+            if (crossed == false) {
+                failures.add(fail(fetch, "[{}] must read a [_doc] that crossed an exchange", fetch.nodeString()));
             }
         });
     }

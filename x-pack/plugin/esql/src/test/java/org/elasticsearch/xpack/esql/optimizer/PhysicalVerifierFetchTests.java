@@ -67,6 +67,14 @@ public class PhysicalVerifierFetchTests extends ESTestCase {
         assertThat("the documents cross for nothing", failures, containsString("can only cross an exchange for a fetch"));
     }
 
+    /** A fetch loads documents the data nodes sent. A {@code _doc} that never left its node has nothing to fetch from. */
+    public void testFetchReadsDocumentsThatCrossedAnExchange() {
+        EsRelation relation = new EsRelation(Source.EMPTY, "idx", IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), List.of(doc, a, b));
+        FragmentExec noExchange = new FragmentExec(new Project(Source.EMPTY, relation, List.of(doc, a)));
+        PhysicalPlan plan = new ProjectExec(Source.EMPTY, fetch(noExchange, doc), List.of(a, b));
+        assertThat(verify(plan).toString(), containsString("must read a [_doc] that crossed an exchange"));
+    }
+
     private FetchExec fetch(PhysicalPlan child, Attribute documents) {
         return new FetchExec(Source.EMPTY, child, documents, List.of(b), "idx", List.of("idx"), null);
     }

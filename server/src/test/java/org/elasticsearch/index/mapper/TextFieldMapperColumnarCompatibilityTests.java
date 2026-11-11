@@ -422,6 +422,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
 
     public void testDocValuesDisabledFallsBack() throws IOException {
         MapperService ms = createMapperService(
+            randomVersionBeforeDocValuesNoOp(),
             columnarSettings(),
             mapping(b -> b.startObject(FIELD).field("type", "text").field("doc_values", false).endObject())
         );

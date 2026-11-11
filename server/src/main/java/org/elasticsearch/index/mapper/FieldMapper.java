@@ -293,7 +293,7 @@ public abstract class FieldMapper extends Mapper {
         if (doSupportsColumnarParse(indexSettings) == false) {
             return false;
         }
-        if (resolvesColumnGroup()) {
+        if (resolvesColumnGroup() != ColumnGroup.NONE) {
             // A group mapper is dispatched through mapColumnGroupBatch, which — unlike mapColumnBatch below —
             // never fans out to multi-fields, so a group mapper carrying [fields] would index the parent column
             // and silently skip every sub-field. Load-bearing for geo_point, which accepts [fields] at
@@ -302,7 +302,7 @@ public abstract class FieldMapper extends Mapper {
         }
         for (FieldMapper subMapper : builderParams.multiFields) {
             // The recursive call covers mul.
-            if (subMapper.resolvesColumnGroup() || subMapper.supportsColumnarParse(indexSettings) == false) {
+            if (subMapper.resolvesColumnGroup() != ColumnGroup.NONE || subMapper.supportsColumnarParse(indexSettings) == false) {
                 return false;
             }
         }
@@ -464,16 +464,30 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
-     * Whether this mapper consumes the whole group of schema leaves rooted at its own path rather than a single leaf of its own. Mappers
-     * whose source value is an object that the columnar encoder explodes into one dotted leaf per key — {@code flattened} is the first —
-     * cannot be resolved leaf by leaf, because no mapper exists at those descendant paths. A mapper returning {@code true} receives every
-     * such leaf in one call to {@link #mapColumnGroupBatch}, and those leaves are never handed to a leaf mapper.
+     * Whether this mapper consumes the whole group of schema leaves rooted at its own path rather than a single leaf of its own, and if
+     * so, which source shapes of that group it takes. Mappers whose source value is an object that the columnar encoder explodes into one
+     * dotted leaf per key — {@code flattened} is the first — cannot be resolved leaf by leaf, because no mapper exists at those descendant
+     * paths. A mapper returning anything but {@link ColumnGroup#NONE} receives every such leaf in one call to {@link #mapColumnGroupBatch},
+     * and those leaves are never handed to a leaf mapper.
      * <p>
-     * This is orthogonal to {@link #supportsColumnarParse(IndexSettings)}: a group mapper must return {@code true} from both to
+     * This is orthogonal to {@link #supportsColumnarParse(IndexSettings)}: a group mapper must also return {@code true} from it to
      * participate in the columnar path.
      */
-    public boolean resolvesColumnGroup() {
-        return false;
+    public ColumnGroup resolvesColumnGroup() {
+        return ColumnGroup.NONE;
+    }
+
+    /** Whether a mapper {@link #resolvesColumnGroup() resolves a column group}, and which source shapes that group may have. */
+    public enum ColumnGroup {
+        /** Not a group mapper: the mapper resolves the single leaf at its own path. */
+        NONE,
+        /**
+         * The row path parses exactly one object at this field's path, so the batch path only takes a group whose leaves all sit
+         * directly in one such object. A dotted key like {@code {"h.values":[1]}}, or the field split across two objects, falls back.
+         */
+        SINGLE_OBJECT,
+        /** The mapper merges any number of objects at its path, with keys nested at any depth, as {@code flattened} does. */
+        ANY_SHAPE
     }
 
     /**
@@ -1788,6 +1802,11 @@ public abstract class FieldMapper extends Mapper {
         private final boolean supportsExtendedDocValues;
         /** True when this index supports the top-level {@code multi_value}, {@code nullability}, and {@code on_failure} attributes. */
         private final boolean supportsTopLevelAttributes;
+        /**
+         * True when the {@code doc_values} attribute itself is inert: strict-columnar indices always store doc values, so an explicit
+         * {@code true} or {@code false} is parsed and then dropped, and never reaches the persisted mapping.
+         */
+        private final boolean ignoresDocValuesAttribute;
         private final Parameter<Values.OnFailure> onFailureParameter;
         private boolean nestedFormParsed;
         /** Also set by the nested form (it delegates to the sub-parameters' parse); use {@link #nestedFormParsed} to tell them apart. */
@@ -1864,6 +1883,8 @@ public abstract class FieldMapper extends Mapper {
             this.supportsExtendedDocValues = indexSettings != null && indexSettings.getMode().isStrictColumnar();
             this.supportsTopLevelAttributes = supportsExtendedDocValues
                 && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES);
+            this.ignoresDocValuesAttribute = supportsExtendedDocValues
+                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR);
 
             multiValueParameter = new Parameter<>(
                 "multi_value",
@@ -1982,15 +2003,16 @@ public abstract class FieldMapper extends Mapper {
          * <p>
          * Doc values can be configured in the following ways:
          * <ul>
-         *   <li>{@code "doc_values": false} - doc_values disabled</li>
-         *   <li>{@code "doc_values": true} - doc_values enabled with defaults</li>
+         *   <li>{@code "doc_values": false} - doc_values disabled (ignored in strict-columnar indices created on or after
+         *       {@link IndexVersions#DOC_VALUES_NO_OP_IN_COLUMNAR}, where doc values are always enabled)</li>
+         *   <li>{@code "doc_values": true} - doc_values enabled with defaults (dropped, like {@code false}, in the indices above)</li>
          *   <li>{@code "multi_value": true} - allow multiple values per document (default; columnar only)</li>
          *   <li>{@code "multi_value": false} - reject any document that has more than one value for the field (columnar only)</li>
          *   <li>{@code "nullability": true} - allow documents to omit the field or supply null (default; columnar only)</li>
          *   <li>{@code "nullability": false} - reject any document that omits the field or supplies null (columnar only)</li>
          *   <li>{@code "on_failure": "fail"} - reject the document if it violates multi_value/nullability (default; columnar only)</li>
          *   <li>{@code "on_failure": "ignore"} - route the offending value to a per-field failure column
-         *       (columnar only; see {@link DocumentParserContext#enforceSingleValue}).</li>
+         *       (columnar only; see {@link DocumentParserContext#enforceSingleValue}). The value stays in {@code _source}.</li>
          *   <li>Legacy nested form: {@code "doc_values": { "multi_value": false }} etc. — still accepted for backwards
          *       compatibility but no longer emitted for new indices.</li>
          * </ul>
@@ -2033,7 +2055,22 @@ public abstract class FieldMapper extends Mapper {
                 }
                 super.setValue(backingValue(true, getDefaultValue().cardinality));
             } else {
-                if (XContentMapValues.nodeBooleanValue(value, name)) {
+                boolean enabled = XContentMapValues.nodeBooleanValue(value, name);
+                if (ignoresDocValuesAttribute) {
+                    if (enabled == false) {
+                        // Fixed key so the logger deduplicates: dynamic templates re-parse their mapping for every new field.
+                        deprecationLogger.warn(
+                            DeprecationCategory.MAPPINGS,
+                            "doc_values_ignored_in_columnar",
+                            "The [doc_values] parameter of field [{}] is ignored in columnar index modes, because doc values are "
+                                + "always enabled. Remove the parameter.",
+                            field
+                        );
+                    }
+                    // Leaving the value unset keeps it out of the persisted mapping.
+                    return;
+                }
+                if (enabled) {
                     super.setValue(backingValue(true, getDefaultValue().cardinality));
                 } else {
                     // Cardinality has no meaning when doc values are disabled. If the default is itself disabled, an explicit

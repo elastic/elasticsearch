@@ -123,17 +123,6 @@ public abstract class AggregationScript extends DocBasedScript implements Scorer
         return value;
     }
 
-    /**
-     * Return the result as a long. This is used by aggregation scripts over long fields.
-     */
-    public long runAsLong() {
-        return ((Number) execute()).longValue();
-    }
-
-    public double runAsDouble() {
-        return ((Number) execute()).doubleValue();
-    }
-
     public abstract Object execute();
 
     /**

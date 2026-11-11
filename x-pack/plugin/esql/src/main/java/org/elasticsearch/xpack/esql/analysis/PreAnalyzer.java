@@ -69,6 +69,24 @@ public class PreAnalyzer {
         List<String> externalSourcePaths,
         List<String> inferenceIds
     ) {
+        /** The same pre-analysis, but building the field semantics of the resolved indices. */
+        public PreAnalysis withFieldSemantics() {
+            return new PreAnalysis(
+                indexes,
+                enriches,
+                lookupIndices,
+                linkedIndices,
+                useAggregateMetricDoubleWhenNotSupported,
+                useDenseVectorWhenNotSupported,
+                hasTimeSeriesAggregation,
+                requiresAllDimensionFields,
+                needsAnalyzerGroups,
+                true,
+                externalSourcePaths,
+                inferenceIds
+            );
+        }
+
         public static final PreAnalysis EMPTY = new PreAnalysis(
             Map.of(),
             List.of(),

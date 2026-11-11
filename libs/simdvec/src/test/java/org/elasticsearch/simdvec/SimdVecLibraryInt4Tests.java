@@ -138,6 +138,40 @@ public class SimdVecLibraryInt4Tests extends SimdVecLibraryTests {
         doTestInt4BulkMasked(0, true);
     }
 
+    public void testInt4BulkMaskedIgnoresVectorsPastTheBlock() {
+        assumeTrue(notSupportedMsg(), supported());
+        final int dims = size;
+        final int packedLen = dims / 2;
+        final int count = randomIntBetween(0, Integer.SIZE - 1);
+        final int mask = randomInvalidBulkMask(count);
+
+        // vectors and scores for all the 32 positions a mask can select, so that scoring past the block fails the
+        // assertions instead of accessing unallocated memory
+        var unpackedValues = new byte[Integer.SIZE][dims];
+        var packedSegment = arena.allocate((long) Integer.SIZE * packedLen);
+        for (int i = 0; i < Integer.SIZE; i++) {
+            randomBytesBetween(unpackedValues[i], MIN_INT4_VALUE, MAX_INT4_VALUE);
+            MemorySegment.copy(packNibbles(unpackedValues[i]), 0, packedSegment, ValueLayout.JAVA_BYTE, (long) i * packedLen, packedLen);
+        }
+        var unpackedQuery = new byte[dims];
+        randomBytesBetween(unpackedQuery, MIN_INT4_VALUE, MAX_INT4_VALUE);
+        var nativeQuerySeg = arena.allocate(dims);
+        MemorySegment.copy(unpackedQuery, 0, nativeQuerySeg, ValueLayout.JAVA_BYTE, 0L, dims);
+
+        float[] expectedScores = unselectedScores(Integer.SIZE);
+        ScalarOperations.bulkMasked(
+            SimdVecLibrary.SimilarityFunction.DOT_PRODUCT,
+            unpackedQuery,
+            unpackedValues,
+            mask & BulkMask.all(count),
+            expectedScores
+        );
+
+        var bulkScoresSeg = unselectedScoresSegment(Integer.SIZE);
+        getVectorDistance().dotProductI4BulkMasked_raw(packedSegment, nativeQuerySeg, packedLen, packedLen, mask, count, bulkScoresSeg);
+        assertScoresEquals(expectedScores, bulkScoresSeg);
+    }
+
     private void doTestInt4BulkMasked(int extraData, boolean heapQueryAndScores) {
         final int dims = size;
         final int packedLen = dims / 2;

@@ -691,6 +691,7 @@ public final class KeywordFieldMapper extends FieldMapper {
          * {@link FieldMapper#EMPTY_KEYWORD_STRING_AS_NULL_SETTING}.
          */
         private final boolean emptyStringAsNull;
+        private final boolean staticallySingleValued;
 
         public KeywordFieldType(
             String name,
@@ -726,6 +727,13 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.emptyStringAsNull = EMPTY_KEYWORD_STRING_AS_NULL_SETTING.get(builder.indexSettings.getSettings());
             this.diskFormat = builder.diskFormat();
             this.preservesArrayOrder = builder.preservesArrayOrder();
+            // An index-time script can emit multiple values, even if the multi_value param is false.
+            this.staticallySingleValued = builder.script.get() == null && builder.docValuesParameters().multiValue() == false;
+        }
+
+        @Override
+        public boolean isStaticallySingleValued() {
+            return staticallySingleValued;
         }
 
         public KeywordFieldType(String name) {
@@ -759,6 +767,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 : (usesBinaryDocValues ? DocValuesDiskFormat.BINARY_SEPARATE_COUNT : DocValuesDiskFormat.SORTED_SET);
             this.preservesArrayOrder = false;
             this.emptyStringAsNull = false;
+            this.staticallySingleValued = false;
         }
 
         public KeywordFieldType(String name, FieldType fieldType, boolean isSyntheticSource) {
@@ -784,6 +793,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.diskFormat = fieldType.docValuesType() == DocValuesType.NONE ? DocValuesDiskFormat.NONE : DocValuesDiskFormat.SORTED_SET;
             this.preservesArrayOrder = false;
             this.emptyStringAsNull = false;
+            this.staticallySingleValued = false;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
@@ -809,6 +819,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.diskFormat = DocValuesDiskFormat.SORTED_SET;
             this.preservesArrayOrder = false;
             this.emptyStringAsNull = false;
+            this.staticallySingleValued = false;
         }
 
         public boolean usesBinaryDocValues() {
@@ -2272,7 +2283,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexed) {
                 context.getOffSetContext().recordOffset(offsetsFieldName, value.bytes(), OFFSETS_FALLBACK);
             } else if (value == null) {
-                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
+                context.getOffSetContext().recordNull(context, offsetsFieldName, OFFSETS_FALLBACK);
             } else {
                 // The value tripped ignore_above: a field that records offsets has doc values, so that is the only reason a non-null
                 // value is not indexed. It gets no slot, but is recorded so that the _ignored_source fallback for oversized offsets

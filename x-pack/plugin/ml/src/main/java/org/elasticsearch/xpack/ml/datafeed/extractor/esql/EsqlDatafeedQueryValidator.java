@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -39,6 +41,8 @@ import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.E
  */
 public class EsqlDatafeedQueryValidator {
 
+    private static final Logger logger = LogManager.getLogger(EsqlDatafeedQueryValidator.class);
+
     private final EsqlQueryRunner queryRunner;
 
     public EsqlDatafeedQueryValidator() {
@@ -56,6 +60,17 @@ public class EsqlDatafeedQueryValidator {
     // expose a typed missing-index signal. See https://github.com/elastic/elasticsearch/issues/161207
     /** ES|QL reports a missing index as 400 with this fragment; ML cannot depend on the ES|QL verifier type. */
     private static final String ESQL_UNKNOWN_INDEX_MESSAGE = "Unknown index [";
+
+    // MUST FIX before production: message match on NoMatchingProjectException; add a typed no-project signal (bead
+    // elastic-workspace-u66g). See https://github.com/elastic/elasticsearch/issues/161207
+    /** Thrown when project routing matches no project at all; a linked project may appear later. */
+    static final String NO_PROJECT_AFTER_ROUTING_MESSAGE = "no matching project after applying project routing";
+
+    static boolean isNoProjectAfterRouting(Throwable cause) {
+        return cause instanceof NoMatchingProjectException noMatchingProject
+            && Strings.isEmpty(noMatchingProject.getMessage()) == false
+            && noMatchingProject.getMessage().contains(NO_PROJECT_AFTER_ROUTING_MESSAGE);
+    }
 
     /** Whether a probe failure means the source does not exist yet (index or CPS project may appear later). */
     static boolean isDeferredExistenceFailure(Throwable cause) {
@@ -323,20 +338,36 @@ public class EsqlDatafeedQueryValidator {
         }
     }
 
-    /** {@code LIMIT 0} access probe before CPS credential mint; column checks are {@link #validateQuery}. */
+    /**
+     * {@code LIMIT 0} access probe before CPS credential mint. Defers when routing matched no project or the index is not
+     * known yet; fails on explicit project resolution errors and all other probe failures.
+     */
     public void validateAccessForMint(
         Client client,
         Map<String, String> headers,
         String esqlQuery,
         @Nullable String projectRouting,
-        ActionListener<Void> listener
+        ActionListener<Void> listener,
+        @Nullable String datafeedId
     ) {
         String limitZeroQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(esqlQuery, LIMIT_ZERO);
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> listener.onResponse(null), e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
-            if (isDeferredExistenceFailure(cause)) {
-                // Source may not exist yet; defer to runtime (classic SearchRequest probe behaviour).
+            if (cause instanceof NoMatchingProjectException) {
+                if (isNoProjectAfterRouting(cause)) {
+                    logger.debug(
+                        () -> "[" + datafeedId + "] ES|QL validate-before-mint probe failed with [" + cause + "]. Deferring to runtime."
+                    );
+                    listener.onResponse(null);
+                } else {
+                    listener.onFailure(e);
+                }
+            } else if (isDeferredExistenceFailure(cause)) {
+                // ES|QL reports a missing, empty-wildcard or unreadable source as unknown index; none can be told apart here.
+                logger.debug(
+                    () -> "[" + datafeedId + "] ES|QL validate-before-mint probe failed with [" + cause + "]. Deferring to runtime."
+                );
                 listener.onResponse(null);
             } else {
                 listener.onFailure(e);

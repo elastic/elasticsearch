@@ -982,15 +982,15 @@ public class IpFieldMapper extends FieldMapper {
 
                 BytesRef utf8Value = cursor.value();
 
-                // Explicit JSON null: apply null_value substitution if configured; otherwise record a
-                // null doc-values slot (no ignore check), mirroring the row-path's
-                // ArrayOrderInlineNull.recordNull for an absent value with no null_value.
+                // Explicit JSON null: apply null_value substitution if configured; otherwise record a null doc-values slot (no ignore
+                // check) for a null inside the field's own array, mirroring the row path's ArrayOrderInlineNull.recordNull. A bare
+                // null is the field being absent and records nothing, as on the row path (see keepsNullSlot).
                 if (utf8Value == null) {
                     if (nullValueEncoded != null) {
                         pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, nullValueEncoded);
                         docSlotCount++;
                         hasNonNull = true;
-                    } else {
+                    } else if (source.isNull(currentDoc) == false) {
                         pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
                         docSlotCount++;
                         // hasNonNull stays false: null slots do not produce a binary dv blob.
@@ -1121,8 +1121,9 @@ public class IpFieldMapper extends FieldMapper {
         }
         if (fieldType().usesArrayOrderBinaryDocValues()) {
             // In-order path: non-null values are recorded in indexValue (in document order); here we record null slots so their position
-            // is preserved. Non-null values record no slot here as they are already recorded above.
-            if (address == null) {
+            // is preserved. Non-null values record no slot here as they are already recorded above. A null that is not an element of
+            // the field's own array has no position to preserve and is the field being absent; see keepsNullSlot.
+            if (address == null && MultiValuedBinaryDocValuesField.keepsNullSlot(context, indexSettings.getMode())) {
                 MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
             }
         } else if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
@@ -1130,7 +1131,7 @@ public class IpFieldMapper extends FieldMapper {
                 BytesRef sortableValue = address.binaryValue();
                 context.getOffSetContext().recordOffset(offsetsFieldName, sortableValue, OFFSETS_FALLBACK);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
+                context.getOffSetContext().recordNull(context, offsetsFieldName, OFFSETS_FALLBACK);
             }
         }
     }

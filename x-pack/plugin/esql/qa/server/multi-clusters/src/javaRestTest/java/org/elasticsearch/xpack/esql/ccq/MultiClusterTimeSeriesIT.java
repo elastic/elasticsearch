@@ -14,13 +14,16 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
@@ -244,6 +247,85 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
         List<Map<String, String>> columns = (List<Map<String, String>>) result.get("columns");
         List<String> columnNames = columns.stream().map(c -> c.get("name")).toList();
         assertThat(columnNames, equalTo(List.of("metric_name", "data_stream", "unit", "metric_type", "field_type", "dimension_fields")));
+    }
+
+    /**
+     * PromQL renders each series' labels as the canonical label container on both clusters: a numeric dimension reads as a
+     * string, where the source JSON of an older node keeps it a number.
+     */
+    public void testPromqlLabelContainerAcrossClusters() throws Exception {
+        assumeTrue(
+            "requires a typed label container on both clusters",
+            capabilitiesSupportedNewAndOld(
+                List.of(
+                    EsqlCapabilities.Cap.PROMQL_COMMAND_V0.capabilityName(),
+                    EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.capabilityName(),
+                    EsqlCapabilities.Cap.TS_COMMAND_V0.capabilityName()
+                )
+            )
+        );
+        String index = "promql-label-container-ccs";
+        try (RestClient remote = remoteClusterClient()) {
+            createLabelContainerIndex(client(), index);
+            createLabelContainerIndex(remote, index);
+            try {
+                for (String target : List.of(index, Clusters.REMOTE_CLUSTER_NAME + ":" + index)) {
+                    Map<String, Object> result = run(
+                        "PROMQL index="
+                            + target
+                            + " start=\"2024-05-10T00:01:00Z\" end=\"2024-05-10T00:01:00Z\" step=1m result=(tx)"
+                            + " | KEEP result, _timeseries | LIMIT 10",
+                        false
+                    );
+                    assertEquals(
+                        List.of(Map.of("name", "result", "type", "double"), Map.of("name", "_timeseries", "type", "keyword")),
+                        result.get("columns")
+                    );
+                    List<?> rows = (List<?>) result.get("values");
+                    assertEquals(1, rows.size());
+                    List<?> row = (List<?>) rows.getFirst();
+                    assertEquals(10.0, row.getFirst());
+                    Map<String, Object> labels = XContentHelper.convertToMap(new BytesArray((String) row.get(1)), false, XContentType.JSON)
+                        .v2();
+                    assertEquals(Map.of("cluster", "prod", "host", "a", "rack", "7"), labels);
+                }
+            } finally {
+                assertOK(client().performRequest(new Request("DELETE", "/" + index)));
+                assertOK(remote.performRequest(new Request("DELETE", "/" + index)));
+            }
+        }
+    }
+
+    private static void createLabelContainerIndex(RestClient client, String index) throws IOException {
+        Request create = new Request("PUT", "/" + index);
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index.mode": "time_series",
+                "index.routing_path": ["cluster", "host"],
+                "index.number_of_shards": 1,
+                "index.number_of_replicas": 0,
+                "index.time_series.start_time": "2024-05-10T00:00:00Z",
+                "index.time_series.end_time": "2024-05-10T01:00:00Z"
+              },
+              "mappings": {
+                "properties": {
+                  "@timestamp": {"type": "date"},
+                  "cluster": {"type": "keyword", "time_series_dimension": true},
+                  "host": {"type": "keyword", "time_series_dimension": true},
+                  "rack": {"type": "long", "time_series_dimension": true},
+                  "tx": {"type": "double", "time_series_metric": "gauge"}
+                }
+              }
+            }
+            """);
+        assertOK(client.performRequest(create));
+        Request doc = new Request("POST", "/" + index + "/_doc");
+        doc.addParameter("refresh", "true");
+        doc.setJsonEntity("""
+            {"@timestamp": "2024-05-10T00:01:00Z", "cluster": "prod", "host": "a", "rack": 7, "tx": 10.0}
+            """);
+        assertOK(client.performRequest(doc));
     }
 
     private void createTimeSeriesIndex(RestClient client, String indexName) throws IOException {

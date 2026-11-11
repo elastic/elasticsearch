@@ -1173,6 +1173,25 @@ public class EsqlDataTypeConverter {
         return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(min, max, sum, count);
     }
 
+    /**
+     * The cast that reads {@code keyword}, a value without a declared type, as {@code type}. Returns {@code null} when no such cast
+     * exists (e.g., {@code text}, {@code aggregate_metric_double}); a keyword target needs no cast, so the returned function is a
+     * no-op there.
+     */
+    public static @Nullable AbstractConvertFunction castFromKeyword(DataType type, Expression keyword, Configuration configuration) {
+        // ToDenseVector reads hexadecimal strings, but an unmapped dense_vector arrives from _source as an array of numbers
+        // (#152184), so the implicit cast would yield garbage. Same carve-out as ResolveTwoLeggedPunksInEsRelation.
+        if (type == DENSE_VECTOR) {
+            return null;
+        }
+        var convertFactory = converterFunctionFactory(type);
+        if (convertFactory == null) {
+            return null;
+        }
+        AbstractConvertFunction convert = convertFactory.apply(keyword.source(), keyword, configuration);
+        return convert.supportedTypes().contains(KEYWORD) ? convert : null;
+    }
+
     public static TriFunction<Source, Expression, Configuration, AbstractConvertFunction> converterFunctionFactory(DataType toType) {
         var converter = TYPE_TO_CONVERTER_FUNCTION.get(toType);
         if (converter != null) {

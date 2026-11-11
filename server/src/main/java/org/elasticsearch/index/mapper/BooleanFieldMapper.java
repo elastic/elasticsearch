@@ -661,7 +661,7 @@ public class BooleanFieldMapper extends FieldMapper {
             if (value != null) {
                 context.getOffSetContext().recordOffset(offsetsFieldName, value, OFFSETS_FALLBACK);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
+                context.getOffSetContext().recordNull(context, offsetsFieldName, OFFSETS_FALLBACK);
             }
         }
     }

@@ -1630,8 +1630,7 @@ public class EsqlSession {
     }
 
     /**
-     * Resolves the IN subquery hash join threshold: query pragma overrides the cluster setting. A negative result means neither was set,
-     * and {@link AbstractSubqueryJoin#filterPathThreshold} chooses for each join.
+     * Resolves the IN subquery hash join threshold: query pragma overrides the cluster setting. A negative result lets the cost decide.
      */
     private int resolveInSubqueryHashJoinThreshold(Configuration configuration) {
         int pragmaValue = QueryPragmas.IN_SUBQUERY_HASH_JOIN_THRESHOLD.get(configuration.pragmas().getSettings());
@@ -1639,9 +1638,8 @@ public class EsqlSession {
     }
 
     /**
-     * The most values a {@code terms} query may hold on every index {@code relation} reads, the smallest {@code index.max_terms_count}
-     * among them, as the shards fail a longer one. {@code 0} when that is not known: when an index lives on a remote cluster, or this
-     * node holds no metadata for it.
+     * The smallest {@code index.max_terms_count} of the indices {@code relation} reads, as shards reject a longer {@code terms} query.
+     * {@code 0} when unknown: an index on a remote cluster, or one this node holds no metadata for.
      */
     private int maxIndexedInSubqueryValues(EsRelation relation) {
         if (projectMetadata == null) {

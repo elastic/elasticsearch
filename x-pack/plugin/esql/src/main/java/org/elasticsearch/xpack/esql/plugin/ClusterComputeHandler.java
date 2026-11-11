@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -229,7 +230,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     Transport.Connection connection = remoteClusterService.getConnection(clusterAlias);
                     remoteClusters.add(new RemoteCluster(clusterAlias, connection, concreteIndices.indices(), originalIndices));
                 } catch (RuntimeException ex) {
-                    if (executionInfo.shouldSkipOnFailure(clusterAlias)) {
+                    if (ExceptionsHelper.isRemoteUnavailableException(ex) && executionInfo.shouldSkipOnFailure(clusterAlias)) {
                         ComputeService.markClusterAfterRuntimeBranchFailure(executionInfo, clusterAlias, false, ex);
                     } else {
                         throw ex;

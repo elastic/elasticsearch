@@ -22,7 +22,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -1049,7 +1048,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     private static long chargeQuery(QueryBuilder builder, SearchExecutionContext source, boolean estimateOnly) throws IOException {
         // Always build with a non-null breaker to match production, as pre-charged query handling depends on this.
         assertNotNull(source.getCircuitBreaker());
-        SearchExecutionContext context = estimateOnly ? new SearchExecutionContext(source, NoopCircuitBreaker.INSTANCE) : source;
+        SearchExecutionContext context = estimateOnly
+            ? new SearchExecutionContext(source, new NoopCircuitBreaker("estimate-only"))
+            : source;
 
         try {
             // Actual query charge
@@ -1061,8 +1062,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 Integer.MAX_VALUE,
                 context.getCircuitBreaker(),
                 context::isQueryMemoryPreCharged,
-                MaxClauseCountQueryVisitor.segmentCountOrDefault(context.getIndexReader()),
-                context.getIndexReader()
+                MaxClauseCountQueryVisitor.segmentCountOrDefault(context.getIndexReader())
             );
             query.visit(visitor);
             return visitor.getEstimatedBytes();
@@ -1165,7 +1165,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
         @Override
         public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
-            if (ChildMemoryCircuitBreaker.CATEGORY_QUERY.equals(label)) {
+            if ("query".equals(label)) {
                 queryBytes += bytes;
             }
         }

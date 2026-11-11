@@ -23,12 +23,14 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.DriverEarlyTerminationException;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
@@ -316,7 +318,10 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
                     context.checkForEarlyTermination();
                     result = Result.materialized(
                         page,
-                        registry.materialize(refs, refs.length, deferredColumnNames, deferredColumnTypes, blockFactory.parent())
+                        StorageRetryCancellation.callWithCancellation(
+                            () -> isDriverTerminated(context),
+                            () -> registry.materialize(refs, refs.length, deferredColumnNames, deferredColumnTypes, blockFactory.parent())
+                        )
                     );
                 } catch (Throwable t) {
                     result = Result.failure(page, t);
@@ -382,6 +387,15 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
             externalException.setDatasetLabel(datasetLabel);
         }
         return classified;
+    }
+
+    private static boolean isDriverTerminated(DriverContext context) {
+        try {
+            context.checkForEarlyTermination();
+            return false;
+        } catch (DriverEarlyTerminationException | TaskCancelledException ignored) {
+            return true;
+        }
     }
 
     /**

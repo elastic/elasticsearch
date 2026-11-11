@@ -212,6 +212,16 @@ public class SearchContextStats implements SearchStats {
     }
 
     @Override
+    public boolean readsKey(FieldName field) {
+        for (SearchExecutionContext context : contexts) {
+            if (context instanceof EsqlSearchExecutionContext esql && esql.readsKey(field.string())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
     public boolean isQueryable(FieldName field, DataType type, boolean comparesValuesAsRead) {
         boolean held = false;
         for (SearchExecutionContext context : contexts) {

@@ -802,9 +802,10 @@ final class ParquetColumnExtractor implements ColumnExtractor {
 
     /**
      * Polls the futures array for any completed slot, returning its index. Blocks on
-     * {@link CompletableFuture#anyOf} until at least one new future completes; subsequent
-     * scans are O(N) in the per-call array length, which is bounded by the number of
-     * surviving row groups (typically &lt; 32).
+     * {@link CompletableFuture#anyOf} until at least one new future completes, remaining
+     * responsive to {@link StorageRetryCancellation}; subsequent scans are O(N) in the
+     * per-call array length, which is bounded by the number of surviving row groups
+     * (typically &lt; 32).
      */
     private static int waitForNextCompleted(CompletableFuture<?>[] futures) {
         // Fast path: a future from a previous round may already be done. Scan first.
@@ -824,9 +825,10 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         }
         // anyOf blocks until any future completes (success or failure). We don't use anyOf's
         // result; we re-scan for the now-completed slot to recover the bucket index. That keeps
-        // the index ↔ bucket binding without a parallel HashMap lookup.
+        // the index ↔ bucket binding without a parallel HashMap lookup. Cancelling the anyOf
+        // composite does not cancel the prefetch futures; the caller's catch (Throwable) does.
         try {
-            CompletableFuture.anyOf(pendingList.toArray(CompletableFuture[]::new)).join();
+            StorageRetryCancellation.getWithCancellationChecks(CompletableFuture.anyOf(pendingList.toArray(CompletableFuture[]::new)));
         } catch (CompletionException ignored) {
             // anyOf surfaces the first failure; ignore here — the caller's get() on the failed
             // future will rethrow the underlying cause with proper unwrapping.

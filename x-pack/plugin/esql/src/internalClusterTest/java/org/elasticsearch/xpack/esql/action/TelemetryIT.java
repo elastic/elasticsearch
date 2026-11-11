@@ -435,7 +435,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         );
         Counters statsBefore = esqlStats();
 
-        int successIterations = randomInt(10);
+        int successIterations = randomIntBetween(1, 10);
         try {
             for (int i = 0; i < successIterations; i++) {
                 EsqlQueryRequest request = executeQuery(query, requestSettings);

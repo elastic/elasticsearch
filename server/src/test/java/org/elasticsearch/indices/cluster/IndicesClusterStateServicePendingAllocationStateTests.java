@@ -789,7 +789,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
     }
 
     /// Completes the currently-captured [RecoveryListener] successfully via
-    /// [RecoveryListener#onRecoveryDone], so tests can verify the creating-shard ticket is released
+    /// [RecoveryListener#onRecoveryDone], so tests can verify the InFlight ticket is released
     /// once recovery actually finishes (it's deliberately held through recovery, not just construction
     /// -- see [RecordingIndicesService#autoCompleteRecovery]).
     private void completeRecoveryViaListener() {

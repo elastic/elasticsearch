@@ -1118,10 +1118,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     @Override
                     public void onResponse(Boolean success) {
                         if (Boolean.TRUE.equals(success)) {
-                            // The creating-shard ticket is now owned by ShardRecoveryListener and will be released once recovery completes.
+                            // The InFlight ticket is now owned by ShardRecoveryListener and will be released once recovery completes.
                             logger.debug("{} created shard with primary term [{}]", shardId, primaryTerm);
                         } else {
-                            // False means we gave up because we no longer own the creating-shard attempt. Nothing to clean up.
+                            // False means we gave up because we no longer own the InFlight ticket. Nothing to clean up.
                             logger.debug("{} gave up while trying to create shard", shardId);
                         }
                     }
@@ -1249,7 +1249,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             if (pendingAllocationStates.get(key) != inFlightTicket) {
                                 // Not my claim anymore. Either the allocation went stale and was removed
                                 // when new cluster state applied or the shard has been failed and master has been notified.
-                                logger.debug("{} giving up on shard lock retry: no longer own the creating-shard attempt", key);
+                                logger.debug("{} giving up on shard lock retry: no longer own the InFlight ticket", key);
                                 listener.onResponse(false);
                                 return;
                             }
@@ -1523,7 +1523,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         private final long creationClusterStateVersion;
 
         /**
-         * The creating-shard ticket claimed for this attempt.
+         * The InFlight ticket claimed for this attempt.
          */
         private final PendingAllocationState.InFlight inFlightTicket;
 
@@ -1566,7 +1566,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 // means (or the master already knows because the master initiated it, e.g. by moving the shard).
                 final var key = ShardAllocationKey.fromRouting(shardRouting);
                 if (pendingAllocationStates.remove(key, inFlightTicket)) {
-                    logger.trace("{} recovery aborted; cleared creating-shard ticket", key);
+                    logger.trace("{} recovery aborted; cleared InFlight ticket", key);
                 } else {
                     logger.trace("{} recovery aborted; ticket no longer the current attempt", key);
                 }
@@ -1636,7 +1636,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (failureStrategy.notifyMaster() == false) {
                 // sendFailShard (which would otherwise overwrite this entry with FailureReported) didn't run,
                 // so nothing else clears this ticket -- there's no further attempt coming for it.
-                logger.debug("{} clearing creating-shard ticket: recovery failure strategy [{}]", key, failureStrategy);
+                logger.debug("{} clearing InFlight ticket: recovery failure strategy [{}]", key, failureStrategy);
                 pendingAllocationStates.remove(key, inFlightTicket);
             }
         } catch (Exception e) {

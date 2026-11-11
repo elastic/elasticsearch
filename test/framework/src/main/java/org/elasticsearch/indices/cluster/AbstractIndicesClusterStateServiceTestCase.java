@@ -212,7 +212,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
         /// Whether [createShard] should immediately simulate a successful recovery by calling
         /// the given [RecoveryListener#onRecoveryDone]. This mock never actually recovers, and
-        /// [IndicesClusterStateService] now relies on that callback to release the creating-shard
+        /// [IndicesClusterStateService] now relies on that callback to release the InFlight
         /// ticket it claimed, so most callers want this. Override to `false` for tests that drive
         /// recovery completion/failure manually via the captured listener.
         protected boolean autoCompleteRecovery() {

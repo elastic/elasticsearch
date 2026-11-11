@@ -3,12 +3,24 @@
 :::{include} approximation.md
 :::
 
+:::{include} column_metadata.md
+:::
+
 :::{include} project_routing.md
+:::
+
+:::{include} time_series_reduce_per_index.md
 :::
 
 :::{include} time_zone.md
 :::
 
 :::{include} unmapped_fields.md
+:::
+
+:::{include} wildcards_match_datasets.md
+:::
+
+:::{include} wildcards_match_views.md
 :::
 

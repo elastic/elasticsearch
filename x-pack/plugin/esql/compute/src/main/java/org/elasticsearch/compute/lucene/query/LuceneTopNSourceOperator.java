@@ -7,11 +7,17 @@
 
 package org.elasticsearch.compute.lucene.query;
 
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
@@ -21,6 +27,7 @@ import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -32,9 +39,14 @@ import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -57,12 +69,81 @@ import java.util.stream.Collectors;
  */
 public final class LuceneTopNSourceOperator extends LuceneOperator {
 
+    /**
+     * {@link DataPartitioning#AUTO} strategy for a field-sorted TopN. {@link LuceneSliceQueue.PartitioningStrategy#DOC}
+     * parallelizes a scan-dominant TopN across sub-segment slices, but for a sort that Lucene can short-circuit
+     * sub-segment slicing only adds overhead, so we keep {@link LuceneSliceQueue.PartitioningStrategy#SEGMENT} when:
+     * <ul>
+     *   <li>sorting by {@code _score} ({@code needsScore}) — out of scope for DOC for now;</li>
+     *   <li>the primary sort field has a points index (numeric/date/ip): the sort prunes via the BKD tree,
+     *       e.g. a data stream sorted by {@code @timestamp};</li>
+     *   <li>the query sort is congruent with the index sort: Lucene early-terminates per segment;</li>
+     *   <li>the filter contains a costly-to-build clause (point range, multi-term): sub-segment DOC slices would each
+     *       pay the full-segment scorer-build cost (BKD/automaton iterate in value order);</li>
+     *   <li>the query is cheap enough that DOC's per-slice overhead isn't worth it
+     *       ({@code cost < minCostForDoc}).</li>
+     * </ul>
+     * Otherwise (e.g. sorting on a keyword or a doc-values-only field with a scan-heavy {@code WHERE}) the sort
+     * is a full scan and DOC parallelizes it.
+     */
+    public static DataPartitioning.AutoStrategy autoStrategy(List<SortBuilder<?>> sorts, boolean needsScore, long minCostForDoc) {
+        if (needsScore || sorts.isEmpty() || sorts.get(0) instanceof FieldSortBuilder == false) {
+            return unusedLimit -> (ctx, query) -> LuceneSliceQueue.PartitioningStrategy.SEGMENT;
+        }
+        String primarySortField = ((FieldSortBuilder) sorts.get(0)).getFieldName();
+        return unusedLimit -> (ctx, query) -> pickStrategy(ctx, query, primarySortField, sorts, minCostForDoc);
+    }
+
+    // Visible for testing.
+    static LuceneSliceQueue.PartitioningStrategy pickStrategy(
+        ShardContext ctx,
+        Query query,
+        String primarySortField,
+        List<SortBuilder<?>> sorts,
+        long minCostForDoc
+    ) {
+        try {
+            List<LeafReaderContext> leaves = ctx.searcher().getIndexReader().leaves();
+            // Primary sort field has a points index -> the sort prunes via the points tree; DOC breaks it.
+            for (LeafReaderContext leaf : leaves) {
+                FieldInfo fieldInfo = leaf.reader().getFieldInfos().fieldInfo(primarySortField);
+                if (fieldInfo != null && fieldInfo.getPointDimensionCount() > 0) {
+                    return LuceneSliceQueue.PartitioningStrategy.SEGMENT;
+                }
+            }
+            // Sort congruent with the index sort -> Lucene early-terminates per segment.
+            if (leaves.isEmpty() == false) {
+                Sort indexSort = leaves.get(0).reader().getMetaData().sort();
+                if (indexSort != null) {
+                    Optional<SortAndFormats> searchSort = ctx.buildSort(sorts);
+                    if (searchSort.isPresent() && Lucene.canEarlyTerminate(searchSort.get().sort, indexSort)) {
+                        return LuceneSliceQueue.PartitioningStrategy.SEGMENT;
+                    }
+                }
+            }
+            // Past the sort short-circuits, share the AUTO decision with the source and count operators: a field sort must
+            // examine every matching doc (no early termination), so a costly clause -> SEGMENT and a cheap query -> SEGMENT
+            // (below the threshold DOC's per-slice overhead isn't amortized); otherwise the sort is a full scan -> DOC.
+            return LuceneSourceOperator.Factory.autoPartitioning(
+                ctx,
+                query,
+                LuceneSliceQueue.PartitioningStrategy.DOC, // matchAll: a field sort must scan every doc
+                minCostForDoc,
+                LuceneSliceQueue.PartitioningStrategy.SEGMENT // cheap / empty
+            );
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     public static class Factory extends LuceneOperator.Factory {
         private final IndexedByShardId<? extends ShardContext> contexts;
         private final int maxPageSize;
         private final List<SortBuilder<?>> sorts;
         private final long estimatedPerRowSortSize;
         final PerShardCollectorProvider perShardCollectorProvider;
+        @Nullable
+        private final SharedSortBound sortBound;
 
         public Factory(
             IndexedByShardId<? extends ShardContext> contexts,
@@ -75,21 +156,57 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             List<SortBuilder<?>> sorts,
             long estimatedPerRowSortSize,
             boolean needsScore,
-            LongSupplier directoryBytesRead
+            LongSupplier directoryBytesRead,
+            QueryWarnings singleValueQueryWarnings
+        ) {
+            this(
+                contexts,
+                queryFunction,
+                dataPartitioning,
+                autoStrategy,
+                taskConcurrency,
+                maxPageSize,
+                limit,
+                sorts,
+                estimatedPerRowSortSize,
+                needsScore,
+                directoryBytesRead,
+                singleValueQueryWarnings,
+                null
+            );
+        }
+
+        /**
+         * @param sortBound the bound shared by the operators of the request, used when the first sort key is a field, or {@code null}
+         */
+        public Factory(
+            IndexedByShardId<? extends ShardContext> contexts,
+            Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
+            DataPartitioning dataPartitioning,
+            DataPartitioning.AutoStrategy autoStrategy,
+            int taskConcurrency,
+            int maxPageSize,
+            int limit,
+            List<SortBuilder<?>> sorts,
+            long estimatedPerRowSortSize,
+            boolean needsScore,
+            LongSupplier directoryBytesRead,
+            QueryWarnings singleValueQueryWarnings,
+            @Nullable SharedSortBound sortBound
         ) {
             super(
                 contexts,
                 queryFunction,
                 dataPartitioning,
-                dataPartitioning == DataPartitioning.AUTO ? autoStrategy.pickStrategy(limit) : query -> {
-                    throw new UnsupportedOperationException("locked in " + dataPartitioning);
-                },
+                autoStrategy.pickStrategy(limit),
                 LuceneOperator.SMALL_INDEX_BOUNDARY,
                 taskConcurrency,
                 limit,
                 needsScore,
                 scoreModeFunction(sorts, needsScore),
-                directoryBytesRead
+                directoryBytesRead,
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+                singleValueQueryWarnings
             );
             this.contexts = contexts;
             this.maxPageSize = maxPageSize;
@@ -98,6 +215,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
             // Create provider once - will be shared across all operators
             this.perShardCollectorProvider = new PerShardCollectorProvider(limit, needsScore, sorts);
+            this.sortBound = sortBound;
         }
 
         @Override
@@ -112,7 +230,9 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 sliceQueue,
                 needsScore,
                 perShardCollectorProvider,
-                directoryBytesRead
+                directoryBytesRead,
+                singleValueQueryWarnings,
+                sortBound
             );
         }
 
@@ -159,6 +279,17 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
     private PerShardCollector perShardCollector;
 
+    /**
+     * The field of the first sort key, which skips the shards that can't beat the bound, or {@code null}.
+     */
+    @Nullable
+    private final String boundField;
+    private final boolean boundAscending;
+    private final boolean boundMissingFirst;
+    @Nullable
+    private final SharedSortBound sortBound;
+    private boolean skipCurrentShard;
+
     public LuceneTopNSourceOperator(
         IndexedByShardId<? extends ShardContext> contexts,
         DriverContext driverContext,
@@ -169,15 +300,61 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         LuceneSliceQueue sliceQueue,
         boolean needsScore,
         PerShardCollectorProvider perShardCollectorProvider,
-        LongSupplier directoryBytesRead
+        LongSupplier directoryBytesRead,
+        QueryWarnings singleValueQueryWarnings
     ) {
-        super(contexts, driverContext.blockFactory(), maxPageSize, sliceQueue, directoryBytesRead);
+        this(
+            contexts,
+            driverContext,
+            maxPageSize,
+            sorts,
+            estimatedPerRowSortSize,
+            limit,
+            sliceQueue,
+            needsScore,
+            perShardCollectorProvider,
+            directoryBytesRead,
+            singleValueQueryWarnings,
+            null
+        );
+    }
+
+    public LuceneTopNSourceOperator(
+        IndexedByShardId<? extends ShardContext> contexts,
+        DriverContext driverContext,
+        int maxPageSize,
+        List<SortBuilder<?>> sorts,
+        long estimatedPerRowSortSize,
+        int limit,
+        LuceneSliceQueue sliceQueue,
+        boolean needsScore,
+        PerShardCollectorProvider perShardCollectorProvider,
+        LongSupplier directoryBytesRead,
+        QueryWarnings singleValueQueryWarnings,
+        @Nullable SharedSortBound sortBound
+    ) {
+        super(contexts, driverContext, maxPageSize, sliceQueue, directoryBytesRead, singleValueQueryWarnings);
         this.driverContext = driverContext;
         this.sorts = sorts;
         this.estimatedPerRowSortSize = estimatedPerRowSortSize;
         this.limit = limit;
         this.needsScore = needsScore;
         this.perShardCollectorProvider = perShardCollectorProvider;
+        // The other sort keys only order the rows that tie on the first one, so the bound only needs the first key
+        if (sortBound != null
+            && sortBound.sharedWith(sorts.size())
+            && sorts.getFirst() instanceof FieldSortBuilder field
+            && (field.missing() == null || "_last".equals(field.missing()) || "_first".equals(field.missing()))) {
+            this.boundField = field.getFieldName();
+            this.boundAscending = field.order() == SortOrder.ASC;
+            this.boundMissingFirst = "_first".equals(field.missing());
+            this.sortBound = sortBound;
+        } else {
+            this.boundField = null;
+            this.boundAscending = false;
+            this.boundMissingFirst = false;
+            this.sortBound = null;
+        }
         driverContext.breaker().addEstimateBytesAndMaybeBreak(reserveSize(), "esql lucene topn");
     }
 
@@ -224,9 +401,15 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             try {
                 if (perShardCollector == null || perShardCollector.shardContext.index() != scorer.shardContext().index()) {
                     perShardCollector = perShardCollectorProvider.newPerShardCollector(scorer.shardContext());
+                    skipCurrentShard = cannotBeatBound(scorer.shardContext());
                 }
-                var leafCollector = perShardCollector.getLeafCollector(scorer.leafReaderContext());
-                scorer.scoreNextRange(leafCollector, scorer.leafReaderContext().reader().getLiveDocs(), NUM_DOCS_INTERVAL);
+                if (skipCurrentShard) {
+                    // Collects nothing, so the shard emits like a shard without matches
+                    scorer.markAsDone();
+                } else {
+                    var leafCollector = perShardCollector.getLeafCollector(scorer.leafReaderContext());
+                    scorer.scoreNextRange(leafCollector, scorer.leafReaderContext().reader().getLiveDocs(), NUM_DOCS_INTERVAL);
+                }
             } catch (CollectionTerminatedException cte) {
                 // Lucene terminated early the collection (doing topN for an index that's sorted and the topN uses the same sorting)
                 scorer.markAsDone();
@@ -246,7 +429,9 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
             // When it takes a long time to start emitting pages we need to return back to the driver so we can update its status.
             // Even if this should almost never happen, we want to update the driver status even when a query runs "forever".
-            if (System.nanoTime() - start > Driver.DEFAULT_STATUS_INTERVAL.getNanos()) {
+            // But not once the last slice is done: getCurrentOrLoadNextScorer() has then set doneCollecting, which makes isFinished()
+            // true while nothing is emitting, so returning here would drop everything that was collected without an error.
+            if (doneCollecting == false && System.nanoTime() - start > Driver.DEFAULT_STATUS_INTERVAL.getNanos()) {
                 return null;
             }
         }
@@ -273,7 +458,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
              * array.
              */
             topDocs = perShardCollector.collector.topDocs().scoreDocs;
-            int shardId = perShardCollector.shardContext.index();
+            offerBound(perShardCollector.shardContext);
         } else {
             topDocs = new ScoreDoc[0];
         }
@@ -375,6 +560,65 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     @Override
     protected void additionalClose() {
         Releasables.close(() -> driverContext.breaker().addWithoutBreaking(-reserveSize()));
+    }
+
+    /**
+     * Offers the first sort key of the last row of a full top N to the shared bound.
+     */
+    private void offerBound(ShardContext shardContext) {
+        if (sortBound == null || topDocs.length < limit || topDocs.length == 0) {
+            return;
+        }
+        DateFieldMapper.Resolution resolution = resolution(shardContext);
+        // Documents without a value sort with the extreme values, which aren't a bound
+        if (resolution != null
+            && topDocs[topDocs.length - 1] instanceof FieldDoc last
+            && last.fields[0] instanceof Long value
+            && value != Long.MIN_VALUE
+            && value != Long.MAX_VALUE) {
+            sortBound.offer(boundField, boundAscending, resolution, value);
+        }
+    }
+
+    /**
+     * Whether no value of the sort field in the shard can beat the shared bound.
+     */
+    private boolean cannotBeatBound(ShardContext shardContext) throws IOException {
+        if (sortBound == null || (shardContext.fieldType(boundField) instanceof DateFieldMapper.DateFieldType) == false) {
+            return false;
+        }
+        DateFieldMapper.DateFieldType fieldType = (DateFieldMapper.DateFieldType) shardContext.fieldType(boundField);
+        // An alias resolves to the field that holds the statistics
+        String name = fieldType.name();
+        IndexReader reader = shardContext.searcher().getIndexReader();
+        long min;
+        long max;
+        if (fieldType.indexType().hasPoints()) {
+            // Documents without a value beat any bound when they sort first
+            if (boundMissingFirst && PointValues.getDocCount(reader, name) != reader.maxDoc()) {
+                return false;
+            }
+            byte[] minPacked = PointValues.getMinPackedValue(reader, name);
+            byte[] maxPacked = PointValues.getMaxPackedValue(reader, name);
+            // Without points, no document has a value
+            min = minPacked == null ? Long.MAX_VALUE : LongPoint.decodeDimension(minPacked, 0);
+            max = maxPacked == null ? Long.MIN_VALUE : LongPoint.decodeDimension(maxPacked, 0);
+        } else if (fieldType.indexType().hasDocValuesSkipper()) {
+            if (boundMissingFirst && DocValuesSkipper.globalDocCount(reader, name) != reader.maxDoc()) {
+                return false;
+            }
+            // Unknown bounds come back as the widest range
+            min = DocValuesSkipper.globalMinValue(reader, name);
+            max = DocValuesSkipper.globalMaxValue(reader, name);
+        } else {
+            return false;
+        }
+        return sortBound.canSkip(boundField, boundAscending, fieldType.resolution(), min, max);
+    }
+
+    @Nullable
+    private DateFieldMapper.Resolution resolution(ShardContext shardContext) {
+        return shardContext.fieldType(boundField) instanceof DateFieldMapper.DateFieldType date ? date.resolution() : null;
     }
 
     private long reserveSize() {

@@ -16,6 +16,7 @@ import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.search.NestedDocuments;
 
 import java.io.IOException;
 import java.util.Map;
@@ -33,10 +34,16 @@ class ConcurrentSegmentSourceProvider implements SourceProvider {
     private final SourceLoader sourceLoader;
     private final StoredFieldLoader storedFieldLoader;
     private final Map<Object, Leaf> leaves = ConcurrentCollections.newConcurrentMap();
+    private volatile TransientLeaf transientLeaf;
     private final boolean isStoredSource;
 
-    ConcurrentSegmentSourceProvider(MappingLookup lookup, SourceFilter filter, SourceFieldMetrics metrics) {
-        this.sourceLoaderProvider = sourceFilter -> lookup.newSourceLoader(sourceFilter, metrics);
+    ConcurrentSegmentSourceProvider(
+        MappingLookup lookup,
+        SourceFilter filter,
+        SourceFieldMetrics metrics,
+        NestedDocuments nestedDocuments
+    ) {
+        this.sourceLoaderProvider = sourceFilter -> lookup.newSourceLoader(sourceFilter, metrics, nestedDocuments);
         this.sourceLoader = sourceLoaderProvider.apply(filter);
         // we force a sequential reader here since it is used during query execution where documents are scanned sequentially
         this.isStoredSource = lookup.isSourceSynthetic() == false;
@@ -57,7 +64,10 @@ class ConcurrentSegmentSourceProvider implements SourceProvider {
         final Object id = ctx.id();
         var leaf = leaves.get(id);
         if (leaf == null) {
-            leaf = new Leaf(sourceLoader.leaf(ctx.reader(), null), storedFieldLoader.getLoader(ctx, null));
+            if (ctx.reader().getCoreCacheHelper() == null) {
+                return getTransientSource(ctx, id, doc);
+            }
+            leaf = new Leaf(sourceLoader.leaf(ctx, null), storedFieldLoader.getLoader(ctx, null));
             var existing = leaves.put(id, leaf);
             assert existing == null : "unexpected source provider [" + existing + "]";
         } else if (isStoredSource == false && doc < leaf.doc) {
@@ -66,8 +76,25 @@ class ConcurrentSegmentSourceProvider implements SourceProvider {
             // clause. This is okay for stored source, as stored fields do not restrict the order that docIds that can be accessed.
             // But with synthetic source, field values may come from doc values, which require than docIds only be read in increasing order.
             // To handle this, we detect lower docIds and create a new doc value reader for each clause.
-            leaf = new Leaf(sourceLoader.leaf(ctx.reader(), null), storedFieldLoader.getLoader(ctx, null));
+            leaf = new Leaf(sourceLoader.leaf(ctx, null), storedFieldLoader.getLoader(ctx, null));
             leaves.put(id, leaf);
+        }
+        return leaf.getSource(ctx, doc);
+    }
+
+    /**
+     * Readers without a core cache helper are short-lived wrappers, such as the per-document readers the unified highlighter
+     * builds for every hit and field. Their contexts are not seen again once the caller is done with them, so caching a leaf
+     * per context would grow without bound for the lifetime of the request. Only the leaf of the most recent one is kept.
+     */
+    private Source getTransientSource(LeafReaderContext ctx, Object id, int doc) throws IOException {
+        TransientLeaf current = transientLeaf;
+        Leaf leaf;
+        if (current != null && current.id() == id && (isStoredSource || doc >= current.leaf().doc)) {
+            leaf = current.leaf();
+        } else {
+            leaf = new Leaf(sourceLoader.leaf(ctx, null), storedFieldLoader.getLoader(ctx, null));
+            transientLeaf = new TransientLeaf(id, leaf);
         }
         return leaf.getSource(ctx, doc);
     }
@@ -102,4 +129,6 @@ class ConcurrentSegmentSourceProvider implements SourceProvider {
             return source = sourceLoader.source(storedFieldLoader, doc);
         }
     }
+
+    private record TransientLeaf(Object id, Leaf leaf) {}
 }

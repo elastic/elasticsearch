@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.compress;
 
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.Zstd;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.zstd.Zstd;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -31,9 +31,11 @@ import java.io.InputStream;
  *
  * <p><b>Buffer footprint.</b> One heap {@code byte[srcBuffSize]} (≈ 128 KB, sized to
  * {@code ZSTD_DStreamInSize}) for the wrapper-side compressed-input scratch, plus the
- * {@link Zstd.DStream} which holds the libzstd {@code ZSTD_DStream*} (~256 KB internal allocation),
- * two 24-byte struct holders, and — inside {@code JdkDStream} — off-heap input and output staging
- * buffers sized to {@code ZSTD_DStreamInSize} / {@code ZSTD_DStreamOutSize}. The original plan was
+ * {@link Zstd.DStream} which holds the libzstd {@code ZSTD_DStream*} context (the back-reference
+ * window it allocates is capped at 8 MiB — see {@code Zstd#newDStream}), two 24-byte struct holders,
+ * and — inside {@code JdkDStream} — off-heap input and output staging buffers sized to
+ * {@code ZSTD_DStreamInSize} / {@code ZSTD_DStreamOutSize}. Only the off-heap portion is charged to
+ * the circuit breaker; the ~128 KB heap scratch above rides the JVM heap. The original plan was
  * to skip the off-heap output buffer and let libzstd write straight into the caller's heap array
  * via {@code MemorySegment.ofArray} + {@code Linker.Option.critical(true)}, but Panama explicitly
  * forbids embedding a heap segment as the {@code ptr} field of an off-heap struct passed to a
@@ -54,7 +56,7 @@ public final class PanamaZstdInputStream extends FilterInputStream {
      * (libzstd 1.5.7 returns 128 KB). Caching avoids an FFI call per stream construction. Mirrors
      * the {@code static final} cache zstd-jni's {@code ZstdInputStreamNoFinalizer} maintains.
      *
-     * <p>Resolved through the {@link NativeAccess#instance() global NativeAccess} singleton rather
+     * <p>Resolved through the {@link Zstd#instance() global Zstd} singleton rather
      * than the {@code Zstd} instance passed to the constructor: the {@code Zstd} ctor-parameter
      * exists purely so {@code ZstdDecompressionCodec} (and tests) can inject the production instance
      * without making this class call a static itself, but the per-class buffer size is a JVM-wide
@@ -64,10 +66,23 @@ public final class PanamaZstdInputStream extends FilterInputStream {
      * correct value: feeding the SPI from a {@code byte[]} sized for a different {@code Zstd} would
      * either over- or under-feed {@code JdkDStream}'s internal staging buffer.
      */
-    private static final int srcBuffSize = NativeAccess.instance().getZstd().dStreamInSize();
+    private static final int srcBuffSize = Zstd.instance().dStreamInSize();
 
     private final Zstd.DStream dstream;
     private final byte[] src;
+    /**
+     * Circuit breaker the native footprint is accounted against, or {@code null} when accounting is
+     * disabled. Charged at construction, topped up once after the first read (see
+     * {@link #refreshBreakerAccounting}), and released on {@link #close()}.
+     */
+    private final CircuitBreaker breaker;
+    /**
+     * Bytes currently reserved against {@link #breaker}. Starts at the DStream's pre-window footprint
+     * charged in the constructor, then rises by the delta once the decode window is allocated. The
+     * exact amount released on {@link #close()}.
+     */
+    private long accountedBytes;
+    private boolean accountingRefreshed = false;
 
     private int srcPos = 0;
     private int srcSize = 0;
@@ -76,15 +91,30 @@ public final class PanamaZstdInputStream extends FilterInputStream {
     private boolean isClosed = false;
 
     /**
-     * Wrap {@code in}. The caller must check {@link PanamaZstd#isAvailable()} before constructing —
-     * this constructor assumes the native binding is loaded.
+     * Wrap {@code in} without breaker accounting. Preserves the historical footprint-invisible
+     * behavior; equivalent to {@code PanamaZstdInputStream(in, zstd, null)}.
      */
     PanamaZstdInputStream(InputStream in, Zstd zstd) {
+        this(in, zstd, null);
+    }
+
+    /**
+     * Wrap {@code in}, accounting the native footprint against {@code breaker} (or skipping
+     * accounting when {@code breaker} is {@code null}). The caller must check
+     * {@link PanamaZstd#isAvailable()} before constructing — this constructor assumes the native
+     * binding is loaded.
+     *
+     * <p>Construction charges with {@code addEstimateBytesAndMaybeBreak} so a saturated breaker
+     * rejects the stream before decode starts. Subsequent window growth uses {@code addWithoutBreaking}
+     * so an in-flight stream is never aborted mid-file. The reservation is released exactly once on
+     * {@link #close()} (idempotent via {@link #isClosed}).
+     */
+    PanamaZstdInputStream(InputStream in, Zstd zstd, CircuitBreaker breaker) {
         super(in);
         // Acquire the native DStream FIRST, then allocate the heap byte[]. If the heap allocation
         // throws (e.g. OutOfMemoryError on a fragmented heap) we must free the libzstd context we
-        // just got back from ZSTD_createDStream — otherwise we leak ~256 KB of native memory per
-        // failed construction.
+        // just got back from ZSTD_createDStream — otherwise we leak the native context and staging
+        // buffers per failed construction.
         Zstd.DStream s = zstd.newDStream();
         try {
             this.src = new byte[srcBuffSize];
@@ -92,7 +122,22 @@ public final class PanamaZstdInputStream extends FilterInputStream {
             s.close();
             throw t;
         }
+        // Account the native footprint against the breaker once the stream is fully built. If the
+        // breaker interaction throws, free the DStream we just acquired so we do not leak the native
+        // context on the failure path.
+        long charged = 0L;
+        if (breaker != null) {
+            try {
+                charged = s.accountedBytes();
+                breaker.addEstimateBytesAndMaybeBreak(charged, "zstd-dstream");
+            } catch (Throwable t) {
+                s.close();
+                throw t;
+            }
+        }
         this.dstream = s;
+        this.breaker = breaker;
+        this.accountedBytes = charged;
     }
 
     @Override
@@ -160,6 +205,9 @@ public final class PanamaZstdInputStream extends FilterInputStream {
             }
             dstPos = dstream.lastDstPos();
             srcPos = dstream.lastSrcPos();
+            // The first decompress call parses the frame header and allocates the back-reference
+            // window, so the DStream's real footprint is only known now — top up the breaker once.
+            refreshBreakerAccounting();
 
             if (hint == 0) {
                 // Frame fully decoded. We only need to refill if the input buffer is also drained;
@@ -174,6 +222,27 @@ public final class PanamaZstdInputStream extends FilterInputStream {
             }
         }
         return dstPos - offset;
+    }
+
+    /**
+     * Fold the decode window into the breaker reservation, exactly once, after the first
+     * {@link Zstd.DStream#decompress} call has allocated it. {@link Zstd.DStream#accountedBytes()}
+     * returns the pre-window footprint before the first read and the steady-state footprint after, so
+     * the delta is the window (and any lazily-grown context). Uses {@code addWithoutBreaking}: this
+     * never rejects an in-flight stream, it only keeps the breaker's view honest. Guarded so the hot
+     * read loop pays the cost once; the released amount in {@link #close()} tracks the topped-up total.
+     */
+    private void refreshBreakerAccounting() {
+        if (breaker == null || accountingRefreshed) {
+            return;
+        }
+        accountingRefreshed = true;
+        long current = dstream.accountedBytes();
+        long delta = current - accountedBytes;
+        if (delta != 0) {
+            breaker.addWithoutBreaking(delta);
+            accountedBytes = current;
+        }
     }
 
     @Override
@@ -238,7 +307,7 @@ public final class PanamaZstdInputStream extends FilterInputStream {
     }
 
     private static final class SkipBufferSizeHolder {
-        static final int VALUE = NativeAccess.instance().getZstd().dStreamOutSize();
+        static final int VALUE = Zstd.instance().dStreamOutSize();
     }
 
     @Override
@@ -248,11 +317,20 @@ public final class PanamaZstdInputStream extends FilterInputStream {
         }
         isClosed = true;
         // Close the upstream regardless of whether dstream.close() throws, otherwise a misbehaving
-        // libzstd would leak the upstream file/blob descriptor.
+        // libzstd would leak the upstream file/blob descriptor. Release the breaker reservation once
+        // (guarded by isClosed above) before closing the upstream.
         try {
             dstream.close();
         } finally {
-            in.close();
+            // Release the breaker reservation once, but never let an accounting hiccup skip the
+            // upstream close — a leaked file/blob descriptor is worse than a stale breaker delta.
+            try {
+                if (breaker != null) {
+                    breaker.addWithoutBreaking(-accountedBytes);
+                }
+            } finally {
+                in.close();
+            }
         }
     }
 }

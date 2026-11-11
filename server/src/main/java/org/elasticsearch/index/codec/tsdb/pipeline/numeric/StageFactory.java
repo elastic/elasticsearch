@@ -14,6 +14,7 @@ import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageSpec;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpDoubleTransformStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.BitPackCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GcdCodecStage;
@@ -36,16 +37,18 @@ public final class StageFactory {
     /**
      * Creates a transform stage from a specification.
      *
-     * @param spec the stage specification
+     * @param spec      the stage specification
+     * @param blockSize the number of values per block; used to size stage scratch buffers
      * @return the concrete stage instance
      * @throws IllegalArgumentException if the spec is not a transform stage
      */
-    static NumericCodecStage newTransformStage(final StageSpec spec) {
+    static NumericCodecStage newTransformStage(final StageSpec spec, int blockSize) {
         return switch (spec) {
             case StageSpec.DeltaStage ignored -> DeltaCodecStage.INSTANCE;
             case StageSpec.OffsetStage ignored -> OffsetCodecStage.INSTANCE;
             case StageSpec.GcdStage ignored -> GcdCodecStage.INSTANCE;
             case StageSpec.SplitDeltaStage splitDelta -> new SplitDeltaCodecStage(splitDelta.kMax());
+            case StageSpec.AlpDoubleStage ignored -> new AlpDoubleTransformStage(blockSize);
             default -> throw new IllegalArgumentException("Not a transform stage: " + spec);
         };
     }
@@ -79,7 +82,8 @@ public final class StageFactory {
             case DELTA_STAGE -> new StageSpec.DeltaStage();
             case OFFSET_STAGE -> new StageSpec.OffsetStage();
             case GCD_STAGE -> new StageSpec.GcdStage();
-            case SPLIT_DELTA_STAGE -> new StageSpec.SplitDeltaStage(StageSpec.SplitDeltaStage.DEFAULT_K_MAX);
+            case SPLIT_DELTA_STAGE -> new StageSpec.SplitDeltaStage(StageSpec.SplitDeltaStage.MAX_K_MAX);
+            case ALP_DOUBLE_STAGE -> new StageSpec.AlpDoubleStage();
             case BITPACK_PAYLOAD -> new StageSpec.BitPackPayload();
         };
     }

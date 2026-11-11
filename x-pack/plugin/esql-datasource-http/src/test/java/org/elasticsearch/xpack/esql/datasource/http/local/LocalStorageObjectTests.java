@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.http.local;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -71,5 +72,27 @@ public class LocalStorageObjectTests extends ESTestCase {
         LocalStorageObject obj = new LocalStorageObject(file);
         // -1 is the READ_TO_END sentinel; any other negative length is still rejected.
         expectThrows(IllegalArgumentException.class, () -> obj.newStream(0, -2));
+    }
+
+    /**
+     * The location exposed by {@link LocalStorageObject#path()} is the key under which data nodes record
+     * captured source statistics, and it must match the canonical {@code file://} form the coordinator
+     * derives for the schema-cache key ({@link StoragePath#fileUri}). If they diverge — as they did on
+     * Windows, where {@code toAbsolutePath()} keeps backslashes — the coordinator drops every captured
+     * contribution and cold→warm pushdown never short-circuits.
+     * <p>
+     * We assert the object goes through the shared {@link StoragePath#ofLocalPath} factory, and also
+     * pin the canonical shape directly (no backslashes, three-slash {@code file:///} prefix). The shape
+     * checks are trivially true on POSIX but encode the Windows contract: reverting the constructor to
+     * {@code "file://" + toAbsolutePath()} would reintroduce backslashes / a two-slash prefix and fail
+     * here on Windows. Full cross-platform coverage still relies on the {@code test-windows} CI lane.
+     */
+    public void testPathUsesCanonicalFileUri() throws IOException {
+        Path file = createTempFile();
+        LocalStorageObject obj = new LocalStorageObject(file);
+        assertEquals(StoragePath.ofLocalPath(file), obj.path());
+        String location = obj.path().toString();
+        assertFalse("canonical location must not contain backslashes: " + location, location.contains("\\"));
+        assertTrue("canonical location must use the three-slash file:/// form: " + location, location.startsWith("file:///"));
     }
 }

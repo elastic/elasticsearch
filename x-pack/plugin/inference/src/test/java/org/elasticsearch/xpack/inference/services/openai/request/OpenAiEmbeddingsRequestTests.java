@@ -7,15 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.openai.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
+import org.elasticsearch.xpack.inference.common.oauth2.NoopTokenCache;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests;
@@ -33,11 +34,11 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel.buildDefaultUri;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 public class OpenAiEmbeddingsRequestTests extends ESTestCase {
-    public void testCreateRequest_WithUrlOrganizationUser_AndCustomHeadersDefined() throws IOException {
+    public void testCreateRequest_WithUrlOrganizationUser_AndCustomHeadersDefined() throws IOException, URISyntaxException {
 
         var headerKey = "key";
         var headerValue = "value";
@@ -49,7 +50,10 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
             new OpenAiEmbeddingsServiceSettings("model", URI.create("www.elastic.co"), "org", null, null, null, false, null),
             new OpenAiEmbeddingsTaskSettings("user", Map.of(headerKey, headerValue)),
             null,
-            new DefaultSecretSettings(new SecureString("secret".toCharArray()))
+            new DefaultSecretSettings(new SecureString("secret".toCharArray())),
+            mock(ThreadPool.class),
+            NoopTokenCache.INSTANCE,
+            Utils.mockOAuth2ClusterSettings()
         );
 
         var request = new OpenAiEmbeddingsRequest(
@@ -60,16 +64,15 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getURI().toString(), is("www.elastic.co"));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getUri().toString(), is("www.elastic.co"));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         assertThat(httpPost.getLastHeader(ORGANIZATION_HEADER).getValue(), is("org"));
         assertThat(httpPost.getLastHeader(headerKey).getValue(), is(headerValue));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(4));
         assertThat(requestMap.get("input"), is(List.of("abc")));
         assertThat(requestMap.get("model"), is("model"));
@@ -81,15 +84,14 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
         var request = createRequest(null, "org", "secret", "abc", "model", "user");
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getURI().toString(), is(buildDefaultUri().toString()));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getUri().toString(), is(buildDefaultUri().toString()));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         assertThat(httpPost.getLastHeader(ORGANIZATION_HEADER).getValue(), is("org"));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(4));
         assertThat(requestMap.get("input"), is(List.of("abc")));
         assertThat(requestMap.get("model"), is("model"));
@@ -101,15 +103,14 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
         var request = createRequest(null, null, "secret", "abc", "model", null);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getURI().toString(), is(buildDefaultUri().toString()));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getUri().toString(), is(buildDefaultUri().toString()));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         assertNull(httpPost.getLastHeader(ORGANIZATION_HEADER));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(3));
         assertThat(requestMap.get("input"), is(List.of("abc")));
         assertThat(requestMap.get("model"), is("model"));
@@ -122,10 +123,9 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(request.getURI().toString(), is(buildDefaultUri().toString()));
 
         var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var httpPost = httpRequest.httpRequest();
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(3));
         assertThat(requestMap.get("input"), is(List.of("ab")));
         assertThat(requestMap.get("model"), is("model"));

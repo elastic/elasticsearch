@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/discovery-gce-usage-long.html
 ---
 
-# Setting up GCE Discovery [discovery-gce-usage-long]
+# Setting up GCE discovery [discovery-gce-usage-long]
 
 ## Prerequisites [discovery-gce-usage-long-prerequisites]
 
@@ -73,7 +73,7 @@ Failing to set this will result in unauthorized messages when starting Elasticse
 Once connected,  [install {{es}}](docs-content://deploy-manage/deploy/self-managed/installing-elasticsearch.md).
 
 
-## Install Elasticsearch discovery gce plugin [discovery-gce-usage-long-install-plugin]
+## Install the Elasticsearch discovery GCE plugin [discovery-gce-usage-long-install-plugin]
 
 Install the plugin:
 

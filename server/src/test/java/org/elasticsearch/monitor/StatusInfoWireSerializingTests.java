@@ -31,4 +31,17 @@ public class StatusInfoWireSerializingTests extends AbstractWireSerializingTestC
         // Since StatusInfo is a record, we don't need to check for equality
         return null;
     }
+
+    public void testNullStatusIsRejected() {
+        NullPointerException e = expectThrows(NullPointerException.class, () -> new StatusInfo(null, randomAlphaOfLengthBetween(0, 200)));
+        assertEquals("Expected a non null status", e.getMessage());
+    }
+
+    public void testNullInfoIsRejected() {
+        NullPointerException e = expectThrows(
+            NullPointerException.class,
+            () -> new StatusInfo(randomFrom(StatusInfo.Status.values()), null)
+        );
+        assertEquals("Expected a non null info", e.getMessage());
+    }
 }

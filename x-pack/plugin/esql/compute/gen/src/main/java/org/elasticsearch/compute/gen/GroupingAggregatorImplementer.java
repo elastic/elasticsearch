@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.gen;
 
+import com.squareup.javapoet.ArrayTypeName;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.CodeBlock;
 import com.squareup.javapoet.FieldSpec;
@@ -52,6 +53,9 @@ import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_VECTOR;
+import static org.elasticsearch.compute.gen.Types.BYTES_REF;
+import static org.elasticsearch.compute.gen.Types.BYTES_REF_SEQUENCE;
+import static org.elasticsearch.compute.gen.Types.CIRCUIT_BREAKER;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_EVALUATOR_CONTEXT;
@@ -82,11 +86,14 @@ import static org.elasticsearch.compute.gen.Types.vectorType;
  */
 public class GroupingAggregatorImplementer {
     private static final List<ClassName> GROUP_IDS_CLASSES = List.of(INT_ARRAY_BLOCK, INT_BIG_ARRAY_BLOCK, INT_VECTOR);
+    private static final ClassName PARTITIONED_STATE = GROUPING_AGGREGATOR_FUNCTION.nestedClass("PartitionedState");
+    private static final ClassName PARTITION_SPLITTER = GROUPING_AGGREGATOR_FUNCTION.nestedClass("PartitionSplitter");
 
     private final TypeElement declarationType;
     private final List<TypeMirror> warnExceptions;
     private final ExecutableElement init;
     private final ExecutableElement combine;
+    private final boolean combineOnState;
     private final ExecutableElement prepareEvaluateIntermediate;
     private final ExecutableElement prepareEvaluateFinal;
     private final List<Parameter> createParameters;
@@ -102,6 +109,15 @@ public class GroupingAggregatorImplementer {
     private final int positionParamIndex;
     private final boolean anyArgumentSupportsVectors;
     private final boolean processNulls;
+    private final boolean supportsPartitioning;
+    private final boolean hasCombinePartition;
+    /**
+     * True when partition values are {@code BytesRefSequence} and must be merged via
+     * {@code combineIntermediate} rather than {@code combine}. This applies when the state
+     * is non-primitive but the first input argument is not {@code BytesRef} — meaning
+     * {@code combine} cannot accept a serialized partition value directly.
+     */
+    private final boolean useIntermediateForPartitions;
 
     public GroupingAggregatorImplementer(
         Elements elements,
@@ -109,7 +125,8 @@ public class GroupingAggregatorImplementer {
         TypeElement declarationType,
         IntermediateState[] interStateAnno,
         List<TypeMirror> warnExceptions,
-        boolean processNulls
+        boolean processNulls,
+        boolean supportsPartitioning
     ) {
         this.declarationType = declarationType;
         this.warnExceptions = warnExceptions;
@@ -128,17 +145,23 @@ public class GroupingAggregatorImplementer {
             requireName("combine"),
             combineArgs(aggState)
         );
+        this.combineOnState = optionalStaticMethod(
+            declarationType,
+            requireVoidType(),
+            requireName("combine"),
+            requireArgs(requireType(aggState.type()), requireType(TypeName.INT), requireAnyType("<aggregation input column type>"))
+        ) != null;
         this.prepareEvaluateIntermediate = optionalStaticMethod(
             declarationType,
             requireType(GROUPING_AGGREGATOR_FUNCTION_PREPARED_FOR_EVALUATION),
             requireName("prepareEvaluateIntermediate"),
-            requireArgs(requireType(aggState.declaredType()), requireType(INT_VECTOR), requireType(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT))
+            requireArgs(requireType(aggState.type()), requireType(INT_VECTOR), requireType(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT))
         );
         this.prepareEvaluateFinal = optionalStaticMethod(
             declarationType,
             requireType(GROUPING_AGGREGATOR_FUNCTION_PREPARED_FOR_EVALUATION),
             requireName("prepareEvaluateFinal"),
-            requireArgs(requireType(aggState.declaredType()), requireType(INT_VECTOR), requireType(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT))
+            requireArgs(requireType(aggState.type()), requireType(INT_VECTOR), requireType(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT))
         );
 
         List<Argument> allCombineArgs = combine.getParameters().stream().skip(aggState.declaredType().isPrimitive() ? 1 : 2).map(v -> {
@@ -160,6 +183,32 @@ public class GroupingAggregatorImplementer {
 
         this.anyArgumentSupportsVectors = aggParams.stream().anyMatch(a -> a instanceof StandardArgument && a.supportsVectorReadAccess());
         this.processNulls = processNulls;
+        this.supportsPartitioning = supportsPartitioning;
+        this.hasCombinePartition = optionalStaticMethod(
+            declarationType,
+            requireVoidType(),
+            requireName("combinePartition"),
+            requireArgs(
+                requireType(aggState.type()),
+                requireType(PARTITIONED_STATE),
+                requireType(TypeName.INT),
+                requireType(TypeName.BOOLEAN),
+                requireType(ArrayTypeName.of(TypeName.INT)),
+                requireType(TypeName.INT)
+            )
+        ) != null;
+        this.useIntermediateForPartitions = supportsPartitioning
+            && aggState.declaredType().isPrimitive() == false
+            && (aggParams.isEmpty() || (aggParams.get(0) instanceof StandardArgument sa && sa.type().equals(BYTES_REF)) == false);
+        if (supportsPartitioning && combineOnState == false && useIntermediateForPartitions == false) {
+            throw new IllegalArgumentException(
+                "["
+                    + declarationType
+                    + "] requests partitioning; it must declare public static void combine("
+                    + aggState.type()
+                    + ", int groupId, <value>)"
+            );
+        }
 
         this.createParameters = init.getParameters()
             .stream()
@@ -263,6 +312,12 @@ public class GroupingAggregatorImplementer {
         if (prepareEvaluateFinal == null) {
             builder.addMethod(evaluateFinal());
         }
+        if (supportsPartitioning) {
+            builder.addMethod(maybeEnsureCapacity());
+            builder.addMethod(supportPartitioning());
+            builder.addMethod(createPartitioningSplitter());
+            builder.addMethod(combinePartition());
+        }
         builder.addMethod(toStringMethod());
         builder.addMethod(close());
         return builder.build();
@@ -317,7 +372,9 @@ public class GroupingAggregatorImplementer {
         CodeBlock.Builder builder = CodeBlock.builder();
         if (aggState.declaredType().isPrimitive()) {
             builder.add(
-                "new $T(driverContext.bigArrays(), $T.$L($L))",
+                warnExceptions.isEmpty()
+                    ? "new $T(driverContext.bigArrays(), driverContext.breaker(), $T.$L($L))"
+                    : "new $T(driverContext.bigArrays(), $T.$L($L))",
                 aggState.type(),
                 declarationType,
                 init.getSimpleName(),
@@ -582,7 +639,7 @@ public class GroupingAggregatorImplementer {
         StringBuilder pattern = new StringBuilder();
         List<Object> params = new ArrayList<>();
 
-        if (returnType.isPrimitive()) {
+        if (returnType.isPrimitive() && combineOnState == false) {
             pattern.append("state.set(groupId, $T.combine(state.getOrDefault(groupId)");
             params.add(declarationType);
         } else {
@@ -604,7 +661,7 @@ public class GroupingAggregatorImplementer {
         if (positionParamIndex >= aggParams.size()) {
             pattern.append(", valuesPosition");
         }
-        if (returnType.isPrimitive()) {
+        if (returnType.isPrimitive() && combineOnState == false) {
             pattern.append(")");
         }
         pattern.append(")");
@@ -618,7 +675,7 @@ public class GroupingAggregatorImplementer {
             requireName("wrapAddInput"),
             requireArgs(
                 Stream.concat(
-                    Stream.of(requireType(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT), requireType(aggState.declaredType())),
+                    Stream.of(requireType(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT), requireType(aggState.type())),
                     aggParams.stream().map(a -> {
                         if (a instanceof BlockArgument) {
                             return requireType(a.type());
@@ -757,12 +814,21 @@ public class GroupingAggregatorImplementer {
                     warningsBlock(builder, () -> {
                         var name = intermediateState.get(0).name();
                         var vectorAccessor = vectorAccessorName(intermediateState.get(0).elementType());
-                        builder.addStatement(
-                            "state.set(groupId, $T.combine(state.getOrDefault(groupId), $L.$L(valuesPosition)))",
-                            declarationType,
-                            name,
-                            vectorAccessor
-                        );
+                        if (combineOnState) {
+                            builder.addStatement(
+                                "$T.combine(state, groupId, $L.$L(valuesPosition))",
+                                declarationType,
+                                name,
+                                vectorAccessor
+                            );
+                        } else {
+                            builder.addStatement(
+                                "state.set(groupId, $T.combine(state.getOrDefault(groupId), $L.$L(valuesPosition)))",
+                                declarationType,
+                                name,
+                                vectorAccessor
+                            );
+                        }
                     });
                     builder.endControlFlow();
                 } else {
@@ -856,6 +922,90 @@ public class GroupingAggregatorImplementer {
             );
             builder.addStatement("blocks[offset] = $T.evaluateFinal(state, selectedInPage, ctx)", declarationType);
         }
+        return builder.build();
+    }
+
+    private MethodSpec supportPartitioning() {
+        return MethodSpec.methodBuilder("supportPartitioning")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .returns(TypeName.BOOLEAN)
+            .addStatement("return true")
+            .build();
+    }
+
+    private MethodSpec createPartitioningSplitter() {
+        return MethodSpec.methodBuilder("createPartitioningSplitter")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .addParameter(CIRCUIT_BREAKER, "breaker")
+            .returns(PARTITION_SPLITTER)
+            .addStatement("return state.createPartitioningSplitter(breaker)")
+            .build();
+    }
+
+    private MethodSpec maybeEnsureCapacity() {
+        return MethodSpec.methodBuilder("maybeEnsureCapacity")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .addParameter(TypeName.INT, "size")
+            .addStatement("state.ensureCapacity(size)")
+            .build();
+    }
+
+    private MethodSpec combinePartition() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("combinePartition")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .addParameter(PARTITIONED_STATE, "source")
+            .addParameter(TypeName.INT, "partition")
+            .addParameter(TypeName.BOOLEAN, "appendOnly")
+            .addParameter(ArrayTypeName.of(TypeName.INT), "dstIds")
+            .addParameter(TypeName.INT, "length");
+        if (hasCombinePartition) {
+            builder.addStatement("$T.combinePartition(state, source, partition, appendOnly, dstIds, length)", declarationType);
+            return builder.build();
+        }
+        builder.beginControlFlow("if (length == 0)");
+        builder.addStatement("return");
+        builder.endControlFlow();
+        final boolean primitive = aggState.declaredType().isPrimitive();
+        if (primitive) {
+            builder.addStatement("$T values = state.partitionValues(source, partition)", ArrayTypeName.of(aggState.declaredType()));
+        } else {
+            builder.addStatement("$T values = state.partitionValues(source, partition)", BYTES_REF_SEQUENCE);
+            builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
+        }
+        builder.addStatement("boolean[] seen = state.partitionSeen(source, partition)");
+        builder.beginControlFlow("if (seen == null)");
+        {
+            builder.beginControlFlow("if (appendOnly)");
+            builder.addStatement("state.appendPartition(values, dstIds[0], length)");
+            builder.nextControlFlow("else");
+            builder.beginControlFlow("for (int i = 0; i < length; i++)");
+            if (useIntermediateForPartitions) {
+                builder.addStatement("$T.combineIntermediate(state, dstIds[i], values.get(i, scratch))", declarationType);
+            } else if (primitive) {
+                builder.addStatement("$T.combine(state, dstIds[i], values[i])", declarationType);
+            } else {
+                builder.addStatement("$T.combine(state, dstIds[i], values.get(i, scratch))", declarationType);
+            }
+            builder.endControlFlow();
+            builder.endControlFlow();
+            builder.addStatement("return");
+        }
+        builder.endControlFlow();
+        builder.beginControlFlow("for (int i = 0; i < length; i++)");
+        builder.beginControlFlow("if (seen[i])");
+        if (useIntermediateForPartitions) {
+            builder.addStatement("$T.combineIntermediate(state, dstIds[i], values.get(i, scratch))", declarationType);
+        } else if (primitive) {
+            builder.addStatement("$T.combine(state, dstIds[i], values[i])", declarationType);
+        } else {
+            builder.addStatement("$T.combine(state, dstIds[i], values.get(i, scratch))", declarationType);
+        }
+        builder.endControlFlow();
+        builder.endControlFlow();
         return builder.build();
     }
 

@@ -12,26 +12,33 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.AutomatonQuery;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
@@ -41,19 +48,20 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
+import org.elasticsearch.sourcebatch.MappedColumns;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class RoutingFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_routing";
     public static final String CONTENT_TYPE = "_routing";
-
-    public static final NodeFeature ROUTING_AS_DOC_VALUES = new NodeFeature("mapper.routing_as_doc_values");
-    public static final NodeFeature ROUTING_AS_DOC_VALUES_BY_DEFAULT = new NodeFeature("mapper.routing_as_doc_values_by_default");
 
     private static RoutingFieldMapper toType(FieldMapper in) {
         return (RoutingFieldMapper) in;
@@ -145,7 +153,10 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
             if (indexType.hasDocValues()) {
-                return SortedDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+                if (isSliceKeySorted(context)) {
+                    return sliceKeyExactQuery(indexedValueForSearch(value));
+                }
+                return XSortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
             } else {
                 return super.termQuery(value, context);
             }
@@ -155,11 +166,48 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
             if (indexType.hasDocValues()) {
+                if (isSliceKeySorted(context)) {
+                    final Set<BytesRef> distinct = values.stream()
+                        .map(this::indexedValueForSearch)
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
+                    if (distinct.size() == 1) {
+                        return sliceKeyExactQuery(distinct.iterator().next());
+                    }
+                    if (distinct.size() > IndexSearcher.getMaxClauseCount()) {
+                        // too many slices for one clause each, fall back to a set query on the encoded keys
+                        return SortedDocValuesField.newSlowSetQuery(
+                            SliceIndexing.SLICE_KEY_FIELD_NAME,
+                            distinct.stream().map(SliceIndexing::encodeSliceKey).toList()
+                        );
+                    }
+                    final BooleanQuery.Builder builder = new BooleanQuery.Builder();
+                    for (BytesRef value : distinct) {
+                        builder.add(sliceKeyExactQuery(value), BooleanClause.Occur.SHOULD);
+                    }
+                    return new ConstantScoreQuery(builder.build());
+                }
                 Collection<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
                 return SortedDocValuesField.newSlowSetQuery(name(), bytesRefs);
             } else {
                 return super.termsQuery(values, context);
             }
+        }
+
+        /**
+         * On a slice-enabled index, term queries target {@link SliceIndexing#SLICE_KEY_FIELD_NAME}, which carries
+         * equivalent content as _routing but, as the primary index sort, answers them without a doc-values scan.
+         * Only term(s) queries redirect: the hash prefix breaks lexicographic order for range and automaton queries, but
+         * those are not expected, making it an acceptable trade.
+         */
+        private static boolean isSliceKeySorted(SearchExecutionContext context) {
+            return SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()
+                && context != null
+                && context.getIndexSettings() != null
+                && context.getIndexSettings().isSliceEnabled();
+        }
+
+        private static Query sliceKeyExactQuery(BytesRef slice) {
+            return XSortedSetDocValuesRangeQuery.newSlowExactQuery(SliceIndexing.SLICE_KEY_FIELD_NAME, SliceIndexing.encodeSliceKey(slice));
         }
 
         @Override
@@ -172,7 +220,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         ) {
             failIfNotIndexedNorDocValuesFallback(context);
             if (indexType.hasDocValues()) {
-                return SortedDocValuesField.newSlowRangeQuery(
+                return XSortedSetDocValuesRangeQuery.newSlowRangeQuery(
                     name(),
                     lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                     upperTerm == null ? null : indexedValueForSearch(upperTerm),
@@ -253,17 +301,51 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
                 if (caseInsensitive == false) {
                     Term term = new Term(name(), value);
                     if (context.getCircuitBreaker() != null) {
-                        Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
-                        return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                        return docValuesWildcardQuery(term, context);
                     }
                     return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
 
                 StringFieldScript.LeafFactory leafFactory = ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx);
-                return new StringScriptFieldWildcardQuery(new Script(""), leafFactory, name(), value, caseInsensitive);
+                return new StringScriptFieldWildcardQuery(
+                    new Script(""),
+                    leafFactory,
+                    name(),
+                    value,
+                    caseInsensitive,
+                    context.getCircuitBreaker()
+                );
             } else {
                 return super.wildcardQuery(value, method, caseInsensitive, context);
             }
+        }
+
+        @Override
+        public Query regexpQuery(
+            String value,
+            int syntaxFlags,
+            int matchFlags,
+            int maxDeterminizedStates,
+            MultiTermQuery.RewriteMethod method,
+            SearchExecutionContext context
+        ) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (indexType.hasDocValues()) {
+                value = AutomatonQueries.collapseConsecutiveQuantifiers(value);
+                Term term = new Term(name(), indexedValueForSearch(value));
+                if (context.getCircuitBreaker() != null) {
+                    return docValuesRegexpQuery(term, syntaxFlags, matchFlags, maxDeterminizedStates, context);
+                }
+                return new RegexpQuery(
+                    term,
+                    syntaxFlags,
+                    matchFlags,
+                    RegexpQuery.DEFAULT_PROVIDER,
+                    maxDeterminizedStates,
+                    MultiTermQuery.DOC_VALUES_REWRITE
+                );
+            }
+            return super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
         }
 
         @Override
@@ -276,6 +358,15 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
                 );
             } else {
                 return super.fielddataBuilder(fieldDataContext);
+            }
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (docValues) {
+                return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
+            } else {
+                return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(NAME);
             }
         }
     }
@@ -346,6 +437,42 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         } else {
             targetDoc.add(new StringField(fieldType().name(), routing, Field.Store.YES));
             context.addToFieldNames(fieldType().name());
+        }
+    }
+
+    // Mirrors the non-doc-values branch of addRoutingField: indexed (DOCS), not tokenized, stored.
+    private static final IndexableFieldType ROUTING_FIELD_TYPE = StringField.TYPE_STORED;
+
+    // Mirrors the doc-values branch of addRoutingField: sorted doc values with a skip index, no
+    // inverted index or stored value (matches SortedDocValuesField.indexedField).
+    private static final IndexableFieldType ROUTING_DV_FIELD_TYPE = SortedDocValuesField.indexedField("", new BytesRef()).fieldType();
+
+    @Override
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+        return true;
+    }
+
+    @Override
+    public void preColumnarParse(BatchMappingContext context) {
+        // In TSDB mode, DocumentParserContext#routing() returns null so RoutingFieldMapper#preParse
+        // never adds the _routing field.
+        if (context.indexSettings().getMode().isTsdb()) {
+            return;
+        }
+        final BytesRef[] routings = context.routings();
+        if (routings == null) {
+            return;
+        }
+        if (docValues) {
+            context.addColumn(MappedColumns.binaryColumn(routings, fieldType().name(), ROUTING_DV_FIELD_TYPE));
+            // _field_names is only used for fields without doc values; doc values fields use FieldExistsQuery directly
+        } else {
+            context.addColumn(MappedColumns.binaryColumn(routings, fieldType().name(), ROUTING_FIELD_TYPE));
+            for (int d = 0; d < routings.length; d++) {
+                if (routings[d] != null) {
+                    context.addFieldNamesColumnar(d, fieldType().name());
+                }
+            }
         }
     }
 

@@ -52,8 +52,7 @@ public class DiskHealthTrackerTests extends ESTestCase {
     private DiskHealthTracker diskHealthTracker;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initDiskHealthTracker() throws Exception {
         // Set-up cluster state
         healthMetadata = new HealthMetadata(
             HealthMetadata.Disk.newBuilder()

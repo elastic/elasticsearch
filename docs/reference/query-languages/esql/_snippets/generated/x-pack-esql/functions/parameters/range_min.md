@@ -3,5 +3,5 @@
 ## Parameters
 
 `range`
-:   Date range expression. If `null`, the function returns `null`.
+:   Range expression. If `null`, the function returns `null`.
 

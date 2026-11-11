@@ -13,6 +13,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 public class SqlLogContext extends QueryLoggerContext {
     public static final String TYPE = "sql";
     private final SqlQueryRequest request;
@@ -50,4 +53,9 @@ public class SqlLogContext extends QueryLoggerContext {
     protected QueryBuilder queryFilter() {
         return request.filter();
     }
+
+    public List<String> params() {
+        return request.params().stream().map(p -> String.valueOf(p.value)).collect(Collectors.toList());
+    }
+
 }

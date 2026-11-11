@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.stateless.engine.translog;
 
+import org.apache.lucene.internal.hppc.LongArrayList;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -15,11 +17,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.NavigableMap;
 import java.util.PriorityQueue;
 import java.util.TreeMap;
-import java.util.function.LongConsumer;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 class ShardSyncState {
@@ -27,7 +28,7 @@ class ShardSyncState {
     private final ShardId shardId;
     private final long startingPrimaryTerm;
     private final LongSupplier currentPrimaryTerm;
-    private final LongConsumer persistedSeqNoConsumer;
+    private final Consumer<LongsRef> persistedSeqNosConsumer;
     private final ThreadContext threadContext;
     private final PriorityQueue<SyncListener> listeners = new PriorityQueue<>();
     private final TreeMap<Long, TranslogReplicator.BlobTranslogFile> translogFiles = new TreeMap<>();
@@ -36,18 +37,19 @@ class ShardSyncState {
     private volatile Translog.Location processedLocation = new Translog.Location(0, 0, 0);
     private volatile Translog.Location syncedLocation = new Translog.Location(0, 0, 0);
     private volatile boolean isClosed = false;
+    private volatile boolean primaryTermIsStale = false;
 
     ShardSyncState(
         ShardId shardId,
         long primaryTerm,
         LongSupplier currentPrimaryTerm,
-        LongConsumer persistedSeqNoConsumer,
+        Consumer<LongsRef> persistedSeqNosConsumer,
         ThreadContext threadContext
     ) {
         this.shardId = shardId;
         this.startingPrimaryTerm = primaryTerm;
         this.currentPrimaryTerm = currentPrimaryTerm;
-        this.persistedSeqNoConsumer = persistedSeqNoConsumer;
+        this.persistedSeqNosConsumer = persistedSeqNosConsumer;
         this.threadContext = threadContext;
     }
 
@@ -61,6 +63,10 @@ class ShardSyncState {
 
     static AlreadyClosedException alreadyClosedException(ShardId shardId) {
         return new AlreadyClosedException("The translog for shard [" + shardId + "] is already closed.");
+    }
+
+    static AlreadyClosedException stalePrimaryTermException(ShardId shardId) {
+        return new AlreadyClosedException("The translog for shard [" + shardId + "] need not be synced because its primary term is stale");
     }
 
     boolean syncNeeded() {
@@ -84,31 +90,33 @@ class ShardSyncState {
 
     boolean ensureSynced(Translog.Location location, ActionListener<Void> listener) {
         assert location.compareTo(processedLocation) <= 0;
-        boolean completeListener = true;
-        boolean alreadyClosed = false;
-        if (location.compareTo(syncedLocation) > 0) {
+
+        final Exception exception;
+        if (location.compareTo(syncedLocation) <= 0) {
+            exception = null;
+        } else {
             synchronized (listeners) {
                 if (isClosed) {
-                    alreadyClosed = true;
-                } else if (location.compareTo(syncedLocation) > 0) {
+                    exception = alreadyClosedException(shardId);
+                } else if (primaryTermIsStale) {
+                    exception = stalePrimaryTermException(shardId);
+                } else if (location.compareTo(syncedLocation) <= 0) {
+                    exception = null;
+                } else {
                     ContextPreservingActionListener<Void> contextPreservingActionListener = ContextPreservingActionListener
                         .wrapPreservingContext(listener, threadContext);
                     listeners.add(new SyncListener(location, contextPreservingActionListener));
-                    completeListener = false;
+                    return false;
                 }
             }
         }
 
-        if (completeListener) {
-            if (alreadyClosed) {
-                listener.onFailure(alreadyClosedException(shardId));
-            } else {
-                listener.onResponse(null);
-            }
-            return true;
+        if (exception == null) {
+            listener.onResponse(null);
         } else {
-            return false;
+            listener.onFailure(exception);
         }
+        return true;
     }
 
     public void markSyncStarting(long primaryTerm, TranslogReplicator.BlobTranslogFile translogFile) {
@@ -143,18 +151,26 @@ class ShardSyncState {
     }
 
     public boolean markSyncFinished(SyncMarker syncMarker) {
-        // If the primary term changed this shard will eventually be closed and the listeners will be failed at that point, so we can
-        // ignore them here.
-        if (syncMarker.primaryTerm() == currentPrimaryTerm()) {
+        final long currentTerm = currentPrimaryTerm();
+        if (syncMarker.primaryTerm() == currentTerm) {
             assert syncMarker.location().compareTo(syncedLocation) > 0;
             // We mark the seqNos of persisted before exposing the synced location. This matches what we do in the TranlogWriter.
             // Some assertions in TransportVerifyShardBeforeCloseAction depend on the seqNos marked as persisted before the sync is exposed.
-            syncMarker.syncedSeqNos().forEach(persistedSeqNoConsumer::accept);
+            final LongArrayList syncedSeqNos = syncMarker.syncedSeqNos();
+            persistedSeqNosConsumer.accept(new LongsRef(syncedSeqNos.buffer, 0, syncedSeqNos.size()));
             syncedLocation = syncMarker.location();
             return true;
         } else {
+            if (startingPrimaryTerm < currentTerm) {
+                // This state's own term is no longer current. The caller fails pending listeners after releasing a lock.
+                primaryTermIsStale = true;
+            } // else syncMarker relates to an earlier incarnation of this shard with an older term, so there are no listeners to fail.
             return false;
         }
+    }
+
+    boolean isPrimaryTermStale() {
+        return primaryTermIsStale;
     }
 
     public void markCommitUploaded(long translogReleaseEndFile) {
@@ -279,6 +295,6 @@ class ShardSyncState {
         }
     }
 
-    record SyncMarker(long primaryTerm, Translog.Location location, List<Long> syncedSeqNos) {}
+    record SyncMarker(long primaryTerm, Translog.Location location, LongArrayList syncedSeqNos) {}
 
 }

@@ -21,7 +21,7 @@ Except where noted otherwise, these settings can be dynamically updated on a liv
 For information about circuit breaker errors, see [Circuit breaker errors](docs-content://troubleshoot/elasticsearch/circuit-breaker-errors.md).
 
 
-### Parent circuit breaker [parent-circuit-breaker]
+## Parent circuit breaker [parent-circuit-breaker]
 
 The parent-level breaker can be configured with the following settings:
 
@@ -34,7 +34,7 @@ $$$indices-breaker-total-limit$$$
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Starting limit for overall parent breaker. Defaults to 70% of JVM heap if `indices.breaker.total.use_real_memory` is `false`. If `indices.breaker.total.use_real_memory` is `true`, defaults to 95% of the JVM heap.
 
 
-### Field data circuit breaker [fielddata-circuit-breaker]
+## Field data circuit breaker [fielddata-circuit-breaker]
 
 The field data circuit breaker estimates the heap memory required to load a field into the [field data cache](/reference/elasticsearch/configuration-reference/field-data-cache-settings.md). If loading the field would cause the cache to exceed a predefined memory limit, the circuit breaker stops the operation and returns an error.
 
@@ -49,7 +49,7 @@ $$$fielddata-circuit-breaker-overhead$$$
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) A constant that all field data estimations are multiplied with to determine a final estimation. Defaults to `1.03`.
 
 
-### Request circuit breaker [request-circuit-breaker]
+## Request circuit breaker [request-circuit-breaker]
 
 The request circuit breaker allows Elasticsearch to prevent per-request data structures (for example, memory used for calculating aggregations during a request) from exceeding a certain amount of memory.
 
@@ -64,7 +64,7 @@ $$$request-breaker-overhead$$$
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) A constant that all request estimations are multiplied with to determine a final estimation. Defaults to `1`.
 
 
-### In flight requests circuit breaker [in-flight-circuit-breaker]
+## In flight requests circuit breaker [in-flight-circuit-breaker]
 
 The in flight requests circuit breaker allows Elasticsearch to limit the memory usage of all currently active incoming requests on transport or HTTP level from exceeding a certain amount of memory on a node. The memory usage is based on the content length of the request itself. This circuit breaker also considers that memory is not only needed for representing the raw request but also as a structured object which is reflected by default overhead.
 
@@ -75,7 +75,7 @@ The in flight requests circuit breaker allows Elasticsearch to limit the memory 
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) A constant that all in flight requests estimations are multiplied with to determine a final estimation. Defaults to 2.
 
 
-### Script compilation circuit breaker [script-compilation-circuit-breaker]
+## Script compilation circuit breaker [script-compilation-circuit-breaker]
 
 Slightly different than the previous memory-based circuit breaker, the script compilation circuit breaker limits the number of inline script compilations within a period of time.
 
@@ -87,7 +87,7 @@ See the "prefer-parameters" section of the [scripting](docs-content://explore-an
 If the cluster regularly hits the given `max_compilation_rate`, it’s possible the script cache is undersized, use [Nodes Stats](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-nodes-stats) to inspect the number of recent cache evictions, `script.cache_evictions_history` and compilations `script.compilations_history`.  If there are a large number of recent cache evictions or compilations, the script cache may be undersized, consider doubling the size of the script cache via the setting `script.cache.max_size`.
 
 
-### Regex circuit breaker [regex-circuit-breaker]
+## Regex circuit breaker [regex-circuit-breaker]
 
 Poorly written regular expressions can degrade cluster stability and performance. The regex circuit breaker limits the use and complexity of [regex in Painless scripts](/reference/scripting-languages/painless/painless-regexes.md).
 
@@ -152,7 +152,7 @@ The request breaker settings (`indices.breaker.request.limit`, `indices.breaker.
 
 
 
-### {{ml-cap}} circuit breaker [circuit-breakers-page-model-inference]
+## {{ml-cap}} circuit breaker [circuit-breakers-page-model-inference]
 
 `breaker.model_inference.limit`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The limit for the trained model circuit breaker. This value is defined as a percentage of the JVM heap. Defaults to `50%`. If the [parent circuit breaker](#parent-circuit-breaker) is set to a value less than `50%`, this setting uses that value as its default instead.

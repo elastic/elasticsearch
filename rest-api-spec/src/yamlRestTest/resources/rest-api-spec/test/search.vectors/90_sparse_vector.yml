@@ -387,8 +387,9 @@
 "sparse_vector synthetic source":
 
   - requires:
-      cluster_features: [ "mapper.source.mode_from_index_setting"]
-      reason: "Source mode configured through index setting"
+      cluster_features: [ "mapper.source.mode_from_index_setting", "gte_v9.3.0" ]
+      reason: "Source mode configured through index setting. 9.2 nodes serialize the sparse_vector store parameter differently
+        (fixed by #145347) and fail an assertion comparing that serialization with the mapping from the master"
       test_runner_features: [ capabilities, "close_to" ]
       capabilities:
         - method: GET
@@ -541,8 +542,9 @@
 "stored sparse_vector synthetic source":
 
   - requires:
-      reason: "sparse_vector supports store parameter"
-      cluster_features: [ "mapper.source.mode_from_index_setting", "mapper.sparse_vector.store_support" ]
+      reason: "sparse_vector supports store parameter. 9.2 nodes serialize the sparse_vector store parameter differently
+        (fixed by #145347) and fail an assertion comparing that serialization with the mapping from the master"
+      cluster_features: [ "mapper.source.mode_from_index_setting", "mapper.sparse_vector.store_support", "gte_v9.3.0" ]
       test_runner_features: [ capabilities, "close_to" ]
       capabilities:
         - method: GET

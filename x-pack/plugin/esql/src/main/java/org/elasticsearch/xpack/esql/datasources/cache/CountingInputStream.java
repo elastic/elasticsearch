@@ -15,7 +15,8 @@ import java.io.InputStream;
  * Wraps an {@link InputStream} and counts the bytes successfully read. Used by the line-oriented
  * text-format readers to publish a {@code sizeInBytes} statistic for stream-only sources (bzip2,
  * zstd-streamed) whose {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject#length()}
- * throws {@code UnsupportedOperationException}.
+ * throws {@code UnsupportedOperationException}, and by record-boundary probing to measure how much
+ * of a probe window a splitter left behind.
  * <p>
  * The count reflects bytes consumed from the underlying stream, including bytes pulled into a
  * downstream buffer (e.g. {@code BufferedReader}'s 8 KiB block) regardless of whether the reader

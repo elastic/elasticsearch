@@ -514,7 +514,7 @@ public class ThreadPoolTests extends ESTestCase {
             final long afterPreviousCollectNanos = System.nanoTime();
 
             var metricValue = metricAsserter.assertLatestMetricValueMatches(
-                InstrumentType.DOUBLE_GAUGE,
+                InstrumentType.DOUBLE_ASYNC_GAUGE,
                 ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION,
                 Measurement::getDouble,
                 equalTo(0.0d)
@@ -558,7 +558,7 @@ public class ThreadPoolTests extends ESTestCase {
             logger.info("Utilization must be in [{}, {}]", minimumUtilization, maximumUtilization);
             Matcher<Double> matcher = allOf(greaterThan(minimumUtilization), lessThan(maximumUtilization));
             metricValue = metricAsserter.assertLatestMetricValueMatches(
-                InstrumentType.DOUBLE_GAUGE,
+                InstrumentType.DOUBLE_ASYNC_GAUGE,
                 ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION,
                 Measurement::getDouble,
                 matcher
@@ -590,14 +590,26 @@ public class ThreadPoolTests extends ESTestCase {
             final MetricAsserter metricAsserter = new MetricAsserter(meterRegistry, threadPoolName);
 
             meterRegistry.getRecorder().collect();
-            metricAsserter.assertLatestLongValueMatches(ThreadPool.THREAD_POOL_METRIC_NAME_ACTIVE, InstrumentType.LONG_GAUGE, equalTo(0L));
-            metricAsserter.assertLatestLongValueMatches(ThreadPool.THREAD_POOL_METRIC_NAME_CURRENT, InstrumentType.LONG_GAUGE, equalTo(0L));
+            metricAsserter.assertLatestLongValueMatches(
+                ThreadPool.THREAD_POOL_METRIC_NAME_ACTIVE,
+                InstrumentType.LONG_ASYNC_GAUGE,
+                equalTo(0L)
+            );
+            metricAsserter.assertLatestLongValueMatches(
+                ThreadPool.THREAD_POOL_METRIC_NAME_CURRENT,
+                InstrumentType.LONG_ASYNC_GAUGE,
+                equalTo(0L)
+            );
             metricAsserter.assertLatestLongValueMatches(
                 ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED,
                 InstrumentType.LONG_ASYNC_COUNTER,
                 equalTo(0L)
             );
-            metricAsserter.assertLatestLongValueMatches(ThreadPool.THREAD_POOL_METRIC_NAME_LARGEST, InstrumentType.LONG_GAUGE, equalTo(0L));
+            metricAsserter.assertLatestLongValueMatches(
+                ThreadPool.THREAD_POOL_METRIC_NAME_LARGEST,
+                InstrumentType.LONG_ASYNC_GAUGE,
+                equalTo(0L)
+            );
 
             final int numThreads = randomIntBetween(1, Math.min(10, threadPoolInfo.getMax()));
             final CyclicBarrier barrier = new CyclicBarrier(numThreads + 1);
@@ -615,12 +627,12 @@ public class ThreadPoolTests extends ESTestCase {
             meterRegistry.getRecorder().collect();
             metricAsserter.assertLatestLongValueMatches(
                 ThreadPool.THREAD_POOL_METRIC_NAME_ACTIVE,
-                InstrumentType.LONG_GAUGE,
+                InstrumentType.LONG_ASYNC_GAUGE,
                 equalTo((long) numThreads)
             );
             metricAsserter.assertLatestLongValueMatches(
                 ThreadPool.THREAD_POOL_METRIC_NAME_CURRENT,
-                InstrumentType.LONG_GAUGE,
+                InstrumentType.LONG_ASYNC_GAUGE,
                 equalTo((long) numThreads)
             );
             metricAsserter.assertLatestLongValueMatches(
@@ -630,7 +642,7 @@ public class ThreadPoolTests extends ESTestCase {
             );
             metricAsserter.assertLatestLongValueMatches(
                 ThreadPool.THREAD_POOL_METRIC_NAME_LARGEST,
-                InstrumentType.LONG_GAUGE,
+                InstrumentType.LONG_ASYNC_GAUGE,
                 equalTo((long) numThreads)
             );
 
@@ -641,10 +653,14 @@ public class ThreadPoolTests extends ESTestCase {
             assertBusy(() -> assertThat(executor.getActiveCount(), equalTo(0)));
 
             meterRegistry.getRecorder().collect();
-            metricAsserter.assertLatestLongValueMatches(ThreadPool.THREAD_POOL_METRIC_NAME_ACTIVE, InstrumentType.LONG_GAUGE, equalTo(0L));
+            metricAsserter.assertLatestLongValueMatches(
+                ThreadPool.THREAD_POOL_METRIC_NAME_ACTIVE,
+                InstrumentType.LONG_ASYNC_GAUGE,
+                equalTo(0L)
+            );
             metricAsserter.assertLatestLongValueMatches(
                 ThreadPool.THREAD_POOL_METRIC_NAME_CURRENT,
-                InstrumentType.LONG_GAUGE,
+                InstrumentType.LONG_ASYNC_GAUGE,
                 equalTo((long) numThreads)
             );
             metricAsserter.assertLatestLongValueMatches(
@@ -654,7 +670,7 @@ public class ThreadPoolTests extends ESTestCase {
             );
             metricAsserter.assertLatestLongValueMatches(
                 ThreadPool.THREAD_POOL_METRIC_NAME_LARGEST,
-                InstrumentType.LONG_GAUGE,
+                InstrumentType.LONG_ASYNC_GAUGE,
                 equalTo((long) numThreads)
             );
         } finally {

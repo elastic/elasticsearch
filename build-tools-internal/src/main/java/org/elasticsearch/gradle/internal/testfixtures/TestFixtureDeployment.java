@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.testfixtures;
 
 import org.gradle.api.Named;
 import org.gradle.api.provider.ListProperty;
+import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 
 import java.io.File;
@@ -35,4 +36,14 @@ public abstract class TestFixtureDeployment implements Named {
     public abstract Property<String> getVersion();
 
     public abstract ListProperty<String> getBaseImages();
+
+    /**
+     * Docker platforms (e.g. {@code linux/amd64}, {@code linux/arm64}) to build and publish this
+     * fixture image for. When left empty the fixture is built for every supported architecture.
+     * Restrict this for images that are known not to work on a given architecture, so we neither
+     * build nor publish a manifest that cannot run there.
+     */
+    public abstract ListProperty<String> getPlatforms();
+
+    public abstract MapProperty<String, String> getBuildArgs();
 }

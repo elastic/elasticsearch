@@ -29,19 +29,15 @@ public class IndexRequestBuilderTests extends ESTestCase {
     private TestThreadPool threadPool;
     private NoOpClient testClient;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initClient() throws Exception {
         this.threadPool = createThreadPool();
         this.testClient = new NoOpClient(threadPool);
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void closeClient() throws Exception {
         this.threadPool.close();
-        super.tearDown();
     }
 
     /**

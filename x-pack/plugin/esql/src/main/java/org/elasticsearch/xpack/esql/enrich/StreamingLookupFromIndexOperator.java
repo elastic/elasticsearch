@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
@@ -23,6 +24,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ProfileSchema;
+import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeBase;
 import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeClient;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.lookup.RightChunkedLeftJoin;
@@ -218,7 +221,13 @@ public class StreamingLookupFromIndexOperator implements Operator {
                     listener.onResponse(response.planString());
                 }, e -> {
                     planningEndNanos = System.nanoTime();
-                    logger.error("Server setup failed for node=" + serverNode.getId(), e);
+                    BidirectionalBatchExchangeBase.logExchangeFailure(
+                        logger,
+                        Level.ERROR,
+                        e,
+                        "Server setup failed for node=" + serverNode.getId(),
+                        e
+                    );
                     failure.set(e);
                     listener.onFailure(e);
                 }));
@@ -244,7 +253,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
             );
 
         } catch (Exception e) {
-            logger.error("Failed to create client", e);
+            BidirectionalBatchExchangeBase.logExchangeFailure(logger, Level.ERROR, e, "Failed to create client", e);
             failure.set(e);
             driverContext.removeAsyncAction();
         }
@@ -281,7 +290,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
     }
 
     private void handleBatchExchangeFailure(Exception e) {
-        logger.error("Batch exchange failed", e);
+        BidirectionalBatchExchangeBase.logExchangeFailure(logger, Level.ERROR, true, e, "Batch exchange failed", e);
         failure.set(e);
         driverContext.removeAsyncAction();
     }
@@ -326,14 +335,28 @@ public class StreamingLookupFromIndexOperator implements Operator {
             client.sendPage(pageWithMetadata);
             logger.trace("addInput: sent batchId={} to worker", batchId);
         } catch (RuntimeException e) {
-            logger.error("addInput: failed to send batchId={}: {}", batchId, e.getMessage());
+            BidirectionalBatchExchangeBase.logExchangeFailure(
+                logger,
+                Level.ERROR,
+                e,
+                "addInput: failed to send batchId={}: {}",
+                batchId,
+                e.getMessage()
+            );
             if (pageWithMetadata != null) {
                 pageWithMetadata.releaseBlocks();
             }
             page.releaseBlocks();
             throw e;
         } catch (Exception e) {
-            logger.error("addInput: failed to send batchId={}: {}", batchId, e.getMessage());
+            BidirectionalBatchExchangeBase.logExchangeFailure(
+                logger,
+                Level.ERROR,
+                e,
+                "addInput: failed to send batchId={}: {}",
+                batchId,
+                e.getMessage()
+            );
             if (pageWithMetadata != null) {
                 pageWithMetadata.releaseBlocks();
             }
@@ -576,8 +599,22 @@ public class StreamingLookupFromIndexOperator implements Operator {
             logger.debug("isFinished: false (client not finished, waiting for server response)");
             return false;
         }
+        // Replay warnings accumulated by the (remote) lookup drivers into this driver.
+        drainClientWarnings();
         logger.debug("isFinished: true");
         return true;
+    }
+
+    private boolean clientWarningsDrained = false;
+
+    private void drainClientWarnings() {
+        if (clientWarningsDrained || client == null) {
+            return;
+        }
+        clientWarningsDrained = true;
+        for (String warning : client.warnings()) {
+            driverContext.addWarning(warning);
+        }
     }
 
     @Override
@@ -674,13 +711,12 @@ public class StreamingLookupFromIndexOperator implements Operator {
             try {
                 client.finish();
             } catch (Exception e) {
-                logger.error("Error finishing client", e);
+                BidirectionalBatchExchangeBase.logExchangeFailure(logger, Level.ERROR, e, "Error finishing client", e);
             }
-            client.finishCollectingResponseHeaders();
             try {
                 client.close();
             } catch (Exception e) {
-                logger.error("Error closing client", e);
+                BidirectionalBatchExchangeBase.logExchangeFailure(logger, Level.ERROR, e, "Error closing client", e);
             }
         }
     }
@@ -696,6 +732,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
         for (Map.Entry<String, Set<String>> entry : planToWorkers.entrySet()) {
             plansCopy.put(entry.getKey(), new HashSet<>(entry.getValue()));
         }
+        long bytesRead = client != null ? client.bytesRead() : 0L;
         return new StreamingLookupStatus(
             pagesReceived,
             pagesCompleted,
@@ -703,7 +740,8 @@ public class StreamingLookupFromIndexOperator implements Operator {
             totalOutputRows,
             planningNanos,
             processNanos,
-            plansCopy
+            plansCopy,
+            bytesRead
         );
     }
 
@@ -722,8 +760,32 @@ public class StreamingLookupFromIndexOperator implements Operator {
             StreamingLookupStatus::new
         );
 
+        private record LookupPlan(Set<String> workers, String plan) {
+            private static final ProfileSchema<LookupPlan> PROFILE_SCHEMA = ProfileSchema.of(LookupPlan.class, (builder, value, params) -> {
+                builder.startObject();
+                builder.array("workers", value.workers.toArray(String[]::new));
+                builder.field("plan", value.plan);
+                return builder.endObject();
+            }).required("workers", ProfileSchema.array(ProfileSchema.string())).required("plan", ProfileSchema.string()).build();
+        }
+
+        public static final ProfileSchema<StreamingLookupStatus> PROFILE_SCHEMA = ProfileSchema.of(
+            StreamingLookupStatus.class,
+            StreamingLookupStatus::toXContent
+        )
+            .required("pages_received", ProfileSchema.integer())
+            .required("pages_emitted", ProfileSchema.integer())
+            .required("rows_received", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .required("planning_nanos", ProfileSchema.integer())
+            .required("process_nanos", ProfileSchema.integer())
+            .required("bytes_read", ProfileSchema.integer())
+            .optional("lookup_plans", ProfileSchema.array(LookupPlan.PROFILE_SCHEMA.schema()))
+            .build();
+
         // Reuse the streaming session ID version since streaming is not in production yet
         private static final TransportVersion ESQL_LOOKUP_PLAN_STRING = TransportVersion.fromName("esql_streaming_lookup_join");
+        private static final TransportVersion ESQL_LOOKUP_BYTES_READ = TransportVersion.fromName("esql_lookup_bytes_read");
 
         private final long pagesReceived;
         private final long pagesEmitted;
@@ -733,6 +795,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
         private final long processNanos;
         // Maps plan string -> set of worker keys (e.g., "nodeId:worker0") that produced this plan
         private final Map<String, Set<String>> planToWorkers;
+        private final long bytesRead;
 
         public StreamingLookupStatus(
             long pagesReceived,
@@ -741,7 +804,8 @@ public class StreamingLookupFromIndexOperator implements Operator {
             long rowsEmitted,
             long planningNanos,
             long processNanos,
-            Map<String, Set<String>> planToWorkers
+            Map<String, Set<String>> planToWorkers,
+            long bytesRead
         ) {
             this.pagesReceived = pagesReceived;
             this.pagesEmitted = pagesEmitted;
@@ -750,6 +814,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
             this.planningNanos = planningNanos;
             this.processNanos = processNanos;
             this.planToWorkers = planToWorkers == null ? Map.of() : planToWorkers;
+            this.bytesRead = bytesRead;
         }
 
         public StreamingLookupStatus(StreamInput in) throws IOException {
@@ -764,6 +829,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
             } else {
                 this.planToWorkers = Map.of();
             }
+            this.bytesRead = in.getTransportVersion().supports(ESQL_LOOKUP_BYTES_READ) ? in.readVLong() : 0L;
         }
 
         @Override
@@ -777,6 +843,9 @@ public class StreamingLookupFromIndexOperator implements Operator {
             if (out.getTransportVersion().supports(ESQL_LOOKUP_PLAN_STRING)) {
                 out.writeMap(planToWorkers, StreamOutput::writeStringCollection);
             }
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_BYTES_READ)) {
+                out.writeVLong(bytesRead);
+            }
         }
 
         @Override
@@ -786,20 +855,22 @@ public class StreamingLookupFromIndexOperator implements Operator {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
+        }
+
+        private static XContentBuilder toXContent(XContentBuilder builder, StreamingLookupStatus status, Params params) throws IOException {
             builder.startObject();
-            builder.field("pages_received", pagesReceived);
-            builder.field("pages_emitted", pagesEmitted);
-            builder.field("rows_received", rowsReceived);
-            builder.field("rows_emitted", rowsEmitted);
-            builder.field("planning_nanos", planningNanos);
-            builder.field("process_nanos", processNanos);
-            if (planToWorkers.isEmpty() == false) {
+            builder.field("pages_received", status.pagesReceived);
+            builder.field("pages_emitted", status.pagesEmitted);
+            builder.field("rows_received", status.rowsReceived);
+            builder.field("rows_emitted", status.rowsEmitted);
+            builder.field("planning_nanos", status.planningNanos);
+            builder.field("process_nanos", status.processNanos);
+            builder.field("bytes_read", status.bytesRead);
+            if (status.planToWorkers.isEmpty() == false) {
                 builder.startArray("lookup_plans");
-                for (Map.Entry<String, Set<String>> entry : planToWorkers.entrySet()) {
-                    builder.startObject();
-                    builder.array("workers", entry.getValue().toArray(String[]::new));
-                    builder.field("plan", entry.getKey());
-                    builder.endObject();
+                for (Map.Entry<String, Set<String>> entry : status.planToWorkers.entrySet()) {
+                    LookupPlan.PROFILE_SCHEMA.write(builder, new LookupPlan(entry.getValue(), entry.getKey()), params);
                 }
                 builder.endArray();
             }
@@ -835,6 +906,11 @@ public class StreamingLookupFromIndexOperator implements Operator {
         }
 
         @Override
+        public long bytesRead() {
+            return bytesRead;
+        }
+
+        @Override
         public TransportVersion getMinimalSupportedVersion() {
             return ESQL_LOOKUP_PLAN_STRING;
         }
@@ -850,12 +926,22 @@ public class StreamingLookupFromIndexOperator implements Operator {
                 && rowsEmitted == that.rowsEmitted
                 && planningNanos == that.planningNanos
                 && processNanos == that.processNanos
+                && bytesRead == that.bytesRead
                 && Objects.equals(planToWorkers, that.planToWorkers);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pagesReceived, pagesEmitted, rowsReceived, rowsEmitted, planningNanos, processNanos, planToWorkers);
+            return Objects.hash(
+                pagesReceived,
+                pagesEmitted,
+                rowsReceived,
+                rowsEmitted,
+                planningNanos,
+                processNanos,
+                planToWorkers,
+                bytesRead
+            );
         }
 
         @Override
@@ -875,6 +961,8 @@ public class StreamingLookupFromIndexOperator implements Operator {
                 + processNanos
                 + ", planToWorkers="
                 + planToWorkers
+                + ", bytesRead="
+                + bytesRead
                 + '}';
         }
     }

@@ -63,6 +63,10 @@ public class RailRoadDiagram {
             Sequence seq = new Sequence(new Literal("condition"), new Syntax(","), new Literal("trueValue"));
             expressions.add(new Repetition(seq, 1, null));
             expressions.add(new Repetition(new Literal("elseValue"), 0, 1));
+        } else if (definition.name().equals("json_string")) {
+            // Arguments are alternating key/value pairs, not a repeating value list.
+            Sequence seq = new Sequence(new Literal("key"), new Syntax(","), new Literal("value"));
+            expressions.add(new Repetition(seq, 1, null));
         } else {
             List<Expression> argExpressions = new ArrayList<>();
             List<Expression> repetitionExpressions = new ArrayList<>();

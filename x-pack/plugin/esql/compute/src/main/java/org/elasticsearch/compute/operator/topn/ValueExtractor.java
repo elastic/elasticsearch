@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.FloatBlock;
@@ -46,6 +47,10 @@ interface ValueExtractor {
             // actual pages.
             throw new IllegalStateException("Expected [" + elementType + "] but was [" + block.elementType() + "]");
         }
+        if (block.elementType() == ElementType.NULL && elementType == ElementType.DOC) {
+            // these rows have no null marker, so a null block would shift the bytes of the next channel
+            throw new IllegalStateException("[" + elementType + "] channels can't carry null blocks");
+        }
         return switch (block.elementType()) {
             case BOOLEAN -> ValueExtractorForBoolean.extractorFor(encoder, inKey, (BooleanBlock) block);
             case BYTES_REF -> ValueExtractorForBytesRef.extractorFor(encoder, inKey, (BytesRefBlock) block);
@@ -57,6 +62,7 @@ interface ValueExtractor {
             case DOC -> new ValueExtractorForDoc(encoder, ((DocBlock) block).asVector());
             case AGGREGATE_METRIC_DOUBLE -> new ValueExtractorForAggregateMetricDouble(encoder, (AggregateMetricDoubleBlock) block);
             case LONG_RANGE -> new ValueExtractorForLongRange(encoder, (LongRangeBlock) block);
+            case DOUBLE_RANGE -> new ValueExtractorForDoubleRange(encoder, (DoubleRangeBlock) block);
             case EXPONENTIAL_HISTOGRAM -> new ValueExtractorForExponentialHistogram(encoder, (ExponentialHistogramBlock) block);
             case TDIGEST -> new ValueExtractorForTDigest(encoder, (TDigestBlock) block);
             default -> {

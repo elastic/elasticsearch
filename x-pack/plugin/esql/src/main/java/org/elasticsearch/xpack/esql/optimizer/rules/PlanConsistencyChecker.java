@@ -15,11 +15,12 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.physical.BinaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -52,15 +53,16 @@ public class PlanConsistencyChecker {
                 binaryExec.right().outputSet(),
                 failures
             );
-        } else if (p instanceof Fork || p instanceof MergeExec) {
-            checkMissingFork(p, failures);
+        } else if (p instanceof MergePlan || p instanceof MergeExec) {
+            checkMissingMerge(p, failures);
         } else {
             checkMissing(p, p.references(), p.inputSet(), "missing references", failures);
         }
 
-        var outputAttributeNames = Sets.<String>newHashSetWithExpectedSize(p.output().size());
-        var outputAttributeIds = Sets.<NameId>newHashSetWithExpectedSize(p.output().size());
-        for (Attribute outputAttr : p.output()) {
+        List<Attribute> output = p.output();
+        var outputAttributeNames = Sets.<String>newHashSetWithExpectedSize(output.size());
+        var outputAttributeIds = Sets.<NameId>newHashSetWithExpectedSize(output.size());
+        for (Attribute outputAttr : output) {
             if (outputAttributeNames.add(outputAttr.name()) == false || outputAttributeIds.add(outputAttr.id()) == false) {
                 failures.add(
                     fail(p, "Plan [{}] optimized incorrectly due to duplicate output attribute {}", p.nodeString(), outputAttr.toString())
@@ -69,15 +71,15 @@ public class PlanConsistencyChecker {
         }
     }
 
-    private static void checkMissingFork(QueryPlan<?> plan, Failures failures) {
+    private static void checkMissingMerge(QueryPlan<?> plan, Failures failures) {
         for (QueryPlan<?> child : plan.children()) {
             // TODO: this checks the set-semantics, but not the ordering
-            checkMissingForkBranch(child, plan.outputSet(), failures);
+            checkMissingMergeBranch(child, plan.outputSet(), failures);
         }
     }
 
-    private static void checkMissingForkBranch(QueryPlan<?> plan, AttributeSet forkOutputSet, Failures failures) {
-        Map<String, DataType> attributeTypes = forkOutputSet.stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));
+    private static void checkMissingMergeBranch(QueryPlan<?> plan, AttributeSet mergeOutputSet, Failures failures) {
+        Map<String, DataType> attributeTypes = mergeOutputSet.stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));
         Set<Attribute> missing = new HashSet<>();
 
         Set<String> commonAttrs = new HashSet<>();
@@ -91,8 +93,8 @@ public class PlanConsistencyChecker {
             commonAttrs.add(attribute.name());
         });
 
-        // get the missing attributes from the fork output
-        forkOutputSet.forEach(attribute -> {
+        // get the missing attributes from the merge output
+        mergeOutputSet.forEach(attribute -> {
             if (commonAttrs.contains(attribute.name()) == false) {
                 missing.add(attribute);
             }

@@ -37,7 +37,12 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
     BooleanBlock asBlock();
 
     @Override
-    BooleanVector filter(boolean mayContainDuplicates, int... positions);
+    BooleanVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default BooleanVector filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     @Override
     BooleanBlock keepMask(BooleanVector mask);

@@ -121,10 +121,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         final String refreshToken = response.getRefreshToken();
         Instant created = Instant.now();
 
-        TokenInvalidation invalidateResponse = invalidateAccessToken(accessToken);
-        assertThat(invalidateResponse.invalidated(), equalTo(1));
-        assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
-        assertThat(invalidateResponse.errors(), empty());
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
             Request searchRequest = new Request(HttpPost.METHOD_NAME, SecuritySystemIndices.SECURITY_TOKENS_ALIAS + "/_search");
@@ -164,15 +160,13 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             """, yesterday.toEpochMilli()));
         getRestClient().performRequest(updateRequest);
 
-        AtomicBoolean deleteTriggered = new AtomicBoolean(false);
         assertBusy(() -> {
-            if (deleteTriggered.compareAndSet(false, true)) {
-                // invalidate a invalid token... doesn't matter that it is bad... we just want this action to trigger the deletion
-                TokenInvalidation invalidateResponseTwo = invalidateAccessToken("fooobar");
-                assertThat(invalidateResponseTwo.invalidated(), equalTo(0));
-                assertThat(invalidateResponseTwo.previouslyInvalidated(), equalTo(0));
-                assertThat(invalidateResponseTwo.errors(), empty());
-            }
+            // invalidate an invalid token... doesn't matter that it is bad... we just want this action to trigger the deletion
+            TokenInvalidation invalidateResponseTwo = invalidateAccessToken("fooobar");
+            assertThat(invalidateResponseTwo.invalidated(), equalTo(0));
+            assertThat(invalidateResponseTwo.previouslyInvalidated(), equalTo(0));
+            assertThat(invalidateResponseTwo.errors(), empty());
+
             Request refreshRequest = new Request("POST", "/" + SecuritySystemIndices.SECURITY_TOKENS_ALIAS + "/_refresh");
             refreshRequest.setOptions(SECURITY_REQUEST_OPTIONS);
             getRestClient().performRequest(refreshRequest);

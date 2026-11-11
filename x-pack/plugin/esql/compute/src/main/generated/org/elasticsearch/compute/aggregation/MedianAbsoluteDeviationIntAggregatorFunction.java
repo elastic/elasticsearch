@@ -14,10 +14,15 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.Int16ArrowBufVector;
+import org.elasticsearch.compute.data.arrow.Int8ArrowBufVector;
+import org.elasticsearch.compute.data.arrow.IntArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -106,6 +111,46 @@ public final class MedianAbsoluteDeviationIntAggregatorFunction implements Aggre
   }
 
   private void addRawVector(IntVector vVector) {
+    if (vVector.getClass() == IntArrayVector.class) {
+      IntArrayVector specialized = (IntArrayVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        int vValue = specialized.getInt(valuesPosition);
+        MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == IntArrowBufVector.class) {
+      IntArrowBufVector specialized = (IntArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        int vValue = specialized.getInt(valuesPosition);
+        MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == Int16ArrowBufVector.class) {
+      Int16ArrowBufVector specialized = (Int16ArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        int vValue = specialized.getInt(valuesPosition);
+        MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == Int8ArrowBufVector.class) {
+      Int8ArrowBufVector specialized = (Int8ArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        int vValue = specialized.getInt(valuesPosition);
+        MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == ConstantIntVector.class) {
+      ConstantIntVector specialized = (ConstantIntVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        int vValue = specialized.getInt(valuesPosition);
+        MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       int vValue = vVector.getInt(valuesPosition);
       MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
@@ -113,6 +158,61 @@ public final class MedianAbsoluteDeviationIntAggregatorFunction implements Aggre
   }
 
   private void addRawVector(IntVector vVector, BooleanVector mask) {
+    if (vVector.getClass() == IntArrayVector.class) {
+      IntArrayVector specialized = (IntArrayVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        int vValue = specialized.getInt(valuesPosition);
+        MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == IntArrowBufVector.class) {
+      IntArrowBufVector specialized = (IntArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        int vValue = specialized.getInt(valuesPosition);
+        MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == Int16ArrowBufVector.class) {
+      Int16ArrowBufVector specialized = (Int16ArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        int vValue = specialized.getInt(valuesPosition);
+        MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == Int8ArrowBufVector.class) {
+      Int8ArrowBufVector specialized = (Int8ArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        int vValue = specialized.getInt(valuesPosition);
+        MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == ConstantIntVector.class) {
+      ConstantIntVector specialized = (ConstantIntVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        int vValue = specialized.getInt(valuesPosition);
+        MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;

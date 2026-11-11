@@ -32,10 +32,8 @@ public class TransportClusterAllocationExplainActionTests extends ESTestCase {
     private ClusterService clusterService;
     private TransportService transportService;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         threadPool = new TestThreadPool(TransportClusterAllocationExplainActionTests.class.getName());
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         transportService = new CapturingTransport().createTransportService(
@@ -50,7 +48,7 @@ public class TransportClusterAllocationExplainActionTests extends ESTestCase {
             transportService,
             clusterService,
             threadPool,
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             () -> ClusterInfo.EMPTY,
             null,
             DefaultProjectResolver.INSTANCE
@@ -64,10 +62,8 @@ public class TransportClusterAllocationExplainActionTests extends ESTestCase {
         );
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeServices() throws Exception {
         threadPool.shutdown();
         clusterService.close();
         transportService.close();

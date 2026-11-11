@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 160882
+summary: Add a `url` format for non-text input to embedding and rerank models
+type: enhancement

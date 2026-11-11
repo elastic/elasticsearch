@@ -9,8 +9,10 @@
 
 package org.elasticsearch.search.fetch.chunk;
 
-import org.elasticsearch.ResourceNotFoundException;
+import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
@@ -19,6 +21,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -27,6 +30,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -46,30 +50,38 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.EOFException;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.action.search.SearchTransportService.FETCH_ID_ACTION_NAME;
 import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_DOC_ID_ORDER;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Unit tests for {@link TransportFetchPhaseCoordinationAction}.
  */
 public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
 
+    private static final int NO_RANK = -1;
     private static final ShardId TEST_SHARD_ID = new ShardId(new Index("test-index", "test-uuid"), 0);
+    private static final ByteSizeValue REQUEST_BREAKER_LIMIT = ByteSizeValue.ofMb(64);
 
     private ThreadPool threadPool;
     private MockTransportService transportService;
@@ -79,8 +91,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
     private CircuitBreakerService breakerService;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startServices() throws Exception {
         threadPool = new TestThreadPool(getTestName());
         transportService = MockTransportService.createNewService(
             Settings.EMPTY,
@@ -94,10 +105,10 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         activeFetchPhaseTasks = new ActiveFetchPhaseTasks();
         namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
 
-        breakerService = newLimitedBreakerService(ByteSizeValue.ofMb(64));
+        breakerService = newLimitedBreakerService(REQUEST_BREAKER_LIMIT);
         action = new TransportFetchPhaseCoordinationAction(
             transportService,
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             activeFetchPhaseTasks,
             breakerService,
             namedWriteableRegistry
@@ -106,8 +117,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void stopServices() throws Exception {
         if (transportService != null) {
             transportService.close();
         }
@@ -141,7 +151,10 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
             shardFetchRequest,
             transportService.getLocalNode(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            l -> {},
+            l -> {},
+            e -> {}
         );
 
         long taskId = 123L;
@@ -180,7 +193,10 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
             createShardFetchSearchRequest(),
             transportService.getLocalNode(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            l -> {},
+            l -> {},
+            e -> {}
         );
 
         TaskId parentTaskId = new TaskId("parent-node", 999L);
@@ -217,7 +233,10 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
             createShardFetchSearchRequest(),
             transportService.getLocalNode(),
-            Map.of("X-Test-Header", "test-value", "X-Another-Header", "another-value")
+            Map.of("X-Test-Header", "test-value", "X-Another-Header", "another-value"),
+            l -> {},
+            l -> {},
+            e -> {}
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
@@ -242,7 +261,10 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
             createShardFetchSearchRequest(),
             transportService.getLocalNode(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            l -> {},
+            l -> {},
+            e -> {}
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
@@ -273,13 +295,63 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
             createShardFetchSearchRequest(),
             transportService.getLocalNode(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            l -> {},
+            l -> {},
+            e -> {}
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
         action.doExecute(createTask(123L), request, future);
         Exception caughtException = expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
         assertThat(caughtException.getMessage(), equalTo("Test failure"));
+    }
+
+    public void testDoExecuteReportsResponseTripWhileArriving() {
+        // The data node does not answer, so the handler waits for its response
+        transportService.registerRequestHandler(
+            FETCH_ID_ACTION_NAME,
+            threadPool.executor(ThreadPool.Names.GENERIC),
+            ShardFetchSearchRequest::new,
+            (req, channel, task) -> {}
+        );
+        PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
+        List<Exception> trips = Collections.synchronizedList(new ArrayList<>());
+        // The fetch phase's listener guards on the trip, so the search must have it before the listener fails
+        List<Boolean> doneWhenTripReported = Collections.synchronizedList(new ArrayList<>());
+        TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
+            createShardFetchSearchRequest(),
+            transportService.getLocalNode(),
+            Collections.emptyMap(),
+            l -> {},
+            l -> {},
+            e -> {
+                doneWhenTripReported.add(future.isDone());
+                trips.add(e);
+            }
+        );
+        action.doExecute(createTask(123L), request, future);
+
+        // A local response never goes through the transport's reservations, so drive the handler as the transport would
+        var pending = transportService.getOriginalTransport().getResponseHandlers().prune(c -> c.action().equals(FETCH_ID_ACTION_NAME));
+        assertThat(pending, hasSize(1));
+        TransportResponseHandler<?> handler = pending.getFirst().handler();
+        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        long used = breaker.getUsed();
+        Releasable piece = handler.reserveResponseBytes(40);
+        assertThat(breaker.getUsed(), equalTo(used + 40));
+        piece.close();
+        assertThat(breaker.getUsed(), equalTo(used));
+
+        CircuitBreakingException trip = expectThrows(
+            CircuitBreakingException.class,
+            () -> handler.reserveResponseBytes(Math.toIntExact(REQUEST_BREAKER_LIMIT.getBytes() + 1))
+        );
+        handler.handleException(new RemoteTransportException("rejected", trip));
+        assertThat(trips, contains(sameInstance(trip)));
+        assertThat(doneWhenTripReported, contains(false));
+        Exception e = expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
+        assertThat(ExceptionsHelper.unwrap(e, CircuitBreakingException.class), sameInstance(trip));
     }
 
     public void testDoExecuteProcessesLastChunkInResponse() {
@@ -310,7 +382,10 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
             createShardFetchSearchRequest(),
             transportService.getLocalNode(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            l -> {},
+            l -> {},
+            e -> {}
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
@@ -319,6 +394,130 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
 
         assertThat(response, notNullValue());
         assertThat(response.getResult(), notNullValue());
+    }
+
+    public void testDoExecuteHandsTheChunkChargeToTheResult() throws Exception {
+        transportService.registerRequestHandler(
+            FETCH_ID_ACTION_NAME,
+            threadPool.executor(ThreadPool.Names.GENERIC),
+            ShardFetchSearchRequest::new,
+            (req, channel, task) -> {
+                FetchSearchResult result = createFetchSearchResult();
+                try {
+                    BytesStreamOutput out = new BytesStreamOutput();
+                    SearchHit hit = createHit(0);
+                    out.writeVInt(0);
+                    hit.writeTo(out);
+                    hit.decRef();
+
+                    result.setLastChunkBytes(out.bytes(), 1);
+                    result.setLastChunkSequenceStart(0L);
+
+                    channel.sendResponse(result);
+                } finally {
+                    result.decRef();
+                }
+            }
+        );
+
+        TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
+            createShardFetchSearchRequest(),
+            transportService.getLocalNode(),
+            Collections.emptyMap(),
+            l -> {},
+            l -> {},
+            e -> {}
+        );
+
+        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        // Sampled while the result is being handed over, before the action gives its own reference back.
+        AtomicReference<long[]> atHandover = new AtomicReference<>();
+        AtomicReference<Boolean> ownedAtHandover = new AtomicReference<>();
+        PlainActionFuture<Void> done = new PlainActionFuture<>();
+        action.doExecute(createTask(123L), request, ActionListener.wrap(response -> {
+            FetchSearchResult result = response.getResult();
+            ownedAtHandover.set(result.isChargedOnCoordinator());
+            atHandover.set(new long[] { result.getSearchHitsSizeBytes(), breaker.getUsed() });
+            done.onResponse(null);
+        }, done::onFailure));
+        done.actionGet(10, TimeUnit.SECONDS);
+
+        assertThat(ownedAtHandover.get(), equalTo(Boolean.TRUE));
+        long charged = atHandover.get()[0];
+        long used = atHandover.get()[1];
+        assertThat("the result must carry the bytes the stream charged", charged, greaterThan(0L));
+        assertThat("the breaker holds exactly what the result carries", used, equalTo(charged));
+        // The action gives the result back in a finally after this listener returns, on the handler's thread.
+        assertBusy(() -> assertThat("releasing the result gives the charge back", breaker.getUsed(), equalTo(0L)));
+    }
+
+    /**
+     * A data node that falls back to a classic fetch, and predates writing positions for this coordinator, serializes the hits
+     * into lastChunkBytes without position prefixes. The coordinator must return the classic hits as they are instead of decoding
+     * those bytes.
+     */
+    public void testDoExecutePassesClassicFallbackResultThrough() {
+        float[] scores = { 3.25f, 1.5f, 0.75f };
+        transportService.registerRequestHandler(
+            FETCH_ID_ACTION_NAME,
+            threadPool.executor(ThreadPool.Names.GENERIC),
+            ShardFetchSearchRequest::new,
+            (req, channel, task) -> {
+                FetchSearchResult result = createFetchSearchResult();
+                try {
+                    SearchHit[] hits = new SearchHit[scores.length];
+                    for (int i = 0; i < hits.length; i++) {
+                        SearchHit hit = new SearchHit(i, "doc-" + i);
+                        hit.score(scores[i]);
+                        hit.sourceRef(new BytesArray("{\"id\":" + i + "}"));
+                        hits[i] = hit;
+                    }
+                    result.shardResult(new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), scores[0]), null);
+                    BytesStreamOutput out = new BytesStreamOutput();
+                    for (SearchHit hit : hits) {
+                        hit.writeTo(out);
+                    }
+                    result.setLastChunkBytes(out.bytes(), hits.length);
+                    result.setLastChunkSequenceStart(0L);
+                    channel.sendResponse(result);
+                } finally {
+                    result.decRef();
+                }
+            }
+        );
+
+        TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
+            createShardFetchSearchRequest(),
+            transportService.getLocalNode(),
+            Collections.emptyMap(),
+            l -> {},
+            l -> {},
+            e -> {}
+        );
+
+        // Take a reference before the data node's handler releases the result, so the assertions can run on the test thread.
+        PlainActionFuture<FetchSearchResult> future = new PlainActionFuture<>();
+        action.doExecute(createTask(123L), request, future.map(response -> {
+            FetchSearchResult fetched = response.getResult();
+            fetched.mustIncRef();
+            return fetched;
+        }));
+        FetchSearchResult result = future.actionGet(10, TimeUnit.SECONDS);
+        try {
+            SearchHit[] hits = result.hits().getHits();
+            assertThat(hits.length, equalTo(scores.length));
+            for (int i = 0; i < hits.length; i++) {
+                SearchHit hit = hits[i];
+                assertThat(hit.getId(), equalTo("doc-" + i));
+                assertThat(hit.getScore(), equalTo(scores[i]));
+                assertThat(hit.getRank(), equalTo(NO_RANK));
+            }
+            assertNull(result.getLastChunkBytes());
+            assertThat(result.getLastChunkHitCount(), equalTo(0));
+            assertThat(result.getLastChunkSequenceStart(), equalTo(-1L));
+        } finally {
+            result.decRef();
+        }
     }
 
     public void testDoExecuteIgnoresLastChunkBytesWhenHitCountIsZero() {
@@ -343,7 +542,10 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
             createShardFetchSearchRequest(),
             transportService.getLocalNode(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            l -> {},
+            l -> {},
+            e -> {}
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
@@ -375,28 +577,22 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
             createShardFetchSearchRequest(),
             transportService.getLocalNode(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            l -> {},
+            l -> {},
+            e -> {}
         );
 
         long taskId = 456L;
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
         action.doExecute(createTask(taskId), request, future);
-        expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
-
-        // doExecute adds bytes to the REQUEST breaker before SearchHit.readFrom() throws on the
-        // invalid payload. closeInternal (triggered when the stream's refCount reaches zero after
-        // cleanup) releases those bytes, so zero bytes is the reliable signal that the stream is
-        // fully cleaned up. Polling acquireResponseStream instead would tryIncRef on every failed
-        // attempt and leak refs, preventing closeInternal from ever firing.
-        assertBusy(
-            () -> assertThat(
-                "breaker bytes must be zero once stream closeInternal has completed",
-                breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(),
-                equalTo(0L)
-            )
+        Exception failure = expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
+        assertThat(
+            "expected a deserialization failure but got: " + failure,
+            ExceptionsHelper.unwrap(failure, EOFException.class),
+            notNullValue()
         );
-        // Confirm the task was also deregistered (single call, no retry loop, no ref leak).
-        expectThrows(ResourceNotFoundException.class, () -> activeFetchPhaseTasks.acquireResponseStream(taskId, TEST_SHARD_ID));
+        assertBusy(() -> assertFalse(activeFetchPhaseTasks.isRegistered(taskId, TEST_SHARD_ID)));
     }
 
     public void testDoExecutePreservesContextIdInFinalResult() throws Exception {
@@ -420,7 +616,10 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
             createShardFetchSearchRequest(),
             transportService.getLocalNode(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            l -> {},
+            l -> {},
+            e -> {}
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
@@ -473,7 +672,10 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
             createShardFetchSearchRequest(),
             transportService.getLocalNode(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            l -> {},
+            l -> {},
+            e -> {}
         );
 
         long taskId = 789L;
@@ -496,8 +698,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
                 equalTo(0L)
             )
         );
-        // Confirm the task was also deregistered (single call, no retry loop, no ref leak).
-        expectThrows(ResourceNotFoundException.class, () -> activeFetchPhaseTasks.acquireResponseStream(taskId, TEST_SHARD_ID));
+        assertBusy(() -> assertFalse(activeFetchPhaseTasks.isRegistered(taskId, TEST_SHARD_ID)));
     }
 
     private ShardFetchSearchRequest createShardFetchSearchRequest() {

@@ -34,10 +34,10 @@ import static org.elasticsearch.test.ESTestCase.safeSleep;
 import static org.junit.Assert.assertNotEquals;
 
 /**
- * A helper that allows to create shard routing instances within tests, while not requiring to expose
+ * A helper that allows tests to create shard routing instances, while not requiring to expose
  * different simplified constructors on the ShardRouting itself.
  *
- * Please do not add more `newShardRouting`, consider using a aSharRouting builder instead
+ * Please do not add more {@code newShardRouting} overloads, consider using {@link #shardRoutingBuilder} instead.
  */
 public class TestShardRouting {
 
@@ -59,6 +59,7 @@ public class TestShardRouting {
         private boolean primary;
         private ShardRoutingState state;
         private RecoverySource recoverySource;
+        private RecoveryPriority recoveryPriority;
         private UnassignedInfo unassignedInfo;
         private RelocationFailureInfo relocationFailureInfo;
         private AllocationId allocationId;
@@ -79,6 +80,11 @@ public class TestShardRouting {
 
         public Builder withRecoverySource(RecoverySource recoverySource) {
             this.recoverySource = recoverySource;
+            return this;
+        }
+
+        public Builder withRecoveryPriority(RecoveryPriority recoveryPriority) {
+            this.recoveryPriority = recoveryPriority;
             return this;
         }
 
@@ -115,6 +121,7 @@ public class TestShardRouting {
                 primary,
                 state,
                 recoverySource != null ? recoverySource : buildRecoverySource(primary, state),
+                recoveryPriority != null ? recoveryPriority : buildRecoveryPriority(state, relocatingNodeId != null),
                 unassignedInfo != null ? unassignedInfo : buildUnassignedInfo(state, relocatingNodeId != null),
                 relocationFailureInfo != null ? relocationFailureInfo : buildRelocationFailureInfo(state),
                 allocationId != null ? allocationId : buildAllocationId(state),
@@ -157,6 +164,7 @@ public class TestShardRouting {
             primary,
             state,
             buildRecoverySource(primary, state),
+            buildRecoveryPriority(state, false),
             buildUnassignedInfo(state, false),
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
@@ -181,6 +189,7 @@ public class TestShardRouting {
             primary,
             state,
             recoverySource,
+            buildRecoveryPriority(state, false),
             buildUnassignedInfo(state, false),
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
@@ -220,6 +229,7 @@ public class TestShardRouting {
             primary,
             state,
             buildRecoverySource(primary, state),
+            buildRecoveryPriority(state, relocatingNodeId != null),
             buildUnassignedInfo(state, relocatingNodeId != null),
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
@@ -243,6 +253,33 @@ public class TestShardRouting {
                 : RecoverySource.PeerRecoverySource.INSTANCE;
             case STARTED, RELOCATING -> null;
         };
+    }
+
+    public static RecoveryPriority buildRecoveryPriority(ShardRoutingState state, boolean hasRelocationNodeId) {
+        return switch (state) {
+            case INITIALIZING -> hasRelocationNodeId ? buildRecoveryPriorityForRelocation() : buildRecoveryPriorityForUnassigned();
+            case UNASSIGNED -> buildRecoveryPriorityForUnassigned();
+            case RELOCATING -> buildRecoveryPriorityForRelocation();
+            case STARTED -> null;
+        };
+    }
+
+    private static RecoveryPriority buildRecoveryPriorityForUnassigned() {
+        return randomFrom(
+            RecoveryPriority.UNASSIGNED_NEW_PRIMARY,
+            RecoveryPriority.UNASSIGNED_UNEXPECTED,
+            RecoveryPriority.UNASSIGNED_EXPECTED,
+            RecoveryPriority.UNASSIGNED_RESTORING,
+            RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
+        );
+    }
+
+    private static RecoveryPriority buildRecoveryPriorityForRelocation() {
+        return randomFrom(
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO,
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED,
+            RecoveryPriority.RELOCATE_REBALANCING
+        );
     }
 
     public static AllocationId buildAllocationId(ShardRoutingState state) {

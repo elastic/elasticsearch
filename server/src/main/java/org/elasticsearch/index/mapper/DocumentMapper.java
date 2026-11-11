@@ -38,20 +38,21 @@ public class DocumentMapper {
      * @return the newly created document mapper
      */
     public static DocumentMapper createEmpty(MapperService mapperService) {
-        RootObjectMapper root = new RootObjectMapper.Builder(
-            MapperService.SINGLE_MAPPING_NAME,
-            mapperService.getIndexMode().isStrictColumnar() ? ObjectMapper.Defaults.SUBOBJECTS_COLUMNAR : ObjectMapper.Defaults.SUBOBJECTS
-        ).build(MapperBuilderContext.root(false, false));
-        MetadataFieldMapper[] metadata = mapperService.getMetadataBuilders()
-            .values()
-            .stream()
-            .map(MetadataFieldMapper.Builder::build)
-            .toArray(MetadataFieldMapper[]::new);
-        Mapping mapping = new Mapping(root, metadata, null);
+        boolean strictColumnar = mapperService.getIndexMode().isStrictColumnar();
+        MappingBuilder mappingBuilder = new MappingBuilder(
+            new RootObjectMapper.Builder(
+                MapperService.SINGLE_MAPPING_NAME,
+                strictColumnar ? ObjectMapper.Defaults.SUBOBJECTS_COLUMNAR : ObjectMapper.Defaults.SUBOBJECTS
+            ),
+            mapperService.getMetadataBuilders(),
+            null,
+            strictColumnar
+        );
+        Mapping mapping = mappingBuilder.build(MapperService.MergeReason.MAPPING_UPDATE);
         return new DocumentMapper(
             mapperService.documentParser(),
             mapping,
-            mapping.toCompressedXContent(),
+            mappingBuilder.toCompressedXContent(),
             IndexVersion.current(),
             mapperService.getMapperMetrics(),
             mapperService.index().getName(),
@@ -151,13 +152,13 @@ public class DocumentMapper {
             );
         }
 
-        settings.getMode().validateMapping(mappingLookup);
+        settings.getMode().validateMapping(mappingLookup, settings.getSettings());
         /*
          * Build an empty source loader to validate that the mapping is compatible
          * with the source loading strategy declared on the source field mapper.
          */
         try {
-            mappingLookup.newSourceLoader(null, mapperMetrics.sourceFieldMetrics());
+            mappingLookup.newSourceLoader(null, mapperMetrics.sourceFieldMetrics(), null);
         } catch (IllegalArgumentException e) {
             mapperMetrics.sourceFieldMetrics().recordSyntheticSourceIncompatibleMapping();
             throw e;
@@ -195,7 +196,7 @@ public class DocumentMapper {
         }
         List<String> routingPaths = settings.getIndexMetadata().getRoutingPaths();
         for (String path : routingPaths) {
-            if (settings.getMode() == IndexMode.TIME_SERIES) {
+            if (settings.getMode().isTsdb()) {
                 for (String match : mappingLookup.getMatchingFieldNames(path)) {
                     mappingLookup.getFieldType(match).validateMatchedRoutingPath(path);
                 }

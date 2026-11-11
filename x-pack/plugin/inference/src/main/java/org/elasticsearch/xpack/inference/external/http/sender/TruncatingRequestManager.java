@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
@@ -21,7 +20,6 @@ import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
@@ -49,13 +47,12 @@ public class TruncatingRequestManager extends BaseRequestManager {
     public void execute(
         InferenceInputs inferenceInputs,
         RequestSender requestSender,
-        Supplier<Boolean> hasRequestCompletedFunction,
-        ActionListener<InferenceServiceResults> listener
+        TimedListener<InferenceServiceResults> timedListener
     ) {
         var docsInput = inferenceInputs.castTo(EmbeddingsInput.class).getTextInputs();
         var truncatedInput = truncate(docsInput, maxInputTokens);
         var request = requestCreator.apply(truncatedInput);
 
-        execute(new ExecutableInferenceRequest(requestSender, logger, request, responseHandler, hasRequestCompletedFunction, listener));
+        execute(new ExecutableInferenceRequest(requestSender, logger, request, responseHandler, timedListener));
     }
 }

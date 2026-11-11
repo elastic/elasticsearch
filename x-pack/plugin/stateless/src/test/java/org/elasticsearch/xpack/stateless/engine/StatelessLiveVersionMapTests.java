@@ -24,6 +24,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.enforceSafeAccess;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.get;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafe;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafeForGets;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.maybePutIndex;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.newDeleteVersionValue;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.newIndexVersionValue;
@@ -34,6 +35,7 @@ import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.putIndex;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.randomIndexVersionValue;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.reclaimableRefreshRamBytes;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.refreshingBytes;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.safeGenerationForGets;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.versionLookupSize;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -50,7 +52,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
         var map = newLiveVersionMap(archive);
         var id = "test";
-        Translog.Location loc = randomTranslogLocation();
+        Translog.OperationLocation loc = randomOperationLocation();
         var indexVersionValue = newIndexVersionValue(loc, 1, 1, 1);
         putIndex(map, id, indexVersionValue);
         assertEquals(indexVersionValue, get(map, id));
@@ -88,7 +90,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         deleteVersionValue = newDeleteVersionValue(2, 2, 2, 2);
         putDelete(map, id, deleteVersionValue);
         assertEquals(deleteVersionValue, get(map, id));
-        var indexValueVersion2 = newIndexVersionValue(randomTranslogLocation(), 3, 3, 1);
+        var indexValueVersion2 = newIndexVersionValue(randomOperationLocation(), 3, 3, 1);
         putIndex(map, id, indexValueVersion2);
         assertThat(archive.archivePerGeneration().size(), equalTo(0));
         refresh(map);
@@ -108,19 +110,19 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
         var map = newLiveVersionMap(archive);
         var id = "test";
-        putIndex(map, id, newIndexVersionValue(randomTranslogLocation(), 1, 1, 1));
+        putIndex(map, id, newIndexVersionValue(randomOperationLocation(), 1, 1, 1));
         assertThat(archive.archivePerGeneration().size(), equalTo(0));
         refresh(map);
         assertThat(archive.archivePerGeneration().size(), equalTo(1));
         var archiveMap = archive.archivePerGeneration().get(preCommitGeneration.get() + 1);
         assertNotNull(archiveMap);
-        var update = newIndexVersionValue(randomTranslogLocation(), 2, 2, 1);
+        var update = newIndexVersionValue(randomOperationLocation(), 2, 2, 1);
         putIndex(map, id, update);
         refresh(map);
         assertEquals(update, get(map, id));
         flush(map, currentGeneration, preCommitGeneration);
         // while the commit if propagating to the unpromotables, a new update is added
-        var update2 = newIndexVersionValue(randomTranslogLocation(), 1, 1, 1);
+        var update2 = newIndexVersionValue(randomOperationLocation(), 1, 1, 1);
         putIndex(map, id, update2);
         assertEquals(update2, get(map, id));
         refresh(map);
@@ -148,7 +150,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         var map = newLiveVersionMap(archive);
         var id = "test";
         assertThat(archive.getMinDeleteTimestamp(), equalTo(Long.MAX_VALUE));
-        putIndex(map, id, newIndexVersionValue(randomTranslogLocation(), 1, 1, 1));
+        putIndex(map, id, newIndexVersionValue(randomOperationLocation(), 1, 1, 1));
         refresh(map);
         assertThat(archive.getMinDeleteTimestamp(), equalTo(Long.MAX_VALUE));
         var deleteVersionValue = newDeleteVersionValue(2, 2, 2, 2);
@@ -176,7 +178,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         var map = newLiveVersionMap(archive);
         assertEquals(archive.getMinDeleteTimestamp(), Long.MAX_VALUE);
         // the timestamp is not changed throughout refreshes that don't see deletes
-        putIndex(map, "1", newIndexVersionValue(randomTranslogLocation(), 1, 1, 1));
+        putIndex(map, "1", newIndexVersionValue(randomOperationLocation(), 1, 1, 1));
         refresh(map);
         assertThat(archive.getMinDeleteTimestamp(), equalTo(Long.MAX_VALUE));
 
@@ -192,7 +194,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         // New segment generation (flush on index shard)
         preCommitGeneration.incrementAndGet();
         currentGeneration.incrementAndGet();
-        putIndex(map, "3", newIndexVersionValue(randomTranslogLocation(), 1, 1, 1));
+        putIndex(map, "3", newIndexVersionValue(randomOperationLocation(), 1, 1, 1));
         putDelete(map, "3", newDeleteVersionValue(1, 1, 1, 3));
         refresh(map);
         assertThat(archive.getMinDeleteTimestamp(), equalTo(1L));
@@ -211,8 +213,10 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
         var map = newLiveVersionMap(archive);
         assertFalse(isUnsafe(map));
-        maybePutIndex(map, "1", newIndexVersionValue(randomTranslogLocation(), 1, 1, 1));
+        assertFalse(isUnsafeForGets(map));
+        maybePutIndex(map, "1", newIndexVersionValue(randomOperationLocation(), 1, 1, 1));
         assertTrue(isUnsafe(map));
+        assertTrue(isUnsafeForGets(map));
         // A refresh moves the unsafe map from current to old and then to archive.
         // Do at least one refresh
         var localRefreshes = randomIntBetween(1, 5);
@@ -225,12 +229,15 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
             }
             refresh(map);
         }
-        // We should still remember that the archive received an unsafe map
-        assertTrue(isUnsafe(map));
+        // The map can be marked safe for updates but the archive should still be unsafe
+        // and force the map to be unsafe for gets.
+        assertFalse(isUnsafe(map));
+        assertTrue(isUnsafeForGets(map));
         // New flush, and it gets to the search shards...
         flush(map, currentGeneration, preCommitGeneration);
         archive.afterUnpromotablesRefreshed(preCommitGeneration.get());
         assertFalse(isUnsafe(map));
+        assertFalse(isUnsafeForGets(map));
     }
 
     public void testUnsafeMapClearedByUnpromotableRefresh() {
@@ -239,45 +246,55 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
         var map = newLiveVersionMap(archive);
         assertFalse(isUnsafe(map));
-        maybePutIndex(map, "1", newIndexVersionValue(randomTranslogLocation(), 1, 1, 1));
+        assertFalse(isUnsafeForGets(map));
+        maybePutIndex(map, "1", newIndexVersionValue(randomOperationLocation(), 1, 1, 1));
         assertTrue(isUnsafe(map));
+        assertTrue(isUnsafeForGets(map));
         // A commit happens (e.g. due to a switch from unsafe to safe when a get to an unsafe map is received)
         flush(map, currentGeneration, preCommitGeneration);
         assertThat(archive.getMinSafeGeneration(), Matchers.equalTo(preCommitGeneration.get() + 1));
         // We should still remember that the archive received an unsafe map
-        assertTrue(isUnsafe(map));
+        assertFalse(isUnsafe(map));
+        assertTrue(isUnsafeForGets(map));
         // It gets to the search shards...
         archive.afterUnpromotablesRefreshed(currentGeneration.get());
         // Since we conservatively wait for one more generation to clear the isUnsafe flag, in this case
         // we would need to wait for an extra commit to clear the flag, although it is not necessary.
-        assertTrue(isUnsafe(map));
+        assertFalse(isUnsafe(map));
+        assertTrue(isUnsafeForGets(map));
         flush(map, currentGeneration, preCommitGeneration);
         archive.afterUnpromotablesRefreshed(currentGeneration.get());
         assertFalse(isUnsafe(map));
+        assertFalse(isUnsafeForGets(map));
     }
 
     public void testUnsafeMapNotClearedDueToLocalRefresh() {
         AtomicLong currentGeneration = new AtomicLong(0);
-        AtomicLong preCommitGeneration = new AtomicLong();
+        AtomicLong preCommitGeneration = new AtomicLong(0);
         var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
         var map = newLiveVersionMap(archive);
-        maybePutIndex(map, "1", newIndexVersionValue(randomTranslogLocation(), 1, 1, 1));
-        // commit, hold on to unprmotable responses
+        maybePutIndex(map, "1", newIndexVersionValue(randomOperationLocation(), 1, 1, 1));
+        // commit, hold on to unpromotable responses
         assertThat(archive.getMinSafeGeneration(), equalTo(-1L));
         flush(map, currentGeneration, preCommitGeneration);
         var minSafeGeneration = archive.getMinSafeGeneration();
         assertThat(minSafeGeneration, Matchers.equalTo(preCommitGeneration.get() + 1));
-        assertTrue(isUnsafe(map));
-        // while unpromotable refresh is happening, we index mode
-        maybePutIndex(map, "2", newIndexVersionValue(randomTranslogLocation(), 1, 1, 1));
+        // Map is safe for updates since there was a refresh during `flush` above.
+        assertFalse(isUnsafe(map));
+        assertTrue(isUnsafeForGets(map));
+        // while unpromotable refresh is happening, we index more
+        maybePutIndex(map, "2", newIndexVersionValue(randomOperationLocation(), 1, 1, 1));
         refresh(map);
         assertThat(archive.getMinSafeGeneration(), Matchers.equalTo(preCommitGeneration.get() + 1));
         archive.afterUnpromotablesRefreshed(currentGeneration.get());
-        // Shouldn't be cleared since the commit that is inflight to search shards only had id 1
-        assertTrue(isUnsafe(map));
+        // Shouldn't be cleared since the commit that is inflight to search shards only had id 1.
+        // Safe for updates again due to explicit refresh above.
+        assertFalse(isUnsafe(map));
+        assertTrue(isUnsafeForGets(map));
         flush(map, currentGeneration, preCommitGeneration);
         archive.afterUnpromotablesRefreshed(currentGeneration.get());
         assertFalse(isUnsafe(map));
+        assertFalse(isUnsafeForGets(map));
     }
 
     /**
@@ -290,15 +307,17 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         AtomicLong preCommitGeneration = new AtomicLong();
         var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
         var map = newLiveVersionMap(archive);
-        maybePutIndex(map, "1", newIndexVersionValue(randomTranslogLocation(), 1, 0, 1));
+        maybePutIndex(map, "1", newIndexVersionValue(randomOperationLocation(), 1, 0, 1));
         assertTrue(isUnsafe(map));
+        assertTrue(isUnsafeForGets(map));
         // Flush starts
         preCommitGeneration.set(currentGeneration.get() + 1);
         // Index data during the flush, after we have committed the index writer, but still unsafe
         assertTrue(isUnsafe(map));
+        assertTrue(isUnsafeForGets(map));
         int count = randomIntBetween(1, 3);
         for (int i = 0; i < count; i++) {
-            maybePutIndex(map, randomIdentifier(), newIndexVersionValue(randomTranslogLocation(), 1, i + 1, 1));
+            maybePutIndex(map, randomIdentifier(), newIndexVersionValue(randomOperationLocation(), 1, i + 1, 1));
             if (randomBoolean()) {
                 refresh(map);
             }
@@ -308,11 +327,45 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         currentGeneration.incrementAndGet();
         // Flush ends
         archive.afterUnpromotablesRefreshed(currentGeneration.get());
-        // should still be unsafe
-        assertTrue(isUnsafe(map));
+        // should still be unsafe for gets but safe for updates
+        assertFalse(isUnsafe(map));
+        assertTrue(isUnsafeForGets(map));
         currentGeneration.incrementAndGet();
         archive.afterUnpromotablesRefreshed(currentGeneration.get());
         assertFalse(isUnsafe(map));
+        assertFalse(isUnsafeForGets(map));
+    }
+
+    public void testSafeGenerationForGets() {
+        AtomicLong currentGeneration = new AtomicLong(0);
+        AtomicLong preCommitGeneration = new AtomicLong(0);
+        var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
+        var map = newLiveVersionMap(archive);
+        // Nothing unsafe: no generation needed
+        assertThat(safeGenerationForGets(map, currentGeneration.get()), equalTo(-1L));
+        maybePutIndex(map, "1", newIndexVersionValue(randomOperationLocation(), 1, 1, 1));
+        // The unsafe operation is only in the current map, so no committed generation can cover it
+        assertThat(safeGenerationForGets(map, currentGeneration.get()), equalTo(-1L));
+        flush(map, currentGeneration, preCommitGeneration);
+        assertTrue(isUnsafeForGets(map));
+        var minSafeGeneration = archive.getMinSafeGeneration();
+        assertThat(minSafeGeneration, equalTo(preCommitGeneration.get() + 1));
+        // The commit covering minSafeGeneration does not exist yet
+        assertThat(safeGenerationForGets(map, currentGeneration.get()), equalTo(-1L));
+        flush(map, currentGeneration, preCommitGeneration);
+        assertThat(safeGenerationForGets(map, currentGeneration.get()), equalTo(minSafeGeneration));
+        // A new unsafe operation in the current map overrides the archive's answer
+        maybePutIndex(map, "2", newIndexVersionValue(randomOperationLocation(), 1, 2, 1));
+        assertThat(safeGenerationForGets(map, currentGeneration.get()), equalTo(-1L));
+        refresh(map);
+        assertThat(archive.getMinSafeGeneration(), equalTo(preCommitGeneration.get() + 1));
+        assertThat(safeGenerationForGets(map, currentGeneration.get()), equalTo(-1L));
+        flush(map, currentGeneration, preCommitGeneration);
+        assertThat(safeGenerationForGets(map, currentGeneration.get()), equalTo(archive.getMinSafeGeneration()));
+        // Once the unpromotable shards have seen the covering commit, no generation is needed anymore
+        archive.afterUnpromotablesRefreshed(currentGeneration.get());
+        assertFalse(isUnsafeForGets(map));
+        assertThat(safeGenerationForGets(map, currentGeneration.get()), equalTo(-1L));
     }
 
     public void testArchiveMemoryUsed() throws InterruptedException {
@@ -453,7 +506,9 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         }
     }
 
-    private Translog.Location randomTranslogLocation() {
-        return randomBoolean() ? null : new Translog.Location(randomNonNegativeLong(), randomNonNegativeLong(), randomInt());
+    private Translog.OperationLocation randomOperationLocation() {
+        return randomBoolean()
+            ? null
+            : new Translog.OperationLocation(new Translog.Location(randomNonNegativeLong(), randomNonNegativeLong(), randomInt()));
     }
 }

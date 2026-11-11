@@ -1,0 +1,5 @@
+pr: 152666
+summary: Let a field-sorted `TopN` use sub-segment `DOC` partitioning
+area: ES|QL
+type: enhancement
+issues: []

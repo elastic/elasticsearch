@@ -98,7 +98,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -167,11 +166,6 @@ public class MetadataCreateIndexService {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MetadataCreateIndexService.class);
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
-
-    /**
-     * Name of the setting used to allow blocking refreshes on newly created indices.
-     */
-    public static final String USE_INDEX_REFRESH_BLOCK_SETTING_NAME = "stateless.indices.use_refresh_block_upon_index_creation";
 
     @FunctionalInterface
     interface ClusterBlocksTransformer {
@@ -390,7 +384,11 @@ public class MetadataCreateIndexService {
         final CreateIndexClusterStateUpdateRequest request,
         final ActionListener<ShardsAcknowledgedResponse> listener
     ) {
-        assert systemIndices.findMatchingDescriptor(request.index()) == request.systemIndexDescriptor();
+        assert descriptorForRequestIndexAndMappingVersion(request) == request.systemIndexDescriptor()
+            : "Expected system index descriptor "
+                + descriptorForRequestIndexAndMappingVersion(request)
+                + " but got "
+                + request.systemIndexDescriptor();
         assert request.dataStreamName() == null
             || systemIndices.findMatchingDataStreamDescriptor(request.dataStreamName()) == request.systemDataStreamDescriptor();
 
@@ -431,6 +429,21 @@ public class MetadataCreateIndexService {
                 }
             })
         );
+    }
+
+    /**
+     * Get the expected system index descriptor for the index name and mapping version on the request
+     */
+    private SystemIndexDescriptor descriptorForRequestIndexAndMappingVersion(CreateIndexClusterStateUpdateRequest request) {
+        final var descriptorForIndex = systemIndices.findMatchingDescriptor(request.index());
+        if (descriptorForIndex == null) {
+            return null;
+        }
+        // If the expected descriptor is automatically managed, try and adjust it to the mapping version on the request descriptor
+        final var requestDescriptor = request.systemIndexDescriptor();
+        return requestDescriptor != null && descriptorForIndex.isAutomaticallyManaged() && requestDescriptor.isAutomaticallyManaged()
+            ? descriptorForIndex.getDescriptorCompatibleWith(requestDescriptor.getMappingsVersion())
+            : descriptorForIndex;
     }
 
     private void onlyCreateIndex(
@@ -579,6 +592,7 @@ public class MetadataCreateIndexService {
                 new IllegalArgumentException("no such project [" + request.projectId() + "]")
             );
         }
+        currentState.projectState(request.projectId()).ensureProjectNotUnderDeletion();
 
         validate(request, projectMetadata, routingTable);
 
@@ -978,6 +992,7 @@ public class MetadataCreateIndexService {
             xContentRegistry,
             request.index()
         );
+        request.setMatchingTemplate(template);
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
             metadata,
             projectMetadata,
@@ -1323,10 +1338,9 @@ public class MetadataCreateIndexService {
     ) {
         final boolean isDataStreamIndex = request.dataStreamName() != null;
 
-        // Create builders for the template and request settings. We transform these into builders
+        // Create a builder for the request settings. We transform these into a builder
         // because we may want settings to be "removed" from these prior to being set on the new
         // index (see more comments below)
-        final Settings.Builder templateSettings = Settings.builder().put(combinedTemplateSettings);
         final Settings.Builder requestSettings = Settings.builder().put(request.settings());
 
         // Create a combined builder that serves two purposes:
@@ -1349,80 +1363,31 @@ public class MetadataCreateIndexService {
 
         final Settings.Builder indexSettingsBuilder = Settings.builder();
         if (sourceMetadata == null) {
-            final IndexMode templateIndexMode = Optional.of(request)
-                .filter(r -> r.isFailureIndex() == false)
-                .map(CreateIndexClusterStateUpdateRequest::matchingTemplate)
-                .map(projectMetadata::retrieveIndexModeFromTemplate)
-                .orElse(null);
+            final ComposableIndexTemplate matchingTemplate = request.matchingTemplate();
+            final IndexMode templateIndexMode = request.isFailureIndex() || matchingTemplate == null
+                ? null
+                : projectMetadata.retrieveIndexModeFromTemplate(matchingTemplate);
+            final boolean registryInstalledTemplate = matchingTemplate != null && matchingTemplate.isRegistryInstalled();
 
             // Loop through all the explicit index setting providers, adding them to the
             // additionalIndexSettings map
-            final Settings.Builder additionalIndexSettings = Settings.builder();
-            final var resolvedAt = Instant.ofEpochMilli(request.getNameResolvedAt());
-            Set<String> overrulingSettings = new HashSet<>();
-            for (IndexSettingProvider provider : indexSettingProviders) {
-                Settings.Builder builder = Settings.builder();
-                provider.provideAdditionalSettings(
-                    request.index(),
-                    request.dataStreamName(),
-                    templateIndexMode,
-                    projectMetadata,
-                    resolvedAt,
-                    templateAndRequestSettings,
-                    combinedTemplateMappings,
-                    createdVersion,
-                    builder
-                );
-                var newAdditionalSettings = builder.build();
-                validateAdditionalSettings(provider, newAdditionalSettings, additionalIndexSettings);
-                additionalIndexSettings.put(newAdditionalSettings);
-                if (provider.overrulesTemplateAndRequestSettings()) {
-                    overrulingSettings.addAll(newAdditionalSettings.keySet());
-                }
-            }
+            final IndexSettingProviders.AdditionalSettings providedSettings = IndexSettingProviders.collectAdditionalSettings(
+                indexSettingProviders,
+                request.index(),
+                request.dataStreamName(),
+                templateIndexMode,
+                registryInstalledTemplate,
+                projectMetadata,
+                Instant.ofEpochMilli(request.getNameResolvedAt()),
+                templateAndRequestSettings,
+                combinedTemplateMappings,
+                createdVersion
+            );
 
-            for (String explicitSetting : additionalIndexSettings.keys()) {
-                if (overrulingSettings.contains(explicitSetting)) {
-                    // Remove any conflicting template and request settings to use the provided values.
-                    templateSettings.remove(explicitSetting);
-                    requestSettings.remove(explicitSetting);
-                } else {
-                    // For all the explicit settings, we go through the template and request level settings
-                    // and see if either a template or the request has "cancelled out" an explicit default
-                    // setting. For example, if a plugin had as an explicit setting:
-                    // "index.mysetting": "blah
-                    // And either a template or create index request had:
-                    // "index.mysetting": null
-                    // We want to remove the explicit setting not only from the explicitly set settings, but
-                    // also from the template and request settings, so that from the newly create index's
-                    // perspective it is as though the setting has not been set at all (using the default
-                    // value).
-                    if (templateSettings.keys().contains(explicitSetting) && templateSettings.get(explicitSetting) == null) {
-                        logger.debug(
-                            "removing default [{}] setting as it is set to null in a template for [{}] creation",
-                            explicitSetting,
-                            request.index()
-                        );
-                        additionalIndexSettings.remove(explicitSetting);
-                        templateSettings.remove(explicitSetting);
-                    }
-                    if (requestSettings.keys().contains(explicitSetting) && requestSettings.get(explicitSetting) == null) {
-                        logger.debug(
-                            "removing default [{}] setting as it is set to null in the request for [{}] creation",
-                            explicitSetting,
-                            request.index()
-                        );
-                        additionalIndexSettings.remove(explicitSetting);
-                        requestSettings.remove(explicitSetting);
-                    }
-                }
-            }
-
-            // Finally, we actually add the explicit defaults prior to the template settings and the
-            // request settings, so that the precedence goes:
-            // Explicit Defaults -> Template -> Request -> Filter out failure store settings -> Necessary Settings (# of shards, uuid, etc)
-            indexSettingsBuilder.put(additionalIndexSettings.build());
-            indexSettingsBuilder.put(templateSettings.build());
+            // Resolve the provided settings against the template and request settings. A setting set to null in the template or the
+            // request cancels the provided value, and settings of overruling providers replace the template and request values.
+            // The precedence is: Provided Settings -> Template -> Request
+            providedSettings.applyTo(templateAndRequestSettings, indexSettingsBuilder, requestSettings);
         }
         if (request.isFailureIndex()) {
             DataStreamFailureStoreDefinition.filterUserDefinedSettings(indexSettingsBuilder);
@@ -1737,6 +1702,25 @@ public class MetadataCreateIndexService {
             .build();
     }
 
+    /**
+     * Whether a new index starts with {@link IndexSettings#RETAINS_UNMAPPED_FIELDS_SETTING} set: its mapping can keep a field it
+     * does not declare, or the index it is a copy of has that setting.
+     */
+    private static boolean retainsUnmappedFields(
+        Settings indexSettings,
+        @Nullable IndexMetadata sourceMetadata,
+        @Nullable DocumentMapper docMapper
+    ) {
+        if (IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings).before(IndexVersions.TRACKS_UNMAPPED_FIELD_RETENTION)) {
+            return false;
+        }
+        if (sourceMetadata != null
+            && IndexSettings.retainsUnmappedFields(sourceMetadata.getCreationVersion(), sourceMetadata.getSettings())) {
+            return true;
+        }
+        return docMapper != null && docMapper.mapping().getRoot().canRetainUnmappedFields();
+    }
+
     static IndexMetadata buildIndexMetadata(
         String indexName,
         List<AliasMetadata> aliases,
@@ -1748,12 +1732,15 @@ public class MetadataCreateIndexService {
         Map<String, DiffableStringMap> customData,
         TransportVersion minClusterTransportVersion
     ) {
+        DocumentMapper docMapper = documentMapperSupplier.get();
+        if (retainsUnmappedFields(indexSettings, sourceMetadata, docMapper)) {
+            indexSettings = Settings.builder().put(indexSettings).put(IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.getKey(), true).build();
+        }
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
         indexMetadataBuilder.system(isSystem);
         indexMetadataBuilder.transportVersion(minClusterTransportVersion);
         // now, update the mappings with the actual source
         Map<String, MappingMetadata> mappingsMetadata = new HashMap<>();
-        DocumentMapper docMapper = documentMapperSupplier.get();
         if (docMapper != null) {
             MappingMetadata mappingMd = new MappingMetadata(docMapper);
             mappingsMetadata.put(docMapper.type(), mappingMd);
@@ -2199,12 +2186,8 @@ public class MetadataCreateIndexService {
         }
     }
 
-    public static boolean useRefreshBlock(Settings settings) {
-        return DiscoveryNode.isStateless(settings) && settings.getAsBoolean(USE_INDEX_REFRESH_BLOCK_SETTING_NAME, true);
-    }
-
     static ClusterBlocksTransformer createClusterBlocksTransformerForIndexCreation(Settings settings) {
-        if (useRefreshBlock(settings) == false) {
+        if (DiscoveryNode.isStateless(settings) == false) {
             return (clusterBlocks, projectId, indexMetadata) -> {};
         }
         logger.debug("applying refresh block on index creation");
@@ -2228,7 +2211,7 @@ public class MetadataCreateIndexService {
     private boolean assertHasRefreshBlock(IndexMetadata indexMetadata, ProjectState state) {
         var hasRefreshBlock = state.blocks()
             .hasIndexBlock(state.projectId(), indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
-        if (useRefreshBlock(settings) == false || applyRefreshBlock(indexMetadata) == false) {
+        if (DiscoveryNode.isStateless(settings) == false || applyRefreshBlock(indexMetadata) == false) {
             assert hasRefreshBlock == false : indexMetadata.getIndex();
         } else {
             assert hasRefreshBlock : indexMetadata.getIndex();

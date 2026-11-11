@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.prometheus.rest;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
-import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
-import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.PromqlParser;
+import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -27,8 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
-import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusQueryResponseListener.QueryMode;
 
 import java.time.Duration;
@@ -44,7 +43,15 @@ class PromqlQueryPlanBuilder {
 
     private static final Duration DEFAULT_SCRAPE_INTERVAL = Duration.ofMinutes(1);
 
-    record PromqlStatementResult(EsqlStatement esqlStatement, String resultType) {}
+    /**
+     * The statement to run and the Prometheus result type of its response. A string literal query has no statement: its
+     * response is the literal itself ({@code stringValue}), which Prometheus renders as {@code [<unix_time>, "<string>"]}.
+     */
+    record PromqlStatementResult(EsqlStatement esqlStatement, String resultType, String stringValue) {
+        PromqlStatementResult(EsqlStatement esqlStatement, String resultType) {
+            this(esqlStatement, resultType, null);
+        }
+    }
 
     /**
      * Builds an {@link EsqlStatement} containing a {@link PromqlCommand} with an {@link Eval} node
@@ -72,7 +79,7 @@ class PromqlQueryPlanBuilder {
     ) {
         Instant startInstant = PromqlParserUtils.parseDate(Source.EMPTY, startStr);
         Instant endInstant = PromqlParserUtils.parseDate(Source.EMPTY, endStr);
-        Duration stepDuration = parseStep(Source.EMPTY, stepStr);
+        Duration stepDuration = parseDuration(stepStr);
         Literal startLiteral = Literal.dateTime(Source.EMPTY, startInstant);
         Literal endLiteral = Literal.dateTime(Source.EMPTY, endInstant);
         Literal stepLiteral = Literal.timeDuration(Source.EMPTY, stepDuration);
@@ -120,6 +127,14 @@ class PromqlQueryPlanBuilder {
 
         PromqlParser promqlParser = new PromqlParser();
         LogicalPlan promqlPlan = promqlParser.createStatement(query, startLiteral, endLiteral, 0, 0);
+        // A string literal is a result of its own type: an instant query returns it as is, a range query rejects it
+        // (Prometheus: "invalid expression type "string" for range query"); no statement runs for it.
+        if (promqlPlan instanceof LiteralSelector literal && DataType.isString(literal.literal().dataType())) {
+            if (mode == QueryMode.RANGE) {
+                throw new IllegalArgumentException("invalid expression type \"string\" for range query, must be Scalar or instant Vector");
+            }
+            return new PromqlStatementResult(null, "string", BytesRefs.toString(literal.literal().value()));
+        }
 
         PromqlCommand promqlCommand = new PromqlCommand(
             Source.EMPTY,
@@ -163,13 +178,12 @@ class PromqlQueryPlanBuilder {
             int sentinelLimit = limit == Integer.MAX_VALUE ? limit : limit + 1;
             plan = new Limit(Source.EMPTY, new Literal(Source.EMPTY, sentinelLimit, DataType.INTEGER), plan);
         }
-
         String resultType = computeResultType(promqlPlan, mode);
-        return new PromqlStatementResult(new EsqlStatement(plan, List.of()), resultType);
+        return new PromqlStatementResult(new EsqlStatement(plan, PrometheusPlanBuilderUtils.QUERY_SETTINGS), resultType);
     }
 
     private static String computeResultType(LogicalPlan plan, QueryMode mode) {
-        PromqlDataType type = getReturnType(plan);
+        PromqlDataType type = PromqlLogicalPlanBuilder.returnType(plan);
         return switch (type) {
             case INSTANT_VECTOR -> mode == QueryMode.RANGE ? "matrix" : "vector";
             case RANGE_VECTOR -> "matrix";
@@ -178,25 +192,15 @@ class PromqlQueryPlanBuilder {
         };
     }
 
-    private static PromqlDataType getReturnType(LogicalPlan plan) {
-        if (plan instanceof UnresolvedPromqlFunction unresolved) {
-            PromqlFunctionDefinition def = PromqlFunctionRegistry.INSTANCE.functionMetadata(unresolved.functionName());
-            if (def == null) {
-                throw new IllegalArgumentException("unknown PromQL function [" + unresolved.functionName() + "]");
-            }
-            return def.functionType().outputType();
-        }
-        if (plan instanceof PromqlPlan p) {
-            return p.returnType();
-        }
-        throw new IllegalArgumentException("expected PromqlPlan, got [" + plan.getClass().getSimpleName() + "]");
-    }
-
-    private static Duration parseStep(Source source, String value) {
+    /**
+     * Parses a Prometheus duration request parameter, given either as an integer number of seconds or as a duration literal like
+     * {@code 1m30s}. Unlike Prometheus, fractional seconds such as {@code 1.5} are not supported yet.
+     */
+    static Duration parseDuration(String value) {
         try {
             return Duration.ofSeconds(Integer.parseInt(value));
         } catch (NumberFormatException ignore) {
-            return PromqlParserUtils.parseDuration(source, value);
+            return PromqlParserUtils.parseDuration(Source.EMPTY, value);
         }
     }
 }

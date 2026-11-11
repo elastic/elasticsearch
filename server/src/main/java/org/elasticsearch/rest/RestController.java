@@ -26,8 +26,8 @@ import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ParsedContentReservation;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -43,8 +43,8 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
@@ -59,7 +59,6 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -118,7 +117,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private final CircuitBreakerService circuitBreakerService;
 
     private final UsageService usageService;
-    private final Tracer tracer;
+    private final HttpServerInstrumentation instrumentation;
     private final LongCounter requestsCounter;
     // If true, the ServerlessScope annotations will be enforced
     private final ServerlessApiProtections apiProtections;
@@ -133,7 +132,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         TelemetryProvider telemetryProvider
     ) {
         this.usageService = usageService;
-        this.tracer = telemetryProvider.getTracer();
+        this.instrumentation = telemetryProvider.getHttpServerInstrumentation();
         this.requestsCounter = telemetryProvider.getMeterRegistry()
             .registerLongCounter(METRIC_REQUESTS_TOTAL, "The total number of rest requests/responses processed", "unit");
         if (restInterceptor == null) {
@@ -568,8 +567,23 @@ public class RestController implements HttpServerTransport.Dispatcher {
             } else {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
+            // Parsing the content can take far more heap than the content itself, so the request's parsers charge for what they read, and
+            // the charge is held until the response is sent, like the in-flight bytes. Only content or a source parameter is parsed.
+            final ParsedContentReservation parsedContentReservation = request.hasContentOrSourceParam()
+                ? new ParsedContentReservation(circuitBreakerService.getBreaker(CircuitBreaker.REQUEST), handler.canTripCircuitBreaker())
+                : null;
             // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength, methodHandlers);
+            responseChannel = new ResourceHandlingHttpChannel(
+                channel,
+                circuitBreakerService,
+                contentLength,
+                parsedContentReservation,
+                methodHandlers
+            );
+            if (parsedContentReservation != null) {
+                request.setParsedContentReservation(parsedContentReservation);
+                threadContext.putTransient(ParsedContentReservation.TRANSIENT_NAME, parsedContentReservation);
+            }
 
             if (handler.allowSystemIndexAccessByDefault() == false) {
                 // The ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER indicates that the request is coming from an Elastic product and
@@ -662,7 +676,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final Set<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(rawPath);
         if (validMethodSet.contains(method) == false) {
             if (method == RestRequest.Method.OPTIONS) {
-                startTrace(threadContext, channel);
+                startInstrumentation(threadContext, channel);
                 handleOptionsRequest(channel, validMethodSet);
                 return true;
             }
@@ -670,7 +684,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 // If an alternative handler for an explicit path is registered to a
                 // different HTTP method than the one supplied - return a 405 Method
                 // Not Allowed error.
-                startTrace(threadContext, channel);
+                startInstrumentation(threadContext, channel);
                 handleUnsupportedHttpMethod(uri, method, channel, validMethodSet, null);
                 return true;
             }
@@ -678,64 +692,16 @@ public class RestController implements HttpServerTransport.Dispatcher {
         return false;
     }
 
-    private void startTrace(ThreadContext threadContext, RestChannel channel) {
-        startTrace(threadContext, channel, null);
+    private void startInstrumentation(ThreadContext threadContext, RestChannel channel) {
+        startInstrumentation(threadContext, channel, null);
     }
 
-    private void startTrace(ThreadContext threadContext, RestChannel channel, String restPath) {
-        final RestRequest req = channel.request();
-        if (restPath == null) {
-            restPath = req.path();
-        }
-        String method = null;
-        try {
-            method = req.method().name();
-        } catch (IllegalArgumentException e) {
-            // Invalid methods throw an exception
-        }
-        String name;
-        if (method != null) {
-            name = method + " " + restPath;
-        } else {
-            name = restPath;
-        }
-
-        final Map<String, Object> attributes = Maps.newMapWithExpectedSize(req.getHeaders().size() + 3);
-        req.getHeaders().forEach((key, values) -> {
-            final String lowerKey = key.toLowerCase(Locale.ROOT).replace('-', '_');
-            attributes.put("http.request.headers." + lowerKey, values == null ? "" : String.join("; ", values));
-        });
-        String resolvedMethod = Objects.requireNonNullElse(method, "<unknown>");
-        String resolvedUri = Objects.requireNonNullElse(req.uri(), "<unknown>");
-        attributes.put("http.method", resolvedMethod);
-        // OTel HTTP server SemConv (https://opentelemetry.io/docs/specs/semconv/http/http-spans/):
-        // http.request.method MUST be "_OTHER" for methods unknown to the instrumentation.
-        attributes.put("http.request.method", method != null ? method : "_OTHER");
-        attributes.put("http.url", resolvedUri);
-        attributes.put("url.full", resolvedUri);
-        int queryIdx = resolvedUri.indexOf('?');
-        if (queryIdx >= 0) {
-            attributes.put("url.path", resolvedUri.substring(0, queryIdx));
-            attributes.put("url.query", resolvedUri.substring(queryIdx + 1));
-        } else {
-            attributes.put("url.path", resolvedUri);
-        }
-        switch (req.getHttpRequest().protocolVersion()) {
-            case HTTP_1_0 -> {
-                attributes.put("http.flavour", "1.0");
-                attributes.put("network.protocol.version", "1.0");
-            }
-            case HTTP_1_1 -> {
-                attributes.put("http.flavour", "1.1");
-                attributes.put("network.protocol.version", "1.1");
-            }
-        }
-
-        tracer.startTrace(threadContext, channel.request(), name, attributes);
+    private void startInstrumentation(ThreadContext threadContext, RestChannel channel, @Nullable String restPath) {
+        this.instrumentation.start(threadContext, channel.request(), restPath);
     }
 
-    private void traceException(RestChannel channel, Throwable e) {
-        this.tracer.addError(channel.request(), e);
+    private void recordInstrumentationException(RestChannel channel, Throwable e) {
+        this.instrumentation.recordException(channel.request(), e);
     }
 
     private static void sendContentTypeErrorMessage(@Nullable List<String> contentTypeHeader, RestChannel channel) throws IOException {
@@ -753,7 +719,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         try {
             validateErrorTrace(request, channel);
         } catch (IllegalArgumentException e) {
-            startTrace(threadContext, channel);
+            startInstrumentation(threadContext, channel);
             channel.sendResponse(RestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, e.getMessage()));
             recordRequestMetric(BAD_REQUEST, requestsCounter);
             return;
@@ -782,20 +748,20 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         return;
                     }
                 } else {
-                    startTrace(threadContext, channel, handlers.getPath());
+                    startInstrumentation(threadContext, channel, handlers.getPath());
                     var decoratedChannel = new MeteringRestChannelDecorator(channel, requestsCounter, handler.getConcreteRestHandler());
                     maybeAggregateAndDispatchRequest(request, decoratedChannel, handler, handlers, threadContext);
                     return;
                 }
             }
         } catch (final IllegalArgumentException e) {
-            startTrace(threadContext, channel);
-            traceException(channel, e);
+            startInstrumentation(threadContext, channel);
+            recordInstrumentationException(channel, e);
             handleUnsupportedHttpMethod(uri, null, channel, getValidHandlerMethodSet(rawPath), e);
             return;
         }
         // If request has not been handled, fallback to a bad request error.
-        startTrace(threadContext, channel);
+        startInstrumentation(threadContext, channel);
         handleBadRequest(uri, requestMethod, channel);
     }
 
@@ -963,6 +929,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
+        public String handlerName() {
+            return delegate.handlerName();
+        }
+
+        @Override
         public XContentBuilder newBuilder() throws IOException {
             return delegate.newBuilder();
         }
@@ -1031,6 +1002,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
+        public String handlerName() {
+            return restHandler.getName();
+        }
+
+        @Override
         public void sendResponse(RestResponse response) {
             super.sendResponse(response);
             recordRequestMetric(response.status(), restHandler.getName(), request().method().name(), requestsCounter);
@@ -1045,6 +1021,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static final class ResourceHandlingHttpChannel extends DelegatingRestChannel {
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
+        @Nullable
+        private final ParsedContentReservation parsedContentReservation;
         private final HttpRouteStatsTracker statsTracker;
         private final long startTime;
         private final AtomicBoolean responseSent = new AtomicBoolean();
@@ -1053,11 +1031,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
             RestChannel delegate,
             CircuitBreakerService circuitBreakerService,
             int contentLength,
+            @Nullable ParsedContentReservation parsedContentReservation,
             MethodHandlers methodHandlers
         ) {
             super(delegate);
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
+            this.parsedContentReservation = parsedContentReservation;
             this.statsTracker = methodHandlers.statsTracker();
             this.startTime = rawRelativeTimeInMillis();
         }
@@ -1073,6 +1053,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     throw new IllegalStateException(message);
                 }
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
+                Releasables.close(parsedContentReservation);
 
                 statsTracker.addRequestStats(contentLength);
                 statsTracker.addResponseTime(rawRelativeTimeInMillis() - startTime);

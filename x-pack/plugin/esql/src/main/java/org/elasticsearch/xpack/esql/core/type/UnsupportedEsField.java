@@ -68,6 +68,12 @@ public class UnsupportedEsField extends EsField {
     }
 
     @Override
+    public EsField withProperties(Map<String, EsField> newProperties) {
+        // Preserve the original types (and inherited marker) so a rebuilt parent still reports as unsupported, not a plain field.
+        return new UnsupportedEsField(getName(), originalTypes, inherited, newProperties, getTimeSeriesFieldType());
+    }
+
+    @Override
     public void writeContent(StreamOutput out) throws IOException {
         ((PlanStreamOutput) out).writeCachedString(getName());
         if (out.getTransportVersion().supports(ESQL_REPORT_ORIGINAL_TYPES)) {

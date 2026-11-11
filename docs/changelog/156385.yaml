@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 156385
+summary: NEON vectorize DiskBBQ score corrections on aarch64
+type: enhancement

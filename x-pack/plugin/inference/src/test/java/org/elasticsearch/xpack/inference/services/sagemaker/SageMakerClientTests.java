@@ -61,8 +61,7 @@ public class SageMakerClientTests extends ESTestCase {
     private ThreadPool threadPool;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createClient() throws Exception {
         threadPool = createThreadPool(inferenceUtilityExecutors());
 
         awsClient = mock();

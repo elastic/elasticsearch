@@ -47,7 +47,7 @@ public final class OpenPointInTimeResponse extends ActionResponse implements ToX
     }
 
     /**
-     * This response is always delivered as an in-memory object via {@code NodeClient#executeLocally};
+     * This response is always delivered as an in-memory object via {@code NodeClient#executeAndReturnTask};
      * the REST layer then renders it as XContent through {@link #toXContent}.
      * If a transport path is ever needed, this method must be updated together with a new
      * {@code TransportVersion} constant and a matching {@code StreamInput} constructor in the same

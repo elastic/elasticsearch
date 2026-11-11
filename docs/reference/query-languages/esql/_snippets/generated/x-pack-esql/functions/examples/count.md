@@ -117,4 +117,54 @@ TS histogram_timeseries_index
 | --- |
 | 8841 |
 
+To count only the histogram values that fall into a range, pass a `double_range` (for example from
+[`TO_RANGE`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_range.md)) as the
+second argument. Combine this with
+[`BUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions/bucket.md) on the same
+histogram field to create a histogram of the recorded values:
+
+```esql
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS count = COUNT(responseTime, bucket) BY bucket = BUCKET(responseTime, 1)
+| SORT RANGE_MIN(bucket)
+```
+
+| count:long | bucket:double_range |
+| --- | --- |
+| 8723 | 0.0..1.0 |
+| 112 | 1.0..2.0 |
+| 1 | 2.0..3.0 |
+| 2 | 3.0..4.0 |
+| 2 | 5.0..6.0 |
+| 1 | 6.0..7.0 |
+
+
+::::{note}
+Histograms only record approximate value distributions, so the counts per bucket are estimates.
+::::
+
+The same works for `tdigest` and casted `histogram` fields:
+
+```esql
+TS histogram_timeseries_index
+| WHERE instance == "instance-0"
+| STATS count = COUNT(responseTime::tdigest, bucket) BY bucket = BUCKET(responseTime::tdigest, 1)
+| SORT RANGE_MIN(bucket)
+```
+
+| count:long | bucket:double_range |
+| --- | --- |
+| 8733 | 0.0..1.0 |
+| 100 | 1.0..2.0 |
+| 4 | 2.0..3.0 |
+| 2 | 3.0..4.0 |
+| 0 | 4.0..5.0 |
+| 0 | 5.0..6.0 |
+| 2 | 6.0..7.0 |
+
+
+A `tdigest` does not track which ranges between its centroids are empty, so `BUCKET` returns every bucket
+between the smallest and the largest centroid of a digest, and some of them may end up with a count of `0`.
+
 

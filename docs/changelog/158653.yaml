@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158653
+summary: Bound external I/O by heap
+type: enhancement

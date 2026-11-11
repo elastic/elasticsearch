@@ -32,6 +32,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerStats;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -141,6 +143,7 @@ public class JobResultsPersister {
             }
             String id = bucketWithoutRecords.getId();
             logger.trace("[{}] ES API CALL: index bucket to index [{}] with ID [{}]", jobId, indexName, id);
+            bucketWithoutRecords.setEventIngested(Instant.now());
             indexResult(id, bucketWithoutRecords, "bucket");
 
             persistBucketInfluencersStandalone(jobId, bucketWithoutRecords.getBucketInfluencers());
@@ -156,6 +159,7 @@ public class JobResultsPersister {
                 for (BucketInfluencer bucketInfluencer : bucketInfluencers) {
                     String id = bucketInfluencer.getId();
                     logger.trace("[{}] ES BULK ACTION: index bucket influencer to index [{}] with ID [{}]", jobId, indexName, id);
+                    bucketInfluencer.setEventIngested(Instant.now());
                     indexResult(id, bucketInfluencer, "bucket influencer");
                 }
             }
@@ -186,6 +190,7 @@ public class JobResultsPersister {
         public synchronized Builder persistRecords(List<AnomalyRecord> records) {
             for (AnomalyRecord record : records) {
                 logger.trace("[{}] ES BULK ACTION: index record to index [{}] with ID [{}]", jobId, indexName, record.getId());
+                record.setEventIngested(Instant.now());
                 indexResult(record.getId(), record, "record");
             }
 
@@ -202,6 +207,7 @@ public class JobResultsPersister {
         public synchronized Builder persistInfluencers(List<Influencer> influencers) {
             for (Influencer influencer : influencers) {
                 logger.trace("[{}] ES BULK ACTION: index influencer to index [{}] with ID [{}]", jobId, indexName, influencer.getId());
+                influencer.setEventIngested(Instant.now());
                 indexResult(influencer.getId(), influencer, "influencer");
             }
 
@@ -371,7 +377,7 @@ public class JobResultsPersister {
     }
 
     private static SearchRequest buildQuantilesDocIdSearch(String quantilesDocId) {
-        return new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern()).allowPartialSearchResults(false)
+        return new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPatterns()).allowPartialSearchResults(false)
             .source(
                 new SearchSourceBuilder().size(1)
                     .fetchSource(false)
@@ -469,7 +475,7 @@ public class JobResultsPersister {
             indexNames.add(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
         }
         if (commitTypes.contains(CommitType.STATE)) {
-            indexNames.add(AnomalyDetectorsIndex.jobStateIndexPattern());
+            Collections.addAll(indexNames, AnomalyDetectorsIndex.jobStateIndexPatterns());
         }
         if (commitTypes.contains(CommitType.ANNOTATIONS)) {
             // We refresh using the read alias in order to ensure all indices will
@@ -510,6 +516,39 @@ public class JobResultsPersister {
         );
         persistable.setRefreshPolicy(refreshPolicy);
         persistable.persist(() -> true, true, listener);
+    }
+
+    /** Writes the checkpoint through the job results write alias. */
+    public void persistEsqlDatafeedSourceCheckpoint(
+        EsqlDatafeedSourceCheckpoint checkpoint,
+        WriteRequest.RefreshPolicy refreshPolicy,
+        ActionListener<BulkResponse> listener
+    ) {
+        String jobId = checkpoint.getJobId();
+        logger.trace("[{}] Persisting ES|QL datafeed source checkpoint at [{}]", jobId, checkpoint.getSourceEndMs());
+        Persistable persistable = new Persistable(
+            AnomalyDetectorsIndex.resultsWriteAlias(jobId),
+            jobId,
+            checkpoint,
+            new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
+            EsqlDatafeedSourceCheckpoint.documentId(jobId)
+        );
+        persistable.setRefreshPolicy(refreshPolicy);
+        persistable.persist(() -> true, true, listener);
+    }
+
+    public void persistEsqlDatafeedSourceCheckpoint(EsqlDatafeedSourceCheckpoint checkpoint) {
+        // Load uses a realtime GET, so this write stays visible without a refresh on every cycle.
+        persistEsqlDatafeedSourceCheckpoint(checkpoint, WriteRequest.RefreshPolicy.NONE).actionGet();
+    }
+
+    public PlainActionFuture<BulkResponse> persistEsqlDatafeedSourceCheckpoint(
+        EsqlDatafeedSourceCheckpoint checkpoint,
+        WriteRequest.RefreshPolicy refreshPolicy
+    ) {
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+        persistEsqlDatafeedSourceCheckpoint(checkpoint, refreshPolicy, future);
+        return future;
     }
 
     private static XContentBuilder toXContentBuilder(ToXContent obj, ToXContent.Params params) throws IOException {

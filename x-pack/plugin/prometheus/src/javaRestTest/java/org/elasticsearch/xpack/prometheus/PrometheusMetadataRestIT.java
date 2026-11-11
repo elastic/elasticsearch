@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.prometheus;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ObjectPath;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -123,8 +125,16 @@ public class PrometheusMetadataRestIT extends AbstractPrometheusRestIT {
     /**
      * The same metric stored in two data streams with different mappings (gauge vs. counter) must
      * surface as two distinct entries under the same metric name in the global metadata response.
+     *
+     * <p>The counter override only applies to newly created backing indices, so the custom stream is
+     * wiped after installing the template. Metadata discovery also lags cluster-state/field-caps
+     * briefly after create+refresh, so the final assertion waits with {@code assertBusy}.
      */
     public void testMultipleEntriesForSameMetricAcrossStreams() throws Exception {
+        final String customDataStream = "metrics-generic.prometheus-custom";
+        // Drop any leftover custom stream from a prior method/iteration so we do not reuse a gauge index.
+        wipeDataStream(customDataStream);
+
         // Write first — the default stream's backing index is created with gauge mapping.
         writeMetric("multi_type_metric", Map.of("job", "test"));
 
@@ -151,15 +161,30 @@ public class PrometheusMetadataRestIT extends AbstractPrometheusRestIT {
             """);
         client().performRequest(putCustomTemplate);
 
+        // Recreate after the template update so the backing index actually maps as counter.
+        wipeDataStream(customDataStream);
         writeMetricTo("generic", "custom", "multi_type_metric", Map.of("job", "test"));
 
-        ObjectPath op = ObjectPath.createFromResponse(client().performRequest(metadataRequest()));
-        assertThat(op.evaluate("status"), equalTo("success"));
+        assertBusy(() -> {
+            ObjectPath op = ObjectPath.createFromResponse(client().performRequest(metadataRequest()));
+            assertThat(op.evaluate("status"), equalTo("success"));
 
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> entries = (List<Map<String, Object>>) op.evaluate("data.multi_type_metric");
-        assertThat(entries, hasSize(2));
-        assertThat(entries.stream().map(e -> (String) e.get("type")).toList(), containsInAnyOrder("gauge", "counter"));
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> entries = (List<Map<String, Object>>) op.evaluate("data.multi_type_metric");
+            assertThat(entries, notNullValue());
+            assertThat(entries, hasSize(2));
+            assertThat(entries.stream().map(e -> (String) e.get("type")).toList(), containsInAnyOrder("gauge", "counter"));
+        });
+    }
+
+    private void wipeDataStream(String name) throws IOException {
+        try {
+            client().performRequest(new Request("DELETE", "/_data_stream/" + name));
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
+        }
     }
 
     public void testLimitPerMetricCapsEntriesForSingleMetricName() throws Exception {
@@ -242,9 +267,30 @@ public class PrometheusMetadataRestIT extends AbstractPrometheusRestIT {
         assertThat(op.evaluate("data.http_request_duration_seconds.0.unit"), equalTo("seconds"));
     }
 
+    public void testMetricsExplorerDiscoveryWithDefaultIndexScopeAndMixedMetricsStreams() throws Exception {
+        writeMetric(MIXED_METRICS_PROMETHEUS_METRIC, Map.of("job", "prometheus"));
+        writeNonPrometheusMetricsDataStream();
+
+        String apiKey = createPrometheusReadApiKey("prometheus-read-view-index-metadata-key", "metrics-*");
+
+        ObjectPath defaultScope = ObjectPath.createFromResponse(
+            client().performRequest(metadataRequest("/_prometheus/api/v1/metadata", apiKey))
+        );
+        ObjectPath prometheusScope = ObjectPath.createFromResponse(
+            client().performRequest(metadataRequest("/_prometheus/metrics-*.prometheus-*/api/v1/metadata", apiKey))
+        );
+
+        assertThat(defaultScope.evaluate("status"), equalTo("success"));
+        assertThat(prometheusScope.evaluate("status"), equalTo("success"));
+        assertThat(defaultScope.evaluate("data." + MIXED_METRICS_PROMETHEUS_METRIC), notNullValue());
+        assertThat(prometheusScope.evaluate("data." + MIXED_METRICS_PROMETHEUS_METRIC), notNullValue());
+    }
+
     private Request metadataRequest() {
-        Request request = new Request("GET", "/_prometheus/api/v1/metadata");
-        addReadAuth(request);
-        return request;
+        return metadataRequest("/_prometheus/api/v1/metadata", readApiKey);
+    }
+
+    private Request metadataRequest(String path, String apiKey) {
+        return prometheusGetRequest(path, apiKey);
     }
 }

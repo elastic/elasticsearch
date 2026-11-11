@@ -362,15 +362,17 @@ public final class Page implements Writeable, Releasable {
     /**
      * Creates a new page that only exposes the positions provided.
      * @param mayContainDuplicates may the positions array contain duplicate positions?
-     * @param positions the positions to retain
+     * @param positions the positions array
+     * @param offset the start index in the positions array
+     * @param length the number of positions to use from the array
      * @return a filtered page
      */
-    public Page filter(boolean mayContainDuplicates, int... positions) {
+    public Page filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         Block[] filteredBlocks = new Block[blocks.length];
         boolean success = false;
         try {
             for (int i = 0; i < blocks.length; i++) {
-                filteredBlocks[i] = getBlock(i).filter(mayContainDuplicates, positions);
+                filteredBlocks[i] = getBlock(i).filter(mayContainDuplicates, positions, offset, length);
             }
             success = true;
         } finally {
@@ -378,7 +380,17 @@ public final class Page implements Writeable, Releasable {
                 Releasables.closeExpectNoException(filteredBlocks);
             }
         }
-        return new Page(false, positions.length, filteredBlocks, batchMetadata);
+        return new Page(false, length, filteredBlocks, batchMetadata);
+    }
+
+    /**
+     * Creates a new page that only exposes the positions provided.
+     * @param mayContainDuplicates may the positions array contain duplicate positions?
+     * @param positions the positions to retain
+     * @return a filtered page
+     */
+    public Page filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
     }
 
     /**

@@ -1,0 +1,5 @@
+area: Audit
+issues: []
+pr: 157958
+summary: Bound audit log request body rendering by the configured size limit
+type: enhancement

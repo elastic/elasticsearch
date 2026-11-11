@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -20,10 +21,14 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Date;
 import java.util.Objects;
 
 public class Influencer implements ToXContentObject, Writeable {
+
+    private static final TransportVersion ML_ANOMALY_EVENT_INGESTED = TransportVersion.fromName("ml_anomaly_event_ingested");
+
     /**
      * Result type
      */
@@ -66,6 +71,7 @@ public class Influencer implements ToXContentObject, Writeable {
         LENIENT_PARSER.declareDouble(Influencer::setInfluencerScore, INFLUENCER_SCORE);
         LENIENT_PARSER.declareDouble(Influencer::setInitialInfluencerScore, INITIAL_INFLUENCER_SCORE);
         LENIENT_PARSER.declareBoolean(Influencer::setInterim, Result.IS_INTERIM);
+        LENIENT_PARSER.declareObject(Influencer::setEventIngested, (p, c) -> Result.parseEventIngested(p), Result.EVENT);
     }
 
     private final String jobId;
@@ -77,6 +83,7 @@ public class Influencer implements ToXContentObject, Writeable {
     private double initialInfluencerScore;
     private double influencerScore;
     private boolean isInterim;
+    private Instant eventIngested;
 
     public Influencer(String jobId, String fieldName, String fieldValue, Date timestamp, long bucketSpan) {
         this.jobId = jobId;
@@ -96,6 +103,9 @@ public class Influencer implements ToXContentObject, Writeable {
         influencerScore = in.readDouble();
         isInterim = in.readBoolean();
         bucketSpan = in.readLong();
+        if (in.getTransportVersion().supports(ML_ANOMALY_EVENT_INGESTED)) {
+            eventIngested = in.readOptionalInstant();
+        }
     }
 
     @Override
@@ -109,6 +119,9 @@ public class Influencer implements ToXContentObject, Writeable {
         out.writeDouble(influencerScore);
         out.writeBoolean(isInterim);
         out.writeLong(bucketSpan);
+        if (out.getTransportVersion().supports(ML_ANOMALY_EVENT_INGESTED)) {
+            out.writeOptionalInstant(eventIngested);
+        }
     }
 
     @Override
@@ -137,6 +150,11 @@ public class Influencer implements ToXContentObject, Writeable {
             Result.TIMESTAMP.getPreferredName() + "_string",
             timestamp.getTime()
         );
+        if (eventIngested != null) {
+            builder.startObject(Result.EVENT.getPreferredName());
+            builder.field(Result.INGESTED.getPreferredName(), eventIngested.toEpochMilli());
+            builder.endObject();
+        }
         return builder;
     }
 
@@ -200,6 +218,14 @@ public class Influencer implements ToXContentObject, Writeable {
         isInterim = value;
     }
 
+    public Instant getEventIngested() {
+        return eventIngested;
+    }
+
+    public void setEventIngested(Instant eventIngested) {
+        this.eventIngested = eventIngested;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(
@@ -211,7 +237,8 @@ public class Influencer implements ToXContentObject, Writeable {
             influencerScore,
             probability,
             isInterim,
-            bucketSpan
+            bucketSpan,
+            eventIngested
         );
     }
 
@@ -238,6 +265,7 @@ public class Influencer implements ToXContentObject, Writeable {
             && Double.compare(influencerScore, other.influencerScore) == 0
             && Double.compare(probability, other.probability) == 0
             && (isInterim == other.isInterim)
-            && (bucketSpan == other.bucketSpan);
+            && (bucketSpan == other.bucketSpan)
+            && Objects.equals(eventIngested, other.eventIngested);
     }
 }

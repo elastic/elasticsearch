@@ -9,6 +9,8 @@
 
 package org.elasticsearch.inference.completion;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,7 +30,8 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TYPE_FIELD;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public sealed interface ToolChoice extends NamedWriteable, ToXContent permits ToolChoice.ToolChoiceObject, ToolChoice.ToolChoiceString {
+public sealed interface ToolChoice extends Accountable, NamedWriteable, ToXContent permits ToolChoice.ToolChoiceObject,
+    ToolChoice.ToolChoiceString {
 
     record ToolChoiceObject(String type, ToolChoiceObject.FunctionField function) implements ToolChoice, NamedWriteable {
 
@@ -38,6 +41,8 @@ public sealed interface ToolChoice extends NamedWriteable, ToXContent permits To
             ToolChoiceObject.class.getSimpleName(),
             args -> new ToolChoiceObject((String) args[0], (ToolChoiceObject.FunctionField) args[1])
         );
+
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ToolChoiceObject.class);
 
         static {
             PARSER.declareString(constructorArg(), new ParseField("type"));
@@ -67,11 +72,21 @@ public sealed interface ToolChoice extends NamedWriteable, ToXContent permits To
             return builder.endObject();
         }
 
-        public record FunctionField(String name) implements Writeable, ToXContentObject {
+        @Override
+        public long ramBytesUsed() {
+            var typeRamBytesUsed = RamUsageEstimator.sizeOf(type());
+            var functionRamBytesUsed = RamUsageEstimator.sizeOf(function());
+
+            return SHALLOW_SIZE + typeRamBytesUsed + functionRamBytesUsed;
+        }
+
+        public record FunctionField(String name) implements Accountable, Writeable, ToXContentObject {
             static final ConstructingObjectParser<FunctionField, Void> PARSER = new ConstructingObjectParser<>(
                 "tool_choice_function_field",
                 args -> new FunctionField((String) args[0])
             );
+
+            private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(FunctionField.class);
 
             static {
                 PARSER.declareString(constructorArg(), new ParseField("name"));
@@ -90,11 +105,19 @@ public sealed interface ToolChoice extends NamedWriteable, ToXContent permits To
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 return builder.startObject().field(NAME_FIELD, name).endObject();
             }
+
+            @Override
+            public long ramBytesUsed() {
+                var nameRamBytesUsed = RamUsageEstimator.sizeOf(name());
+                return SHALLOW_SIZE + nameRamBytesUsed;
+            }
         }
     }
 
-    record ToolChoiceString(String value) implements ToolChoice, NamedWriteable {
+    record ToolChoiceString(String value) implements Accountable, ToolChoice, NamedWriteable {
         public static final String NAME = "tool_choice_string";
+
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ToolChoiceString.class);
 
         public static ToolChoiceString of(XContentParser parser) throws IOException {
             var content = parser.text();
@@ -118,6 +141,12 @@ public sealed interface ToolChoice extends NamedWriteable, ToXContent permits To
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.field(TOOL_CHOICE_FIELD, value);
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            var valueRamBytesUsed = RamUsageEstimator.sizeOf(value);
+            return SHALLOW_SIZE + valueRamBytesUsed;
         }
     }
 }

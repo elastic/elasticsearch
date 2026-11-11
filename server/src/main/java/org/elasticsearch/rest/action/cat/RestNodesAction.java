@@ -240,6 +240,11 @@ public class RestNodesAction extends AbstractCatAction {
             "alias:iifvc,indexingIndexFailedDueToVersionConflict;default:false;text-align:right;"
                 + "desc:number of failed indexing ops due to version conflict"
         );
+        table.addCell(
+            "indexing.index_failed_due_to_too_many_docs",
+            "alias:iiftmd,indexingIndexFailedDueToTooManyDocs;default:false;text-align:right;"
+                + "desc:number of failed indexing ops due to the shard reaching the maximum number of documents"
+        );
 
         table.addCell("merges.current", "alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges");
         table.addCell(
@@ -484,6 +489,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexCount());
             table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexFailedCount());
             table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexFailedDueToVersionConflictCount());
+            table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexFailedDueToTooManyDocsCount());
 
             MergeStats mergeStats = indicesStats == null ? null : indicesStats.getMerge();
             table.addCell(mergeStats == null ? null : mergeStats.getCurrent());

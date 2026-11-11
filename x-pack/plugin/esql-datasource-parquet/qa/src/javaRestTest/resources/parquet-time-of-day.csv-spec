@@ -1,0 +1,131 @@
+// A Parquet TIME column holds a time of day -- a count of its own unit since midnight, with no date. ES|QL has no
+// TIME type, so the closest faithful rendering is the instant that count reaches on 1970-01-01, which is what both
+// reference engines produce: clickhouse local reads the three units as DateTime64(3)/(6)/(9) and prints
+// "1970-01-01 10:20:30.123456789" at the matching precision, and duckdb reads them as its own TIME type.
+//
+// The unit lives in the file's annotation, so it is the file that says what the number means -- the first clause of
+// the declared-type unit rule, the one that already covers TIMESTAMP(unit). Reporting these columns as ESQL long
+// instead left the number to be reinterpreted downstream as epoch millis, which is right for the millisecond unit
+// by coincidence of unit and wrong by three and six orders of magnitude for the other two.
+//
+// {{time_of_day}} carries one column per unit: t_ms (INT32 + TIME(MILLIS)), t_us and t_ns (INT64 + TIME(MICROS) and
+// TIME(NANOS)). Its rows are midnight, 10:20:30 exactly, 10:20:30 with the finest fraction each unit can hold,
+// the last representable instant of the day, and an all-null row.
+
+timeOfDayMillisReadsAsADatetimeOnTheEpochDay
+required_capability: dataset_in_from_command
+required_capability: parquet_time_of_day_is_a_temporal_column
+dataset: time_of_day: "{{time_of_day}}"
+
+FROM time_of_day
+| SORT id
+| KEEP id, t_ms
+;
+
+id:integer | t_ms:date
+1          | 1970-01-01T00:00:00.000Z
+2          | 1970-01-01T10:20:30.000Z
+3          | 1970-01-01T10:20:30.123Z
+4          | 1970-01-01T23:59:59.999Z
+5          | null
+;
+
+// The sub-millisecond units, asserted as the exact nanosecond-of-day they hold. TO_LONG rather than the rendered
+// instant because this is the assertion that pins the unit arithmetic: the microsecond column is scaled x1_000 on
+// read and the nanosecond column is not, and a single number says which happened.
+timeOfDaySubMillisecondUnitsHoldTheNanosecondOfDay
+required_capability: dataset_in_from_command
+required_capability: parquet_time_of_day_is_a_temporal_column
+dataset: time_of_day_nanos: "{{time_of_day}}"
+
+FROM time_of_day_nanos
+| SORT id
+| EVAL us_nanos = TO_LONG(t_us), ns_nanos = TO_LONG(t_ns)
+| KEEP id, us_nanos, ns_nanos
+;
+
+id:integer | us_nanos:long   | ns_nanos:long
+1          | 0               | 0
+2          | 37230000000000  | 37230000000000
+3          | 37230123456000  | 37230123456789
+4          | 86399999999000  | 86399999999999
+5          | null            | null
+;
+
+// Declaring the conventional dashboard type over the microsecond unit narrows the nanosecond of day to the
+// millisecond of day -- the ordinary date_nanos -> date narrowing, flooring the digits date cannot hold. This is the
+// case that used to answer with a wrong instant, because the stored number was read as epoch milliseconds: 1971 on
+// the eager readers and year 3149 on the deferred route, which scaled to nanoseconds before reading.
+declaredDateOverTimeOfDayMicrosNarrowsToTheMillisecondOfDay
+required_capability: dataset_in_from_command
+required_capability: parquet_time_of_day_is_a_temporal_column
+dataset: time_of_day_declared: "{{time_of_day}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "integer"}, "t_us": {"type": "date"}}}}
+
+FROM time_of_day_declared
+| SORT id
+;
+
+id:integer | t_us:date
+1          | 1970-01-01T00:00:00.000Z
+2          | 1970-01-01T10:20:30.000Z
+3          | 1970-01-01T10:20:30.123Z
+4          | 1970-01-01T23:59:59.999Z
+5          | null
+;
+
+// A filter on a TIME column prunes through the footer, which holds the raw microseconds while the query's bound is
+// a nanosecond of day -- so the bound is scaled down by 1_000 on its way to the file, exactly as for a
+// TIMESTAMP(MICROS) column. Pushing it unscaled would skip every row group here. Temporal pushdown is RECHECK, so
+// this case asserts the rows a correct prune keeps; the bound arithmetic itself is pinned in the unit tests.
+timeOfDayMicrosFilterKeepsTheMatchingRows
+required_capability: dataset_in_from_command
+required_capability: parquet_time_of_day_is_a_temporal_column
+dataset: time_of_day_filter: "{{time_of_day}}"
+
+FROM time_of_day_filter
+| WHERE t_us > TO_DATE_NANOS("1970-01-01T10:00:00Z")
+| SORT id
+| KEEP id
+;
+
+id:integer
+2
+3
+4
+;
+
+// A LIST of TIME elements reads each element exactly as a scalar column of the same annotation does. {{list_time}}
+// carries a millisecond-unit list and a microsecond-unit list over the same rows.
+listOfTimeOfDayMillisReadsElementsAsInstants
+required_capability: dataset_in_from_command
+required_capability: parquet_time_of_day_is_a_temporal_column
+dataset: list_time: "{{list_time}}"
+
+FROM list_time
+| SORT id
+| KEEP id, tods_ms
+;
+
+id:integer | tods_ms:date
+1          | [1970-01-01T00:00:00.000Z, 1970-01-01T10:20:30.000Z, 1970-01-01T23:59:59.999Z]
+2          | 1970-01-01T10:20:30.123Z
+;
+
+// The microsecond-unit list, as the exact nanoseconds of day, for the same reason the scalar case uses TO_LONG:
+// one number per element says whether the x1_000 scale reached the list arm. Every element is asserted, not the
+// maximum: a scale applied to one element and not the others would pass an MV_MAX assertion.
+listOfTimeOfDayMicrosScalesEveryElement
+required_capability: dataset_in_from_command
+required_capability: parquet_time_of_day_is_a_temporal_column
+dataset: list_time_nanos: "{{list_time}}"
+
+FROM list_time_nanos
+| SORT id
+| EVAL elements = TO_LONG(tods_us)
+| KEEP id, elements
+;
+
+id:integer | elements:long
+1          | [0, 37230000000000, 86399999999000]
+2          | 37230123456000
+;

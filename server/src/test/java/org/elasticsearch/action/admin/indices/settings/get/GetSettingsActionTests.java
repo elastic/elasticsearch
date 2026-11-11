@@ -58,7 +58,7 @@ public class GetSettingsActionTests extends ESTestCase {
                 GetSettingsActionTests.this.clusterService,
                 GetSettingsActionTests.this.threadPool,
                 settingsFilter,
-                new ActionFilters(Collections.emptySet()),
+                ActionFilters.EMPTY,
                 TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 new Resolver(),
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS
@@ -78,9 +78,7 @@ public class GetSettingsActionTests extends ESTestCase {
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
-
+    public void initServices() throws Exception {
         settingsFilter = new SettingsModule(Settings.EMPTY, emptyList(), emptyList()).getSettingsFilter();
         threadPool = new TestThreadPool("GetSettingsActionTests");
         clusterService = createClusterService(threadPool);
@@ -99,11 +97,10 @@ public class GetSettingsActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeServices() throws Exception {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         threadPool = null;
         clusterService.close();
-        super.tearDown();
     }
 
     public void testIncludeDefaults() {

@@ -1,0 +1,3 @@
+    FROM all_types
+    | KEEP double
+    | WHERE mv_less(double, 1.0)

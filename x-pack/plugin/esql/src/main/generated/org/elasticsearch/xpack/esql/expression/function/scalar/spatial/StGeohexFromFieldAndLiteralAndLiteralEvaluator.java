@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
-import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
@@ -32,15 +31,19 @@ public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements Exp
 
   private final StGeohex.GeoHexBoundedGrid bounds;
 
+  private final SpatialGridFunction.GeoShapeCellsComputer shapeTiler;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public StGeohexFromFieldAndLiteralAndLiteralEvaluator(Source source, ExpressionEvaluator in,
-      StGeohex.GeoHexBoundedGrid bounds, DriverContext driverContext) {
+      StGeohex.GeoHexBoundedGrid bounds, SpatialGridFunction.GeoShapeCellsComputer shapeTiler,
+      DriverContext driverContext) {
     this.source = source;
     this.in = in;
     this.bounds = bounds;
+    this.shapeTiler = shapeTiler;
     this.driverContext = driverContext;
   }
 
@@ -69,12 +72,7 @@ public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements Exp
           result.appendNull();
           continue position;
         }
-        try {
-          StGeohex.fromFieldAndLiteralAndLiteral(result, p, inBlock, this.bounds);
-        } catch (IllegalArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
-        }
+        StGeohex.fromFieldAndLiteralAndLiteral(result, p, inBlock, this.bounds, this.shapeTiler);
       }
       return result.build();
     }
@@ -92,7 +90,7 @@ public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements Exp
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }
@@ -104,16 +102,20 @@ public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements Exp
 
     private final Function<DriverContext, StGeohex.GeoHexBoundedGrid> bounds;
 
+    private final Function<DriverContext, SpatialGridFunction.GeoShapeCellsComputer> shapeTiler;
+
     public Factory(Source source, ExpressionEvaluator.Factory in,
-        Function<DriverContext, StGeohex.GeoHexBoundedGrid> bounds) {
+        Function<DriverContext, StGeohex.GeoHexBoundedGrid> bounds,
+        Function<DriverContext, SpatialGridFunction.GeoShapeCellsComputer> shapeTiler) {
       this.source = source;
       this.in = in;
       this.bounds = bounds;
+      this.shapeTiler = shapeTiler;
     }
 
     @Override
     public StGeohexFromFieldAndLiteralAndLiteralEvaluator get(DriverContext context) {
-      return new StGeohexFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), bounds.apply(context), context);
+      return new StGeohexFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), bounds.apply(context), shapeTiler.apply(context), context);
     }
 
     @Override

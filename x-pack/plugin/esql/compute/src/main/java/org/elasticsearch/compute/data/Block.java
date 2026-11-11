@@ -157,6 +157,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
     /**
      * {@return the index of the first value for the given position}
      * See class javadoc for the usual way to iterate these positions.
+     * For a non-null position other than the last, the first value index of the next position is the exclusive end index.
      * <p>
      *     For densely packed data this will return its parameter unchanged.
      *     For fields with {@code null} values or multivalued fields, this
@@ -286,9 +287,21 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      * Creates a new block that only exposes the positions provided.
      * @param mayContainDuplicates may the positions array contain duplicate positions?
      * @param positions the positions to retain
+     * @param offset the start index in the positions array
+     * @param length the number of positions to use from the array
      * @return a filtered block
      */
-    Block filter(boolean mayContainDuplicates, int... positions);
+    Block filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    /**
+     * Creates a new block that only exposes the positions provided.
+     * @param mayContainDuplicates may the positions array contain duplicate positions?
+     * @param positions the positions to retain
+     * @return a filtered block
+     */
+    default Block filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     /**
      * Build a {@link Block} with the same values as this {@linkplain Block}, but replacing
@@ -331,7 +344,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      */
     enum MvOrdering {
         UNORDERED(false, false),
-        DEDUPLICATED_UNORDERD(true, false),
+        DEDUPLICATED_UNORDERED(true, false),
         DEDUPLICATED_AND_SORTED_ASCENDING(true, true),
         SORTED_ASCENDING(false, true);
 
@@ -512,6 +525,10 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      * This should be paired with {@link #readTypedBlock(BlockStreamInput)}
      */
     static void writeTypedBlock(Block block, StreamOutput out) throws IOException {
+        if (block instanceof DocBlock && out.getTransportVersion().supports(DocVector.ESQL_DOC_ORIGINS) == false) {
+            // older nodes know the element type but can't read it
+            throw new IllegalStateException("can't send documents to a node on [" + out.getTransportVersion() + "]");
+        }
         if (false == supportsAggregateMetricDoubleBlock(out.getTransportVersion()) && block instanceof AggregateMetricDoubleArrayBlock a) {
             block = a.asCompositeBlock();
         }

@@ -81,10 +81,11 @@ public final class ReplaceConstantEvaluator implements ExpressionEvaluator {
       BytesRef strScratch = new BytesRef();
       BytesRef newStrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (strBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (strBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -92,10 +93,11 @@ public final class ReplaceConstantEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (newStrBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (newStrBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -147,7 +149,7 @@ public final class ReplaceConstantEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

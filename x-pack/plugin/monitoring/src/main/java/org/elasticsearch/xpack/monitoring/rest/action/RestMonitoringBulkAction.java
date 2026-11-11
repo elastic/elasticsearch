@@ -10,6 +10,9 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -34,6 +37,10 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestMonitoringBulkAction extends BaseRestHandler {
 
+    static final String DEPRECATION_MESSAGE = "Legacy monitoring API _monitoring/bulk is deprecated for removal in Elasticsearch 10.0.";
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMonitoringBulkAction.class);
+
     public static final String MONITORING_ID = "system_id";
     public static final String MONITORING_VERSION = "system_api_version";
     public static final String INTERVAL = "interval";
@@ -54,7 +61,10 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_monitoring/bulk"), new Route(PUT, "/_monitoring/bulk"));
+        return List.of(
+            Route.builder(POST, "/_monitoring/bulk").deprecatedForRemoval(DEPRECATION_MESSAGE, RestApiVersion.V_9).build(),
+            Route.builder(PUT, "/_monitoring/bulk").deprecatedForRemoval(DEPRECATION_MESSAGE, RestApiVersion.V_9).build()
+        );
     }
 
     @Override
@@ -64,6 +74,8 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        // record a critical deprecation, the REST framework will only emit a warning
+        deprecationLogger.critical(DeprecationCategory.API, "monitoring-bulk-deprecated", DEPRECATION_MESSAGE);
 
         final String id = request.param(MONITORING_ID);
         if (Strings.isEmpty(id)) {

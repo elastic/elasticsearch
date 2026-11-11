@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.tree;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.util.Collection;
@@ -60,6 +61,17 @@ public abstract class NodeUtils {
 
     private static final int TO_STRING_LIMIT = 52;
 
+    /**
+     * Render {@code node} via {@link Node#nodeString}, or append {@code null} when the node is absent.
+     */
+    public static void toString(StringBuilder sb, @Nullable Node<?> node, Node.NodeStringFormat format, NodeStringMapper mapper) {
+        if (node == null) {
+            sb.append("null");
+        } else {
+            node.nodeString(sb, format, mapper);
+        }
+    }
+
     public static void toString(
         StringBuilder sb,
         Collection<? extends Attribute> c,
@@ -94,11 +106,7 @@ public abstract class NodeUtils {
         for (;;) {
             Attribute a = it.next();
             StringBuilder render = new StringBuilder();
-            if (a == null) {
-                render.append("null");
-            } else {
-                a.nodeString(render, format, mapper);
-            }
+            toString(render, a, format, mapper);
             String next = render.toString();
             int used = sb.length() - start;
             if (next.length() + used > TO_STRING_LIMIT) {
@@ -128,11 +136,7 @@ public abstract class NodeUtils {
             if (first == false) {
                 sb.append(", ");
             }
-            if (s == null) {
-                sb.append("null");
-            } else {
-                s.nodeString(sb, format, mapper);
-            }
+            toString(sb, s, format, mapper);
             first = false;
         }
         sb.append(']');

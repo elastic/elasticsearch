@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 
@@ -43,15 +45,65 @@ public record ParquetReaderStatus(
     boolean lateMaterializationEnabled,
     boolean lateMaterializationUsed,
     List<String> predicateColumns,
-    long readNanos,
     Map<String, PerColumnStatus> columns
 ) implements FormatReaderStatus {
+
+    private static final TransportVersion ESQL_READ_CPU_NANOS = TransportVersion.fromName("esql_read_cpu_nanos");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         FormatReaderStatus.class,
         "parquet",
         ParquetReaderStatus::new
     );
+    public static final ProfileSchema<ParquetReaderStatus> PROFILE_SCHEMA = ProfileSchema.of(
+        ParquetReaderStatus.class,
+        (builder, status, params) -> {
+            builder.field("format", status.format());
+            builder.field("rows_emitted", status.rowsEmitted);
+            builder.field("predicate_pushdown_used", status.predicatePushdownUsed);
+            builder.field("footer_read_nanos", status.footerReadNanos);
+            builder.field("footer_size_bytes", status.footerSizeBytes);
+            builder.field("footer_cache_hits", status.footerCacheHits);
+            builder.field("footer_cache_misses", status.footerCacheMisses);
+            builder.field("row_groups_in_file", status.rowGroupsInFile);
+            builder.field("row_groups_total", status.rowGroupsTotal);
+            builder.field("row_groups_kept", status.rowGroupsKept);
+            builder.field("page_index_used", status.pageIndexUsed);
+            builder.field("rows_in_kept_row_groups", status.rowsInKeptRowGroups);
+            builder.field("rows_after_page_index", status.rowsAfterPageIndex);
+            builder.field("late_materialization_enabled", status.lateMaterializationEnabled);
+            builder.field("late_materialization_used", status.lateMaterializationUsed);
+            builder.field("predicate_columns", status.predicateColumns);
+            if (status.columns.isEmpty() == false) {
+                builder.startObject("columns");
+                // TreeMap for deterministic column ordering; readMap yields an unordered map on the wire.
+                for (Map.Entry<String, PerColumnStatus> entry : new TreeMap<>(status.columns).entrySet()) {
+                    builder.field(entry.getKey());
+                    PerColumnStatus.PROFILE_SCHEMA.write(builder, entry.getValue(), params);
+                }
+                builder.endObject();
+            }
+            return builder;
+        }
+    )
+        .required("format", ProfileSchema.constant("parquet"))
+        .required("rows_emitted", ProfileSchema.integer())
+        .required("predicate_pushdown_used", ProfileSchema.bool())
+        .required("footer_read_nanos", ProfileSchema.integer())
+        .required("footer_size_bytes", ProfileSchema.integer())
+        .required("footer_cache_hits", ProfileSchema.integer())
+        .required("footer_cache_misses", ProfileSchema.integer())
+        .required("row_groups_in_file", ProfileSchema.integer())
+        .required("row_groups_total", ProfileSchema.integer())
+        .required("row_groups_kept", ProfileSchema.integer())
+        .required("page_index_used", ProfileSchema.bool())
+        .required("rows_in_kept_row_groups", ProfileSchema.integer())
+        .required("rows_after_page_index", ProfileSchema.integer())
+        .required("late_materialization_enabled", ProfileSchema.bool())
+        .required("late_materialization_used", ProfileSchema.bool())
+        .required("predicate_columns", ProfileSchema.array(ProfileSchema.string()))
+        .optional("columns", ProfileSchema.dynamicObject(PerColumnStatus.PROFILE_SCHEMA.schema()))
+        .build();
 
     public ParquetReaderStatus(StreamInput in) throws IOException {
         this(
@@ -70,9 +122,18 @@ public record ParquetReaderStatus(
             in.readBoolean(),                // lateMaterializationEnabled
             in.readBoolean(),                // lateMaterializationUsed
             in.readStringCollectionAsList(), // predicateColumns
-            in.readVLong(),                  // readNanos
-            in.readMap(PerColumnStatus::new) // columns
+            readColumnsSkippingNanos(in)     // columns (skips removed readNanos/readCpuNanos fields)
         );
+    }
+
+    // readNanos and readCpuNanos were removed from the record but must still be consumed from the wire.
+    // They appear between predicateColumns and columns, so we read and discard them here before reading columns.
+    private static Map<String, PerColumnStatus> readColumnsSkippingNanos(StreamInput in) throws IOException {
+        in.readVLong(); // readNanos: removed field, preserved for wire compatibility
+        if (in.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
+            in.readVLong(); // readCpuNanos: removed field, preserved for wire compatibility
+        }
+        return in.readMap(PerColumnStatus::new);
     }
 
     @Override
@@ -92,7 +153,10 @@ public record ParquetReaderStatus(
         out.writeBoolean(lateMaterializationEnabled);
         out.writeBoolean(lateMaterializationUsed);
         out.writeStringCollection(predicateColumns);
-        out.writeVLong(readNanos);
+        out.writeVLong(0L); // readNanos: removed field, preserved for wire compatibility
+        if (out.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
+            out.writeVLong(0L); // readCpuNanos: removed field, preserved for wire compatibility
+        }
         out.writeMap(columns, StreamOutput::writeWriteable);
     }
 
@@ -107,43 +171,12 @@ public record ParquetReaderStatus(
     }
 
     @Override
-    public long readNanos() {
-        return readNanos;
-    }
-
-    @Override
     public String getWriteableName() {
         return ENTRY.name;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("format", format());
-        builder.field("rows_emitted", rowsEmitted);
-        builder.field("predicate_pushdown_used", predicatePushdownUsed);
-        builder.field("footer_read_nanos", footerReadNanos);
-        builder.field("footer_size_bytes", footerSizeBytes);
-        builder.field("footer_cache_hits", footerCacheHits);
-        builder.field("footer_cache_misses", footerCacheMisses);
-        builder.field("row_groups_in_file", rowGroupsInFile);
-        builder.field("row_groups_total", rowGroupsTotal);
-        builder.field("row_groups_kept", rowGroupsKept);
-        builder.field("page_index_used", pageIndexUsed);
-        builder.field("rows_in_kept_row_groups", rowsInKeptRowGroups);
-        builder.field("rows_after_page_index", rowsAfterPageIndex);
-        builder.field("late_materialization_enabled", lateMaterializationEnabled);
-        builder.field("late_materialization_used", lateMaterializationUsed);
-        builder.field("predicate_columns", predicateColumns);
-        builder.field("read_nanos", readNanos);
-        if (columns.isEmpty() == false) {
-            builder.startObject("columns");
-            // TreeMap for deterministic column ordering; readMap yields an unordered map on the wire.
-            for (Map.Entry<String, PerColumnStatus> e : new TreeMap<>(columns).entrySet()) {
-                builder.field(e.getKey());
-                e.getValue().toXContent(builder, params);
-            }
-            builder.endObject();
-        }
-        return builder;
+        return PROFILE_SCHEMA.write(builder, this, params);
     }
 }

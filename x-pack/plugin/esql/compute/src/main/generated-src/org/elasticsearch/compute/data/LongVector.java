@@ -39,7 +39,12 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
     LongBlock asBlock();
 
     @Override
-    LongVector filter(boolean mayContainDuplicates, int... positions);
+    LongVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default LongVector filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     @Override
     LongBlock keepMask(BooleanVector mask);

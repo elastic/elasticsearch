@@ -26,6 +26,5 @@
   "examples" : [
     "quantile_over_time(0.5, http_requests_total[1h])"
   ],
-  "preview" : true,
   "snapshot_only" : false
 }

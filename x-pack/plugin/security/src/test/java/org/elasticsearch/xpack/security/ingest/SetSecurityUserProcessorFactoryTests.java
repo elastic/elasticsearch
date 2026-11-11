@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SetSecurityUserProcessorFactoryTests extends ESTestCase {
@@ -37,11 +38,11 @@ public class SetSecurityUserProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         SetSecurityUserProcessor processor = factory.create(null, "_tag", null, config, null);
-        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getField(), hasToString("_field"));
         assertThat(processor.getProperties(), equalTo(EnumSet.allOf(Property.class)));
     }
 
-    public void testProcessor_noField() throws Exception {
+    public void testProcessor_noField() {
         SetSecurityUserProcessor.Factory factory = new SetSecurityUserProcessor.Factory(() -> securityContext, Settings.EMPTY);
         Map<String, Object> config = new HashMap<>();
         ElasticsearchParseException e = expectThrows(
@@ -59,11 +60,11 @@ public class SetSecurityUserProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("properties", Arrays.asList(Property.USERNAME.name(), Property.ROLES.name()));
         SetSecurityUserProcessor processor = factory.create(null, "_tag", null, config, null);
-        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getField(), hasToString("_field"));
         assertThat(processor.getProperties(), equalTo(EnumSet.of(Property.USERNAME, Property.ROLES)));
     }
 
-    public void testProcessor_invalidProperties() throws Exception {
+    public void testProcessor_invalidProperties() {
         SetSecurityUserProcessor.Factory factory = new SetSecurityUserProcessor.Factory(() -> securityContext, Settings.EMPTY);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");

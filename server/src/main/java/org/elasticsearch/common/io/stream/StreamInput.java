@@ -871,14 +871,14 @@ public abstract class StreamInput extends InputStream {
      * @return The immutable map
      */
     public <K, V> Map<K, V> readImmutableMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
-        final int size = readVInt();
+        final int size = readArraySize();
         if (size == 0) {
             return Map.of();
         } else if (size == 1) {
             return Map.of(keyReader.read(this), valueReader.read(this));
         }
         @SuppressWarnings({ "rawtypes", "unchecked" })
-        Map.Entry<K, V> entries[] = new Map.Entry[size];
+        Map.Entry<K, V>[] entries = new Map.Entry[size];
         for (int i = 0; i < size; ++i) {
             entries[i] = Map.entry(keyReader.read(this), valueReader.read(this));
         }
@@ -893,7 +893,7 @@ public abstract class StreamInput extends InputStream {
      */
     public <K, V> ImmutableOpenMap<K, V> readImmutableOpenMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader)
         throws IOException {
-        final int size = readVInt();
+        final int size = readArraySize();
         if (size == 0) {
             return ImmutableOpenMap.of();
         }

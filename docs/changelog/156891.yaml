@@ -1,0 +1,6 @@
+area: Machine Learning
+issues:
+ - 139233
+pr: 156891
+summary: Surface the actual native memory (resident set size) used by trained model deployments in the trained models stats API
+type: enhancement

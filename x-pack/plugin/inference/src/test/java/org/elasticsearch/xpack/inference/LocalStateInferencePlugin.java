@@ -8,16 +8,21 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.action.support.MappedActionFilter;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.inference.mock.TestCompletionServiceExtension;
+import org.elasticsearch.xpack.inference.mock.TestDecisionServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
+import org.elasticsearch.xpack.inference.mock.TestDocumentExtractionServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestRerankingServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestStreamingCompletionServiceExtension;
@@ -29,7 +34,7 @@ import java.util.Map;
 
 import static java.util.stream.Collectors.toList;
 
-public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
+public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin implements CircuitBreakerPlugin {
     private final InferencePlugin inferencePlugin;
 
     public LocalStateInferencePlugin(final Settings settings, final Path configPath) throws Exception {
@@ -53,7 +58,9 @@ public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
                     TestDenseInferenceServiceExtension.TestInferenceService::new,
                     TestRerankingServiceExtension.TestInferenceService::new,
                     TestCompletionServiceExtension.TestInferenceService::new,
-                    TestStreamingCompletionServiceExtension.TestInferenceService::new
+                    TestStreamingCompletionServiceExtension.TestInferenceService::new,
+                    TestDecisionServiceExtension.TestInferenceService::new,
+                    TestDocumentExtractionServiceExtension.TestInferenceService::new
                 );
             }
 
@@ -88,5 +95,15 @@ public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
     @Override
     public Collection<MappedActionFilter> getMappedActionFilters() {
         return inferencePlugin.getMappedActionFilters();
+    }
+
+    @Override
+    public BreakerSettings getCircuitBreaker(Settings settings) {
+        return inferencePlugin.getCircuitBreaker(settings);
+    }
+
+    @Override
+    public void setCircuitBreaker(CircuitBreaker circuitBreaker) {
+        inferencePlugin.setCircuitBreaker(circuitBreaker);
     }
 }

@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.action.shard.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -41,7 +42,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -93,11 +93,8 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestClass().getName());
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
-
+    public void initAction() throws Exception {
         projectId = randomProjectIdOrDefault();
         indexShard = mock(IndexShard.class);
         when(indexShard.getActiveOperationsCount()).thenReturn(IndexShard.OPERATIONS_BLOCKED);
@@ -147,10 +144,8 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         );
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeClusterService() throws Exception {
         clusterService.close();
     }
 
@@ -177,7 +172,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
             taskId
         );
         final PlainActionFuture<Void> res = new PlainActionFuture<>();
-        action.shardOperationOnPrimary(mock(Task.class), request, indexShard, res.delegateFailureAndWrap((l, r) -> {
+        action.shardOperationOnPrimary(request, indexShard, res.delegateFailureAndWrap((l, r) -> {
             assertNotNull(r);
             l.onResponse(null);
         }));
@@ -318,8 +313,8 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         for (CapturingTransport.CapturedRequest capturedRequest : capturedRequests) {
             final String actionName = capturedRequest.action();
             if (actionName.startsWith(ShardStateAction.SHARD_FAILED_ACTION_NAME)) {
-                assertThat(capturedRequest.request(), instanceOf(ShardStateAction.FailedShardEntry.class));
-                String allocationId = ((ShardStateAction.FailedShardEntry) capturedRequest.request()).getAllocationId();
+                assertThat(capturedRequest.request(), instanceOf(FailedShardEntry.class));
+                String allocationId = ((FailedShardEntry) capturedRequest.request()).getAllocationId();
                 assertTrue(unavailableShards.stream().anyMatch(shardRouting -> shardRouting.allocationId().getId().equals(allocationId)));
                 transport.handleResponse(capturedRequest.requestId(), ActionResponse.Empty.INSTANCE);
 

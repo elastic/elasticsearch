@@ -39,6 +39,11 @@ public final class $Type$VectorBlock extends AbstractVectorBlock implements $Typ
 
 $if(BytesRef)$
     @Override
+    public long estimateTotalValueBytes() {
+        return vector.estimateTotalValueBytes();
+    }
+
+    @Override
     public OrdinalBytesRefBlock asOrdinals() {
         var ordinals = vector.asOrdinals();
         if (ordinals != null) {
@@ -92,8 +97,8 @@ $endif$
     }
 
     @Override
-    public $Type$Block filter(boolean mayContainDuplicates, int... positions) {
-        return vector.filter(mayContainDuplicates, positions).asBlock();
+    public $Type$Block filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return vector.filter(mayContainDuplicates, positions, offset, length).asBlock();
     }
 
     @Override
@@ -148,6 +153,7 @@ $endif$
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.approximation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -49,6 +50,20 @@ public record ApproximationSettings(Integer rows, Double confidenceLevel) implem
     );
 
     /**
+     * True when {@code settings} asks for approximation. {@code null} means "not requested"; {@link #EXPLICIT_NULL}
+     * means "explicitly disabled". Both are a no-op, so every gate can ask this one question instead of testing for
+     * null and hoping a disabled value never arrives intact.
+     * <p>
+     * The disabled test is reference identity, deliberately. {@link #EXPLICIT_NULL} is a resolution-time sentinel that
+     * never crosses the wire — {@link #writeTo} serialises through the masking accessors — while
+     * {@code {"rows":null,"confidence_level":null}} parses to a record-equal but distinct instance that means "on,
+     * engine defaults, no confidence intervals" and must read as enabled. Only identity separates the two.
+     */
+    public static boolean isOn(@Nullable ApproximationSettings settings) {
+        return settings != null && settings != EXPLICIT_NULL;
+    }
+
+    /**
      * Returns the number of rows to be used for query approximation.
      * If null, the framework tries to pick a suitable number for the query.
      */
@@ -75,11 +90,13 @@ public record ApproximationSettings(Integer rows, Double confidenceLevel) implem
     }
 
     public static ApproximationSettings fromXContent(XContentParser parser) throws IOException {
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            return EXPLICIT_NULL;
+        }
         if (parser.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
             return parser.booleanValue() ? DEFAULT : EXPLICIT_NULL;
-        } else {
-            return X_CONTENT_PARSER.apply(parser, null).build();
         }
+        return X_CONTENT_PARSER.apply(parser, null).build();
     }
 
     public static ApproximationSettings parse(Expression expression) {
@@ -175,7 +192,7 @@ public record ApproximationSettings(Integer rows, Double confidenceLevel) implem
             if (override == null) {
                 return this;
             }
-            enabled = (override != ApproximationSettings.EXPLICIT_NULL);
+            enabled = isOn(override);
             if (override.rows != null) {
                 rows = override.rows;
             }

@@ -1,0 +1,3 @@
+FROM employees
+| WHERE emp_no NOT IN (FROM employees_not_rehired | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+  OR languages IN (FROM languages | WHERE language_name in ("English", "French") | KEEP language_code)

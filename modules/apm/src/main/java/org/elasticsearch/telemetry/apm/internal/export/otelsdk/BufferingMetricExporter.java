@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 /**
  * Persists failed export batches to disk and replays them once the delegate recovers.
@@ -51,6 +52,11 @@ import java.util.function.Supplier;
 public class BufferingMetricExporter implements MetricExporter {
 
     private static final Logger logger = LogManager.getLogger(BufferingMetricExporter.class);
+
+    private static final String WRITE_WINDOW_SYSTEM_PROPERTY = "telemetry.metrics.buffer.write_window";
+
+    // Write window for the disk-buffering library: how long a writer keeps appending before its file is rotated.
+    private static final long DISK_BUFFER_WRITE_WINDOW_MILLIS = writeWindowMillis();
 
     private final MetricExporter delegate;
     private final BufferingMetrics bufferingMetrics;
@@ -71,24 +77,45 @@ public class BufferingMetricExporter implements MetricExporter {
         Path bufferPath,
         Supplier<MeterProvider> meterProviderSupplier
     ) {
+        this(delegate, settings, bufferPath, meterProviderSupplier, DISK_BUFFER_WRITE_WINDOW_MILLIS);
+    }
+
+    // Visible for testing
+    BufferingMetricExporter(
+        MetricExporter delegate,
+        Settings settings,
+        Path bufferPath,
+        Supplier<MeterProvider> meterProviderSupplier,
+        long writeWindowMillis
+    ) {
+        this(delegate, settings, bufferPath, meterProviderSupplier, writeWindowMillis, UnaryOperator.identity());
+    }
+
+    // Visible for testing
+    BufferingMetricExporter(
+        MetricExporter delegate,
+        Settings settings,
+        Path bufferPath,
+        Supplier<MeterProvider> meterProviderSupplier,
+        long writeWindowMillis,
+        UnaryOperator<SignalStorage.Metric> metricStorageWrapper
+    ) {
         this.delegate = delegate;
         this.bufferingMetrics = new BufferingMetrics(meterProviderSupplier);
-        long maxDiskBytes = OtelSdkSettings.TELEMETRY_OTEL_METRICS_DISK_BUFFER_SIZE.get(settings).getBytes();
-        long ttlMillis = OtelSdkSettings.TELEMETRY_OTEL_METRICS_BUFFER_TTL.get(settings).millis();
-        long writeWindowMillis = OtelSdkSettings.TELEMETRY_OTEL_METRICS_DISK_BUFFER_WRITE_WINDOW.get(settings).millis();
-        long readMinAgeMillis = OtelSdkSettings.TELEMETRY_OTEL_METRICS_DISK_BUFFER_READ_MIN_AGE.get(settings).millis();
-        this.sendTimeout = OtelSdkSettings.TELEMETRY_OTEL_OTLP_SEND_TIMEOUT.get(settings);
+        long maxDiskBytes = OtelSdkSettings.TELEMETRY_METRICS_BUFFER_DISK_SIZE.get(settings).getBytes();
+        long ttlMillis = OtelSdkSettings.TELEMETRY_METRICS_BUFFER_TTL.get(settings).millis();
+        this.sendTimeout = OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.get(settings);
         this.diskDir = bufferPath;
 
         FileStorageConfiguration config = FileStorageConfiguration.builder()
             .setMaxFolderSize((int) maxDiskBytes)
             .setMaxFileAgeForReadMillis(ttlMillis)
             .setMaxFileAgeForWriteMillis(writeWindowMillis)
-            .setMinFileAgeForReadMillis(readMinAgeMillis)
-            // drainFiles() removes items only after a successful replay.
+            // drainFiles() removes items itself, after attempting their replay.
             .setDeleteItemsOnIteration(false)
+            .setDiscardedFileListener((file, reason) -> bufferingMetrics.fullDrops().add(1))
             .build();
-        this.storage = createStorage(diskDir, config);
+        this.storage = metricStorageWrapper.apply(createStorage(diskDir, config));
         this.diskWriter = MetricToDiskExporter.builder(storage).build();
 
         this.diskExecutor = new Scheduler.SafeScheduledThreadPoolExecutor(
@@ -96,6 +123,8 @@ public class BufferingMetricExporter implements MetricExporter {
             EsExecutors.daemonThreadFactory(settings, "metrics_buffer_disk"),
             new EsAbortPolicy()
         );
+
+        // calculate cachedFileCount so files present at startup are accounted for
         refreshDiskStats();
     }
 
@@ -197,12 +226,19 @@ public class BufferingMetricExporter implements MetricExporter {
             Iterator<Collection<MetricData>> it = storage.iterator();
             while (it.hasNext()) {
                 Collection<MetricData> batch = it.next();
+                if (batch == null) {
+                    // Despite the Iterator contract, the storage iterator returns null when it is closed concurrently (on shutdown)
+                    // between hasNext() and next()
+                    logger.debug("the FileMetricStorage is shut down, stoping drain");
+                    return;
+                }
                 CompletableResultCode result = delegate.export(batch).join(sendTimeout.millis(), TimeUnit.MILLISECONDS);
+                it.remove();
                 if (result.isSuccess()) {
-                    it.remove();
                     bufferingMetrics.replays().add(1);
                 } else {
-                    logger.warn("delegate failed replay of disk-buffered metrics; deferring drain");
+                    doWrite(batch, new CompletableResultCode());
+                    logger.debug("delegate failed replay of disk-buffered metrics; deferring drain");
                     return;
                 }
             }
@@ -236,9 +272,18 @@ public class BufferingMetricExporter implements MetricExporter {
         return FileMetricStorage.create(dir.toFile(), config);
     }
 
+    private static long writeWindowMillis() {
+        String override = System.getProperty(WRITE_WINDOW_SYSTEM_PROPERTY);
+        return override == null
+            ? TimeValue.timeValueSeconds(30).millis()
+            : TimeValue.parseTimeValue(override, WRITE_WINDOW_SYSTEM_PROPERTY).millis();
+    }
+
     private static final class BufferingMetrics {
 
         private static final String METRIC_PREFIX = "es.apm.metrics.disk_buffer.";
+
+        private static final LongGauge NOOP_LONG_GAUGE = MeterProvider.noop().get("noop").gaugeBuilder("noop").ofLongs().build();
 
         private final Supplier<MeterProvider> meterProviderSupplier;
 
@@ -280,7 +325,7 @@ public class BufferingMetricExporter implements MetricExporter {
             if (counter == null) {
                 counter = longCounter(
                     "drops_full",
-                    "Failed batches dropped because the disk buffer is at its size cap or disk write failed"
+                    "Metric batches lost from the disk buffer: write failed, size or age limit reached, or corrupted file"
                 );
                 this.fullDrops = counter;
             }
@@ -291,7 +336,9 @@ public class BufferingMetricExporter implements MetricExporter {
             var gauge = this.cachedFiles;
             if (gauge == null) {
                 gauge = longGauge("files", "Metric batches currently pending replay on disk", "1");
-                this.cachedFiles = gauge;
+                if (gauge != NOOP_LONG_GAUGE) {
+                    this.cachedFiles = gauge;
+                }
             }
             return gauge;
         }
@@ -300,7 +347,9 @@ public class BufferingMetricExporter implements MetricExporter {
             var gauge = this.cachedBytes;
             if (gauge == null) {
                 gauge = longGauge("bytes", "Total bytes currently used by the on-disk metric buffer", "By");
-                this.cachedBytes = gauge;
+                if (gauge != NOOP_LONG_GAUGE) {
+                    this.cachedBytes = gauge;
+                }
             }
             return gauge;
         }
@@ -315,8 +364,11 @@ public class BufferingMetricExporter implements MetricExporter {
         }
 
         private LongGauge longGauge(String suffix, String description, String unit) {
-            return meterProviderSupplier.get()
-                .get("elasticsearch")
+            MeterProvider provider = meterProviderSupplier.get();
+            if (provider == MeterProvider.noop()) {
+                return NOOP_LONG_GAUGE;
+            }
+            return provider.get("elasticsearch")
                 .gaugeBuilder(METRIC_PREFIX + suffix)
                 .ofLongs()
                 .setDescription(description)

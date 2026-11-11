@@ -9,15 +9,16 @@
 
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 
 import java.util.Objects;
+import java.util.concurrent.atomic.LongAccumulator;
 
 public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVectorQuery {
 
-    private final BitSetProducer parentsFilter;
+    final BitSetProducer parentsFilter;
 
     /**
      * Creates a new {@link IVFKnnFloatVectorQuery} with the given parameters.
@@ -29,7 +30,6 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
      * @param childFilter   the filter to apply to the results
      * @param parentsFilter bitset producer for the parent documents
      * @param visitRatio        the ratio of documents to be scored for the IVF search strategy
-     * @param overSampleFactor the oversample multiplier applied to the original k
      */
     public DiversifyingChildrenIVFKnnFloatVectorQuery(
         String field,
@@ -39,16 +39,29 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
         Query childFilter,
         BitSetProducer parentsFilter,
         float visitRatio,
-        boolean doPrecondition,
-        float overSampleFactor
+        IvfQueryConfigResolver queryConfigResolver
     ) {
-        super(field, query, k, numCands, childFilter, visitRatio, doPrecondition, overSampleFactor);
+        this(field, query, k, numCands, childFilter, parentsFilter, visitRatio, queryConfigResolver, false);
+    }
+
+    DiversifyingChildrenIVFKnnFloatVectorQuery(
+        String field,
+        float[] query,
+        int k,
+        int numCands,
+        Query childFilter,
+        BitSetProducer parentsFilter,
+        float visitRatio,
+        IvfQueryConfigResolver queryConfigResolver,
+        boolean postFilterDelegate
+    ) {
+        super(field, query, k, numCands, childFilter, visitRatio, queryConfigResolver, postFilterDelegate);
         this.parentsFilter = parentsFilter;
     }
 
     @Override
-    protected IVFCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
-        return new DiversifiedIVFKnnCollectorManager(k, searcher, parentsFilter);
+    protected IVFCollectorManager getKnnCollectorManager(int k, LongAccumulator longAccumulator) {
+        return new DiversifiedIVFKnnCollectorManager(k, longAccumulator, parentsFilter);
     }
 
     @Override

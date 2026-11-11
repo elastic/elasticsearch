@@ -32,15 +32,18 @@ public final class LogEvaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator value;
 
+  private final boolean allowNonFinite;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public LogEvaluator(Source source, ExpressionEvaluator base, ExpressionEvaluator value,
-      DriverContext driverContext) {
+      boolean allowNonFinite, DriverContext driverContext) {
     this.source = source;
     this.base = base;
     this.value = value;
+    this.allowNonFinite = allowNonFinite;
     this.driverContext = driverContext;
   }
 
@@ -72,10 +75,11 @@ public final class LogEvaluator implements ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, DoubleBlock baseBlock, DoubleBlock valueBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (baseBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (baseBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -83,10 +87,11 @@ public final class LogEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (valueBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (valueBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -97,7 +102,7 @@ public final class LogEvaluator implements ExpressionEvaluator {
         double base = baseBlock.getDouble(baseBlock.getFirstValueIndex(p));
         double value = valueBlock.getDouble(valueBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Log.process(base, value));
+          result.appendDouble(Log.process(base, value, this.allowNonFinite));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -113,7 +118,7 @@ public final class LogEvaluator implements ExpressionEvaluator {
         double base = baseVector.getDouble(p);
         double value = valueVector.getDouble(p);
         try {
-          result.appendDouble(Log.process(base, value));
+          result.appendDouble(Log.process(base, value, this.allowNonFinite));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -135,7 +140,7 @@ public final class LogEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }
@@ -147,16 +152,19 @@ public final class LogEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory value;
 
+    private final boolean allowNonFinite;
+
     public Factory(Source source, ExpressionEvaluator.Factory base,
-        ExpressionEvaluator.Factory value) {
+        ExpressionEvaluator.Factory value, boolean allowNonFinite) {
       this.source = source;
       this.base = base;
       this.value = value;
+      this.allowNonFinite = allowNonFinite;
     }
 
     @Override
     public LogEvaluator get(DriverContext context) {
-      return new LogEvaluator(source, base.get(context), value.get(context), context);
+      return new LogEvaluator(source, base.get(context), value.get(context), allowNonFinite, context);
     }
 
     @Override

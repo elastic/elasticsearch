@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterDirectoryReader;
@@ -81,6 +82,8 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
         void onDocValuesUsed(String field);
 
+        void onDocValuesSkipperUsed(String field);
+
         void onStoredFieldsUsed(String field);
 
         void onNormsUsed(String field);
@@ -131,6 +134,11 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         public StoredFields storedFields() throws IOException {
             StoredFields storedFields = super.storedFields();
             return new StoredFields() {
+                @Override
+                public void prefetch(int docID) throws IOException {
+                    storedFields.prefetch(docID);
+                }
+
                 @Override
                 public void document(int docID, StoredFieldVisitor visitor) throws IOException {
                     if (visitor instanceof FieldNamesProvidingStoredFieldsVisitor) {
@@ -191,6 +199,15 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
                 notifier.onDocValuesUsed(field);
             }
             return sortedSetDocValues;
+        }
+
+        @Override
+        public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
+            DocValuesSkipper skipper = super.getDocValuesSkipper(field);
+            if (skipper != null) {
+                notifier.onDocValuesSkipperUsed(field);
+            }
+            return skipper;
         }
 
         @Override

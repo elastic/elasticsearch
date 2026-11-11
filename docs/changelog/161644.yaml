@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161644
+summary: Do not load the keys of an object-valued mapped field as unmapped fields
+type: bug

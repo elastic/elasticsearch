@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158999
+summary: Default omit `schema_resolution` to `first_file_wins`
+type: enhancement

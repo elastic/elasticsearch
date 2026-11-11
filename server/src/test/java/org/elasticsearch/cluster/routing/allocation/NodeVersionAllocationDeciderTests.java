@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -701,7 +702,14 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         );
 
         routingNodes.startShard(
-            routingNodes.relocateShard(startedPrimary, "oldNode", 0, "test", RoutingChangesObserver.NOOP).v2(),
+            routingNodes.relocateShard(
+                startedPrimary,
+                "oldNode",
+                0,
+                "test",
+                RoutingChangesObserver.NOOP,
+                RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            ).v2(),
             RoutingChangesObserver.NOOP,
             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
         );

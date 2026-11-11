@@ -33,6 +33,8 @@ final class IpDataLookupFactories {
 
     interface IpDataLookupFactory {
         InternalIpDataLookup create(List<String> properties);
+
+        Set<DatabaseProperty> defaultProperties();
     }
 
     /**
@@ -93,6 +95,16 @@ final class IpDataLookupFactories {
             throw new UnsupportedDatabaseTypeException("Unsupported database type [" + databaseType + "] for file [" + databaseFile + "]");
         }
 
-        return (properties) -> factoryMethod.apply(database.parseProperties(properties));
+        return new IpDataLookupFactory() {
+            @Override
+            public InternalIpDataLookup create(List<String> properties) {
+                return factoryMethod.apply(database.parseProperties(properties));
+            }
+
+            @Override
+            public Set<DatabaseProperty> defaultProperties() {
+                return database.defaultProperties();
+            }
+        };
     }
 }

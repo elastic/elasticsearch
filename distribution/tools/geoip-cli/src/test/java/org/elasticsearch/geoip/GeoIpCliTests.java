@@ -19,6 +19,7 @@ import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -42,8 +43,8 @@ public class GeoIpCliTests extends CommandTestCase {
     private Path source;
     private Path target;
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initTestDirs() throws Exception {
         source = createTempDir();
         target = createTempDir();
     }

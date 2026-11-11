@@ -7,14 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.message.BasicHeader;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceString;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundRerankRequest;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
@@ -32,38 +31,40 @@ public class ElasticInferenceServiceRerankRequest extends ElasticInferenceServic
     private final InferenceString query;
     private final List<InferenceString> documents;
     private final Integer topN;
+    private final Boolean returnDocuments;
     private final TraceContextHandler traceContextHandler;
     private final ElasticInferenceServiceRerankModel model;
 
     public ElasticInferenceServiceRerankRequest(
         InferenceString query,
         List<InferenceString> documents,
-        Integer topN,
+        @Nullable Integer topN,
+        @Nullable Boolean returnDocuments,
         ElasticInferenceServiceRerankModel model,
         TraceContext traceContext,
         ElasticInferenceServiceRequestMetadata metadata,
+        InferencePreferences preferences,
         CCMAuthenticationApplierFactory.AuthApplier authApplier
     ) {
-        super(metadata, authApplier);
+        super(metadata, preferences, authApplier);
         this.query = query;
         this.documents = documents;
         this.topN = topN;
+        this.returnDocuments = returnDocuments;
         this.model = Objects.requireNonNull(model);
         this.traceContextHandler = new TraceContextHandler(traceContext);
     }
 
     @Override
-    public HttpRequestBase createHttpRequestBase() {
-        var httpPost = new HttpPost(getURI());
+    public SimpleHttpRequest createSimpleHttpRequest() {
+        var httpPost = SimpleRequestBuilder.post(getURI()).build();
         var requestEntity = Strings.toString(
-            new ElasticInferenceServiceRerankRequestEntity(query, documents, model.getServiceSettings().modelId(), topN)
+            new ElasticInferenceServiceRerankRequestEntity(query, documents, model.getServiceSettings().modelId(), topN, returnDocuments)
         );
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));
-        httpPost.setEntity(byteEntity);
+        httpPost.setBody(requestEntity.getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON);
 
         traceContextHandler.propagateTraceContext(httpPost);
-        httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
 
         return httpPost;
     }

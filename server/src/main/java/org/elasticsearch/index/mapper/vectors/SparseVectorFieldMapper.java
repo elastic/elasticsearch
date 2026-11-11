@@ -25,7 +25,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -43,8 +42,10 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.inference.WeightedTokensUtils;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -87,8 +88,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
     static final IndexVersion SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X =
         IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X;
 
-    public static final NodeFeature SPARSE_VECTOR_INDEX_OPTIONS_FEATURE = new NodeFeature("sparse_vector.index_options_supported");
-
     private static SparseVectorFieldMapper toType(FieldMapper in) {
         return (SparseVectorFieldMapper) in;
     }
@@ -97,15 +96,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         private final IndexVersion indexVersionCreated;
         private final Parameter<Boolean> stored;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
-        private final Parameter<SparseVectorIndexOptions> indexOptions = new Parameter<>(
-            SPARSE_VECTOR_INDEX_OPTIONS,
-            true,
-            () -> null,
-            (n, c, o) -> parseIndexOptions(c, o),
-            m -> toType(m).fieldType().indexOptions,
-            XContentBuilder::field,
-            Objects::toString
-        ).acceptsNull().setSerializerCheck(this::indexOptionsSerializerCheck);
+        private final Parameter<SparseVectorIndexOptions> indexOptions;
 
         private final boolean isExcludeSourceVectors;
 
@@ -114,6 +105,12 @@ public class SparseVectorFieldMapper extends FieldMapper {
             this.stored = Parameter.boolParam("store", false, m -> toType(m).fieldType().isStored(), () -> isExcludeSourceVectors);
             this.indexVersionCreated = indexVersionCreated;
             this.isExcludeSourceVectors = isExcludeSourceVectors;
+            SparseVectorIndexOptions defaultIndexOptions = SparseVectorIndexOptions.getDefaultIndexOptions(indexVersionCreated);
+            this.indexOptions = new Parameter<>(SPARSE_VECTOR_INDEX_OPTIONS, true, () -> defaultIndexOptions, (n, c, o) -> {
+                SparseVectorIndexOptions parsed = parseIndexOptions(c, o);
+                return parsed == null ? defaultIndexOptions : parsed;
+            }, m -> toType(m).fieldType().indexOptions, XContentBuilder::field, Objects::toString).acceptsNull()
+                .setSerializerCheck(this::indexOptionsSerializerCheck);
         }
 
         public Builder setStored(boolean value) {
@@ -133,12 +130,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public SparseVectorFieldMapper build(MapperBuilderContext context) {
-            SparseVectorIndexOptions builderIndexOptions = indexOptions.getValue();
-            if (builderIndexOptions == null) {
-                builderIndexOptions = SparseVectorIndexOptions.getDefaultIndexOptions(indexVersionCreated);
-            }
-
-            final boolean isExcludeSourceVectorsFinal = isExcludeSourceVectors && context.isSourceSynthetic() == false && stored.get();
+            final boolean isExcludeSourceVectorsFinal = isExcludeSourceVectors
+                && (context.isSourceStored() || context.isSourceColumnarStored())
+                && stored.get();
             return new SparseVectorFieldMapper(
                 leafName(),
                 new SparseVectorFieldType(
@@ -146,7 +140,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
                     context.buildFullName(leafName()),
                     stored.get(),
                     meta.getValue(),
-                    builderIndexOptions
+                    indexOptions.getValue()
                 ),
                 builderParams(this, context),
                 isExcludeSourceVectors,
@@ -158,8 +152,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
             return includeDefaults || (SparseVectorIndexOptions.isDefaultOptions(value, indexVersionCreated) == false);
         }
 
+        /**
+         * The parameter always holds options, the version's default if none were given, so a null here is a bug in the caller.
+         */
         public void setIndexOptions(SparseVectorIndexOptions sparseVectorIndexOptions) {
-            indexOptions.setValue(sparseVectorIndexOptions);
+            indexOptions.setValue(Objects.requireNonNull(sparseVectorIndexOptions, "[index_options] must not be null"));
         }
     }
 
@@ -248,6 +245,14 @@ public class SparseVectorFieldMapper extends FieldMapper {
         @Override
         public boolean isVectorEmbedding() {
             return true;
+        }
+
+        @Override
+        public FieldAndFormat embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
+            if (vectorType != null && vectorType != VectorType.SPARSE_VECTOR) {
+                throw unsupportedEmbeddings(vectorType);
+            }
+            return new FieldAndFormat(name(), null);
         }
 
         @Override
@@ -378,7 +383,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(DocumentParserContext context) throws IOException {
+    public ParseResult parse(DocumentParserContext context) throws IOException {
 
         // No support for indexing / searching 7.x sparse_vector field types
         if (context.indexSettings().getIndexVersionCreated().before(PREVIOUS_SPARSE_VECTOR_INDEX_VERSION)) {
@@ -430,6 +435,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         } finally {
             context.path().setWithinLeafObject(isWithinLeaf);
         }
+        return ParseResult.INDEXED;
     }
 
     @Override

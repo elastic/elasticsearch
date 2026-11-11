@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159245
+summary: Guard `filterBlock` call site for LIST columns
+type: bug

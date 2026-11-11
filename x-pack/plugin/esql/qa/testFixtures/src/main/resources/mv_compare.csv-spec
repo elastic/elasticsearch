@@ -1,0 +1,525 @@
+// MV_GREATER / MV_LESS — two-valued one-sided comparisons over multivalue fields.
+// Each *Types test covers five shapes for one type in a single row:
+//   null   — null field → false
+//   pass   — single value that clears the bound → true
+//   fail   — single value that does not clear the bound → false
+//   none   — multivalue where no value clears the bound → false
+//   some   — multivalue where at least one value clears the bound → true
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// Doc examples
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+mvGreater
+required_capability: fn_mv_greater
+// tag::mv_greater[]
+ROW values = [1, 5, 10]
+| EVAL greater = mv_greater(values, 4)
+// end::mv_greater[]
+;
+
+// tag::mv_greater-result[]
+values:integer | greater:boolean
+[1, 5, 10]     | true
+// end::mv_greater-result[]
+;
+
+mvGreaterInclusiveBound
+required_capability: fn_mv_greater
+// tag::mv_greater_include_bound[]
+ROW values = [4]
+| EVAL greater = mv_greater(values, 4, {"include_bound": true})
+// end::mv_greater_include_bound[]
+;
+
+// tag::mv_greater_include_bound-result[]
+values:integer | greater:boolean
+[4]            | true
+// end::mv_greater_include_bound-result[]
+;
+
+mvGreaterKeyword
+required_capability: fn_mv_greater
+// tag::mv_greater_keyword[]
+ROW words = ["apple", "cherry"]
+| EVAL greater = mv_greater(words, "banana")
+// end::mv_greater_keyword[]
+;
+
+// tag::mv_greater_keyword-result[]
+words:keyword       | greater:boolean
+[apple, cherry]     | true
+// end::mv_greater_keyword-result[]
+;
+
+mvLess
+required_capability: fn_mv_less
+// tag::mv_less[]
+ROW values = [1, 5, 10]
+| EVAL less = mv_less(values, 4)
+// end::mv_less[]
+;
+
+// tag::mv_less-result[]
+values:integer | less:boolean
+[1, 5, 10]     | true
+// end::mv_less-result[]
+;
+
+mvLessInclusiveBound
+required_capability: fn_mv_less
+// tag::mv_less_include_bound[]
+ROW values = [4]
+| EVAL less = mv_less(values, 4, {"include_bound": true})
+// end::mv_less_include_bound[]
+;
+
+// tag::mv_less_include_bound-result[]
+values:integer | less:boolean
+[4]            | true
+// end::mv_less_include_bound-result[]
+;
+
+mvLessKeyword
+required_capability: fn_mv_less
+// tag::mv_less_keyword[]
+ROW words = ["apple", "cherry"]
+| EVAL less = mv_less(words, "banana")
+// end::mv_less_keyword[]
+;
+
+// tag::mv_less_keyword-result[]
+words:keyword       | less:boolean
+[apple, cherry]     | true
+// end::mv_less_keyword-result[]
+;
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// Shared edge cases (type-agnostic contract)
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+mvGreaterNullAndBoundEdges
+required_capability: fn_mv_greater
+// two-valued: null field is false so NOT is true; null/multivalued bound is false
+ROW values = [1, 2, 3]
+| EVAL null_field = mv_greater(null, 1),
+       negated = NOT mv_greater(null, 1),
+       null_bound = mv_greater(values, null),
+       mv_bound = mv_greater(values, [1, 2]),
+       strict_eq = mv_greater(4, 4),
+       inclusive_eq = mv_greater(4, 4, {"include_bound": true})
+;
+
+values:integer | null_field:boolean | negated:boolean | null_bound:boolean | mv_bound:boolean | strict_eq:boolean | inclusive_eq:boolean
+[1, 2, 3]      | false              | true            | false              | false            | false             | true
+;
+
+mvLessNullAndBoundEdges
+required_capability: fn_mv_less
+ROW values = [1, 2, 3]
+| EVAL null_field = mv_less(null, 1),
+       negated = NOT mv_less(null, 1),
+       null_bound = mv_less(values, null),
+       mv_bound = mv_less(values, [4, 5]),
+       strict_eq = mv_less(4, 4),
+       inclusive_eq = mv_less(4, 4, {"include_bound": true})
+;
+
+values:integer | null_field:boolean | negated:boolean | null_bound:boolean | mv_bound:boolean | strict_eq:boolean | inclusive_eq:boolean
+[1, 2, 3]      | false              | true            | false              | false            | false             | true
+;
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// MV_GREATER — per-type shape matrix (null / pass / fail / none / some)
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+mvGreaterInteger
+required_capability: fn_mv_greater
+ROW null_field = null::integer, pass = 5, fail = 3, none = [1, 2, 3], some = [1, 5, 10]
+| EVAL null_r = mv_greater(null_field, 4),
+       pass_r = mv_greater(pass, 4),
+       fail_r = mv_greater(fail, 4),
+       none_r = mv_greater(none, 4),
+       some_r = mv_greater(some, 4)
+;
+
+null_field:integer | pass:integer | fail:integer | none:integer | some:integer | null_r:boolean | pass_r:boolean | fail_r:boolean | none_r:boolean | some_r:boolean
+null               | 5            | 3            | [1, 2, 3]    | [1, 5, 10]   | false          | true           | false          | false          | true
+;
+
+mvGreaterLong
+required_capability: fn_mv_greater
+ROW null_field = null::long, pass = 5::long, fail = 3::long, none = [1, 2, 3]::long, some = [1, 5, 10]::long
+| EVAL null_r = mv_greater(null_field, 4::long),
+       pass_r = mv_greater(pass, 4::long),
+       fail_r = mv_greater(fail, 4::long),
+       none_r = mv_greater(none, 4::long),
+       some_r = mv_greater(some, 4::long)
+;
+
+null_field:long | pass:long | fail:long | none:long   | some:long    | null_r:boolean | pass_r:boolean | fail_r:boolean | none_r:boolean | some_r:boolean
+null            | 5         | 3         | [1, 2, 3]   | [1, 5, 10]   | false          | true           | false          | false          | true
+;
+
+mvGreaterDouble
+required_capability: fn_mv_greater
+ROW null_field = null::double, pass = 5.0, fail = 3.0, none = [1.0, 2.0, 3.0], some = [1.0, 5.0, 10.0]
+| EVAL null_r = mv_greater(null_field, 4.0),
+       pass_r = mv_greater(pass, 4.0),
+       fail_r = mv_greater(fail, 4.0),
+       none_r = mv_greater(none, 4.0),
+       some_r = mv_greater(some, 4.0)
+;
+
+null_field:double | pass:double | fail:double | none:double     | some:double       | null_r:boolean | pass_r:boolean | fail_r:boolean | none_r:boolean | some_r:boolean
+null              | 5.0         | 3.0         | [1.0, 2.0, 3.0] | [1.0, 5.0, 10.0]  | false          | true           | false          | false          | true
+;
+
+mvGreaterUnsignedLong
+required_capability: fn_mv_greater
+ROW null_field = null::unsigned_long,
+    pass = 5::unsigned_long,
+    fail = 3::unsigned_long,
+    none = [1, 2, 3]::unsigned_long,
+    some = [1, 5, 10]::unsigned_long
+| EVAL null_r = mv_greater(null_field, 4::unsigned_long),
+       pass_r = mv_greater(pass, 4::unsigned_long),
+       fail_r = mv_greater(fail, 4::unsigned_long),
+       none_r = mv_greater(none, 4::unsigned_long),
+       some_r = mv_greater(some, 4::unsigned_long)
+;
+
+null_field:unsigned_long | pass:unsigned_long | fail:unsigned_long | none:unsigned_long | some:unsigned_long | null_r:boolean | pass_r:boolean | fail_r:boolean | none_r:boolean | some_r:boolean
+null                     | 5                  | 3                  | [1, 2, 3]          | [1, 5, 10]         | false          | true           | false          | false          | true
+;
+
+mvGreaterDatetime
+required_capability: fn_mv_greater
+ROW null_field = null::datetime,
+    pass = "2024-09-01T00:00:00.000Z"::datetime,
+    fail = "2024-03-01T00:00:00.000Z"::datetime,
+    none = ["2024-01-01T00:00:00.000Z", "2024-03-01T00:00:00.000Z"]::datetime,
+    some = ["2024-03-01T00:00:00.000Z", "2024-09-01T00:00:00.000Z"]::datetime
+| EVAL null_r = mv_greater(null_field, "2024-06-01T00:00:00.000Z"::datetime),
+       pass_r = mv_greater(pass, "2024-06-01T00:00:00.000Z"::datetime),
+       fail_r = mv_greater(fail, "2024-06-01T00:00:00.000Z"::datetime),
+       none_r = mv_greater(none, "2024-06-01T00:00:00.000Z"::datetime),
+       some_r = mv_greater(some, "2024-06-01T00:00:00.000Z"::datetime)
+;
+
+null_field:datetime | pass:datetime              | fail:datetime              | none:datetime                                           | some:datetime                                                       | null_r:boolean | pass_r:boolean | fail_r:boolean | none_r:boolean | some_r:boolean
+null                | 2024-09-01T00:00:00.000Z   | 2024-03-01T00:00:00.000Z   | [2024-01-01T00:00:00.000Z, 2024-03-01T00:00:00.000Z]    | [2024-03-01T00:00:00.000Z, 2024-09-01T00:00:00.000Z]                | false          | true           | false          | false          | true
+;
+
+mvGreaterDateNanos
+required_capability: fn_mv_greater
+ROW null_field = null::date_nanos,
+    pass = "2024-09-01T00:00:00.000Z"::date_nanos,
+    fail = "2024-03-01T00:00:00.000Z"::date_nanos,
+    none = ["2024-01-01T00:00:00.000Z", "2024-03-01T00:00:00.000Z"]::date_nanos,
+    some = ["2024-03-01T00:00:00.000Z", "2024-09-01T00:00:00.000Z"]::date_nanos
+| EVAL null_r = mv_greater(null_field, "2024-06-01T00:00:00.000Z"::date_nanos),
+       pass_r = mv_greater(pass, "2024-06-01T00:00:00.000Z"::date_nanos),
+       fail_r = mv_greater(fail, "2024-06-01T00:00:00.000Z"::date_nanos),
+       none_r = mv_greater(none, "2024-06-01T00:00:00.000Z"::date_nanos),
+       some_r = mv_greater(some, "2024-06-01T00:00:00.000Z"::date_nanos)
+;
+
+null_field:date_nanos | pass:date_nanos            | fail:date_nanos            | none:date_nanos                                         | some:date_nanos                                                     | null_r:boolean | pass_r:boolean | fail_r:boolean | none_r:boolean | some_r:boolean
+null                  | 2024-09-01T00:00:00.000Z   | 2024-03-01T00:00:00.000Z   | [2024-01-01T00:00:00.000Z, 2024-03-01T00:00:00.000Z]    | [2024-03-01T00:00:00.000Z, 2024-09-01T00:00:00.000Z]                | false          | true           | false          | false          | true
+;
+
+mvGreaterIp
+required_capability: fn_mv_greater
+// IP order (16-byte), not lexical: 10.0.0.5 > 2.0.0.0 even though "10..." < "2..." as strings
+ROW null_field = null::ip,
+    pass = "192.168.0.7"::ip,
+    fail = "9.9.9.9"::ip,
+    none = ["1.1.1.1", "9.9.9.9"]::ip,
+    some = ["192.168.0.7", "9.9.9.9"]::ip
+| EVAL null_r = mv_greater(null_field, "10.0.0.0"::ip),
+       pass_r = mv_greater(pass, "10.0.0.0"::ip),
+       fail_r = mv_greater(fail, "10.0.0.0"::ip),
+       none_r = mv_greater(none, "10.0.0.0"::ip),
+       some_r = mv_greater(some, "10.0.0.0"::ip)
+;
+
+null_field:ip | pass:ip     | fail:ip  | none:ip           | some:ip                  | null_r:boolean | pass_r:boolean | fail_r:boolean | none_r:boolean | some_r:boolean
+null          | 192.168.0.7 | 9.9.9.9  | [1.1.1.1, 9.9.9.9]| [192.168.0.7, 9.9.9.9]   | false          | true           | false          | false          | true
+;
+
+mvGreaterVersion
+required_capability: fn_mv_greater
+// semantic version order: 1.9.0 < 1.10.0
+ROW null_field = null::version,
+    pass = "2.0.0"::version,
+    fail = "1.9.0"::version,
+    none = ["1.0.0", "1.9.0"]::version,
+    some = ["1.9.0", "2.0.0"]::version
+| EVAL null_r = mv_greater(null_field, "1.10.0"::version),
+       pass_r = mv_greater(pass, "1.10.0"::version),
+       fail_r = mv_greater(fail, "1.10.0"::version),
+       none_r = mv_greater(none, "1.10.0"::version),
+       some_r = mv_greater(some, "1.10.0"::version)
+;
+
+null_field:version | pass:version | fail:version | none:version      | some:version      | null_r:boolean | pass_r:boolean | fail_r:boolean | none_r:boolean | some_r:boolean
+null               | 2.0.0        | 1.9.0        | [1.0.0, 1.9.0]    | [1.9.0, 2.0.0]    | false          | true           | false          | false          | true
+;
+
+mvGreaterKeywordTypes
+required_capability: fn_mv_greater
+ROW null_field = null::keyword, pass = "cherry", fail = "apple", none = ["aardvark", "apple"], some = ["apple", "cherry"]
+| EVAL null_r = mv_greater(null_field, "banana"),
+       pass_r = mv_greater(pass, "banana"),
+       fail_r = mv_greater(fail, "banana"),
+       none_r = mv_greater(none, "banana"),
+       some_r = mv_greater(some, "banana")
+;
+
+null_field:keyword | pass:keyword | fail:keyword | none:keyword         | some:keyword      | null_r:boolean | pass_r:boolean | fail_r:boolean | none_r:boolean | some_r:boolean
+null               | cherry       | apple        | [aardvark, apple]    | [apple, cherry]   | false          | true           | false          | false          | true
+;
+
+mvGreaterText
+required_capability: fn_mv_greater
+// text cannot be constructed via ROW casts; use all_types_mv (id=5 has text1..text5).
+// Keep only booleans — MV_SLICE demotes text→keyword, but some_r uses the raw text field.
+// shapes vs bound text2: null / pass=text5 / fail=text1 / none=[text1,text2] / some=text1..text5
+FROM all_types_mv
+| WHERE id == 5
+| EVAL null_r = mv_greater(CASE(false, text, null), "text2"),
+       pass_r = mv_greater(MV_SLICE(text, 4, 4), "text2"),
+       fail_r = mv_greater(MV_SLICE(text, 0, 0), "text2"),
+       none_r = mv_greater(MV_SLICE(text, 0, 1), "text2"),
+       some_r = mv_greater(text, "text2")
+| KEEP null_r, pass_r, fail_r, none_r, some_r
+;
+
+null_r:boolean | pass_r:boolean | fail_r:boolean | none_r:boolean | some_r:boolean
+false          | true           | false          | false          | true
+;
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// MV_LESS — per-type shape matrix (null / pass / fail / none / some)
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+mvLessInteger
+required_capability: fn_mv_less
+ROW null_field = null::integer, pass = 3, fail = 5, none = [5, 6, 7], some = [1, 5, 10]
+| EVAL null_r = mv_less(null_field, 4),
+       pass_r = mv_less(pass, 4),
+       fail_r = mv_less(fail, 4),
+       none_r = mv_less(none, 4),
+       some_r = mv_less(some, 4)
+;
+
+null_field:integer | pass:integer | fail:integer | none:integer | some:integer | null_r:boolean | pass_r:boolean | fail_r:boolean | none_r:boolean | some_r:boolean
+null               | 3            | 5            | [5, 6, 7]    | [1, 5, 10]   | false          | true           | false          | false          | true
+;
+
+mvLessLong
+required_capability: fn_mv_less
+ROW null_field = null::long, pass = 3::long, fail = 5::long, none = [5, 6, 7]::long, some = [1, 5, 10]::long
+| EVAL null_r = mv_less(null_field, 4::long),
+       pass_r = mv_less(pass, 4::long),
+       fail_r = mv_less(fail, 4::long),
+       none_r = mv_less(none, 4::long),
+       some_r = mv_less(some, 4::long)
+;
+
+null_field:long | pass:long | fail:long | none:long   | some:long    | null_r:boolean | pass_r:boolean | fail_r:boolean | none_r:boolean | some_r:boolean
+null            | 3         | 5         | [5, 6, 7]   | [1, 5, 10]   | false          | true           | false          | false          | true
+;
+
+mvLessDouble
+required_capability: fn_mv_less
+ROW null_field = null::double, pass = 3.0, fail = 5.0, none = [5.0, 6.0, 7.0], some = [1.0, 5.0, 10.0]
+| EVAL null_r = mv_less(null_field, 4.0),
+       pass_r = mv_less(pass, 4.0),
+       fail_r = mv_less(fail, 4.0),
+       none_r = mv_less(none, 4.0),
+       some_r = mv_less(some, 4.0)
+;
+
+null_field:double | pass:double | fail:double | none:double     | some:double       | null_r:boolean | pass_r:boolean | fail_r:boolean | none_r:boolean | some_r:boolean
+null              | 3.0         | 5.0         | [5.0, 6.0, 7.0] | [1.0, 5.0, 10.0]  | false          | true           | false          | false          | true
+;
+
+mvLessUnsignedLong
+required_capability: fn_mv_less
+ROW null_field = null::unsigned_long,
+    pass = 3::unsigned_long,
+    fail = 5::unsigned_long,
+    none = [5, 6, 7]::unsigned_long,
+    some = [1, 5, 10]::unsigned_long
+| EVAL null_r = mv_less(null_field, 4::unsigned_long),
+       pass_r = mv_less(pass, 4::unsigned_long),
+       fail_r = mv_less(fail, 4::unsigned_long),
+       none_r = mv_less(none, 4::unsigned_long),
+       some_r = mv_less(some, 4::unsigned_long)
+;
+
+null_field:unsigned_long | pass:unsigned_long | fail:unsigned_long | none:unsigned_long | some:unsigned_long | null_r:boolean | pass_r:boolean | fail_r:boolean | none_r:boolean | some_r:boolean
+null                     | 3                  | 5                  | [5, 6, 7]          | [1, 5, 10]         | false          | true           | false          | false          | true
+;
+
+mvLessDatetime
+required_capability: fn_mv_less
+ROW null_field = null::datetime,
+    pass = "2024-03-01T00:00:00.000Z"::datetime,
+    fail = "2024-09-01T00:00:00.000Z"::datetime,
+    none = ["2024-09-01T00:00:00.000Z", "2024-12-01T00:00:00.000Z"]::datetime,
+    some = ["2024-03-01T00:00:00.000Z", "2024-09-01T00:00:00.000Z"]::datetime
+| EVAL null_r = mv_less(null_field, "2024-06-01T00:00:00.000Z"::datetime),
+       pass_r = mv_less(pass, "2024-06-01T00:00:00.000Z"::datetime),
+       fail_r = mv_less(fail, "2024-06-01T00:00:00.000Z"::datetime),
+       none_r = mv_less(none, "2024-06-01T00:00:00.000Z"::datetime),
+       some_r = mv_less(some, "2024-06-01T00:00:00.000Z"::datetime)
+;
+
+null_field:datetime | pass:datetime              | fail:datetime              | none:datetime                                           | some:datetime                                                       | null_r:boolean | pass_r:boolean | fail_r:boolean | none_r:boolean | some_r:boolean
+null                | 2024-03-01T00:00:00.000Z   | 2024-09-01T00:00:00.000Z   | [2024-09-01T00:00:00.000Z, 2024-12-01T00:00:00.000Z]    | [2024-03-01T00:00:00.000Z, 2024-09-01T00:00:00.000Z]                | false          | true           | false          | false          | true
+;
+
+mvLessDateNanos
+required_capability: fn_mv_less
+ROW null_field = null::date_nanos,
+    pass = "2024-03-01T00:00:00.000Z"::date_nanos,
+    fail = "2024-09-01T00:00:00.000Z"::date_nanos,
+    none = ["2024-09-01T00:00:00.000Z", "2024-12-01T00:00:00.000Z"]::date_nanos,
+    some = ["2024-03-01T00:00:00.000Z", "2024-09-01T00:00:00.000Z"]::date_nanos
+| EVAL null_r = mv_less(null_field, "2024-06-01T00:00:00.000Z"::date_nanos),
+       pass_r = mv_less(pass, "2024-06-01T00:00:00.000Z"::date_nanos),
+       fail_r = mv_less(fail, "2024-06-01T00:00:00.000Z"::date_nanos),
+       none_r = mv_less(none, "2024-06-01T00:00:00.000Z"::date_nanos),
+       some_r = mv_less(some, "2024-06-01T00:00:00.000Z"::date_nanos)
+;
+
+null_field:date_nanos | pass:date_nanos            | fail:date_nanos            | none:date_nanos                                         | some:date_nanos                                                     | null_r:boolean | pass_r:boolean | fail_r:boolean | none_r:boolean | some_r:boolean
+null                  | 2024-03-01T00:00:00.000Z   | 2024-09-01T00:00:00.000Z   | [2024-09-01T00:00:00.000Z, 2024-12-01T00:00:00.000Z]    | [2024-03-01T00:00:00.000Z, 2024-09-01T00:00:00.000Z]                | false          | true           | false          | false          | true
+;
+
+mvLessIp
+required_capability: fn_mv_less
+ROW null_field = null::ip,
+    pass = "9.9.9.9"::ip,
+    fail = "192.168.0.7"::ip,
+    none = ["10.0.0.5", "192.168.0.7"]::ip,
+    some = ["192.168.0.7", "9.9.9.9"]::ip
+| EVAL null_r = mv_less(null_field, "10.0.0.0"::ip),
+       pass_r = mv_less(pass, "10.0.0.0"::ip),
+       fail_r = mv_less(fail, "10.0.0.0"::ip),
+       none_r = mv_less(none, "10.0.0.0"::ip),
+       some_r = mv_less(some, "10.0.0.0"::ip)
+;
+
+null_field:ip | pass:ip | fail:ip     | none:ip                  | some:ip                  | null_r:boolean | pass_r:boolean | fail_r:boolean | none_r:boolean | some_r:boolean
+null          | 9.9.9.9 | 192.168.0.7 | [10.0.0.5, 192.168.0.7]  | [192.168.0.7, 9.9.9.9]   | false          | true           | false          | false          | true
+;
+
+mvLessVersion
+required_capability: fn_mv_less
+ROW null_field = null::version,
+    pass = "1.9.0"::version,
+    fail = "2.0.0"::version,
+    none = ["1.10.0", "2.0.0"]::version,
+    some = ["1.9.0", "2.0.0"]::version
+| EVAL null_r = mv_less(null_field, "1.10.0"::version),
+       pass_r = mv_less(pass, "1.10.0"::version),
+       fail_r = mv_less(fail, "1.10.0"::version),
+       none_r = mv_less(none, "1.10.0"::version),
+       some_r = mv_less(some, "1.10.0"::version)
+;
+
+null_field:version | pass:version | fail:version | none:version       | some:version      | null_r:boolean | pass_r:boolean | fail_r:boolean | none_r:boolean | some_r:boolean
+null               | 1.9.0        | 2.0.0        | [1.10.0, 2.0.0]    | [1.9.0, 2.0.0]    | false          | true           | false          | false          | true
+;
+
+mvLessKeywordTypes
+required_capability: fn_mv_less
+ROW null_field = null::keyword, pass = "apple", fail = "cherry", none = ["cherry", "date"], some = ["apple", "cherry"]
+| EVAL null_r = mv_less(null_field, "banana"),
+       pass_r = mv_less(pass, "banana"),
+       fail_r = mv_less(fail, "banana"),
+       none_r = mv_less(none, "banana"),
+       some_r = mv_less(some, "banana")
+;
+
+null_field:keyword | pass:keyword | fail:keyword | none:keyword      | some:keyword      | null_r:boolean | pass_r:boolean | fail_r:boolean | none_r:boolean | some_r:boolean
+null               | apple        | cherry       | [cherry, date]    | [apple, cherry]   | false          | true           | false          | false          | true
+;
+
+mvLessText
+required_capability: fn_mv_less
+// text cannot be constructed via ROW casts; use all_types_mv (id=5 has text1..text5).
+// Keep only booleans — MV_SLICE demotes text→keyword, but some_r uses the raw text field.
+// shapes vs bound text2: null / pass=text1 / fail=text5 / none=[text3,text4] / some=text1..text5
+FROM all_types_mv
+| WHERE id == 5
+| EVAL null_r = mv_less(CASE(false, text, null), "text2"),
+       pass_r = mv_less(MV_SLICE(text, 0, 0), "text2"),
+       fail_r = mv_less(MV_SLICE(text, 4, 4), "text2"),
+       none_r = mv_less(MV_SLICE(text, 2, 3), "text2"),
+       some_r = mv_less(text, "text2")
+| KEEP null_r, pass_r, fail_r, none_r, some_r
+;
+
+null_r:boolean | pass_r:boolean | fail_r:boolean | none_r:boolean | some_r:boolean
+false          | true           | false          | false          | true
+;
+
+mvGreaterKeywordField
+required_capability: fn_mv_greater
+// emp 10001: [Accountant, Senior Python Developer]; emp 10002: [Senior Team Lead]
+FROM employees
+| WHERE emp_no <= 10002 AND mv_greater(job_positions, "Senior")
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10001
+10002
+;
+
+mvLessKeywordField
+required_capability: fn_mv_less
+// Only 10001 has a value less than "Senior" (Accountant).
+FROM employees
+| WHERE emp_no <= 10002 AND mv_less(job_positions, "Senior")
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10001
+;
+
+mvGreaterKeywordFieldBound
+required_capability: fn_mv_greater
+// Bound is the indexed last_name field (single-valued keyword).
+// 10001: Senior Python Developer > Facello; 10002: Senior Team Lead < Simmel.
+FROM employees
+| WHERE emp_no <= 10002 AND mv_greater(job_positions, last_name)
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10001
+;
+
+mvLessKeywordFieldBound
+required_capability: fn_mv_less
+// 10001: Accountant < Facello; 10002: Senior Team Lead < Simmel.
+FROM employees
+| WHERE emp_no <= 10002 AND mv_less(job_positions, last_name)
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10001
+10002
+;

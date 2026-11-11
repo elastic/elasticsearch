@@ -19,8 +19,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,7 +35,8 @@ public class OrderBy extends UnaryPlan
         PostOptimizationPlanVerificationAware,
         TelemetryAware,
         SortAgnostic,
-        PipelineBreaker {
+        PipelineBreaker,
+        DocPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "OrderBy", OrderBy::new);
 
     private final List<Order> order;
@@ -154,16 +155,16 @@ public class OrderBy extends UnaryPlan
                             )
                         )
                     );
-            } else if (p instanceof SemiJoin semiJoin) {
-                semiJoin.right()
+            } else if (p instanceof AbstractSubqueryJoin subqueryJoin) {
+                subqueryJoin.right()
                     .forEachUp(
                         OrderBy.class,
                         orderBy -> failures.add(
                             fail(
-                                semiJoin,
+                                subqueryJoin,
                                 UNBOUNDED_SORT_NOT_SUPPORTED_FOR_COMMAND_MESSAGE,
                                 "IN subquery",
-                                semiJoin.sourceText(),
+                                subqueryJoin.sourceText(),
                                 orderBy.sourceText()
                             )
                         )

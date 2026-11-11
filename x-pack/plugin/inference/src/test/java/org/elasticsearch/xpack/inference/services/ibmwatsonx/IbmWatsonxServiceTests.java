@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -27,6 +27,7 @@ import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
@@ -42,6 +43,7 @@ import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
@@ -263,9 +265,11 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 secretSettings
             );
 
-            var failureListener = getModelListenerForException(
-                ElasticsearchStatusException.class,
-                "Configuration contains settings [{extra_key=value}] unknown to the [watsonxai] service"
+            // With the strict REQUEST ObjectParser, unknown keys colocated with the service settings (such as an extra secret key) are
+            // rejected by the parser itself as an unknown field rather than by the framework's leftover-key check.
+            var failureListener = getModelListenerForExceptionWithMessageEnding(
+                XContentParseException.class,
+                Strings.format("[%s] unknown field [extra_key]", ModelConfigurations.SERVICE_SETTINGS)
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -670,7 +674,10 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
 
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+            assertThat(
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                Matchers.equalTo("application/json; charset=UTF-8")
+            );
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap, aMapWithSize(3));
@@ -740,7 +747,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().getFirst().getUri().getQuery());
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             var expectedRequestMap = buildExpectedRequestMap(
@@ -930,7 +937,10 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             }
 
             assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+            assertThat(
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                Matchers.equalTo("application/json; charset=UTF-8")
+            );
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap, aMapWithSize(3));
@@ -977,6 +987,11 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                        "service": "watsonxai",
                        "name": "IBM watsonx",
                        "task_types": ["text_embedding", "rerank", "completion", "chat_completion"],
+                       "features": {
+                           "non_streaming_chat": {
+                               "supported": true
+                           }
+                       },
                        "configurations": {
                            "project_id": {
                                "description": "",
@@ -1026,7 +1041,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                        }
                    }
                 """);
-            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+            InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON
             );
@@ -1045,6 +1060,13 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
         return ActionListener.<Model>wrap((model) -> fail("Model parsing should have failed"), e -> {
             assertThat(e, Matchers.instanceOf(exceptionClass));
             assertThat(e.getMessage(), is(expectedMessage));
+        });
+    }
+
+    private static ActionListener<Model> getModelListenerForExceptionWithMessageEnding(Class<?> exceptionClass, String expectedEnding) {
+        return ActionListener.<Model>wrap((model) -> fail("Model parsing should have failed"), e -> {
+            assertThat(e, Matchers.instanceOf(exceptionClass));
+            assertThat(e.getMessage(), Matchers.endsWith(expectedEnding));
         });
     }
 

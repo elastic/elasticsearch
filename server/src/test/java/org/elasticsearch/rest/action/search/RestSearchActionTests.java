@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -29,7 +30,9 @@ import org.junit.Before;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.mockito.Mockito.mock;
 
 public final class RestSearchActionTests extends RestActionTestCase {
@@ -40,7 +43,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
         action = new RestSearchAction(new UsageService().getSearchUsageHolder(), nf -> false, CrossProjectModeDecider.NOOP);
         controller().registerHandler(action);
         verifyingClient.setExecuteVerifier((actionType, request) -> mock(SearchResponse.class));
-        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> mock(SearchResponse.class));
+        verifyingClient.setExecuteAndReturnTaskVerifier((actionType, request) -> mock(SearchResponse.class));
     }
 
     /**
@@ -132,6 +135,19 @@ public final class RestSearchActionTests extends RestActionTestCase {
         assertEquals(TermSuggestionBuilder.SuggestMode.MISSING, builder.suggestMode());
     }
 
+    public void testParseSuggestParametersWithoutSuggestMode() {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(
+            Map.of("suggest_field", "field", "suggest_text", "text")
+        ).build();
+        SuggestBuilder suggestBuilder = RestSearchAction.parseSuggestUrlParameters(request);
+        TermSuggestionBuilder builder = (TermSuggestionBuilder) suggestBuilder.getSuggestions().get("field");
+        assertNotNull(builder);
+        assertEquals("text", builder.text());
+        assertEquals("field", builder.field());
+        assertEquals(5, builder.size().intValue());
+        assertEquals(TermSuggestionBuilder.SuggestMode.MISSING, builder.suggestMode());
+    }
+
     public void testParseSuggestParametersError() {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(
             Map.of("suggest_text", "text", "suggest_size", "3", "suggest_mode", "missing")
@@ -146,24 +162,24 @@ public final class RestSearchActionTests extends RestActionTestCase {
         );
     }
 
-    public void testParseSearchRequestWithSliceParam() throws Exception {
+    public void testParseSearchRequestWithPathMultiSlice() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
-            .withPath("/_search")
-            .withParams(Map.of(SliceIndexing.PARAM_NAME, "s1,s2"))
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+            .withPath("/my-index/tenant-a,tenant-b/_search")
+            .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, "tenant-a,tenant-b"))
             .build();
         SearchRequest searchRequest = new SearchRequest();
         RestSearchAction.parseSearchRequest(searchRequest, request, null, nf -> false, size -> searchRequest.source().size(size));
-        assertEquals("s1,s2", searchRequest.routing());
+        assertEquals("tenant-a,tenant-b", searchRequest.routing());
         assertTrue(searchRequest.isRoutingFromSlice());
-        assertEquals("s1,s2", searchRequest.searchSlice());
+        assertEquals("tenant-a,tenant-b", searchRequest.searchSlice());
     }
 
-    public void testParseSearchRequestWithSliceAllParam() throws Exception {
+    public void testParseSearchRequestWithPathSliceAll() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
-            .withPath("/_search")
-            .withParams(Map.of(SliceIndexing.PARAM_NAME, SliceIndexing.SLICE_ALL))
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+            .withPath("/my-index/_all/_search")
+            .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, SliceIndexing.SLICE_ALL))
             .build();
         SearchRequest searchRequest = new SearchRequest();
         RestSearchAction.parseSearchRequest(searchRequest, request, null, nf -> false, size -> searchRequest.source().size(size));
@@ -175,8 +191,8 @@ public final class RestSearchActionTests extends RestActionTestCase {
     public void testParseSearchRequestRejectsRoutingAndSliceTogether() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
-            .withPath("/_search")
-            .withParams(Map.of(SliceIndexing.PARAM_NAME, "s1", "routing", "r1"))
+            .withPath("/my-index/tenant-a/_search")
+            .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, "s1", "routing", "r1"))
             .build();
         SearchRequest searchRequest = new SearchRequest();
         IllegalArgumentException e = expectThrows(
@@ -186,11 +202,11 @@ public final class RestSearchActionTests extends RestActionTestCase {
         assertEquals("[routing] is not allowed together with [_slice]", e.getMessage());
     }
 
-    public void testParseSearchRequestRejectsSliceWhenFeatureDisabled() {
+    public void testParseSearchRequestRejectsPathSliceWhenFeatureDisabled() {
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
-            .withPath("/_search")
-            .withParams(Map.of(SliceIndexing.PARAM_NAME, "s1"))
+            .withPath("/my-index/tenant-a/_search")
+            .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, "s1"))
             .build();
         SearchRequest searchRequest = new SearchRequest();
         IllegalArgumentException e = expectThrows(
@@ -200,11 +216,11 @@ public final class RestSearchActionTests extends RestActionTestCase {
         assertEquals("request does not support [_slice]", e.getMessage());
     }
 
-    public void testParseSearchRequestAllowsSliceWithPointInTime() throws Exception {
+    public void testParseSearchRequestAllowsPathSliceWithPointInTime() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
-            .withPath("/_search")
-            .withParams(Map.of(SliceIndexing.PARAM_NAME, "s1"))
+            .withPath("/my-index/s1/_search")
+            .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, "s1"))
             .build();
         SearchRequest searchRequest = new SearchRequest().source(
             new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY))
@@ -213,5 +229,122 @@ public final class RestSearchActionTests extends RestActionTestCase {
         assertEquals("s1", searchRequest.routing());
         assertTrue(searchRequest.isRoutingFromSlice());
         assertEquals("s1", searchRequest.searchSlice());
+    }
+
+    public void testParseSearchRequestWithPathSlice() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+            .withPath("/my-index/tenant-a/_search")
+            .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, "tenant-a"))
+            .build();
+        SearchRequest searchRequest = new SearchRequest();
+        RestSearchAction.parseSearchRequest(searchRequest, request, null, nf -> false, size -> searchRequest.source().size(size));
+        assertArrayEquals(new String[] { "my-index" }, searchRequest.indices());
+        assertEquals("tenant-a", searchRequest.routing());
+        assertTrue(searchRequest.isRoutingFromSlice());
+        assertEquals("tenant-a", searchRequest.searchSlice());
+    }
+
+    public void testPathSliceSearchRouteIsRegistered() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        assertTrue(
+            "path slice search route must be registered",
+            action.routes().stream().anyMatch(route -> route.getPath().equals("/{index}/{_slice}/_search"))
+        );
+    }
+
+    public void testParseSearchRequestDefaultsMrtToFalseInCps() throws Exception {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/_search")
+            .build();
+        SearchRequest searchRequest = new SearchRequest();
+        RestSearchAction.parseSearchRequest(
+            searchRequest,
+            request,
+            null,
+            nf -> false,
+            size -> searchRequest.source().size(size),
+            null,
+            Optional.of(true)
+        );
+        assertFalse(searchRequest.isCcsMinimizeRoundtrips());
+    }
+
+    public void testParseSearchRequestRejectsMrtTrueWithPitInCps() {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/_search")
+            .withParams(Map.of("ccs_minimize_roundtrips", "true"))
+            .build();
+        SearchRequest searchRequest = new SearchRequest().source(
+            new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY))
+        );
+        ActionRequestValidationException ex = expectThrows(
+            ActionRequestValidationException.class,
+            () -> RestSearchAction.parseSearchRequest(
+                searchRequest,
+                request,
+                null,
+                nf -> false,
+                size -> searchRequest.source().size(size),
+                null,
+                Optional.of(true)
+            )
+        );
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("[ccs_minimize_roundtrips] cannot be used with point in time"));
+        assertFalse(searchRequest.isCcsMinimizeRoundtrips());
+    }
+
+    public void testParseSearchRequestIgnoresMrtParamInCps() throws Exception {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/_search")
+            .withParams(Map.of("ccs_minimize_roundtrips", "true"))
+            .build();
+        SearchRequest searchRequest = new SearchRequest();
+        RestSearchAction.parseSearchRequest(
+            searchRequest,
+            request,
+            null,
+            nf -> false,
+            size -> searchRequest.source().size(size),
+            null,
+            Optional.of(true)
+        );
+        assertFalse(searchRequest.isCcsMinimizeRoundtrips());
+        assertWarnings(SearchParamsParser.MRT_SET_IN_CPS_WARN);
+    }
+
+    public void testParseSearchRequestDefaultsMrtToTrueOutsideCps() throws Exception {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/_search")
+            .build();
+        SearchRequest searchRequest = new SearchRequest();
+        RestSearchAction.parseSearchRequest(
+            searchRequest,
+            request,
+            null,
+            nf -> false,
+            size -> searchRequest.source().size(size),
+            null,
+            Optional.of(false)
+        );
+        assertTrue(searchRequest.isCcsMinimizeRoundtrips());
+    }
+
+    public void testParseSearchRequestUsesProvidedMrtOutsideCps() throws Exception {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/_search")
+            .withParams(Map.of("ccs_minimize_roundtrips", "false"))
+            .build();
+        SearchRequest searchRequest = new SearchRequest();
+        RestSearchAction.parseSearchRequest(
+            searchRequest,
+            request,
+            null,
+            nf -> false,
+            size -> searchRequest.source().size(size),
+            null,
+            Optional.of(false)
+        );
+        assertFalse(searchRequest.isCcsMinimizeRoundtrips());
     }
 }

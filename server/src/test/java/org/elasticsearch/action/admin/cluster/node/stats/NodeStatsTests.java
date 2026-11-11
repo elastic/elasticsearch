@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -600,6 +601,7 @@ public class NodeStatsTests extends ESTestCase {
             ++iota,
             ++iota,
             ++iota,
+            ++iota,
             false,
             ++iota,
             ++iota,
@@ -653,8 +655,16 @@ public class NodeStatsTests extends ESTestCase {
         indicesCommonStats.getTranslog().add(new TranslogStats(++iota, ++iota, ++iota, ++iota, ++iota));
 
         RecoveryStats recoveryStats = new RecoveryStats();
-        recoveryStats.incCurrentAsSource();
-        recoveryStats.incCurrentAsTarget();
+        recoveryStats.sourceRecoveryQueued();
+        recoveryStats.sourceRecoveryStarted();
+        recoveryStats.sourceRecoveryQueued();
+        recoveryStats.targetRecoveryQueued(RecoverySource.Type.PEER);
+        recoveryStats.targetRecoveryDequeuedAndStarted(RecoverySource.Type.PEER);
+        recoveryStats.targetRecoveryQueued(RecoverySource.Type.PEER);
+        recoveryStats.targetRecoveryQueued(RecoverySource.Type.EMPTY_STORE);
+        recoveryStats.targetRecoveryQueued(RecoverySource.Type.EXISTING_STORE);
+        recoveryStats.targetRecoveryDequeuedAndStarted(RecoverySource.Type.EXISTING_STORE);
+        recoveryStats.targetRecoveryQueued(RecoverySource.Type.EMPTY_STORE);
         recoveryStats.addThrottleTime(++iota);
         indicesCommonStats.getRecoveryStats().add(recoveryStats);
 
@@ -673,7 +683,8 @@ public class NodeStatsTests extends ESTestCase {
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         Path path = createTempDir().resolve("indices")
             .resolve(shardRouting.shardId().getIndex().getUUID())

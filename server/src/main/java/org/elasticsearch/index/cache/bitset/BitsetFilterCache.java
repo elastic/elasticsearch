@@ -22,7 +22,6 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -59,9 +58,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 
 /**
- * This is a cache for {@link BitDocIdSet} based filters and is unbounded by size or time.
+ * This is a cache for {@link BitSet} based filters and is unbounded by size or time.
  * <p>
- * Use this cache with care, only components that require that a filter is to be materialized as a {@link BitDocIdSet}
+ * Use this cache with care, only components that require that a filter is to be materialized as a {@link BitSet}
  * and require that it should always be around should use this cache, otherwise the
  * {@link org.elasticsearch.index.cache.query.QueryCache} should be used instead.
  */

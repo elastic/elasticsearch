@@ -213,13 +213,14 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
+required_capability: fix_promql_without_output
 PROMQL index=k8s step=1h result=(sum without (pod) (sum by (cluster, region, pod) (network.cost)))
 | SORT result;
 
-result:double | step:datetime            | _timeseries:keyword
-15.875        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""region"":""us""}"
-18.625        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""region"":[""eu"",""us""]}"
-26.5          | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa""}"
+result:double | step:datetime            | cluster:keyword | region:keyword
+15.875        | 2024-05-10T01:00:00.000Z | staging         | us
+18.625        | 2024-05-10T01:00:00.000Z | prod            | [eu, us]
+26.5          | 2024-05-10T01:00:00.000Z | qa              | null
 ;
 
 
@@ -246,6 +247,26 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (pod) (sum by (cluster, region, pod) (network.cost))))
+| SORT result;
+
+result:double | step:datetime            | cluster:keyword
+15.875        | 2024-05-10T01:00:00.000Z | staging
+18.625        | 2024-05-10T01:00:00.000Z | prod
+26.5          | 2024-05-10T01:00:00.000Z | qa
+;
+
+
+// Regression: `by` on a concrete label directly over a `without`-over-selector. The inner
+// `without (pod)` must surface the concrete `cluster` dimension (not only `_timeseries`) so the
+// outer `by (cluster)` can group on it. If `cluster` were not pushed down to the inner aggregate
+// it would be null-filled, collapsing every cluster into a single null group. Equivalent to
+// `by_over_without_over_by`, whose innermost `by (cluster, region, pod)` is a per-series no-op.
+by_over_without_over_selector_surfaces_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (pod) (network.cost)))
 | SORT result;
 
 result:double | step:datetime            | cluster:keyword
@@ -297,4 +318,38 @@ PROMQL index=k8s step=1h result=(scalar(max(sum without (pod, region) (avg_over_
 
 result:double     | step:datetime
 20.76903735632184 | 2024-05-10T01:00:00.000Z
+;
+
+
+// ------------------------------------------------
+// Excluded labels must NOT appear in the _timeseries output
+// ------------------------------------------------
+
+// `without(pod)` must exclude `pod` from the _timeseries label set.
+without_excludes_pod_from_timeseries
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+PROMQL index=k8s step=1h result=(sum without (pod) (network.cost{cluster="staging"}))
+| EVAL has_pod = _timeseries LIKE "*pod*"
+| KEEP result, _timeseries, has_pod;
+
+result:double | _timeseries:keyword                            | has_pod:boolean
+15.875        | "{""cluster"":""staging"",""region"":""us""}"  | false
+;
+
+
+// `without(pod, region)` must exclude both labels from the _timeseries label set.
+without_excludes_multiple_labels_from_timeseries
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+PROMQL index=k8s step=1h result=(sum without (pod, region) (network.cost{cluster="staging"}))
+| EVAL has_pod = _timeseries LIKE "*pod*", has_region = _timeseries LIKE "*region*"
+| KEEP result, _timeseries, has_pod, has_region;
+
+result:double | _timeseries:keyword         | has_pod:boolean | has_region:boolean
+15.875        | "{""cluster"":""staging""}" | false           | false
 ;

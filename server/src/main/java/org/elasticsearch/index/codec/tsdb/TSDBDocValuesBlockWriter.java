@@ -10,7 +10,9 @@
 package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ByteBuffersDataOutput;
@@ -61,6 +63,10 @@ public final class TSDBDocValuesBlockWriter {
      * @param sortedFieldObserver receives {@code (docId, value)} pairs during the doc pass,
      *                            or {@code null} when no observer is attached
      * @param blockEncoder        codec-specific encoder for each value block
+     * @param blockSize           number of values per block for this field; must be a
+     *                            positive power of two. ES95 passes the resolved
+     *                            {@code PipelineConfig.blockSize()}, while ES819 numeric
+     *                            and ordinal writers pass {@code ctx.blockSize()}
      * @return the field's doc value count statistics
      */
     public DocValueFieldCountStats writeFieldEntry(
@@ -70,9 +76,10 @@ public final class TSDBDocValuesBlockWriter {
         long maxOrd,
         final AbstractTSDBDocValuesConsumer.DocValueCountConsumer docValueCountConsumer,
         final SortedFieldObserver sortedFieldObserver,
-        final BlockEncoder blockEncoder
+        final BlockEncoder blockEncoder,
+        int blockSize
     ) throws IOException {
-        return writeFieldEntry(ctx, field, valuesSource, maxOrd, docValueCountConsumer, sortedFieldObserver, blockEncoder, null);
+        return writeFieldEntry(ctx, field, valuesSource, maxOrd, docValueCountConsumer, sortedFieldObserver, blockEncoder, null, blockSize);
     }
 
     /**
@@ -91,6 +98,10 @@ public final class TSDBDocValuesBlockWriter {
      * @param blockEncoder        codec-specific encoder for each value block
      * @param fieldMetaWriter    optional callback invoked after the block-shift marker to write
      *                            additional per-field metadata, or {@code null}
+     * @param blockSize           number of values per block for this field; must be a
+     *                            positive power of two. ES95 passes the resolved
+     *                            {@code PipelineConfig.blockSize()}, while ES819 numeric
+     *                            and ordinal writers pass {@code ctx.blockSize()}
      * @return the field's doc value count statistics
      */
     public DocValueFieldCountStats writeFieldEntry(
@@ -101,11 +112,12 @@ public final class TSDBDocValuesBlockWriter {
         final AbstractTSDBDocValuesConsumer.DocValueCountConsumer docValueCountConsumer,
         final SortedFieldObserver sortedFieldObserver,
         final BlockEncoder blockEncoder,
-        final FieldMetaWriter fieldMetaWriter
+        final FieldMetaWriter fieldMetaWriter,
+        int blockSize
     ) throws IOException {
+        assert blockSize > 0 && (blockSize & (blockSize - 1)) == 0 : "blockSize must be a positive power of two, got " + blockSize;
         final IndexOutput meta = ctx.meta();
         final IndexOutput data = ctx.data();
-        final int blockSize = ctx.blockSize();
         final int blockShift = Integer.numberOfTrailingZeros(blockSize);
         final int maxDoc = ctx.maxDoc();
         final TSDBDocValuesFormatConfig formatConfig = ctx.formatConfig();
@@ -119,9 +131,17 @@ public final class TSDBDocValuesBlockWriter {
             numValues = valuesSource.mergeStats.sumNumValues();
         } else {
             values = valuesSource.getSortedNumeric(field);
-            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                numDocsWithValue++;
-                numValues += values.docValueCount();
+            final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+            if (singleton != null) {
+                for (int doc = singleton.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = singleton.nextDoc()) {
+                    numDocsWithValue++;
+                }
+                numValues = numDocsWithValue;
+            } else {
+                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                    numDocsWithValue++;
+                    numValues += values.docValueCount();
+                }
             }
         }
 
@@ -196,16 +216,18 @@ public final class TSDBDocValuesBlockWriter {
                     if (valuesSource.mergeStats.supported() && numDocsWithValue < maxDoc) {
                         disiAccumulator = new DISIAccumulator(ctx.dir(), ctx.ioContext(), data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
                     }
-                    for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                        if (disiAccumulator != null) {
-                            disiAccumulator.addDocId(doc);
-                        }
-                        final int count = values.docValueCount();
-                        if (docValueCountConsumer != null) {
-                            docValueCountConsumer.accept(count);
-                        }
-                        for (int i = 0; i < count; ++i) {
-                            final long v = values.nextValue();
+                    // Iterate a single-valued field directly: through the wrapper, the call to the underlying iterator is
+                    // shared with every other user of the wrapper in the JVM and ends up megamorphic.
+                    final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+                    if (singleton != null) {
+                        for (int doc = singleton.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = singleton.nextDoc()) {
+                            if (disiAccumulator != null) {
+                                disiAccumulator.addDocId(doc);
+                            }
+                            if (docValueCountConsumer != null) {
+                                docValueCountConsumer.accept(1);
+                            }
+                            final long v = singleton.longValue();
                             if (sortedFieldObserver != null) {
                                 sortedFieldObserver.onDoc(doc, v);
                             }
@@ -214,6 +236,28 @@ public final class TSDBDocValuesBlockWriter {
                                 indexWriter.add(data.getFilePointer() - valuesDataOffset);
                                 blockEncoder.encode(buffer, data);
                                 bufferSize = 0;
+                            }
+                        }
+                    } else {
+                        for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                            if (disiAccumulator != null) {
+                                disiAccumulator.addDocId(doc);
+                            }
+                            final int count = values.docValueCount();
+                            if (docValueCountConsumer != null) {
+                                docValueCountConsumer.accept(count);
+                            }
+                            for (int i = 0; i < count; ++i) {
+                                final long v = values.nextValue();
+                                if (sortedFieldObserver != null) {
+                                    sortedFieldObserver.onDoc(doc, v);
+                                }
+                                buffer[bufferSize++] = v;
+                                if (bufferSize == blockSize) {
+                                    indexWriter.add(data.getFilePointer() - valuesDataOffset);
+                                    blockEncoder.encode(buffer, data);
+                                    bufferSize = 0;
+                                }
                             }
                         }
                     }

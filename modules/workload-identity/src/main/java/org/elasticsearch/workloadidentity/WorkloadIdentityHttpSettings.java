@@ -20,17 +20,16 @@ import java.util.List;
  * Node-scope settings for the workload-identity-issuer HTTP transport.
  *
  * <p>The pool-size pair drives the underlying
- * {@link org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager}; the
- * eviction-interval/max-idle pair drives {@link HttpConnectionEvictor}; connect
+ * {@link org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager}; connect
  * and request timeouts are applied per-request via Apache HC's
- * {@link org.apache.http.client.config.RequestConfig}.
+ * {@link org.apache.hc.client5.http.config.RequestConfig}.
  */
 public final class WorkloadIdentityHttpSettings {
 
     private static final String HTTP_PREFIX = WorkloadIdentityIssuerSettings.SETTING_PREFIX + "http.";
 
     /**
-     * Maximum total connections the {@link org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager}
+     * Maximum total connections the {@link org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager}
      * can lease across all routes. Workload-identity traffic talks to a single host, so the per-route
      * limit (below) is typically the binding constraint.
      */
@@ -70,26 +69,26 @@ public final class WorkloadIdentityHttpSettings {
         Setting.Property.NodeScope
     );
 
-    private static final TimeValue DEFAULT_EVICTION_INTERVAL = TimeValue.timeValueMinutes(1);
-
     /**
-     * Interval at which {@link HttpConnectionEvictor} runs to close expired and idle connections
-     * in the pool.
+     * Deprecated: HC5's built-in {@link org.apache.hc.client5.http.impl.IdleConnectionEvictor}
+     * derives its check interval automatically as {@code connectionMaxIdleTime / 10}
+     * (minimum 1 second); this setting is accepted for backwards compatibility but has no effect.
      */
     public static final Setting<TimeValue> CONNECTION_EVICTION_INTERVAL = Setting.timeSetting(
         HTTP_PREFIX + "connection_eviction_interval",
-        DEFAULT_EVICTION_INTERVAL,
-        Setting.Property.NodeScope
+        TimeValue.timeValueMinutes(1),
+        Setting.Property.NodeScope,
+        Setting.Property.DeprecatedWarning
     );
 
     /**
-     * Maximum time a connection can sit idle in the pool before the evictor closes it. Defaults
-     * to the eviction interval, so any connection idle for at least one tick is reclaimed on the
-     * next pass.
+     * Maximum time a connection can sit idle in the pool before HC5's built-in
+     * {@link org.apache.hc.client5.http.impl.IdleConnectionEvictor} closes it. The evictor's
+     * check interval is derived automatically as {@code maxIdleTime / 10} (minimum 1 second).
      */
     public static final Setting<TimeValue> CONNECTION_MAX_IDLE_TIME = Setting.timeSetting(
         HTTP_PREFIX + "connection_max_idle_time",
-        DEFAULT_EVICTION_INTERVAL,
+        TimeValue.timeValueMinutes(1),
         Setting.Property.NodeScope
     );
 

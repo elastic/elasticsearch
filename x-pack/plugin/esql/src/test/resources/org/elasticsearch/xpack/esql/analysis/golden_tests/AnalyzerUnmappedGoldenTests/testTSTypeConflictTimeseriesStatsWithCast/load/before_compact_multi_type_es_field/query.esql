@@ -1,0 +1,2 @@
+SET unmapped_fields="load"; TS k8s, k8s_unmapped
+| STATS s = SUM(network.bytes_in::long) BY cluster

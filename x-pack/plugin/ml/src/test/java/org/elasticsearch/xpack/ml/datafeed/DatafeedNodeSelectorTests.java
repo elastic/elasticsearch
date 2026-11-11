@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -459,6 +461,80 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         assertNotNull(result.getExecutorNode());
     }
 
+    public void testDatafeedCpsUnqualifiedLinkedOnlyIndexIsAssignable() {
+        Job job = createScheduledJob("job_id").build(new Date());
+        DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("linked-only-flights"));
+
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        tasks = tasksBuilder.build();
+
+        givenClusterState("foo", 1, 0);
+
+        IndicesOptions cpsIndicesOptions = IndicesOptions.builder(SearchRequest.DEFAULT_INDICES_OPTIONS)
+            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+            .build();
+
+        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+            clusterState,
+            resolver,
+            df.getId(),
+            df.getJobId(),
+            df.getIndices(),
+            cpsIndicesOptions
+        ).selectNode(makeCandidateNodes("node_id", "other_node_id"));
+        assertEquals("node_id", result.getExecutorNode());
+        new DatafeedNodeSelector(clusterState, resolver, df.getId(), df.getJobId(), df.getIndices(), cpsIndicesOptions)
+            .checkDatafeedTaskCanBeCreated();
+    }
+
+    public void testDatafeedCpsUnqualifiedWildcardWithNoLocalMatchesIsAssignable() {
+        Job job = createScheduledJob("job_id").build(new Date());
+        DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("linked-only-*"));
+
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        tasks = tasksBuilder.build();
+
+        givenClusterState("foo", 1, 0);
+
+        IndicesOptions cpsIndicesOptions = IndicesOptions.builder(SearchRequest.DEFAULT_INDICES_OPTIONS)
+            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+            .build();
+
+        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+            clusterState,
+            resolver,
+            df.getId(),
+            df.getJobId(),
+            df.getIndices(),
+            cpsIndicesOptions
+        ).selectNode(makeCandidateNodes("node_id", "other_node_id"));
+        assertEquals("node_id", result.getExecutorNode());
+        new DatafeedNodeSelector(clusterState, resolver, df.getId(), df.getJobId(), df.getIndices(), cpsIndicesOptions)
+            .checkDatafeedTaskCanBeCreated();
+    }
+
+    public void testEsqlDatafeedWithoutIndicesAndUnassignedShardsShouldBeAssignable() {
+        Job job = createScheduledJob("job_id").build(new Date());
+
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        tasks = tasksBuilder.build();
+
+        givenClusterState("foo", 1, 0, List.of(new Tuple<>(0, ShardRoutingState.UNASSIGNED)));
+
+        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+            clusterState,
+            resolver,
+            "datafeed_id",
+            job.getId(),
+            List.of(),
+            SearchRequest.DEFAULT_INDICES_OPTIONS
+        ).selectNode(makeCandidateNodes("node_id", "other_node_id"));
+        assertEquals("node_id", result.getExecutorNode());
+    }
+
     public void testSelectNode_jobTaskStale() {
         Job job = createScheduledJob("job_id").build(new Date());
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo"));
@@ -761,7 +837,8 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
                     true,
                     RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-                    ShardRouting.Role.DEFAULT
+                    ShardRouting.Role.DEFAULT,
+                    RecoveryPriority.UNASSIGNED_NEW_PRIMARY
                 );
             }
 

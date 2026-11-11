@@ -75,6 +75,42 @@ public class FilterEvaluationOrderEstimatorTests extends ESTestCase {
         assertSame(statusFilter, result.get(1));
     }
 
+    /**
+     * Regression for the ORC ClassCastException: an INT column whose min/max stats box as {@link Long}
+     * (as ORC's {@code IntegerColumnStatistics} does) compared against an {@link Integer} query literal
+     * must not throw at planning time and must still produce sensible ordering.
+     */
+    public void testEqualitySelectivity_longStatsIntegerLiteral_noClassCast() {
+        SplitStats.Builder builder = new SplitStats.Builder();
+        builder.rowCount(10000);
+        builder.addColumn("counter", 0L, 1L, 100L, 5_000L);
+        builder.addColumn("other", 0L, 1L, 1_000_000L, 50_000L);
+        SplitStats stats = builder.build();
+
+        Expression counterFilter = eq("counter", 62);
+        Expression otherFilter = eq("other", 500);
+
+        List<Expression> result = FilterEvaluationOrderEstimator.orderByEstimatedCost(List.of(counterFilter, otherFilter), stats);
+        assertSame(otherFilter, result.get(0));
+        assertSame(counterFilter, result.get(1));
+    }
+
+    /** Symmetric case: {@link Integer} stats compared against a {@link Long} literal must also not throw. */
+    public void testEqualitySelectivity_integerStatsLongLiteral_noClassCast() {
+        SplitStats.Builder builder = new SplitStats.Builder();
+        builder.rowCount(10000);
+        builder.addColumn("counter", 0L, 1, 100, 5_000L);
+        builder.addColumn("other", 0L, 1, 1_000_000, 50_000L);
+        SplitStats stats = builder.build();
+
+        Expression counterFilter = eqLong("counter", 62L);
+        Expression otherFilter = eqLong("other", 500L);
+
+        List<Expression> result = FilterEvaluationOrderEstimator.orderByEstimatedCost(List.of(counterFilter, otherFilter), stats);
+        assertSame(otherFilter, result.get(0));
+        assertSame(counterFilter, result.get(1));
+    }
+
     public void testNullSelectivity_highNullRatioFirst() {
         SplitStats.Builder builder = new SplitStats.Builder();
         builder.rowCount(10000);
@@ -274,6 +310,10 @@ public class FilterEvaluationOrderEstimatorTests extends ESTestCase {
 
     private static Expression eq(String field, int value) {
         return new Equals(SRC, fieldAttr(field), intLiteral(value), null);
+    }
+
+    private static Expression eqLong(String field, long value) {
+        return new Equals(SRC, fieldAttr(field), new Literal(SRC, value, DataType.LONG), null);
     }
 
     private static SplitStats metadata(long rowCount, String col, long nullCount, int min, int max, long sizeBytes) {

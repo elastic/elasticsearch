@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
@@ -32,6 +33,11 @@ public class RestExplainLifecycleAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "ilm_explain_action";
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of("explain_unmanaged_reason");
     }
 
     @Override

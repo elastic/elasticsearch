@@ -14,7 +14,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -74,6 +73,25 @@ public class MappingLookupTests extends ESTestCase {
         assertThat(mappingLookup.fieldTypesLookup().get("test"), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
     }
 
+    public void testFirstFieldNotReconstructableFromDocValues() {
+        // The columnar contract allows a field only if its _source is reconstructable from doc-value columns (synthetic
+        // source mode NATIVE); a FALLBACK field is flagged so the index mode can reject it. Use fake mappers so this
+        // tests the rule itself rather than the current behaviour of any specific field type.
+        FieldMapper nativeField = new MockFieldMapper("native_field") {
+            @Override
+            protected SyntheticSourceSupport syntheticSourceSupport() {
+                return new SyntheticSourceSupport.Native(() -> SourceLoader.SyntheticFieldLoader.NOTHING);
+            }
+        };
+        FieldMapper fallbackField = new MockFieldMapper("fallback_field"); // no native synthetic source -> FALLBACK
+
+        MappingLookup withFallback = createMappingLookup(List.of(nativeField, fallbackField), emptyList(), emptyList());
+        assertEquals("fallback_field", withFallback.firstFieldNotReconstructableFromDocValues());
+
+        MappingLookup allNative = createMappingLookup(List.of(nativeField), emptyList(), emptyList());
+        assertNull(allNative.firstFieldNotReconstructableFromDocValues());
+    }
+
     public void testRuntimeFieldLeafOverride() {
         MockFieldMapper fieldMapper = new MockFieldMapper("test");
         MappingLookup mappingLookup = createMappingLookup(
@@ -128,7 +146,6 @@ public class MappingLookupTests extends ESTestCase {
 
     public void testEmptyMappingLookup() {
         MappingLookup mappingLookup = MappingLookup.EMPTY;
-        assertEquals("{\"_doc\":{}}", Strings.toString(mappingLookup.getMapping()));
         assertFalse(mappingLookup.hasMappings());
         assertNull(mappingLookup.getMapping().getMeta());
         assertEquals(0, mappingLookup.getMapping().getMetadataMappersMap().size());

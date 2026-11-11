@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.security.cli.CertificateGenerateTool.CAInfo;
 import org.elasticsearch.xpack.security.cli.CertificateGenerateTool.CertificateInformation;
 import org.elasticsearch.xpack.security.cli.CertificateGenerateTool.Name;
+import org.elasticsearch.xpack.security.cli.bc.CertGenUtils;
 import org.junit.After;
 import org.junit.BeforeClass;
 
@@ -107,9 +108,8 @@ public class CertificateGenerateToolTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeJimfs() throws Exception {
         IOUtils.close(jimfs);
-        super.tearDown();
     }
 
     public void testOutputDirectory() throws Exception {

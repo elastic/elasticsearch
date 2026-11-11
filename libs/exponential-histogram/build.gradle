@@ -20,7 +20,7 @@ dependencies {
     exclude group: 'org.elasticsearch', module: 'exponential-histogram'
   }
   testImplementation('ch.obermuhlner:big-math:2.3.2')
-  testImplementation('org.apache.commons:commons-math3:3.6.1')
+  testImplementation("org.apache.commons:commons-math3:${versions.commons_math3}")
   testImplementation project(':libs:x-content:impl')
 }
 

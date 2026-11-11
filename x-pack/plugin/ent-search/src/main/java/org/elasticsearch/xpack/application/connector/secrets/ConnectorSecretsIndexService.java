@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.application.connector.secrets;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.WriteRequest;
@@ -58,7 +58,7 @@ public class ConnectorSecretsIndexService {
         try {
             template = TemplateUtils.loadTemplate(
                 "/connector-secrets.json",
-                Version.CURRENT.toString(),
+                Build.current().version(),
                 MAPPING_VERSION_VARIABLE,
                 Map.of(MAPPING_MANAGED_VERSION_VARIABLE, Integer.toString(CURRENT_INDEX_VERSION)),
                 false,

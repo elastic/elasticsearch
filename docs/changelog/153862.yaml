@@ -1,0 +1,5 @@
+area: Infra/Scripting
+issues: []
+pr: 153862
+summary: Add Painless allocation annotations for x-pack allowlists
+type: enhancement

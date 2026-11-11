@@ -1,0 +1,7 @@
+FROM employees
+| WHERE emp_no IN (FROM employees | KEEP emp_no)
+| EVAL doubled = salary * 2
+| WHERE doubled > 100000
+| SORT doubled DESC
+| LIMIT 10
+| KEEP emp_no, doubled

@@ -1,0 +1,2 @@
+SET unmapped_fields="load"; FROM dense_vector, dense_vector_unmapped
+| KEEP float_vector

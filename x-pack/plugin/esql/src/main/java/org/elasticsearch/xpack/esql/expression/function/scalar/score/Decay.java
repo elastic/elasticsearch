@@ -21,6 +21,7 @@ import org.elasticsearch.script.ScoreScriptUtils;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -88,7 +89,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isTimeDuration;
  * - Spatial types (geo_point, cartesian_point)
  * - Temporal types (datetime, date_nanos)
  */
-public class Decay extends EsqlScalarFunction implements OptionalArgument, PostOptimizationVerificationAware {
+public class Decay extends EsqlScalarFunction implements OptionalArgument, PostOptimizationVerificationAware, AnyNullIsNull {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Decay", Decay::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Decay.class).quaternary(Decay::new).name("decay");
@@ -162,11 +163,13 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         @Param(
             name = ORIGIN,
             type = { "double", "integer", "long", "unsigned_long", "date", "date_nanos", "geo_point", "cartesian_point" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Central point from which the distances are calculated."
         ) Expression origin,
         @Param(
             name = SCALE,
             type = { "double", "integer", "long", "unsigned_long", "time_duration", "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Distance from the origin where the function returns the decay value."
         ) Expression scale,
         @MapParam(

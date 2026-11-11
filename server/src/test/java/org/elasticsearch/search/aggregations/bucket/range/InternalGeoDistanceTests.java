@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,10 +25,8 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
 
     private List<Tuple<Double, Double>> geoDistanceRanges;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-
+    @Before
+    public void initializeGeoDistanceRanges() throws Exception {
         final int interval = randomFrom(1, 5, 10, 25, 50, 100);
         final int numRanges = randomNumberOfBuckets();
         final double max = (double) numRanges * interval;

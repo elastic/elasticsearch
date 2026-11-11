@@ -16,6 +16,8 @@ import com.sun.net.httpserver.HttpHandler;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -32,7 +34,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -43,6 +44,7 @@ import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -51,8 +53,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
-import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -81,6 +82,7 @@ import static org.elasticsearch.rest.RestStatus.SERVICE_UNAVAILABLE;
 import static org.elasticsearch.rest.RestStatus.TOO_MANY_REQUESTS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING;
+import static org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.everyItem;
@@ -464,7 +466,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
     public void testUploadIndicesDataWithRetries() throws Exception {
         s3HttpHandler.setInterceptor(new Interceptor() {
-            private final int errorsPerRequest = randomIntBetween(3, 5);
+            private final int errorsPerRequest = maxRetries + randomIntBetween(2, 3);
             private final Map<String, AtomicInteger> requestPathErrorCount = ConcurrentCollections.newConcurrentMap();
 
             @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
@@ -477,7 +479,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
                     // upload UUID changes with every retry.
                     long gen = Long.parseLong(
                         request.substring(
-                            request.indexOf(StatelessCompoundCommit.PREFIX) + StatelessCompoundCommit.PREFIX.length(),
+                            request.indexOf(BatchedCompoundCommit.PREFIX) + BatchedCompoundCommit.PREFIX.length(),
                             request.lastIndexOf('?')
                         )
                     );
@@ -513,7 +515,22 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             }
         });
 
-        final Settings nodeSettings = disableIndexingDiskAndMemoryControllersNodeSettings();
+        // Use random but sufficiently large cache settings. The default random cache configuration can produce a cache smaller than the
+        // region size, resulting in zero usable regions and every read going through the mock HTTP handler which is too slow to complete
+        // within the ensureGreen timeout.
+        var regionPages = randomIntBetween(16, 64); // 64kb to 256kb regions
+        var cachePages = regionPages * randomIntBetween(64, 256); // 64 to 256 regions, giving at least 4mb of cache
+        final Settings nodeSettings = Settings.builder()
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(
+                SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
+                ByteSizeValue.ofBytes((long) regionPages * SharedBytes.PAGE_SIZE)
+            )
+            .put(
+                SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
+                ByteSizeValue.ofBytes((long) cachePages * SharedBytes.PAGE_SIZE)
+            )
+            .build();
         final String masterAndIndexNode = startMasterAndIndexNode(nodeSettings);
         final String searchNode = startSearchNode(nodeSettings);
 
@@ -521,8 +538,6 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             final String indexName = randomIdentifier();
             createIndex(indexName, indexSettings(1, 0).build());
             ensureGreen(indexName);
-            IndexShard indexShard = findIndexShard(indexName);
-            IndexEngine shardEngine = getShardEngine(indexShard, IndexEngine.class);
 
             // Index enough 1 MiB documents to produce a >5MiB Lucene compound segment file, to ensure S3 multi-part upload
             int numDocs = randomIntBetween(8, 10);
@@ -620,8 +635,10 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             }
         });
 
-        final String masterNode = startMasterAndIndexNode();
-        final String indexNode1 = startIndexNode();
+        // transferring the hollow commit metadata skips the object store reads on the target
+        final var indexNodeSettings = Settings.builder().put(TRANSFER_HOLLOW_COMMIT_METADATA_SETTING.getKey(), false).build();
+        final String masterNode = startMasterAndIndexNode(indexNodeSettings);
+        final String indexNode1 = startIndexNode(indexNodeSettings);
         final String searchNode = startSearchNode();
         ensureStableCluster(3);
 
@@ -655,7 +672,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
                 requestsErroredFor403.clear();
             }
 
-            indexNode2 = startIndexNode();
+            indexNode2 = startIndexNode(indexNodeSettings);
             ensureStableCluster(4);
 
             updateIndexSettings(
@@ -728,6 +745,8 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         final var settings = Settings.builder()
             .put("s3.client.test.max_retries", 0) // disable sdk client retries
             .put("s3.client.test.tenacious_retries.enabled", true)
+            // transferring the hollow commit metadata skips the object store reads on the target
+            .put(TRANSFER_HOLLOW_COMMIT_METADATA_SETTING.getKey(), false)
             .build();
 
         final String masterNode = startMasterAndIndexNode(settings);
@@ -866,9 +885,10 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             RepositoriesService repositoriesService,
             ThreadPool threadPool,
             ClusterService clusterService,
-            ProjectResolver projectResolver
+            ProjectResolver projectResolver,
+            MeterRegistry meterRegistry
         ) {
-            return new TestObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver);
+            return new TestObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver, meterRegistry);
         }
     }
 
@@ -879,9 +899,10 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             RepositoriesService repositoriesService,
             ThreadPool threadPool,
             ClusterService clusterService,
-            ProjectResolver projectResolver
+            ProjectResolver projectResolver,
+            MeterRegistry meterRegistry
         ) {
-            super(settings, repositoriesService, threadPool, clusterService, projectResolver);
+            super(settings, repositoriesService, threadPool, clusterService, projectResolver, meterRegistry);
         }
 
         @Override

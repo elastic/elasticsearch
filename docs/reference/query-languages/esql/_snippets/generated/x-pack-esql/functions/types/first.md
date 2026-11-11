@@ -36,6 +36,10 @@
 | exponential_histogram {applies_to}`stack: ga 9.5.0` | date_nanos | exponential_histogram |
 | exponential_histogram {applies_to}`stack: ga 9.5.0` | integer | exponential_histogram |
 | exponential_histogram {applies_to}`stack: ga 9.5.0` | long | exponential_histogram |
+| flattened {applies_to}`stack: preview 9.5.0` | date | flattened |
+| flattened {applies_to}`stack: preview 9.5.0` | date_nanos | flattened |
+| flattened {applies_to}`stack: preview 9.5.0` | integer | flattened |
+| flattened {applies_to}`stack: preview 9.5.0` | long | flattened |
 | geo_point {applies_to}`stack: ga 9.5.0` | date | geo_point |
 | geo_point {applies_to}`stack: ga 9.5.0` | date_nanos | geo_point |
 | geo_point {applies_to}`stack: ga 9.5.0` | integer | geo_point |

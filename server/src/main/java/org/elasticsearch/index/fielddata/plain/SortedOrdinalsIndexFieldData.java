@@ -60,11 +60,12 @@ public class SortedOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldData
 
     @Override
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-        SortField sortField = new SortField(getFieldName(), SortField.Type.STRING, reverse);
-        sortField.setMissingValue(
+        return new SortField(
+            getFieldName(),
+            SortField.Type.STRING,
+            reverse,
             sortMissingLast(missingValue) ^ reverse ? SortedSetSortField.STRING_LAST : SortedSetSortField.STRING_FIRST
         );
-        return sortField;
     }
 
     @Override

@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
-import java.util.function.Supplier;
 
 class RequestTask implements RejectableTask {
 
@@ -27,10 +27,16 @@ class RequestTask implements RejectableTask {
         InferenceInputs inferenceInputs,
         @Nullable TimeValue timeout,
         ThreadPool threadPool,
-        ActionListener<InferenceServiceResults> listener
+        ActionListener<InferenceServiceResults> listener,
+        Releasable releaseBytes
     ) {
         this.requestCreator = Objects.requireNonNull(requestCreator);
-        this.timedListener = new TimedListener<>(timeout, listener, threadPool, requestCreator.inferenceEntityId());
+        this.timedListener = new TimedListener<>(
+            timeout,
+            ActionListener.runAfter(listener, releaseBytes::close),
+            threadPool,
+            requestCreator.inferenceEntityId()
+        );
         this.inferenceInputs = Objects.requireNonNull(inferenceInputs);
     }
 
@@ -40,8 +46,8 @@ class RequestTask implements RejectableTask {
     }
 
     @Override
-    public Supplier<Boolean> getRequestCompletedFunction() {
-        return this::hasCompleted;
+    public TimedListener<InferenceServiceResults> getTimedListener() {
+        return timedListener;
     }
 
     @Override

@@ -19,6 +19,10 @@ import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenResponse;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
+/**
+ * Deletes a token belonging to a built-in service account. Tokens of user-managed accounts are deleted by
+ * {@link TransportDeleteUserManagedServiceAccountTokenAction}, so that the two can be authorized separately.
+ */
 public class TransportDeleteServiceAccountTokenAction extends HandledTransportAction<
     DeleteServiceAccountTokenRequest,
     DeleteServiceAccountTokenResponse> {
@@ -47,9 +51,6 @@ public class TransportDeleteServiceAccountTokenAction extends HandledTransportAc
         DeleteServiceAccountTokenRequest request,
         ActionListener<DeleteServiceAccountTokenResponse> listener
     ) {
-        serviceAccountService.deleteIndexToken(
-            request,
-            ActionListener.wrap(found -> listener.onResponse(new DeleteServiceAccountTokenResponse(found)), listener::onFailure)
-        );
+        serviceAccountService.deleteBuiltInToken(request, listener.map(DeleteServiceAccountTokenResponse::new));
     }
 }

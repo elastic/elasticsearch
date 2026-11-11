@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 151974
+pr: 155056
+summary: Fix delta and idelta with a window shorter than the time bucket
+type: bug

@@ -15,6 +15,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -63,7 +65,8 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         TimestampAware,
         TimestampBoundsAware.OfExpression,
         TwoOptionalArguments,
-        ConfigurationFunction {
+        ConfigurationFunction,
+        AnyNullIsNull {
 
     public static final String NAME = "TStep";
 
@@ -116,21 +119,28 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
     )
     public TStep(
         Source source,
-        @Param(name = "step", type = { "time_duration", "integer", "long" }, description = """
-            Fixed bucket width on a UTC grid, or a target bucket count. When a bucket count is provided,
-            the actual step width is derived from `from` and `to` and rounded up so the target bucket count
-            is not exceeded.
-            TSTEP always needs a range to anchor the grid; when `from` and `to` are omitted,
-            the range is derived from the request `@timestamp` filter.""") Expression stepOrBuckets,
+        @Param(
+            name = "step",
+            type = { "time_duration", "integer", "long" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
+            description = """
+                Fixed bucket width on a UTC grid, or a target bucket count. When a bucket count is provided,
+                the actual step width is derived from `from` and `to` and rounded up so the target bucket count
+                is not exceeded.
+                TSTEP always needs a range to anchor the grid; when `from` and `to` are omitted,
+                the range is derived from the request `@timestamp` filter."""
+        ) Expression stepOrBuckets,
         @Param(
             name = "from",
             type = { "date", "date_nanos", "keyword" },
             description = "Start of the time range that anchors the step grid. Required together with `to`.",
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true
         ) @Nullable Expression from,
         @Param(
             name = "to",
             type = { "date", "date_nanos", "keyword" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "End of the time range. Required together with `from`.",
             optional = true
         ) @Nullable Expression to,
@@ -212,7 +222,8 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
             step,
             null,
             null,
-            configuration.withZoneId(ZoneOffset.UTC),
+            null,
+            configuration.withSetting(QuerySettings.TIME_ZONE, ZoneOffset.UTC),
             offsetToLong(ctx),
             Rounding.RoundingConvention.UP
         );

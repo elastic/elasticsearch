@@ -101,70 +101,118 @@ public final class MergedSplitStats implements org.elasticsearch.xpack.esql.data
     }
 
     /**
+     * Returns the sum of non-null value counts across children for the named column (multivalue-aware),
+     * or {@code -1} if any child returns {@code -1} (the column was not observed in that child's stats).
+     * A single unavailable child poisons the aggregate because the summed COUNT(col) would otherwise
+     * under-count that child's rows; the caller then falls back to {@code rowCount - columnNullCount}.
+     */
+    @Override
+    public long columnValueCount(String name) {
+        long total = 0;
+        for (org.elasticsearch.xpack.esql.datasources.spi.SplitStats child : children) {
+            long vc = child.columnValueCount(name);
+            if (vc < 0) {
+                return -1;
+            }
+            total += vc;
+        }
+        return total;
+    }
+
+    /**
+     * Returns {@code true} only when <b>every</b> child observed the column in its stats. A single
+     * child that lacks the column makes the merged answer "not fully harvested": for a text-format
+     * multi-file query where one file's scan harvested the column and another's did not, the merged
+     * {@code COUNT(col)} cannot be served from stats without under-counting the unharvested file's
+     * rows, so the all-children predicate forces a safe-miss. Footer formats never consult this (their
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport} applies implicit
+     * nulls), so genuinely-absent columns in a UNION_BY_NAME mix are unaffected.
+     */
+    @Override
+    public boolean hasColumn(String name) {
+        for (org.elasticsearch.xpack.esql.datasources.spi.SplitStats child : children) {
+            if (child.hasColumn(name) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Returns the minimum of children's min values for the named column under the SPI's
      * "implicit nulls" contract:
      * <ul>
-     *   <li>A child with {@code columnNullCount(name) == child.rowCount()} contributes no candidate
-     *       min — the column is either absent from that file or its rows are all null. We
-     *       <b>skip</b> that child rather than poison.</li>
-     *   <li>A child with {@code columnNullCount(name) < 0} represents the rare "present but stats
-     *       unknown" case (Parquet stats disabled) and <b>poisons</b> the aggregate; we cannot
-     *       know whether that child has a smaller value than the running min.</li>
-     *   <li>A child with a known, finite null count and a non-null min participates in the merge
-     *       via {@link SplitStats#mergedMin}; incompatible numeric types poison defensively.</li>
+     *   <li>A child that reports a <b>known min value</b> contributes it to the merge via
+     *       {@link SplitStats#mergedMin}, <b>regardless of its null count</b>. A min stat is the
+     *       minimum of the column's non-null values, so it is a valid extremum candidate even when
+     *       the child's null count is unknown ({@code columnNullCount(name) < 0}) — null count only
+     *       bears on {@code COUNT}, never on {@code MIN}/{@code MAX}. This is the multi-FILE case
+     *       where a per-file {@code SplitStats} carries a folded min/max but its null_count was
+     *       poison-dropped during that file's own multi-stripe fold.</li>
+     *   <li>A child with <b>no min value</b> is then classified by its null count:
+     *       {@code columnNullCount(name) == child.rowCount()} means the column is absent or all-null,
+     *       so the child has no candidate and is <b>skipped</b>; {@code columnNullCount(name) < 0}
+     *       (present but stats unknown — e.g. Parquet stats disabled) <b>poisons</b> the aggregate
+     *       because the child may hold a smaller value we cannot see; a finite null count below the
+     *       row count with no min is an inconsistent reader output and poisons defensively.</li>
      * </ul>
-     * Returns {@code null} when poisoned or when no child contributes a value.
+     * Incompatible numeric types across known mins poison the aggregate. Returns {@code null} when
+     * poisoned or when no child contributes a value.
      */
     @Override
     @Nullable
     public Object columnMin(String name) {
-        Object result = null;
-        for (org.elasticsearch.xpack.esql.datasources.spi.SplitStats child : children) {
-            long nc = child.columnNullCount(name);
-            if (nc < 0) {
-                return null;
-            }
-            if (nc == child.rowCount()) {
-                continue;
-            }
-            Object childMin = child.columnMin(name);
-            if (childMin == null) {
-                // Present, not all-null, but reader produced no min — inconsistent; poison defensively.
-                return null;
-            }
-            result = SplitStats.mergedMin(result, childMin);
-            if (result == null) {
-                // Incompatible types — clear the stat
-                return null;
-            }
-        }
-        return result;
+        return mergeExtremum(name, true);
     }
 
     /**
      * Returns the maximum of children's max values for the named column under the SPI's
-     * "implicit nulls" contract. Mirrors {@link #columnMin} — children whose null count equals
-     * their row count have no max value to contribute and are skipped; only an explicit
-     * unknown ({@code columnNullCount &lt; 0}) poisons the aggregate.
+     * "implicit nulls" contract. Mirrors {@link #columnMin} — a child with a known max contributes
+     * it regardless of its null count (null count bears only on {@code COUNT}); a child with no max
+     * is skipped when the column is absent/all-null and otherwise poisons defensively.
      */
     @Override
     @Nullable
     public Object columnMax(String name) {
+        return mergeExtremum(name, false);
+    }
+
+    /**
+     * Shared min/max value-fold across children under the SPI's implicit-nulls contract (a child whose null
+     * count equals its row count contributes no candidate; a child present with no extremum, or whose null count
+     * is unknown so all-null-ness cannot be proven, poisons defensively; incompatible numeric types across
+     * contributing children poison).
+     * <p>
+     * This is a PURE value-fold — it does NOT reconcile units or representations. Per-file stats are normalized
+     * to the reconciled query type at the source boundary
+     * ({@link SourceStatisticsSerializer#normalizeStatsToReconciled}, applied in
+     * {@code ExternalSourceResolver.aggregateFileStatistics} for the whole-file fold and in
+     * {@code FileSplitProvider} for footer split stats) BEFORE any split or source carries them, so every child
+     * here is already in one unit/representation. That boundary is the single owner of the unit axis; a second
+     * reconciliation here would double-apply it (e.g. re-rescale an already-{@code DATE_NANOS} value ×1e6).
+     */
+    @Nullable
+    private Object mergeExtremum(String name, boolean wantMin) {
         Object result = null;
         for (org.elasticsearch.xpack.esql.datasources.spi.SplitStats child : children) {
-            long nc = child.columnNullCount(name);
-            if (nc < 0) {
+            // Value-first: a known extremum is a valid candidate regardless of this child's null_count. MIN/MAX
+            // ignore nulls, so the min/max of the non-null values is correct even when null_count is unknown (-1)
+            // — this preserves the multi-file warm short-circuit when a per-file fold dropped only the null_count
+            // (see MergedSplitStatsTests.testColumnMinMaxUsesChildValueWhenNullCountUnknownButMinMaxPresent).
+            Object value = wantMin ? child.columnMin(name) : child.columnMax(name);
+            if (value == null) {
+                // No extremum candidate. All-null (null_count == rowCount) contributes nothing → skip. Otherwise
+                // the column is present without an extremum, or its null_count is unknown so all-null-ness can't be
+                // proven — either way poison defensively (safe-miss, never a wrong value).
+                long nc = child.columnNullCount(name);
+                if (nc == child.rowCount()) {
+                    continue;
+                }
                 return null;
             }
-            if (nc == child.rowCount()) {
-                continue;
-            }
-            Object childMax = child.columnMax(name);
-            if (childMax == null) {
-                return null;
-            }
-            result = SplitStats.mergedMax(result, childMax);
+            result = wantMin ? SplitStats.mergedMin(result, value) : SplitStats.mergedMax(result, value);
             if (result == null) {
+                // Incompatible types — clear the stat.
                 return null;
             }
         }

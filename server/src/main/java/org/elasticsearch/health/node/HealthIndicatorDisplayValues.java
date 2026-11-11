@@ -11,8 +11,10 @@ package org.elasticsearch.health.node;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Collection;
 import java.util.Comparator;
@@ -30,6 +32,18 @@ import static java.util.stream.Collectors.joining;
  * make the code less error-prone and more readable.
  */
 public class HealthIndicatorDisplayValues {
+
+    /**
+     * Formats a snapshot repository name for health indicator details and diagnoses.
+     * In multi-project clusters the name is qualified as {@code <project ID>/<repository name>} so that
+     * repositories with the same name in different projects remain distinguishable.
+     */
+    public static String getRepositoryDisplayName(@Nullable ProjectId projectId, String repositoryName, boolean supportsMultipleProjects) {
+        if (supportsMultipleProjects && projectId != null) {
+            return projectId.id() + "/" + repositoryName;
+        }
+        return repositoryName;
+    }
 
     /**
      * Formats the display name of a discovery node in the following way:

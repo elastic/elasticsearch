@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160788
+summary: Grant GETs to the row group closest to done
+type: enhancement

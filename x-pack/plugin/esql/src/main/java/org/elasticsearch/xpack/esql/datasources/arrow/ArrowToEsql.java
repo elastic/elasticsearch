@@ -16,7 +16,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.arrow.ArrowToBlockConverter;
 import org.elasticsearch.compute.data.arrow.BooleanArrowBufBlock;
-import org.elasticsearch.compute.data.arrow.BytesRefArrowBufBlock;
+import org.elasticsearch.compute.data.arrow.BytesRefArrowBlock;
 import org.elasticsearch.compute.data.arrow.DoubleArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.Float16ArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.FloatArrowBufBlock;
@@ -168,7 +168,9 @@ public record ArrowToEsql(DataType dataType, ElementType elementType, ArrowToBlo
 
             case BIT -> new ArrowToEsql(DataType.BOOLEAN, ElementType.BOOLEAN, (v, b) -> BooleanArrowBufBlock.of((BitVector) v, b));
 
-            case VARCHAR -> new ArrowToEsql(DataType.KEYWORD, ElementType.BYTES_REF, BytesRefArrowBufBlock::of);
+            // VARCHAR is nominally UTF-8, but external producers can emit malformed bytes; sanitize to
+            // U+FFFD at conversion so downstream KEYWORD ops (e.g. the TopN Utf8 encoders) stay total.
+            case VARCHAR -> new ArrowToEsql(DataType.KEYWORD, ElementType.BYTES_REF, BytesRefArrowBlock::ofSanitizedUtf8);
             // TODO: add support for these
             case VIEWVARCHAR -> null;
             case LARGEVARCHAR -> null;

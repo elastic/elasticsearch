@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.textstructure.transport;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -39,18 +38,27 @@ public class TransportFindFieldStructureAction extends HandledTransportAction<Fi
     private final Client client;
     private final TransportService transportService;
     private final ThreadPool threadPool;
+    private final TextStructExecutor executor;
 
     @Inject
     public TransportFindFieldStructureAction(
         TransportService transportService,
         ActionFilters actionFilters,
         Client client,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        TextStructExecutor executor
     ) {
-        super(FindFieldStructureAction.NAME, transportService, actionFilters, FindFieldStructureAction.Request::new, threadPool.generic());
+        super(
+            FindFieldStructureAction.NAME,
+            transportService,
+            actionFilters,
+            FindFieldStructureAction.Request::new,
+            executor.handledTransportActionExecutorService()
+        );
         this.client = client;
         this.transportService = transportService;
         this.threadPool = threadPool;
+        this.executor = executor;
     }
 
     @Override
@@ -70,8 +78,8 @@ public class TransportFindFieldStructureAction extends HandledTransportAction<Fi
                     return;
                 }
                 var messages = getMessages(searchResponse, request.getField());
-                // As matching a regular expression might take a while, we run in a different thread to avoid blocking the network thread.
-                threadPool.generic().execute(ActionRunnable.supply(delegate, () -> buildTextStructureResponse(messages, request)));
+                // Analysis is CPU-bound and holds the expanded sample on heap; enqueue on the shared throttle.
+                executor.execute(delegate, () -> buildTextStructureResponse(messages, request));
             }));
     }
 

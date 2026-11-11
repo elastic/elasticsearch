@@ -48,7 +48,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -82,10 +81,8 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         THREAD_POOL = new TestThreadPool(TransportBroadcastUnpromotableActionTests.class.getSimpleName());
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
         transportService = transport.createTransportService(
@@ -110,10 +107,8 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         broadcastUnpromotableAction = new TestTransportBroadcastUnpromotableAction(shardStateAction);
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeServices() throws Exception {
         IOUtils.close(clusterService, transportService);
     }
 
@@ -133,7 +128,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
                 TransportBroadcastUnpromotableActionTests.this.clusterService,
                 TransportBroadcastUnpromotableActionTests.this.transportService,
                 shardStateAction,
-                new ActionFilters(Set.of()),
+                ActionFilters.EMPTY,
                 TestBroadcastUnpromotableRequest::new,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             );

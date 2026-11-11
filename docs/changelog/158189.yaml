@@ -1,0 +1,10 @@
+area: Snapshot/Restore
+deprecation:
+  area: Cluster and node setting
+  details: The `disable_chunked_encoding` S3 setting was introduced as a temporary workaround and is no longer required.
+  impact: Stop using the `disable_chunked_encoding` S3 setting before the next major release.
+  title: Deprecate `disable_chunked_encoding` S3 setting
+issues: []
+pr: 158189
+summary: Deprecate `disable_chunked_encoding` S3 setting
+type: deprecation

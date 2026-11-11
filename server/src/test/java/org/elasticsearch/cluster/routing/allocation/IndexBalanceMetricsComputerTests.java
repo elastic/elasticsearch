@@ -169,32 +169,52 @@ public class IndexBalanceMetricsComputerTests extends ESTestCase {
         assertThat(IndexBalanceMetricsComputer.shardsImbalanceRatio(mapOf(10, 11, 11)), equalTo(0.0));
         assertThat(IndexBalanceMetricsComputer.shardsImbalanceRatio(mapOf(1, 0, 0, 0)), equalTo(0.0));
         assertThat(IndexBalanceMetricsComputer.shardsImbalanceRatio(mapOf(3, 0, 0, 0)), closeTo(2.0 / 3.0, 1e-9));
+
+        // A node's fair share is ceil(total / nodes); an underfull node is spare capacity, not imbalance.
+        // 4 shards on 3 nodes: fair share is ceil(4/3) = 2, so 2/2/0 is as balanced as 2/1/1.
+        assertThat(IndexBalanceMetricsComputer.shardsImbalanceRatio(mapOf(2, 2, 0)), equalTo(0.0));
+        // 10 shards on 3 nodes: fair share is ceil(10/3) = 4, so no node exceeds it.
+        assertThat(IndexBalanceMetricsComputer.shardsImbalanceRatio(mapOf(2, 4, 4)), equalTo(0.0));
+        // 4 shards on 3 nodes, one node over the fair share of 2: 1 shard must move.
+        assertThat(IndexBalanceMetricsComputer.shardsImbalanceRatio(mapOf(3, 1, 0)), closeTo(0.25, 1e-9));
+        // 6 shards on 3 nodes, packed onto two nodes past the fair share of 2: 2 shards must move.
+        assertThat(IndexBalanceMetricsComputer.shardsImbalanceRatio(mapOf(3, 3, 0)), closeTo(1.0 / 3.0, 1e-9));
+        // 4 shards on 3 nodes, all on a single node: still severe, unaffected by the fair-share change.
+        assertThat(IndexBalanceMetricsComputer.shardsImbalanceRatio(mapOf(4, 0, 0)), closeTo(0.5, 1e-9));
     }
 
     /**
      * Fully randomized test that reverse-engineers a shard allocation from a target imbalance ratio.
      *
      * <ol>
-     *   <li>Pick a random number of nodes and a random average shard count, giving a perfectly balanced starting map.</li>
+     *   <li>Pick a random number of nodes, split into "light" and "heavy" nodes, and a random base
+     *       shard count. Heavy nodes start {@code extra} (0 or 1, chosen randomly) shards above the
+     *       light nodes' base. Since {@code 0 < numHeavy < numNodes}, this makes heavy nodes sit
+     *       exactly at the fair share {@code ceil(total/numNodes)} whether {@code extra} is 0 (giving
+     *       a whole-number average, {@code fairShare == base}) or 1 (giving a fractional average,
+     *       {@code fairShare == base + 1}) — so the starting map is perfectly balanced either way.</li>
      *   <li>Choose a target imbalance ratio (0.0 to 0.95 in 0.05 steps) and compute how many shards
      *       ({@code offBalance}) must be moved to produce that ratio.</li>
-     *   <li>Subtract {@code offBalance} shards from randomly chosen "light" nodes (below average)
-     *       and add them to "heavy" nodes (above average).</li>
+     *   <li>Subtract {@code offBalance} shards from the light nodes and add them to the heavy nodes;
+     *       since heavy nodes start exactly at the fair share, each shard added contributes exactly
+     *       one unit of excess.</li>
      *   <li>Assert that {@link IndexBalanceMetricsComputer#shardsImbalanceRatio} returns the expected ratio.</li>
      * </ol>
      */
     public void testShardsImbalanceRatio() {
         final int numNodes = between(2, rarely() ? 100 : 5);
         final int numLight = between(1, numNodes - 1);
-        final int avgShards = between(1, 40);
-        final int totalShards = numNodes * avgShards;
+        final int numHeavy = numNodes - numLight;
+        final int base = between(1, 40);
+        final int extra = randomBoolean() ? 1 : 0; // 1 exercises a fractional average (the ceiling case)
+        final int totalShards = numNodes * base + numHeavy * extra;
         // Cap the ratio so that the light nodes can absorb all `offBalance` deductions without going negative.
-        final double maxRatio = Math.min(0.95, (double) numLight / numNodes);
+        final double maxRatio = Math.min(0.95, (double) (numLight * base) / totalShards);
         final var ratio = between(0, (int) Math.floor(maxRatio / 0.05)) * 0.05;
         final int offBalance = (int) Math.floor(ratio * totalShards);
 
-        final var map = buildBalancedMap(numNodes, avgShards);
-        subtractFromLightNodes(map, numLight, offBalance, avgShards);
+        final var map = buildBalancedMap(numNodes, numLight, base, extra);
+        subtractFromLightNodes(map, numLight, offBalance, base);
         addToHeavyNodes(map, numLight, numNodes, offBalance);
 
         assertThat(IndexBalanceMetricsComputer.shardsImbalanceRatio(map), closeTo((double) offBalance / totalShards, 1e-9));
@@ -227,24 +247,31 @@ public class IndexBalanceMetricsComputerTests extends ESTestCase {
         return map;
     }
 
-    private static ObjectIntHashMap<String> buildBalancedMap(int numNodes, int avgShards) {
+    /**
+     * Builds a map where light nodes ({@code [0, numLight)}) start at {@code base} and heavy nodes
+     * ({@code [numLight, numNodes)}) start at {@code base + extra}. With {@code extra == 1}, heavy
+     * nodes sit exactly at the fair share {@code ceil(total/numNodes)} while the average is
+     * fractional; with {@code extra == 0} all nodes are uniformly at {@code base} (a whole-number
+     * average) — see {@link #testShardsImbalanceRatio}.
+     */
+    private static ObjectIntHashMap<String> buildBalancedMap(int numNodes, int numLight, int base, int extra) {
         final var map = new ObjectIntHashMap<String>();
         for (int i = 0; i < numNodes; i++) {
-            map.put("node_" + i, avgShards);
+            map.put("node_" + i, i < numLight ? base : base + extra);
         }
         return map;
     }
 
     /**
      * Removes {@code offBalance} shards from "light" nodes (indices {@code [0, numLight)}).
-     * Each non-last light node gives up a random portion of the remaining deficit (capped at {@code avgShards}
+     * Each non-last light node gives up a random portion of the remaining deficit (capped at {@code base}
      * so counts stay non-negative); the last light node absorbs whatever is left.
      */
-    private static void subtractFromLightNodes(ObjectIntHashMap<String> map, int numLight, int offBalance, int avgShards) {
+    private static void subtractFromLightNodes(ObjectIntHashMap<String> map, int numLight, int offBalance, int base) {
         int remaining = offBalance;
         for (int i = 0; i < numLight; i++) {
             final var key = "node_" + i;
-            final int take = (i < numLight - 1) ? between(0, Math.min(remaining, avgShards)) : remaining;
+            final int take = (i < numLight - 1) ? between(0, Math.min(remaining, base)) : remaining;
             map.addTo(key, -take);
             remaining -= take;
         }

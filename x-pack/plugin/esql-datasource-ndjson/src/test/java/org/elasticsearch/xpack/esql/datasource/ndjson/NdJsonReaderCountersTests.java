@@ -21,28 +21,22 @@ public class NdJsonReaderCountersTests extends ESTestCase {
         var snap = counters.snapshot();
         assertEquals("ndjson", snap.format());
         assertEquals(0L, snap.parseErrors());
-        assertEquals(0L, snap.readNanos());
     }
 
     public void testSnapshotReflectsIncrements() {
         NdJsonReaderCounters counters = new NdJsonReaderCounters();
         counters.addParseErrors(2);
-        counters.addReadNanos(123456);
         var snap = counters.snapshot();
         assertEquals("ndjson", snap.format());
         assertEquals(2L, snap.parseErrors());
-        assertEquals(123456L, snap.readNanos());
     }
 
     public void testNonPositiveDeltasIgnored() {
         NdJsonReaderCounters counters = new NdJsonReaderCounters();
         counters.addParseErrors(0);
         counters.addParseErrors(-1);
-        counters.addReadNanos(0);
-        counters.addReadNanos(-1);
         var snap = counters.snapshot();
         assertEquals(0L, snap.parseErrors());
-        assertEquals(0L, snap.readNanos());
     }
 
     public void testConcurrentIncrementsAccumulateWithoutLoss() throws Exception {
@@ -58,7 +52,6 @@ public class NdJsonReaderCountersTests extends ESTestCase {
                     start.await();
                     for (int i = 0; i < iterationsPerThread; i++) {
                         counters.addParseErrors(1);
-                        counters.addReadNanos(50);
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -73,10 +66,8 @@ public class NdJsonReaderCountersTests extends ESTestCase {
         assertTrue(pool.awaitTermination(5, TimeUnit.SECONDS));
 
         long expectedErrors = (long) threads * iterationsPerThread;
-        long expectedNanos = (long) threads * iterationsPerThread * 50;
         var snap = counters.snapshot();
         assertEquals(expectedErrors, snap.parseErrors());
-        assertEquals(expectedNanos, snap.readNanos());
     }
 
     public void testSnapshotIsImmutableCopy() {

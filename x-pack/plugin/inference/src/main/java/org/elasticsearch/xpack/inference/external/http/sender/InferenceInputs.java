@@ -7,9 +7,10 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.Strings;
 
-public abstract class InferenceInputs {
+public abstract class InferenceInputs implements Accountable {
     private final boolean stream;
 
     public InferenceInputs(boolean stream) {

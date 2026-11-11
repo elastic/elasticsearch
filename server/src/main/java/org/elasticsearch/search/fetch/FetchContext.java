@@ -31,6 +31,7 @@ import org.elasticsearch.search.rescore.RescoreContext;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.function.LongConsumer;
 
 /**
  * Encapsulates state required to execute fetch phases
@@ -41,6 +42,7 @@ public class FetchContext {
     private final SourceLoader sourceLoader;
     private final FetchSourceContext fetchSourceContext;
     private final StoredFieldsContext storedFieldsContext;
+    private LongConsumer innerHitsByteChecker = bytes -> {};
 
     /**
      * Create a FetchContext based on a SearchContext
@@ -283,5 +285,20 @@ public class FetchContext {
         } else {
             return hitContext.source();
         }
+    }
+
+    public void setInnerHitsByteChecker(LongConsumer innerHitsByteChecker) {
+        this.innerHitsByteChecker = innerHitsByteChecker;
+    }
+
+    /**
+     * Forwards {@code bytes} from a completed inner-hit fetch to the registered checker, charging
+     * them against the parent fetch context's circuit-breaker counter. Called by {@code InnerHitsPhase}.
+     */
+    public void chargeInnerHitsBytes(long bytes) {
+        if (bytes <= 0L) {
+            return;
+        }
+        innerHitsByteChecker.accept(bytes);
     }
 }

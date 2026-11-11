@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 141466
-summary: Avoid tracking group ids for intermediate input
-type: enhancement

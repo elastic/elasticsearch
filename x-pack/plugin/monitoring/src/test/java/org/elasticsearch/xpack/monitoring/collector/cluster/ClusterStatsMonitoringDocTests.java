@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -98,10 +99,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
     private final boolean needToEnableTLS = randomBoolean();
     private final boolean apmIndicesExist = randomBoolean();
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initClusterStatsFields() throws Exception {
         clusterName = randomAlphaOfLength(5);
         version = randomAlphaOfLengthBetween(6, 32);
         clusterStatus = randomFrom(ClusterHealthStatus.values());
@@ -348,7 +347,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             false,
             false,
             false,
-            PluginDescriptor.DeploymentTarget.ALL
+            PluginDescriptor.DeploymentTarget.ALL,
+            Collections.emptyList()
         );
         final PluginRuntimeInfo pluginRuntimeInfo = new PluginRuntimeInfo(pluginDescriptor);
         when(mockPluginsAndModules.getPluginInfos()).thenReturn(List.of(pluginRuntimeInfo));
@@ -407,7 +407,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             unassignedInfo,
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
 
         final ShardStats mockShardStats = mock(ShardStats.class);
@@ -436,7 +437,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             VersionStats.of(metadata, singletonList(mockNodeResponse)),
             ClusterSnapshotStats.EMPTY,
             null,
-            false
+            false,
+            null,
+            null
         );
 
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
@@ -704,6 +707,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                       "classname": "_plugin_class",
                       "extended_plugins": [],
                       "has_native_controller": false,
+                      "native_controller_enabled_settings": [],
                       "licensed": false,
                       "is_official": false
                     }

@@ -38,7 +38,12 @@ public sealed interface FloatVector extends Vector permits ConstantFloatVector, 
     FloatBlock asBlock();
 
     @Override
-    FloatVector filter(boolean mayContainDuplicates, int... positions);
+    FloatVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default FloatVector filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     @Override
     FloatBlock keepMask(BooleanVector mask);

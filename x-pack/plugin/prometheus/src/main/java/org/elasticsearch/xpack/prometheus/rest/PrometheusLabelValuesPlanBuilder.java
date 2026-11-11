@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 
 import java.time.Instant;
@@ -37,9 +36,10 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combi
  * Limit(limit==0 ? MAX_VALUE : limit+1)
  *   └── OrderBy([metric_name ASC NULLS LAST])
  *         └── Aggregate(groupings=[metric_name])
- *               └── MetricsInfo
- *                     └── Filter(timeCond [AND OR(selectorConds...)])
- *                           └── UnresolvedRelation("*", TS)
+ *               └── Filter(metric_name for regex __name__ selectors, optional)
+ *                     └── MetricsInfo
+ *                           └── Filter(timeCond [AND OR(pre-info selectorConds...)])
+ *                                 └── UnresolvedRelation("*", TS)
  * </pre>
  *
  * <p><b>For regular labels (e.g. {@code job}):</b>
@@ -62,9 +62,6 @@ final class PrometheusLabelValuesPlanBuilder {
 
     /** The {@code __name__} pseudo-label backed by {@code metric_name} in the MetricsInfo output. */
     private static final String NAME_LABEL = "__name__";
-
-    /** The field name produced by {@link MetricsInfo} for the metric name. */
-    static final String METRIC_NAME_FIELD = "metric_name";
 
     private PrometheusLabelValuesPlanBuilder() {}
 
@@ -89,11 +86,16 @@ final class PrometheusLabelValuesPlanBuilder {
     }
 
     private static LogicalPlan buildNamePlan(String index, List<String> matchSelectors, Instant start, Instant end, int limit) {
-        LogicalPlan plan = PrometheusPlanBuilderUtils.tsSource(index);
-        plan = new Filter(Source.EMPTY, plan, PrometheusPlanBuilderUtils.filterExpression(matchSelectors, start, end));
-        plan = PrometheusPlanBuilderUtils.metricsInfo(Source.EMPTY, plan);
+        var selectors = PrometheusPlanBuilderUtils.parseInstantSelectors(matchSelectors);
+        LogicalPlan plan = PrometheusPlanBuilderUtils.buildFilteredInfoPlan(
+            index,
+            selectors,
+            start,
+            end,
+            child -> PrometheusPlanBuilderUtils.metricsInfo(Source.EMPTY, child)
+        );
 
-        UnresolvedAttribute metricNameField = new UnresolvedAttribute(Source.EMPTY, METRIC_NAME_FIELD);
+        UnresolvedAttribute metricNameField = new UnresolvedAttribute(Source.EMPTY, PrometheusPlanBuilderUtils.METRIC_NAME_FIELD);
         plan = new Aggregate(Source.EMPTY, plan, List.of(metricNameField), List.of(metricNameField));
         plan = new OrderBy(
             Source.EMPTY,
@@ -112,6 +114,7 @@ final class PrometheusLabelValuesPlanBuilder {
         Instant end,
         int limit
     ) {
+        var selectors = PrometheusPlanBuilderUtils.parseInstantSelectors(matchSelectors);
         LogicalPlan plan = PrometheusPlanBuilderUtils.tsSource(index);
 
         // Build filter: timeCond AND IS_NOT_NULL(labelName) [AND OR(selectorConds...)]
@@ -119,7 +122,9 @@ final class PrometheusLabelValuesPlanBuilder {
         Expression isNotNull = new IsNotNull(Source.EMPTY, labelField);
 
         Expression timeCond = PrometheusPlanBuilderUtils.buildTimeCondition(start, end);
-        List<Expression> selectorConditions = PrometheusPlanBuilderUtils.parseSelectorConditions(matchSelectors);
+        // Use the name-fallback variant: NEQ/REG/NREG __name__ matchers filter on labels.__name__
+        // since this plan has no TsInfo/MetricsInfo node and cannot access metric_name.
+        List<Expression> selectorConditions = PrometheusPlanBuilderUtils.buildPreInfoConditionsWithNameFallback(selectors);
 
         List<Expression> filterParts = new ArrayList<>();
         filterParts.add(timeCond);

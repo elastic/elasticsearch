@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.hamcrest.Matcher;
 
@@ -25,15 +26,14 @@ import static org.hamcrest.Matchers.containsString;
  */
 public class AnalyzerUnmappedLookupJoinExpressionTests extends AnalyzerUnmappedTestBase {
 
+    public AnalyzerUnmappedLookupJoinExpressionTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     private static final Matcher<String> UNSUPPORTED_JOIN_FILTER = containsString("Unsupported join filter expression");
 
     private static String lookupJoinOn(String onExpr) {
         return "FROM partial_mapping_sample_data | LOOKUP JOIN partial_message_types_lookup ON " + onExpr;
-    }
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
     }
 
     // ── Same-side left filter (error) ─────────────────────────────────────────

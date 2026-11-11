@@ -299,7 +299,8 @@ public final class CombinedFieldsQueryBuilder extends LeafQueryBuilder<CombinedF
                 continue;
             }
 
-            if (fieldType.familyTypeName().equals(TextFieldMapper.CONTENT_TYPE) == false) {
+            if (fieldType.familyTypeName().equals(TextFieldMapper.CONTENT_TYPE) == false
+                && fieldType instanceof TextFieldMapper.TextFieldType == false) {
                 throw new IllegalArgumentException(
                     "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "] does not support [" + NAME + "] queries"
                 );

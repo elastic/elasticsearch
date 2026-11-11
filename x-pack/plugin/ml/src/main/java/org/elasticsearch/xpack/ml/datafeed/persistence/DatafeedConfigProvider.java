@@ -391,12 +391,13 @@ public class DatafeedConfigProvider {
                     switch (change) {
                         case CredentialTransitions.Change.Mint(var mintHook) -> {
                             // Invoke the hook with the applied config; it runs probe + mint and calls
-                            // credentialListener.onResponse(newCredential) on success.
-                            mintHook.accept(configAfterApply, delegate.delegateFailureAndWrap((hookListener, newCredential) -> {
+                            // listener.onResponse(MintedCredential) on success — credential id and
+                            // minted-auth headers are stamped together so neither can be persisted alone.
+                            mintHook.accept(configAfterApply, delegate.delegateFailureAndWrap((hookListener, minted) -> {
                                 PersistedCloudCredential superseded = configAfterApply.getCloudInternalCredential();
                                 DatafeedConfig configToPersist = new DatafeedConfig.Builder(configAfterApply).setCloudInternalCredential(
-                                    newCredential
-                                ).build();
+                                    minted.credential()
+                                ).setHeaders(minted.headers()).build();
                                 validator.accept(
                                     configToPersist,
                                     hookListener.delegateFailureAndWrap(

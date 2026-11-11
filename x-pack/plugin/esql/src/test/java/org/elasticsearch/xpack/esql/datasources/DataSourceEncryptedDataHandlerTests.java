@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 
 public class DataSourceEncryptedDataHandlerTests extends ESTestCase {
 
@@ -35,16 +36,108 @@ public class DataSourceEncryptedDataHandlerTests extends ESTestCase {
         }
     };
 
+    /** Key-rotation rewrapper equivalent to what the coordinator builds for an active-key rotation. */
+    private static UnaryOperator<EncryptedData> keyRotationRewrapper() {
+        return existing -> {
+            if (existing.keyId().equals(ACTIVE_KEY)) {
+                return existing;
+            }
+            return SERVICE.encrypt(SERVICE.decrypt(existing));
+        };
+    }
+
     private final DataSourceEncryptedDataHandler handler = new DataSourceEncryptedDataHandler();
 
     public void testCustomNameMatchesMetadataType() {
         assertEquals(DataSourceMetadata.TYPE, handler.customName());
     }
 
+    public void testHasDataReturnsFalseForNullAndEmpty() {
+        assertFalse(handler.hasData(null));
+        assertFalse(handler.hasData(DataSourceMetadata.EMPTY));
+    }
+
+    public void testHasDataReturnsFalseWhenNoSecrets() {
+        DataSource ds = new DataSource("s3", "s3", null, Map.of("region", new DataSourceSetting("us-east-1", false)));
+        assertFalse(handler.hasData(new DataSourceMetadata(Map.of("s3", ds))));
+    }
+
+    public void testHasDataReturnsTrueWhenAnyDataSourceHasSecret() {
+        DataSource noSecret = new DataSource("gcs", "gcs", null, Map.of("region", new DataSourceSetting("us-east-1", false)));
+        DataSource withSecret = new DataSource("s3", "s3", null, Map.of("access_key", new DataSourceSetting("AKIA", true)));
+        assertTrue(handler.hasData(new DataSourceMetadata(Map.of("gcs", noSecret, "s3", withSecret))));
+    }
+
+    public void testNotIncludedInSnapshots() {
+        assertFalse(handler.includedInSnapshots());
+    }
+
     public void testNullAndEmptyAreReturnedAsIs() {
-        assertNull(handler.reEncrypt(null, SERVICE, ACTIVE_KEY));
+        assertNull(handler.reEncrypt(null, keyRotationRewrapper()));
         DataSourceMetadata empty = DataSourceMetadata.EMPTY;
-        assertSame(empty, handler.reEncrypt(empty, SERVICE, ACTIVE_KEY));
+        assertSame(empty, handler.reEncrypt(empty, keyRotationRewrapper()));
+    }
+
+    public void testOnDestructiveResetNullAndEmptyReturnedAsIs() {
+        assertNull(handler.onDestructiveReset(null));
+        assertSame(DataSourceMetadata.EMPTY, handler.onDestructiveReset(DataSourceMetadata.EMPTY));
+    }
+
+    public void testOnDestructiveResetWipesSecretsPreservesRest() {
+        byte[] payload = "AKIA_secret".getBytes(StandardCharsets.UTF_8);
+        DataSource ds = new DataSource(
+            "s3",
+            "s3",
+            "my bucket",
+            Map.of(
+                "region",
+                new DataSourceSetting("us-east-1", false),
+                "access_key",
+                new DataSourceSetting(new EncryptedData(ACTIVE_KEY, payload), true)
+            )
+        );
+        DataSourceMetadata before = new DataSourceMetadata(Map.of("s3", ds));
+
+        DataSourceMetadata after = handler.onDestructiveReset(before);
+
+        assertNotNull(after);
+        DataSource result = after.get("s3");
+        assertNotNull(result);
+        assertEquals("s3", result.name());
+        assertEquals("s3", result.type());
+        assertEquals("my bucket", result.description());
+        assertEquals("us-east-1", result.settings().get("region").nonSecretValue());
+        assertNull(result.settings().get("access_key").rawValue());
+        assertTrue(result.settings().get("access_key").secret());
+        assertFalse(result.settings().get("access_key").isEncrypted());
+    }
+
+    public void testOnDestructiveResetPreservesMultipleDataSources() {
+        DataSource ds1 = new DataSource(
+            "src1",
+            "s3",
+            null,
+            Map.of("secret", new DataSourceSetting(new EncryptedData(ACTIVE_KEY, new byte[] { 1 }), true))
+        );
+        DataSource ds2 = new DataSource(
+            "src2",
+            "jdbc",
+            null,
+            Map.of(
+                "url",
+                new DataSourceSetting("jdbc://host", false),
+                "password",
+                new DataSourceSetting(new EncryptedData(ACTIVE_KEY, new byte[] { 2 }), true)
+            )
+        );
+        DataSourceMetadata before = new DataSourceMetadata(Map.of("src1", ds1, "src2", ds2));
+
+        DataSourceMetadata after = handler.onDestructiveReset(before);
+
+        assertNotNull(after);
+        assertNull(after.get("src1").settings().get("secret").rawValue());
+        assertEquals("jdbc://host", after.get("src2").settings().get("url").nonSecretValue());
+        assertNull(after.get("src2").settings().get("password").rawValue());
     }
 
     public void testStaleKeySecretIsReEncryptedUnderActiveKey() {
@@ -62,7 +155,7 @@ public class DataSourceEncryptedDataHandlerTests extends ESTestCase {
         );
         DataSourceMetadata before = new DataSourceMetadata(Map.of("s3", ds));
 
-        DataSourceMetadata after = handler.reEncrypt(before, SERVICE, ACTIVE_KEY);
+        DataSourceMetadata after = handler.reEncrypt(before, keyRotationRewrapper());
 
         assertNotSame(before, after);
         DataSourceSetting reKeyed = after.get("s3").settings().get("access_key");
@@ -83,7 +176,7 @@ public class DataSourceEncryptedDataHandlerTests extends ESTestCase {
         );
         DataSourceMetadata before = new DataSourceMetadata(Map.of("s3", ds));
 
-        DataSourceMetadata after = handler.reEncrypt(before, SERVICE, ACTIVE_KEY);
+        DataSourceMetadata after = handler.reEncrypt(before, keyRotationRewrapper());
 
         assertSame("no secret needed re-encryption, so the custom is returned by reference", before, after);
     }
@@ -103,7 +196,7 @@ public class DataSourceEncryptedDataHandlerTests extends ESTestCase {
         );
         DataSourceMetadata before = new DataSourceMetadata(Map.of("stale", stale, "fresh", fresh));
 
-        DataSourceMetadata after = handler.reEncrypt(before, SERVICE, ACTIVE_KEY);
+        DataSourceMetadata after = handler.reEncrypt(before, keyRotationRewrapper());
 
         assertNotSame(before, after);
         assertEquals(ACTIVE_KEY, ((EncryptedData) after.get("stale").settings().get("access_key").rawValue()).keyId());

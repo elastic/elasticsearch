@@ -43,10 +43,8 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
 
     private List<IndexStats> indicesStats;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initIndicesStats() throws Exception {
         indicesStats = Collections.singletonList(
             new IndexStats(
                 "index-0",
@@ -183,7 +181,25 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
         commonStats.getDocs().add(new DocsStats(1L, 0L, randomNonNegativeLong() >> 8)); // >> 8 to avoid overflow - we add these things up
         commonStats.getStore().add(new StoreStats(2L, 0L, 0L));
 
-        final IndexingStats.Stats indexingStats = new IndexingStats.Stats(3L, 4L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, true, 5L, 0, 0, 0, 0.0, 0.0);
+        final IndexingStats.Stats indexingStats = new IndexingStats.Stats(
+            3L,
+            4L,
+            0L,
+            0L,
+            0L,
+            0L,
+            0L,
+            0L,
+            0L,
+            0L,
+            true,
+            5L,
+            0,
+            0,
+            0,
+            0.0,
+            0.0
+        );
         commonStats.getIndexing().add(new IndexingStats(indexingStats));
 
         final SearchStats.Stats searchStats = new SearchStats.Stats(6L, 7L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0.0);

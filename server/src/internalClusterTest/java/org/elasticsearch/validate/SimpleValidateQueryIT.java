@@ -429,7 +429,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(response.getTotalShards(), is(1));
     }
 
-    public void testSliceRequiredWhenSliceEnabledIndex() {
+    public void testNoSliceDefaultsToAllWhenSliceEnabledIndex() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         assertAcked(
             prepareCreate("slice-enabled").setSettings(
@@ -438,21 +438,18 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         );
         ensureGreen("slice-enabled");
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> indicesAdmin().validateQuery(new ValidateQueryRequest("slice-enabled")).actionGet()
-        );
-        assertThat(e.getMessage(), containsString("[_slice] is required when [index.slice.enabled] is true"));
+        ValidateQueryResponse response = indicesAdmin().validateQuery(new ValidateQueryRequest("slice-enabled")).actionGet();
+        assertTrue(response.isValid());
     }
 
-    public void testSliceRejectedWhenSliceDisabledIndex() {
+    public void testSliceAcceptedWhenSliceDisabledIndex() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createIndex("slice-disabled");
         ensureGreen("slice-disabled");
 
         ValidateQueryRequest request = new ValidateQueryRequest("slice-disabled").searchSlice("s1");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> indicesAdmin().validateQuery(request).actionGet());
-        assertThat(e.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+        ValidateQueryResponse response = indicesAdmin().validateQuery(request).actionGet();
+        assertTrue(response.isValid());
     }
 
     public void testSliceValidateQuerySucceedsWhenSliceEnabledIndex() {

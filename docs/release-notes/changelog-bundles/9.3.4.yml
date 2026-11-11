@@ -101,6 +101,11 @@ changelogs:
     area: Reindex
     type: bug
     issues: []
+  - pr: 146167
+    summary: Update bundled JDK to Java 26
+    area: Packaging
+    type: upgrade
+    issues: []
   - pr: 146186
     summary: Omit uncomputed model stats
     area: Machine Learning

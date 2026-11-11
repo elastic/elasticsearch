@@ -7,13 +7,12 @@
 
 package org.elasticsearch.xpack.inference.services.llama.request.embeddings;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
@@ -32,9 +31,7 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
  * It constructs an HTTP POST request with the necessary headers and body content.
  */
 public class LlamaEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
-    private final URI uri;
     private final LlamaEmbeddingsModel model;
-    private final String inferenceEntityId;
     private final Truncator.TruncationResult truncationResult;
     private final Truncator truncator;
 
@@ -46,24 +43,21 @@ public class LlamaEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
      * @param model the Llama embeddings model to be used for the request
      */
     public LlamaEmbeddingsRequest(Truncator truncator, Truncator.TruncationResult input, LlamaEmbeddingsModel model) {
-        this.uri = model.uri();
         this.model = model;
-        this.inferenceEntityId = model.getInferenceEntityId();
         this.truncator = truncator;
         this.truncationResult = input;
     }
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(this.uri);
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(getURI()).build();
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(
+        httpPost.setBody(
             Strings.toString(new LlamaEmbeddingsRequestEntity(model.getServiceSettings().modelId(), truncationResult.input()))
-                .getBytes(StandardCharsets.UTF_8)
+                .getBytes(StandardCharsets.UTF_8),
+            ContentType.APPLICATION_JSON
         );
-        httpPost.setEntity(byteEntity);
 
-        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
         if (model.getSecretSettings() instanceof DefaultSecretSettings secretSettings) {
             httpPost.setHeader(createAuthBearerHeader(secretSettings.apiKey()));
         }
@@ -73,7 +67,7 @@ public class LlamaEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
 
     @Override
     public URI getURI() {
-        return uri;
+        return model.getServiceSettings().uri();
     }
 
     @Override
@@ -89,7 +83,7 @@ public class LlamaEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
 
     @Override
     public String getInferenceEntityId() {
-        return inferenceEntityId;
+        return model.getInferenceEntityId();
     }
 
     @Override

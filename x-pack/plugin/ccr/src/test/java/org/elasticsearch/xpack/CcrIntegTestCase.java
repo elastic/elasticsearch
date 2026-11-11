@@ -106,6 +106,7 @@ import org.junit.Before;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -163,13 +164,17 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         }
 
         stopClusters();
-        Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(
-            ESIntegTestCase.TestSeedPlugin.class,
-            MockHttpTransport.TestPlugin.class,
-            MockTransportService.TestPlugin.class,
-            InternalSettingsPlugin.class,
-            getTestTransportPlugin()
+        Collection<Class<? extends Plugin>> mockPlugins = new ArrayList<>(
+            Arrays.asList(
+                ESIntegTestCase.TestSeedPlugin.class,
+                MockHttpTransport.TestPlugin.class,
+                MockTransportService.TestPlugin.class,
+                InternalSettingsPlugin.class,
+                getTestTransportPlugin()
+            )
         );
+
+        mockPlugins.add(ESIntegTestCase.RandomizeColumnarIdModePlugin.class);
 
         InternalTestCluster leaderCluster = new InternalTestCluster(
             randomLong(),

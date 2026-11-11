@@ -14,11 +14,15 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.section.ApiCallSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.elasticsearch.xpack.runtimefields.test.CoreTestTranslater;
+import org.junit.ClassRule;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -34,8 +38,22 @@ import static java.util.Collections.unmodifiableMap;
  * that configure the field in a way that are not supported by runtime fields are skipped.
  */
 public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .feature(FeatureFlag.TIME_SERIES_MODE)
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "false")
+        .build();
+
     public CoreTestsWithSearchRuntimeFieldsIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 
     @ParametersFactory

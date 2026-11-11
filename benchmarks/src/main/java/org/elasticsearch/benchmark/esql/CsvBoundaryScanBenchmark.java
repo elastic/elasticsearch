@@ -7,7 +7,7 @@
 
 package org.elasticsearch.benchmark.esql;
 
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -18,7 +18,9 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -73,8 +75,8 @@ public class CsvBoundaryScanBenchmark {
 
     @Setup(Level.Trial)
     public void setup() {
-        Utils.configureBenchmarkLogging();
-        BlockFactory bf = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("bench")).build();
+        BenchmarkLogging.configure();
+        BlockFactory bf = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         List<String> exts = List.of(".csv", ".tsv");
 
         // Current TSV reader. Both Layer 1 and Layer 2 applied.
@@ -116,6 +118,11 @@ public class CsvBoundaryScanBenchmark {
      * per-record scanner forward through the buffer.
      */
     private static final class CsvReaderInheritingDefault implements SegmentableFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
         private final CsvFormatReader wrapped;
 
         CsvReaderInheritingDefault(CsvFormatReader wrapped) {

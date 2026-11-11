@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.compress;
 import com.github.luben.zstd.Zstd;
 
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.nio.ByteBuffer;
 
@@ -25,9 +26,8 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class PanamaZstdTests extends ESTestCase {
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void requireNativeZstd() throws Exception {
         assumeTrue("PanamaZstd requires the native zstd binding to be available on this platform", PanamaZstd.instance().isAvailable());
     }
 
@@ -94,14 +94,14 @@ public class PanamaZstdTests extends ESTestCase {
     }
 
     // Argument-validation behavior (null buffers, heap rejection, out-of-range offsets, corrupt
-    // frames) is owned by org.elasticsearch.nativeaccess.Zstd and exhaustively covered by
-    // ZstdTests in libs/native — re-testing it here would only re-prove delegation. The
+    // frames) is owned by org.elasticsearch.zstd.Zstd and exhaustively covered by
+    // ZstdTests in libs/zstd — re-testing it here would only re-prove delegation. The
     // wrapper-specific coverage stays focused on singleton identity, availability, absolute
     // offsets, and the IllegalStateException unavailable path.
 
     /**
      * The unavailable case is exercised via the package-private constructor (since the singleton
-     * caches whatever NativeAccess returns at class init). Verifies callers get a clear
+     * caches whatever {@code Zstd.instance()} returns at class init). Verifies callers get a clear
      * {@link IllegalStateException} instead of an obscure NPE.
      */
     public void testUnavailableInstanceThrowsIllegalState() {

@@ -38,6 +38,7 @@ public abstract class AbstractAllByKeyGroupingState extends AbstractArrayState {
      */
     private BitArray nullKey;
 
+    @SuppressWarnings("this-escape")
     protected AbstractAllByKeyGroupingState(BigArrays bigArrays) {
         super(bigArrays);
         enableGroupIdTracking(new SeenGroupIds.Empty());

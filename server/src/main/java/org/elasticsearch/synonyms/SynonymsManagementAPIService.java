@@ -11,11 +11,11 @@ package org.elasticsearch.synonyms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -221,7 +221,7 @@ public class SynonymsManagementAPIService {
                 {
                     builder.startObject("_meta");
                     {
-                        builder.field("version", Version.CURRENT.toString());
+                        builder.field("version", Build.current().version());
                         builder.field(SystemIndexDescriptor.VERSION_META_KEY, SYNONYMS_INDEX_MAPPINGS_VERSION);
                     }
                     builder.endObject();
@@ -319,9 +319,10 @@ public class SynonymsManagementAPIService {
      * @param synonymSetIds the synonym sets to load
      * @param ignoreMissing if true, log a warning for missing sets and return rules from existing sets;
      *                      if false, fail if any set is missing
-     * @param listener      receives the combined rules from all existing synonym sets
+     * @param listener      receives the combined rules from all existing synonym sets, and the ids of any sets
+     *                      skipped because {@code ignoreMissing} is true
      */
-    public void getSynonymSetRules(Set<String> synonymSetIds, boolean ignoreMissing, ActionListener<PagedResult<SynonymRule>> listener) {
+    public void getSynonymSetRules(Set<String> synonymSetIds, boolean ignoreMissing, ActionListener<SynonymSetRules> listener) {
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(SYNONYMS_ALIAS_NAME).keepAlive(PIT_KEEP_ALIVE);
         client.execute(
             TransportOpenPointInTimeAction.TYPE,
@@ -338,7 +339,7 @@ public class SynonymsManagementAPIService {
         Set<String> synonymSetIds,
         boolean ignoreMissing,
         BytesReference pitId,
-        ActionListener<PagedResult<SynonymRule>> listener
+        ActionListener<SynonymSetRules> listener
     ) {
         // Single query to determine which of the requested synonym sets exist
         SearchSourceBuilder source = new SearchSourceBuilder().query(
@@ -386,9 +387,22 @@ public class SynonymsManagementAPIService {
                 );
             }
 
-            fetchPagesWithPit(existingSetIds, currentPitId, null, new ArrayList<>(), listener);
+            Set<String> skipped = Set.copyOf(missingSetIds);
+            fetchPagesWithPit(
+                existingSetIds,
+                currentPitId,
+                null,
+                new ArrayList<>(),
+                listener.map(rules -> new SynonymSetRules(rules, skipped))
+            );
         }, e -> mapFailureAndClosePit(e, pitId, synonymSetIds, listener)));
     }
+
+    /**
+     * Rules loaded for a group of synonym sets. {@code missingSetIds} is non-empty only when missing sets were
+     * ignored, in which case {@code rules} lacks their rules.
+     */
+    public record SynonymSetRules(PagedResult<SynonymRule> rules, Set<String> missingSetIds) {}
 
     private void fetchPagesWithPit(
         Set<String> synonymSetIds,

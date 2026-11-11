@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocatorMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.GlobalBalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
@@ -150,7 +151,8 @@ public class RolloverWaitForActiveShardsTests extends ESSingleNodeTestCase {
                 final ShardsAllocator delegate = new BalancedShardsAllocator(
                     balancerSettings,
                     WriteLoadForecaster.DEFAULT,
-                    new GlobalBalancingWeightsFactory(balancerSettings)
+                    new GlobalBalancingWeightsFactory(balancerSettings),
+                    BalancedShardsAllocatorMetrics.NOOP
                 );
 
                 @Override

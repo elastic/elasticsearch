@@ -13,9 +13,12 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -59,6 +62,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
     private ClusterState node1MasterClusterState;
     private ClusterState node2MasterClusterState;
     private ClusterState node3MasterClusterState;
+    private boolean multiProject;
     private static final String TEST_SOURCE = "test";
 
     @Before
@@ -66,6 +70,8 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         node1 = DiscoveryNodeUtils.create("node1", randomNodeId());
         node2 = DiscoveryNodeUtils.create("node2", randomNodeId());
         node3 = DiscoveryNodeUtils.create("node3", randomNodeId());
+        // Randomly simulate a single/multi-project cluster since master stability is a cluster-wide indicator
+        multiProject = randomBoolean();
         nullMasterClusterState = createClusterState(null);
         node1MasterClusterState = createClusterState(node1);
         node2MasterClusterState = createClusterState(node2);
@@ -257,8 +263,6 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
     }
 
     private ClusterState createClusterState(DiscoveryNode masterNode) {
-        var routingTableBuilder = RoutingTable.builder();
-        Metadata.Builder metadataBuilder = Metadata.builder();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         if (masterNode != null) {
             nodesBuilder.masterNodeId(masterNode.getId());
@@ -266,11 +270,25 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         nodesBuilder.add(node1);
         nodesBuilder.add(node2);
         nodesBuilder.add(node3);
-        return ClusterState.builder(new ClusterName("test-cluster"))
-            .routingTable(routingTableBuilder.build())
-            .metadata(metadataBuilder.build())
-            .nodes(nodesBuilder)
-            .build();
+
+        var clusterStateBuilder = ClusterState.builder(new ClusterName("test-cluster")).nodes(nodesBuilder);
+        if (multiProject) {
+            // Include multiple projects to verify master stability health is unaffected by multi-project metadata.
+            ProjectId project1 = randomUniqueProjectId();
+            ProjectId project2 = randomUniqueProjectId();
+            clusterStateBuilder.metadata(
+                Metadata.builder().put(ProjectMetadata.builder(project1)).put(ProjectMetadata.builder(project2)).build()
+            )
+                .routingTable(
+                    GlobalRoutingTable.builder()
+                        .put(project1, RoutingTable.EMPTY_ROUTING_TABLE)
+                        .put(project2, RoutingTable.EMPTY_ROUTING_TABLE)
+                        .build()
+                );
+        } else {
+            clusterStateBuilder.metadata(Metadata.builder().build()).routingTable(RoutingTable.EMPTY_ROUTING_TABLE);
+        }
+        return clusterStateBuilder.build();
     }
 
     private static String randomNodeId() {

@@ -81,6 +81,5 @@
   "examples" : [
     "requests_error != 0"
   ],
-  "preview" : true,
   "snapshot_only" : false
 }

@@ -1,0 +1,4 @@
+{"create":{"_id":"eLH27YsBj2lLi3tJYlvr","_index":"profiling-hosts.otel-default"}}
+{"resource":{"attributes":{"cloud.region":"eu-west-1","host.id":"8457605156473051743","host.arch":"amd64","host.type":"i3.2xlarge","cloud.provider":"aws"}},"@timestamp":1700504426}
+{"create":{"_index":"profiling-hosts.otel-default","_id":"u_fHlYwBkmZvQ6tVo1Lr"}}
+{"resource":{"attributes":{"host.type":"Standard_D4s_v3","cloud.provider":"azure","cloud.region":"eastus2","host.id":"7416508186220657211","host.arch":"amd64"}},"@timestamp":1703319912}

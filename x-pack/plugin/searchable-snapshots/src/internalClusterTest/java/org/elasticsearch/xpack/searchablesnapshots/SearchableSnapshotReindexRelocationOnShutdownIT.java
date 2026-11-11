@@ -24,7 +24,6 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.RethrottleRequestBuilder;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.reindex.management.ReindexManagementPlugin;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -76,7 +75,6 @@ public class SearchableSnapshotReindexRelocationOnShutdownIT extends BaseSearcha
      */
     public void testReindexRelocatesWithSearchableSnapshotSource() throws Exception {
         disableRepoConsistencyCheck("When the assumeTrue below fails, no node has been started");
-        assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();

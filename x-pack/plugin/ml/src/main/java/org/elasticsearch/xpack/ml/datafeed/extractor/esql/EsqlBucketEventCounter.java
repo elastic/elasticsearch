@@ -125,12 +125,12 @@ public final class EsqlBucketEventCounter implements BucketEventCounter {
             values.add(value);
         }
         Object bucketKey = values.get(columnIndexes.bucketColumnIndex());
-        if (bucketKey == null) {
+        Object count = values.get(columnIndexes.countColumnIndex());
+        // SUM is null when every count in the bucket is null. Extraction drops null values too.
+        if (bucketKey == null || count == null) {
             return;
         }
-        long bucketIndex = toLong(bucketKey);
-        long count = toLong(values.get(columnIndexes.countColumnIndex()));
-        bucketCounts.merge(bucketIndex * bucketSpan, count, Long::sum);
+        bucketCounts.merge(toLong(bucketKey) * bucketSpan, toLong(count), Long::sum);
     }
 
     private ColumnIndexes columnIndexes(List<? extends ColumnInfo> columns) {

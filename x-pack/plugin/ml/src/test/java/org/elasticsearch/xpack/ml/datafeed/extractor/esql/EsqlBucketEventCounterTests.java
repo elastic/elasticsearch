@@ -71,6 +71,16 @@ public class EsqlBucketEventCounterTests extends ESTestCase {
         assertThat(capturedQuery.get(), equalTo(USER_QUERY + expectedSuffix()));
     }
 
+    public void testRowWithNullCountShouldBeSkipped() {
+        EsqlBucketEventCounter counter = newCounter(
+            (query, filter, params) -> responseWithRows(
+                List.of(countsRow(bucketIndex(BUCKET_TWO_MIN_MS), null), countsRow(bucketIndex(BUCKET_THREE_MIN_MS), 2L))
+            )
+        );
+
+        assertThat(counter.currentBucketEventCounts(START_MS, END_MS), equalTo(Map.of(BUCKET_THREE_MIN_MS, 2L)));
+    }
+
     public void testQueryShouldUseSourceTimeFilterAndTypedParams() {
         AtomicReference<QueryBuilder> filter = new AtomicReference<>();
         AtomicReference<List<EsqlQueryParam>> params = new AtomicReference<>();
@@ -142,7 +152,7 @@ public class EsqlBucketEventCounterTests extends ESTestCase {
         return bucketStartMs / BUCKET_SPAN_MS;
     }
 
-    private static List<Object> countsRow(Long bucketIndex, long count) {
+    private static List<Object> countsRow(Long bucketIndex, Long count) {
         List<Object> row = new ArrayList<>(2);
         row.add(count);
         row.add(bucketIndex);

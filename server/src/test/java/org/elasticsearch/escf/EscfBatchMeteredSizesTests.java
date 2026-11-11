@@ -36,9 +36,9 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Holds the column sweep of {@link EscfBatch#meteredRowSizes} to the accounting applied to the tokens of the original source, which
- * never looks at the batch, so the sweep is not checked against itself. The documents are encoded through {@link EscfEncoder} with every value kind it produces, so every column kind (unions,
- * columnar arrays of each child kind, inline arrays and objects, binary) is metered, on whole batches and on random slices, under
- * models whose charges are not additive over values.
+ * never looks at the batch, so the sweep is not checked against itself. The documents are encoded through {@link EscfEncoder} with
+ * every value kind it produces, so every column kind (unions, columnar arrays of each child kind, inline arrays and objects, binary)
+ * is metered, on whole batches and on random slices, under models whose charges are not additive over values.
  */
 public class EscfBatchMeteredSizesTests extends ESTestCase {
 

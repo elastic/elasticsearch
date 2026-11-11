@@ -26,11 +26,12 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 
 import java.io.IOException;
 import java.util.List;
 
-public class Abs extends UnaryScalarFunction implements AnyNullIsNull {
+public class Abs extends UnaryScalarFunction implements AnyNullIsNull, UnitAware.PreservesUnit {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Abs", Abs::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Abs.class)
         .unary(Abs::new)

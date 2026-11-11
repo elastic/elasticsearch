@@ -197,7 +197,11 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
                     // We do not actually read anything, but we want to wait for the write to complete before proceeding.
                     // noinspection UnnecessaryLocalVariable
                     final ByteRange rangeToRead = rangeToWrite;
-                    cacheFile.populateAndRead(rangeToWrite, rangeToRead, (channel) -> bytesRead, (channel, start, end, progressUpdater) -> {
+                    cacheFile.populateAndRead(rangeToWrite, rangeToRead, (channel, onReadComplete) -> {
+                        try (onReadComplete) {
+                            return bytesRead;
+                        }
+                    }, (channel, start, end, progressUpdater) -> {
                         final int writtenBytes = positionalWrite(
                             channel,
                             start,

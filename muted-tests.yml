@@ -307,9 +307,12 @@ tests:
 - class: org.elasticsearch.xpack.analytics.topmetrics.TopMetricsColumnarIT
   method: testKeywordMissingMetricOnTopDocumentOnColumnarIndex
   issue: https://github.com/elastic/elasticsearch/issues/162510
-- class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
-  method: testDownsampleResumesAfterPersistentTaskRemoved
-  issue: https://github.com/elastic/elasticsearch/issues/162858
+- class: org.elasticsearch.xpack.downsample.DownsampleResilienceIT
+  method: testInterruptedRunResumesFromLastTimeSeries
+  issue: https://github.com/elastic/elasticsearch/issues/164609
+- class: org.elasticsearch.xpack.downsample.DownsampleResilienceIT
+  method: testSecondRequestDoesNotRetryCompletedShards
+  issue: https://github.com/elastic/elasticsearch/issues/164609
 - class: org.elasticsearch.xpack.stateless.StatelessResizeIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -423,11 +426,6 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
   method: test {csv-spec:k8s-timeseries-increase.increase_of_expression_promql}
   issue: https://github.com/elastic/elasticsearch/issues/164423
-- class: org.elasticsearch.cluster.SimpleClusterStateIT
-  tasks:
-  - :server:internalClusterTest
-  method: testMetadataVersion
-  issue: https://github.com/elastic/elasticsearch/issues/164246
 - class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
   tasks:
   - :x-pack:plugin:esql:test
@@ -462,11 +460,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testNormalAndHedgeUploadsWithRandomDelays
   issue: https://github.com/elastic/elasticsearch/issues/164751
-- class: org.elasticsearch.xpack.esql.action.ExternalWorkerFirstStateIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testWorkerWithoutAnyAppliedStateIsHeldBack
-  issue: https://github.com/elastic/elasticsearch/issues/164755
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   tasks:
   - :qa:smoke-test-multinode:yamlRestTest
@@ -566,18 +559,29 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: test {csv-spec:unmapped-type-conflicts.typeConflictPartiallyUnmappedTextFieldNotLoadedWithDrop}
   issue: https://github.com/elastic/elasticsearch/issues/165306
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecExemplarsSmokeInSubqueryWithTsSourceIT
+- class: org.elasticsearch.xpack.stateless.objectstore.gc.StaleIndicesGCIT
   tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  method: test {csv-spec:in_subquery_with_ts_source.mainTsInSubqueryTsInInlineStatsWhereWithAggAfter}
-  issue: https://github.com/elastic/elasticsearch/issues/165315
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecExemplarsSmokeInSubqueryWithTsSourceIT
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testIsolatedNodeRunningGCDoesNotDeleteNewIndexData
+  issue: https://github.com/elastic/elasticsearch/issues/165370
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  method: test {csv-spec:in_subquery_with_ts_source.mainTsInSubqueryTsMainByPodSubqueryByCluster}
-  issue: https://github.com/elastic/elasticsearch/issues/165331
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecExemplarsSmokeInSubqueryWithTsSourceIT
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.2.8#javaRestTest
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.3.8#javaRestTest
+  method: testMergeKeywordAndFlattenedKey {STORED}
+  issue: https://github.com/elastic/elasticsearch/issues/165487
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  method: test {csv-spec:in_subquery_with_ts_source.mainTsInSubqueryTsInEquals}
-  issue: https://github.com/elastic/elasticsearch/issues/165333
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.3.8#javaRestTest
+  method: testMergeKeywordAndFlattenedKey {null}
+  issue: https://github.com/elastic/elasticsearch/issues/165489
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.3.8#javaRestTest
+  method: testMergeKeywordAndFlattenedKey {NONE}
+  issue: https://github.com/elastic/elasticsearch/issues/165491
+- class: org.elasticsearch.search.vectors.KnnNestedFilterLevelTests
+  tasks:
+  - :server:test
+  method: testCompoundFilters
+  issue: https://github.com/elastic/elasticsearch/issues/165502

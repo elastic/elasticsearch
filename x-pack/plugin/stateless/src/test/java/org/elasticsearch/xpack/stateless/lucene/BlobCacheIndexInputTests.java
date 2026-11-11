@@ -45,6 +45,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
@@ -66,6 +67,7 @@ import java.io.InputStream;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.nio.ByteBuffer;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -75,6 +77,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
@@ -87,6 +90,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils
 import static org.elasticsearch.xpack.stateless.TestUtils.NOOP_TIME_PROVIDER;
 import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomNonZeroPositiveLong;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheFile;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -150,7 +154,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                             randomRegionTimestampMillis()
                         ),
                         createBlobReader(fileName, input, sharedBlobCacheService),
-                        createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                        createBlobFileRanges(primaryTerm, 1L, 0, input.length),
                         BlobCacheMetrics.NOOP,
                         System::currentTimeMillis,
                         true
@@ -179,7 +183,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
             final String fileName = randomAlphaOfLength(5) + randomFileExtension();
             final byte[] input = randomChecksumBytes((int) fileSize.getBytes()).v2();
-            final var termAndGen = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomNonNegativeLong());
+            final var termAndGen = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomNonZeroPositiveLong());
 
             final var blobContainer = new FilterBlobContainer(TestUtils.singleBlobContainer(fileName, input)) {
                 @Override
@@ -190,7 +194,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 @Override
                 public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
                     if (blobName.contains(BatchedCompoundCommit.PREFIX)) {
-                        assert ThreadPool.assertCurrentThreadPool(StatelessPlugin.SHARD_READ_THREAD_POOL);
+                        assert ThreadPool.assertCurrentThreadPool(StatelessThreadPools.SHARD_READ_THREAD_POOL);
                     }
                     return super.readBlob(purpose, blobName);
                 }
@@ -198,7 +202,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 @Override
                 public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
                     if (blobName.contains(BatchedCompoundCommit.PREFIX)) {
-                        assert ThreadPool.assertCurrentThreadPool(StatelessPlugin.SHARD_READ_THREAD_POOL);
+                        assert ThreadPool.assertCurrentThreadPool(StatelessThreadPools.SHARD_READ_THREAD_POOL);
                     }
                     return super.readBlob(purpose, blobName, position, length);
                 }
@@ -208,7 +212,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 blobContainer,
                 fileName,
                 sharedBlobCacheService.getRangeSize(),
-                threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL)
+                threadPool.executor(StatelessThreadPools.SHARD_READ_THREAD_POOL)
             );
             final var indexShardReader = new IndexingShardCacheBlobReader(null, null, null, null, fileSize, threadPool) {
                 @Override
@@ -301,7 +305,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             final ShardId shardId = new ShardId(new Index(randomIndexName(), randomUUID()), 0);
             final String fileName = randomAlphaOfLength(5) + randomFileExtension();
             final byte[] input = randomChecksumBytes((int) fileSize.getBytes()).v2();
-            final var termAndGen = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomNonNegativeLong());
+            final var termAndGen = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomNonZeroPositiveLong());
             final var tracker = new AtomicMutableObjectStoreUploadTracker();
             final var blobContainer = TestUtils.singleBlobContainer(fileName, input);
 
@@ -330,7 +334,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 blobContainer,
                 fileName,
                 sharedBlobCacheService.getRangeSize(),
-                threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL)
+                threadPool.executor(StatelessThreadPools.SHARD_READ_THREAD_POOL)
             ) {
                 @Override
                 public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
@@ -439,7 +443,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                         randomRegionTimestampMillis()
                     ),
                     createBlobReader(fileName, input, sharedBlobCacheService),
-                    createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                    createBlobFileRanges(primaryTerm, 1L, 0, input.length),
                     BlobCacheMetrics.NOOP,
                     System::currentTimeMillis,
                     true
@@ -473,7 +477,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         ) {
             final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
             final long primaryTerm = randomNonNegativeLong();
-            final long generation = randomNonNegativeLong();
+            final long generation = randomNonZeroPositiveLong();
             final String blobName = BatchedCompoundCommit.blobNameFromGeneration(generation);
             // Create a blob with data span from 2 to 4 regions
             final int numberRegions = between(2, 4);
@@ -484,7 +488,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 TestUtils.singleBlobContainer(blobName, data),
                 blobName,
                 sharedBlobCacheService.getRangeSize(),
-                threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL)
+                threadPool.executor(StatelessThreadPools.SHARD_READ_THREAD_POOL)
             ) {
                 @Override
                 public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
@@ -609,8 +613,8 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             cacheBlobReader,
             () -> null, // ignored
             copiedBytes -> {},
-            StatelessPlugin.SHARD_READ_THREAD_POOL,
-            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+            StatelessThreadPools.SHARD_READ_THREAD_POOL,
+            StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
         );
 
         // Fallback behaviour for a single gap
@@ -646,7 +650,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         final var totalGapLength = Math.toIntExact(gaps.get(gaps.size() - 1).end() - gaps.get(0).start());
         final var calledOnce = ActionListener.assertOnce(ActionListener.noop());
         final var executor = randomBoolean()
-            ? threadPool.executor(StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL)
+            ? threadPool.executor(StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL)
             : EsExecutors.DIRECT_EXECUTOR_SERVICE;
         doAnswer(invocation -> {
             ActionListener<InputStream> argument = invocation.getArgument(2);
@@ -710,8 +714,8 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             cacheBlobReader,
             () -> null, // ignored
             copiedBytes -> {},
-            StatelessPlugin.SHARD_READ_THREAD_POOL,
-            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+            StatelessThreadPools.SHARD_READ_THREAD_POOL,
+            StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
         );
 
         // Create a list of disjoint gaps
@@ -771,7 +775,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                         randomRegionTimestampMillis()
                     ),
                     createBlobReader(fileName, input, sharedBlobCacheService),
-                    createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                    createBlobFileRanges(primaryTerm, 1L, 0, input.length),
                     BlobCacheMetrics.NOOP,
                     System::currentTimeMillis,
                     true
@@ -841,7 +845,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                         randomRegionTimestampMillis()
                     ),
                     createBlobReader(fileName, input, sharedBlobCacheService),
-                    createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                    createBlobFileRanges(primaryTerm, 1L, 0, input.length),
                     BlobCacheMetrics.NOOP,
                     System::currentTimeMillis,
                     true
@@ -909,7 +913,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                         randomRegionTimestampMillis()
                     ),
                     createBlobReader(fileName, input, sharedBlobCacheService),
-                    createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                    createBlobFileRanges(primaryTerm, 1L, 0, input.length),
                     BlobCacheMetrics.NOOP,
                     System::currentTimeMillis,
                     true
@@ -1018,7 +1022,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                         randomRegionTimestampMillis()
                     ),
                     createBlobReader(fileName, input, sharedBlobCacheService),
-                    createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                    createBlobFileRanges(primaryTerm, 1L, 0, input.length),
                     BlobCacheMetrics.NOOP,
                     System::currentTimeMillis,
                     true
@@ -1077,7 +1081,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                         randomRegionTimestampMillis()
                     ),
                     createBlobReader(fileNameA, inputA, sharedBlobCacheService),
-                    createBlobFileRanges(primaryTerm, 0L, 0, inputA.length),
+                    createBlobFileRanges(primaryTerm, 1L, 0, inputA.length),
                     BlobCacheMetrics.NOOP,
                     System::currentTimeMillis,
                     true
@@ -1116,7 +1120,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                             randomRegionTimestampMillis()
                         ),
                         createBlobReader(evictFileName, evictInput, sharedBlobCacheService),
-                        createBlobFileRanges(primaryTerm, 0L, 0, evictInput.length),
+                        createBlobFileRanges(primaryTerm, 1L, 0, evictInput.length),
                         BlobCacheMetrics.NOOP,
                         System::currentTimeMillis,
                         true
@@ -1205,7 +1209,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             final var cacheFileReader = new CacheFileReader(
                 cacheFile,
                 createBlobReader(fileName, input, cacheService),
-                createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                createBlobFileRanges(primaryTerm, 1L, 0, input.length),
                 metrics,
                 System::currentTimeMillis,
                 true
@@ -1219,6 +1223,99 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
             // Third read: cache hit — 1 read (from tryRead), no miss, no bypass
             assertBypassReadMetrics(fileName, cacheFileReader, input, recordingMeterRegistry, metrics, 1, 0, 0);
+        }
+    }
+
+    // When the cache evicts a region mid-read, CacheFileReader falls back to a bypass read that puts the bytes straight into the
+    // destination buffer. A callback of the failed cache read can still run after that, and must not touch the buffer by then.
+    public void testLateCallbackOfFailedCacheReadDoesNotTouchBufferAfterBypassRead() throws Exception {
+        final var regionSize = SharedBytes.PAGE_SIZE * between(1, 10);
+        final var settings = sharedCacheSettings(ByteSizeValue.ofBytes(regionSize * 10L), ByteSizeValue.ofBytes(regionSize));
+        try (
+            var nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = newCacheService(nodeEnvironment, settings, threadPool)
+        ) {
+            final long primaryTerm = randomNonNegativeLong();
+            final int length = between(8, regionSize);
+            final var input = randomByteArrayOfLength(length);
+            final var fileName = randomIdentifier() + randomFileExtension();
+            final var realCacheFile = cacheService.getCacheFile(
+                new FileCacheKey(new ShardId(new Index(randomIndexName(), randomUUID()), 0), primaryTerm, fileName),
+                length,
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                System.currentTimeMillis()
+            );
+            final var blobReader = createBlobReader(fileName, input, cacheService);
+
+            // Read the file once so that its region is cached, then get hold of that region. The callbacks of a read are handed a
+            // SharedBytes.IO, which can't be created or mocked here, and the late callback below needs one.
+            new CacheFileReader(
+                realCacheFile,
+                blobReader,
+                createBlobFileRanges(primaryTerm, 1L, 0, length),
+                cacheService.getBlobCacheMetrics(),
+                System::currentTimeMillis,
+                true
+            ).read(this, ByteBuffer.allocate(length), 0, length, length, "read that caches the region");
+            final var cacheRegion = new AtomicReference<SharedBytes.IO>();
+            final var cachedRange = ByteRange.of(0, length);
+            realCacheFile.populateAndRead(cachedRange, cachedRange, (channel, channelPos, relativePos, len) -> {
+                cacheRegion.set(channel);
+                return len;
+            }, (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                throw new AssertionError("the region is cached, nothing is missing");
+            }, "get hold of the cache region");
+            assertNotNull(cacheRegion.get());
+
+            // The cache now reports the region as evicted, which forces the bypass read, and keeps the callback that the read gave it.
+            final var cacheFile = spy(realCacheFile);
+            final var failedReadCallback = new AtomicReference<SharedBlobCacheService.RangeAvailableHandler>();
+            doAnswer(invocation -> {
+                failedReadCallback.set(invocation.getArgument(2));
+                throw new AlreadyClosedException("evicted");
+            }).when(cacheFile).populateAndRead(any(), any(), any(), any(), any());
+
+            // Delivers the bypass data and then, as a late callback of the failed read would, calls that callback.
+            final CacheBlobReader lateCallbackBlobReader = new CacheBlobReader() {
+                @Override
+                public ByteRange getRange(long position, int len, long remainingFileLength) {
+                    return blobReader.getRange(position, len, remainingFileLength);
+                }
+
+                @Override
+                public void getRangeInputStream(long position, int len, ActionListener<InputStream> listener) {
+                    listener.onResponse(new ByteArrayInputStream(input, Math.toIntExact(position), len));
+                    try {
+                        failedReadCallback.get().onRangeAvailable(cacheRegion.get(), 0, 0, len);
+                    } catch (IOException e) {
+                        throw new AssertionError(e);
+                    }
+                }
+
+                @Override
+                public String executorName() {
+                    return blobReader.executorName();
+                }
+            };
+
+            // Room for the late callback to write to, if it were allowed to, after the position was moved by the bypass read.
+            final var buffer = ByteBuffer.allocate(2 * length);
+            new CacheFileReader(
+                cacheFile,
+                lateCallbackBlobReader,
+                createBlobFileRanges(primaryTerm, 1L, 0, length),
+                cacheService.getBlobCacheMetrics(),
+                System::currentTimeMillis,
+                true
+            ).read(this, buffer, 0, length, length, "late callback of a failed cache read");
+
+            assertThat(buffer.position(), equalTo(length));
+            assertArrayEquals(input, Arrays.copyOf(buffer.array(), length));
+            assertArrayEquals(
+                "nothing is written past the bytes that were read",
+                new byte[length],
+                Arrays.copyOfRange(buffer.array(), length, 2 * length)
+            );
         }
     }
 
@@ -1294,7 +1391,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                         randomRegionTimestampMillis()
                     ),
                     createBlobReader(fileName, input, sharedBlobCacheService),
-                    createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                    createBlobFileRanges(primaryTerm, 1L, 0, input.length),
                     BlobCacheMetrics.NOOP,
                     System::currentTimeMillis,
                     true
@@ -1359,7 +1456,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                         randomRegionTimestampMillis()
                     ),
                     createBlobReader(fileName, input, sharedBlobCacheService),
-                    createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                    createBlobFileRanges(primaryTerm, 1L, 0, input.length),
                     BlobCacheMetrics.NOOP,
                     System::currentTimeMillis,
                     true
@@ -1425,7 +1522,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                         randomRegionTimestampMillis()
                     ),
                     createBlobReader(fileName, input, sharedBlobCacheService),
-                    createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                    createBlobFileRanges(primaryTerm, 1L, 0, input.length),
                     BlobCacheMetrics.NOOP,
                     System::currentTimeMillis,
                     true
@@ -1483,7 +1580,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                         randomRegionTimestampMillis()
                     ),
                     createBlobReader(fileNameA, inputA, sharedBlobCacheService),
-                    createBlobFileRanges(primaryTerm, 0L, 0, inputA.length),
+                    createBlobFileRanges(primaryTerm, 1L, 0, inputA.length),
                     BlobCacheMetrics.NOOP,
                     System::currentTimeMillis,
                     true
@@ -1530,7 +1627,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                             randomRegionTimestampMillis()
                         ),
                         createBlobReader(evictFileName, evictInput, sharedBlobCacheService),
-                        createBlobFileRanges(primaryTerm, 0L, 0, evictInput.length),
+                        createBlobFileRanges(primaryTerm, 1L, 0, evictInput.length),
                         BlobCacheMetrics.NOOP,
                         System::currentTimeMillis,
                         true
@@ -1568,7 +1665,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         final CacheFileReader cacheFileReader = new CacheFileReader(
             cacheFile,
             cacheBlobReader,
-            createBlobFileRanges(primaryTerm, 0L, 0, (int) fileLength),
+            createBlobFileRanges(primaryTerm, 1L, 0, (int) fileLength),
             BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             true
@@ -1621,7 +1718,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         final CacheFileReader cacheFileReader = new CacheFileReader(
             cacheFile,
             cacheBlobReader,
-            createBlobFileRanges(randomNonNegativeLong(), 0L, 0, (int) fileLength),
+            createBlobFileRanges(randomNonNegativeLong(), 1L, 0, (int) fileLength),
             metrics,
             System::currentTimeMillis,
             true
@@ -1682,7 +1779,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         final CacheFileReader cacheFileReader = new CacheFileReader(
             cacheFile,
             cacheBlobReader,
-            createBlobFileRanges(randomNonNegativeLong(), 0L, 0, (int) fileLength),
+            createBlobFileRanges(randomNonNegativeLong(), 1L, 0, (int) fileLength),
             metrics,
             System::currentTimeMillis,
             true
@@ -1732,7 +1829,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         final CacheFileReader cacheFileReader = new CacheFileReader(
             cacheFile,
             cacheBlobReader,
-            createBlobFileRanges(randomNonNegativeLong(), 0L, 0, (int) fileLength),
+            createBlobFileRanges(randomNonNegativeLong(), 1L, 0, (int) fileLength),
             metrics,
             System::currentTimeMillis,
             true
@@ -1772,7 +1869,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         final CacheFileReader cacheFileReader = new CacheFileReader(
             cacheFile,
             cacheBlobReader,
-            createBlobFileRanges(randomNonNegativeLong(), 0L, 0, (int) fileLength),
+            createBlobFileRanges(randomNonNegativeLong(), 1L, 0, (int) fileLength),
             metrics,
             System::currentTimeMillis,
             true

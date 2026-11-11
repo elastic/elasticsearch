@@ -105,7 +105,8 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
      * <li>nestedNoField: nested parent that declares no subfields at all. Must always equal noField: nothing is
      *     declared, so it is plain unmapped loading.</li>
      * <li>noField: the same leaf simply not mapped on the special index.</li>
-     * <li>flattened: the Verifier rejects loading the sub-key, so cells that would load it error instead.
+     * <li>flattened: where a name under a flattened field is not its key, the Verifier rejects loading the sub-key, so cells
+     *     that would load it error instead.
      *     Under {@code LOAD_ALL} + {@code KEEP *} nothing references it, and discovery does not surface it either: the sub-key
      *     is part of the value of the mapped {@code flattened} field, so the index that maps it returns null.</li>
      * </ul>
@@ -199,9 +200,12 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
             presence(prefix + "FROM " + noField[0] + ", " + noField[1] + " | KEEP " + nestedKeep + " | SORT id", "item.extra"),
             equalTo(cell.noField)
         );
+        // Where a name under a flattened field is its key, the flattened index reads it wherever the query names it or another
+        // index maps it
+        boolean readsKey = EsqlCapabilities.Cap.FLATTENED_KEYS.isEnabled() && (keepStar == false || extraMappedOnOther);
         assertThat(
             presence(prefix + "FROM " + flattened[0] + ", " + flattened[1] + " | KEEP " + nestedKeep + " | SORT id", "item.extra"),
-            equalTo(cell.flattened)
+            equalTo(readsKey ? LOADED : cell.flattened)
         );
     }
 

@@ -1429,7 +1429,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
                 }
             } else if (recordOffsets) {
-                context.getOffSetContext().recordNull(offsetsFieldName, TextFieldMapper.OFFSETS_FALLBACK);
+                context.getOffSetContext().recordNull(context, offsetsFieldName, TextFieldMapper.OFFSETS_FALLBACK);
             }
             return;
         }

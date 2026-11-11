@@ -812,7 +812,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 );
             }
 
-            if (lowerTerm != null && upperTerm != null) {
+            if (lowerTerm != null && upperTerm != null && indexType.hasTerms()) {
                 return super.rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
             }
 
@@ -836,7 +836,17 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                         + "' is set to false."
                 );
             }
-            failIfNotIndexed();
+            failIfNotSearchable();
+            if (indexType.hasTerms() == false) {
+                // Without terms, the range runs on the doc values of the key, whatever its bounds
+                Automaton value = TermRangeQuery.toAutomaton(
+                    lowerTerm == null ? null : BytesRefs.toBytesRef(lowerTerm),
+                    upperTerm == null ? null : BytesRefs.toBytesRef(upperTerm),
+                    includeLower,
+                    includeUpper
+                );
+                return keyedQuery("range", value, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, null);
+            }
 
             BytesRef lower;
             boolean lowerInclusive;
@@ -2072,8 +2082,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     }
 
     @Override
-    public boolean resolvesColumnGroup() {
-        return true;
+    public ColumnGroup resolvesColumnGroup() {
+        return ColumnGroup.ANY_SHAPE;
     }
 
     /**

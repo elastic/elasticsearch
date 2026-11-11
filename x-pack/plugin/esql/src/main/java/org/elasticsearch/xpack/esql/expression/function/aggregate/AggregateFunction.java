@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -238,5 +239,12 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
             return this;
         }
         return (AggregateFunction) replaceChildren(buildChildren(fields, filter, newWindow, parameters));
+    }
+
+    /**
+     * The per-row input whose unit a unit-preserving aggregation keeps, see {@link UnitAware.PreservesUnit}.
+     */
+    public Expression unitSource() {
+        return fields.isEmpty() ? null : fields.get(0);
     }
 }

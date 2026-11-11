@@ -207,8 +207,8 @@ public class SequenceSnapshotLeaseIT extends AbstractSequenceIntegTestCase {
                     new EsIndex(index, mapping, Map.of(index, new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of())
                 );
             }
-            Sequence sequence = analyzer.query("""
-                sequence by key with {"maxspan":"30s"} (from a | keep key), (from b | keep key) | limit 10
+            Sequence sequence = analyzer.statement("""
+                sequence by key with {"maxspan":"30s"} PRIMARY 1 (from a | keep key), (from b | keep key) | limit 10
                 """).collect(Sequence.class).getFirst();
             source = new SequenceSourceOperator(
                 new SequenceSourceOperator.Factory(

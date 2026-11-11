@@ -285,6 +285,31 @@ public class WarningsTests extends ESTestCase {
         }
     }
 
+    public void testSharedBudgetPreservesWarningBehaviorIdentity() {
+        var budget = new Warnings.Budget();
+        List<String> warnings = new ArrayList<>();
+        for (int page = 0; page < 10; page++) {
+            DriverContext dc = collectingContext();
+            var source = new TestWarningsSource("foo");
+            List<Warnings> collectors = List.of(
+                dc.createWarnings(source),
+                dc.createWarningsTreatedAsFalse(source),
+                dc.createOnlyWarnings(source)
+            );
+            dc.setWarningsBudget(budget);
+            for (int behavior = 0; behavior < collectors.size(); behavior++) {
+                for (int row = 0; row < 7; row++) {
+                    collectors.get(behavior).registerException(IllegalArgumentException.class, behavior + ":" + (page * 7 + row));
+                }
+            }
+            warnings.addAll(collected(dc));
+        }
+        assertEquals(3 * (1 + Warnings.MAX_ADDED_WARNINGS), warnings.size());
+        assertTrue(warnings.contains("Line 1:1: evaluation of [foo] failed, treating result as null. Only first 20 failures recorded."));
+        assertTrue(warnings.contains("Line 1:1: evaluation of [foo] failed, treating result as false. Only first 20 failures recorded."));
+        assertTrue(warnings.contains("Line 1:1: warnings during evaluation of [foo]. Only first 20 failures recorded."));
+    }
+
     public void testSharedBudgetAcrossConcurrentDrivers() throws Exception {
         var budget = new Warnings.Budget();
         Set<String> warnings = Collections.synchronizedSet(new HashSet<>());

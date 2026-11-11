@@ -127,30 +127,65 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertNull(deserializedRequest.getPointInTimeAuthorizationScope());
     }
 
-    public void testExplicitStartTimeSurvivesSerializationAndCopy() throws Exception {
+    public void testExplicitStartTimeSurvivesLocalCopy() {
         long started = randomNonNegativeLong();
         SearchRequest request = new SearchRequest(started).source(new SearchSourceBuilder());
         SearchRequest copy = new SearchRequest(request);
-        SearchRequest transported = copyWriteable(copy, namedWriteableRegistry, SearchRequest::new);
-        assertNull(transported.getLocalClusterAlias());
-        assertTrue(transported.isFinalReduce());
-        assertEquals(started, transported.getAbsoluteStartMillis());
-        assertEquals(started, transported.getOrCreateAbsoluteStartMillis());
-        assertEquals(request, transported);
+        assertNull(copy.getLocalClusterAlias());
+        assertTrue(copy.isFinalReduce());
+        assertEquals(started, copy.getAbsoluteStartMillis());
+        assertEquals(started, copy.getOrCreateAbsoluteStartMillis());
+        assertEquals(request, copy);
+        assertEquals(request.hashCode(), copy.hashCode());
         expectThrows(IllegalArgumentException.class, () -> new SearchRequest(-1L));
     }
 
-    public void testExplicitStartTimeRejectsOlderPeers() {
-        SearchRequest request = new SearchRequest(randomNonNegativeLong()).source(new SearchSourceBuilder());
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> copyWriteable(
-                request,
-                namedWriteableRegistry,
-                SearchRequest::new,
-                TransportVersionUtils.getPreviousVersion(SearchRequest.SEARCH_REQUEST_ABSOLUTE_START_TIME)
-            )
-        );
+    public void testExplicitStartTimeRejectsTransport() throws IOException {
+        for (TransportVersion version : List.of(
+            TransportVersion.current(),
+            TransportVersion.minimumCompatible(),
+            TransportVersionUtils.randomCompatibleVersion()
+        )) {
+            for (long started : List.of(0L, randomNonNegativeLong())) {
+                SearchRequest request = new SearchRequest(started).source(new SearchSourceBuilder());
+                for (boolean skipIndices : List.of(false, true)) {
+                    try (BytesStreamOutput out = new BytesStreamOutput()) {
+                        out.setTransportVersion(version);
+                        assertEquals(
+                            "A search with an explicit start time is coordinator-local and cannot be serialized",
+                            expectThrows(IllegalArgumentException.class, () -> request.writeTo(out, skipIndices)).getMessage()
+                        );
+                        assertEquals(0, out.size());
+                    }
+                }
+            }
+        }
+    }
+
+    public void testCcsClockAndFinalReductionSurviveTransport() throws IOException {
+        for (TransportVersion version : List.of(
+            TransportVersion.current(),
+            TransportVersion.minimumCompatible(),
+            TransportVersionUtils.randomCompatibleVersion()
+        )) {
+            for (boolean finalReduce : List.of(false, true)) {
+                long started = randomNonNegativeLong();
+                SearchRequest original = new SearchRequest("alias");
+                SearchRequest request = SearchRequest.subSearchRequest(
+                    new TaskId("node", 1),
+                    original,
+                    original.indices(),
+                    original.indicesOptions(),
+                    "remote",
+                    started,
+                    finalReduce
+                );
+                SearchRequest copy = copyWriteable(request, namedWriteableRegistry, SearchRequest::new, version);
+                assertEquals("remote", copy.getLocalClusterAlias());
+                assertEquals(started, copy.getAbsoluteStartMillis());
+                assertEquals(finalReduce, copy.isFinalReduce());
+            }
+        }
     }
 
     /** Source expressions survive local copies but can never be sent to another coordinator. */
@@ -236,12 +271,14 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         OriginalIndices complete = new OriginalIndices(new String[] { "alias-a", "alias-b" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
         OriginalIndices scoped = new OriginalIndices(new String[] { "alias-a" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
         SearchSourceBuilder source = new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("snapshot")));
-        SearchRequest request = new SearchRequest().source(source);
+        long started = randomNonNegativeLong();
+        SearchRequest request = new SearchRequest(started).source(source);
         request.setPointInTimeAuthorization(complete, scoped, membership);
         membership.filter(new MatchNoneQueryBuilder());
         source.query(QueryBuilders.termQuery("kind", "selected"));
         SearchRequest admitted = request.withPointInTimeAuthorizationMembership(namedWriteableRegistry);
         assertNotSame(request, admitted);
+        assertEquals(started, admitted.getAbsoluteStartMillis());
         assertNotSame(source, admitted.source());
         assertEquals(QueryBuilders.termQuery("kind", "selected"), source.query());
         assertEquals(
@@ -253,6 +290,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertSame(admitted, admitted.withPointInTimeAuthorizationMembership(namedWriteableRegistry));
         assertSame(new SearchRequest(admitted).source(), admitted.source());
         SearchRequest copy = new SearchRequest(request);
+        assertEquals(started, copy.getAbsoluteStartMillis());
         copy.setPointInTimeAuthorizationIndices(
             new OriginalIndices(new String[] { "resolved-a", "resolved-b" }, complete.indicesOptions())
         );
@@ -331,10 +369,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
     /** Reject before writing any bytes, including the batched-search writer and older peers. */
     private void assertPitAuthorizationCannotBeSerialized(SearchRequest request) throws IOException {
-        for (TransportVersion version : List.of(
-            TransportVersion.current(),
-            TransportVersionUtils.getPreviousVersion(SearchRequest.SEARCH_REQUEST_ABSOLUTE_START_TIME)
-        )) {
+        for (TransportVersion version : List.of(TransportVersion.current(), TransportVersion.minimumCompatible())) {
             for (boolean skipIndices : List.of(false, true)) {
                 try (BytesStreamOutput out = new BytesStreamOutput()) {
                     out.setTransportVersion(version);

@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicens
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.action.SequenceMatchDescription;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 
@@ -113,7 +114,7 @@ public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
         ActionFuture<EsqlQueryResponse> future = null;
         try {
             future = client(coordinator).execute(EsqlQueryAction.INSTANCE, request());
-            gate.awaitStarted();
+            gate.awaitStarted(future);
             assertSnapshotAndCandidatesLive(coordinator);
             List<TaskId> rootTasks = client(coordinator).admin()
                 .cluster()
@@ -148,7 +149,7 @@ public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
         try {
             // Ordinary ES|QL may allow partial results. Missing sequence stages cannot be treated as a complete match.
             future = client(coordinator).execute(EsqlQueryAction.INSTANCE, request().allowPartialResults(true));
-            gate.awaitStarted();
+            gate.awaitStarted(future);
             assertSnapshotAndCandidatesLive(coordinator);
             gate.release();
             Exception failure = expectFailure(future);
@@ -184,7 +185,7 @@ public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
         try {
             var query = withSource ? sourceRequest() : request();
             future = client(coordinator()).execute(EsqlQueryAction.INSTANCE, query);
-            gate.awaitStarted();
+            gate.awaitStarted(future);
             prepareIndex("failure-a").setId("A" + (ANCHORS - 1))
                 .setSource("@timestamp", BASE.plusMillis(ANCHORS - 1).toString(), "key", "shared", "payload", "updated-anchor")
                 .get();
@@ -211,9 +212,14 @@ public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
                     List<List<Object>> rows = getValuesList(response);
                     assertThat(rows, hasSize(1));
                     assertEquals(List.of("shared", "anchor-" + (ANCHORS - 1), "completion"), rows.getFirst().subList(0, 3));
+                    var description = SequenceMatchDescription.fromColumns(response.columns());
+                    var decoded = description.decodeRow(rows.getFirst(), SequenceMatchDescription.SourcePolicy.REQUIRE_PRESENT);
                     assertEquals(
-                        List.of("failure-a", "A" + (ANCHORS - 1), originalAnchor, "failure-b", "B", originalCompletion),
-                        rows.getFirst().subList(3, 9)
+                        List.of(
+                            new SequenceMatchDescription.Member(1, "failure-a", "A" + (ANCHORS - 1), originalAnchor),
+                            new SequenceMatchDescription.Member(2, "failure-b", "B", originalCompletion)
+                        ),
+                        decoded.members()
                     );
                 } else {
                     assertValues(response.values(), List.of(List.of("shared", "anchor-" + (ANCHORS - 1), "completion")));
@@ -235,7 +241,7 @@ public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
         ActionFuture<EsqlQueryResponse> future = null;
         try {
             future = client(coordinator).execute(EsqlQueryAction.INSTANCE, sourceRequest());
-            gate.awaitStarted();
+            gate.awaitStarted(future);
             assertTrue("payload or match allocations must be live before cancellation", requestBreaker(coordinator).getUsed() > 0);
             List<TaskId> rootTasks = client(coordinator).admin()
                 .cluster()
@@ -270,7 +276,7 @@ public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
         ActionFuture<EsqlQueryResponse> future = null;
         try {
             future = client(coordinator).execute(EsqlQueryAction.INSTANCE, sourceRequest().allowPartialResults(true));
-            gate.awaitStarted();
+            gate.awaitStarted(future);
             assertTrue(requestBreaker(coordinator).getUsed() > 0);
             gate.release();
             Exception failure = expectFailure(future);
@@ -290,7 +296,7 @@ public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
         ActionFuture<EsqlQueryResponse> future = null;
         try {
             future = client(coordinator).execute(EsqlQueryAction.INSTANCE, sourceRequest().allowPartialResults(true));
-            gate.awaitStarted();
+            gate.awaitStarted(future);
             assertSnapshotAndCandidatesLive(coordinator);
             for (String index : List.of("failure-a", "failure-b")) {
                 assertAcked(
@@ -344,14 +350,15 @@ public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
         ActionFuture<EsqlQueryResponse> future = null;
         try {
             var query = syncEsqlQueryRequest("""
-                sequence by key with {"maxspan":"30s"}
+                sequence by key with {"maxspan":"30s"} PRIMARY 1
                 (from failure-a | eval request_started=NOW() | keep key, payload, request_started),
                 (from failure-b | where phase=="target" | eval request_started=NOW() | keep key, payload, request_started)
-                | keep key, stage1.payload, stage2.payload, stage1.request_started, stage2.request_started
+                | EVAL member2_payload = MEMBER(2, payload), member2_request_started = MEMBER(2, request_started)
+                | keep key, payload, member2_payload, request_started, member2_request_started
                 | limit 1
                 """).filter(org.elasticsearch.index.query.QueryBuilders.rangeQuery("window").gte("now-1m").lte("now+1m"));
             future = client(coordinator()).execute(EsqlQueryAction.INSTANCE, query);
-            gate.awaitStarted();
+            gate.awaitStarted(future);
             // An actual delay separates candidate admission from payload transport. The assertion pins the clock
             // crossing the wire rather than depending on an event expiring at a wall-clock boundary.
             Thread.sleep(25);
@@ -386,7 +393,7 @@ public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
         ActionFuture<EsqlQueryResponse> future = null;
         try {
             future = client(coordinator).execute(EsqlQueryAction.INSTANCE, request());
-            gate.awaitStarted();
+            gate.awaitStarted(future);
             assertSnapshotAndCandidatesLive(coordinator);
             // Limit only the coordinator after field resolution, snapshot opening and stage-one candidate admission.
             // Data nodes retain normal limits; the pending Search response or its native conversion must fail admission.
@@ -439,21 +446,21 @@ public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
 
     private static EsqlQueryRequest request() {
         return syncEsqlQueryRequest("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from failure-a | keep key, payload), (from failure-b | where phase=="target" | keep key, payload)
-            | keep key, stage1.payload, stage2.payload
+            | EVAL member2_payload = MEMBER(2, payload)
+            | keep key, payload, member2_payload
             | limit 1
             """);
     }
 
     private static EsqlQueryRequest sourceRequest() {
         return syncEsqlQueryRequest("""
-            SEQUENCE BY key WITH {"maxspan":"30s"}
-            (FROM failure-a METADATA _id, _index, _source | KEEP key, payload, _id, _index, _source),
-            (FROM failure-b METADATA _id, _index, _source | WHERE phase=="target" | KEEP key, payload, _id, _index, _source)
-            | KEEP key, stage1.payload, stage2.payload,
-                   stage1._index, stage1._id, stage1._source, stage2._index, stage2._id, stage2._source
-            | LIMIT 1
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+            (FROM failure-a | KEEP key, payload),
+            (FROM failure-b | WHERE phase=="target" | KEEP key, payload)
+            | EVAL member2_payload = MEMBER(2, payload)
+            | KEEP key, payload, member2_payload | LIMIT 1 | RETURN MATCHES
             """);
     }
 
@@ -592,8 +599,19 @@ public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
             }
         }
 
-        private void awaitStarted() {
-            safeAwait(started, TIMEOUT);
+        private void awaitStarted(ActionFuture<EsqlQueryResponse> future) throws Exception {
+            long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(TIMEOUT.millis());
+            while (started.await(50, TimeUnit.MILLISECONDS) == false) {
+                if (future.isDone()) {
+                    try {
+                        future.actionGet(TIMEOUT);
+                    } catch (Exception failure) {
+                        throw new AssertionError("query failed before reaching its sequence search gate", failure);
+                    }
+                    fail("query completed without reaching its sequence search gate");
+                }
+                assertTrue("sequence search gate did not start within the timeout", System.nanoTime() - deadline < 0);
+            }
         }
 
         private void release() {

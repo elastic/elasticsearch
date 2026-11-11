@@ -109,8 +109,13 @@ public class Warnings {
     private final String location;
     private final String firstExceptionWarning;
     private final String nonExceptionWarningPrefix;
-    private final SourceKey sourceKey;
-    private final State localState = new State();
+    private final int lineNumber;
+    private final int columnNumber;
+    private final String viewName;
+    private final String sourceText;
+    private final String warningBehavior;
+    private int addedWarnings;
+    private boolean exceptionWarningEmitted;
     private State sharedState;
 
     private Warnings(
@@ -122,7 +127,11 @@ public class Warnings {
         String firstExceptionWarning
     ) {
         this.driverContext = driverContext;
-        this.sourceKey = new SourceKey(lineNumber, columnNumber, viewName, sourceText, firstExceptionWarning);
+        this.lineNumber = lineNumber;
+        this.columnNumber = columnNumber;
+        this.viewName = viewName;
+        this.sourceText = sourceText;
+        this.warningBehavior = firstExceptionWarning;
         if (viewName == null) {
             this.location = format("Line {}:{}: ", lineNumber, columnNumber);
             this.nonExceptionWarningPrefix = format("Line {}:{} [{}]: ", lineNumber, columnNumber, sourceText);
@@ -152,7 +161,17 @@ public class Warnings {
      * </p>
      */
     public void registerException(Class<? extends Exception> exceptionClass, String message) {
-        State state = state();
+        State state = sharedState();
+        if (state == null) {
+            if (addedWarnings < MAX_ADDED_WARNINGS) {
+                if (exceptionWarningEmitted == false) {
+                    exceptionWarningEmitted = true;
+                    driverContext.addWarning(firstExceptionWarning);
+                }
+                addDistinct(location + exceptionClass.getName() + ": " + message);
+            }
+            return;
+        }
         synchronized (state) {
             if (state.addedWarnings < MAX_ADDED_WARNINGS) {
                 if (state.exceptionWarningEmitted == false) {
@@ -171,11 +190,24 @@ public class Warnings {
      * This method therefore caches the emitted message and should not be called with non-constant messages!
      */
     public void registerWarning(String message) {
-        State state = state();
+        State state = sharedState();
+        if (state == null) {
+            if (addedWarnings < MAX_ADDED_WARNINGS) {
+                addDistinct(nonExceptionWarningPrefix + message);
+            }
+            return;
+        }
         synchronized (state) {
             if (state.addedWarnings < MAX_ADDED_WARNINGS) {
                 addDistinct(state, nonExceptionWarningPrefix + message);
             }
+        }
+    }
+
+    /** The per-driver sink already deduplicates warnings when no cross-driver allowance is needed. */
+    private void addDistinct(String warning) {
+        if (driverContext.addWarning(warning)) {
+            addedWarnings++;
         }
     }
 
@@ -187,13 +219,15 @@ public class Warnings {
         }
     }
 
-    private State state() {
+    private State sharedState() {
+        // Planning may construct a collector before its driver receives the query's budget. Keep the ordinary
+        // driver-local path allocation-free here, and create cross-driver identity/state only on first use.
         Budget budget = driverContext.warningsBudget();
         if (budget == null) {
-            return localState;
+            return null;
         }
         if (sharedState == null) {
-            sharedState = budget.state(sourceKey);
+            sharedState = budget.state(new SourceKey(lineNumber, columnNumber, viewName, sourceText, warningBehavior));
         }
         return sharedState;
     }

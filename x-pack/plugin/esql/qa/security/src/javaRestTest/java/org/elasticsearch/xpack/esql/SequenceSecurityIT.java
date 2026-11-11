@@ -94,10 +94,11 @@ public class SequenceSecurityIT extends ESRestTestCase {
         Map<String, Object> ordinary = entityAsMap(runESQLCommand("test-admin", "FROM sequence-security-events | KEEP unstable | LIMIT 1"));
         assertEquals(1, requireType(List.class, ordinary.get("values")).size());
         String stages = """
-            SEQUENCE BY %s WITH {"maxspan":"30s"}
+            SEQUENCE BY %s WITH {"maxspan":"30s"} PRIMARY 1
             (FROM sequence-security-events | WHERE phase=="A" AND tenant=="allowed"),
             (FROM sequence-security-events | WHERE phase=="B" AND tenant=="allowed")
-            | KEEP %s, stage1.payload, stage2.payload | LIMIT 10
+            | EVAL member2_payload = MEMBER(2, payload)
+            | KEEP %s, payload, member2_payload | LIMIT 10
             """;
         String stableQuery = stages.formatted("stable", "stable");
         Map<String, Object> stable = entityAsMap(runESQLCommand("test-admin", stableQuery));
@@ -368,19 +369,16 @@ public class SequenceSecurityIT extends ESRestTestCase {
     /** Original source metadata retains DLS/FLS after stage and downstream projection. */
     public void testStageSourceRetainsSecurityThroughProjection() throws Exception {
         createSequenceSecurityEvents(true);
-        Map<String, Object> result = entityAsMap(runESQLCommand("sequence_dls_fls", """
-            SEQUENCE BY key WITH {"maxspan":"30s"}
+        Map<String, Object> result = retentionQuery("sequence_dls_fls", """
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
             (FROM sequence-security-events METADATA _id, _index, _source | WHERE phase=="A" | KEEP key, _id, _index, _source),
             (FROM sequence-security-events METADATA _id, _index, _source | WHERE phase=="B" | KEEP key, _id, _index, _source)
-            | KEEP key, stage1._id, stage1._index, stage1._source, stage2._id, stage2._index, stage2._source | LIMIT 10
-            """));
-        List<?> row = singleSequenceRow(result);
-        assertEquals("visible-A", row.get(1));
-        assertEquals("visible-B", row.get(4));
-        assertEquals("sequence-security-events", row.get(2));
-        assertEquals("sequence-security-events", row.get(5));
-        Map<?, ?> firstSource = requireType(Map.class, row.get(3));
-        Map<?, ?> secondSource = requireType(Map.class, row.get(6));
+            | KEEP key | LIMIT 10 | RETURN MATCHES
+            """);
+        Map<?, ?> firstSource = requireType(Map.class, retainedRoleValues(result, 1, "source").getFirst());
+        Map<?, ?> secondSource = requireType(Map.class, retainedRoleValues(result, 2, "source").getFirst());
+        assertRetainedPair(result, 1, firstSource, secondSource);
+        assertEquals("shared", requireType(List.class, requireType(List.class, result.get("values")).getFirst()).getFirst());
         Set<String> granted = Set.of("@timestamp", "key", "phase", "payload", "number");
         assertEquals(granted, firstSource.keySet());
         assertEquals(granted, secondSource.keySet());
@@ -409,27 +407,13 @@ public class SequenceSecurityIT extends ESRestTestCase {
         assertEquals("visible-B", secondSource.get("payload"));
         assertEquals(9007199254740993L, firstSource.get("number"));
         String stages = """
-            SEQUENCE BY key WITH {"maxspan":"30s"}
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
             (FROM sequence-security-events METADATA _id, _index, _source | WHERE phase=="A"),
             (FROM sequence-security-events METADATA _id, _index, _source | WHERE phase=="B")
             """;
-        Map<String, Object> columns = entityAsMap(runESQLCommand("sequence_dls_fls", stages + """
-            | KEEP key, stage1._id, stage1._index, stage1._source, stage2._id, stage2._index, stage2._source | LIMIT 10
-            """));
-        assertEquals(
-            List.of(
-                List.of(
-                    "shared",
-                    "visible-A",
-                    "sequence-security-events",
-                    firstSource,
-                    "visible-B",
-                    "sequence-security-events",
-                    secondSource
-                )
-            ),
-            columns.get("values")
-        );
+        Map<String, Object> columns = retentionQuery("sequence_dls_fls", stages + " | KEEP key | LIMIT 10 | RETURN MATCHES");
+        assertRetainedPair(columns, 1, firstSource, secondSource);
+        assertEquals("shared", requireType(List.class, requireType(List.class, columns.get("values")).getFirst()).getFirst());
     }
 
     /** CSV acceptance must match ordinary source rendering; it is a display format rather than JSON evidence. */
@@ -440,10 +424,10 @@ public class SequenceSecurityIT extends ESRestTestCase {
             | WHERE _id == "visible-A" | KEEP _source | LIMIT 10
             """);
         String sequence = runSourceCsv("""
-            SEQUENCE BY key WITH {"maxspan":"30s"}
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
             (FROM sequence-security-events METADATA _source | WHERE phase=="A"),
             (FROM sequence-security-events METADATA _source | WHERE phase=="B")
-            | KEEP stage1._source | RENAME stage1._source AS _source | LIMIT 10
+            | KEEP _source | LIMIT 10
             """);
         assertEquals(ordinary, sequence);
         assertThat(sequence, containsString("visible-A"));
@@ -488,19 +472,16 @@ public class SequenceSecurityIT extends ESRestTestCase {
             );
             assertOK(adminClient().performRequest(createUser));
             try {
-                Map<String, Object> result = entityAsMap(runESQLCommand(user, """
-                    SEQUENCE BY key WITH {"maxspan":"30s"}
+                Map<String, Object> result = retentionQuery(user, """
+                    SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
                     (FROM sequence-alias-a METADATA _id, _index, _source | KEEP key, _id, _index, _source),
                     (FROM sequence-alias-b METADATA _id, _index, _source | KEEP key, _id, _index, _source)
-                    | KEEP key, stage1._id, stage1._index, stage1._source, stage2._id, stage2._index, stage2._source | LIMIT 10
-                    """));
-                List<?> row = singleSequenceRow(result);
-                assertEquals("visible-A", row.get(1));
-                assertEquals("visible-B", row.get(4));
-                assertEquals("sequence-security-events", row.get(2));
-                assertEquals("sequence-security-events", row.get(5));
-                Map<?, ?> firstSource = requireType(Map.class, row.get(3));
-                Map<?, ?> secondSource = requireType(Map.class, row.get(6));
+                    | KEEP key | LIMIT 10 | RETURN MATCHES
+                    """);
+                Map<?, ?> firstSource = requireType(Map.class, retainedRoleValues(result, 1, "source").getFirst());
+                Map<?, ?> secondSource = requireType(Map.class, retainedRoleValues(result, 2, "source").getFirst());
+                assertRetainedPair(result, 1, firstSource, secondSource);
+                assertEquals("shared", requireType(List.class, requireType(List.class, result.get("values")).getFirst()).getFirst());
                 assertEquals(Set.of("@timestamp", "key", "phase", "payload", "number"), firstSource.keySet());
                 assertFalse(firstSource.containsKey("secret"));
                 assertFalse(firstSource.containsKey("tenant"));
@@ -518,15 +499,6 @@ public class SequenceSecurityIT extends ESRestTestCase {
         }
     }
 
-    private static List<?> singleSequenceRow(Map<String, Object> result) {
-        List<?> rows = requireType(List.class, result.get("values"));
-        assertEquals("hidden predecessors and orphan keys must not complete extra chains", 1, rows.size());
-        List<?> row = requireType(List.class, rows.getFirst());
-        assertEquals(7, row.size());
-        assertEquals("shared", row.getFirst());
-        return row;
-    }
-
     private static <T> T requireType(Class<T> type, Object value) {
         assertTrue("expected " + type.getSimpleName(), type.isInstance(value));
         return type.cast(value);
@@ -536,22 +508,25 @@ public class SequenceSecurityIT extends ESRestTestCase {
     public void testSequenceRetainsDocumentAndFieldSecurityDuringEvidenceReplay() throws Exception {
         createSequenceSecurityEvents();
         String stages = """
-            SEQUENCE BY key WITH {"maxspan":"30s"}
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
             (FROM sequence-security-events | WHERE phase=="A"),
             (FROM sequence-security-events | WHERE phase=="B")
             """;
         Map<String, Object> allowed = entityAsMap(
-            runESQLCommand("sequence_dls_fls", stages + " | KEEP key, stage1.payload, stage1.number, stage2.payload | LIMIT 10")
+            runESQLCommand(
+                "sequence_dls_fls",
+                stages + " | EVAL member2_payload = MEMBER(2, payload) | KEEP key, payload, number, member2_payload | LIMIT 10"
+            )
         );
         assertEquals(List.of(List.of("shared", "visible-A", 9007199254740993L, "visible-B")), allowed.get("values"));
         Map<String, Object> unrestricted = entityAsMap(runESQLCommand("test-admin", stages + " | STATS count(*) | LIMIT 1"));
         assertEquals(List.of(List.of(2)), unrestricted.get("values"));
         ResponseException denied = expectThrows(
             ResponseException.class,
-            () -> runESQLCommand("sequence_dls_fls", stages + " | KEEP stage1.secret | LIMIT 1")
+            () -> runESQLCommand("sequence_dls_fls", stages + " | KEEP secret | LIMIT 1")
         );
         assertEquals(HttpStatus.SC_BAD_REQUEST, denied.getResponse().getStatusLine().getStatusCode());
-        assertThat(EntityUtils.toString(denied.getResponse().getEntity()), containsString("Unknown column [stage1.secret]"));
+        assertThat(EntityUtils.toString(denied.getResponse().getEntity()), containsString("Unknown column [secret]"));
     }
 
     /** Alias grants must authorize every PIT page without granting access to its concrete index. */
@@ -559,20 +534,23 @@ public class SequenceSecurityIT extends ESRestTestCase {
         createSequenceSecurityEvents();
         createSequenceSecurityAliases();
         String stages = """
-            SEQUENCE BY key WITH {"maxspan":"30s"}
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
             (FROM sequence-alias-a),
             (FROM sequence-alias-*,-sequence-alias-a)
             """;
         Map<String, Object> allowed = entityAsMap(
-            runESQLCommand("sequence_alias_only", stages + " | KEEP key, stage1.payload, stage1.number, stage2.payload | LIMIT 10")
+            runESQLCommand(
+                "sequence_alias_only",
+                stages + " | EVAL member2_payload = MEMBER(2, payload) | KEEP key, payload, number, member2_payload | LIMIT 10"
+            )
         );
         assertEquals(List.of(List.of("shared", "visible-A", 9007199254740993L, "visible-B")), allowed.get("values"));
         ResponseException denied = expectThrows(
             ResponseException.class,
-            () -> runESQLCommand("sequence_alias_only", stages + " | KEEP stage1.secret | LIMIT 1")
+            () -> runESQLCommand("sequence_alias_only", stages + " | KEEP secret | LIMIT 1")
         );
         assertEquals(HttpStatus.SC_BAD_REQUEST, denied.getResponse().getStatusLine().getStatusCode());
-        assertThat(EntityUtils.toString(denied.getResponse().getEntity()), containsString("Unknown column [stage1.secret]"));
+        assertThat(EntityUtils.toString(denied.getResponse().getEntity()), containsString("Unknown column [secret]"));
         Request direct = new Request("GET", "sequence-security-events/_search");
         direct.setOptions(runAsUserOptions("sequence_alias_only"));
         ResponseException forbidden = expectThrows(ResponseException.class, () -> client().performRequest(direct));
@@ -584,10 +562,11 @@ public class SequenceSecurityIT extends ESRestTestCase {
         createSequenceSecurityEvents();
         createSequenceSecurityAliases();
         Map<String, Object> allowed = entityAsMap(runESQLCommand("sequence_alias_exclusions", """
-            SEQUENCE BY key WITH {"maxspan":"30s"}
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
             (FROM sequence-alias-*,-sequence-alias-b,-sequence-alias-excluded),
             (FROM sequence-alias-b)
-            | KEEP key, stage1.payload, stage1.number, stage2.payload | LIMIT 10
+            | EVAL member2_payload = MEMBER(2, payload)
+            | KEEP key, payload, number, member2_payload | LIMIT 10
             """));
         assertEquals(List.of(List.of("shared", "visible-A", 9007199254740993L, "visible-B")), allowed.get("values"));
     }
@@ -606,10 +585,11 @@ public class SequenceSecurityIT extends ESRestTestCase {
             """));
         assertEquals(List.of(List.of("visible-A")), ordinary.get("values"));
         Map<String, Object> allowed = entityAsMap(runESQLCommand("sequence_alias_exclusions", """
-            SEQUENCE BY key WITH {"maxspan":"30s"}
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
             (FROM sequence-alias-a),
             (FROM sequence-alias-b,sequence-alias-excluded | WHERE phase=="B")
-            | KEEP key, stage1.payload, stage1.number, stage2.payload | LIMIT 10
+            | EVAL member2_payload = MEMBER(2, payload)
+            | KEEP key, payload, number, member2_payload | LIMIT 10
             """));
         assertEquals(List.of(List.of("shared", "visible-A", 9007199254740993L, "visible-B")), allowed.get("values"));
     }
@@ -635,9 +615,10 @@ public class SequenceSecurityIT extends ESRestTestCase {
             """);
         assertOK(client().performRequest(aliases));
         Map<String, Object> allowed = entityAsMap(runESQLCommand("sequence_alias_only", """
-            SEQUENCE BY key WITH {"maxspan":"30s"}
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
             (FROM sequence-alias-a), (FROM sequence-alias-b)
-            | KEEP key, stage1.payload, stage2.payload | LIMIT 10
+            | EVAL member2_payload = MEMBER(2, payload)
+            | KEEP key, payload, member2_payload | LIMIT 10
             """));
         assertEquals(List.of(), allowed.get("values"));
     }

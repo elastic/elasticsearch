@@ -43,60 +43,114 @@ setup:
           - { "@timestamp": "2026-09-25T21:14:51.389000001Z", key: shared, payload: second, explicit_null: null }
 
 ---
-"Stage source columns render as objects in row JSON":
+"Retained primary and member originals render as objects in row JSON":
   - do:
       esql.query:
         body:
           query: >-
-            SEQUENCE BY key WITH {"maxspan":"30s"}
-            (FROM sequence-source-http-a METADATA _id, _index, _source),
-            (FROM sequence-source-http-b METADATA _id, _index, _source)
-            | KEEP key, stage1._source, stage2._source | LIMIT 1
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+            (FROM sequence-source-http-a), (FROM sequence-source-http-b)
+            | KEEP key | LIMIT 1 | RETURN MATCHES
+  - length: { columns: 8 }
+  - match: { columns.4.name: member_1_source }
+  - match: { columns.4.type: _source }
+  - match: { columns.7.name: member_2_source }
+  - match: { columns.7.type: _source }
   - match:
-      columns:
-        - {name: key, type: keyword}
-        - {name: stage1._source, type: _source}
-        - {name: stage2._source, type: _source}
+      columns.2._meta.sequence.contract:
+        version: 1
+        layout: columns
+        primary_stage: 1
+        member_count: 2
+        keys: [{ name: key, type: keyword, column: c1 }]
+        members:
+          - { stage: 1, index: c2, id: c3, source: c4 }
+          - { stage: 2, index: c5, id: c6, source: c7 }
   - match:
       values:
         - - shared
+          - shared
+          - sequence-source-http-a
+          - A
           - { "@timestamp": "2026-09-25T21:14:51.389000000Z", key: shared, payload: first, number: 9007199254740993,
               unused: { array: [duplicate, null, duplicate], object: {nested: [{value: one}, {value: two}]}, explicit_null: null } }
+          - sequence-source-http-b
+          - B
           - { "@timestamp": "2026-09-25T21:14:51.389000001Z", key: shared, payload: second, explicit_null: null }
   - is_false: sequences
 
 ---
-"Stage source columns retain objects in columnar JSON":
+"Retained primary and member originals retain objects in columnar JSON":
   - do:
       esql.query:
         body:
           query: >-
-            SEQUENCE BY key WITH {"maxspan":"30s"}
-            (FROM sequence-source-http-a METADATA _source), (FROM sequence-source-http-b METADATA _source)
-            | KEEP key, stage1._source, stage2._source | LIMIT 1
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+            (FROM sequence-source-http-a), (FROM sequence-source-http-b)
+            | KEEP key | LIMIT 1 | RETURN MATCHES
           columnar: true
+  - length: { columns: 8 }
+  - match: { columns.4.name: member_1_source }
+  - match: { columns.4.type: _source }
+  - match: { columns.7.name: member_2_source }
+  - match: { columns.7.type: _source }
+  - match:
+      columns.2._meta.sequence.contract:
+        version: 1
+        layout: columns
+        primary_stage: 1
+        member_count: 2
+        keys: [{ name: key, type: keyword, column: c1 }]
+        members:
+          - { stage: 1, index: c2, id: c3, source: c4 }
+          - { stage: 2, index: c5, id: c6, source: c7 }
   - match:
       values:
         - [shared]
+        - [shared]
+        - [sequence-source-http-a]
+        - [A]
         - - { "@timestamp": "2026-09-25T21:14:51.389000000Z", key: shared, payload: first, number: 9007199254740993,
                 unused: { array: [duplicate, null, duplicate], object: {nested: [{value: one}, {value: two}]}, explicit_null: null } }
+        - [sequence-source-http-b]
+        - [B]
         - - { "@timestamp": "2026-09-25T21:14:51.389000001Z", key: shared, payload: second, explicit_null: null }
   - is_false: sequences
 
 ---
-"Stage source columns retain objects with pretty JSON":
+"Retained primary and member originals retain objects with pretty JSON":
   - do:
       esql.query:
         pretty: true
         body:
           query: >-
-            SEQUENCE BY key WITH {"maxspan":"30s"}
-            (FROM sequence-source-http-a METADATA _source), (FROM sequence-source-http-b METADATA _source)
-            | KEEP key, stage1._source, stage2._source | LIMIT 1
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+            (FROM sequence-source-http-a), (FROM sequence-source-http-b)
+            | KEEP key | LIMIT 1 | RETURN MATCHES
+  - length: { columns: 8 }
+  - match: { columns.4.name: member_1_source }
+  - match: { columns.4.type: _source }
+  - match: { columns.7.name: member_2_source }
+  - match: { columns.7.type: _source }
+  - match:
+      columns.2._meta.sequence.contract:
+        version: 1
+        layout: columns
+        primary_stage: 1
+        member_count: 2
+        keys: [{ name: key, type: keyword, column: c1 }]
+        members:
+          - { stage: 1, index: c2, id: c3, source: c4 }
+          - { stage: 2, index: c5, id: c6, source: c7 }
   - match:
       values:
         - - shared
+          - shared
+          - sequence-source-http-a
+          - A
           - { "@timestamp": "2026-09-25T21:14:51.389000000Z", key: shared, payload: first, number: 9007199254740993,
               unused: { array: [duplicate, null, duplicate], object: {nested: [{value: one}, {value: two}]}, explicit_null: null } }
+          - sequence-source-http-b
+          - B
           - { "@timestamp": "2026-09-25T21:14:51.389000001Z", key: shared, payload: second, explicit_null: null }
   - is_false: sequences

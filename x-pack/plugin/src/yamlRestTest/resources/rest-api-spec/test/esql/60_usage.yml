@@ -289,7 +289,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'sequence by host with {"maxspan":"30s"}
+          query: 'sequence by host with {"maxspan":"30s"} PRIMARY 1
             (from test-ts | keep host), (from test-ts | keep host)
             | limit 1'
 

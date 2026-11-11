@@ -62,7 +62,7 @@ public class SequenceStageInputTests extends ESTestCase {
 
     public void testExpandedDerivedValuesKeepOriginalRow() {
         SequenceStage stage = firstStage("""
-            sequence by normalized with {"maxspan":"30s"}
+            sequence by normalized with {"maxspan":"30s"} PRIMARY 1
             (from a | mv_expand labels
               | eval normalized = TO_LOWER(labels), payload = CONCAT(label, "/", labels)
               | where normalized != "skip" | keep normalized, payload),
@@ -93,7 +93,7 @@ public class SequenceStageInputTests extends ESTestCase {
 
     public void testUnionBranchPreservesMergedExpressionIds() {
         SequenceStage stage = firstStage("""
-            sequence by normalized with {"maxspan":"30s"}
+            sequence by normalized with {"maxspan":"30s"} PRIMARY 1
             (from (from a | eval branch = "A"), (from b | eval branch = "B")
               | mv_expand labels
               | eval normalized = TO_LOWER(labels), payload = CONCAT(branch, "/", label, "/", labels)
@@ -123,7 +123,7 @@ public class SequenceStageInputTests extends ESTestCase {
 
     public void testIdentitySurvivesZeroVisibleColumns() {
         SequenceStage stage = firstStage("""
-            sequence with {"maxspan":"30s"} (from a), (from b)
+            sequence with {"maxspan":"30s"} PRIMARY 1 (from a), (from b)
             | stats count(*)
             | limit 3
             """);
@@ -150,7 +150,7 @@ public class SequenceStageInputTests extends ESTestCase {
 
     public void testBindingValidation() {
         SequenceStage stage = firstStage("""
-            sequence by label with {"maxspan":"30s"} (from a | keep label), (from b | keep label) | limit 3
+            sequence by label with {"maxspan":"30s"} PRIMARY 1 (from a | keep label), (from b | keep label) | limit 3
             """);
         var prepared = new SequenceStageInput(stage);
         try (Page raw = new Page(1)) {
@@ -162,7 +162,7 @@ public class SequenceStageInputTests extends ESTestCase {
 
     public void testSourcePredicatePushdownRechecksAndExcludesExpandedFields() {
         var source = new SequenceStageInput(firstStage("""
-            sequence by label with {"maxspan":"30s"}
+            sequence by label with {"maxspan":"30s"} PRIMARY 1
             (from a | where label=="fresh" | keep label), (from b | keep label) | limit 3
             """));
         assertNotNull(source.searchQuery(0));
@@ -178,7 +178,7 @@ public class SequenceStageInputTests extends ESTestCase {
             }
         }
         var expanded = new SequenceStageInput(firstStage("""
-            sequence by labels with {"maxspan":"30s"}
+            sequence by labels with {"maxspan":"30s"} PRIMARY 1
             (from a | mv_expand labels | where labels=="fresh" | keep labels),
             (from b | mv_expand labels | keep labels) | limit 3
             """));
@@ -280,7 +280,7 @@ public class SequenceStageInputTests extends ESTestCase {
         for (String index : List.of("a", "b")) {
             analyzer.addIndex(new EsIndex(index, mapping, Map.of(index, new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of()));
         }
-        var analyzed = analyzer.query(query);
+        var analyzed = analyzer.statement(query);
         var optimizer = new LogicalPlanOptimizer(
             EsqlTestUtils.logicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), TransportVersion.current())
         );

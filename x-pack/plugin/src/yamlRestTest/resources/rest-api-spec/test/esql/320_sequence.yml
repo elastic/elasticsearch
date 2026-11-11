@@ -50,19 +50,20 @@ setup:
       esql.query:
         body:
           query: >-
-            SEQUENCE BY key WITH {"maxspan":"30s"}
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
             (FROM sequence-http-a METADATA _id, _index, _version),
             (FROM sequence-http-b METADATA _id)
-            | KEEP key, stage1._id, stage1._index, stage1._version, stage1.number, stage2._id
+            | EVAL supporting_id = MEMBER(2, _id)
+            | KEEP key, _id, _index, _version, number, supporting_id
             | LIMIT 1
   - match:
       columns:
         - { name: key, type: keyword }
-        - { name: stage1._id, type: keyword }
-        - { name: stage1._index, type: keyword }
-        - { name: stage1._version, type: long }
-        - { name: stage1.number, type: long }
-        - { name: stage2._id, type: keyword }
+        - { name: _id, type: keyword }
+        - { name: _index, type: keyword }
+        - { name: _version, type: long }
+        - { name: number, type: long }
+        - { name: supporting_id, type: keyword }
   - match: { values: [ [ shared, A2, sequence-http-a, 1, 9007199254740993, B3 ] ] }
 
 ---
@@ -71,10 +72,11 @@ setup:
       esql.query:
         body:
           query: >-
-            SEQUENCE BY key WITH {"maxspan":"30s"}
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
             (FROM sequence-http-a METADATA _id), (FROM sequence-http-b METADATA _id)
-            | WHERE stage1._id == "A1"
-            | KEEP key, stage1._id, stage2._id | LIMIT 10
+            | WHERE _id == "A1"
+            | EVAL supporting_id = MEMBER(2, _id)
+            | KEEP key, _id, supporting_id | LIMIT 10
   - length: { values: 0 }
 
 ---
@@ -83,15 +85,16 @@ setup:
       esql.query:
         body:
           query: >-
-            SEQUENCE BY key WITH {"maxspan":"2nanos"}
+            SEQUENCE BY key WITH {"maxspan":"2nanos"} PRIMARY 1
             (FROM sequence-http-a | WHERE payload == "one"), (FROM sequence-http-b)
-            | KEEP key, stage*.payload | LIMIT 1
+            | EVAL supporting_payload = MEMBER(2, payload)
+            | KEEP key, payload, supporting_payload | LIMIT 1
   - match: { values: [ [ shared, one, completion ] ] }
   - do:
       esql.query:
         body:
           query: >-
-            SEQUENCE BY key WITH {"maxspan":"1nanos"}
+            SEQUENCE BY key WITH {"maxspan":"1nanos"} PRIMARY 1
             (FROM sequence-http-a | WHERE payload == "one"), (FROM sequence-http-b)
             | KEEP key | LIMIT 1
   - length: { values: 0 }

@@ -29,14 +29,14 @@ public class SequenceSourceTypeBoundaryIT extends AbstractSequenceIntegTestCase 
     public void testRetainedSpatialFieldFailsVerificationWhilePrunedFieldWorks() {
         createEvents();
         var error = expectThrows(VerificationException.class, () -> run("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-spatial | where phase=="A"), (from sequence-spatial | where phase=="B")
-            | keep key, stage1.location | limit 1
+            | keep key, location | limit 1
             """));
         assertThat(error.getMessage(), containsString("SEQUENCE stage [1] cannot read source column [location] of type [geo_point]"));
         for (String source : List.of("from sequence-spatial", "from (from sequence-spatial), (from sequence-spatial)")) {
             try (var result = run(Strings.format("""
-                sequence by key with {"maxspan":"30s"}
+                sequence by key with {"maxspan":"30s"} PRIMARY 1
                 (%s | where phase=="A"), (from sequence-spatial | where phase=="B")
                 | keep key | limit 1
                 """, source))) {
@@ -48,7 +48,7 @@ public class SequenceSourceTypeBoundaryIT extends AbstractSequenceIntegTestCase 
     public void testSpatialStagePredicateFailsVerification() {
         createEvents();
         var error = expectThrows(VerificationException.class, () -> run("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-spatial | where phase=="A" AND ST_X(location)>0 | keep key),
             (from sequence-spatial | where phase=="B" | keep key)
             | keep key | limit 1
@@ -59,7 +59,7 @@ public class SequenceSourceTypeBoundaryIT extends AbstractSequenceIntegTestCase 
     public void testSpatialMembershipSubqueryUsesOrdinaryExecution() {
         createEvents();
         try (var result = run("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-spatial
               | where phase=="A" AND key IN (from sequence-spatial | where ST_X(location)>0 | keep key)
               | keep key),
@@ -101,7 +101,7 @@ public class SequenceSourceTypeBoundaryIT extends AbstractSequenceIntegTestCase 
         for (String projection : List.of("keep key, source_payload", "eval unused=source_payload | keep key, unused")) {
             try (var result = run(Strings.format("""
                 SET unmapped_fields="LOAD";
-                sequence by key with {"maxspan":"30s"}
+                sequence by key with {"maxspan":"30s"} PRIMARY 1
                 (from sequence-source-only | where phase=="A" | %s),
                 (from sequence-source-only | where phase=="B" | %s)
                 | keep key | limit 1
@@ -116,12 +116,13 @@ public class SequenceSourceTypeBoundaryIT extends AbstractSequenceIntegTestCase 
         createSourceOnlyEvents();
         try (var result = run("""
             SET unmapped_fields="NULLIFY";
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-source-only | where phase=="A"
               | eval typed_null=source_payload::keyword | keep key, source_payload, typed_null),
             (from sequence-source-only | where phase=="B"
               | eval typed_null=source_payload::keyword | keep key, source_payload, typed_null)
-            | keep key, stage1.source_payload, stage1.typed_null, stage2.source_payload, stage2.typed_null
+            | EVAL member2_source_payload = MEMBER(2, source_payload), member2_typed_null = MEMBER(2, typed_null)
+              | keep key, source_payload, typed_null, member2_source_payload, member2_typed_null
             | limit 1
             """)) {
             assertColumnTypes(result.columns(), List.of("keyword", "null", "keyword", "null", "keyword"));
@@ -145,13 +146,13 @@ public class SequenceSourceTypeBoundaryIT extends AbstractSequenceIntegTestCase 
         }
         refresh("sequence-timestamp-millis", "sequence-timestamp-nanos");
         var error = expectThrows(VerificationException.class, () -> run("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-timestamp-* | keep key), (from sequence-timestamp-nanos | keep key)
             | keep key | limit 1
             """));
         assertThat(error.getMessage(), containsString("SEQUENCE source [@timestamp] requires a consistent mapped type"));
         try (var result = run("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-timestamp-millis | keep key), (from sequence-timestamp-nanos | keep key)
             | keep key | limit 1
             """)) {
@@ -182,12 +183,14 @@ public class SequenceSourceTypeBoundaryIT extends AbstractSequenceIntegTestCase 
                 "mv_expand @timestamp | keep key, @timestamp",
                 "mv_expand @timestamp | keep key"
             )) {
-                String output = projection.endsWith("@timestamp") ? "key, stage1.@timestamp, stage2.@timestamp" : "key";
+                String output = projection.endsWith("@timestamp")
+                    ? "EVAL member2_time = MEMBER(2, @timestamp) | KEEP key, @timestamp, member2_time"
+                    : "KEEP key";
                 RuntimeException error = expectThrows(RuntimeException.class, () -> run(Strings.format("""
-                    sequence by key with {"maxspan":"30s"}
+                    sequence by key with {"maxspan":"30s"} PRIMARY 1
                     (from sequence-multitime | where phase=="A" | %s),
                     (from sequence-multitime | where phase=="B" | %s)
-                    | keep %s | limit 1
+                    | %s | limit 1
                     """, projection, projection, output)));
                 assertThat(
                     ExceptionsHelper.stackTrace(error),
@@ -201,7 +204,7 @@ public class SequenceSourceTypeBoundaryIT extends AbstractSequenceIntegTestCase 
             .get();
         refresh("sequence-multitime");
         try (var result = run("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-multitime | where phase=="A" | keep key),
             (from sequence-multitime | where phase=="B" | keep key)
             | keep key | limit 1
@@ -212,10 +215,7 @@ public class SequenceSourceTypeBoundaryIT extends AbstractSequenceIntegTestCase 
 
     private static List<SourceOnlyQuery> sourceOnlyQueries() {
         return List.of(
-            new SourceOnlyQuery(
-                sourceOnlySequence("key", "| keep key, source_payload", "| keep key, stage1.source_payload"),
-                "source_payload"
-            ),
+            new SourceOnlyQuery(sourceOnlySequence("key", "| keep key, source_payload", "| keep key, source_payload"), "source_payload"),
             new SourceOnlyQuery(
                 sourceOnlySequence("key", "| where source_payload==\"payload-A\" | keep key", "| keep key"),
                 "source_payload"
@@ -226,7 +226,7 @@ public class SequenceSourceTypeBoundaryIT extends AbstractSequenceIntegTestCase 
 
     private static String sourceOnlySequence(String key, String firstStage, String projection) {
         return Strings.format("""
-            sequence by %s with {"maxspan":"30s"}
+            sequence by %s with {"maxspan":"30s"} PRIMARY 1
             (from sequence-source-only | where phase=="A" %s),
             (from sequence-source-only | where phase=="B" | keep %s)
             %s | limit 1

@@ -117,14 +117,14 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
         }
     }
 
-    /** Projecting the other stage must preserve default primary and wide payloads, including retained output. */
+    /** Projecting the other stage must preserve the selected primary payloads, including retained output. */
     public void testAsymmetricStageProjectionPreservesSiblingSchema() throws Exception {
         for (int primary : List.of(1, 2)) {
             String first = "(FROM demo-downloads" + (primary == 2 ? " | KEEP host.id" : "") + ")";
             String second = "(FROM demo-executions" + (primary == 1 ? " | KEEP host.id" : "") + ")";
             String actor = primary == 1 ? "downloader" : "runner";
-            for (int mode : List.of(0, 1, 2)) {
-                String presentation = mode == 0 ? "" : " PRIMARY " + primary;
+            for (int mode : List.of(1, 2)) {
+                String presentation = " PRIMARY " + primary;
                 String retention = mode == 2 ? " | RETURN MATCHES" : "";
                 try (var response = query("""
                     SEQUENCE BY host.id WITH {"maxspan":"1m"}%s
@@ -132,16 +132,15 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
                     | LIMIT 10%s
                     """.formatted(presentation, first, second, retention))) {
                     var names = response.columns().stream().map(ColumnInfo::name).toList();
-                    String payload = mode == 0 ? "stage" + primary + ".user.name" : "user.name";
+                    String payload = "user.name";
                     int column = names.indexOf(payload);
                     assertTrue("Missing sibling payload [" + payload + "] in " + names, column >= 0);
                     var values = response.column(column);
                     assertTrue(values.hasNext());
                     assertEquals(actor, values.next());
                     assertFalse(values.hasNext());
-                    if (mode == 0) {
-                        assertFalse(names.contains("stage" + (3 - primary) + ".user.name"));
-                    } else if (mode == 2) {
+                    assertFalse(names.stream().anyMatch(name -> name.startsWith("stage1.") || name.startsWith("stage2.")));
+                    if (mode == 2) {
                         Decoded decoded = checkConsumers(response);
                         assertEquals(1, decoded.rows.size());
                         assertEquals(List.of("D1", "E1"), decoded.rows.getFirst().members.stream().map(Member::id).toList());
@@ -157,12 +156,12 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
         }
     }
 
-    /** Explaining legacy sequence output keeps the ordinary plan-table response. */
-    public void testExplainLegacySequenceUsesOrdinaryPlanSchema() {
+    /** Explaining primary-only sequence output keeps the ordinary plan-table response. */
+    public void testExplainSequenceWithoutRetentionUsesOrdinaryPlanSchema() {
         assertExplainedSequence("""
-            SEQUENCE BY host.id WITH {"maxspan":"1m"}
+            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 1
             (FROM demo-downloads), (FROM demo-executions)
-            | KEEP host.id, stage1.user.name, stage2.user.name | LIMIT 10
+            | KEEP host.id, user.name | LIMIT 10
             """);
     }
 
@@ -249,7 +248,7 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
         }
     }
 
-    /** PRIMARY uses the same explicit scalar-key expansion as the legacy sequence stage contract. */
+    /** PRIMARY preserves the explicit scalar-key expansion in the sequence stage contract. */
     public void testPrimaryPresentationSupportsExpandedStageKeys() throws Exception {
         for (int i = 0; i < 2; i++) {
             Map<String, Object> document = object(list(fixture.get("documents")).get(i));

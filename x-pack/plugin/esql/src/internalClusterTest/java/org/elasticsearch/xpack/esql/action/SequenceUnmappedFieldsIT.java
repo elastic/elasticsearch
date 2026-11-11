@@ -55,7 +55,7 @@ public class SequenceUnmappedFieldsIT extends AbstractSequenceIntegTestCase {
     public void testMappedSequenceFieldsWithNullifyWithoutRetention() {
         assertValue(primary("", "| EVAL observed = label", false), "second", false);
         assertValue(primary("", "| EVAL observed = MEMBER(1, label)", false), "first", false);
-        assertValue(wide("stage1.label"), "first", false);
+        assertValue(firstPrimary("label"), "first", false);
     }
 
     /** Retention is tested separately so a capture-specific failure cannot hide the ordinary controls. */
@@ -102,9 +102,9 @@ public class SequenceUnmappedFieldsIT extends AbstractSequenceIntegTestCase {
         );
     }
 
-    /** Legacy stage qualification must refer to a stage field rather than synthesize a twice-qualified source name. */
-    public void testMissingStageQualifiedFieldNullifies() {
-        assertValue(wide("stage1.absent_optional"), null, false);
+    /** Selecting the first primary must route an absent ordinary field to that member. */
+    public void testMissingFirstPrimaryFieldNullifies() {
+        assertValue(firstPrimary("absent_optional"), null, false);
     }
 
     /** An explicit stage expression may resolve the missing value before the sequence presentation is lowered. */
@@ -185,9 +185,9 @@ public class SequenceUnmappedFieldsIT extends AbstractSequenceIntegTestCase {
             """.formatted(A, firstStageCommands, B, outputCommands, retained ? " | RETURN MATCHES" : "");
     }
 
-    private static String wide(String expression) {
+    private static String firstPrimary(String expression) {
         return NULLIFY + """
-            SEQUENCE BY key WITH {"maxspan":"30s"}
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
             (FROM %s), (FROM %s)
             | EVAL observed = %s | LIMIT 10
             """.formatted(A, B, expression);

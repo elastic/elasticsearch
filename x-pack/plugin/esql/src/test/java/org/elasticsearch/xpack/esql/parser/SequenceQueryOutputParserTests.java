@@ -25,8 +25,16 @@ public class SequenceQueryOutputParserTests extends ESTestCase {
 
     public void testPrimaryKeywordDoesNotReserveFieldName() {
         assertNotNull(TEST_PARSER.createStatement(BASE.replace("BY key", "BY primary")));
-        assertNotNull(TEST_PARSER.createStatement(BASE.replace("BY key", "BY primary").replace(" PRIMARY 2", "")));
+        assertNotNull(TEST_PARSER.createStatement(BASE + " | EVAL selected = primary"));
         rejected(BASE.replace("PRIMARY 2", "UNRELATED 2"), "Expected PRIMARY");
+    }
+
+    /** Every sequence selects its ordinary field context, including queries without retained evidence. */
+    public void testMissingPrimaryRejected() {
+        String sequence = BASE.replace(" PRIMARY 2", "");
+        for (String suffix : new String[] { "", " | KEEP stage1.*", " | RETURN MATCHES", " | EVAL x = MEMBER(1, user.name)" }) {
+            rejected(sequence + suffix, "SEQUENCE requires an explicit PRIMARY member");
+        }
     }
 
     public void testLiteralMemberAndFieldRequired() {
@@ -38,8 +46,6 @@ public class SequenceQueryOutputParserTests extends ESTestCase {
     }
 
     public void testExplicitPrimaryAndTerminalDeclarationRequired() {
-        rejected(BASE.replace(" PRIMARY 2", "") + " | RETURN MATCHES", "explicit PRIMARY");
-        rejected(BASE.replace(" PRIMARY 2", "") + " | EVAL x = MEMBER(1, user.name)", "explicit PRIMARY");
         rejected(BASE.replace("PRIMARY 2", "PRIMARY 0"), "one-based member");
         rejected(BASE.replace("PRIMARY 2", "PRIMARY 3"), "one-based member");
         rejected(BASE + " | RETURN MATCHES | LIMIT 1", "final command");
@@ -60,11 +66,47 @@ public class SequenceQueryOutputParserTests extends ESTestCase {
 
     /** Event transforms remain available without capture, while complete-match retention stays on simple stages. */
     public void testEvidenceStageBoundaryRemainsNarrow() {
-        for (String transform : new String[] { "MV_EXPAND key", "DISSECT key \"%{extracted}\"", "GROK key \"%{WORD:extracted}\"" }) {
-            String query = BASE.replace("(FROM a)", "(FROM a | " + transform + ")");
+        for (String[] transform : new String[][] {
+            { "MV_EXPAND key", "MvExpand" },
+            { "DISSECT key \"%{extracted}\"", "Dissect" },
+            { "GROK key \"%{WORD:extracted}\"", "Grok" } }) {
+            String query = BASE.replace("(FROM a)", "(FROM a\n  | " + transform[0] + ")");
             assertNotNull(TEST_PARSER.createStatement(query));
-            var error = expectThrows(IllegalArgumentException.class, () -> TEST_PARSER.createStatement(query + " | RETURN MATCHES"));
-            assertThat(error.getMessage(), containsString("outside sequence output stage boundary"));
+            var error = expectThrows(ParsingException.class, () -> TEST_PARSER.createStatement(query + " | RETURN MATCHES"));
+            assertEquals("outside sequence output stage boundary: " + transform[1], error.getErrorMessage());
+            assertEquals(2, error.getLineNumber());
+            assertEquals(5, error.getColumnNumber());
+        }
+    }
+
+    /** PRIMARY declarations inside expression-held subqueries must fail before transient nodes reach analysis. */
+    public void testSequenceInMembershipSubqueryIsRejected() {
+        for (String retention : new String[] { "", " | RETURN MATCHES" }) {
+            String sequence = "FROM (" + BASE + retention + ")";
+            String scalar = "key IN (" + sequence + " | KEEP key)";
+            String tuple = "(key, user.name) NOT IN (" + sequence + " | KEEP key, user.name)";
+            for (String query : new String[] {
+                "FROM a | WHERE " + scalar,
+                "FROM a\n| WHERE " + tuple,
+                "FROM a | WHERE key IN (FROM b | WHERE " + scalar + " | KEEP key)",
+                "FROM a | WHERE (key, user.name) IN (FROM b | WHERE " + tuple + " | KEEP key, user.name)",
+                BASE.replace("(FROM a)", "(FROM a | WHERE " + scalar + ")"),
+                "EXPLAIN (FROM a | WHERE " + scalar + ")" }) {
+                var error = expectThrows(ParsingException.class, () -> TEST_PARSER.createStatement(query));
+                assertThat(error.getErrorMessage(), containsString("SEQUENCE is not supported as an IN subquery source"));
+                assertEquals(query.contains("\n") ? 2 : 1, error.getLineNumber());
+                assertTrue("The nested sequence must have a source column", error.getColumnNumber() > 0);
+            }
+        }
+    }
+
+    /** Ordinary membership filters remain available both before matching and after PRIMARY presentation. */
+    public void testOrdinaryMembershipSubqueriesRemainAvailable() {
+        for (String predicate : new String[] { "key IN (FROM c | KEEP key)", "(key, user.name) NOT IN (FROM c | KEEP key, user.name)" }) {
+            assertNotNull(TEST_PARSER.createStatement(BASE + " | WHERE " + predicate));
+            String stages = BASE.replace("(FROM a)", "(FROM a | WHERE " + predicate + ")");
+            assertNotNull(TEST_PARSER.createStatement(stages));
+            assertNotNull(TEST_PARSER.createStatement(stages + " | RETURN MATCHES"));
         }
     }
 
@@ -94,16 +136,14 @@ public class SequenceQueryOutputParserTests extends ESTestCase {
         rejectedLetBody("FROM a | WHERE key IN (FROM b | EVAL key = MEMBER(1, user.name) | KEEP key)");
     }
 
-    /** The output-prototype boundary must not reject ordinary LET or a legacy sequence without output declarations. */
-    public void testOrdinaryAndLegacyLetBindingsRemainAvailable() {
+    /** Ordinary LET remains available; selecting PRIMARY does not expand the sequence LET boundary. */
+    public void testOrdinaryLetBindingsRemainAvailable() {
         var ordinary = TEST_PARSER.createStatement("LET s = (FROM a | KEEP key); FROM s");
         assertEquals(1, ordinary.letBindings().size());
         assertEquals("s", ordinary.letBindings().getFirst().name());
         assertTrue(ordinary.letBindings().getFirst().plan().collect(Sequence.class).isEmpty());
-        var legacy = TEST_PARSER.createStatement("LET s = (" + BASE.replace(" PRIMARY 2", "") + "); FROM s");
-        assertEquals(1, legacy.letBindings().size());
-        assertEquals("s", legacy.letBindings().getFirst().name());
-        assertEquals(1, legacy.letBindings().getFirst().plan().collect(Sequence.class).size());
+        rejectedLetBody(BASE);
+        rejected("LET s = (" + BASE.replace(" PRIMARY 2", "") + "); FROM s", "SEQUENCE requires an explicit PRIMARY member");
     }
 
     private static void rejectedLetBody(String body) {

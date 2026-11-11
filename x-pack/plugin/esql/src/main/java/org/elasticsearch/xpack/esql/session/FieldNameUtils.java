@@ -449,26 +449,6 @@ public class FieldNameUtils {
             Set<String> allFields = new HashSet<>();
             for (String name : fieldNames) {
                 addRelatedFields(includePrefixFields, allFields, name);
-                // SEQUENCE introduces stage prefixes after resolving its event sources. Field caps sees the
-                // underlying index fields, so a downstream reference such as stage1.process.name also requires
-                // process.name. Keep the qualified name as well: an ordinary union branch or stage may contain
-                // an actual index field with that name. Field collection is a conservative query-wide union.
-                parsed.forEachDown(Sequence.class, sequence -> {
-                    for (int stage = 1; stage <= sequence.children().size(); stage++) {
-                        int dot = name.indexOf('.');
-                        if (dot > 0 && Regex.simpleMatch(name.substring(0, dot), "stage" + stage)) {
-                            addRelatedFields(includePrefixFields, allFields, name.substring(dot + 1));
-                            break;
-                        }
-                        int wildcard = name.indexOf('*');
-                        if (dot < 0 && wildcard >= 0 && Regex.simpleMatch(name.substring(0, wildcard) + WILDCARD, "stage" + stage + ".")) {
-                            // A bare wildcard can consume both the stage separator and the payload name. Without
-                            // an underlying field prefix, field caps must discover all possible payload columns.
-                            allFields.add(WILDCARD);
-                            break;
-                        }
-                    }
-                });
             }
             allFields.add(MetadataAttribute.INDEX);
             return new PreAnalysisResult(allFields, wildcardJoinIndices);

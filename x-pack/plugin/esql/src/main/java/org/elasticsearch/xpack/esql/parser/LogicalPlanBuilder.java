@@ -560,7 +560,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             stages.add(new SequenceStage(source(stage), visitSubquery(stage), keys));
         }
         LogicalPlan sequence = new Sequence(source(ctx), stages, maxSpanNanos);
-        if (ctx.primary == null) return sequence;
+        if (ctx.primary == null) {
+            throw new ParsingException(source(ctx), "SEQUENCE requires an explicit PRIMARY member");
+        }
         if (ctx.primaryKeyword.getText().equalsIgnoreCase("primary") == false) {
             throw new ParsingException(source(ctx), "Expected PRIMARY before the selected member number");
         }

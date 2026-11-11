@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ResolvedIndexExpressions;
@@ -34,11 +33,6 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public final class OpenPointInTimeRequest extends UntypedActionRequest implements IndicesRequest.Replaceable {
-    /** Preserves a caller-supplied date-math clock while opening the snapshot. */
-    public static final TransportVersion OPEN_POINT_IN_TIME_ABSOLUTE_START_TIME = TransportVersion.fromName(
-        "esql_sequence_repeatable_input"
-    );
-
     private String[] indices;
     private long absoluteStartMillis = -1;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
@@ -67,7 +61,10 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
         this.indices = Objects.requireNonNull(indices, "[index] is not specified");
     }
 
-    /** Anchors snapshot can-match and index resolution when the PIT implements a larger logical query. */
+    /**
+     * Anchors snapshot can-match and index resolution when the PIT implements a larger logical query.
+     * The supplied clock is coordinator-local and prevents this request from being serialized.
+     */
     public OpenPointInTimeRequest(long absoluteStartMillis, String... indices) {
         this(indices);
         if (absoluteStartMillis < 0) {
@@ -103,17 +100,12 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
         } else {
             this.routingFromSlice = false;
         }
-        if (in.getTransportVersion().supports(OPEN_POINT_IN_TIME_ABSOLUTE_START_TIME)) {
-            absoluteStartMillis = in.readZLong();
-        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (absoluteStartMillis >= 0 && out.getTransportVersion().supports(OPEN_POINT_IN_TIME_ABSOLUTE_START_TIME) == false) {
-            throw new IllegalArgumentException(
-                "A PIT with an explicit start time is not supported in transport version [" + out.getTransportVersion() + "]"
-            );
+        if (absoluteStartMillis >= 0) {
+            throw new IllegalArgumentException("A PIT with an explicit start time is coordinator-local and cannot be serialized");
         }
         super.writeTo(out);
         out.writeStringArray(indices);
@@ -129,9 +121,6 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
             if (out.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION) == false) {
                 out.writeOptionalString(searchSlice());
             }
-        }
-        if (out.getTransportVersion().supports(OPEN_POINT_IN_TIME_ABSOLUTE_START_TIME)) {
-            out.writeZLong(absoluteStartMillis);
         }
     }
 

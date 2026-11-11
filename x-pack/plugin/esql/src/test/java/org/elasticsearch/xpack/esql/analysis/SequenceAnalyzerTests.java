@@ -267,12 +267,13 @@ public class SequenceAnalyzerTests extends ESTestCase {
         }
     }
 
-    public void testTypedWideOutputAndPostSequenceFilter() {
-        var plan = configured().query("""
-            sequence by host.id with {"maxspan":"30s"}
+    public void testTypedPrimaryOutputAndPostSequenceMemberFilter() {
+        var plan = configured().statement("""
+            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
             (from a | eval label = "network" | keep host.id, @timestamp, label),
             (from b | eval label = "process" | keep host.id, @timestamp, label)
-            | where stage2.@timestamp >= stage1.@timestamp
+            | where MEMBER(2, @timestamp) >= @timestamp
+            | eval second_label = MEMBER(2, label)
             """);
         Sequence sequence = plan.collect(Sequence.class).getFirst();
         assertEquals(
@@ -283,6 +284,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
             List.of(DataType.KEYWORD, DataType.DATETIME, DataType.KEYWORD, DataType.DATETIME, DataType.KEYWORD),
             sequence.output().stream().map(Attribute::dataType).toList()
         );
+        assertEquals(List.of("host.id", "@timestamp", "label", "second_label"), plan.output().stream().map(Attribute::name).toList());
         assertTrue(sequence.childrenResolved());
         assertEquals(1, plan.collect(Limit.class).size());
         for (var stage : sequence.children()) {
@@ -293,12 +295,48 @@ public class SequenceAnalyzerTests extends ESTestCase {
         assertWarnings("No limit defined, adding default limit of [1000]");
     }
 
+    /** Generated internal stage names are not query aliases after PRIMARY establishes the ordinary field context. */
+    public void testLegacyStageQualifiedFieldsAreNotPublicAliases() {
+        for (int primary : List.of(1, 2)) {
+            String query = """
+                SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY %s
+                (FROM a | KEEP host.id, label), (FROM b | KEEP host.id, label)
+                """.formatted(primary);
+            var plan = configured().statement(query + " | LIMIT 1");
+            assertEquals(List.of("host.id", "label"), plan.output().stream().map(Attribute::name).toList());
+            configured().statementError(query + " | KEEP stage1.label | LIMIT 1", containsString("Unknown column [stage1.label]"));
+            configured().statementError(query + " | KEEP stage2.label | LIMIT 1", containsString("Unknown column [stage2.label]"));
+        }
+    }
+
+    /** A real mapped primary field remains usable even when its name resembles the retired generated spelling. */
+    public void testStageNamedMappedFieldRemainsOrdinaryPrimaryField() {
+        var fields = new HashMap<>(mapping());
+        fields.put(
+            "stage1",
+            new EsField(
+                "stage1",
+                DataType.OBJECT,
+                Map.of("label", new EsField("label", DataType.KEYWORD, Map.of(), true, NONE)),
+                false,
+                NONE
+            )
+        );
+        var plan = configured().addIndex(index("named_events", fields)).statement("""
+            SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY 1
+            (FROM named_events), (FROM b)
+            | KEEP stage1.label | LIMIT 1
+            """);
+        assertEquals(List.of("stage1.label"), plan.output().stream().map(Attribute::name).toList());
+    }
+
     public void testDerivedExpandedKeysResolveInEachStage() {
-        var plan = configured().query("""
-            sequence by commonkey with {"maxspan":"2m"}
+        var plan = configured().statement("""
+            sequence by commonkey with {"maxspan":"2m"} PRIMARY 1
             (from a | eval commonkey = TO_LOWER(host.id) | mv_expand commonkey | keep commonkey, label),
             (from b | eval commonkey = TO_LOWER(label) | mv_expand commonkey | keep commonkey, label)
-            | keep commonkey, stage1.label, stage2.label
+            | eval second_label = MEMBER(2, label)
+            | keep commonkey, label, second_label
             | limit 4
             """);
         Sequence sequence = plan.collect(Sequence.class).getFirst();
@@ -313,8 +351,8 @@ public class SequenceAnalyzerTests extends ESTestCase {
     }
 
     public void testKeysMustSurviveProjection() {
-        configured().error("""
-            sequence by host.id with {"maxspan":"30s"}
+        configured().statementError("""
+            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
             (from a | keep label), (from b | keep host.id)
             """, containsString("Unknown column [host.id]"));
         assertWarnings("No limit defined, adding default limit of [1000]");
@@ -322,16 +360,16 @@ public class SequenceAnalyzerTests extends ESTestCase {
 
     public void testIndexedSearchRequiresAnExplicitStageBoundary() {
         for (String predicate : List.of("MATCH(label, \"term\")", "QSTR(\"label:term\")", "KQL(\"label:term\")")) {
-            configured().error(Strings.format("""
-                sequence by host.id with {"maxspan":"30s"}
+            configured().statementError(Strings.format("""
+                sequence by host.id with {"maxspan":"30s"} PRIMARY 1
                 (from a | where %s | keep host.id), (from b | keep host.id) | limit 1
                 """, predicate), containsString("is not supported inside a SEQUENCE stage"));
         }
     }
 
     public void testViewStagesRequireTheirOwnRequestFilterScope() {
-        configured().addView("computed_events", "FROM a | EVAL computed = \"yes\"").error("""
-            sequence by host.id with {"maxspan":"30s"}
+        configured().addView("computed_events", "FROM a | EVAL computed = \"yes\"").statementError("""
+            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
             (from computed_events,a | keep host.id, computed), (from b | keep host.id)
             | limit 1
             """, containsString("Views are not supported inside a SEQUENCE stage"));
@@ -345,8 +383,8 @@ public class SequenceAnalyzerTests extends ESTestCase {
             Map.of("remote", List.of("logs")),
             Map.of("remote", List.of("logs"))
         );
-        String message = configured().addIndex(remote).error("""
-            sequence by host.id with {"maxspan":"30s"}
+        String message = configured().addIndex(remote).statementError("""
+            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
             (from remote:logs | keep host.id), (from b | keep host.id)
             | limit 1
             """, containsString("Cross-cluster sources are not supported inside a SEQUENCE stage"));
@@ -354,8 +392,8 @@ public class SequenceAnalyzerTests extends ESTestCase {
     }
 
     public void testConflictingKeyTypes() {
-        configured().error("""
-            sequence by commonkey with {"maxspan":"30s"}
+        configured().statementError("""
+            sequence by commonkey with {"maxspan":"30s"} PRIMARY 1
             (from a | eval commonkey = host.id),
             (from b | eval commonkey = 1)
             """, containsString("SEQUENCE BY column [commonkey] has conflicting types"));
@@ -363,40 +401,43 @@ public class SequenceAnalyzerTests extends ESTestCase {
     }
 
     public void testSourceTimestampRequiredDespiteProjection() {
-        configured().addIndex(index("c", Map.of("host", host()))).error("""
-            sequence by host.id with {"maxspan":"30s"} (from a | keep host.id), (from c | keep host.id)
+        configured().addIndex(index("c", Map.of("host", host()))).statementError("""
+            sequence by host.id with {"maxspan":"30s"} PRIMARY 1 (from a | keep host.id), (from c | keep host.id)
             """, containsString("require a source [@timestamp]"));
-        configured().error("""
-            sequence by host.id with {"maxspan":"30s"}
+        configured().statementError("""
+            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
             (from a | eval @timestamp = NOW()), (from b)
             """, containsString("cannot overwrite the source [@timestamp]"));
         assertWarnings("No limit defined, adding default limit of [1000]");
     }
 
     public void testEmptyKeyAndThreeStages() {
-        var plan = configured().query("""
-            sequence with {"maxspan":"30s"}
+        var plan = configured().statement("""
+            sequence with {"maxspan":"30s"} PRIMARY 1
             (from a | keep label), (from b | keep label), (from a | keep label)
+            | eval second_label = MEMBER(2, label), third_label = MEMBER(3, label)
             """);
-        assertEquals(List.of("stage1.label", "stage2.label", "stage3.label"), plan.output().stream().map(Attribute::name).toList());
+        assertEquals(List.of("label", "second_label", "third_label"), plan.output().stream().map(Attribute::name).toList());
         assertEquals(3, plan.collect(Sequence.class).getFirst().children().size());
         assertWarnings("No limit defined, adding default limit of [1000]");
     }
 
     public void testOldClusterRejectedBeforePlanning() {
-        configured().minimumTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_STAGE_COLUMNS)).error("""
-            sequence by host.id with {"maxspan":"30s"} (from a), (from b)
-            """, containsString("SEQUENCE is not supported by all nodes in the cluster"));
+        configured().minimumTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_STAGE_COLUMNS))
+            .statementError("""
+                sequence by host.id with {"maxspan":"30s"} PRIMARY 1 (from a), (from b)
+                """, containsString("SEQUENCE is not supported by all nodes in the cluster"));
         assertWarnings("No limit defined, adding default limit of [1000]");
     }
 
     public void testOptimizerKeepsCompletedRowLimitsOutsideStages() {
-        var analyzed = configured().query("""
-            sequence by host.id with {"maxspan":"30s"}
+        var analyzed = configured().statement("""
+            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
             (from a | eval transformed = TO_LOWER(label) | keep host.id, transformed),
             (from b | eval transformed = TO_LOWER(label) | keep host.id, transformed)
-            | where stage1.transformed != stage2.transformed
-            | sort stage2.transformed
+            | eval second_transformed = MEMBER(2, transformed)
+            | where transformed != second_transformed
+            | sort second_transformed
             | limit 1 by host.id
             | limit 3
             """);
@@ -416,9 +457,10 @@ public class SequenceAnalyzerTests extends ESTestCase {
     public void testDateNanosSource() {
         var nanosMapping = new HashMap<>(mapping());
         nanosMapping.put("@timestamp", new EsField("@timestamp", DataType.DATE_NANOS, Map.of(), true, NONE));
-        var plan = configured().addIndex(index("nanos", nanosMapping)).query("""
-            sequence by host.id with {"maxspan":"1nanos"}
+        var plan = configured().addIndex(index("nanos", nanosMapping)).statement("""
+            sequence by host.id with {"maxspan":"1nanos"} PRIMARY 1
             (from nanos | keep host.id, @timestamp), (from nanos | keep host.id, @timestamp)
+            | eval other_time = MEMBER(2, @timestamp)
             | limit 3
             """);
         assertEquals(
@@ -433,42 +475,42 @@ public class SequenceAnalyzerTests extends ESTestCase {
             "from a | drop @timestamp | rename label as @timestamp",
             "from a | rename label as time | rename time as @timestamp"
         )) {
-            configured().error(
-                "sequence by host.id with {\"maxspan\":\"30s\"} (" + stage + "), (from b) | limit 1",
+            configured().statementError(
+                "sequence by host.id with {\"maxspan\":\"30s\"} PRIMARY 1 (" + stage + "), (from b) | limit 1",
                 containsString("cannot overwrite the source [@timestamp]")
             );
         }
-        var restored = configured().query("""
-            sequence by host.id with {"maxspan":"30s"}
+        var restored = configured().statement("""
+            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
             (from a | rename @timestamp as original | rename original as @timestamp), (from b)
             | limit 1
             """);
         assertEquals(
             DataType.DATETIME,
-            restored.output().stream().filter(a -> a.name().equals("stage1.@timestamp")).findFirst().orElseThrow().dataType()
+            restored.output().stream().filter(a -> a.name().equals("@timestamp")).findFirst().orElseThrow().dataType()
         );
     }
 
     public void testTimestampRenameThroughUnion() {
-        var restored = configured().query("""
-            sequence by host.id with {"maxspan":"30s"}
+        var restored = configured().statement("""
+            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
             (from (from a), (from b) | rename @timestamp as original | rename original as @timestamp), (from a)
             | limit 1
             """);
         assertEquals(
             DataType.DATETIME,
-            restored.output().stream().filter(a -> a.name().equals("stage1.@timestamp")).findFirst().orElseThrow().dataType()
+            restored.output().stream().filter(a -> a.name().equals("@timestamp")).findFirst().orElseThrow().dataType()
         );
-        configured().error("""
-            sequence by host.id with {"maxspan":"30s"}
+        configured().statementError("""
+            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
             (from (from a), (from b | eval other_time = @timestamp + 1 second | rename other_time as @timestamp)), (from a)
             | limit 1
             """, containsString("cannot overwrite the source [@timestamp]"));
     }
 
     public void testUnusedStagePayloadColumnsArePruned() {
-        var analyzed = configured().query("""
-            sequence by host.id with {"maxspan":"30s"}
+        var analyzed = configured().statement("""
+            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
             (from a | eval unused = TO_LOWER(label)), (from b | eval unused = TO_LOWER(label))
             | keep host.id
             | limit 3
@@ -490,7 +532,9 @@ public class SequenceAnalyzerTests extends ESTestCase {
             for (int stage = 0; stage < 3; stage++) {
                 stages.add("(from a" + (stage == emptyStage ? " | where false" : "") + " | keep host.id, label)");
             }
-            var analyzed = configured().query("sequence by host.id with {\"maxspan\":\"30s\"} " + String.join(", ", stages) + " | limit 3");
+            var analyzed = configured().statement(
+                "sequence by host.id with {\"maxspan\":\"30s\"} PRIMARY 1 " + String.join(", ", stages) + " | limit 3"
+            );
             var optimized = optimizer().optimize(analyzed);
             assertEquals(analyzed.output(), optimized.output());
             assertTrue(optimized.collect(Sequence.class).isEmpty());
@@ -499,8 +543,8 @@ public class SequenceAnalyzerTests extends ESTestCase {
     }
 
     public void testKeylessCountRetainsEventStages() {
-        var analyzed = configured().query("""
-            sequence with {"maxspan":"30s"} (from a), (from b)
+        var analyzed = configured().statement("""
+            sequence with {"maxspan":"30s"} PRIMARY 1 (from a), (from b)
             | stats count(*)
             | limit 3
             """);
@@ -524,9 +568,9 @@ public class SequenceAnalyzerTests extends ESTestCase {
         )) {
             var mapping = new HashMap<>(mapping());
             mapping.put("special", new EsField("special", type, Map.of(), true, NONE));
-            var analyzed = configured().addIndex(index("special_events", mapping)).query("""
-                sequence by host.id with {"maxspan":"30s"} (from special_events), (from b)
-                | keep host.id, stage1.special | limit 3
+            var analyzed = configured().addIndex(index("special_events", mapping)).statement("""
+                sequence by host.id with {"maxspan":"30s"} PRIMARY 1 (from special_events), (from b)
+                | keep host.id, special | limit 3
                 """);
             var error = expectThrows(VerificationException.class, () -> optimizer().optimize(analyzed));
             assertThat(
@@ -545,7 +589,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
             "from (from spatial), (from spatial)"
         )) {
             var analyzed = configured().addIndex(index("spatial", mapping))
-                .query("sequence by host.id with {\"maxspan\":\"30s\"} (" + stage + "), (from b) | keep host.id | limit 3");
+                .statement("sequence by host.id with {\"maxspan\":\"30s\"} PRIMARY 1 (" + stage + "), (from b) | keep host.id | limit 3");
             var optimized = optimizer().optimize(analyzed);
             assertEquals(List.of("host.id"), optimized.output().stream().map(Attribute::name).toList());
         }
@@ -553,9 +597,9 @@ public class SequenceAnalyzerTests extends ESTestCase {
 
     public void testRequiredMixedMappingConversionIsRejectedAfterOptimization() {
         var mapping = mixedMapping();
-        var analyzed = configured().addIndex(index("mixed_events", mapping)).query("""
-            sequence by host.id with {"maxspan":"30s"} (from mixed_events), (from b)
-            | keep host.id, stage1.mixed | limit 3
+        var analyzed = configured().addIndex(index("mixed_events", mapping)).statement("""
+            sequence by host.id with {"maxspan":"30s"} PRIMARY 1 (from mixed_events), (from b)
+            | keep host.id, mixed | limit 3
             """);
         assertThat(
             expectThrows(VerificationException.class, () -> optimizer().optimize(analyzed)).getMessage(),
@@ -566,7 +610,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
     public void testUnusedMixedMappingConversionCanBePruned() {
         for (String stage : List.of("from mixed_events", "from mixed_events | eval unused=mixed+1")) {
             var analyzed = configured().addIndex(index("mixed_events", mixedMapping()))
-                .query("sequence by host.id with {\"maxspan\":\"30s\"} (" + stage + "), (from b) | keep host.id | limit 3");
+                .statement("sequence by host.id with {\"maxspan\":\"30s\"} PRIMARY 1 (" + stage + "), (from b) | keep host.id | limit 3");
             assertEquals(List.of("host.id"), optimizer().optimize(analyzed).output().stream().map(Attribute::name).toList());
         }
     }
@@ -592,16 +636,16 @@ public class SequenceAnalyzerTests extends ESTestCase {
         var mapping = new HashMap<>(mapping());
         mapping.put("location", new EsField("location", DataType.GEO_POINT, Map.of(), true, NONE));
         for (String query : List.of("""
-            sequence by host.id with {"maxspan":"30s"}
+            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
             (from spatial | where ST_X(location)>0 | keep host.id), (from b | keep host.id)
             | keep host.id | limit 3
             """, """
-            sequence by normalized with {"maxspan":"30s"}
+            sequence by normalized with {"maxspan":"30s"} PRIMARY 1
             (from spatial | eval normalized=TO_STRING(location) | keep normalized),
             (from b | eval normalized=label | keep normalized)
             | stats count(*) | limit 3
             """)) {
-            var analyzed = configured().addIndex(index("spatial", mapping)).query(query);
+            var analyzed = configured().addIndex(index("spatial", mapping)).statement(query);
             assertThat(
                 expectThrows(VerificationException.class, () -> optimizer().optimize(analyzed)).getMessage(),
                 containsString("cannot read source column [location] of type [geo_point]")
@@ -612,8 +656,8 @@ public class SequenceAnalyzerTests extends ESTestCase {
     public void testMembershipRightSideKeepsOrdinarySourceTypeSupport() {
         var mapping = new HashMap<>(mapping());
         mapping.put("location", new EsField("location", DataType.GEO_POINT, Map.of(), true, NONE));
-        var analyzed = configured().addIndex(index("spatial", mapping)).query("""
-            sequence by host.id with {"maxspan":"30s"}
+        var analyzed = configured().addIndex(index("spatial", mapping)).statement("""
+            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
             (from a | where host.id IN (from spatial | where ST_X(location)>0 | keep host.id) | keep host.id),
             (from b | keep host.id) | keep host.id | limit 3
             """);
@@ -622,11 +666,12 @@ public class SequenceAnalyzerTests extends ESTestCase {
     }
 
     public void testPhysicalPlanningKeepsStagesBehindCoordinatorSource() {
-        var analyzed = configured().query("""
-            sequence by host.id with {"maxspan":"30s"}
+        var analyzed = configured().statement("""
+            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
             (from a | eval normalized = TO_LOWER(label)), (from b | eval normalized = TO_LOWER(label))
-            | where stage1.normalized != stage2.normalized
-            | sort stage2.normalized
+            | eval second_normalized = MEMBER(2, normalized)
+            | where normalized != second_normalized
+            | sort second_normalized
             | limit 3
             """);
         var optimized = optimizer().optimize(analyzed);

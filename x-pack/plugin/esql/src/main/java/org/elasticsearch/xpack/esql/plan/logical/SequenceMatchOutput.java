@@ -103,6 +103,7 @@ public final class SequenceMatchOutput {
         for (var binding : statement.letBindings()) {
             rejectSequenceOutputInLet(binding.plan());
         }
+        rejectSequenceOutputInMembershipSubqueries(plan);
         List<Declaration> declarations = plan.collect(Declaration.class);
         if (declarations.isEmpty()) {
             plan.forEachExpressionDown(UnresolvedFunction.class, f -> {
@@ -211,6 +212,31 @@ public final class SequenceMatchOutput {
                 } else if (expression instanceof MultiColumnInSubquery in) {
                     pending.add(in.subquery());
                 }
+            });
+            pending.addAll(current.children());
+        }
+    }
+
+    /** Output preparation owns one pipeline; expression-held sequence declarations must not escape unprepared. */
+    private static void rejectSequenceOutputInMembershipSubqueries(LogicalPlan plan) {
+        var pending = new ArrayDeque<LogicalPlan>();
+        pending.add(plan);
+        while (pending.isEmpty() == false) {
+            LogicalPlan current = pending.removeFirst();
+            current.forEachExpression(expression -> {
+                LogicalPlan subquery;
+                if (expression instanceof InSubquery in) {
+                    subquery = in.subquery();
+                } else if (expression instanceof MultiColumnInSubquery in) {
+                    subquery = in.subquery();
+                } else {
+                    return;
+                }
+                List<Declaration> declarations = subquery.collect(Declaration.class);
+                if (declarations.isEmpty() == false) {
+                    throw new ParsingException(declarations.getFirst().source(), "SEQUENCE is not supported as an IN subquery source");
+                }
+                pending.add(subquery);
             });
             pending.addAll(current.children());
         }
@@ -376,7 +402,7 @@ public final class SequenceMatchOutput {
             requireSimpleStage(((UnaryPlan) plan).child());
             return;
         }
-        throw new IllegalArgumentException("outside sequence output stage boundary: " + plan.nodeName());
+        throw new ParsingException(plan.source(), "outside sequence output stage boundary: {}", plan.nodeName());
     }
 
     /** Adds actual member field demands without removing ordinary fields that happen to match a diagnostic label. */

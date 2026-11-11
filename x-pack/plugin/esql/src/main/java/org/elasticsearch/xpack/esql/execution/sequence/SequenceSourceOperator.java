@@ -297,13 +297,15 @@ public final class SequenceSourceOperator extends SourceOperator {
                 // Later-stage events before every eligible start cannot participate. Derive the bound only after
                 // evaluating every first-stage branch, including branches that require multiple filtered pages.
                 // Excluded later-stage hits are not evaluated and therefore do not produce diagnostics.
-                // If none has a candidate, retain the existing scanning and validation behavior.
                 initialTimeBound = earliest;
                 initialTimeBoundReady = true;
             }
             // Yield to the normal driver scheduler even when many unmatched candidates are buffered locally.
             for (int iteration = 0; iteration < 128; iteration++) {
                 context.checkForEarlyTermination();
+                if (noPossibleMatches()) {
+                    return endInput();
+                }
                 Cursor next = null;
                 for (Cursor cursor : cursors) {
                     if (cursor.offset == cursor.rows.size() && cursor.exhausted == false) {
@@ -319,13 +321,7 @@ public final class SequenceSourceOperator extends SourceOperator {
                     }
                 }
                 if (next == null) {
-                    inputExhausted = true;
-                    if (batch != null) {
-                        batch.prepare();
-                        return materialize();
-                    }
-                    finish();
-                    return null;
+                    return endInput();
                 }
                 Candidate row = next.rows.set(next.offset++, null);
                 SequenceMatcher.Match selected;
@@ -372,6 +368,42 @@ public final class SequenceSourceOperator extends SourceOperator {
             finish();
             throw failure;
         }
+    }
+
+    private boolean noPossibleMatches() {
+        for (Cursor cursor : cursors) {
+            if (cursor.stage == 0 && (cursor.exhausted == false || cursor.offset < cursor.rows.size())) {
+                return false;
+            }
+        }
+        // Includes prefixes already advanced into middle stages, not only first-stage slots.
+        return matcher.pendingCandidates() == 0;
+    }
+
+    private Page endInput() throws IOException {
+        inputExhausted = true;
+        if (batch != null) {
+            batch.prepare();
+            return materialize();
+        }
+        finish();
+        return null;
+    }
+
+    private SequenceOrdinal latestReadStart() {
+        SequenceOrdinal latest = null;
+        for (Cursor cursor : cursors) {
+            if (cursor.stage != 0) {
+                continue;
+            }
+            if (cursor.exhausted == false) {
+                return null;
+            }
+            if (cursor.previous != null && (latest == null || cursor.previous.compareTo(latest) > 0)) {
+                latest = cursor.previous;
+            }
+        }
+        return latest;
     }
 
     private static boolean before(Cursor left, Cursor right) {
@@ -489,6 +521,16 @@ public final class SequenceSourceOperator extends SourceOperator {
     }
 
     private void load(Cursor cursor) {
+        if (cursor.stage > 0 && cursor.previous != null) {
+            // getOutput applies stage completions before loading a drained cursor. Fully read first-stage
+            // streams bound even buffered starts; filtered/foreign raw hits only make this bound looser.
+            // End this reader alone: its fetched position cannot expire earlier candidates in other readers.
+            SequenceOrdinal latest = latestReadStart();
+            if (latest != null && cursor.previous.compareTo(latest) >= 0 && cursor.previous.exceedsSpan(latest, sequence.maxSpanNanos())) {
+                cursor.exhausted = true;
+                return;
+            }
+        }
         SearchSourceBuilder source = searchSource(cursor.input, cursor.stage, cursor.branch);
         if (cursor.stage > 0 && initialTimeBound != null) {
             // Keep equal timestamps: the shared PIT ordinal still decides strict event order.

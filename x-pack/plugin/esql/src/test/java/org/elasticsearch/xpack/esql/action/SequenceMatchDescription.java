@@ -18,7 +18,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Decodes the prototype's version-1 retained-match columns by their mandatory descriptor, never their display names.
+ * Test reference reader for the prototype's version-1 retained-match columns, using their mandatory descriptor, never display names.
  * The caller must first admit a completed buffered response with the full column schema (no null-column elision).
  * This validates row association, not completeness, a rule cap, authorization, or durable event/match identity.
  */

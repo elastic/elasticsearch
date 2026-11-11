@@ -125,6 +125,7 @@ returnMatchesCommand
     ;
 
 sequenceCommand
+    // PRIMARY is required by the plan builder; keep the slot optional here to report a clear missing-primary diagnostic.
     : DEV_SEQUENCE (BY qualifiedNames)? WITH mapExpression (primaryKeyword=UNQUOTED_IDENTIFIER primary=INTEGER_LITERAL)? subquery (COMMA subquery)+
     ;
 

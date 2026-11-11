@@ -183,6 +183,9 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             assertNull(harness.source.getOutput());
             var blocked = harness.source.isBlocked().listener();
             assertFalse(blocked.isDone());
+            assertNull(harness.source.getOutput());
+            assertFalse(harness.source.isFinished());
+            assertTrue(harness.client.pending.isEmpty());
             for (long time : new long[] { 40_000, 80_000, 120_000, 160_000 }) {
                 queue.runTasksUpToTimeInOrder(time);
                 var renewal = harness.client.take(TransportSearchAction.TYPE);
@@ -598,8 +601,8 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         for (String index : List.of("a", "b")) {
             analyzer.addIndex(new EsIndex(index, mapping, Map.of(index, new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of()));
         }
-        return analyzer.query("""
-            sequence by key with {"maxspan":"30s"} (from a | keep key), (from b | keep key) | limit 1
+        return analyzer.statement("""
+            sequence by key with {"maxspan":"30s"} PRIMARY 1 (from a | keep key), (from b | keep key) | limit 1
             """).collect(Sequence.class).getFirst();
     }
 

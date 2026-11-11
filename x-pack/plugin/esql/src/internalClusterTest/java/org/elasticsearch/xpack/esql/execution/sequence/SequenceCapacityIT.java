@@ -46,11 +46,12 @@ public class SequenceCapacityIT extends AbstractSequenceIntegTestCase {
     private static final Instant BASE = Instant.parse("2026-09-25T21:14:51.389Z");
     private static final String PAYLOAD_SUFFIX = "/" + "x".repeat(512);
     private static final String SEQUENCE = """
-        sequence by key with {"maxspan":"30s"}
+        sequence by key with {"maxspan":"30s"} PRIMARY 1
         (from sequence-capacity-a metadata _id | where disposition=="candidate" | keep key, _id, payload),
         (from sequence-capacity-b metadata _id | where disposition=="candidate" | keep key, _id, payload)
         """;
-    private static final String PROJECT = "| keep key, stage1._id, stage2._id, stage1.payload, stage2.payload ";
+    private static final String PROJECT = "| eval member2_id = MEMBER(2, _id), member2_payload = MEMBER(2, payload) "
+        + "| keep key, _id, member2_id, payload, member2_payload ";
 
     public void testSparseMatchesWithSelectivePredicatesAndDeferredPayloads() {
         createIndices();
@@ -263,12 +264,13 @@ public class SequenceCapacityIT extends AbstractSequenceIntegTestCase {
         assertFalse(bulk.get().hasFailures());
         refresh(FIRST, SECOND);
         String query = """
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-capacity-a metadata _id | where disposition=="candidate" | mv_expand key
               | eval expanded_payload=concat(payload,"/",key) | keep key, _id, expanded_payload),
             (from sequence-capacity-b metadata _id | where disposition=="candidate" | mv_expand key
               | eval expanded_payload=concat(payload,"/",key) | keep key, _id, expanded_payload)
-            | keep key, stage1._id, stage2._id, stage1.expanded_payload, stage2.expanded_payload
+            | EVAL member2__id = MEMBER(2, _id), member2_expanded_payload = MEMBER(2, expanded_payload)
+              | keep key, _id, member2__id, expanded_payload, member2_expanded_payload
             | limit 200
             """;
         Measured measured = measure("shared_event_expansions", query, new Shape(2, 1, 1));

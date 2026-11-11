@@ -26,7 +26,7 @@ public class SequenceParserTests extends ESTestCase {
 
     public void testStageScopesAndDownstreamPipeline() {
         Limit limit = (Limit) parser.createStatement("""
-            SeQuEnCe BY host.id, user.name WITH {"maxspan": "30s"}
+            SeQuEnCe BY host.id, user.name WITH {"maxspan": "30s"} PRIMARY 2
             (
               FROM network-* METADATA _id, _index
               | WHERE destination.port IN (5985, 5986) AND (source.ip IS NULL OR source.ip != "127.0.0.1")
@@ -37,8 +37,8 @@ public class SequenceParserTests extends ESTestCase {
               | WHERE TO_LOWER(process.parent.name) == "wsmprovhost.exe"
               | EVAL key = CASE(host.id IS NULL, "", host.id)
             )
-            | WHERE stage2.@timestamp >= stage1.@timestamp
-            | SORT stage2.@timestamp DESC
+            | WHERE @timestamp >= MEMBER(1, @timestamp)
+            | SORT @timestamp DESC
             | LIMIT 5
             """).plan();
         Sequence sequence = limit.collect(Sequence.class).getFirst();
@@ -50,22 +50,22 @@ public class SequenceParserTests extends ESTestCase {
     }
 
     public void testNoKeysAndThreeStages() {
-        Sequence sequence = (Sequence) parser.createStatement("""
-            sequence with {"maxspan":"1nanos"}
+        Sequence sequence = parser.createStatement("""
+            sequence with {"maxspan":"1nanos"} primary 3
             (from a | where true), (from b | keep @timestamp), (from c)
-            """).plan();
+            """).plan().collect(Sequence.class).getFirst();
         assertEquals(1, sequence.maxSpanNanos());
         assertEquals(3, sequence.children().size());
         assertTrue(((SequenceStage) sequence.children().getFirst()).keys().isEmpty());
     }
 
     public void testQuotedKeysAndComments() {
-        Sequence sequence = (Sequence) parser.createStatement("""
-            sequence /* header */ by `odd.name`, host.id with {"maxspan":"2m"}
+        Sequence sequence = parser.createStatement("""
+            sequence /* header */ by `odd.name`, host.id with {"maxspan":"2m"} primary 2
             // first
             (from a | keep `odd.name`, host.id),
             /* second */ (from b | mv_expand host.id | keep `odd.name`, host.id)
-            """).plan();
+            """).plan().collect(Sequence.class).getFirst();
         assertEquals(
             List.of("odd.name", "host.id"),
             ((SequenceStage) sequence.children().getFirst()).keys().stream().map(a -> a.name()).toList()
@@ -76,8 +76,10 @@ public class SequenceParserTests extends ESTestCase {
         EsqlParser release = new EsqlParser(new EsqlConfig(false, TEST_FUNCTION_REGISTRY));
         assertEquals(
             "line 1:1: mismatched input 'sequence' expecting {, 'row', 'from', 'ts', 'promql', 'set', 'show'}",
-            expectThrows(ParsingException.class, () -> release.createStatement("sequence with {\"maxspan\":\"30s\"} (from a), (from b)"))
-                .getMessage()
+            expectThrows(
+                ParsingException.class,
+                () -> release.createStatement("sequence with {\"maxspan\":\"30s\"} primary 2 (from a), (from b)")
+            ).getMessage()
         );
     }
 
@@ -116,55 +118,58 @@ public class SequenceParserTests extends ESTestCase {
     }
 
     public void testInvalidOptions() {
-        error("sequence with {} (from a), (from b)", "requires a [maxspan]");
-        error("sequence with {\"maxspan\":\"1s\", \"maxspan\":\"2s\"} (from a), (from b)", "Duplicated named parameters");
-        error("sequence with {\"other\":\"1s\"} (from a), (from b)", "Unknown SEQUENCE option");
+        error("sequence with {} primary 2 (from a), (from b)", "requires a [maxspan]");
+        error("sequence with {\"maxspan\":\"1s\", \"maxspan\":\"2s\"} primary 2 (from a), (from b)", "Duplicated named parameters");
+        error("sequence with {\"other\":\"1s\"} primary 2 (from a), (from b)", "Unknown SEQUENCE option");
         for (String value : List.of("null", "false", "30", "\"0s\"", "\"-1s\"", "\"many\"", "\"9223372036854775807d\"", "{}")) {
-            error("sequence with {\"maxspan\":" + value + "} (from a), (from b)", "SEQUENCE");
+            error("sequence with {\"maxspan\":" + value + "} primary 2 (from a), (from b)", "SEQUENCE");
         }
-        error("sequence by host.id, host.id with {\"maxspan\":\"1s\"} (from a), (from b)", "Duplicate SEQUENCE BY");
+        error("sequence by host.id, host.id with {\"maxspan\":\"1s\"} primary 2 (from a), (from b)", "Duplicate SEQUENCE BY");
     }
 
     public void testStageMustPreserveEvents() {
-        error("sequence with {\"maxspan\":\"30s\"} (row x = 1), (from b)", "stages must start with FROM");
-        error("sequence with {\"maxspan\":\"30s\"} (ts a), (from b)", "stages must start with FROM");
+        error("sequence with {\"maxspan\":\"30s\"} primary 2 (row x = 1), (from b)", "stages must start with FROM");
+        error("sequence with {\"maxspan\":\"30s\"} primary 2 (ts a), (from b)", "stages must start with FROM");
         for (String command : List.of("stats count(*)", "inline stats count(*)", "sort @timestamp", "limit 3", "sample 0.5")) {
-            error("sequence with {\"maxspan\":\"30s\"} (from a | " + command + "), (from b)", "not supported inside a SEQUENCE stage");
+            error(
+                "sequence with {\"maxspan\":\"30s\"} primary 2 (from a | " + command + "), (from b)",
+                "not supported inside a SEQUENCE stage"
+            );
         }
-        error("sequence with {\"maxspan\":\"30s\"} (from a)", "expecting");
+        error("sequence with {\"maxspan\":\"30s\"} primary 1 (from a)", "expecting");
     }
 
     public void testPredicateMembershipSubquery() {
-        Sequence sequence = (Sequence) parser.createStatement("""
-            sequence by host.id with {"maxspan":"2m"}
+        Sequence sequence = parser.createStatement("""
+            sequence by host.id with {"maxspan":"2m"} primary 2
             (from files | where file.path in (from targets | stats by process.executable | keep process.executable)),
             (from targets)
-            """).plan();
+            """).plan().collect(Sequence.class).getFirst();
         assertEquals(2, sequence.children().size());
     }
 
     public void testSequenceInFromSubquery() {
         for (String pipeline : List.of("", " | keep host.id")) {
-            var plan = parser.createStatement("""
+            error("""
                 from (
-                    sequence by host.id with {"maxspan":"30s"} (from a), (from b)
-                """ + pipeline + "), (from targets) | limit 5").plan();
-            assertEquals(1, plan.collect(Sequence.class).size());
+                    sequence by host.id with {"maxspan":"30s"} primary 2 (from a), (from b)
+                """ + pipeline + "), (from targets) | limit 5", "outside the sequence output prototype");
         }
         error(
-            "sequence with {\"maxspan\":\"30s\"} (sequence with {\"maxspan\":\"30s\"} (from a), (from b)), (from b)",
+            "sequence with {\"maxspan\":\"30s\"} primary 2 (sequence with {\"maxspan\":\"30s\"} primary 2 (from a), (from b)), (from b)",
             "stages must start with FROM"
         );
     }
 
     public void testEqlStageCapacity() {
         String stage = "(from events)";
-        Sequence sequence = (Sequence) parser.createStatement(
-            "sequence with {\"maxspan\":\"30s\"} " + String.join(", ", java.util.Collections.nCopies(Sequence.MAX_STAGES, stage))
-        ).plan();
+        Sequence sequence = parser.createStatement(
+            "sequence with {\"maxspan\":\"30s\"} primary 1 " + String.join(", ", java.util.Collections.nCopies(Sequence.MAX_STAGES, stage))
+        ).plan().collect(Sequence.class).getFirst();
         assertEquals(Sequence.MAX_STAGES, sequence.children().size());
         error(
-            "sequence with {\"maxspan\":\"30s\"} " + String.join(", ", java.util.Collections.nCopies(Sequence.MAX_STAGES + 1, stage)),
+            "sequence with {\"maxspan\":\"30s\"} primary 1 "
+                + String.join(", ", java.util.Collections.nCopies(Sequence.MAX_STAGES + 1, stage)),
             "cannot contain more than 256 stages"
         );
     }

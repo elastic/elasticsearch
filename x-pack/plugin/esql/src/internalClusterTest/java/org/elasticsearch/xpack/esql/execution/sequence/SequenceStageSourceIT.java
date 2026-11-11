@@ -11,9 +11,12 @@ import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.action.AbstractSequenceIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.action.SequenceMatchDescription;
 import org.junit.After;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -23,7 +26,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 
-/** Tests original member documents carried by ordinary typed stage source columns. */
+/** Tests ordinary primary source columns and original members returned through the retained-match contract. */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
 public class SequenceStageSourceIT extends AbstractSequenceIntegTestCase {
     private static final String FIRST = "sequence-stage-source-a";
@@ -31,7 +34,7 @@ public class SequenceStageSourceIT extends AbstractSequenceIntegTestCase {
     private static final String THIRD = "sequence-stage-source-c";
     private static final Instant BASE = Instant.parse("2026-09-25T21:14:51.389Z");
     private static final String SEQUENCE = """
-        SEQUENCE BY key WITH {"maxspan":"30s"}
+        SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
         (FROM sequence-stage-source-a METADATA _id, _index, _source | KEEP key, _id, _index, _source),
         (FROM sequence-stage-source-b METADATA _id, _index, _source | KEEP key, _id, _index, _source)
         """;
@@ -56,27 +59,33 @@ public class SequenceStageSourceIT extends AbstractSequenceIntegTestCase {
         seed(SECOND, "B", second);
 
         String query = """
-            SEQUENCE BY key WITH {"maxspan":"30s"}
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
             (FROM sequence-stage-source-a METADATA _id, _index, _source
              | EVAL process.name = "computed-openssl" | RENAME payload AS renamed | DROP user.name
              | KEEP key, process.name, renamed, _id, _index, _source),
             (FROM sequence-stage-source-b METADATA _id, _index, _source
              | EVAL process.name = "computed-archiver" | KEEP key, process.name, _id, _index, _source)
-            | WHERE stage2.process.name == "computed-archiver"
-            | KEEP key, stage1.process.name, stage2.process.name,
-                   stage1._index, stage1._id, stage1._source, stage2._index, stage2._id, stage2._source
+            | EVAL member2_process_name = MEMBER(2, process.name)
+            | WHERE member2_process_name == "computed-archiver"
+            | KEEP key, process.name, member2_process_name
+            | RETURN MATCHES
             """;
         try (var response = run(syncEsqlQueryRequest(query))) {
-            List<List<Object>> rows = getValuesList(response);
+            var rows = retainedRows(response, SequenceMatchDescription.SourcePolicy.REQUIRE_PRESENT);
             assertEquals(1, rows.size());
-            assertTrue(rows.getFirst().get(5) instanceof Map<?, ?>);
-            assertTrue(rows.getFirst().get(8) instanceof Map<?, ?>);
-            assertEquals(List.of(List.of("shared", "computed-openssl", "computed-archiver", FIRST, "A", first, SECOND, "B", second)), rows);
+            assertEquals(List.of("shared", "computed-openssl", "computed-archiver"), rows.getFirst().ordinary());
+            assertEquals(
+                List.of(
+                    new SequenceMatchDescription.Member(1, FIRST, "A", first),
+                    new SequenceMatchDescription.Member(2, SECOND, "B", second)
+                ),
+                rows.getFirst().members()
+            );
         }
     }
 
-    /** A consumer can choose the third member using ordinary columns, including when member IDs are identical. */
-    public void testPrimaryMemberSelectedByColumn() {
+    /** An explicit third primary supplies ordinary source columns even when member IDs are identical. */
+    public void testThirdPrimaryMemberSuppliesOrdinarySourceColumns() {
         createIndex(FIRST);
         createIndex(SECOND);
         createIndex(THIRD);
@@ -88,15 +97,27 @@ public class SequenceStageSourceIT extends AbstractSequenceIntegTestCase {
         seed(THIRD, "same-id", third);
 
         String query = """
-            SEQUENCE BY key WITH {"maxspan":"30s"}
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 3
             (FROM sequence-stage-source-a METADATA _id, _index, _source | KEEP key, _id, _index, _source),
             (FROM sequence-stage-source-b METADATA _id, _index, _source | KEEP key, _id, _index, _source),
             (FROM sequence-stage-source-c METADATA _id, _index, _source | KEEP key, _id, _index, _source)
-            | RENAME stage3._source AS primary_source, stage3._index AS primary_index
-            | KEEP key, primary_index, primary_source, stage1._source, stage2._source
+            | RENAME _source AS primary_source, _index AS primary_index
+            | KEEP key, primary_index, primary_source
+            | RETURN MATCHES
             """;
         try (var response = run(syncEsqlQueryRequest(query))) {
-            assertEquals(List.of(List.of("shared", THIRD, third, first, second)), getValuesList(response));
+            assertEquals(3, SequenceMatchDescription.fromColumns(response.columns()).primaryStage());
+            var rows = retainedRows(response, SequenceMatchDescription.SourcePolicy.REQUIRE_PRESENT);
+            assertEquals(1, rows.size());
+            assertEquals(List.of("shared", THIRD, third), rows.getFirst().ordinary());
+            assertEquals(
+                List.of(
+                    new SequenceMatchDescription.Member(1, FIRST, "same-id", first),
+                    new SequenceMatchDescription.Member(2, SECOND, "same-id", second),
+                    new SequenceMatchDescription.Member(3, THIRD, "same-id", third)
+                ),
+                rows.getFirst().members()
+            );
         }
     }
 
@@ -113,7 +134,7 @@ public class SequenceStageSourceIT extends AbstractSequenceIntegTestCase {
         }
         refresh(FIRST, SECOND);
 
-        Measured withSource = measure("with_source", SEQUENCE + " | KEEP key, stage1._source, stage2._source | SORT key | LIMIT 100");
+        Measured withSource = measure("with_source", SEQUENCE + " | KEEP key | SORT key | LIMIT 100 | RETURN MATCHES");
         Measured keysOnly = measure("keys_only", SEQUENCE + " | KEEP key | SORT key | LIMIT 100");
         Measured countOnly = measure("count_only", SEQUENCE + " | STATS c = COUNT(*)");
         assertEquals(5, withSource.values().size());
@@ -159,8 +180,11 @@ public class SequenceStageSourceIT extends AbstractSequenceIntegTestCase {
         assertTrue(reconstructed instanceof Map<?, ?>);
         assertEquals(List.of("a", "z"), ((Map<?, ?>) reconstructed).get("payload"));
         assertNotEquals(first, reconstructed);
-        try (var response = run(syncEsqlQueryRequest(SEQUENCE + " | KEEP key, stage1._source, stage2._source | LIMIT 1"))) {
-            assertEquals(List.of(List.of("shared", reconstructed, second)), getValuesList(response));
+        try (var response = run(syncEsqlQueryRequest(SEQUENCE + " | KEEP key | LIMIT 1 | RETURN MATCHES"))) {
+            assertEquals(
+                List.of(List.of("shared", reconstructed, second)),
+                retainedSourceValues(response, SequenceMatchDescription.SourcePolicy.REQUIRE_PRESENT)
+            );
         }
     }
 
@@ -176,11 +200,54 @@ public class SequenceStageSourceIT extends AbstractSequenceIntegTestCase {
             assertEquals(1, rows.size());
             assertNull(rows.getFirst().getFirst());
         }
-        try (
-            var response = run(syncEsqlQueryRequest(SEQUENCE + " | KEEP stage1._id, stage1._source, stage2._id, stage2._source | LIMIT 1"))
-        ) {
-            assertEquals(List.of(Arrays.asList("A", null, "B", second)), getValuesList(response));
+        try (var response = run(syncEsqlQueryRequest(SEQUENCE + " | KEEP key | LIMIT 1 | RETURN MATCHES"))) {
+            var rows = retainedRows(response, SequenceMatchDescription.SourcePolicy.ALLOW_NULL);
+            assertEquals(1, rows.size());
+            assertEquals(List.of("shared"), rows.getFirst().ordinary());
+            assertEquals(
+                List.of(
+                    new SequenceMatchDescription.Member(1, FIRST, "A", null),
+                    new SequenceMatchDescription.Member(2, SECOND, "B", second)
+                ),
+                rows.getFirst().members()
+            );
         }
+    }
+
+    /** Expanded analytical stages retain the selected original through ordinary metadata without enabling retained-match expansion. */
+    public void testExpandedStagesExposeSelectedPrimaryOriginal() {
+        createIndex(FIRST);
+        createIndex(SECOND);
+        Map<String, Object> first = source(BASE, List.of("shared", "other"), "first", "alice");
+        Map<String, Object> second = source(BASE.plusNanos(1), "shared", "second", "bob");
+        seed(FIRST, "A", first);
+        seed(SECOND, "B", second);
+        for (int primary : List.of(1, 2)) {
+            try (var response = run("""
+                SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY %s
+                (FROM sequence-stage-source-a METADATA _source | MV_EXPAND key | KEEP key, _source),
+                (FROM sequence-stage-source-b METADATA _source | MV_EXPAND key | KEEP key, _source)
+                | KEEP key, _source | LIMIT 1
+                """.formatted(primary))) {
+                assertEquals(List.of(List.of("shared", primary == 1 ? first : second)), getValuesList(response));
+            }
+        }
+    }
+
+    private static List<SequenceMatchDescription.Row> retainedRows(
+        EsqlQueryResponse response,
+        SequenceMatchDescription.SourcePolicy sourcePolicy
+    ) {
+        var description = SequenceMatchDescription.fromColumns(response.columns());
+        return getValuesList(response).stream().map(row -> description.decodeRow(row, sourcePolicy)).toList();
+    }
+
+    private static List<List<Object>> retainedSourceValues(EsqlQueryResponse response, SequenceMatchDescription.SourcePolicy sourcePolicy) {
+        return retainedRows(response, sourcePolicy).stream().map(row -> {
+            List<Object> values = new ArrayList<>(row.ordinary());
+            row.members().forEach(member -> values.add(member.source()));
+            return values;
+        }).toList();
     }
 
     private Measured measure(String scenario, String query) {
@@ -197,7 +264,12 @@ public class SequenceStageSourceIT extends AbstractSequenceIntegTestCase {
             assertEquals("one native source status must survive query profiling", 1, sources.size());
             SequenceSourceStatus status = sources.getFirst();
             logger.debug("sequence_stage_source scenario={} native_status={}", scenario, status);
-            return new Measured(getValuesList(response), status);
+            return new Measured(
+                query.endsWith("RETURN MATCHES")
+                    ? retainedSourceValues(response, SequenceMatchDescription.SourcePolicy.REQUIRE_PRESENT)
+                    : getValuesList(response),
+                status
+            );
         }
     }
 

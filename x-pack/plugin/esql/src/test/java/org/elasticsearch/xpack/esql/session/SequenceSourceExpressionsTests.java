@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.time.Instant;
@@ -25,9 +27,9 @@ public class SequenceSourceExpressionsTests extends ESTestCase {
 
     public void testSourceNamesResolveBeforeAnalysisAgainstFixedClock() {
         LogicalPlan original = parse("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from <events-{now/d}> metadata _id, _index),
-            (from <events-{now-1d/d}>) | keep key, stage1._id
+            (from <events-{now-1d/d}>) | keep key, _id
             """);
         LogicalPlan resolved = SequenceSourceExpressions.resolve(original, STARTED);
         assertEquals(List.of("events-2026.09.25", "events-2026.09.24"), names(resolved));
@@ -43,23 +45,24 @@ public class SequenceSourceExpressionsTests extends ESTestCase {
 
     public void testExclusionsSelectorsTimezoneAndAliasExpressionsSurvive() {
         LogicalPlan resolved = SequenceSourceExpressions.resolve(parse("""
-            sequence with {"maxspan":"30s"}
+            sequence with {"maxspan":"30s"} PRIMARY 1
             (from events-*, -<events-{now-1d/d}>, routed-alias),
             (from "<events-{now/d{yyyy.MM.dd|+02:00}}>::data")
             """), STARTED);
         assertEquals(List.of("events-*,-events-2026.09.24,routed-alias", "events-2026.09.26::data"), names(resolved));
     }
 
+    /** Exercise internal sibling traversal without claiming public support for an outer union containing a sequence. */
     public void testOrdinarySiblingSourcesRemainUntouched() {
-        LogicalPlan original = parse("""
-            from (sequence with {"maxspan":"30s"} (from <a-{now/d}>), (from <b-{now/d}>)),
-            (from <ordinary-{now/d}>)
+        LogicalPlan sequence = parse("""
+            sequence with {"maxspan":"30s"} PRIMARY 1 (from <a-{now/d}>), (from <b-{now/d}>)
             """);
+        LogicalPlan ordinary = parse("from <ordinary-{now/d}>");
+        LogicalPlan original = new UnionAll(Source.EMPTY, List.of(sequence, ordinary), List.of());
         assertEquals(
             List.of("a-2026.09.25", "b-2026.09.25", "<ordinary-{now/d}>"),
             names(SequenceSourceExpressions.resolve(original, STARTED))
         );
-        LogicalPlan ordinary = parse("from <ordinary-{now/d}>");
         assertSame(ordinary, SequenceSourceExpressions.resolve(ordinary, STARTED));
     }
 

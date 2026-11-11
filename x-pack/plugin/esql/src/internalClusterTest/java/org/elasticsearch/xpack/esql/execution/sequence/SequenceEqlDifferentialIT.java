@@ -423,15 +423,20 @@ public class SequenceEqlDifferentialIT extends AbstractSequenceIntegTestCase {
             .collect(Collectors.joining(", "));
         var output = new ArrayList<String>();
         output.add(key);
-        for (int stage = 1; stage <= predicates.size(); stage++) {
-            output.add("stage" + stage + "._id");
+        output.add("_id");
+        var memberBindings = new StringBuilder();
+        for (int stage = 2; stage <= predicates.size(); stage++) {
+            String alias = "member" + stage + "_id";
+            output.add(alias);
+            memberBindings.append(" | EVAL ").append(alias).append(" = MEMBER(").append(stage).append(", _id)");
         }
         String query = "sequence by "
             + key
             + " with {\"maxspan\":\""
             + maxspan
-            + "\"} "
+            + "\"} PRIMARY 1 "
             + stages
+            + memberBindings
             + " | keep "
             + String.join(", ", output)
             + (sortByKey ? " | sort " + key : "")

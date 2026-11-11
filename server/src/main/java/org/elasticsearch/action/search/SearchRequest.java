@@ -71,9 +71,6 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
 
     private static final long DEFAULT_ABSOLUTE_START_MILLIS = -1;
 
-    /** Preserves a caller-supplied date-math clock across local transport searches. */
-    public static final TransportVersion SEARCH_REQUEST_ABSOLUTE_START_TIME = TransportVersion.fromName("esql_sequence_repeatable_input");
-
     private static final TransportVersion RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE = TransportVersion.fromName(
         "re_remove_min_compatible_shard_node"
     );
@@ -156,6 +153,7 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
     /**
      * Anchors date math to the parent query's start time when several searches implement one logical request.
      * Paging and evidence replay must evaluate relative dates against the same clock, including alias filters.
+     * The supplied clock is coordinator-local and prevents this request from being serialized.
      */
     public SearchRequest(long absoluteStartMillis) {
         if (absoluteStartMillis < 0) {
@@ -327,9 +325,7 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
             absoluteStartMillis = in.readVLong();
             finalReduce = in.readBoolean();
         } else {
-            absoluteStartMillis = in.getTransportVersion().supports(SEARCH_REQUEST_ABSOLUTE_START_TIME)
-                ? in.readZLong()
-                : DEFAULT_ABSOLUTE_START_MILLIS;
+            absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
@@ -374,12 +370,8 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
             // Search binds source membership at local admission; the authorization carrier cannot cross a transport boundary.
             throw new IllegalArgumentException("PIT authorization expressions are coordinator-local and cannot be serialized");
         }
-        if (localClusterAlias == null
-            && absoluteStartMillis != DEFAULT_ABSOLUTE_START_MILLIS
-            && out.getTransportVersion().supports(SEARCH_REQUEST_ABSOLUTE_START_TIME) == false) {
-            throw new IllegalArgumentException(
-                "A search with an explicit start time is not supported in transport version [" + out.getTransportVersion() + "]"
-            );
+        if (localClusterAlias == null && absoluteStartMillis != DEFAULT_ABSOLUTE_START_MILLIS) {
+            throw new IllegalArgumentException("A search with an explicit start time is coordinator-local and cannot be serialized");
         }
         super.writeTo(out);
         out.writeByte(searchType.id());
@@ -401,8 +393,6 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
         if (localClusterAlias != null) {
             out.writeVLong(absoluteStartMillis);
             out.writeBoolean(finalReduce);
-        } else if (out.getTransportVersion().supports(SEARCH_REQUEST_ABSOLUTE_START_TIME)) {
-            out.writeZLong(absoluteStartMillis);
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
         if (out.getTransportVersion().supports(RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE) == false) {

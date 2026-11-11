@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -61,7 +62,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         );
         refresh("sequence-a", "sequence-b");
         try (var response = run(syncEsqlQueryRequest("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-empty-a | keep key), (from sequence-b | keep key)
             | limit 10
             """).includeExecutionMetadata(true))) {
@@ -99,25 +100,38 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
                 .hasFailures()
         );
         refresh("sequence-a", "sequence-b");
-        for (String projection : List.of("stage1.payload, stage2.payload", "stage*.payload")) {
+        for (String projection : List.of("payload, completion_payload", "*payload")) {
             try (var response = run(Strings.format("""
-                sequence by key with {"maxspan":"30s"} (from sequence-a), (from sequence-b)
+                sequence by key with {"maxspan":"30s"} PRIMARY 1 (from sequence-a), (from sequence-b)
+                | EVAL completion_payload = MEMBER(2, payload)
                 | keep key, %s | limit 1
                 """, projection))) {
                 assertValues(response.values(), List.of(List.of("shared", "anchor", "completion")));
             }
         }
         try (var response = run("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-a | eval selected=CONCAT(payload, "/done")), (from sequence-b)
-            | keep key, stage1.selected | limit 1
+            | keep key, selected | limit 1
             """)) {
             assertValues(response.values(), List.of(List.of("shared", "anchor/done")));
         }
     }
 
-    /** Bare stage patterns retain selected payloads, and a limited query reports successful execution when requested. */
-    public void testBareStageWildcardPayloadsWithoutStageKeep() {
+    /** Stage prefixes are internal names and cannot select sibling fields in an authored query. */
+    public void testStageQualifiedPublicOutputIsUnavailable() {
+        createIndices();
+        for (String field : List.of("stage1.payload", "stage2.payload")) {
+            VerificationException failure = expectThrows(VerificationException.class, () -> run("""
+                sequence by key with {"maxspan":"30s"} PRIMARY 1 (from sequence-a), (from sequence-b)
+                | keep %s
+                """.formatted(field)));
+            assertThat(failure.getMessage(), containsString("Unknown column [" + field + "]"));
+        }
+    }
+
+    /** Wildcards expose the selected primary schema without leaking generated stage-column names. */
+    public void testPrimaryWildcardPayloadsWithoutStageKeep() {
         createIndices();
         assertFalse(
             client().prepareBulk()
@@ -130,35 +144,29 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
                 .hasFailures()
         );
         refresh("sequence-a", "sequence-b");
-        for (String pattern : List.of("stage*", "stage1*", "stage2*", "stage*payload")) {
-            try (var response = run(syncEsqlQueryRequest(Strings.format("""
-                sequence by key with {"maxspan":"30s"} (from sequence-a), (from sequence-b)
-                | keep key, %s | limit 1
-                """, pattern)).pragmas(getPragmas()).includeExecutionMetadata(true))) {
-                var rows = response.values();
-                assertTrue(rows.hasNext());
-                var values = rows.next();
-                Map<String, Object> row = new LinkedHashMap<>();
-                for (var column : response.columns()) {
-                    row.put(column.name(), values.next());
+        for (int primary : List.of(1, 2)) {
+            for (String pattern : List.of("payload", "*payload", "*")) {
+                try (var response = run(syncEsqlQueryRequest(Strings.format("""
+                    sequence by key with {"maxspan":"30s"} PRIMARY %s (from sequence-a), (from sequence-b)
+                    | keep key, %s | limit 1
+                    """, primary, pattern)).pragmas(getPragmas()).includeExecutionMetadata(true))) {
+                    var rows = response.values();
+                    assertTrue(rows.hasNext());
+                    var values = rows.next();
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    for (var column : response.columns()) {
+                        assertFalse(column.name(), column.name().startsWith("stage1.") || column.name().startsWith("stage2."));
+                        row.put(column.name(), values.next());
+                    }
+                    assertFalse(values.hasNext());
+                    assertFalse(rows.hasNext());
+                    assertEquals("shared", row.get("key"));
+                    assertEquals(primary == 1 ? "anchor" : "completion", row.get("payload"));
+                    assertEquals(
+                        EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
+                        response.getExecutionInfo().getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).getStatus()
+                    );
                 }
-                assertFalse(values.hasNext());
-                assertFalse(rows.hasNext());
-                assertEquals("shared", row.get("key"));
-                if (pattern.equals("stage2*")) {
-                    assertFalse(row.containsKey("stage1.payload"));
-                } else {
-                    assertEquals("anchor", row.get("stage1.payload"));
-                }
-                if (pattern.equals("stage1*")) {
-                    assertFalse(row.containsKey("stage2.payload"));
-                } else {
-                    assertEquals("completion", row.get("stage2.payload"));
-                }
-                assertEquals(
-                    EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
-                    response.getExecutionInfo().getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).getStatus()
-                );
             }
         }
     }
@@ -175,7 +183,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         );
         refresh("sequence-a", "sequence-b");
         String query = """
-            sequence by key with {"maxspan":"30s"} (from sequence-a), (from sequence-b)
+            sequence by key with {"maxspan":"30s"} PRIMARY 1 (from sequence-a), (from sequence-b)
             | eval view_marker = "matched" | keep key, view_marker
             """;
         // The same body executes outside a view, proving that the fixture has a completed match.
@@ -214,7 +222,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         }
     }
 
-    /** Expression-contained sequences are rejected before wrapping, for scalar/tuple IN, output filters and nested views. */
+    /** Expression-contained sequences are rejected while parsing ordinary queries and view definitions. */
     public void testViewsContainingSequenceInMembershipSubqueryAreRejected() {
         createIndices();
         assertFalse(
@@ -226,7 +234,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         );
         refresh("sequence-a", "sequence-b");
         for (boolean multiColumn : List.of(false, true)) {
-            String sequence = "sequence by key with {\"maxspan\":\"30s\"} (from sequence-a), (from sequence-b)"
+            String sequence = "sequence by key with {\"maxspan\":\"30s\"} PRIMARY 1 (from sequence-a), (from sequence-b)"
                 + (multiColumn ? " | eval key_copy = key | keep key, key_copy" : " | keep key");
             String template = "from sequence-a | where "
                 + (multiColumn ? "(key, key)" : "key")
@@ -241,40 +249,32 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
                 assertThat(parsing.getMessage(), containsString("mismatched input 'by'"));
             }
             String query = Strings.format(template, "from (" + sequence + ")");
-            // Successful controls prove parsing, IN execution and a completed match independently of view rejection.
-            try (var response = run(query)) {
-                assertValues(response.values(), List.of(List.of("shared", "matched")));
-            }
+            ParsingException parsing = expectThrows(ParsingException.class, () -> {
+                try (var ignored = run(query)) {
+                    fail("A SEQUENCE cannot supply the IN subquery source");
+                }
+            });
+            assertThat(parsing.getMessage(), containsString("SEQUENCE is not supported as an IN subquery source"));
+            assertEquals(1, parsing.getLineNumber());
+            assertTrue(parsing.getColumnNumber() > 0);
             String viewName = multiColumn ? "sequence-in-view-multi" : "sequence-in-view";
-            assertAcked(
-                client().execute(
+            RuntimeException definition = expectThrows(
+                RuntimeException.class,
+                () -> client().execute(
                     PutViewAction.INSTANCE,
                     new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(viewName, query))
-                )
+                ).actionGet()
             );
-            assertAcked(
-                client().execute(
-                    PutViewAction.INSTANCE,
-                    new PutViewAction.Request(
-                        TEST_REQUEST_TIMEOUT,
-                        TEST_REQUEST_TIMEOUT,
-                        new View(viewName + "-wrapper", "from " + viewName)
-                    )
-                )
-            );
-            for (String view : List.of(viewName, viewName + "-wrapper")) {
-                for (boolean filtered : List.of(false, true)) {
-                    var request = syncEsqlQueryRequest("from " + view + " | keep key, view_marker").pragmas(getPragmas());
-                    if (filtered) {
-                        request.filter(termQuery("view_marker", "matched"));
-                    }
-                    VerificationException error = expectThrows(VerificationException.class, () -> {
-                        try (var ignored = run(request)) {
-                            fail("A view containing SEQUENCE in an IN expression must not execute");
-                        }
-                    });
-                    assertThat(error.getMessage(), containsString("SEQUENCE is not supported inside view definitions [" + viewName + "]"));
-                }
+            if (definition instanceof ParsingException local) {
+                assertEquals(parsing.getMessage(), local.getMessage());
+                assertEquals(parsing.getLineNumber(), local.getLineNumber());
+                assertEquals(parsing.getColumnNumber(), local.getColumnNumber());
+            } else if (definition instanceof NotSerializableExceptionWrapper remote) {
+                assertEquals("parsing_exception", remote.getExceptionName());
+                assertEquals(parsing.status(), remote.status());
+                assertEquals("parsing_exception: " + parsing.getMessage(), remote.getMessage());
+            } else {
+                throw new AssertionError("Unexpected view definition failure", definition);
             }
         }
     }
@@ -295,9 +295,10 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         assertFalse(bulk.get().hasFailures());
         refresh("sequence-a", "sequence-b");
         try (var response = run("""
-            sequence by key with {"maxspan":"30s"} (from sequence-a), (from sequence-b)
-            | keep key, stage1.payload, stage2.payload
-            | sort stage1.payload desc | limit 1 by key
+            sequence by key with {"maxspan":"30s"} PRIMARY 1 (from sequence-a), (from sequence-b)
+            | EVAL member2_payload = MEMBER(2, payload)
+            | keep key, payload, member2_payload
+            | sort payload desc | limit 1 by key
             """)) {
             assertValues(response.values(), List.of(List.of("shared", "A1", "B1")));
         }
@@ -318,9 +319,10 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         refresh("sequence-a", "sequence-b");
         for (String firstSource : List.of("sequence-a", "sequence-*,-sequence-b", "sequence-a,sequence-missing")) {
             try (var response = run(Strings.format("""
-                sequence by key with {"maxspan":"30s"}
+                sequence by key with {"maxspan":"30s"} PRIMARY 1
                 (from %s), (from sequence-*,-sequence-a)
-                | keep key, stage1.payload, stage2.payload | limit 10
+                | EVAL member2_payload = MEMBER(2, payload)
+                | keep key, payload, member2_payload | limit 10
                 """, firstSource))) {
                 assertValues(response.values(), List.of(List.of("shared", "anchor", "completion")));
             }
@@ -343,11 +345,12 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         assertFalse(bulk.get().hasFailures());
         refresh("sequence-a", "sequence-b");
         try (var response = run(syncEsqlQueryRequest("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-a metadata _id, _index, _version | keep key, payload, _id, _index, _version),
             (from sequence-b metadata _id, _index, _version | eval derived = CONCAT(payload, "/done")
               | keep key, derived, _id, _index, _version)
-            | keep key, stage1._id, stage1._index, stage1._version, stage1.payload, stage2._id, stage2.derived
+            | EVAL member2__id = MEMBER(2, _id), member2_derived = MEMBER(2, derived)
+              | keep key, _id, _index, _version, payload, member2__id, member2_derived
             | limit 1
             """).includeExecutionMetadata(true))) {
             assertValues(response.values(), List.of(List.of("shared", "A1009", "sequence-a", 1L, "value-1009", "B", "completion/done")));
@@ -359,7 +362,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
             assertEquals(Integer.valueOf(0), metadata.getFailedShards());
         }
         try (var response = run("""
-            sequence with {"maxspan":"30s"} (from sequence-a), (from sequence-b)
+            sequence with {"maxspan":"30s"} PRIMARY 1 (from sequence-a), (from sequence-b)
             | stats count(*)
             | limit 1
             """)) {
@@ -384,13 +387,14 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         );
         refresh("sequence-a", "sequence-b");
         try (var response = run("""
-            sequence by normalized with {"maxspan":"30s"}
+            sequence by normalized with {"maxspan":"30s"} PRIMARY 1
             (from sequence-a | where MV_COUNT(labels)==2
               | mv_expand labels | eval normalized=TO_LOWER(labels), selected=CONCAT(payload, "/", labels)
               | keep normalized, selected),
             (from sequence-b | mv_expand labels | eval normalized=TO_LOWER(labels), selected=CONCAT(payload, "/", labels)
               | keep normalized, selected)
-            | keep normalized, stage1.selected, stage2.selected
+            | EVAL member2_selected = MEMBER(2, selected)
+              | keep normalized, selected, member2_selected
             | sort normalized
             | limit 10
             """)) {
@@ -398,7 +402,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         }
     }
 
-    public void testSequenceAndOrdinaryBranchExecutionMetadata() {
+    public void testPrimarySequenceRejectsOuterUnionWhileOrdinaryUnionReportsMetadata() {
         createIndices();
         assertFalse(
             client().prepareBulk()
@@ -408,21 +412,26 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
                 .hasFailures()
         );
         refresh("sequence-a", "sequence-b");
-        try (var response = run(syncEsqlQueryRequest("""
+        ParsingException failure = expectThrows(ParsingException.class, () -> run("""
             from (
-                sequence by key with {"maxspan":"30s"}
+                sequence by key with {"maxspan":"30s"} PRIMARY 1
                 (from sequence-a | keep key), (from sequence-b | keep key)
                 | keep key
             ), (from sequence-a | keep key)
+            | stats count(*)
+            | limit 1
+            """));
+        assertThat(failure.getMessage(), containsString("outside the sequence output prototype"));
+        try (var response = run(syncEsqlQueryRequest("""
+            from (from sequence-a | keep key), (from sequence-b | keep key)
             | stats count(*)
             | limit 1
             """).includeExecutionMetadata(true))) {
             assertValues(response.values(), List.of(List.of(2L)));
             EsqlExecutionInfo.Cluster metadata = response.getExecutionInfo().getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             assertEquals(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, metadata.getStatus());
-            // Native stages share four PIT shards; the independent ordinary branch contributes its two shard searches.
-            assertEquals(Integer.valueOf(6), metadata.getTotalShards());
-            assertEquals(Integer.valueOf(6), metadata.getSuccessfulShards());
+            assertEquals(Integer.valueOf(4), metadata.getTotalShards());
+            assertEquals(Integer.valueOf(4), metadata.getSuccessfulShards());
             assertEquals(Integer.valueOf(0), metadata.getFailedShards());
         }
     }
@@ -445,10 +454,11 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         );
         refresh("sequence-a", "sequence-b");
         var request = syncEsqlQueryRequest("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-a metadata _id | keep key, _id),
             (from sequence-b metadata _id | keep key, _id)
-            | keep stage1._id, stage2._id
+            | EVAL member2__id = MEMBER(2, _id)
+            | keep _id, member2__id
             | limit 1
             """).filter(termQuery("payload", "allowed"));
         try (var response = run(request)) {
@@ -496,12 +506,13 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         assertFalse(bulk.get().hasFailures());
         refresh("sequence-a", "sequence-b");
         try (var response = run("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-a metadata _id | keep key, payload, _id),
             (from sequence-b metadata _id | where payload=="middle" | keep key, _id),
             (from sequence-b metadata _id | where payload=="end" | keep key, _id)
-            | where stage1.payload=="good"
-            | keep key, stage1._id, stage2._id, stage3._id
+            | EVAL member2__id = MEMBER(2, _id), member3__id = MEMBER(3, _id)
+            | where payload=="good"
+            | keep key, _id, member2__id, member3__id
             | limit 10
             """)) {
             assertValues(response.values(), List.of(List.of("valid", "A-valid", "B-valid", "C-valid")));
@@ -525,10 +536,10 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         );
         refresh("sequence-a", "sequence-b");
         try (var response = run("""
-            sequence by normalized with {"maxspan":"30s"}
+            sequence by normalized with {"maxspan":"30s"} PRIMARY 1
             (from sequence-a | mv_expand labels | eval normalized=TO_LOWER(labels), selected=labels | keep normalized, selected),
             (from sequence-b | mv_expand labels | eval normalized=TO_LOWER(labels) | keep normalized)
-            | keep normalized, stage1.selected
+            | keep normalized, selected
             | limit 1
             """)) {
             assertValues(response.values(), List.of(List.of("label00001", "LABEL00001")));
@@ -556,10 +567,11 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         );
         refresh("sequence-no-source");
         try (var response = run("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-no-source metadata _id | where _id=="A" | keep key, _id),
             (from sequence-no-source metadata _id | where _id=="B" | keep key, _id)
-            | keep key, stage1._id, stage2._id
+            | EVAL member2__id = MEMBER(2, _id)
+            | keep key, _id, member2__id
             | limit 1
             """)) {
             assertValues(response.values(), List.of(List.of("shared", "A", "B")));
@@ -593,10 +605,11 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         refresh("sequence-a");
         for (String terminal : List.of("sequence-end", "sequence-a")) {
             try (var response = run(Strings.format("""
-                sequence by key with {"maxspan":"30s"}
+                sequence by key with {"maxspan":"30s"} PRIMARY 1
                 (from sequence-source metadata _id | keep key, _id),
                 (from %s metadata _id | where payload=="end" | keep key, _id)
-                | keep key, stage1._id, stage2._id
+                | EVAL member2__id = MEMBER(2, _id)
+                | keep key, _id, member2__id
                 | limit 10
                 """, terminal))) {
                 assertValues(response.values(), List.of(List.of("shared", "allowed", "end")));
@@ -635,10 +648,11 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         );
         refresh("sequence-a");
         try (var response = run("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-routed metadata _id | where payload=="source" | keep key, _id),
             (from sequence-a metadata _id | where payload=="end" | keep key, _id)
-            | keep key, stage1._id, stage2._id
+            | EVAL member2__id = MEMBER(2, _id)
+            | keep key, _id, member2__id
             | limit 10
             """)) {
             assertValues(response.values(), List.of(List.of("shared", "allowed", "end")));
@@ -664,10 +678,11 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         assertFalse(bulk.get().hasFailures());
         refresh("sequence-a", "sequence-b");
         try (var response = run("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-a metadata _id | keep key, _id),
             (from sequence-b metadata _id | keep key, _id)
-            | keep key, stage1._id, stage2._id
+            | EVAL member2__id = MEMBER(2, _id)
+            | keep key, _id, member2__id
             | sort key
             | limit 10
             """)) {
@@ -688,10 +703,11 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         );
         refresh("sequence-a", "sequence-b", "sequence-unmapped");
         try (var response = run("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-a,sequence-unmapped metadata _id | keep key, _id),
             (from sequence-b metadata _id | keep key, _id)
-            | keep key, stage1._id, stage2._id
+            | EVAL member2__id = MEMBER(2, _id)
+            | keep key, _id, member2__id
             | limit 1
             """)) {
             assertValues(response.values(), List.of(List.of("shared", "A", "B")));
@@ -755,11 +771,11 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
             try (
                 var ordinary = run(firstStage + " | limit 1");
                 var sequence = run(
-                    "sequence by key with {\"maxspan\":\"30s\"} ("
+                    "sequence by key with {\"maxspan\":\"30s\"} PRIMARY 1 ("
                         + firstStage
                         + "), (from "
                         + index
-                        + " | where phase==\"B\" | keep key) | keep key, stage1.* | limit 1"
+                        + " | where phase==\"B\" | keep key) | keep key, * | limit 1"
                 )
             ) {
                 assertEquals(133, sequence.columns().size());
@@ -808,21 +824,23 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         );
         refresh("sequence-a", "sequence-b");
         try (var response = run("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from (from sequence-a metadata _id, _index | where payload=="anchor" | keep key, payload, _id, _index),
                   (from sequence-b metadata _id, _index | where payload=="extra" | keep key, payload, _id, _index)),
             (from sequence-b metadata _id | where payload=="completion" | keep key, _id)
-            | keep key, stage1._id, stage1._index, stage1.payload, stage2._id | limit 1
+            | EVAL member2__id = MEMBER(2, _id)
+            | keep key, _id, _index, payload, member2__id | limit 1
             """)) {
             assertValues(response.values(), List.of(List.of("shared", "extra", "sequence-b", "extra", "complete")));
         }
         try (var response = run("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-a metadata _id
               | where key IN (from sequence-b | where payload=="lookup" | stats by key | keep key)
               | keep key, _id),
             (from sequence-b metadata _id | where payload=="completion" | keep key, _id)
-            | keep key, stage1._id, stage2._id | limit 1
+            | EVAL member2__id = MEMBER(2, _id)
+              | keep key, _id, member2__id | limit 1
             """)) {
             assertValues(response.values(), List.of(List.of("shared", "A", "complete")));
         }
@@ -848,10 +866,11 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         );
         refresh("sequence-a", "sequence-b");
         try (var response = run("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-a | eval key=payload, payload="shadow" | keep key, payload),
             (from sequence-b | where key=="shared" AND payload=="completion" | keep key, payload)
-            | keep key, stage1.payload, stage2.payload | limit 1
+            | EVAL member2_payload = MEMBER(2, payload)
+            | keep key, payload, member2_payload | limit 1
             """)) {
             assertValues(response.values(), List.of(List.of("shared", "shadow", "completion")));
         }
@@ -869,10 +888,11 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         refresh("sequence-a", "sequence-b");
         for (String predicate : List.of("", "| where _score == 0", "| where NOT (_score != 0)")) {
             try (var response = run(Strings.format("""
-                sequence by key with {"maxspan":"30s"}
+                sequence by key with {"maxspan":"30s"} PRIMARY 1
                 (from sequence-a metadata _score %s | keep key, _score),
                 (from sequence-b metadata _score %s | keep key, _score)
-                | keep key, stage1._score, stage2._score | limit 1
+                | EVAL member2__score = MEMBER(2, _score)
+                | keep key, _score, member2__score | limit 1
                 """, predicate, predicate))) {
                 assertValues(response.values(), List.of(List.of("shared", 0.0, 0.0)));
             }

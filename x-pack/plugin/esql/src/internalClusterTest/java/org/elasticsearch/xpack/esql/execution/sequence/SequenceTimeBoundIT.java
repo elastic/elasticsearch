@@ -196,7 +196,7 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
         );
     }
 
-    /** An empty first stage retains the existing scan behavior instead of introducing a second optimization. */
+    /** Once the computed first-stage filter rejects its only row, no later candidate can participate. */
     public void testNoEligibleFirstStage() throws Exception {
         create("date", 1, A, B);
         var bulk = client().prepareBulk();
@@ -204,7 +204,124 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
         add(bulk, B, "B", BASE.plusSeconds(1).toString(), "key", "yes", "7");
         finishSeed(bulk, A, B);
         Outcome last = verify(sequence(branch(A), stage(B)), List.of());
-        assertEquals(2L, last.status.candidateRowsFetched());
+        assertEquals(1L, last.status.candidateRowsFetched());
+        assertEquals(1L, last.status.candidateSearchRequests());
+    }
+
+    /** An empty but mapped first source needs one search and no later candidate work. */
+    public void testEmptyFirstStageSkipsLaterCandidates() throws Exception {
+        create("date", 1, A, B);
+        var bulk = client().prepareBulk();
+        add(bulk, B, "B", BASE.plusSeconds(1).toString(), "key", "yes", "7");
+        finishSeed(bulk, A, B);
+        Outcome result = verify(ordinary(), List.of());
+        assertEquals(0L, result.status.candidateRowsFetched());
+        assertEquals(1L, result.status.candidateSearchRequests());
+    }
+
+    /** A missing key cannot create a prefix, even when the event passes its stage filter. */
+    public void testNullKeyFirstStageSkipsLaterCandidates() throws Exception {
+        create("date", 1, A, B);
+        var bulk = client().prepareBulk();
+        bulk.add(
+            prepareIndex(A).setId("missing-key").setSource(Map.of("@timestamp", BASE.toString(), "disposition", "yes", "payload", "7"))
+        );
+        add(bulk, B, "B", BASE.plusSeconds(1).toString(), "key", "yes", "7");
+        finishSeed(bulk, A, B);
+        Outcome result = verify(ordinary(), List.of());
+        assertEquals(1L, result.status.candidateRowsFetched());
+        assertEquals(1L, result.status.candidateSearchRequests());
+    }
+
+    /** Raw progress can bound a filtered tail before any later-stage candidate reaches the matcher. */
+    public void testFilteredTailWithoutLaterHeadIsBounded() throws Exception {
+        verifyFilteredTail(false);
+    }
+
+    /** Rejected pages must not keep an otherwise expired prefix alive after an unrelated candidate head. */
+    public void testFilteredTailAfterNonmatchingHeadIsBounded() throws Exception {
+        verifyFilteredTail(true);
+    }
+
+    private void verifyFilteredTail(boolean includeHead) throws Exception {
+        create("date", 1, A, B);
+        var bulk = client().prepareBulk();
+        add(bulk, A, "A", BASE.toString(), "key", "yes", "7");
+        if (includeHead) {
+            add(bulk, B, "unrelated-head", BASE.plusSeconds(1).toString(), "other", "yes", "7");
+        }
+        for (int i = 0; i < 1536; i++) {
+            add(bulk, B, "filtered-" + i, BASE.plusSeconds(61).plusMillis(i).toString(), "key", "NO", "7");
+        }
+        finishSeed(bulk, A, B);
+        Outcome result = verify(sequence(stage(A), branch(B)), List.of());
+        assertEquals("read one crossing page, not the whole filtered tail", 2L, result.status.candidateSearchRequests());
+        assertEquals(257L, result.status.candidateRowsFetched());
+    }
+
+    /** A far-future raw page end cannot expire an earlier valid completion in the same page. */
+    public void testMixedPageTailKeepsEarlyCompletion() throws Exception {
+        create("date_nanos", 1, A, B);
+        var bulk = client().prepareBulk();
+        add(bulk, A, "A", BASE.toString(), "key", "yes", "7");
+        add(bulk, B, "B", BASE.plusSeconds(60).toString(), "key", "yes", "7");
+        for (int i = 0; i < 512; i++) {
+            add(bulk, B, "filtered-" + i, BASE.plusSeconds(60).plusNanos(i + 1).toString(), "key", "NO", "7");
+        }
+        finishSeed(bulk, A, B);
+        Outcome result = verify(sequence(stage(A), branch(B)), List.of(List.of("key", "A", "B")));
+        assertEquals(2L, result.status.candidateSearchRequests());
+    }
+
+    /** One filtered branch looking ahead must not discard the sibling branch's valid candidate. */
+    public void testFilteredTailKeepsSiblingCompletion() throws Exception {
+        create("date", 1, A, B, C);
+        var bulk = client().prepareBulk();
+        add(bulk, A, "A", BASE.toString(), "key", "yes", "7");
+        add(bulk, C, "C", BASE.plusSeconds(5).toString(), "key", "yes", "7");
+        for (int i = 0; i < 768; i++) {
+            add(bulk, B, "filtered-" + i, BASE.plusSeconds(61).plusMillis(i).toString(), "key", "NO", "7");
+        }
+        finishSeed(bulk, A, B, C);
+        String later = "from (" + branch(B) + "), (" + stage(C) + ")";
+        Outcome result = verify(sequence(stage(A), later), List.of(List.of("key", "A", "C")));
+        assertEquals(3L, result.status.candidateSearchRequests());
+    }
+
+    /** A filtered reader cannot use a latest-start bound while another start page is still unread. */
+    public void testFilteredTailCannotSkipUnreadLaterStart() throws Exception {
+        create("date", 1, A, B);
+        var bulk = client().prepareBulk();
+        for (int i = 0; i < 256; i++) {
+            add(bulk, A, "early-A" + i, BASE.plusMillis(i).toString(), "unmatched-" + i, "yes", "7");
+        }
+        add(bulk, A, "late-A", BASE.plusSeconds(70).toString(), "late", "yes", "7");
+        add(bulk, B, "early-unrelated-B", BASE.plusMillis(1).toString(), "other", "yes", "7");
+        for (int i = 0; i < 255; i++) {
+            add(bulk, B, "filtered-" + i, BASE.plusSeconds(61).plusMillis(i).toString(), "other", "NO", "7");
+        }
+        add(bulk, B, "late-B", BASE.plusSeconds(80).toString(), "late", "yes", "7");
+        finishSeed(bulk, A, B);
+        verify(sequence(stage(A), branch(B)), List.of(List.of("late", "late-A", "late-B")));
+    }
+
+    /** Whole-source stopping still delivers a final batch smaller than its capacity. */
+    public void testCompletedTailKeepsPartialOutputBatch() throws Exception {
+        create("date", 1, A, B);
+        var bulk = client().prepareBulk();
+        List<List<Object>> expected = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            String key = "key-" + i;
+            add(bulk, A, "A" + i, BASE.plusMillis(i).toString(), key, "yes", "7");
+            add(bulk, B, "B" + i, BASE.plusSeconds(1).plusMillis(i).toString(), key, "yes", "7");
+            expected.add(List.of(key, "A" + i, "B" + i));
+        }
+        for (int i = 0; i < 768; i++) {
+            add(bulk, B, "tail-" + i, BASE.plusSeconds(61).plusMillis(i).toString(), "other", "yes", "7");
+        }
+        finishSeed(bulk, A, B);
+        Outcome result = verify(ordinary(), expected);
+        assertEquals(2L, result.status.candidateSearchRequests());
     }
 
     /** An inclusive time bound leaves tied-event ordering to the existing PIT ordinal comparison. */
@@ -308,14 +425,18 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
     }
 
     private static String chain(String... indices) {
-        StringBuilder query = new StringBuilder("sequence by key with {\"maxspan\":\"60s\"} ");
+        StringBuilder query = new StringBuilder("sequence by key with {\"maxspan\":\"60s\"} PRIMARY 1 ");
         for (int i = 0; i < indices.length; i++) {
             if (i > 0) query.append(", ");
             query.append("(").append(stage(indices[i])).append(")");
         }
-        query.append(" | keep key");
-        for (int i = 0; i < indices.length; i++)
-            query.append(", stage").append(i + 1).append("._id");
+        for (int i = 1; i < indices.length; i++) {
+            query.append(" | EVAL member").append(i + 1).append("_id = MEMBER(").append(i + 1).append(", _id)");
+        }
+        query.append(" | keep key, _id");
+        for (int i = 1; i < indices.length; i++) {
+            query.append(", member").append(i + 1).append("_id");
+        }
         return query.append(" | sort key | limit 100").toString();
     }
 
@@ -388,11 +509,11 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
     }
 
     private static String sequence(String first, String second) {
-        return "sequence by key with {\"maxspan\":\"60s\"} ("
+        return "sequence by key with {\"maxspan\":\"60s\"} PRIMARY 1 ("
             + first
             + "), ("
             + second
-            + ") | keep key, stage1._id, stage2._id | sort key | limit 100";
+            + ") | EVAL member2_id = MEMBER(2, _id) | keep key, _id, member2_id | sort key | limit 100";
     }
 
     private static String ordinary() {

@@ -108,10 +108,10 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
             assertNull(getValuesList(response).getFirst().getFirst());
         }
         try (var response = run(syncEsqlQueryRequest("""
-            sequence by normalized with {"maxspan":"30s"}
+            sequence by normalized with {"maxspan":"30s"} PRIMARY 1
             (from sequence-disabled | where phase=="A" | eval normalized=TO_LOWER(text_delegate)),
             (from sequence-disabled | where phase=="B" | eval normalized=TO_LOWER(text_delegate))
-            | keep normalized, stage1.text_delegate | limit 1
+            | keep normalized, text_delegate | limit 1
             """).pragmas(new QueryPragmas(Settings.EMPTY)))) {
             assertValues(response.values(), List.of(List.of("a full phrase with spaces", "A Full Phrase With Spaces")));
         }
@@ -182,10 +182,10 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
         );
         indexPair("sequence-loading-failure", Map.of());
         RuntimeException failure = expectThrows(RuntimeException.class, () -> run(syncEsqlQueryRequest("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-loading-failure | where phase=="A"),
             (from sequence-loading-failure | where phase=="B")
-            | keep stage1.failure | limit 1
+            | keep failure | limit 1
             """).allowPartialResults(false)));
         assertThat(ExceptionsHelper.stackTrace(failure), containsString("sequence mapped loading failure"));
     }
@@ -194,10 +194,11 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
     public void testDeterministicRuntimeKeyAndPayloadReplay() {
         createRuntimeIndex("sequence-repeatable", "constant");
         try (var response = run("""
-            sequence by changing with {"maxspan":"30s"}
+            sequence by changing with {"maxspan":"30s"} PRIMARY 1
             (from sequence-repeatable | where phase=="A" | eval payload=changing+1),
             (from sequence-repeatable | where phase=="B" | eval payload=changing+1)
-            | keep changing, stage1.phase, stage2.payload | limit 1
+            | EVAL member2_payload = MEMBER(2, payload)
+            | keep changing, phase, member2_payload | limit 1
             """)) {
             assertValues(response.values(), List.of(List.of(1L, "A", 2L)));
         }
@@ -207,11 +208,11 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
     public void testNondeterministicRuntimeKeyAndPredicateAreRejected() {
         createRuntimeIndex("sequence-nondeterministic", "changing");
         for (String query : List.of("""
-            sequence by changing with {"maxspan":"30s"}
+            sequence by changing with {"maxspan":"30s"} PRIMARY 1
             (from sequence-nondeterministic | where phase=="A"), (from sequence-nondeterministic | where phase=="B")
             | keep changing | limit 1
             """, """
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-nondeterministic | where phase=="A" and changing<0),
             (from sequence-nondeterministic | where phase=="B")
             | keep key | limit 1
@@ -231,7 +232,7 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
         );
         indexPair("sequence-runtime-time", Map.of());
         assertNonRepeatable("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-runtime-time | where phase=="A"), (from sequence-runtime-time | where phase=="B")
             | keep key | limit 1
             """, "nondeterministic runtime field [@timestamp]");
@@ -242,18 +243,50 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
     public void testNondeterministicOutputOnlyRuntimeIsRejectedWithoutMatch() {
         createRuntimeIndex("sequence-output-runtime", "changing");
         assertNonRepeatable("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-output-runtime | where phase=="A"), (from sequence-output-runtime | where phase=="missing")
-            | keep stage1.changing | limit 1
+            | keep changing | limit 1
             """, "nondeterministic runtime field [changing]");
         assertEquals(0, FailingRuntimeFieldPlugin.EXECUTIONS.get());
+    }
+
+    /** An irrelevant later source is not globally linted after compute rejects every possible start. */
+    public void testNondeterministicLaterDemandIsUnvisitedWithoutEligibleStart() {
+        String query = createNondeterministicLaterDemandQuery(0);
+        try (var response = run(syncEsqlQueryRequest(query).allowPartialResults(false))) {
+            assertValues(response.values(), List.of());
+        }
+        assertEquals(0, FailingRuntimeFieldPlugin.EXECUTIONS.get());
+    }
+
+    /** Changing only the first-stage computed predicate makes the same later demand mandatory to validate. */
+    public void testNondeterministicLaterDemandIsRejectedWithEligibleStart() {
+        String query = createNondeterministicLaterDemandQuery(2);
+        assertNonRepeatable(query, "nondeterministic runtime field [changing]");
+        assertEquals(0, FailingRuntimeFieldPlugin.EXECUTIONS.get());
+    }
+
+    private String createNondeterministicLaterDemandQuery(int accepted) {
+        var properties = baseProperties();
+        properties.put("payload", Map.of("type", "keyword"));
+        createIndex("sequence-runtime-first", Map.of("properties", properties), Settings.EMPTY);
+        indexPair("sequence-runtime-first", Map.of("payload", "1"));
+        createRuntimeIndex("sequence-runtime-later", "changing");
+        return Strings.format("""
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            (from sequence-runtime-first | where phase=="A"
+                | eval eligible=LENGTH(phase)+TO_LONG(payload) | where eligible==%s),
+            (from sequence-runtime-later | where phase=="B")
+            | EVAL later_value = MEMBER(2, changing)
+            | keep key, later_value | limit 1
+            """, accepted);
     }
 
     /** Unsupported unused runtime fields are pruned, and ordinary ES|QL keeps its existing evaluation semantics. */
     public void testUnusedNondeterministicRuntimeIsPrunedAndOrdinaryQueryIsUnchanged() {
         createRuntimeIndex("sequence-unused-runtime", "changing");
         try (var response = run("""
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-unused-runtime | where phase=="A"), (from sequence-unused-runtime | where phase=="B")
             | keep key | limit 1
             """)) {
@@ -281,7 +314,7 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
         );
         indexPair("sequence-runtime-dependency", Map.of());
         assertNonRepeatable("""
-            sequence by dependent with {"maxspan":"30s"}
+            sequence by dependent with {"maxspan":"30s"} PRIMARY 1
             (from sequence-runtime-dependency | where phase=="A"), (from sequence-runtime-dependency | where phase=="B")
             | keep dependent | limit 1
             """, "nondeterministic runtime field [changing]");
@@ -292,7 +325,7 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
     public void testNondeterministicRequestFilterIsRejectedAndFixedNowRemainsSupported() {
         createRuntimeIndex("sequence-filter-runtime", "constant");
         String query = """
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-filter-runtime | where phase=="A"), (from sequence-filter-runtime | where phase=="B")
             | keep key | limit 1
             """;
@@ -357,7 +390,7 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
                 assertValues(ordinary.values(), List.of(List.of(2L)));
             }
             try (var fresh = run("""
-                sequence by changing with {"maxspan":"30s"}
+                sequence by changing with {"maxspan":"30s"} PRIMARY 1
                 (from sequence-runtime-epoch | where phase=="A"), (from sequence-runtime-epoch | where phase=="B")
                 | keep changing | limit 1
                 """)) {
@@ -402,7 +435,7 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
                 assertThat(ExceptionsHelper.stackTrace(failure), containsString("mapping changes since the PIT reader was opened"));
             }
             try (var fresh = run("""
-                sequence by changing with {"maxspan":"30s"}
+                sequence by changing with {"maxspan":"30s"} PRIMARY 1
                 (from sequence-unrelated-dynamic-field | where phase=="A"),
                 (from sequence-unrelated-dynamic-field | where phase=="B")
                 | keep changing | limit 1
@@ -558,13 +591,13 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
             );
         }
         String sequence = """
-            sequence by key with {"maxspan":"30s"}
+            sequence by key with {"maxspan":"30s"} PRIMARY 1
             (from sequence-mixed-* | where phase=="A"),
             (from sequence-mixed-* | where phase=="B")
             """;
         var failure = expectThrows(
             VerificationException.class,
-            () -> run(syncEsqlQueryRequest(sequence + " | keep stage1.payload_time | limit 1").pragmas(pragmas))
+            () -> run(syncEsqlQueryRequest(sequence + " | keep payload_time | limit 1").pragmas(pragmas))
         );
         assertThat(failure.getMessage(), containsString("source column [payload_time] requiring a conversion across mappings"));
         try (var pruned = run(syncEsqlQueryRequest(sequence + " | keep key | limit 1").pragmas(pragmas))) {
@@ -579,18 +612,13 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
                 String phase = stage == 1 ? "A" : "B";
                 String ordinary = "from " + index + " | where phase==\"" + phase + "\" " + derivation;
                 String sequence = Strings.format("""
-                    sequence by key with {"maxspan":"30s"}
+                    sequence by key with {"maxspan":"30s"} PRIMARY %s
                     (from %s | where phase=="A" %s), (from %s | where phase=="B" %s)
-                    """, index, derivation, index, derivation);
+                    """, stage, index, derivation, index, derivation);
                 String projection = String.join(", ", columns);
-                final int stageNumber = stage;
-                String qualified = String.join(
-                    ", ",
-                    columns.stream().map(column -> column.equals("key") ? column : "stage" + stageNumber + "." + column).toList()
-                );
                 try (
                     var ordinaryResponse = run(syncEsqlQueryRequest(ordinary + " | keep " + projection + " | limit 1").pragmas(pragmas));
-                    var sequenceResponse = run(syncEsqlQueryRequest(sequence + " | keep " + qualified + " | limit 1").pragmas(pragmas))
+                    var sequenceResponse = run(syncEsqlQueryRequest(sequence + " | keep " + projection + " | limit 1").pragmas(pragmas))
                 ) {
                     assertEquals(getValuesList(ordinaryResponse), getValuesList(sequenceResponse));
                     assertEquals(

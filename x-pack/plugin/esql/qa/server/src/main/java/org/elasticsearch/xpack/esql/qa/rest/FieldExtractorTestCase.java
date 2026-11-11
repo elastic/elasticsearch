@@ -391,6 +391,19 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         new Test("flattened").nullValue(replacement).test(input, equalTo(expected));
     }
 
+    public void testFlattenedFieldIgnoreAbove() throws IOException {
+        assumeFlattenedDatatype();
+        // As for a keyword field, a value over ignore_above is not read
+        Map<String, Object> input = new TreeMap<>();
+        input.put("short", randomAlphaOfLength(5));
+        input.put("long", randomAlphaOfLength(20));
+        input.put("mixed", List.of(randomAlphaOfLength(5), randomAlphaOfLength(20)));
+        Map<String, Object> expected = new TreeMap<>();
+        expected.put("short", input.get("short"));
+        expected.put("mixed", ((List<?>) input.get("mixed")).getFirst());
+        new Test("flattened").ignoreAbove(10).test(input, equalTo(expected));
+    }
+
     public void testEmptyMapping() throws IOException {
         createIndex("test", index -> {});
         index("test", """

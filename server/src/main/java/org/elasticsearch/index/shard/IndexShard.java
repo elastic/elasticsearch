@@ -271,7 +271,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     // mutex for creating/closing the engine
     private final Object engineMutex = new Object(); // lock ordering: engineMutex -> engineResetLock -> mutex
-    // read/write lock for reseting the engine
+    // read/write lock for resetting the engine
     private final EngineResetLock engineResetLock = new EngineResetLock();
     // reference to the current engine
     private final AtomicReference<Engine> currentEngine = new AtomicReference<>(); // must be accessed holding engineResetLock
@@ -2048,7 +2048,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void close(String reason, boolean flushEngine, Executor closeExecutor, ActionListener<Void> closeListener) throws IOException {
         assert assertNoEngineResetLock();
         synchronized (engineMutex) {
-            // The engineMutex prevents any other engine changes (like reseting the engine) to run concurrently, so we acquire the engine
+            // The engineMutex prevents any other engine changes (like resetting the engine) to run concurrently, so we acquire the engine
             // read lock here just to respect the lock ordering (engineMutex -> engineResetLock -> mutex).
             engineResetLock.readLock().lock();
             try {
@@ -5007,7 +5007,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * In general, resetting the engine should be done with care, to consider any in-progress operations and listeners.
      * At the moment, this is implemented in serverless for a special case that ensures the engine is prepared for reset.
-     * Reseting the engine can prevent non-blocking engine refreshes (see {@link Engine#maybeRefresh(String, ActionListener)} to be
+     * Resetting the engine can prevent non-blocking engine refreshes (see {@link Engine#maybeRefresh(String, ActionListener)} to be
      * immediately executed, so it is expected that the new engine instance provides refreshed readers (if supported) after the reset.
      *
      * @param postResetNewEngineConsumer A consumer that will be called with the newly created engine after the reset

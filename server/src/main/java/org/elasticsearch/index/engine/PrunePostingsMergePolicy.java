@@ -32,7 +32,7 @@ import java.util.Iterator;
  * useful to guarantee consistent update performance even if a large number of deleted / updated documents
  * are retained. Merging postings away is efficient since lucene visits postings term by term and
  * with the original live-docs being available we are adding a negotiable overhead such that we can
- * prune soft-deletes by default. Yet, using this merge policy will cause loosing all search capabilities on top of
+ * prune soft-deletes by default. Yet, using this merge policy will cause losing all search capabilities on top of
  * soft deleted documents independent of the retention policy. Note, in order for this merge policy to be effective it needs to be added
  * before the {@link org.apache.lucene.index.SoftDeletesRetentionMergePolicy} because otherwise only documents that are deleted / removed
  * anyways will be pruned.

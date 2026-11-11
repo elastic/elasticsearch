@@ -380,7 +380,7 @@ public abstract class Engine implements Closeable {
         if (liveDocs instanceof LiveDocs) {
             return true;
         }
-        // These classes are package protected in Lucene and therefor we compare fully qualified classnames as strings here:
+        // These classes are package protected in Lucene and therefore we compare fully qualified classnames as strings here:
         String fullClassName = liveDocs.getClass().getName();
         assert fullClassName.equals("org.apache.lucene.util.FixedBits")
             || fullClassName.contains("org.apache.lucene.tests.codecs.asserting.AssertingLiveDocsFormat$Asserting")
@@ -1589,7 +1589,7 @@ public abstract class Engine implements Closeable {
 
     /**
      * Asynchronously refreshes the engine for new search operations to reflect the latest
-     * changes unless another thread is already refreshing or reseting the engine concurrently.
+     * changes unless another thread is already refreshing or resetting the engine concurrently.
      */
     @Nullable
     public abstract void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException;
@@ -2096,7 +2096,7 @@ public abstract class Engine implements Closeable {
         }
 
         /**
-         * Returns <code>true</code> if this index requests has been retried on the coordinating node and can therefor be delivered
+         * Returns <code>true</code> if this index requests has been retried on the coordinating node and can therefore be delivered
          * multiple times. Note: this might also be set to true if an equivalent event occurred like the replay of the transaction log
          */
         public boolean isRetry() {

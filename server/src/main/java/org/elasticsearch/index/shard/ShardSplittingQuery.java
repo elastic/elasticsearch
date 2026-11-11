@@ -190,7 +190,7 @@ public final class ShardSplittingQuery extends Query {
                                     /*
                                      * This is a special case where some docs don't have routing values.
                                      * It's annoying, but it's allowed to build an index where some documents
-                                     * hve routing and others don't.
+                                     * have routing and others don't.
                                      *
                                      * Luckily, if the routing field is required in the mapping then we can
                                      * safely assume that all documents which are don't have a routing are

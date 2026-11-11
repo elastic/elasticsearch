@@ -118,10 +118,6 @@ public final class QueryCaptureService {
         }
 
         /**
-         * Selects worker or direct processing according to the feature flag; disabled capture passes the listener through.
-         * */
-
-        /**
          * Wraps the listener for response capturing and executes the action
          *
          * @param listener The listener to wrap

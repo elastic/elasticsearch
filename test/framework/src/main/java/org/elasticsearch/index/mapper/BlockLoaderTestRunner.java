@@ -171,9 +171,7 @@ public class BlockLoaderTestRunner {
                 // In Time series the _id is derived from document
                 params.indexMode() == IndexMode.TIME_SERIES ? null : "1",
                 new BytesSource(BytesReference.bytes(documentXContent), XContentType.JSON, true),
-                params.indexMode() == IndexMode.TIME_SERIES
-                    ? TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE
-                    : null,
+                params.indexMode() == IndexMode.TIME_SERIES ? TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE : null,
                 Map.of(),
                 Map.of(),
                 XContentMeteringParserDecorator.NOOP,

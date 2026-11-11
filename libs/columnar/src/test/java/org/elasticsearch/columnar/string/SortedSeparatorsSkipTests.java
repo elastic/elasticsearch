@@ -10,6 +10,7 @@
 package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
@@ -92,6 +93,24 @@ public class SortedSeparatorsSkipTests extends ESTestCase {
             assertExcluded(fixture, term("d"), false, false, true, true, true);
             assertExcluded(fixture, term("e"), true, true, true, true, true);
             assertEquals(1, fixture.reader().nextCandidate(0, term("c")));
+        }
+    }
+
+    public void testAValueEqualToASeparatorKeepsTheEntryBeforeItAndEveryMatchIsReturned() throws IOException {
+        final BytesRef[][] shared = singleSlots("a", "m", "m", "m", "m", "z");
+        try (Directory dir = newDirectory(); PlainSkipFixture fixture = PlainSkipFixture.build(dir, shared, 3)) {
+            final PlainSkipQuery m = term("m");
+            assertExcluded(fixture, m, false, false);
+            assertEquals(List.of(1, 2, 3, 4), PlainBlockOracle.matchingDocs(fixture, m));
+            assertEquals(List.of(0, 1, 2, 3, 4, 5), docsOf(fixture.presence(m)));
+        }
+        final BytesRef[][] apart = singleSlots("a", "a", "a", "m", "m", "m");
+        try (Directory dir = newDirectory(); PlainSkipFixture fixture = PlainSkipFixture.build(dir, apart, 3)) {
+            final PlainSkipQuery m = term("m");
+            assertExcluded(fixture, m, false, false);
+            assertEquals(List.of(3, 4, 5), PlainBlockOracle.matchingDocs(fixture, m));
+            assertExcluded(fixture, term("b"), false, true);
+            assertEquals(List.of(), PlainBlockOracle.matchingDocs(fixture, term("b")));
         }
     }
 
@@ -224,6 +243,22 @@ public class SortedSeparatorsSkipTests extends ESTestCase {
     private static PlainSkipFixture threeEntries(Directory dir) throws IOException {
         final BytesRef[][] docSlots = new BytesRef[][] { { new BytesRef("a") }, { new BytesRef("b") }, { new BytesRef("c") } };
         return PlainSkipFixture.build(dir, docSlots, 1);
+    }
+
+    private static BytesRef[][] singleSlots(String... values) {
+        final BytesRef[][] docSlots = new BytesRef[values.length][];
+        for (int doc = 0; doc < values.length; doc++) {
+            docSlots[doc] = new BytesRef[] { new BytesRef(values[doc]) };
+        }
+        return docSlots;
+    }
+
+    private static List<Integer> docsOf(PlainRangePresence presence) throws IOException {
+        final List<Integer> docs = new ArrayList<>();
+        for (int doc = presence.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = presence.nextDoc()) {
+            docs.add(doc);
+        }
+        return docs;
     }
 
     private static PlainSkipQuery term(String value) {

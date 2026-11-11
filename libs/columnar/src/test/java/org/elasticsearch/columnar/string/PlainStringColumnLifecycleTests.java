@@ -21,6 +21,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -37,6 +39,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -75,6 +78,29 @@ public class PlainStringColumnLifecycleTests extends ESTestCase {
                     assertEquals(1, merged.leaves().size());
                     checkLeaves(merged, kept, new int[] { 0 }, pool);
                 }
+            }
+        }
+    }
+
+    public void testOnlyTheSegmentsWrittenWithBoundsHaveARegion() throws IOException {
+        final int segments = 4;
+        final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(8, 40));
+        final BytesRef[][] docSlots = descendingColumn(segments * (INTERVAL + between(1, INTERVAL / 2)), pool);
+        final List<StringColumnOptions> perSegment = List.of(plain(true), plain(false), plain(true), plain(false));
+        try (Directory dir = newDirectory()) {
+            final int[] starts = writeSegments(dir, docSlots, segments, perSegment, FormatVersion.CURRENT);
+            final List<Long> skipBytes = skipBytesPerSegment(dir);
+            assertEquals(segments, skipBytes.size());
+            final long withoutRegion = Collections.min(skipBytes);
+            for (int segment = 0; segment < segments; segment++) {
+                if (perSegment.get(segment).enablePlainSkipIndex()) {
+                    assertThat("segment " + segment, skipBytes.get(segment), greaterThan(withoutRegion));
+                } else {
+                    assertEquals("segment " + segment, withoutRegion, (long) skipBytes.get(segment));
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                checkLeaves(reader, docSlots, starts, pool);
             }
         }
     }
@@ -259,6 +285,20 @@ public class PlainStringColumnLifecycleTests extends ESTestCase {
             }
         }
         assertThat("the files of every segment were checked", checked, greaterThan(0));
+    }
+
+    private static List<Long> skipBytesPerSegment(Directory dir) throws IOException {
+        final List<Long> bytes = new ArrayList<>();
+        for (SegmentCommitInfo segment : SegmentInfos.readLatestCommit(dir)) {
+            long total = 0;
+            for (String file : segment.files()) {
+                if ("cns".equals(IndexFileNames.getExtension(file))) {
+                    total += dir.fileLength(file);
+                }
+            }
+            bytes.add(total);
+        }
+        return bytes;
     }
 
     private static long skipFileBytes(Directory dir) throws IOException {

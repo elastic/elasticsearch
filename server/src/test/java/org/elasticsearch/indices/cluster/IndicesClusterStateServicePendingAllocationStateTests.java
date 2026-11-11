@@ -9,6 +9,7 @@
 
 package org.elasticsearch.indices.cluster;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -197,7 +198,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
     public void testCreateShardFailureReportsToMaster() {
         ClusterState initial = ClusterStateCreationUtils.state(randomIndexName(), true, ShardRoutingState.INITIALIZING);
         ShardRouting shardRouting = initial.getRoutingNodes().node(initial.nodes().getLocalNodeId()).iterator().next();
-        indicesService.failNextCreateShard = new IOException("simulated create failure");
+        indicesService.failNextCreateShard = new ElasticsearchException("simulated create failure");
 
         applyState(initial);
 
@@ -879,7 +880,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
 
     private class RecordingIndicesService extends MockIndicesService {
         final AtomicInteger createShardCalls = new AtomicInteger();
-        volatile Exception failNextCreateShard;
+        volatile RuntimeException failNextCreateShard;
         volatile RecoveryListener lastRecoveryListener;
         volatile ShardId lastCreatedShardId;
 
@@ -906,16 +907,10 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
             createShardCalls.incrementAndGet();
             lastRecoveryListener = recoveryListener;
             lastCreatedShardId = shardRouting.shardId();
-            Exception toFail = failNextCreateShard;
+            RuntimeException toFail = failNextCreateShard;
             if (toFail != null) {
                 failNextCreateShard = null;
-                if (toFail instanceof RuntimeException runtimeException) {
-                    throw runtimeException;
-                }
-                if (toFail instanceof IOException ioe) {
-                    throw ioe;
-                }
-                throw new IOException(toFail);
+                throw toFail;
             }
             super.createShard(
                 projectId,

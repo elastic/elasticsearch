@@ -76,7 +76,7 @@ public abstract class PipelineAggregator {
 
         /**
          * Get the sub-tree at for the named sub-aggregation or {@link #EMPTY}
-         * if there are no pipeline aggragations for that sub-aggregator.
+         * if there are no pipeline aggregations for that sub-aggregator.
          */
         public PipelineTree subTree(String name) {
             return subTrees.getOrDefault(name, EMPTY);

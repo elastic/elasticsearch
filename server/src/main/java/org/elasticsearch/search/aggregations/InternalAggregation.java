@@ -85,7 +85,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      * <p>
      * Implementers of this should call the {@code rewriter} once per bucket
      * with its {@linkplain InternalAggregations}. The {@code rewriter}
-     * should return {@code null} if it doen't have any rewriting to do or
+     * should return {@code null} if it doesn't have any rewriting to do or
      * it should return a new {@linkplain InternalAggregations} to make
      * changs.
      * <p>

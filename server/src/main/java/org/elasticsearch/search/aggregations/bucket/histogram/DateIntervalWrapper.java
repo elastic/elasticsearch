@@ -60,7 +60,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
         }
 
         public boolean isValid() {
-            // I'm being a little cheeky here and just reusing the name for signaling invlaid choices too
+            // I'm being a little cheeky here and just reusing the name for signaling invalid choices too
             return this.preferredName != null;
         }
 

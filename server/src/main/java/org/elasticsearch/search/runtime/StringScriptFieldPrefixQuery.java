@@ -53,7 +53,7 @@ public class StringScriptFieldPrefixQuery extends AbstractStringScriptFieldQuery
      * @see java.lang.String#startsWith(String)
      * @param str  the String to check, may be null
      * @param prefix the prefix to find, may be null
-     * @param ignoreCase inidicates whether the compare should ignore case
+     * @param ignoreCase indicates whether the compare should ignore case
      *  (case insensitive) or not.
      * @return <code>true</code> if the String starts with the prefix or
      *  both <code>null</code>

@@ -68,7 +68,7 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
     }
 
     /**
-     * Returns the aliases patters that are used to compose the {@link QueryBuilder}
+     * Returns the aliases patterns that are used to compose the {@link QueryBuilder}
      * returned from {@link #getQueryBuilder()}
      */
     public String[] getAliases() {

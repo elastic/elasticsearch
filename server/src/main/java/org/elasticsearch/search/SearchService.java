@@ -421,7 +421,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     /**
      * The size of the buffer used for memory accounting.
-     * This buffer is used to locally track the memory accummulated during the execution of
+     * This buffer is used to locally track the memory accumulated during the execution of
      * a search request before submitting the accumulated value to the circuit breaker.
      */
     public static final Setting<ByteSizeValue> MEMORY_ACCOUNTING_BUFFER_SIZE = Setting.byteSizeSetting(
@@ -2088,7 +2088,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // It is possible that we don't see DONE in this instance but the search filters logic will.
                 // That is also okay since we'll just apply noop filters when this PIT gets relocated.
                 //
-                // If resharding metadata "appears" right after we obtain it here it's idential to the older summary case.
+                // If resharding metadata "appears" right after we obtain it here it's identical to the older summary case.
                 //
                 // If resharding metadata gets removed, then again we may apply noop filters
                 // when PIT is relocated but there is no correctness issues.

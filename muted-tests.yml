@@ -600,8 +600,3 @@ tests:
   - :qa:mixed-cluster:v8.19.26#yamlRestTest
   method: test {yaml=aggregations/sig_terms/Test background filter count}
   issue: https://github.com/elastic/elasticsearch/issues/165479
-- class: org.elasticsearch.search.vectors.IVFKnnVectorQueryCalibratedMergeTests
-  tasks:
-  - :server:test
-  method: testLeafBelowMaxLeafBudgetDoesNotPublishSharedCutoff
-  issue: https://github.com/elastic/elasticsearch/issues/165500

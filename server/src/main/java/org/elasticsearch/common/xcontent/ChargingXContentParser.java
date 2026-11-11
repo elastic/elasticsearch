@@ -98,7 +98,7 @@ final class ChargingXContentParser extends FilterXContentParserWrapper {
     /** The {@link #pending} charge at which the request is checked, a chunk less what it charged without a check before. */
     private long checkAt;
     /** Field-name strings charged so far, at most {@link #MAX_CHARGED_NAMES}. Names beyond those are charged every time. */
-    private Set<String> chargedNames;
+    private final Set<String> chargedNames = Collections.newSetFromMap(new IdentityHashMap<>());
 
     ChargingXContentParser(XContentParser delegate, ParsedContentReservation reservation, boolean ownsReservation) {
         super(delegate);
@@ -177,9 +177,7 @@ final class ChargingXContentParser extends FilterXContentParserWrapper {
      * Charges a field-name string the first time this parser sees it.
      */
     private void chargeName(String name) {
-        if (chargedNames == null) {
-            chargedNames = Collections.newSetFromMap(new IdentityHashMap<>());
-        } else if (chargedNames.contains(name)) {
+        if (chargedNames.contains(name)) {
             return;
         }
         if (chargedNames.size() < MAX_CHARGED_NAMES) {
@@ -190,19 +188,12 @@ final class ChargingXContentParser extends FilterXContentParserWrapper {
 
     /**
      * What the current text keeps at most: its UTF-8 length, as an exact-size {@code BytesRef} keeps it, or two bytes a character, as a
-     * String keeps it once any character is outside Latin-1. ASCII text, the common case, takes a single pass that the JIT vectorizes.
+     * String keeps it once any character is outside Latin-1. One pass over the characters, which {@code textLength()} decodes anyway.
      */
     private long textBytes() throws IOException {
         final char[] chars = delegate().textCharacters();
         final int offset = delegate().textOffset();
         final int length = delegate().textLength();
-        int all = 0;
-        for (int i = offset; i < offset + length; i++) {
-            all |= chars[i];
-        }
-        if (all < 0x80) {
-            return length;
-        }
         long utf8 = length;
         boolean latin1 = true;
         for (int i = offset; i < offset + length; i++) {
@@ -286,6 +277,10 @@ final class ChargingXContentParser extends FilterXContentParserWrapper {
         }
     }
 
+    /**
+     * Gives the wrapped parser's {@code objectBytes()} a call site of its own. Through the inherited one, which other wrappers share, the
+     * JIT no longer keeps the {@code CharBuffer} it returns for a string off the heap, and {@code terms} parsing allocates one per value.
+     */
     @Override
     public Object objectBytes() throws IOException {
         return delegate().objectBytes();

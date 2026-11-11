@@ -515,11 +515,6 @@ tests:
   - :x-pack:plugin:ml:qa:single-node-tests:yamlRestTest
   method: test {yaml=ml/sparse_vector_search/Check sparse_vector should prune by default}
   issue: https://github.com/elastic/elasticsearch/issues/165040
-- class: org.elasticsearch.action.search.TransportSearchIT
-  tasks:
-  - :server:internalClusterTest
-  method: testCircuitBreakerReduceFail
-  issue: https://github.com/elastic/elasticsearch/issues/165046
 - class: org.elasticsearch.xpack.esql.action.CrossClusterLookupJoinFailuresIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
@@ -591,3 +586,13 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.3.8#javaRestTest
   method: testMergeKeywordAndFlattenedKey {NONE}
   issue: https://github.com/elastic/elasticsearch/issues/165491
+- class: org.elasticsearch.xpack.searchablesnapshots.store.input.FrozenIndexInputTests
+  tasks:
+  - :x-pack:plugin:searchable-snapshots:test
+  method: testRandomReads
+  issue: https://github.com/elastic/elasticsearch/issues/165519
+- class: org.elasticsearch.xpack.stateless.StatelessComponentsOrderIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testClosingNodeShouldWaitForOngoingMerge
+  issue: https://github.com/elastic/elasticsearch/issues/165534

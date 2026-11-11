@@ -1,0 +1,10 @@
+{
+  "properties": {
+    "id": {
+      "type": "keyword"
+    },
+    "known_associates": {
+      "type": "keyword"
+    }
+  }
+}

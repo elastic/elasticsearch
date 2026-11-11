@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Mul
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.GraphExpand;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
@@ -862,6 +863,30 @@ public class InSubqueryResolver {
                     for (Alias field : eval.fields()) {
                         checkInSubqueryExpression(eval, field.child(), true, false, null, failures);
                     }
+                }
+                case GraphExpand ge -> {
+                    // UNTIL single-column InSubquery stays on the command — GraphExpandDriver
+                    // resolves it once before hop 1 (do not rewrite to SemiJoin). Multi-column
+                    // and any other GraphExpand InSubquery position stay rejected.
+                    if (ge.until() != null) {
+                        ge.until().forEachDown(e -> {
+                            if (e instanceof MultiColumnInSubquery) {
+                                failures.add(fail(e, "GRAPH EXPAND UNTIL subquery form is not supported yet"));
+                            }
+                        });
+                    }
+                    p.forEachExpression(InSubquery.class, inSub -> {
+                        if (ge.until() == null || ge.until().anyMatch(x -> x == inSub) == false) {
+                            failures.add(fail(inSub, "IN subquery is not supported in [{}]", p.sourceText()));
+                        }
+                    });
+                    p.forEachExpression(MultiColumnInSubquery.class, mcs -> {
+                        if (ge.until() != null && ge.until().anyMatch(x -> x == mcs)) {
+                            // already reported above as UNTIL multi-column
+                            return;
+                        }
+                        failures.add(fail(mcs, "IN subquery is not supported in [{}]", p.sourceText()));
+                    });
                 }
                 default -> {
                     p.forEachExpression(

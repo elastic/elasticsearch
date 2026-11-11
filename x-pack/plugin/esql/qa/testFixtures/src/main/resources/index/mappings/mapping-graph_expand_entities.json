@@ -1,0 +1,16 @@
+{
+  "properties": {
+    "id": {
+      "type": "keyword"
+    },
+    "name": {
+      "type": "keyword"
+    },
+    "can_assume": {
+      "type": "keyword"
+    },
+    "grants_access_to": {
+      "type": "keyword"
+    }
+  }
+}

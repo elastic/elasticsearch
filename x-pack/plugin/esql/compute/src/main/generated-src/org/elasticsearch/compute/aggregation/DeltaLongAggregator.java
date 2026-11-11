@@ -114,9 +114,9 @@ public class DeltaLongAggregator {
                 states.set(groupId, state);
                 adjustBreaker(state.bytesUsed());
             } else {
-                // Raw values and partial states can arrive in any order, so every value is counted and ties on a
-                // timestamp (multi-valued samples) go to the larger value; otherwise the extrapolation would depend
-                // on that order.
+                // Raw values and partial states can arrive in any order, so every value is counted.
+                // Multi-valued samples share a timestamp, and both ends keep the largest value.
+                // That tie-break is arbitrary: mean would also be deterministic, and max is enough here.
                 if (timestamp > state.lastTimestamp || (timestamp == state.lastTimestamp && value > state.lastValue)) {
                     state.lastTimestamp = timestamp;
                     state.lastValue = value;

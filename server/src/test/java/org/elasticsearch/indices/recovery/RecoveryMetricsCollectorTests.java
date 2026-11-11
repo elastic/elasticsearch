@@ -158,7 +158,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
             for (int i = 0; i < iterations; i++) {
                 final int maxConcurrent = between(1, 100);
                 final int perHeapGb = between(1, 10);
-                final int relocationPercent = between(1, 100);
+                final int nonCriticalPercent = between(1, 100);
                 clusterSettings.applySettings(
                     Settings.builder()
                         .put(
@@ -173,7 +173,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                         .put(
                             DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING
                                 .getKey(),
-                            relocationPercent + "%"
+                            nonCriticalPercent + "%"
                         )
                         .build()
                 );
@@ -183,7 +183,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                 assertIncomingRecoveryLimitsMetrics(
                     telemetryPlugin,
                     expectedMaxConcurrentRecoveries,
-                    (long) Math.ceil(expectedMaxConcurrentRecoveries * RatioValue.ofPercent(relocationPercent).getAsRatio())
+                    (long) Math.ceil(expectedMaxConcurrentRecoveries * RatioValue.ofPercent(nonCriticalPercent).getAsRatio())
                 );
             }
         }

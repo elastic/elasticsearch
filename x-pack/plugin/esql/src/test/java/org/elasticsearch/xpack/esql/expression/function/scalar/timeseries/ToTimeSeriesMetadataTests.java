@@ -68,7 +68,7 @@ public class ToTimeSeriesMetadataTests extends AbstractScalarFunctionTestCase {
             () -> new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(source), DataType.KEYWORD, "source")),
                 "ToTimeSeriesMetadataFromKeywordEvaluator[in=Attribute[channel=0]]",
-                DataType.TSMD_DATA_TYPE,
+                DataType.TIME_SERIES_METADATA_DATA_TYPE,
                 equalTo(new BytesRef(expected))
             )
         );
@@ -81,7 +81,7 @@ public class ToTimeSeriesMetadataTests extends AbstractScalarFunctionTestCase {
 
     /** Only the keyword source converts: other values are not a series' dimensions. */
     public void testSourceMustBeKeyword() {
-        for (DataType type : List.of(DataType.TSMD_DATA_TYPE, DataType.INTEGER, DataType.BOOLEAN)) {
+        for (DataType type : List.of(DataType.TIME_SERIES_METADATA_DATA_TYPE, DataType.INTEGER, DataType.BOOLEAN)) {
             assertTrue(type.toString(), new ToTimeSeriesMetadata(Source.EMPTY, field("source", type)).typeResolved().unresolved());
         }
     }

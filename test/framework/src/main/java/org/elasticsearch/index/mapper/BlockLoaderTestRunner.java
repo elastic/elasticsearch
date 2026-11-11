@@ -9,9 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.StoredFieldsReader;
-import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterCodecReader;
@@ -19,6 +17,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -27,12 +26,10 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
-import org.elasticsearch.index.codec.PerFieldMapperCodec;
-import org.elasticsearch.index.codec.bwc.ES93TSDBDefaultCompressionLucene103Codec;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
@@ -52,7 +49,6 @@ import java.util.Map;
 import java.util.Random;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.newDirectory;
-import static org.apache.lucene.tests.util.LuceneTestCase.newLogMergePolicy;
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -138,15 +134,15 @@ public class BlockLoaderTestRunner {
         return this;
     }
 
-    private ParsedDocument emptyDocument() {
+    private ParsedDocument emptyDocument(long timestamp) {
         if (mapperService == null) {
             throw new IllegalStateException("need to set mapperService");
         }
-        final Map<String, Object> emptyPayloadDoc = Map.of(
+        Map<String, Object> emptyPayloadDoc = Map.of(
             "@timestamp",
-            ESTestCase.randomMillisUpToYear9999(),
+            timestamp,
             BlockLoaderTestCase.TIME_SERIES_DIMENSION_FIELD,
-            "empty_sensor_id_value"
+            mapDoc().get(BlockLoaderTestCase.TIME_SERIES_DIMENSION_FIELD)
         );
         return parseDocument(emptyPayloadDoc);
     }
@@ -176,7 +172,7 @@ public class BlockLoaderTestRunner {
                 params.indexMode() == IndexMode.TIME_SERIES ? null : "1",
                 new BytesSource(BytesReference.bytes(documentXContent), XContentType.JSON, true),
                 params.indexMode() == IndexMode.TIME_SERIES
-                    ? (String) docToParse.get(BlockLoaderTestCase.TIME_SERIES_DIMENSION_FIELD)
+                    ? TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE
                     : null,
                 Map.of(),
                 Map.of(),
@@ -287,11 +283,10 @@ public class BlockLoaderTestRunner {
                 }
             }
 
+            final Random rg = random();
             final RandomIndexWriter iw;
-            Random rg = random();
             if (params.indexMode() == IndexMode.TIME_SERIES) {
-                IndexWriterConfig indexWriterConfig = setupIndexConfigForTimeSeries(rg);
-                iw = new RandomIndexWriter(rg, directory, indexWriterConfig);
+                iw = new RandomIndexWriter(rg, directory, indexWriterConfigForTimeSeries(rg));
             } else {
                 iw = new RandomIndexWriter(rg, directory);
             }
@@ -303,7 +298,14 @@ public class BlockLoaderTestRunner {
              * The other two are empty documents.
              */
             if (params.indexMode() == IndexMode.TIME_SERIES) {
-                iw.addDocuments(List.of(emptyDocument().rootDoc(), doc, emptyDocument().rootDoc()));
+                // The index is sorted by _tsid asc, @timestamp desc, so the empty docs get the same
+                // dimension and a later/earlier timestamp than the real doc: after sorting the
+                // real doc is still doc id 1.
+                long timestamp = ((Number) mapDoc().get("@timestamp")).longValue();
+                // Added one by one: a document block requires a parent field when the index is sorted.
+                iw.addDocument(emptyDocument(timestamp + 1).rootDoc());
+                iw.addDocument(doc);
+                iw.addDocument(emptyDocument(timestamp - 1).rootDoc());
             } else {
                 iw.addDocuments(List.of(List.of(), doc, List.of()));
             }
@@ -316,25 +318,21 @@ public class BlockLoaderTestRunner {
         }
     }
 
-    private IndexWriterConfig setupIndexConfigForTimeSeries(Random rg) {
-        IndexWriterConfig indexWriterConfig = LuceneTestCase.newIndexWriterConfig(rg, new MockAnalyzer(rg));
-        Codec codec = new ES93TSDBDefaultCompressionLucene103Codec(
-            new PerFieldMapperCodec(
-                Lucene104Codec.Mode.BEST_SPEED,
-                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
-                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
-                mapperService,
-                BigArrays.NON_RECYCLING_INSTANCE,
-                null
-            )
+    /**
+     * The synthetic {@code _id} terms are computed from doc values walking the docs in doc id order, which is only
+     * a valid (increasing) term order if the segment is sorted by {@code _tsid} asc, {@code @timestamp} desc.
+     * Production enforces that through the index sort, so the test writer must configure it too.
+     */
+    private IndexWriterConfig indexWriterConfigForTimeSeries(Random rg) {
+        IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(rg, new MockAnalyzer(rg));
+        Sort indexSort = new IndexSortConfig(mapperService.getIndexSettings()).buildIndexSort(
+            mapperService::fieldType,
+            (ft, searchLookup) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "")).build(null, null)
         );
-
-        indexWriterConfig.setCodec(codec);
-        indexWriterConfig.setMergePolicy(unwrapSyntheticIdOnMerge(newLogMergePolicy()));
-        // The random test config may install a SimpleMergedSegmentWarmer, which reads every stored field of the merged
-        // segment on the merge thread, materializing the synthetic _id. Production doesn't set a warmer.
-        indexWriterConfig.setMergedSegmentWarmer(null);
-        return indexWriterConfig;
+        if (indexSort != null) {
+            config.setIndexSort(indexSort);
+        }
+        return config;
     }
 
     private Object load(BlockLoader blockLoader, LeafReaderContext context) throws IOException {

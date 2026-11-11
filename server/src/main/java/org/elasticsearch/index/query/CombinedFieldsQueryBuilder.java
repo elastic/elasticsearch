@@ -12,15 +12,14 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.sandbox.search.CombinedFieldQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.CombinedFieldQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
@@ -398,16 +397,34 @@ public final class CombinedFieldsQueryBuilder extends LeafQueryBuilder<CombinedF
 
         @Override
         protected Query newSynonymQuery(String field, TermAndBoost[] terms) {
-            CombinedFieldQuery.Builder query = new CombinedFieldQuery.Builder();
+            assert terms.length > 0;
+            if (terms.length == 1) {
+                // for one term case avoid to wrap the query with a boolean one
+                final TermAndBoost termAndBoost = terms[0];
+                assert termAndBoost.boost() == BoostAttribute.DEFAULT_BOOST;
+                CombinedFieldQuery.Builder builder = new CombinedFieldQuery.Builder(termAndBoost.term());
+                for (FieldAndBoost fieldAndBoost : fields) {
+                    MappedFieldType fieldType = fieldAndBoost.fieldType;
+                    float fieldBoost = fieldAndBoost.boost;
+                    builder.addField(fieldType.name(), fieldBoost);
+                }
+
+                return builder.build();
+            }
+
+            BooleanQuery.Builder query = new BooleanQuery.Builder();
             for (TermAndBoost termAndBoost : terms) {
                 assert termAndBoost.boost() == BoostAttribute.DEFAULT_BOOST;
-                BytesRef bytes = termAndBoost.term();
-                query.addTerm(bytes);
-            }
-            for (FieldAndBoost fieldAndBoost : fields) {
-                MappedFieldType fieldType = fieldAndBoost.fieldType;
-                float fieldBoost = fieldAndBoost.boost;
-                query.addField(fieldType.name(), fieldBoost);
+
+                CombinedFieldQuery.Builder combinedBuilder = new CombinedFieldQuery.Builder(termAndBoost.term());
+                for (FieldAndBoost fieldAndBoost : fields) {
+                    MappedFieldType fieldType = fieldAndBoost.fieldType;
+                    float fieldBoost = fieldAndBoost.boost;
+                    combinedBuilder.addField(fieldType.name(), fieldBoost);
+                }
+
+                CombinedFieldQuery perTerm = combinedBuilder.build();
+                query.add(perTerm, BooleanClause.Occur.SHOULD);
             }
             return query.build();
         }

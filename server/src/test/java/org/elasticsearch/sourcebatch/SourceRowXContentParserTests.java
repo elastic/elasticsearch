@@ -87,8 +87,8 @@ public class SourceRowXContentParserTests extends ESTestCase {
      * Numbers around the limits of a short, an int and a long, read at the top level of a row and as elements of arrays and objects. The
      * encoder widens an int to a long and a float to a double at the top level of a row, but a number that is an element of an array or an
      * object keeps the narrower type it was stored as, and that is the only place the int and float branches of the accessors are reached.
-     * Only a value that a float holds exactly is stored as a float, so the values beyond the range of a long include powers of two: 2^64 and
-     * 2^100.
+     * Only a value that a float holds exactly is stored as a float, so the values beyond the range of a long include powers of two: 2^64
+     * and 2^100.
      */
     private static final List<String> RANGE_NUMBERS = List.of(
         "32767",

@@ -1580,25 +1580,17 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
-    private final boolean indexed;
     private final DocValuesParameter.Values docValuesParameters;
     private final DocValuesFieldFactory dvFactory;
-    private final String indexOptions;
     private final FieldType fieldType;
     private final int maxValueLength;
     private final String normalizerName;
     private final boolean normalizerSkipStoreOriginalValue;
-    private final boolean splitQueriesOnWhitespace;
-    private final Script script;
-    private final ScriptCompiler scriptCompiler;
-    private final SourceKeepMode sourceKeepMode;
 
-    private final IndexAnalyzers indexAnalyzers;
     private final IndexSettings indexSettings;
     /** Whether a value of {@code ""} is read as {@code null}; see {@link FieldMapper#EMPTY_KEYWORD_STRING_AS_NULL_SETTING}. */
     private final boolean emptyStringAsNull;
     private final boolean writeDimensionRouting;
-    private final boolean forceDocValuesSkipper;
     private final boolean storeIgnoredFieldsInBinaryDocValues;
     private final String offsetsFieldName;
     // The type the doc-values payload reports for a document that holds no value, or null when the field is not indexed;
@@ -1617,30 +1609,23 @@ public final class KeywordFieldMapper extends FieldMapper {
     ) {
         super(simpleName, mappedFieldType, builderParams);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
-        this.indexed = builder.indexed.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
         this.dvFactory = new DocValuesFieldFactory(
             docValuesParameters.multiValue(),
             fieldType().indexType.hasDocValuesSkipper(),
             builder.indexCreatedVersion
         );
-        this.indexOptions = builder.indexOptions.getValue();
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         boolean useLuceneMaxTermLength = this.fieldType.indexOptions() != IndexOptions.NONE
             || mappedFieldType.usesBinaryDocValues() == false;
         this.maxValueLength = builder.indexSettings.maxValueLength(useLuceneMaxTermLength);
         this.normalizerName = builder.normalizer.getValue();
         this.normalizerSkipStoreOriginalValue = builder.normalizerSkipStoreOriginalValue.getValue();
-        this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
-        this.script = builder.script.get();
-        this.indexAnalyzers = builder.indexAnalyzers;
-        this.scriptCompiler = builder.scriptCompiler;
         this.indexSettings = builder.indexSettings;
         this.emptyStringAsNull = EMPTY_KEYWORD_STRING_AS_NULL_SETTING.get(builder.indexSettings.getSettings());
         this.writeDimensionRouting = builder.dimension.getValue()
             && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
             && efs.extractDimensionsWhileMapping();
-        this.forceDocValuesSkipper = builder.forceDocValuesSkipper;
         this.storeIgnoredFieldsInBinaryDocValues = builder.storeIgnoredFieldsInBinaryDocValues;
         this.offsetsFieldName = offsetsFieldName;
         this.indexCreatedVersion = builder.indexCreatedVersion;
@@ -1649,7 +1634,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.payloadTypeWhenValueless = this.fieldType.indexOptions() != IndexOptions.NONE
             ? ColumnarBinaryDocValuesField.typeWhenValueless(this.fieldType)
             : null;
-        sourceKeepMode = builder.sourceKeepMode.orElse(indexSettings.sourceKeepMode());
     }
 
     @Override

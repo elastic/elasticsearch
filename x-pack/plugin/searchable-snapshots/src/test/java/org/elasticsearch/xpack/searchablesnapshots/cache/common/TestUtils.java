@@ -12,6 +12,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.client.internal.Client;
@@ -78,13 +79,15 @@ public final class TestUtils {
             final long start = randomLongBetween(0L, Math.max(0L, cacheFile.getLength() - 1L));
             final long end = randomLongBetween(Math.min(start + 1L, cacheFile.getLength()), cacheFile.getLength());
             final ByteRange range = ByteRange.of(start, end);
-            futures.add(
-                cacheFile.populateAndRead(range, range, channel -> Math.toIntExact(end - start), (channel, from, to, progressUpdater) -> {
-                    consumer.apply(channel, from, to);
-                    ranges.add(ByteRange.of(from, to));
-                    progressUpdater.accept(to);
-                }, deterministicTaskQueue.getThreadPool().generic())
-            );
+            futures.add(cacheFile.populateAndRead(range, range, (channel, onReadComplete) -> {
+                try (onReadComplete) {
+                    return Math.toIntExact(end - start);
+                }
+            }, (channel, from, to, progressUpdater) -> {
+                consumer.apply(channel, from, to);
+                ranges.add(ByteRange.of(from, to));
+                progressUpdater.accept(to);
+            }, deterministicTaskQueue.getThreadPool().generic()));
         }
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(futures.stream().allMatch(Future::isDone));
@@ -333,16 +336,17 @@ public final class TestUtils {
         @Override
         protected void innerPut(IndexRequest request, ActionListener<DocWriteResponse> listener) {
             final BytesArray bytesArray = blobs.put(request.id(), new BytesArray(request.source().toBytesRef(), true));
-            listener.onResponse(
-                new IndexResponse(
-                    new ShardId(request.index(), "_na", 0),
-                    request.id(),
-                    UNASSIGNED_SEQ_NO,
-                    UNASSIGNED_PRIMARY_TERM,
-                    0L,
-                    bytesArray == null
-                )
+            final IndexResponse response = new IndexResponse(
+                new ShardId(request.index(), "_na", 0),
+                request.id(),
+                UNASSIGNED_SEQ_NO,
+                UNASSIGNED_PRIMARY_TERM,
+                0L,
+                bytesArray == null
             );
+            // Updated documents derive their response status from the shard info, just like real indexing responses.
+            response.setShardInfo(ReplicationResponse.ShardInfo.of(1, 1));
+            listener.onResponse(response);
         }
     }
 }

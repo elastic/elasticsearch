@@ -10,24 +10,35 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocOrigin;
+import org.elasticsearch.compute.data.DocOriginTable;
+import org.elasticsearch.compute.data.DocOrigins;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * Keeps the first document each group sees. The documents can still be on the node that read them, and the output then
+ * references their shards. Or they left that node, like the rows a {@code FORK} merges on the coordinator, and the output
+ * carries their origins instead. One aggregation sees one kind only, because a vector can't hold both.
+ */
 public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggregatorFunction {
 
     public static final class FunctionSupplier implements AggregatorFunctionSupplier {
@@ -60,12 +71,35 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
 
     static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(new IntermediateStateDesc("_doc", ElementType.DOC));
 
+    private static final int SHARD = 0;
+    private static final int SEGMENT = 1;
+    private static final int DOC = 2;
+
     private final int channel;
     private final DriverContext driverContext;
     private int maxGroupId = -1;
     private final BigArrays bigArrays;
+    /**
+     * Three ints per group: the shard of the document, or the ordinal of its origin in {@link #origins} once it left its
+     * node, then its segment and its doc.
+     */
     private IntArray docs;
     private final Map<Integer, RefCounted> contextRefs = new HashMap<>();
+    private Documents documents = Documents.NONE_YET;
+    /**
+     * The origins of the documents that left their node. Set when the aggregation takes such documents.
+     */
+    @Nullable
+    private DocOriginTable origins;
+
+    /**
+     * The kind of documents the aggregation takes, decided by the first page with documents.
+     */
+    private enum Documents {
+        NONE_YET,
+        OF_THIS_NODE,
+        LEFT_THEIR_NODE
+    }
 
     public FirstDocIdGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
         this.channel = channels.getFirst();
@@ -118,7 +152,7 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
             assert false : "expected doc vector for first_doc_id";
             throw new IllegalStateException("expected doc vector for first_doc_id");
         }
-        docVector.ensureAttached("first_doc_id");
+        acceptDocuments(docVector.origins() == null ? Documents.OF_THIS_NODE : Documents.LEFT_THEIR_NODE);
         return new AddInput() {
             @Override
             public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -142,6 +176,19 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
         };
     }
 
+    private void acceptDocuments(Documents pageDocuments) {
+        if (documents == pageDocuments) {
+            return;
+        }
+        if (documents != Documents.NONE_YET) {
+            throw new IllegalStateException("first_doc_id can't mix documents of this node with documents that left their node");
+        }
+        if (pageDocuments == Documents.LEFT_THEIR_NODE) {
+            origins = new DocOriginTable(driverContext.breaker());
+        }
+        documents = pageDocuments;
+    }
+
     private void addRawInput(int positionOffset, IntVector groups, DocVector docVector) {
         int positionCount = groups.getPositionCount();
         if (groups.isConstant()) {
@@ -161,14 +208,16 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
 
     private void collectOneDoc(int groupId, DocVector docVector, int valuePosition) {
         maxGroupId = groupId;
-        int shard = docVector.shards().getInt(valuePosition);
+        int shard = documents == Documents.LEFT_THEIR_NODE
+            ? origins.ordinal(docVector.origin(valuePosition))
+            : docVector.shards().getInt(valuePosition);
         int segment = docVector.segments().getInt(valuePosition);
         int doc = docVector.docs().getInt(valuePosition);
         docs = bigArrays.grow(docs, 3L * groupId + 3);
-        docs.set(3L * groupId, shard);
-        docs.set(3L * groupId + 1, segment);
-        docs.set(3L * groupId + 2, doc);
-        if (contextRefs.containsKey(shard) == false) {
+        docs.set(3L * groupId + SHARD, shard);
+        docs.set(3L * groupId + SEGMENT, segment);
+        docs.set(3L * groupId + DOC, doc);
+        if (documents == Documents.OF_THIS_NODE && contextRefs.containsKey(shard) == false) {
             var refCounted = docVector.shardRefCounted(valuePosition);
             refCounted.mustIncRef();
             contextRefs.put(shard, refCounted);
@@ -204,46 +253,74 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
     }
 
     private void evaluate(Block[] blocks, int offset, IntVector selectedInPage) {
-        final BlockFactory blockFactory = driverContext.blockFactory();
-        final int positionCount = selectedInPage.getPositionCount();
-        try (
-            var segmentBuilder = blockFactory.newIntVectorFixedBuilder(positionCount);
-            var docBuilder = blockFactory.newIntVectorFixedBuilder(positionCount)
-        ) {
-            for (int p = 0; p < positionCount; p++) {
-                int group = selectedInPage.getInt(p);
-                segmentBuilder.appendInt(docs.get(3L * group + 1));
-                docBuilder.appendInt(docs.get(3L * group + 2));
-            }
-            final IntVector shardVector;
-            if (contextRefs.size() == 1) {
-                shardVector = blockFactory.newConstantIntVector(Iterables.get(contextRefs.keySet(), 0), positionCount);
+        IntVector shardVector = null;
+        IntVector segmentVector = null;
+        IntVector docVector = null;
+        try {
+            DocVector.Config config = DocVector.config().mayContainDuplicates();
+            final IndexedByShardId<? extends RefCounted> refs;
+            if (documents == Documents.LEFT_THEIR_NODE) {
+                List<DocOrigin> pageOrigins = new ArrayList<>();
+                shardVector = pageOrdinals(selectedInPage, pageOrigins);
+                config.origins(DocOrigins.of(pageOrigins));
+                refs = AlwaysReferencedIndexedByShardId.INSTANCE;
             } else {
-                try (var shardBuilder = blockFactory.newIntVectorFixedBuilder(positionCount)) {
-                    for (int p = 0; p < positionCount; p++) {
-                        int group = selectedInPage.getInt(p);
-                        shardBuilder.appendInt(docs.get(3L * group));
-                    }
-                    shardVector = shardBuilder.build();
-                }
+                shardVector = shards(selectedInPage);
+                refs = new MappedShardRefs<>(contextRefs);
             }
-            IntVector segmentVector = null;
-            IntVector docVector = null;
-            try {
-                segmentVector = segmentBuilder.build();
-                docVector = docBuilder.build();
-                blocks[offset] = new DocVector(
-                    new MappedShardRefs<>(contextRefs),
-                    shardVector,
-                    segmentVector,
-                    docVector,
-                    DocVector.config().mayContainDuplicates()
-                ).asBlock();
-            } finally {
-                if (blocks[offset] == null) {
-                    Releasables.closeExpectNoException(shardVector, segmentVector, docVector);
-                }
+            segmentVector = column(selectedInPage, SEGMENT);
+            docVector = column(selectedInPage, DOC);
+            blocks[offset] = new DocVector(refs, shardVector, segmentVector, docVector, config).asBlock();
+        } finally {
+            if (blocks[offset] == null) {
+                Releasables.closeExpectNoException(shardVector, segmentVector, docVector);
             }
+        }
+    }
+
+    /**
+     * The shard vector of an output page of documents of this node.
+     */
+    private IntVector shards(IntVector selectedInPage) {
+        if (contextRefs.size() == 1) {
+            int shard = Iterables.get(contextRefs.keySet(), 0);
+            return driverContext.blockFactory().newConstantIntVector(shard, selectedInPage.getPositionCount());
+        }
+        return column(selectedInPage, SHARD);
+    }
+
+    /**
+     * The shard vector of an output page of documents that left their node: for each selected group, the ordinal of its
+     * origin in {@code pageOrigins}, which numbers them in the order the page first references them.
+     */
+    private IntVector pageOrdinals(IntVector selectedInPage, List<DocOrigin> pageOrigins) {
+        int positionCount = selectedInPage.getPositionCount();
+        // one entry per origin the aggregation saw, which is at most one per shard the query read
+        int[] pageOrdinalOfTableOrdinal = new int[origins.size()];
+        Arrays.fill(pageOrdinalOfTableOrdinal, -1);
+        try (var shardBuilder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+            for (int p = 0; p < positionCount; p++) {
+                int tableOrdinal = docs.get(3L * selectedInPage.getInt(p) + SHARD);
+                if (pageOrdinalOfTableOrdinal[tableOrdinal] < 0) {
+                    pageOrdinalOfTableOrdinal[tableOrdinal] = pageOrigins.size();
+                    pageOrigins.add(origins.get(tableOrdinal));
+                }
+                shardBuilder.appendInt(pageOrdinalOfTableOrdinal[tableOrdinal]);
+            }
+            return shardBuilder.build();
+        }
+    }
+
+    /**
+     * One of the three ints each selected group keeps in {@link #docs}.
+     */
+    private IntVector column(IntVector selectedInPage, int field) {
+        int positionCount = selectedInPage.getPositionCount();
+        try (var builder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+            for (int p = 0; p < positionCount; p++) {
+                builder.appendInt(docs.get(3L * selectedInPage.getInt(p) + field));
+            }
+            return builder.build();
         }
     }
 
@@ -275,7 +352,7 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(docs, () -> {
+        Releasables.closeExpectNoException(docs, origins, () -> {
             for (RefCounted ref : contextRefs.values()) {
                 ref.decRef();
             }

@@ -26,7 +26,8 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 
 /**
- * Regression tests for mixed-version peer recovery with bfloat16 dense_vectors.
+ * Tests that {@code TranslogOperationAsserter} accepts the two forms of an operation that
+ * mixed-version peer recovery produces for bfloat16 dense_vectors.
  *
  * <p>The same operation can reach a new node twice: through replication with the original source,
  * and through recovery from an older node that synthesized only the indexed vector field. bfloat16
@@ -46,7 +47,7 @@ public class BFloat16VectorRecoveryTests extends EngineTestCase {
     private static final String ORIGINAL_SOURCE = """
         {"name":"cow.jpg","vector7":[230.0,300.33,-34.8988,15.555,-200.0],"vector8":[130.0,115.0,-1.02,15.555,-100.0]}""";
 
-    /** Source sent by a 9.5 node during recovery, as logged by the failing 9.7 node: only vector7 is synthesized. */
+    /** The same document as a 9.5 node sends it during recovery: only the indexed vector7 is synthesized. */
     private static final String RECOVERED_SOURCE = """
         {"vector8":[130.0,115.0,-1.02,15.555,-100.0],"name":"cow.jpg",\
         "vector7":[229.90425,300.38586,-34.821266,15.522733,-199.69786]}""";

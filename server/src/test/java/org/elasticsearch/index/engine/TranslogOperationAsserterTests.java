@@ -250,7 +250,7 @@ public class TranslogOperationAsserterTests extends EngineTestCase {
             { "value": [ "value-1" ] }
             """);
         assertTrue(asserter.assertSameIndexOperation(o1, o2));
-        assertTrue(asserter.assertSameIndexOperation(o1, o2));
+        assertTrue(asserter.assertSameIndexOperation(o2, o1));
     }
 
     public void testNonSourceFieldsAreStillCompared() throws Exception {

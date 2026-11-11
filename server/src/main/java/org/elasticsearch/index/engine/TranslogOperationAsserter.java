@@ -74,7 +74,8 @@ public abstract class TranslogOperationAsserter {
      * pairings: in a mixed cluster an older node synthesizes only some vector fields, and re-synthesizing
      * a lossy vector (e.g. a normalized bfloat16) is not idempotent, so no single pairing of whole
      * documents is guaranteed to match. Objects are compared field by field; any other value, including
-     * arrays, has to match as a whole.
+     * arrays, has to match as a whole. A field that is absent from a form counts as null there, so an
+     * explicit null matches an absent field, as it does once the source is synthesized.
      */
     private static boolean sameFieldsInAnyForm(List<Object> left, List<Object> right) {
         for (Object l : left) {
@@ -98,7 +99,7 @@ public abstract class TranslogOperationAsserter {
     }
 
     private static List<Object> valuesOf(List<Object> maps, Object key) {
-        // Arrays.asList, since a field may be missing or null in some of the forms
+        // A form without the field contributes null. Arrays.asList, because it accepts null elements.
         return Arrays.asList(maps.stream().map(m -> ((Map<?, ?>) m).get(key)).toArray());
     }
 

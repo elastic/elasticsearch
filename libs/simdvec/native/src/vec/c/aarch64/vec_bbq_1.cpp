@@ -214,8 +214,9 @@ EXPORT void vec_dotd1q4_bulk_masked(
     const int32_t mask,
     const int32_t count,
     f32_t* results) {
+    const int32_t block_mask = clamp_mask(mask, count);
     dotd1qN_inner_bulk<int8_t, 4, masked_mapper, masked_output>(
-        a, query, length, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
+        a, query, length, pitch, &block_mask, __builtin_popcount((uint32_t)block_mask), results);
 }
 
 EXPORT void vec_dotd1q4_bulk_sparse(
@@ -253,8 +254,9 @@ EXPORT void vec_dotd1q1_bulk_masked(
     const int32_t mask,
     const int32_t count,
     f32_t* results) {
+    const int32_t block_mask = clamp_mask(mask, count);
     dotd1qN_inner_bulk<int8_t, 1, masked_mapper, masked_output>(
-        a, query, length, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
+        a, query, length, pitch, &block_mask, __builtin_popcount((uint32_t)block_mask), results);
 }
 
 EXPORT int64_t vec_dotd2q2(
@@ -307,8 +309,9 @@ EXPORT void vec_dotd2q2_bulk_masked(
     const int32_t mask,
     const int32_t count,
     f32_t* results) {
+    const int32_t block_mask = clamp_mask(mask, count);
     dotd2q2_inner_bulk<int8_t, masked_mapper, masked_output>(
-        a, query, length, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
+        a, query, length, pitch, &block_mask, __builtin_popcount((uint32_t)block_mask), results);
 }
 
 EXPORT void vec_dotd2q2_bulk_sparse(
@@ -519,8 +522,9 @@ EXPORT void vec_dotd2q4_bulk_masked(
     const int32_t mask,
     const int32_t count,
     f32_t* results) {
+    const int32_t block_mask = clamp_mask(mask, count);
     dotd2q4_inner_bulk<int8_t, masked_mapper, masked_output>(
-        a, query, length, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
+        a, query, length, pitch, &block_mask, __builtin_popcount((uint32_t)block_mask), results);
 }
 
 EXPORT void vec_dotd2q4_bulk_sparse(
@@ -587,8 +591,9 @@ EXPORT void vec_dotd4q4_bulk_masked(
     const int32_t count,
     f32_t* results
 ) {
+    const int32_t block_mask = clamp_mask(mask, count);
     dotd4q4_inner_bulk<int8_t, masked_mapper, masked_output>(
-        a, query, length, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
+        a, query, length, pitch, &block_mask, __builtin_popcount((uint32_t)block_mask), results);
 }
 
 EXPORT void vec_dotd4q4_bulk_sparse(

@@ -134,8 +134,7 @@ public class MergeBlobInjector implements IndexEventListener {
             // below, equal to, or above the BCC generation, like a merge that started a few commits before it was first committed
             final long startGeneration = Math.max(1L, bccGeneration + (bccGeneration % 5) - 2);
             if (Randomness.get().nextBoolean()) {
-                threadPool.generic()
-                    .execute(() -> inject(shardId, termAndGeneration.primaryTerm(), Moment.AFTER_UPLOAD, startGeneration));
+                threadPool.generic().execute(() -> inject(shardId, termAndGeneration.primaryTerm(), Moment.AFTER_UPLOAD, startGeneration));
             } else {
                 threadPool.schedule(
                     () -> inject(shardId, termAndGeneration.primaryTerm(), Moment.LATER, startGeneration),
@@ -151,12 +150,7 @@ public class MergeBlobInjector implements IndexEventListener {
     private void inject(ShardId shardId, long primaryTerm, Moment moment, long startGeneration) {
         final Random random = Randomness.get();
         // stateless_merge_<gen>_<segment>_<discriminator>: the segment is the moment letter plus the generation in base 36, never a '_'
-        final String blobName = MERGE_BLOB_PREFIX
-            + startGeneration
-            + '_'
-            + moment.letter
-            + Long.toString(startGeneration, 36)
-            + '_'
+        final String blobName = MERGE_BLOB_PREFIX + startGeneration + '_' + moment.letter + Long.toString(startGeneration, 36) + '_'
             + HexFormat.of().toHexDigits(random.nextLong());
         final byte[] bytes = new byte[random.nextInt(1, 4096)];
         random.nextBytes(bytes);

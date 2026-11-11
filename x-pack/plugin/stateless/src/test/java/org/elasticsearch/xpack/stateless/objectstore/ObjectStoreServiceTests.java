@@ -1785,11 +1785,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
     // TODO(szybia): use MergeBlobFile.blobName (#162535)
     private static String randomMergeBlobName(long mergeStartGeneration) {
-        return BatchedCompoundCommit.MERGE_BLOB_PREFIX
-            + mergeStartGeneration
-            + '_'
-            + randomAlphanumericOfLength(between(1, 5))
-            + '_'
+        return BatchedCompoundCommit.MERGE_BLOB_PREFIX + mergeStartGeneration + '_' + randomAlphanumericOfLength(between(1, 5)) + '_'
             + HexFormat.of().toHexDigits(randomLong());
     }
 

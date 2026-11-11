@@ -1341,9 +1341,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         while ((delayed = delayedNotifications.poll()) != null) {
             delayed.run();
         }
-        assertBusy(
-            () -> assertThat(Sets.intersection(listCommitBlobNames(shardCommitsContainer), commitBlobsBeforeMerge), empty())
-        );
+        assertBusy(() -> assertThat(Sets.intersection(listCommitBlobNames(shardCommitsContainer), commitBlobsBeforeMerge), empty()));
 
         assertHitCount(prepareSearch(indexName).setQuery(matchAllQuery()), totalDocs);
         findPlugin(indexNodeB, TestStatelessPlugin.class).shouldDeleteShardFiles.set(true);
@@ -1753,10 +1751,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         }
 
         assertBusy(
-            () -> assertThat(
-                listCommitBlobNames(shardCommitsContainer),
-                is(equalTo(expectedBlobsAfterProcessingNewCommitNotifications))
-            )
+            () -> assertThat(listCommitBlobNames(shardCommitsContainer), is(equalTo(expectedBlobsAfterProcessingNewCommitNotifications)))
         );
 
         internalCluster().stopNode(searchNode);

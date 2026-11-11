@@ -539,7 +539,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (ctx.identifier() != null) {
             return new TableFunctionArgument.Name(source, visitIdentifier(ctx.identifier()));
         }
-        return new TableFunctionArgument.Name(source, BytesRefs.toString(visitString(ctx.string()).value()));
+        if (ctx.string() != null) {
+            return new TableFunctionArgument.Name(source, BytesRefs.toString(visitString(ctx.string()).value()));
+        }
+        // Named rather than trailing, as the indexPatternOrSubquery loop above is: a fourth tableFunctionArgument
+        // alternative would otherwise reach visitString with a null context and fail as an NPE naming nothing.
+        throw new IllegalStateException("unhandled table function argument");
     }
 
     /**

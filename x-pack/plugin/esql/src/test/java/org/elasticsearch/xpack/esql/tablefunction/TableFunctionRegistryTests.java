@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class TableFunctionRegistryTests extends ESTestCase {
 
@@ -72,6 +73,28 @@ public class TableFunctionRegistryTests extends ESTestCase {
             () -> new TableFunctionRegistry(List.of(new NamedOnly("Thing")))
         );
         assertThat(e.getMessage(), containsString("table function name [Thing] must be lowercase"));
+    }
+
+    /**
+     * A name no query can lex is refused where it is registered. Nothing downstream would refuse it: the token is
+     * {@code LETTER UNQUOTED_ID_BODY* '('}, so each of these lexes as an index pattern followed by a stray
+     * {@code (} and the function would sit in the registry unreachable rather than fail anywhere a reader looks.
+     */
+    public void testNameMustBeOneAQueryCanLex() {
+        for (String name : List.of("_thing", "1thing", "ex-ample", "ex.ample", "ex ample")) {
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> new TableFunctionRegistry(List.of(new NamedOnly(name)))
+            );
+            assertThat(e.getMessage(), containsString("table function name [" + name + "] must start with a letter"));
+        }
+    }
+
+    /** And the shapes that do lex are accepted, so the check is not refusing everything. */
+    public void testALexableNameIsAccepted() {
+        for (String name : List.of("thing", "thing2", "thing_two", "t")) {
+            assertThat(new TableFunctionRegistry(List.of(new NamedOnly(name))).resolve(Source.EMPTY, name).name(), equalTo(name));
+        }
     }
 
     public void testRegistryStartsEmpty() {

@@ -9,14 +9,25 @@
 
 package org.elasticsearch.nativeaccess;
 
+import java.lang.foreign.AddressLayout;
+import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 
 /**
  * Creates {@link ByteBuffer}s over native memory that something else owns, such as a thread-confined {@link java.lang.foreign.Arena}.
- * This lives here because {@link MemorySegment#reinterpret(long)} is a restricted method, which only a module with native access may call.
+ * This lives here because {@link AddressLayout#withTargetLayout} is a restricted method, which only a module with native access may call.
  */
 public final class SegmentBuffers {
+
+    /**
+     * An address layout whose target is effectively unbounded, so that reading an address through it yields a segment that can be sliced
+     * to any length. Creating it is the only restricted operation, and it happens once, here, rather than on every buffer.
+     */
+    private static final AddressLayout ANY_ADDRESS = ValueLayout.ADDRESS.withTargetLayout(
+        MemoryLayout.sequenceLayout(Long.MAX_VALUE, ValueLayout.JAVA_BYTE)
+    );
 
     private SegmentBuffers() {}
 
@@ -37,6 +48,9 @@ public final class SegmentBuffers {
         if (address <= 0 || length < 0) {
             throw new IllegalArgumentException("invalid native range [address=" + address + ", length=" + length + "]");
         }
-        return MemorySegment.ofAddress(address).reinterpret(length).asByteBuffer();
+        // Reading an address through ANY_ADDRESS needs a segment that holds the address as data, so wrap it in an 8-byte heap array.
+        // (MemorySegment.ofAddress would be a zero-length segment located at the address, which cannot be read.) The result is an
+        // unbounded segment at the address, which is then cut down to the length we own.
+        return MemorySegment.ofArray(new long[] { address }).get(ANY_ADDRESS, 0).asSlice(0, length).asByteBuffer();
     }
 }

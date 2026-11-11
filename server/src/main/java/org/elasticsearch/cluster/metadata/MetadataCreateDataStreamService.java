@@ -254,6 +254,9 @@ public class MetadataCreateDataStreamService {
         if (currentProject.hasDataset(dataStreamName)) {
             throw new ResourceAlreadyExistsException("data_stream [{}] already exists as an ESQL dataset", dataStreamName);
         }
+        if (currentProject.hasIndex(dataStreamName)) {
+            throw new ResourceAlreadyExistsException("data_stream [{}] already exists as an index", dataStreamName);
+        }
 
         MetadataCreateIndexService.validateIndexOrAliasName(
             dataStreamName,

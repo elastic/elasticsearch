@@ -55,6 +55,16 @@ public record ExternalSourceSpec(String path, Map<String, Object> config) {
     }
 
     /**
+     * As {@link #of}, but {@code null} for a relation whose {@code tablePath} is not a non-null literal — a shape
+     * pre-analysis can still see. A caller that must not throw there gets the same derivation and no exception, and
+     * the relation is simply absent from the set it was being collected into.
+     */
+    public static ExternalSourceSpec ofOrNull(UnresolvedExternalRelation relation) {
+        Expression tablePath = relation.tablePath();
+        return tablePath instanceof Literal literal && literal.value() != null ? of(relation) : null;
+    }
+
+    /**
      * The resource, and the dataset name when the read came from one. Nothing derived from {@code config}: the
      * generated record {@code toString} would print the credentials outright, and a hash of the map is a function of
      * a secret that is plaintext on a cluster which opted out of state encryption. One debug log renders these.

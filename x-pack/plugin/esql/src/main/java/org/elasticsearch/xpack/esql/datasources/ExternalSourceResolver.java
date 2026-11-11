@@ -780,10 +780,14 @@ public class ExternalSourceResolver {
         ActionListener<ExternalSourceResolution> listener
     ) {
         if (paths == null) {
-            resolve((List<ExternalSourceSpec>) null, null, declaredMappings, pathsRequiringStats, pathsReadingNoRows, null, listener);
+            resolve((List<ExternalSourceSpec>) null, null, declaredMappings, null, null, null, listener);
             return;
         }
         List<ExternalSourceSpec> specs = new ArrayList<>(paths.size());
+        // The demand sets are spec-keyed now, so a path-keyed caller's sets are lifted the same way its paths are:
+        // one path carries one configuration here, which is the premise this whole path-keyed form rests on.
+        Set<ExternalSourceSpec> specsRequiringStats = pathsRequiringStats == null ? null : new HashSet<>();
+        Set<ExternalSourceSpec> specsReadingNoRows = pathsReadingNoRows == null ? null : new HashSet<>();
         Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> specHints = filterHints == null
             ? null
             : new HashMap<>();
@@ -797,37 +801,43 @@ public class ExternalSourceResolver {
             if (specRanges != null && folderRanges.get(path) != null) {
                 specRanges.put(spec, folderRanges.get(path));
             }
+            if (specsRequiringStats != null && pathsRequiringStats.contains(path)) {
+                specsRequiringStats.add(spec);
+            }
+            if (specsReadingNoRows != null && pathsReadingNoRows.contains(path)) {
+                specsReadingNoRows.add(spec);
+            }
         }
-        resolve(specs, specHints, declaredMappings, pathsRequiringStats, pathsReadingNoRows, specRanges, listener);
+        resolve(specs, specHints, declaredMappings, specsRequiringStats, specsReadingNoRows, specRanges, listener);
     }
 
     /**
      * Resolves external sources. A per-path declared mapping drives strict/non-strict schema resolution and carries
-     * column renames; {@code pathsRequiringStats} gates the FIRST_FILE_WINS eager all-file stats aggregation.
+     * column renames; {@code specsRequiringStats} gates the FIRST_FILE_WINS eager all-file stats aggregation.
      *
      * @param declaredMappings    per-path declared mapping — strict skips inference, non-strict overlays it, and its
      *        derived read-instructions (renames, date formats) ride a typed {@code DeclaredReadSpec} to
      *        the reader boundary; {@code null} when no path declares a mapping.
-     * @param pathsRequiringStats paths whose multi-file FFW resolution must eagerly aggregate global
+     * @param specsRequiringStats paths whose multi-file FFW resolution must eagerly aggregate global
      *        statistics across all files (the ungrouped-aggregate metadata fast path). A {@code null}
      *        value selects legacy behavior — every path resolves eagerly — preserving existing call
      *        sites and tests. When non-null, a path absent from the set defers the per-file footer
      *        reads (keeping {@code STATS_FILE_COUNT}, marking stats partial). See
-     *        {@link ExternalStatsRequirementExtractor#pathsRequiringEagerStats}.
-     * @param pathsReadingNoRows paths whose rows the query all discards, so resolution owes them a schema and
+     *        {@link ExternalStatsRequirementExtractor#specsRequiringEagerStats}.
+     * @param specsReadingNoRows paths whose rows the query all discards, so resolution owes them a schema and
      *        nothing else. Membership no longer decides how far a listing runs - the dataset's mode does, for a
      *        reading query too. {@code null} leaves every path resolving as a reading query. See
-     *        {@link SchemaDiscoveryPathExtractor#pathsReadingNoRows}.
+     *        {@link SchemaDiscoveryPathExtractor#specsReadingNoRows}.
      */
     public final void resolve(
         List<ExternalSourceSpec> specs,
         @Nullable Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         @Nullable Map<String, DatasetMapping> declaredMappings,
-        @Nullable Set<String> pathsRequiringStats,
-        @Nullable Set<String> pathsReadingNoRows,
+        @Nullable Set<ExternalSourceSpec> specsRequiringStats,
+        @Nullable Set<ExternalSourceSpec> specsReadingNoRows,
         ActionListener<ExternalSourceResolution> listener
     ) {
-        resolve(specs, filterHints, declaredMappings, pathsRequiringStats, pathsReadingNoRows, null, listener);
+        resolve(specs, filterHints, declaredMappings, specsRequiringStats, specsReadingNoRows, null, listener);
     }
 
     /**
@@ -851,8 +861,8 @@ public class ExternalSourceResolver {
         List<ExternalSourceSpec> specs,
         @Nullable Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         @Nullable Map<String, DatasetMapping> declaredMappings,
-        @Nullable Set<String> pathsRequiringStats,
-        @Nullable Set<String> pathsReadingNoRows,
+        @Nullable Set<ExternalSourceSpec> specsRequiringStats,
+        @Nullable Set<ExternalSourceSpec> specsReadingNoRows,
         @Nullable Map<ExternalSourceSpec, FolderRangePredicate> folderRanges,
         ActionListener<ExternalSourceResolution> listener
     ) {
@@ -861,8 +871,8 @@ public class ExternalSourceResolver {
             specs,
             filterHints,
             declaredMappings,
-            pathsRequiringStats,
-            pathsReadingNoRows,
+            specsRequiringStats,
+            specsReadingNoRows,
             folderRanges,
             ActionListener.runBefore(listener, () -> objectChangeRetryAhead = false).delegateResponse((l, e) -> {
                 objectChangeRetryAhead = false;
@@ -872,7 +882,7 @@ public class ExternalSourceResolver {
                 }
                 LOGGER.debug("an external object changed during resolution; resolving {} again", specs);
                 invalidateUsedCacheEntries();
-                resolveOnce(specs, filterHints, declaredMappings, pathsRequiringStats, pathsReadingNoRows, folderRanges, l);
+                resolveOnce(specs, filterHints, declaredMappings, specsRequiringStats, specsReadingNoRows, folderRanges, l);
             })
         );
     }
@@ -881,8 +891,8 @@ public class ExternalSourceResolver {
         List<ExternalSourceSpec> specs,
         @Nullable Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         @Nullable Map<String, DatasetMapping> declaredMappings,
-        @Nullable Set<String> pathsRequiringStats,
-        @Nullable Set<String> pathsReadingNoRows,
+        @Nullable Set<ExternalSourceSpec> specsRequiringStats,
+        @Nullable Set<ExternalSourceSpec> specsReadingNoRows,
         @Nullable Map<ExternalSourceSpec, FolderRangePredicate> folderRanges,
         ActionListener<ExternalSourceResolution> listener
     ) {
@@ -936,8 +946,8 @@ public class ExternalSourceResolver {
                 0,
                 filterHints,
                 declaredMappings,
-                pathsRequiringStats,
-                pathsReadingNoRows,
+                specsRequiringStats,
+                specsReadingNoRows,
                 folderRanges,
                 resolved,
                 resolveListener
@@ -954,8 +964,8 @@ public class ExternalSourceResolver {
         int index,
         @Nullable Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         @Nullable Map<String, DatasetMapping> declaredMappings,
-        @Nullable Set<String> pathsRequiringStats,
-        @Nullable Set<String> pathsReadingNoRows,
+        @Nullable Set<ExternalSourceSpec> specsRequiringStats,
+        @Nullable Set<ExternalSourceSpec> specsReadingNoRows,
         @Nullable Map<ExternalSourceSpec, FolderRangePredicate> folderRanges,
         Map<ExternalSourceSpec, ExternalSourceResolution.ResolvedSource> resolved,
         ActionListener<ExternalSourceResolution> listener
@@ -971,7 +981,7 @@ public class ExternalSourceResolver {
         FolderRangePredicate folderRange = folderRanges != null ? folderRanges.get(spec) : null;
         // How much of this path the query actually needs. The two sets are exclusive by construction, so they
         // collapse into one value here rather than being carried side by side through resolution.
-        ResolutionDemand demand = ResolutionDemand.of(path, pathsRequiringStats, pathsReadingNoRows);
+        ResolutionDemand demand = ResolutionDemand.of(spec, specsRequiringStats, specsReadingNoRows);
         DatasetMapping declaredMapping = declaredMappings != null ? declaredMappings.get(path) : null;
         // The declared mapping's read-instructions (logical->physical column renames, date formats) travel as a
         // typed DeclaredReadSpec on the ResolvedSource -> ExternalRelation -> ExternalSourceExec seam, rather than as
@@ -1022,8 +1032,8 @@ public class ExternalSourceResolver {
                     index + 1,
                     filterHints,
                     declaredMappings,
-                    pathsRequiringStats,
-                    pathsReadingNoRows,
+                    specsRequiringStats,
+                    specsReadingNoRows,
                     folderRanges,
                     resolved,
                     listener
@@ -1746,11 +1756,11 @@ public class ExternalSourceResolver {
                 //
                 // This eager all-file aggregation is gated on requiresStats: only query shapes that can consume the
                 // global stats — an ungrouped aggregate over the relation, detected by
-                // ExternalStatsRequirementExtractor#pathsRequiringEagerStats — pay the N footer reads. Every other
+                // ExternalStatsRequirementExtractor#specsRequiringEagerStats — pay the N footer reads. Every other
                 // shape (LIMIT, SELECT *, grouped STATS ... BY, INLINESTATS) takes the defer branch below: it keeps
                 // STATS_FILE_COUNT (from enrichWithFileCount above) but marks stats partial, so Phase 2 split
                 // discovery reads footers once instead of twice. Legacy callers pass requiresStats == true for every
-                // path (the resolve overload with a null pathsRequiringStats set), preserving the original
+                // path (the resolve overload with a null specsRequiringStats set), preserving the original
                 // eager-for-all behavior.
                 //
                 // For an eager (requiresStats) resolve the cost is acceptable while a read still buys

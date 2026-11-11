@@ -2359,7 +2359,7 @@ public class EsqlSession {
      * session plan stays unresolved for analysis.
      */
     // package-private static so EsqlSessionTests can drive the wiring with a capturing
-    // ExternalSourceResolver and assert that the computed pathsRequiringStats set is forwarded.
+    // ExternalSourceResolver and assert that the computed specsRequiringStats set is forwarded.
     static void preAnalyzeExternalSources(
         ExternalSourceResolver externalSourceResolver,
         LogicalPlan plan,
@@ -2398,20 +2398,20 @@ public class EsqlSession {
         // Always non-null (empty when no ungrouped aggregate is present). A non-null set switches the
         // resolver to selective eager stats: only the listed paths read every file's footer at
         // planning time; the rest defer (see ExternalStatsRequirementExtractor).
-        Set<String> pathsRequiringStats = ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan);
+        Set<ExternalSourceSpec> specsRequiringStats = ExternalStatsRequirementExtractor.specsRequiringEagerStats(plan);
 
         // Always non-null (empty when every relation is read for its rows). A path in this set is one whose rows
         // the query all discards, so its resolution owes a schema and nothing else and may stop listing as soon
         // as it has one. What "having one" means is the dataset's business, not the query's: see
         // ExternalSourceResolver#listingExtentsFor.
-        Set<String> pathsReadingNoRows = SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan);
+        Set<ExternalSourceSpec> specsReadingNoRows = SchemaDiscoveryPathExtractor.specsReadingNoRows(plan);
 
         externalSourceResolver.resolve(
             specs,
             filterHints.isEmpty() ? null : filterHints,
             declaredMappings.isEmpty() ? null : declaredMappings,
-            pathsRequiringStats,
-            pathsReadingNoRows,
+            specsRequiringStats,
+            specsReadingNoRows,
             folderRanges.isEmpty() ? null : folderRanges,
             listener.map(result::withExternalSourceResolution)
         );

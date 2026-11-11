@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Node;
@@ -40,22 +39,28 @@ public final class SchemaDiscoveryPathExtractor {
     private SchemaDiscoveryPathExtractor() {}
 
     /**
-     * Returns the literal {@code tablePath} of every {@link UnresolvedExternalRelation} whose occurrences all
-     * sit below a {@link Limit} of literal zero. Path keys are derived as {@code PreAnalyzer} and
-     * {@code EsqlSession#extractExternalSourceSpecs} derive them, so each is the {@code path} of a derived spec.
+     * Every {@link UnresolvedExternalRelation} whose occurrences all sit below a {@link Limit} of literal zero,
+     * as the spec it denotes. Keyed by spec rather than by resource: two datasets over one resource are two reads,
+     * and one of them reading no rows says nothing about the other.
      *
      * @param unresolvedPlan the root of the unresolved logical plan
-     * @return the set of literal path strings whose resolution needs no rows read
+     * @return the specs whose resolution needs no rows read
      */
-    public static Set<String> pathsReadingNoRows(LogicalPlan unresolvedPlan) {
-        Set<String> underZeroLimit = new HashSet<>();
-        Set<String> read = new HashSet<>();
+    public static Set<ExternalSourceSpec> specsReadingNoRows(LogicalPlan unresolvedPlan) {
+        Set<ExternalSourceSpec> underZeroLimit = new HashSet<>();
+        Set<ExternalSourceSpec> read = new HashSet<>();
         collect(unresolvedPlan, false, false, underZeroLimit, read);
         underZeroLimit.removeAll(read);
         return underZeroLimit;
     }
 
-    private static void collect(Node<?> node, boolean zeroLimitAbove, boolean describeAbove, Set<String> underZeroLimit, Set<String> read) {
+    private static void collect(
+        Node<?> node,
+        boolean zeroLimitAbove,
+        boolean describeAbove,
+        Set<ExternalSourceSpec> underZeroLimit,
+        Set<ExternalSourceSpec> read
+    ) {
         if (node instanceof Limit limit && isLiteralZero(limit.limit())) {
             zeroLimitAbove = true;
         }
@@ -74,9 +79,9 @@ public final class SchemaDiscoveryPathExtractor {
         }
 
         if (node instanceof UnresolvedExternalRelation relation) {
-            String path = extractPath(relation);
-            if (path != null) {
-                (zeroLimitAbove || describeAbove ? underZeroLimit : read).add(path);
+            ExternalSourceSpec spec = ExternalSourceSpec.ofOrNull(relation);
+            if (spec != null) {
+                (zeroLimitAbove || describeAbove ? underZeroLimit : read).add(spec);
             }
             return; // leaf: no children below a relation
         }
@@ -96,17 +101,4 @@ public final class SchemaDiscoveryPathExtractor {
         return limit instanceof Literal literal && Integer.valueOf(0).equals(literal.value());
     }
 
-    /**
-     * Path-key derivation kept in lockstep with {@code PreAnalyzer#externalSourcePaths} and
-     * {@code EsqlSession#extractExternalSourceSpecs}. Returns {@code null} for a non-literal
-     * {@code tablePath} so detection never throws; that path is then absent from the set and
-     * resolves as a reading query.
-     */
-    private static String extractPath(UnresolvedExternalRelation relation) {
-        Expression tablePath = relation.tablePath();
-        if (tablePath instanceof Literal literal && literal.value() != null) {
-            return BytesRefs.toString(literal.value());
-        }
-        return null;
-    }
 }

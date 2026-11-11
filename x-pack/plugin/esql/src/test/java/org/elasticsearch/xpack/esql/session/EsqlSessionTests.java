@@ -1045,21 +1045,21 @@ public class EsqlSessionTests extends ESTestCase {
         UnresolvedExternalRelation relation = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), Map.of());
         LogicalPlan plan = new Limit(EMPTY, new Literal(EMPTY, 10, DataType.INTEGER), relation);
 
-        Set<String> captured = capturePathsRequiringStats(plan, path);
+        Set<ExternalSourceSpec> captured = captureSpecsRequiringStats(plan, path);
         assertNotNull("wiring must forward a non-null set", captured);
         assertTrue("LIMIT forwards an empty set (defer everything)", captured.isEmpty());
     }
 
     /**
      * Wiring test: an ungrouped {@code STATS COUNT(*)} over an external relation forwards a set
-     * containing the relation's path, so the resolver keeps eager all-file stats aggregation for it.
+     * containing the relation's spec, so the resolver keeps eager all-file stats aggregation for it.
      */
-    public void testPreAnalyzeExternalSourcesForwardsPathForUngroupedStats() {
+    public void testPreAnalyzeExternalSourcesForwardsSpecForUngroupedStats() {
         String path = "s3://bucket/data/*.parquet";
         UnresolvedExternalRelation relation = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), Map.of());
         LogicalPlan plan = new Aggregate(EMPTY, relation, List.of(), List.of());
 
-        assertEquals(Set.of(path), capturePathsRequiringStats(plan, path));
+        assertEquals(Set.of(new ExternalSourceSpec(path, Map.of())), captureSpecsRequiringStats(plan, path));
     }
 
     /**
@@ -1128,8 +1128,8 @@ public class EsqlSessionTests extends ESTestCase {
         LogicalPlan plan = new Limit(EMPTY, new Literal(EMPTY, 0, DataType.INTEGER), relation);
 
         CapturedExternalResolve captured = captureExternalResolve(plan, path);
-        assertEquals(Set.of(path), captured.pathsReadingNoRows());
-        assertTrue("a path reading no rows cannot also require eager stats", captured.pathsRequiringStats().isEmpty());
+        assertEquals(Set.of(new ExternalSourceSpec(path, Map.of())), captured.specsReadingNoRows());
+        assertTrue("a path reading no rows cannot also require eager stats", captured.specsRequiringStats().isEmpty());
     }
 
     /**
@@ -1142,8 +1142,8 @@ public class EsqlSessionTests extends ESTestCase {
         LogicalPlan plan = new Limit(EMPTY, new Literal(EMPTY, 10, DataType.INTEGER), relation);
 
         CapturedExternalResolve captured = captureExternalResolve(plan, path);
-        assertNotNull("wiring must forward a non-null set", captured.pathsReadingNoRows());
-        assertTrue("a query that reads rows bounds nothing", captured.pathsReadingNoRows().isEmpty());
+        assertNotNull("wiring must forward a non-null set", captured.specsReadingNoRows());
+        assertTrue("a query that reads rows bounds nothing", captured.specsReadingNoRows().isEmpty());
     }
 
     /**
@@ -1182,6 +1182,34 @@ public class EsqlSessionTests extends ESTestCase {
 
         assertNotNull("bounds alone must produce a folder range", captured.folderRanges());
         assertNotNull("the spec must carry the folder range", captured.folderRanges().get(spec));
+    }
+
+    /**
+     * The demand sets are per spec too. Two datasets over one resource, one read under {@code LIMIT 0} and one
+     * reading rows: the first owes a schema and nothing else, and the second must not drag it into reading rows.
+     * Keyed by resource, the subtraction removes the shared path for both and the {@code LIMIT 0} spec is resolved
+     * as a reading query — over-eager at best, and at worst running a declared-mapping check it would have skipped.
+     */
+    public void testTwoSpecsOverOnePathKeepTheirOwnReadDemand() {
+        String path = "s3://bucket/logs/**";
+        Map<String, Object> asCsv = Map.of("format", "csv");
+        Map<String, Object> asTsv = Map.of("format", "tsv");
+        UnresolvedExternalRelation bounded = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), asCsv);
+        UnresolvedExternalRelation reading = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), asTsv);
+        LogicalPlan plan = new UnionAll(
+            EMPTY,
+            List.of(new Limit(EMPTY, new Literal(EMPTY, 0, DataType.INTEGER), bounded), reading),
+            List.of()
+        );
+
+        CapturedExternalResolve captured = captureExternalResolve(plan, path);
+
+        assertThat(captured.specs(), hasSize(2));
+        assertEquals(
+            "only the spec under LIMIT 0 reads no rows",
+            Set.of(new ExternalSourceSpec(path, asCsv)),
+            captured.specsReadingNoRows()
+        );
     }
 
     /**
@@ -1231,10 +1259,10 @@ public class EsqlSessionTests extends ESTestCase {
 
     /**
      * Drives {@code EsqlSession#preAnalyzeExternalSources} with a capturing {@link ExternalSourceResolver}
-     * and returns the {@code pathsRequiringStats} argument it forwarded to {@code resolve(...)}.
+     * and returns the {@code specsRequiringStats} argument it forwarded to {@code resolve(...)}.
      */
-    private static Set<String> capturePathsRequiringStats(LogicalPlan plan, String path) {
-        return captureExternalResolve(plan, path).pathsRequiringStats();
+    private static Set<ExternalSourceSpec> captureSpecsRequiringStats(LogicalPlan plan, String path) {
+        return captureExternalResolve(plan, path).specsRequiringStats();
     }
 
     /**
@@ -1257,8 +1285,8 @@ public class EsqlSessionTests extends ESTestCase {
 
     private record CapturedExternalResolve(
         List<ExternalSourceSpec> specs,
-        Set<String> pathsRequiringStats,
-        Set<String> pathsReadingNoRows,
+        Set<ExternalSourceSpec> specsRequiringStats,
+        Set<ExternalSourceSpec> specsReadingNoRows,
         Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         Map<ExternalSourceSpec, FolderRangePredicate> folderRanges
     ) {}
@@ -1273,8 +1301,8 @@ public class EsqlSessionTests extends ESTestCase {
         @Nullable QueryDslTimestampBoundsExtractor.TimestampBounds listingBounds
     ) {
         AtomicReference<List<ExternalSourceSpec>> capturedSpecs = new AtomicReference<>();
-        AtomicReference<Set<String>> capturedStats = new AtomicReference<>();
-        AtomicReference<Set<String>> capturedNoRows = new AtomicReference<>();
+        AtomicReference<Set<ExternalSourceSpec>> capturedStats = new AtomicReference<>();
+        AtomicReference<Set<ExternalSourceSpec>> capturedNoRows = new AtomicReference<>();
         AtomicReference<Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>>> capturedHints =
             new AtomicReference<>();
         AtomicReference<Map<ExternalSourceSpec, FolderRangePredicate>> capturedFolderRanges = new AtomicReference<>();
@@ -1287,15 +1315,15 @@ public class EsqlSessionTests extends ESTestCase {
                 List<ExternalSourceSpec> specs,
                 Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
                 Map<String, DatasetMapping> declaredMappings,
-                Set<String> pathsRequiringStats,
-                Set<String> pathsReadingNoRows,
+                Set<ExternalSourceSpec> specsRequiringStats,
+                Set<ExternalSourceSpec> specsReadingNoRows,
                 Map<ExternalSourceSpec, FolderRangePredicate> folderRanges,
                 ActionListener<ExternalSourceResolution> listener
             ) {
                 resolveCalled.set(true);
                 capturedSpecs.set(specs);
-                capturedStats.set(pathsRequiringStats);
-                capturedNoRows.set(pathsReadingNoRows);
+                capturedStats.set(specsRequiringStats);
+                capturedNoRows.set(specsReadingNoRows);
                 capturedHints.set(filterHints);
                 capturedFolderRanges.set(folderRanges);
                 listener.onResponse(ExternalSourceResolution.EMPTY);

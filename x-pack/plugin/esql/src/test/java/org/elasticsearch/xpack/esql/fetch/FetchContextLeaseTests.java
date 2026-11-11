@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collection;
 import java.util.HashSet;
@@ -54,6 +56,22 @@ import static org.hamcrest.Matchers.sameInstance;
  * The coordinator's lease on the fetch contexts of one query, and the requests that free them.
  */
 public class FetchContextLeaseTests extends FetchContextsTestCase {
+    private FetchContextLeases leases;
+
+    @Before
+    public void createLeases() {
+        TransportService transportService = getInstanceFromNode(TransportService.class);
+        leases = new FetchContextLeases(
+            searchService(),
+            transportService,
+            FetchNodeDirectory.create(
+                transportService,
+                transportService.getThreadPool().getThreadContext(),
+                () -> getInstanceFromNode(ClusterService.class).state().nodes()
+            )
+        );
+    }
+
     /**
      * The keep-alive a node gives the contexts in the tests that don't shorten it: longer than the keep-alive of any query
      * here, so the one of the query sets the refresh.
@@ -87,10 +105,10 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     public void testCloseFreesEveryContext() throws Exception {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
-        service.leaseFor(task).newExecution(EXECUTION_INDICES).add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
+        leases.leaseFor(task).newExecution(EXECUTION_INDICES).add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
         assertThat(searchService().getActiveContexts(), equalTo(SHARDS));
 
-        service.closeLease(task.getId());
+        leases.closeLease(task.getId());
 
         assertAllFreed();
     }
@@ -101,10 +119,10 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     public void testFreesTheContextsOfANodeWithOneRequest() throws Exception {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
-        service.leaseFor(task).newExecution(EXECUTION_INDICES).add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
+        leases.leaseFor(task).newExecution(EXECUTION_INDICES).add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
         List<ReceivedFree> received = captureFrees();
 
-        service.closeLease(task.getId());
+        leases.closeLease(task.getId());
 
         assertAllFreed();
         assertThat(received, hasSize(1));
@@ -118,7 +136,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         createIndexWithDocs(INDEX);
         List<ReceivedFree> received = captureFrees();
         CancellableTask task = rootTask();
-        FetchContextLease lease = service.leaseFor(task);
+        FetchContextLease lease = leases.leaseFor(task);
         OriginalIndices otherIndices = new OriginalIndices(new String[] { "fetch-*", "-fetch-old" }, IndicesOptions.lenientExpandOpen());
         List<ShardSearchContextId> queryContexts = respond(INDEX);
         lease.newExecution(EXECUTION_INDICES).add(localFetchNode(), queryContexts, NODE_KEEP_ALIVE);
@@ -147,7 +165,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         Authentication administrator = AuthenticationTestHelper.builder().user(new User("administrator")).build();
         CancellableTask task = rootTask();
         as(owner, () -> {
-            service.leaseFor(task).newExecution(EXECUTION_INDICES).add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
+            leases.leaseFor(task).newExecution(EXECUTION_INDICES).add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
             return null;
         });
 
@@ -167,7 +185,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
      */
     public void testContextsListedAfterCloseAreFreedAtOnce() throws Exception {
         createIndexWithDocs(INDEX);
-        FetchContextLease lease = service.leaseFor(rootTask());
+        FetchContextLease lease = leases.leaseFor(rootTask());
         FetchContextLease.Execution execution = lease.newExecution(EXECUTION_INDICES);
         lease.close();
 
@@ -183,7 +201,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     public void testTheEndOfTheCutFreesTheContextsItsRowsDontRead() throws Exception {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
-        FetchContextLease.Execution execution = service.leaseFor(task).newExecution(EXECUTION_INDICES);
+        FetchContextLease.Execution execution = leases.leaseFor(task).newExecution(EXECUTION_INDICES);
         List<ShardSearchContextId> open = respond(INDEX);
         execution.add(localFetchNode(), open, NODE_KEEP_ALIVE);
         Set<ShardSearchContextId> read = Set.copyOf(randomSubsetOf(between(1, SHARDS - 1), open));
@@ -195,7 +213,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         for (ShardSearchContextId id : open) {
             assertBusy(() -> assertThat(isOpen(id), equalTo(read.contains(id))));
         }
-        service.closeLease(task.getId());
+        leases.closeLease(task.getId());
         assertAllFreed();
     }
 
@@ -205,7 +223,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     public void testAContextListedAfterTheCutIsFreedUnlessItsRowsReadIt() throws Exception {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
-        FetchContextLease.Execution execution = service.leaseFor(task).newExecution(EXECUTION_INDICES);
+        FetchContextLease.Execution execution = leases.leaseFor(task).newExecution(EXECUTION_INDICES);
         List<ShardSearchContextId> open = respond(INDEX);
         Set<ShardSearchContextId> read = Set.copyOf(randomSubsetOf(between(1, SHARDS - 1), open));
         execution.cutEnded(read);
@@ -217,7 +235,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         for (ShardSearchContextId id : open) {
             assertBusy(() -> assertThat(isOpen(id), equalTo(read.contains(id))));
         }
-        service.closeLease(task.getId());
+        leases.closeLease(task.getId());
         assertAllFreed();
     }
 
@@ -227,7 +245,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     public void testTheEndOfTheFetchFreesTheContextsOfItsRows() throws Exception {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
-        FetchContextLease.Execution execution = service.leaseFor(task).newExecution(EXECUTION_INDICES);
+        FetchContextLease.Execution execution = leases.leaseFor(task).newExecution(EXECUTION_INDICES);
         List<ShardSearchContextId> open = respond(INDEX);
         execution.add(localFetchNode(), open, NODE_KEEP_ALIVE);
         // a fetch that closes before its input ended never saw the end of its cut
@@ -239,7 +257,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         execution.fetchEnded();
 
         assertAllFreed();
-        service.closeLease(task.getId());
+        leases.closeLease(task.getId());
     }
 
     /**
@@ -248,7 +266,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     public void testTheLeaseDoesntFreeTheContextsTheirNodeFreed() throws Exception {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
-        FetchContextLease.Execution execution = service.leaseFor(task).newExecution(EXECUTION_INDICES);
+        FetchContextLease.Execution execution = leases.leaseFor(task).newExecution(EXECUTION_INDICES);
         List<ShardSearchContextId> open = respond(INDEX);
         execution.add(localFetchNode(), open, NODE_KEEP_ALIVE);
         List<ShardSearchContextId> freedByTheNode = randomSubsetOf(between(1, SHARDS), open);
@@ -264,7 +282,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         Set<ShardSearchContextId> stillHeld = new HashSet<>(open);
         freedByTheNode.forEach(stillHeld::remove);
         assertThat(freedByTheLease, equalTo(stillHeld));
-        service.closeLease(task.getId());
+        leases.closeLease(task.getId());
     }
 
     /**
@@ -274,7 +292,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         createIndexWithDocs(INDEX);
         List<ReceivedKeepAlive> received = captureKeepAlives();
         CancellableTask task = rootTask();
-        FetchContextLease lease = service.leaseFor(task);
+        FetchContextLease lease = leases.leaseFor(task);
         FetchContextLease.Execution execution = lease.newExecution(EXECUTION_INDICES);
         List<ShardSearchContextId> open = respond(INDEX);
         execution.add(localFetchNode(), open, NODE_KEEP_ALIVE);
@@ -285,7 +303,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         lease.refresh();
 
         assertBusy(() -> assertThat(received, hasSize(1)));
-        service.closeLease(task.getId());
+        leases.closeLease(task.getId());
         assertAllFreed();
         Set<ShardSearchContextId> stillHeld = new HashSet<>(open);
         freedByTheNode.forEach(stillHeld::remove);
@@ -298,13 +316,13 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     public void testAContextListedAfterTheFetchIsFreedAtOnce() throws Exception {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
-        FetchContextLease.Execution execution = service.leaseFor(task).newExecution(EXECUTION_INDICES);
+        FetchContextLease.Execution execution = leases.leaseFor(task).newExecution(EXECUTION_INDICES);
         execution.fetchEnded();
 
         execution.add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
 
         assertAllFreed();
-        service.closeLease(task.getId());
+        leases.closeLease(task.getId());
     }
 
     /**
@@ -313,7 +331,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     public void testAnExecutionFreesOnlyItsOwnContexts() throws Exception {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
-        FetchContextLease lease = service.leaseFor(task);
+        FetchContextLease lease = leases.leaseFor(task);
         FetchContextLease.Execution ending = lease.newExecution(EXECUTION_INDICES);
         FetchContextLease.Execution running = lease.newExecution(EXECUTION_INDICES);
         List<ShardSearchContextId> endingContexts = respond(INDEX);
@@ -333,7 +351,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         for (ShardSearchContextId id : runningContexts) {
             assertTrue("the other execution still reads [" + id + "]", isOpen(id));
         }
-        service.closeLease(task.getId());
+        leases.closeLease(task.getId());
         assertAllFreed();
     }
 
@@ -342,7 +360,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
      */
     public void testAnExecutionNeedsTheIndexExpressionsOfItsQuery() {
         CancellableTask task = rootTask();
-        FetchContextLease lease = service.leaseFor(task);
+        FetchContextLease lease = leases.leaseFor(task);
         OriginalIndices none = new OriginalIndices(new String[0], SearchRequest.DEFAULT_INDICES_OPTIONS);
 
         IllegalArgumentException e = expectThrows(
@@ -351,7 +369,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         );
 
         assertThat(e.getMessage(), equalTo("an execution needs the index expressions of its query on every cluster"));
-        service.closeLease(task.getId());
+        leases.closeLease(task.getId());
     }
 
     /**
@@ -361,7 +379,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         createIndexWithDocs(INDEX);
         List<ReceivedKeepAlive> received = captureKeepAlives();
         CancellableTask task = rootTask();
-        FetchContextLease lease = service.leaseFor(task);
+        FetchContextLease lease = leases.leaseFor(task);
         FetchContextLease.Execution first = lease.newExecution(EXECUTION_INDICES);
         FetchContextLease.Execution second = lease.newExecution(EXECUTION_INDICES);
         List<ShardSearchContextId> firstContexts = respond(INDEX);
@@ -372,7 +390,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         lease.refresh();
 
         assertBusy(() -> assertThat(received, hasSize(2)));
-        service.closeLease(task.getId());
+        leases.closeLease(task.getId());
         assertAllFreed();
         assertThat(
             received.stream().map(r -> Set.copyOf(r.request().contextIds())).toList(),
@@ -387,7 +405,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         createIndexWithDocs(INDEX);
         List<ReceivedKeepAlive> received = captureKeepAlives();
         CancellableTask task = rootTask();
-        FetchContextLease lease = service.leaseFor(task);
+        FetchContextLease lease = leases.leaseFor(task);
         OriginalIndices otherIndices = new OriginalIndices(new String[] { "fetch-*", "-fetch-old" }, IndicesOptions.lenientExpandOpen());
         List<ShardSearchContextId> queryContexts = respond(INDEX);
         List<ShardSearchContextId> otherContexts = respond(INDEX);
@@ -398,7 +416,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         lease.refresh();
 
         assertBusy(() -> assertThat(received, hasSize(2)));
-        service.closeLease(task.getId());
+        leases.closeLease(task.getId());
         assertAllFreed();
         for (ReceivedKeepAlive keepAlive : received) {
             OriginalIndices expected = keepAlive.request().contextIds().containsAll(queryContexts) ? QUERY_INDICES : otherIndices;
@@ -414,7 +432,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         createIndexWithDocs(INDEX);
         List<ReceivedKeepAlive> received = captureKeepAlives();
         CancellableTask task = rootTask();
-        FetchContextLease lease = service.leaseFor(task);
+        FetchContextLease lease = leases.leaseFor(task);
         FetchContextLease.Execution execution = lease.newExecution(EXECUTION_INDICES);
         execution.add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
 
@@ -424,7 +442,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         TimeValue keepAlive = TimeValue.timeValueMillis(searchService().getDefaultKeepAliveInMillis());
         assertThat(execution.keepAlive(), equalTo(keepAlive));
         assertThat(received.getFirst().request().keepAlive(), equalTo(keepAlive));
-        service.closeLease(task.getId());
+        leases.closeLease(task.getId());
         assertAllFreed();
     }
 
@@ -435,7 +453,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         createIndexWithDocs(INDEX);
         List<ReceivedKeepAlive> received = captureKeepAlives();
         CancellableTask task = rootTask();
-        FetchContextLease lease = service.leaseFor(task);
+        FetchContextLease lease = leases.leaseFor(task);
         FetchContextLease.Execution cutEnded = lease.newExecution(EXECUTION_INDICES);
         FetchContextLease.Execution fetchEnded = lease.newExecution(EXECUTION_INDICES);
         List<ShardSearchContextId> open = respond(INDEX);
@@ -448,7 +466,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         lease.refresh();
 
         assertBusy(() -> assertThat(received, hasSize(1)));
-        service.closeLease(task.getId());
+        leases.closeLease(task.getId());
         assertAllFreed();
         assertThat("one request for one execution", received, hasSize(1));
         assertThat(received.getFirst().request().contextIds(), contains(read));
@@ -464,7 +482,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         Authentication owner = AuthenticationTestHelper.builder().user(new User("owner")).build();
         Authentication administrator = AuthenticationTestHelper.builder().user(new User("administrator")).build();
         CancellableTask task = rootTask();
-        FetchContextLease lease = as(owner, () -> service.leaseFor(task));
+        FetchContextLease lease = as(owner, () -> leases.leaseFor(task));
         lease.newExecution(EXECUTION_INDICES).add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
 
         as(administrator, () -> {
@@ -475,7 +493,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         assertBusy(() -> assertThat(received, hasSize(1)));
         assertThat(received.getFirst().request().getParentTask(), equalTo(new TaskId(localNode().getId(), task.getId())));
         assertThat(received.getFirst().authentication(), equalTo(owner.encode()));
-        service.closeLease(task.getId());
+        leases.closeLease(task.getId());
         assertAllFreed();
     }
 
@@ -591,21 +609,21 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
      */
     public void testOneLeasePerQuery() {
         CancellableTask task = rootTask();
-        FetchContextLease lease = service.leaseFor(task);
-        assertThat(service.leaseFor(task), sameInstance(lease));
+        FetchContextLease lease = leases.leaseFor(task);
+        assertThat(leases.leaseFor(task), sameInstance(lease));
         CancellableTask otherTask = rootTask();
-        assertThat(service.leaseFor(otherTask), not(sameInstance(lease)));
+        assertThat(leases.leaseFor(otherTask), not(sameInstance(lease)));
 
-        service.closeLease(task.getId());
-        assertThat("a closed lease belongs to no query", service.leaseFor(task), not(sameInstance(lease)));
-        service.closeLease(task.getId());
-        service.closeLease(otherTask.getId());
+        leases.closeLease(task.getId());
+        assertThat("a closed lease belongs to no query", leases.leaseFor(task), not(sameInstance(lease)));
+        leases.closeLease(task.getId());
+        leases.closeLease(otherTask.getId());
     }
 
     public void testCancellingTheQueryFreesItsContexts() throws Exception {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
-        service.leaseFor(task).newExecution(EXECUTION_INDICES).add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
+        leases.leaseFor(task).newExecution(EXECUTION_INDICES).add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
 
         TaskCancelHelper.cancel(task, "the user cancelled the query");
 
@@ -690,8 +708,8 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         List<ShardSearchContextId> open = respond(INDEX);
         AtomicInteger freeRequests = countFreeRequests();
 
-        service.free(FetchNode.local("a-node-that-left"), QUERY_INDICES, open);
-        service.free(localFetchNode(), QUERY_INDICES, open.subList(0, 1));
+        leases.free(FetchNode.local("a-node-that-left"), QUERY_INDICES, open);
+        leases.free(localFetchNode(), QUERY_INDICES, open.subList(0, 1));
 
         assertBusy(() -> assertFalse(isOpen(open.getFirst())));
         assertThat("only the free of this node", freeRequests.get(), equalTo(1));
@@ -708,8 +726,8 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         List<ReceivedKeepAlive> keepAlives = captureKeepAlives();
         TimeValue keepAlive = TimeValue.timeValueMinutes(5);
 
-        service.keepAlive(FetchNode.local("a-node-that-left"), QUERY_INDICES, List.of(contextId(1)), keepAlive, rootTask());
-        service.keepAlive(localFetchNode(), QUERY_INDICES, List.of(contextId(2)), keepAlive, rootTask());
+        leases.keepAlive(FetchNode.local("a-node-that-left"), QUERY_INDICES, List.of(contextId(1)), keepAlive, rootTask());
+        leases.keepAlive(localFetchNode(), QUERY_INDICES, List.of(contextId(2)), keepAlive, rootTask());
 
         assertBusy(() -> assertThat(keepAlives, not(empty())));
         assertThat(keepAlives, hasSize(1));
@@ -722,11 +740,11 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     public void testFreeingAMissingContextDoesNothing() throws Exception {
         createIndexWithDocs(INDEX);
         List<ShardSearchContextId> open = respond(INDEX);
-        service.free(localFetchNode(), QUERY_INDICES, open);
+        leases.free(localFetchNode(), QUERY_INDICES, open);
         assertAllFreed();
 
         AtomicInteger freeRequests = countFreeRequests();
-        service.free(localFetchNode(), QUERY_INDICES, open);
+        leases.free(localFetchNode(), QUERY_INDICES, open);
         assertBusy(() -> assertThat(freeRequests.get(), equalTo(1)));
         assertAllFreed();
     }
@@ -822,7 +840,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     public void testALeaseForARemoteRequestKeepsTheKeepAliveOfTheQuery() {
         TimeValue queryKeepAlive = TimeValue.timeValueSeconds(between(1, 600));
 
-        FetchContextLease lease = service.leaseFor(rootTask(), queryKeepAlive);
+        FetchContextLease lease = leases.leaseFor(rootTask(), queryKeepAlive);
 
         assertThat(lease.newExecution(EXECUTION_INDICES).keepAlive(), equalTo(queryKeepAlive));
         lease.close();
@@ -841,7 +859,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
      */
     private FetchContextLease leaseWithKeepAlive(CancellableTask task, TimeValue keepAlive) {
         ThreadContext threadContext = getInstanceFromNode(ThreadPool.class).getThreadContext();
-        return new FetchContextLease(service, service, task, threadContext.newRestorableContext(false), keepAlive);
+        return new FetchContextLease(leases, leases, task, threadContext.newRestorableContext(false), keepAlive);
     }
 
     /**
@@ -849,7 +867,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
      */
     private FetchContextLease leaseThrough(CancellableTask task, FetchContextTransport transport) {
         ThreadContext threadContext = getInstanceFromNode(ThreadPool.class).getThreadContext();
-        return new FetchContextLease(service, transport, task, threadContext.newRestorableContext(false), TimeValue.timeValueMinutes(5));
+        return new FetchContextLease(leases, transport, task, threadContext.newRestorableContext(false), TimeValue.timeValueMinutes(5));
     }
 
     /**

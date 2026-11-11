@@ -58,7 +58,7 @@ public final class FetchContextFreeRequest extends AbstractTransportRequest impl
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().supports(FetchRequest.ESQL_FETCH) == false) {
+        if (out.getTransportVersion().supports(FetchContextService.ESQL_FETCH_CONTEXTS) == false) {
             // only nodes that kept contexts for the fetch phase get a free
             throw new IllegalStateException("can't send a fetch context free to a node on [" + out.getTransportVersion() + "]");
         }

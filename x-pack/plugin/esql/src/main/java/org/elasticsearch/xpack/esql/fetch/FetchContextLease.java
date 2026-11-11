@@ -51,7 +51,7 @@ public final class FetchContextLease implements Releasable {
      */
     private static final int REFRESHES_PER_KEEP_ALIVE = 3;
 
-    private final FetchContextService service;
+    private final FetchContextLeases service;
     private final FetchContextTransport transport;
     private final CancellableTask rootTask;
     private final Supplier<ThreadContext.StoredContext> ownerContext;
@@ -76,7 +76,7 @@ public final class FetchContextLease implements Releasable {
      * @param keepAlive    how long a context of the query stays open after its last use
      */
     FetchContextLease(
-        FetchContextService service,
+        FetchContextLeases service,
         FetchContextTransport transport,
         CancellableTask rootTask,
         Supplier<ThreadContext.StoredContext> ownerContext,

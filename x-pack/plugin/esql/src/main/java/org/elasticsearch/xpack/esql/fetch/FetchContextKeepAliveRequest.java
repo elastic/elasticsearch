@@ -66,7 +66,7 @@ public final class FetchContextKeepAliveRequest extends AbstractTransportRequest
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().supports(FetchRequest.ESQL_FETCH) == false) {
+        if (out.getTransportVersion().supports(FetchContextService.ESQL_FETCH_CONTEXTS) == false) {
             // only nodes that kept contexts for the fetch phase get a keep-alive
             throw new IllegalStateException("can't send a fetch context keep-alive to a node on [" + out.getTransportVersion() + "]");
         }

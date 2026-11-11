@@ -23,16 +23,25 @@ public interface FetchPhaseServices {
     FetchOperatorProvider operatorProvider(QueryFetchScope scope);
 
     /**
-     * The reader contexts of the fetch phase on this node: the ones it keeps open as a data node, and the leases of the
-     * queries it coordinates.
+     * The reader contexts this node keeps open for the fetch phase as a data node.
      */
     FetchContextService contextService();
 
     /**
-     * The runtime of this node: a {@link FetchOperator} for each {@link FetchExec} that sends its requests through
-     * {@code fetchService}, and the reader contexts of {@code contextService}.
+     * The leases of the fetch contexts of the queries this node coordinates.
      */
-    static FetchPhaseServices create(FetchContextService contextService, FetchService fetchService, ClusterService clusterService) {
+    FetchContextLeases leases();
+
+    /**
+     * The runtime of this node: a {@link FetchOperator} for each {@link FetchExec} that sends its requests through
+     * {@code fetchService}, the reader contexts of {@code contextService} and the leases of {@code leases}.
+     */
+    static FetchPhaseServices create(
+        FetchContextService contextService,
+        FetchContextLeases leases,
+        FetchService fetchService,
+        ClusterService clusterService
+    ) {
         return new FetchPhaseServices() {
             @Override
             public FetchOperatorProvider operatorProvider(QueryFetchScope scope) {
@@ -45,7 +54,7 @@ public interface FetchPhaseServices {
                             new QueryFetchClient(
                                 fetchService::sendFetch,
                                 clusterService.threadPool().getThreadContext(),
-                                contextService.nodes(),
+                                leases.nodes(),
                                 scope,
                                 exec.originalIndices()
                             ),
@@ -64,6 +73,11 @@ public interface FetchPhaseServices {
             @Override
             public FetchContextService contextService() {
                 return contextService;
+            }
+
+            @Override
+            public FetchContextLeases leases() {
+                return leases;
             }
         };
     }

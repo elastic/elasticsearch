@@ -106,6 +106,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.fetch.FetchContextLease;
+import org.elasticsearch.xpack.esql.fetch.FetchContextLeases;
 import org.elasticsearch.xpack.esql.fetch.FetchContextService;
 import org.elasticsearch.xpack.esql.fetch.FetchFailures;
 import org.elasticsearch.xpack.esql.fetch.FetchNodeDirectory;
@@ -283,18 +284,19 @@ public class ComputeService {
         this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
-        FetchContextService fetchContextService = new FetchContextService(
+        FetchContextService fetchContextService = new FetchContextService(searchService, transportService, openFetchContexts);
+        fetchContextService.registerHandlers();
+        fetchContextService.registerProxyActions(namedWriteableRegistry);
+        FetchContextLeases fetchContextLeases = new FetchContextLeases(
             searchService,
             transportService,
             FetchNodeDirectory.create(
                 transportService,
                 threadPool.getThreadContext(),
                 () -> transportActionServices.clusterService().state().nodes()
-            ),
-            openFetchContexts
+            )
         );
-        fetchContextService.registerTaskListener();
-        fetchContextService.registerHandlers(namedWriteableRegistry);
+        fetchContextLeases.registerTaskListener();
         this.inferenceService = transportActionServices.inferenceService();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.ipLocationService = transportActionServices.ipLocationService();
@@ -336,7 +338,7 @@ public class ComputeService {
             this::fetchPlanner
         );
         fetchService.registerHandlers();
-        this.fetchPhaseServices = FetchPhaseServices.create(fetchContextService, fetchService, clusterService);
+        this.fetchPhaseServices = FetchPhaseServices.create(fetchContextService, fetchContextLeases, fetchService, clusterService);
     }
 
     /** The minimum transport version of the nodes that may read the splits planned here. */
@@ -1588,11 +1590,11 @@ public class ComputeService {
         if (dataNodePlan.output().stream().anyMatch(EsQueryExec::isDocAttribute)) {
             fetchContexts = mergeFetchContexts != null
                 ? mergeFetchContexts
-                : fetchPhaseServices.contextService().leaseFor(rootTask).newExecution(withIndexExpressions(clusterToOriginalIndices));
+                : fetchPhaseServices.leases().leaseFor(rootTask).newExecution(withIndexExpressions(clusterToOriginalIndices));
             for (Map.Entry<String, OriginalIndices> cluster : clusterToConcreteIndices.entrySet()) {
                 if (cluster.getKey().equals(LOCAL_CLUSTER) == false && cluster.getValue().indices().length > 0) {
                     // the fetch finds the nodes of a remote cluster once it has its documents, so they are collected meanwhile
-                    fetchPhaseServices.contextService().nodes().prepare(cluster.getKey());
+                    fetchPhaseServices.leases().nodes().prepare(cluster.getKey());
                 }
             }
         } else {

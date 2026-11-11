@@ -86,7 +86,7 @@ public class FetchContextFreeRequestTests extends ESTestCase {
      * Only the nodes that kept contexts for the fetch phase get a free.
      */
     public void testCantBeSentToANodeWithoutTheFetchPhase() {
-        TransportVersion older = TransportVersionUtils.getPreviousVersion(FetchRequest.ESQL_FETCH);
+        TransportVersion older = TransportVersionUtils.getPreviousVersion(FetchContextService.ESQL_FETCH_CONTEXTS);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
             () -> copyWriteable(randomRequest(), REGISTRY, FetchContextFreeRequest::new, older)

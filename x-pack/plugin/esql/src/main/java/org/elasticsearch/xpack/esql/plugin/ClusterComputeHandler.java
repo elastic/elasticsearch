@@ -365,7 +365,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         final FetchContextLease.Execution fetchContexts = fetchContextsKeepAlive == null
             ? null
             : computeService.fetchPhaseServices()
-                .contextService()
+                .leases()
                 .leaseFor(parentTask, fetchContextsKeepAlive)
                 .newExecution(Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, originalIndices));
         final Set<ShardSearchContextId> leftTheCluster = ConcurrentCollections.newConcurrentSet();

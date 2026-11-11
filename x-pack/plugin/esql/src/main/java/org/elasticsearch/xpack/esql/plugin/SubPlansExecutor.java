@@ -207,7 +207,7 @@ final class SubPlansExecutor {
                     new OriginalIndices(expressions.toArray(String[]::new), SearchRequest.DEFAULT_INDICES_OPTIONS)
                 )
             );
-        return computeService.fetchPhaseServices().contextService().leaseFor(rootTask).newExecution(indices);
+        return computeService.fetchPhaseServices().leases().leaseFor(rootTask).newExecution(indices);
     }
 
     /**

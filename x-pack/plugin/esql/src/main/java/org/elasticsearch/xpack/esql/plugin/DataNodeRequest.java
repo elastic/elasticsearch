@@ -32,6 +32,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.fetch.FetchContextService;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -69,7 +70,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     static final TransportVersion ESQL_EXTERNAL_WORKER_READINESS = TransportVersion.fromName("esql_external_worker_readiness");
     static final TransportVersion ESQL_EXTERNAL_WORKER_GATING = TransportVersion.fromName("esql_external_worker_gating");
     private static final TransportVersion QUERY_ID_IN_DATA_NODE_REQUEST = TransportVersion.fromName("search_query_waiting");
-    static final TransportVersion ESQL_FETCH_CONTEXTS = TransportVersion.fromName("esql_fetch_phase_plan");
+    static final TransportVersion ESQL_FETCH_CONTEXTS = FetchContextService.ESQL_FETCH_CONTEXTS;
 
     private static final Logger logger = LogManager.getLogger(DataNodeRequest.class);
 

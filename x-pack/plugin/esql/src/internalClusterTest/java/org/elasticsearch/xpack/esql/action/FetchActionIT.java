@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.fetch.FetchContextService;
-import org.elasticsearch.xpack.esql.fetch.FetchNodeDirectory;
 import org.elasticsearch.xpack.esql.fetch.FetchRequest;
 import org.elasticsearch.xpack.esql.fetch.FetchResponse;
 import org.elasticsearch.xpack.esql.fetch.FetchService;
@@ -218,11 +217,6 @@ public class FetchActionIT extends AbstractEsqlIntegTestCase {
         FetchContextService contextService = new FetchContextService(
             searchService,
             transportService,
-            FetchNodeDirectory.create(
-                transportService,
-                transportService.getThreadPool().getThreadContext(),
-                () -> clusterService(node).state().nodes()
-            ),
             new OpenFetchContexts(MeterRegistry.NOOP)
         );
         NodeFetchContexts contexts = contextService.newNodeContexts(

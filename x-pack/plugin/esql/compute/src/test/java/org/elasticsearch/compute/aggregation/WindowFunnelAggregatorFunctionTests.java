@@ -7,8 +7,8 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.aggregation.WindowFunnelGroupingAggregatorFunctionTests.ExpectedFunnel;
-import org.elasticsearch.compute.aggregation.WindowFunnelGroupingAggregatorFunctionTests.FunnelInput;
+import org.elasticsearch.compute.aggregation.WindowFunnelTestUtils.ExpectedFunnel;
+import org.elasticsearch.compute.aggregation.WindowFunnelTestUtils.FunnelInput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;

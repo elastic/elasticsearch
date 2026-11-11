@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
@@ -51,6 +50,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeFunctionEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
@@ -1943,78 +1943,28 @@ public class VerifierTests extends AnalyzerTestCase {
             BY event_log, fMGjtTxPiPQV = bucket(@timestamp,1hour)""");
     }
 
-    public void testWindowFunnelArguments() {
-        assumeTrue("WINDOW_FUNNEL is only available in snapshot builds", Build.current().isSnapshot());
-        defaultAnalyzer().error(
-            "FROM test | STATS WINDOW_FUNNEL(1 day, hire_date, still_hired)",
-            equalTo(
-                "1:19: first argument of [WINDOW_FUNNEL(1 day, hire_date, still_hired)] must be [time_duration], "
-                    + "found value [1 day] type [date_period]"
-            )
-        );
-        defaultAnalyzer().error(
-            "FROM test | STATS WINDOW_FUNNEL(3600000, hire_date, still_hired)",
-            equalTo(
-                "1:19: first argument of [WINDOW_FUNNEL(3600000, hire_date, still_hired)] must be [time_duration], "
-                    + "found value [3600000] type [integer]"
-            )
-        );
-        defaultAnalyzer().error(
-            "FROM test | STATS WINDOW_FUNNEL(\"1 hour\", hire_date, still_hired)",
-            equalTo(
-                "1:19: first argument of [WINDOW_FUNNEL(\"1 hour\", hire_date, still_hired)] must be [time_duration], "
-                    + "found value [\"1 hour\"] type [keyword]"
-            )
-        );
-        defaultAnalyzer().error(
-            "FROM test | STATS WINDOW_FUNNEL(1 hour, salary, still_hired)",
-            equalTo(
-                "1:19: second argument of [WINDOW_FUNNEL(1 hour, salary, still_hired)] must be [date or date_nanos], "
-                    + "found value [salary] type [integer]"
-            )
-        );
-        defaultAnalyzer().error(
-            "FROM test | STATS WINDOW_FUNNEL(-1 hour, hire_date, still_hired)",
-            equalTo(
-                "1:19: first argument of [WINDOW_FUNNEL(-1 hour, hire_date, still_hired)] must be a non-negative time_duration, "
-                    + "found [-1 hour]"
-            )
-        );
-        defaultAnalyzer().error(
-            "FROM test | STATS WINDOW_FUNNEL(1 hour, hire_date, still_hired, is_rehired, first_name)",
-            equalTo(
-                "1:19: fifth argument of [WINDOW_FUNNEL(1 hour, hire_date, still_hired, is_rehired, first_name)] must be [boolean], "
-                    + "found value [first_name] type [keyword]"
-            )
-        );
+    public void testWindowFunnelOutsideStats() {
+        assumeFunctionEnabled("window_funnel");
         defaultAnalyzer().error(
             "FROM test | EVAL x = WINDOW_FUNNEL(1 hour, hire_date, still_hired)",
             equalTo("1:22: aggregate function [WINDOW_FUNNEL(1 hour, hire_date, still_hired)] not allowed outside STATS command")
         );
     }
 
-    public void testWindowFunnelParameterLimits() {
-        assumeTrue("WINDOW_FUNNEL is only available in snapshot builds", Build.current().isSnapshot());
-        String tooMany = "WINDOW_FUNNEL(1 hour, hire_date, " + "still_hired, ".repeat(32) + "still_hired)";
+    public void testWindowFunnelDatePeriodMaxspan() {
+        assumeFunctionEnabled("window_funnel");
         defaultAnalyzer().error(
-            "FROM test | STATS " + tooMany,
-            equalTo("1:19: [" + tooMany + "] supports at most [32] conditions, found [33]")
-        );
-        defaultAnalyzer().error(
-            "FROM test | STATS WINDOW_FUNNEL(null, hire_date, still_hired)",
-            equalTo("1:19: first argument of [WINDOW_FUNNEL(null, hire_date, still_hired)] cannot be null, received [null]")
-        );
-        defaultAnalyzer().error(
-            "FROM test | STATS WINDOW_FUNNEL(TO_TIMEDURATION(first_name), hire_date, still_hired)",
+            "FROM test | STATS WINDOW_FUNNEL(1 day, hire_date, still_hired)",
             equalTo(
-                "1:19: first argument of [WINDOW_FUNNEL(TO_TIMEDURATION(first_name), hire_date, still_hired)] must be a constant, "
-                    + "received [TO_TIMEDURATION(first_name)]"
+                "1:19: first argument of [WINDOW_FUNNEL(1 day, hire_date, still_hired)] must be [time_duration], "
+                    + "found value [1 day] type [date_period]"
+                    + "; a date_period is calendar based, use a time_duration such as [24 hours] instead"
             )
         );
     }
 
     public void testWindowFunnelWithTs() {
-        assumeTrue("WINDOW_FUNNEL is only available in snapshot builds", Build.current().isSnapshot());
+        assumeFunctionEnabled("window_funnel");
         tsdb().error(
             "TS test | STATS WINDOW_FUNNEL(1 hour, @timestamp, network.connections > 0)",
             equalTo("1:17: window_funnel [WINDOW_FUNNEL(1 hour, @timestamp, network.connections > 0)] can't be used with TS command")

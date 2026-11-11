@@ -11,10 +11,13 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 
 import java.time.Duration;
@@ -23,6 +26,7 @@ import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.sameInstance;
@@ -123,6 +127,26 @@ public class WindowFunnelTests extends AbstractAggregationTestCase {
     @Override
     protected boolean canSerialize() {
         return false;
+    }
+
+    public void testSurrogateShape() {
+        WindowFunnel funnel = (WindowFunnel) buildFieldExpression(testCase);
+        int steps = funnel.conditions().size();
+        Coalesce coalesce = as(funnel.surrogate(), Coalesce.class);
+        assertThat(coalesce.children(), hasSize(2));
+        assertThat(as(coalesce.children().get(1), Literal.class).value(), equalTo(0));
+        WindowFunnelLevel level = as(coalesce.children().getFirst(), WindowFunnelLevel.class);
+        assertThat(as(level.steps(), Literal.class).value(), equalTo(steps));
+        assertThat(level.timestamp(), sameInstance(funnel.timestamp()));
+        assertThat(level.maxspan(), sameInstance(funnel.maxspan()));
+        List<Case> stepMasks = level.mask().collect(Case.class);
+        assertThat(stepMasks, hasSize(steps));
+        for (int step = 0; step < steps; step++) {
+            Expression condition = funnel.conditions().get(step);
+            Case stepMask = stepMasks.stream().filter(c -> c.children().getFirst().equals(condition)).findFirst().orElseThrow();
+            assertThat(as(stepMask.children().get(1), Literal.class).value(), equalTo(1L << step));
+            assertThat(as(stepMask.children().get(2), Literal.class).value(), equalTo(0L));
+        }
     }
 
     public void testSurrogateMaskUsesFunnelConfiguration() {

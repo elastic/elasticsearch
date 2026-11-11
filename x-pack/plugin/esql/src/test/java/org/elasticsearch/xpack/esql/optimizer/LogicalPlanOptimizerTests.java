@@ -194,6 +194,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeFunctionEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.containsIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptySource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
@@ -8727,9 +8728,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertEquals("Invalid order value in [mv_sort(v, o)], expected one of [ASC, DESC] but got [dsc]", iae.getMessage());
     }
 
-    public void testWindowFunnelMaxspanCheckedAfterFolding() {
-        assumeTrue("WINDOW_FUNNEL is only available in snapshot builds", Build.current().isSnapshot());
-        String header = "Found 1 problem\nline ";
+    public void testWindowFunnelNullMaxspanCheckedAfterFolding() {
+        assumeFunctionEnabled("window_funnel");
+        final String header = "Found 1 problem\nline ";
         VerificationException e = expectThrows(
             VerificationException.class,
             () -> plan("FROM test | STATS WINDOW_FUNNEL(null::time_duration, hire_date, salary > 1000)")
@@ -8757,7 +8758,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 + "received [TO_TIMEDURATION(null)]",
             e.getMessage().substring(header.length())
         );
-        e = expectThrows(
+    }
+
+    public void testWindowFunnelNegativeMaxspanCheckedAfterFolding() {
+        assumeFunctionEnabled("window_funnel");
+        final String header = "Found 1 problem\nline ";
+        VerificationException e = expectThrows(
             VerificationException.class,
             () -> plan("FROM test | STATS WINDOW_FUNNEL(30 minutes - 1 hour, hire_date, salary > 1000)")
         );
@@ -8775,19 +8781,16 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 + "time_duration, found [30 minutes - 1 hour]",
             e.getMessage().substring(header.length())
         );
-        IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> plan("FROM test | STATS WINDOW_FUNNEL(\"1 lightyear\"::time_duration, hire_date, salary > 1000)")
-        );
-        assertEquals(
-            "Invalid interval value in [\"1 lightyear\"::time_duration], expected integer followed by one of "
-                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, M, HOUR, HOURS, H] but got [1 lightyear]",
-            iae.getMessage()
-        );
+    }
 
+    public void testWindowFunnelMaxspanIsFolded() {
+        assumeFunctionEnabled("window_funnel");
         assertThat(foldedWindowFunnelMaxspan("30 minutes + 30 minutes"), equalTo(Duration.ofHours(1)));
         assertThat(foldedWindowFunnelMaxspan("30 minutes - 30 minutes"), equalTo(Duration.ZERO));
+    }
 
+    public void testWindowFunnelWithInvalidMaxspanIsDroppedByFalseFilter() {
+        assumeFunctionEnabled("window_funnel");
         LogicalPlan dropped = plan("FROM test | STATS f = WINDOW_FUNNEL(30 minutes - 1 hour, hire_date, salary > 1000) WHERE false");
         dropped.forEachExpressionDown(WindowFunnelLevel.class, level -> fail("unexpected " + level));
     }

@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -484,10 +483,11 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                 .filter(data -> data.isForceLiteral() == false)
                 .iterator();
             for (Expression field : originalExpression.children()) {
-                if (field instanceof Literal || field instanceof MapExpression) {
+                if (field instanceof Literal) {
                     continue;
                 }
 
+                assertTrue("no test data left for [" + field + "]", fieldData.hasNext());
                 var data = fieldData.next();
 
                 if (data.isMultiRow()) {

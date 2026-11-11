@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.StatementParserTests;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeFunctionEnabled;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -53,7 +53,12 @@ public class AnalyzerParsingTests extends AnalyzerTestCase {
     }
 
     public void testWindowFunnelFunctionInvalidInputs() {
-        assumeTrue("WINDOW_FUNNEL is only available in snapshot builds", Build.current().isSnapshot());
+        assumeFunctionEnabled("window_funnel");
+        defaultAnalyzer().error(
+            "from test | stats x = window_funnel()",
+            ParsingException.class,
+            equalTo("line 1:23: error building [window_funnel]: expects at least three arguments")
+        );
         defaultAnalyzer().error(
             "from test | stats x = window_funnel(1 hour, hire_date)",
             ParsingException.class,

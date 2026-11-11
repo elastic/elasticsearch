@@ -53,6 +53,8 @@ public class WindowFunnel extends AggregateFunction implements OnlySurrogateExpr
 
     public static final int MAX_CONDITIONS = 32;
 
+    private static final String DATE_PERIOD_HINT = "; a date_period is calendar based, use a time_duration such as [24 hours] instead";
+
     private final Configuration configuration;
 
     @FunctionInfo(
@@ -95,7 +97,7 @@ public class WindowFunnel extends AggregateFunction implements OnlySurrogateExpr
         @Param(
             name = "conditions",
             type = { "boolean" },
-            description = "Between one and 32 conditions, in the order the events must happen."
+            description = "Between one and " + MAX_CONDITIONS + " conditions, in the order the events must happen."
         ) List<Expression> conditions,
         Configuration configuration
     ) {
@@ -155,7 +157,13 @@ public class WindowFunnel extends AggregateFunction implements OnlySurrogateExpr
         }
         TypeResolution resolution = isNotNull(maxspan(), sourceText(), FIRST).and(
             isType(maxspan(), dt -> dt == DataType.TIME_DURATION, sourceText(), FIRST, "time_duration")
-        ).and(isType(timestamp(), dt -> dt == DataType.DATETIME || dt == DataType.DATE_NANOS, sourceText(), SECOND, "date", "date_nanos"));
+        );
+        if (maxspan().dataType() == DataType.DATE_PERIOD) {
+            return new TypeResolution(resolution.message() + DATE_PERIOD_HINT);
+        }
+        resolution = resolution.and(
+            isType(timestamp(), dt -> dt == DataType.DATETIME || dt == DataType.DATE_NANOS, sourceText(), SECOND, "date", "date_nanos")
+        );
         if (resolution.unresolved()) {
             return resolution;
         }

@@ -171,6 +171,7 @@ class WindowFunnelAggregator {
         }
 
         void add(int groupId, long timestamp, long mask) {
+            assert (mask & ~allSteps) == 0 : "mask [" + mask + "] has bits beyond [" + steps + "] steps";
             if (mask == 0 || complete.get(groupId)) {
                 return;
             }
@@ -252,7 +253,7 @@ class WindowFunnelAggregator {
              * otherwise the {@code level} of its slice sorted by timestamp. In the class example: {@code [3, 1]}.
              */
             private Block buildLevels(IntVector selectedInPage) {
-                long[] firsts = new long[steps];
+                long[] chainStarts = new long[steps];
                 IntroSorter sorter = timestampSorter(layout.ids);
                 try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(selectedInPage.getPositionCount())) {
                     for (int s = 0; s < selectedInPage.getPositionCount(); s++) {
@@ -268,7 +269,7 @@ class WindowFunnelAggregator {
                             continue;
                         }
                         sorter.sort(start, end);
-                        builder.appendInt(level(layout.ids, start, end, firsts));
+                        builder.appendInt(level(layout.ids, start, end, chainStarts));
                     }
                     return builder.build();
                 }
@@ -281,7 +282,7 @@ class WindowFunnelAggregator {
              */
             private void buildIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
                 int positions = selectedInPage.getPositionCount();
-                long[] firsts = new long[steps];
+                long[] chainStarts = new long[steps];
                 IntroSorter sorter = timestampSorter(layout.ids);
                 try (
                     LongBlock.Builder timestamps = blockFactory.newLongBlockBuilder(positions);
@@ -296,7 +297,7 @@ class WindowFunnelAggregator {
                             entryMasks.appendNull();
                             continue;
                         }
-                        if (complete.get(group) || reachesAllSteps(start, end, sorter, firsts)) {
+                        if (complete.get(group) || reachesAllSteps(start, end, sorter, chainStarts)) {
                             timestamps.appendLong(keys.getKey2(layout.ids[start]));
                             entryMasks.appendLong(allSteps);
                             continue;
@@ -322,7 +323,7 @@ class WindowFunnelAggregator {
                 }
             }
 
-            private boolean reachesAllSteps(int start, int end, IntroSorter sorter, long[] firsts) {
+            private boolean reachesAllSteps(int start, int end, IntroSorter sorter, long[] chainStarts) {
                 if (end - start == 1) {
                     return false;
                 }
@@ -334,7 +335,7 @@ class WindowFunnelAggregator {
                     return false;
                 }
                 sorter.sort(start, end);
-                return level(layout.ids, start, end, firsts) == steps;
+                return level(layout.ids, start, end, chainStarts) == steps;
             }
 
             @Override
@@ -372,21 +373,21 @@ class WindowFunnelAggregator {
         }
 
         /**
-         * Deepest step reached by the entries {@code ids[start, end)}, which must be sorted by timestamp. {@code firsts[k]}
+         * Deepest step reached by the entries {@code ids[start, end)}, which must be sorted by timestamp. {@code chainStarts[k]}
          * is the latest start of a chain reaching step {@code k}: a later start keeps the deadline as late as possible, so
-         * step {@code k + 1} extends the chain if its timestamp is within {@code deadline(firsts[k])}. The bits of one entry
+         * step {@code k + 1} extends the chain if its timestamp is within {@code deadline(chainStarts[k])}. The bits of one entry
          * are taken in step order, so conditions sharing a timestamp chain.
          * <p>
          * With a one hour span and three steps, where {@code bN} is an entry whose mask has bit {@code N}:
          * <pre>{@code
-         * u1: 10:00 b0 -> firsts[0]=10:00, best=1
-         *     10:05 b1 -> 10:05 <= 11:00 -> firsts[1]=10:00, best=2
+         * u1: 10:00 b0 -> chainStarts[0]=10:00, best=1
+         *     10:05 b1 -> 10:05 <= 11:00 -> chainStarts[1]=10:00, best=2
          *     10:10 b2 -> 10:10 <= 11:00 -> best=3 == steps -> return 3
          * u2: 10:00 b0 -> best=1
          *     10:30 b1 -> 10:30 <= 11:00 -> best=2 (no b2 entry) -> return 2
          * }</pre>
          */
-        private int level(int[] ids, int start, int end, long[] firsts) {
+        private int level(int[] ids, int start, int end, long[] chainStarts) {
             long reached = 0;
             int best = 0;
             for (int i = start; i < end; i++) {
@@ -397,10 +398,10 @@ class WindowFunnelAggregator {
                     assert step < steps : "mask bit " + step + " beyond " + steps + " steps";
                     mask &= mask - 1;
                     if (step == 0) {
-                        firsts[0] = timestamp;
+                        chainStarts[0] = timestamp;
                         reached |= 1L;
-                    } else if ((reached & (1L << (step - 1))) != 0 && timestamp <= deadline(firsts[step - 1])) {
-                        firsts[step] = firsts[step - 1];
+                    } else if ((reached & (1L << (step - 1))) != 0 && timestamp <= deadline(chainStarts[step - 1])) {
+                        chainStarts[step] = chainStarts[step - 1];
                         reached |= 1L << step;
                     } else {
                         continue;

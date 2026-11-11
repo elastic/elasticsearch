@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
 import java.time.Duration;
+import java.time.Period;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -85,99 +86,68 @@ public class WindowFunnelErrorTests extends ErrorsForCasesWithoutExamplesTestCas
     }
 
     public void testNoConditions() {
-        WindowFunnel funnel = new WindowFunnel(Source.synthetic("f"), maxspan(Duration.ofHours(1)), timestamp(), List.of(), TEST_CFG);
-        assertThat(funnel.typeResolved().message(), equalTo("[f] requires at least one condition"));
+        assertThat(
+            funnel(maxspan(Duration.ofHours(1)), List.of()).typeResolved().message(),
+            equalTo("[f] requires at least one condition")
+        );
     }
 
     public void testTooManyConditions() {
         List<Expression> conditions = Collections.nCopies(WindowFunnel.MAX_CONDITIONS + 1, randomLiteral(DataType.BOOLEAN));
-        WindowFunnel funnel = new WindowFunnel(Source.synthetic("f"), maxspan(Duration.ofHours(1)), timestamp(), conditions, TEST_CFG);
-        assertThat(funnel.typeResolved().message(), equalTo("[f] supports at most [32] conditions, found [33]"));
+        assertThat(
+            funnel(maxspan(Duration.ofHours(1)), conditions).typeResolved().message(),
+            equalTo("[f] supports at most [32] conditions, found [33]")
+        );
     }
 
     public void testMaxConditions() {
         List<Expression> conditions = Collections.nCopies(WindowFunnel.MAX_CONDITIONS, randomLiteral(DataType.BOOLEAN));
-        WindowFunnel funnel = new WindowFunnel(Source.synthetic("f"), maxspan(Duration.ofHours(1)), timestamp(), conditions, TEST_CFG);
-        assertTrue(funnel.typeResolved().resolved());
+        assertTrue(funnel(maxspan(Duration.ofHours(1)), conditions).typeResolved().resolved());
     }
 
     public void testNonConstantMaxspan() {
-        WindowFunnel funnel = new WindowFunnel(
-            Source.synthetic("f"),
-            field("span", DataType.TIME_DURATION),
-            timestamp(),
-            List.of(randomLiteral(DataType.BOOLEAN)),
-            TEST_CFG
+        assertThat(
+            funnel(field("span", DataType.TIME_DURATION)).typeResolved().message(),
+            equalTo("first argument of [f] must be a constant, received [span]")
         );
-        assertThat(funnel.typeResolved().message(), equalTo("first argument of [f] must be a constant, received [span]"));
     }
 
     public void testNegativeMaxspan() {
         Expression maxspan = Literal.timeDuration(Source.synthetic("-1 hour"), Duration.ofHours(-1));
-        WindowFunnel funnel = new WindowFunnel(
-            Source.synthetic("f"),
-            maxspan,
-            timestamp(),
-            List.of(randomLiteral(DataType.BOOLEAN)),
-            TEST_CFG
+        assertThat(
+            funnel(maxspan).typeResolved().message(),
+            equalTo("first argument of [f] must be a non-negative time_duration, found [-1 hour]")
         );
-        assertThat(funnel.typeResolved().message(), equalTo("first argument of [f] must be a non-negative time_duration, found [-1 hour]"));
     }
 
     public void testNullValuedMaxspan() {
         Expression maxspan = new Literal(Source.synthetic("span"), null, DataType.TIME_DURATION);
-        WindowFunnel funnel = new WindowFunnel(
-            Source.synthetic("f"),
-            maxspan,
-            timestamp(),
-            List.of(randomLiteral(DataType.BOOLEAN)),
-            TEST_CFG
-        );
-        assertThat(funnel.typeResolved().message(), equalTo("first argument of [f] cannot be null, received [span]"));
+        assertThat(funnel(maxspan).typeResolved().message(), equalTo("first argument of [f] cannot be null, received [span]"));
     }
 
     public void testZeroMaxspan() {
-        WindowFunnel funnel = new WindowFunnel(
-            Source.synthetic("f"),
-            maxspan(Duration.ZERO),
-            timestamp(),
-            List.of(randomLiteral(DataType.BOOLEAN)),
-            TEST_CFG
+        assertTrue(funnel(maxspan(Duration.ZERO)).typeResolved().resolved());
+    }
+
+    public void testDatePeriodMaxspan() {
+        Expression maxspan = new Literal(Source.synthetic("1 day"), Period.ofDays(1), DataType.DATE_PERIOD);
+        assertThat(
+            funnel(maxspan).typeResolved().message(),
+            equalTo(
+                "first argument of [f] must be [time_duration], found value [1 day] type [date_period]"
+                    + "; a date_period is calendar based, use a time_duration such as [24 hours] instead"
+            )
         );
-        assertTrue(funnel.typeResolved().resolved());
     }
 
     public void testLevelRequiresLiteralMaxspan() {
         Expression maxspan = field("span", DataType.TIME_DURATION);
-        WindowFunnelLevel level = new WindowFunnelLevel(
-            Source.synthetic("f"),
-            timestamp(),
-            field("mask", DataType.LONG),
-            Literal.TRUE,
-            AggregateFunction.NO_WINDOW,
-            maxspan,
-            Literal.integer(Source.EMPTY, 1)
-        );
         Failures failures = new Failures();
-        level.postOptimizationVerification(failures);
+        level(maxspan).postOptimizationVerification(failures);
         assertThat(failures.failures(), hasSize(1));
         assertThat(
             failures.failures().iterator().next().message(),
             equalTo("maxspan of [f] must be a constant time_duration, found [" + maxspan + "]")
-        );
-    }
-
-    public void testLevelRejectsNullMaxspan() {
-        assertThat(
-            levelFailure(new Literal(Source.synthetic("span"), null, DataType.TIME_DURATION)),
-            equalTo("first argument of [f] cannot be null, received [span]")
-        );
-    }
-
-    public void testLevelRejectsNegativeMaxspan() {
-        assertThat(
-            levelFailure(Literal.timeDuration(Source.synthetic("-1 hour"), Duration.ofHours(-1))),
-            equalTo("first argument of [f] must be a non-negative time_duration, found [-1 hour]")
         );
     }
 
@@ -187,11 +157,12 @@ public class WindowFunnelErrorTests extends ErrorsForCasesWithoutExamplesTestCas
         assertFalse(failures.hasFailures());
     }
 
-    private static String levelFailure(Expression maxspan) {
-        Failures failures = new Failures();
-        level(maxspan).postOptimizationVerification(failures);
-        assertThat(failures.failures(), hasSize(1));
-        return failures.failures().iterator().next().message();
+    private static WindowFunnel funnel(Expression maxspan) {
+        return funnel(maxspan, List.of(randomLiteral(DataType.BOOLEAN)));
+    }
+
+    private static WindowFunnel funnel(Expression maxspan, List<Expression> conditions) {
+        return new WindowFunnel(Source.synthetic("f"), maxspan, timestamp(), conditions, TEST_CFG);
     }
 
     private static WindowFunnelLevel level(Expression maxspan) {

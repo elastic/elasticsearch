@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.generator;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator.CommandDescription;
@@ -16,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeFunctionEnabled;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
@@ -36,7 +36,7 @@ public class EsqlQueryGeneratorTests extends ESTestCase {
     );
 
     public void testGeneratedFunnelsResolve() {
-        assumeTrue("WINDOW_FUNNEL is only available in snapshot builds", Build.current().isSnapshot());
+        assumeFunctionEnabled("window_funnel");
         TestAnalyzer analyzer = analyzer().addIndex("funnel_events", "mapping-funnel_events.json");
         for (int i = 0; i < 200; i++) {
             String funnel = EsqlQueryGenerator.windowFunnel(FUNNEL_EVENTS, false);
@@ -47,7 +47,7 @@ public class EsqlQueryGeneratorTests extends ESTestCase {
     }
 
     public void testGeneratedFunnelsWithUnmappedFieldsResolve() {
-        assumeTrue("WINDOW_FUNNEL is only available in snapshot builds", Build.current().isSnapshot());
+        assumeFunctionEnabled("window_funnel");
         TestAnalyzer analyzer = analyzer().addIndex("funnel_events", "mapping-funnel_events.json");
         for (int i = 0; i < 200; i++) {
             String funnel = EsqlQueryGenerator.windowFunnel(FUNNEL_EVENTS, true);
@@ -56,13 +56,13 @@ public class EsqlQueryGeneratorTests extends ESTestCase {
     }
 
     public void testNoFunnelWithoutTimestamp() {
-        assumeTrue("WINDOW_FUNNEL is only available in snapshot builds", Build.current().isSnapshot());
+        assumeFunctionEnabled("window_funnel");
         List<Column> noTimestamp = FUNNEL_EVENTS.stream().filter(c -> c.type().startsWith("date") == false).toList();
         assertThat(EsqlQueryGenerator.windowFunnel(noTimestamp, randomBoolean()), nullValue());
     }
 
     public void testAggGeneratesFunnels() {
-        assumeTrue("WINDOW_FUNNEL is only available in snapshot builds", Build.current().isSnapshot());
+        assumeFunctionEnabled("window_funnel");
         List<CommandDescription> from = List.of(new CommandDescription("from", null, "FROM funnel_events", Map.of()));
         int funnels = 0;
         for (int i = 0; i < 2000; i++) {

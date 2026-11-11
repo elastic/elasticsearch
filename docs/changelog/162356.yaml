@@ -1,5 +1,5 @@
-area: "Columnar, Codec"
+area: Columnar
 issues: []
 pr: 162356
-summary: "Feat(columnar): add skip bounds for plain keyword primary sort"
+summary: Add chunk separators for ordered `PLAIN` keyword columns
 type: enhancement

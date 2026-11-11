@@ -185,25 +185,38 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         Summary summary
     ) implements StringColumnMetadata {
 
-        /** The skip-index region of the column's chunk bounds: {@code entryCount} directory entries, then {@code payloadLength} bytes. */
-        record Skipper(long dataOffset, int entryCount, long payloadLength) {
+        /**
+         * Where the skip-index region of a column is: {@code kind} is the id of the {@link PlainSkipKind} that wrote it and
+         * so reads it, followed in the skip-index file by {@code entryCount} directory entries, then {@code payloadLength}
+         * bytes.
+         */
+        record Skipper(byte kind, long dataOffset, int entryCount, long payloadLength) {
+
+            static final byte NONE = 0;
 
             void writeTo(DataOutput out) throws IOException {
+                out.writeByte(kind);
                 out.writeVLong(dataOffset);
                 out.writeVInt(entryCount);
                 out.writeVLong(payloadLength);
             }
 
             static Skipper readOptionally(DataInput in, long numValues) throws IOException {
-                final byte present = in.readByte();
-                if (present != 0 && present != 1) {
-                    throw new CorruptIndexException("invalid plain skipper presence [" + present + "]", in);
-                }
-                return present == 0 ? null : readFrom(in, numValues);
+                final byte kind = in.readByte();
+                return kind == NONE ? null : readFrom(kind, in, numValues);
             }
 
             static Skipper readFrom(DataInput in, long numValues) throws IOException {
-                final Skipper skipper = new Skipper(in.readVLong(), in.readVInt(), in.readVLong());
+                return readFrom(in.readByte(), in, numValues);
+            }
+
+            private static Skipper readFrom(byte kind, DataInput in, long numValues) throws IOException {
+                try {
+                    PlainSkipKind.forId(kind);
+                } catch (IllegalArgumentException e) {
+                    throw new CorruptIndexException(e.getMessage(), in, e);
+                }
+                final Skipper skipper = new Skipper(kind, in.readVLong(), in.readVInt(), in.readVLong());
                 if (skipper.dataOffset < 0 || skipper.payloadLength < 0 || skipper.entryCount < 1 || skipper.entryCount > numValues) {
                     throw new CorruptIndexException("invalid plain skipper " + skipper + " for [" + numValues + "] values", in);
                 }
@@ -258,8 +271,9 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             values.writeTo(out);
             out.writeByte((byte) (valuesWorthNaming ? 1 : 0));
             if (formatVersion.onOrAfter(FormatVersion.VERSION_SKIP_INDEX_PLAIN)) {
-                out.writeByte((byte) (skipper == null ? 0 : 1));
-                if (skipper != null) {
+                if (skipper == null) {
+                    out.writeByte(Skipper.NONE);
+                } else {
                     skipper.writeTo(out);
                 }
             } else if (skipper != null) {

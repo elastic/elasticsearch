@@ -19,7 +19,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOUtils;
 
-import java.io.Closeable;
 import java.io.IOException;
 
 /**
@@ -32,7 +31,8 @@ import java.io.IOException;
  *
  * <p>The region is a directory of fixed size entries (the first slot an entry owns, the document holding it and
  * the offset of its bounds), followed by the bounds: a flag and, for an entry with a value, the two lengths and the
- * bytes. A reader reads only the entries it needs and compares the bytes where they lie.
+ * bytes. A reader reads only the entries it needs and compares the bytes where they lie. {@link ChunkBoundsSkip} is the
+ * kind that writes and reads it.
  */
 final class PlainSkipBounds {
 
@@ -50,18 +50,7 @@ final class PlainSkipBounds {
 
     private PlainSkipBounds() {}
 
-    record Query(BytesRef lower, boolean includeLower, BytesRef upper, boolean includeUpper, BytesRef prefix) {
-
-        static Query range(BytesRef lower, boolean includeLower, BytesRef upper, boolean includeUpper) {
-            return new Query(lower, includeLower, upper, includeUpper, null);
-        }
-
-        static Query prefix(BytesRef prefix) {
-            return new Query(null, false, null, false, prefix);
-        }
-    }
-
-    static final class Writer implements Closeable {
+    static final class Writer implements PlainSkipKind.Writer {
 
         private final Directory directory;
         private final IndexOutput directoryOutput;
@@ -97,7 +86,8 @@ final class PlainSkipBounds {
          * Takes the slot at {@code address}, held by {@code doc} and owned by {@code chunk}; a null {@code value} is a
          * null slot.
          */
-        void add(long address, int doc, int chunk, BytesRef value) throws IOException {
+        @Override
+        public void add(long address, int doc, int chunk, BytesRef value) throws IOException {
             if (address != nextAddress) {
                 throw new IllegalStateException("slot [" + address + "] arrived when [" + nextAddress + "] was expected");
             }
@@ -127,7 +117,8 @@ final class PlainSkipBounds {
         }
 
         /** Appends the region to {@code skipIndex} and returns where it went, or null if there are no slots. */
-        StringColumnMetadata.Plain.Skipper finish(IndexOutput skipIndex) throws IOException {
+        @Override
+        public StringColumnMetadata.Plain.Skipper finish(IndexOutput skipIndex) throws IOException {
             writeCurrent();
             if (nextAddress != numValues) {
                 throw new IllegalStateException("took [" + nextAddress + "] slots for [" + numValues + "] expected");
@@ -145,7 +136,7 @@ final class PlainSkipBounds {
             } finally {
                 close();
             }
-            return new StringColumnMetadata.Plain.Skipper(offset, entriesWritten, payloadLength);
+            return new StringColumnMetadata.Plain.Skipper(ChunkBoundsSkip.ID, offset, entriesWritten, payloadLength);
         }
 
         @Override
@@ -191,7 +182,7 @@ final class PlainSkipBounds {
         }
     }
 
-    static final class Reader {
+    static final class Reader implements PlainSkipKind.Reader {
 
         private final RandomAccessInput region;
         private final int entryCount;
@@ -228,11 +219,13 @@ final class PlainSkipBounds {
             this.region = skipIndex.randomAccessSlice(skipper.dataOffset(), length);
         }
 
-        int entryCount() {
+        @Override
+        public int entryCount() {
             return entryCount;
         }
 
-        int firstDoc(int entry) throws IOException {
+        @Override
+        public int firstDoc(int entry) throws IOException {
             checkEntry(entry);
             final int doc = region.readInt((long) entry * ENTRY_BYTES + DOC_FIELD);
             if (doc < 0) {
@@ -241,7 +234,8 @@ final class PlainSkipBounds {
             return doc;
         }
 
-        long firstSlot(int entry) throws IOException {
+        @Override
+        public long firstSlot(int entry) throws IOException {
             checkEntry(entry);
             final long slot = region.readLong((long) entry * ENTRY_BYTES);
             if (slot < 0 || slot >= numValues || (entry == 0 && slot != 0)) {
@@ -250,8 +244,8 @@ final class PlainSkipBounds {
             return slot;
         }
 
-        /** The slot after the last one {@code entry} owns. */
-        long endSlot(int entry) throws IOException {
+        @Override
+        public long endSlot(int entry) throws IOException {
             final long first = firstSlot(entry);
             final long end = entry + 1 < entryCount ? firstSlot(entry + 1) : numValues;
             if (end <= first) {
@@ -260,8 +254,8 @@ final class PlainSkipBounds {
             return end;
         }
 
-        /** The entry that owns {@code slot}. */
-        int entryOf(long slot) throws IOException {
+        @Override
+        public int entryOf(long slot) throws IOException {
             int low = 0;
             int high = entryCount - 1;
             while (low < high) {
@@ -278,8 +272,8 @@ final class PlainSkipBounds {
             return low;
         }
 
-        /** Whether the bounds of {@code entry} prove that no slot it owns can match {@code query}. */
-        boolean excludes(int entry, Query query) throws IOException {
+        @Override
+        public boolean excludes(int entry, PlainSkipQuery query) throws IOException {
             load(entry);
             if (bounded == false) {
                 return true;
@@ -291,7 +285,16 @@ final class PlainSkipBounds {
             return false;
         }
 
-        private boolean rulesOut(Query query) throws IOException {
+        @Override
+        public int nextCandidate(int fromEntry, PlainSkipQuery query) throws IOException {
+            int entry = fromEntry;
+            while (entry < entryCount && excludes(entry, query)) {
+                entry++;
+            }
+            return entry;
+        }
+
+        private boolean rulesOut(PlainSkipQuery query) throws IOException {
             if (query.prefix() != null) {
                 return compareMax(query.prefix()) < 0 || (compareMin(query.prefix()) > 0 && minStartsWith(query.prefix()) == false);
             }

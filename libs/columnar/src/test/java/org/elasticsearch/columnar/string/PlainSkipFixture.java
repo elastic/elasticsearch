@@ -265,7 +265,7 @@ final class PlainSkipFixture implements Closeable {
         return new DocsPresence(docs);
     }
 
-    PlainRangePresence presence(PlainSkipBounds.Query query) throws IOException {
+    PlainRangePresence presence(PlainSkipQuery query) throws IOException {
         return new PlainRangePresence(presence(), reader(), query, slots());
     }
 

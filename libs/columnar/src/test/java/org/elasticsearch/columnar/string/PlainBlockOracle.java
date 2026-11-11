@@ -45,7 +45,7 @@ final class PlainBlockOracle {
     }
 
     /** Whether the closed interval [min, max] holds no value the query asks for; a null interval is a block of nulls. */
-    static boolean excludes(BytesRef min, BytesRef max, PlainSkipBounds.Query query) {
+    static boolean excludes(BytesRef min, BytesRef max, PlainSkipQuery query) {
         if (min == null) {
             return true;
         }
@@ -62,7 +62,7 @@ final class PlainBlockOracle {
         return belowLower || aboveUpper;
     }
 
-    static boolean matches(BytesRef value, PlainSkipBounds.Query query) {
+    static boolean matches(BytesRef value, PlainSkipQuery query) {
         if (query.prefix() != null) {
             return StringMatchOracle.startsWith(value, query.prefix());
         }
@@ -70,7 +70,7 @@ final class PlainBlockOracle {
     }
 
     /** The documents holding a slot in a block the bounds do not rule out. */
-    static List<Integer> keptDocs(PlainSkipFixture fixture, PlainSkipBounds.Query query) {
+    static List<Integer> keptDocs(PlainSkipFixture fixture, PlainSkipQuery query) {
         final BytesRef[] mins = mins(fixture);
         final BytesRef[] maxes = maxes(fixture);
         final List<Integer> kept = new ArrayList<>();
@@ -87,7 +87,7 @@ final class PlainBlockOracle {
     }
 
     /** The documents holding a value the query matches. */
-    static List<Integer> matchingDocs(PlainSkipFixture fixture, PlainSkipBounds.Query query) {
+    static List<Integer> matchingDocs(PlainSkipFixture fixture, PlainSkipQuery query) {
         final List<Integer> matching = new ArrayList<>();
         int last = -1;
         for (int address = 0; address < fixture.slotValues.length; address++) {
@@ -100,18 +100,18 @@ final class PlainBlockOracle {
         return matching;
     }
 
-    static PlainSkipBounds.Query randomQuery(BytesRef[] pool) {
+    static PlainSkipQuery randomQuery(BytesRef[] pool) {
         return switch (ESTestCase.between(0, 3)) {
             case 0 -> {
                 final BytesRef term = randomBound(pool);
-                yield PlainSkipBounds.Query.range(term, true, term, true);
+                yield PlainSkipQuery.range(term, true, term, true);
             }
             case 1 -> {
                 final BytesRef value = randomBound(pool);
-                yield PlainSkipBounds.Query.prefix(new BytesRef(value.bytes, value.offset, ESTestCase.between(0, value.length)));
+                yield PlainSkipQuery.prefix(new BytesRef(value.bytes, value.offset, ESTestCase.between(0, value.length)));
             }
-            case 2 -> PlainSkipBounds.Query.range(ESTestCase.rarely() ? null : randomBound(pool), ESTestCase.randomBoolean(), null, true);
-            case 3 -> PlainSkipBounds.Query.range(
+            case 2 -> PlainSkipQuery.range(ESTestCase.rarely() ? null : randomBound(pool), ESTestCase.randomBoolean(), null, true);
+            case 3 -> PlainSkipQuery.range(
                 ESTestCase.rarely() ? null : randomBound(pool),
                 ESTestCase.randomBoolean(),
                 ESTestCase.rarely() ? null : randomBound(pool),

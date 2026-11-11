@@ -55,14 +55,14 @@ public final class PlainStringColumnReader extends StringColumnReader {
         this.numValues = column.values() == null ? 0 : column.values().numValues();
     }
 
-    private ColumnIterator presenceWithin(PlainSkipBounds.Query query) throws IOException {
+    private ColumnIterator presenceWithin(PlainSkipQuery query) throws IOException {
         final ColumnIterator presence = iterator();
         if (skipper == null) {
             return presence;
         }
         return new PlainRangePresence(
             presence,
-            new PlainSkipBounds.Reader(skipper, numValues, skipIndex),
+            PlainSkipKind.forId(skipper.kind()).newReader(skipper, numValues, skipIndex),
             query,
             new PlainRangePresence.Slots() {
                 @Override
@@ -182,8 +182,8 @@ public final class PlainStringColumnReader extends StringColumnReader {
         final BytesRef target = exact != null ? exact : prefix;
         final SlotWindow window = lengthWindow(target.length, exact != null ? target.length : Integer.MAX_VALUE);
         final Slots candidates = exact != null
-            ? slotsHeld(window, presenceWithin(PlainSkipBounds.Query.range(exact, true, exact, true)))
-            : slotsHeld(window, presenceWithin(PlainSkipBounds.Query.prefix(prefix)));
+            ? slotsHeld(window, presenceWithin(PlainSkipQuery.range(exact, true, exact, true)))
+            : slotsHeld(window, presenceWithin(PlainSkipQuery.prefix(prefix)));
         final boolean settled = target.length == 0;
         final LastSeen lastSeen = new LastSeen();
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(candidates) {
@@ -271,7 +271,7 @@ public final class PlainStringColumnReader extends StringColumnReader {
     @Override
     protected DocIdSetIterator unorderedRangeMatches(BytesRef lower, boolean includeLower, BytesRef upper, boolean includeUpper)
         throws IOException {
-        final ColumnIterator presence = presenceWithin(PlainSkipBounds.Query.range(lower, includeLower, upper, includeUpper));
+        final ColumnIterator presence = presenceWithin(PlainSkipQuery.range(lower, includeLower, upper, includeUpper));
         final LastSeen lastSeen = new LastSeen();
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {
             @Override

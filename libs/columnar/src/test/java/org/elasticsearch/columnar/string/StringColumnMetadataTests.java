@@ -218,7 +218,7 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
         });
     }
 
-    public void testTheCurrentLayoutAddsOnlyTheSkipperPresenceByte() throws IOException {
+    public void testTheCurrentLayoutAddsOnlyTheSkipperKindByte() throws IOException {
         final BytesRef[] docValues = uniqueValues(between(50, 400));
         withColumn(singleValued(docValues), NO_SUMMARY, (metadata, reader) -> {
             assertFalse(metadata.hasSummary());
@@ -240,6 +240,7 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
         final BytesRef[] docValues = uniqueValues(between(50, 400));
         withColumnWithSummary(docValues, (metadata, reader) -> {
             final StringColumnMetadata.Plain.Skipper skipper = new StringColumnMetadata.Plain.Skipper(
+                ChunkBoundsSkip.ID,
                 randomLongBetween(0, 1L << 40),
                 between(1, docValues.length),
                 randomLongBetween(0, 1L << 30)
@@ -254,24 +255,26 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
     public void testTheBaselineLayoutHasNoRoomForAPlainSkipper() throws IOException {
         final BytesRef[] docValues = uniqueValues(between(50, 400));
         withColumnWithSummary(docValues, (metadata, reader) -> {
-            final StringColumnMetadata with = plainOf(metadata).withSkipper(new StringColumnMetadata.Plain.Skipper(0, 1, 1));
+            final StringColumnMetadata with = plainOf(metadata).withSkipper(
+                new StringColumnMetadata.Plain.Skipper(ChunkBoundsSkip.ID, 0, 1, 1)
+            );
             expectThrows(IllegalStateException.class, () -> written(with, FormatVersion.BASELINE));
         });
     }
 
-    public void testAnUnknownSkipperPresenceByteIsCorrupt() throws IOException {
+    public void testAnUnknownSkipperKindIsCorrupt() throws IOException {
         final BytesRef[] docValues = uniqueValues(between(50, 400));
         withColumn(singleValued(docValues), NO_SUMMARY, (metadata, reader) -> {
             assertFalse(metadata.hasSummary());
             final byte[] current = written(metadata, FormatVersion.CURRENT);
             final int presence = presenceOffset(written(metadata, FormatVersion.BASELINE));
-            final byte unknown = randomFrom((byte) 2, (byte) 3, (byte) 127, (byte) -1);
+            final byte unknown = randomFrom((byte) 3, (byte) 127, (byte) -1);
             current[presence] = unknown;
             final CorruptIndexException e = expectThrows(
                 CorruptIndexException.class,
                 () -> StringColumnMetadata.readFrom(new ByteArrayDataInput(current), docValues.length, FormatVersion.CURRENT)
             );
-            assertThat(e.getMessage(), containsString("invalid plain skipper presence [" + unknown + "]"));
+            assertThat(e.getMessage(), containsString("unknown plain skip kind [" + unknown + "]"));
         });
     }
 

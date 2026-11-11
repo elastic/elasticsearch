@@ -52,7 +52,7 @@ public class PlainRangePresenceColumnTests extends ColumnarStringTestCase {
                         final BitSet present = new BitSet();
                         oracle.docs.forEach(present::set);
                         for (int q = 0; q < 8; q++) {
-                            final PlainSkipBounds.Query query = PlainBlockOracle.randomQuery(pool);
+                            final PlainSkipQuery query = PlainBlockOracle.randomQuery(pool);
                             final PlainRangePresence presence = presence(reader, skipper, column.values().numValues(), skip, query);
                             navigate(presence, PlainBlockOracle.keptDocs(oracle, query), present, shape != Presence.MULTIVALUED);
                         }
@@ -81,7 +81,7 @@ public class PlainRangePresenceColumnTests extends ColumnarStringTestCase {
                     column.skipper(),
                     column.values().numValues(),
                     skip,
-                    PlainSkipBounds.Query.range(null, true, null, true)
+                    PlainSkipQuery.range(null, true, null, true)
                 );
                 final int doc = presence.nextDoc();
                 assertNotEquals(DocIdSetIterator.NO_MORE_DOCS, doc);
@@ -99,7 +99,7 @@ public class PlainRangePresenceColumnTests extends ColumnarStringTestCase {
         StringColumnMetadata.Plain.Skipper skipper,
         long numValues,
         IndexInput skip,
-        PlainSkipBounds.Query query
+        PlainSkipQuery query
     ) throws IOException {
         return new PlainRangePresence(
             reader.iterator(),

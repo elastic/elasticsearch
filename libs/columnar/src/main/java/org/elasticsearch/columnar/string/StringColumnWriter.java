@@ -224,8 +224,8 @@ public final class StringColumnWriter {
         long nulls = 0;
         long valueAddress = 0;
         final StringColumnValues values = cursors.get();
-        final PlainSkipBounds.Writer bounds = options.enablePlainSkipIndex() && skipIndex != null
-            ? new PlainSkipBounds.Writer(directory, context, outputs.data().getName(), numValues)
+        final PlainSkipKind.Writer bounds = options.enablePlainSkipIndex() && skipIndex != null
+            ? PlainSkipKind.forWriting().newWriter(directory, context, outputs.data().getName(), numValues)
             : null;
         final StringColumnMetadata.Plain.Skipper skipper;
         boolean finished = false;

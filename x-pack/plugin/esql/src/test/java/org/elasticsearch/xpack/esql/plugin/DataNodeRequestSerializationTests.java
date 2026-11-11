@@ -17,6 +17,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -59,6 +61,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataNodeRequestSerializationTests extends AbstractWireSerializingTestCase<DataNodeRequest> {
@@ -118,7 +121,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             randomBoolean(),
             randomBoolean(),
             List.of(),
-            randomNonNegativeLong()
+            randomNonNegativeLong(),
+            randomBoolean() ? randomPositiveTimeValue() : null
         );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
         return request;
@@ -129,7 +133,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
      * versions sends it after the dropped decline flag.
      */
     public void testClusterStateVersionAcrossTheReadinessVersions() throws IOException {
-        DataNodeRequest request = createTestInstance();
+        // a request for fetch contexts never reaches a node that old
+        DataNodeRequest request = withFetchContextsKeepAlive(createTestInstance(), null);
         DataNodeRequest old = copyInstance(
             request,
             TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_EXTERNAL_WORKER_READINESS)
@@ -146,13 +151,61 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         assertThat(current.requiredClusterStateVersion(), equalTo(request.requiredClusterStateVersion()));
     }
 
+    public void testFetchContextsKeepAliveRoundTrips() throws IOException {
+        TimeValue keepAlive = randomPositiveTimeValue();
+        DataNodeRequest request = withFetchContextsKeepAlive(createTestInstance(), keepAlive);
+
+        DataNodeRequest copy = copyInstance(request, TransportVersion.current());
+
+        assertTrue(copy.keepFetchContexts());
+        assertThat(copy.fetchContextsKeepAlive(), equalTo(keepAlive));
+        assertThat(copy.getDescription(), containsString("fetchContextsKeepAlive=" + keepAlive));
+    }
+
+    /**
+     * The plan of a request that asks for fetch contexts sends documents off the node, which only fetch contexts serve.
+     * An older node can't open them, so the request must not reach it as if it had asked for none.
+     */
+    public void testFetchContextsNeverReachAnOlderNode() throws IOException {
+        TransportVersion older = TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_FETCH_CONTEXTS);
+        DataNodeRequest withoutContexts = withFetchContextsKeepAlive(createTestInstance(), null);
+        assertFalse(copyInstance(withoutContexts, older).keepFetchContexts());
+
+        DataNodeRequest withContexts = withFetchContextsKeepAlive(withoutContexts, randomPositiveTimeValue());
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> copyInstance(withContexts, older));
+        assertThat(e.getMessage(), containsString("for fetch contexts"));
+    }
+
+    private static DataNodeRequest withFetchContextsKeepAlive(DataNodeRequest in, @Nullable TimeValue fetchContextsKeepAlive) {
+        DataNodeRequest request = new DataNodeRequest(
+            in.sessionId(),
+            in.queryId(),
+            in.configuration(),
+            in.clusterAlias(),
+            in.shards(),
+            in.aliasFilters(),
+            in.plan(),
+            in.indices(),
+            in.indicesOptions(),
+            in.runNodeLevelReduction(),
+            in.reductionLateMaterialization(),
+            in.singleNodeOptimizations(),
+            in.externalSplits(),
+            in.requiredClusterStateVersion(),
+            fetchContextsKeepAlive
+        );
+        request.setParentTask(in.getParentTask());
+        return request;
+    }
+
     /**
      * The format of the readiness version, which the reader only skips, so that a round trip cannot tell what was written:
      * the decline flag, {@code false}, right ahead of the version, which both formats end with. And a {@code true} from an
      * older coordinator is ignored.
      */
     public void testTheDeclineFlagIsWrittenFalseAndIgnoredAtTheReadinessVersion() throws IOException {
-        DataNodeRequest request = createTestInstance();
+        // a request for fetch contexts never reaches a node that old
+        DataNodeRequest request = withFetchContextsKeepAlive(createTestInstance(), null);
         TransportVersion withFlag = TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_EXTERNAL_WORKER_GATING);
         byte[] flagged = serialize(request, withFlag);
         byte[] current = serialize(request, DataNodeRequest.ESQL_EXTERNAL_WORKER_GATING);
@@ -256,9 +309,10 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         var reductionLateMaterialization = in.reductionLateMaterialization();
         var singleNodeOptimizations = in.singleNodeOptimizations();
         var requiredClusterStateVersion = in.requiredClusterStateVersion();
+        var fetchContextsKeepAlive = in.fetchContextsKeepAlive();
         TaskId parentTask = in.getParentTask();
 
-        switch (between(0, 12)) {
+        switch (between(0, 13)) {
             case 0 -> sessionId = randomValueOtherThan(sessionId, () -> randomAlphaOfLength(20));
             case 1 -> configuration = randomValueOtherThan(configuration, () -> randomConfiguration());
             case 2 -> shards = randomValueOtherThan(
@@ -312,6 +366,10 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                 randomValueOtherThan(queryId.getNodeId(), () -> randomAlphaOfLength(10)),
                 randomNonNegativeLong()
             );
+            case 13 -> fetchContextsKeepAlive = randomValueOtherThan(
+                fetchContextsKeepAlive,
+                () -> randomBoolean() ? randomPositiveTimeValue() : null
+            );
             default -> throw new AssertionError("invalid value");
         }
 
@@ -329,7 +387,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             reductionLateMaterialization,
             singleNodeOptimizations,
             List.of(),
-            requiredClusterStateVersion
+            requiredClusterStateVersion,
+            fetchContextsKeepAlive
         );
         request.setParentTask(parentTask);
         return request;

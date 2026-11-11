@@ -443,11 +443,14 @@ public class FieldNameUtils {
             return new PreAnalysisResult(IndexResolver.INDEX_METADATA_FIELD, wildcardJoinIndices);
         } else {
             Set<String> allFields = new HashSet<>();
+            Set<String> parentPaths = new HashSet<>();
             for (String name : fieldNames) {
-                addRelatedFields(includePrefixFields, allFields, name);
+                addRelatedFields(includePrefixFields, allFields, parentPaths, name);
             }
             allFields.add(MetadataAttribute.INDEX);
-            return new PreAnalysisResult(allFields, wildcardJoinIndices);
+            Set<String> onlyParentPaths = onlyParentPaths(parentPaths, allFields);
+            allFields.addAll(parentPaths);
+            return new PreAnalysisResult(allFields, onlyParentPaths, wildcardJoinIndices);
         }
     }
 
@@ -457,12 +460,12 @@ public class FieldNameUtils {
      * <li>The field itself: "a.b.c"</li>
      * <li>Its multi-fields: "a.b.c.*". A sample case where this is required is TEXT fields that may have a ".keyword" subfield that's
      * implicitly used in some queries.</li>
-     * <li>(Only when {@code includeFieldParentPrefixes}) All dot-delimited parent prefixes: ["a", "a.b"]. This is needed to get back
-     * flattened parents, which hold a name as a key or, under {@code unmapped_fields="load"}, let the verifier detect their
-     * subfields.</li>
+     * <li>(Only when {@code includeFieldParentPrefixes}) All dot-delimited parent prefixes, into {@code parentPaths}: ["a", "a.b"].
+     * This is needed to get back flattened parents, which hold a name as a key or, under {@code unmapped_fields="load"}, let the
+     * verifier detect their subfields.</li>
      * </ul>
      */
-    private static void addRelatedFields(boolean includeFieldParentPrefixes, Set<String> allFields, String name) {
+    private static void addRelatedFields(boolean includeFieldParentPrefixes, Set<String> allFields, Set<String> parentPaths, String name) {
         allFields.add(name);
 
         if (name.endsWith(WILDCARD) == false) {
@@ -470,8 +473,26 @@ public class FieldNameUtils {
         }
 
         if (includeFieldParentPrefixes) {
-            allFields.addAll(parentPrefixes(name));
+            parentPaths.addAll(parentPrefixes(name));
         }
+    }
+
+    /**
+     * The {@code parentPaths} that field caps is asked for only to find the {@code flattened} fields above the names the query uses:
+     * those that none of {@code fieldNames}, by name or pattern, asks for as a field.
+     */
+    public static Set<String> onlyParentPaths(Set<String> parentPaths, Set<String> fieldNames) {
+        if (parentPaths.isEmpty()) {
+            return Set.of();
+        }
+        List<String> patterns = fieldNames.stream().filter(Regex::isSimpleMatchPattern).toList();
+        Set<String> only = new HashSet<>();
+        for (String path : parentPaths) {
+            if (fieldNames.contains(path) == false && patterns.stream().noneMatch(pattern -> Regex.simpleMatch(pattern, path))) {
+                only.add(path);
+            }
+        }
+        return only;
     }
 
     /**

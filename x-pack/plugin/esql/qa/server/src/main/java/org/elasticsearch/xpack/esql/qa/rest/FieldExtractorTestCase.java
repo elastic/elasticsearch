@@ -953,6 +953,49 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     /**
+     * The same mapping as {@link #testPropagateUnsupportedToSubFields}, with a query that names only the sub-field: its parent is not
+     * one of the query's fields, so the sub-field keeps its own type.
+     */
+    public void testSubFieldOfUnsupportedFieldNamedAlone() throws IOException {
+        assumeOriginalTypesReported();
+        createIndex("test", index -> {
+            index.startObject("properties");
+            index.startObject("f");
+            {
+                index.field("type", "ip_range");
+                index.startObject("fields");
+                {
+                    index.startObject("raw").field("type", "keyword").endObject();
+                }
+                index.endObject();
+            }
+            index.endObject();
+            index.endObject();
+        });
+        index("test", """
+            {"f": "192.168.0.1/24"}""");
+
+        var capsName = EsqlCapabilities.Cap.FLATTENED_KEYS.name().toLowerCase(Locale.ROOT);
+        boolean keys = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
+        List<String> modes = new ArrayList<>(List.of("", "SET unmapped_fields=\"nullify\"; "));
+        if (keys) {
+            modes.add("SET unmapped_fields=\"load\"; ");
+        }
+        for (String mode : modes) {
+            assertResultMap(
+                runEsql(mode + "FROM test* | KEEP f.raw | LIMIT 2"),
+                List.of(columnInfo("f.raw", "keyword")),
+                List.of(matchesList().item("192.168.0.1/24"))
+            );
+            assertResultMap(
+                runEsql(mode + "FROM test* | WHERE f.raw == \"192.168.0.1/24\" | KEEP f.raw | LIMIT 2"),
+                List.of(columnInfo("f.raw", "keyword")),
+                List.of(matchesList().item("192.168.0.1/24"))
+            );
+        }
+    }
+
+    /**
      * Two indices, one with:
      * <pre>
      * "f": {

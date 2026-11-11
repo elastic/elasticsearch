@@ -58,12 +58,44 @@ public class IndexResolverKeysTests extends ESTestCase {
         assertThat(mapping.get("attrs").getProperties().containsKey("bar"), equalTo(false));
     }
 
+    /**
+     * A field returned only as the parent path of a name the query uses counts only if it holds keys, so it does not change how the
+     * name resolves.
+     */
+    public void testAParentPathThatHoldsNoKeysIsNotAField() {
+        FieldCapabilitiesIndexResponse index = index("ranges", field("f", "ip_range"), field("f.raw", "keyword"));
+        Map<String, EsField> mapping = resolve(new IndexResolver.NamedFields(Set.of("f.raw"), Set.of("f")), index);
+        assertThat(mapping.get("f").getDataType(), equalTo(DataType.OBJECT));
+        assertThat(mapping.get("f").getProperties().get("raw").getDataType(), equalTo(DataType.KEYWORD));
+    }
+
+    public void testAParentPathThatHoldsKeysIsAField() {
+        Map<String, EsField> mapping = resolve(
+            new IndexResolver.NamedFields(Set.of("attrs.bar"), Set.of("attrs")),
+            index("flat", field("attrs", "flattened"))
+        );
+        assertThat(mapping.get("attrs").getDataType(), equalTo(DataType.FLATTENED));
+        assertThat(mapping.get("attrs").getProperties().get("bar").getDataType(), equalTo(DataType.KEYWORD));
+    }
+
     private static Map<String, EsField> resolve(TransportVersion minimumVersion, FieldCapabilitiesIndexResponse... indices) {
+        return resolve(minimumVersion, new IndexResolver.NamedFields(Set.of("attrs.bar"), Set.of()), indices);
+    }
+
+    private static Map<String, EsField> resolve(IndexResolver.NamedFields namedFields, FieldCapabilitiesIndexResponse... indices) {
+        return resolve(TransportVersion.current(), namedFields, indices);
+    }
+
+    private static Map<String, EsField> resolve(
+        TransportVersion minimumVersion,
+        IndexResolver.NamedFields namedFields,
+        FieldCapabilitiesIndexResponse... indices
+    ) {
         FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder().withIndexResponses(List.of(indices)).build();
         return IndexResolver.mergedMappings(
             "*",
             false,
-            new IndexResolver.FieldsInfo(caps, minimumVersion, false, false, false, false, false, false, true, Set.of("attrs.bar")),
+            new IndexResolver.FieldsInfo(caps, minimumVersion, false, false, false, false, false, false, true, namedFields),
             false,
             IndexResolver.DO_NOT_GROUP
         ).get().mapping();

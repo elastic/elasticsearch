@@ -217,7 +217,7 @@ public class IndexResolver {
         boolean needsAnalyzerGroups,
         boolean needsFieldSemantics,
         boolean trackUnmappedFieldIndices,
-        @Nullable Set<String> namedFields,
+        @Nullable NamedFields namedFields,
         IndicesExpressionGrouper indicesExpressionGrouper,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
@@ -320,7 +320,7 @@ public class IndexResolver {
         boolean needsAnalyzerGroups,
         boolean needsFieldSemantics,
         boolean trackUnmappedFieldIndices,
-        @Nullable Set<String> namedFields,
+        @Nullable NamedFields namedFields,
         @Nullable Consumer<TargetProjects> routingInfoCapture,
         IndexViewOrigins indexViewOrigins,
         ActionListener<Versioned<IndexResolution>> listener
@@ -370,7 +370,7 @@ public class IndexResolver {
         boolean needsAnalyzerGroups,
         boolean needsFieldSemantics,
         boolean trackUnmappedFieldIndices,
-        @Nullable Set<String> namedFields,
+        @Nullable NamedFields namedFields,
         @Nullable Consumer<TargetProjects> routingInfoCapture,
         OriginalIndexExtractor originalIndexExtractor,
         ActionListener<Versioned<IndexResolution>> listener
@@ -423,6 +423,12 @@ public class IndexResolver {
     }
 
     /**
+     * The names the query uses, which may be keys, and their parent paths that field caps is asked for only to find the fields that
+     * hold those keys.
+     */
+    public record NamedFields(Set<String> names, Set<String> parentPaths) {}
+
+    /**
      * Information for resolving a field.
      * @param caps {@link FieldCapabilitiesResponse} from all indices involved in the query
      * @param minTransportVersion The minimum {@link TransportVersion} of any node that <strong>might</strong> receive the request.
@@ -469,8 +475,7 @@ public class IndexResolver {
      * @param flattenedDataTypeEnabled whether the {@code flattened} data type is enabled (the {@code esql.query.flattened.enabled}
      *                                 kill switch). When {@code false}, {@code flattened} fields are resolved as
      *                                 {@link DataType#UNSUPPORTED}, reverting to pre-flattened-support behavior.
-     * @param namedFields the names the query uses, which may be keys of {@code flattened} fields, or {@code null} if the query reads
-     *                    no keys
+     * @param namedFields the names the query uses, which may be keys, or {@code null} if the query reads no keys
      */
     public record FieldsInfo(
         FieldCapabilitiesResponse caps,
@@ -482,7 +487,7 @@ public class IndexResolver {
         boolean needsAnalyzerGroups,
         boolean needsFieldSemantics,
         boolean flattenedDataTypeEnabled,
-        @Nullable Set<String> namedFields
+        @Nullable NamedFields namedFields
     ) {
         public FieldsInfo(
             FieldCapabilitiesResponse caps,
@@ -525,12 +530,20 @@ public class IndexResolver {
                 return Set.of();
             }
             Set<String> keys = new HashSet<>();
-            for (String name : namedFields) {
+            for (String name : namedFields.names()) {
                 if (name.indexOf('.') > 0 && isLeaf(name) == false) {
                     keys.add(name);
                 }
             }
             return keys;
+        }
+
+        /**
+         * Whether field caps returns {@code name} only because it is the parent path of a name the query uses, and the field in no
+         * index holds keys: it is then not one of the query's fields.
+         */
+        boolean isOnlyAParentPath(String name, List<IndexFieldCapabilities> fcs) {
+            return namedFields != null && namedFields.parentPaths().contains(name) && fcs.stream().noneMatch(IndexResolver::holdsKeys);
         }
 
         private boolean isLeaf(String name) {
@@ -580,6 +593,9 @@ public class IndexResolver {
             ? new HashMap<>()
             : null;
         for (String name : names) {
+            if (fieldsInfo.isOnlyAParentPath(name, fieldsCaps.get(name).fieldCapabilities)) {
+                continue;
+            }
             Map<String, EsField> fields = rootFields;
             String fullName = name;
             boolean isAlias = false;
@@ -999,16 +1015,21 @@ public class IndexResolver {
         return new InvalidMappedField(name, stringKeyed, timeSeriesFieldType);
     }
 
-    /** The {@code flattened} field of {@code fields} that {@code name} is under, if any. */
+    /** The field of {@code fields} that {@code name} is under and that holds it as a key, if any. */
     @Nullable
     private static IndexFieldCapabilities flattenedRoot(Map<String, IndexFieldCapabilities> fields, String name) {
         for (int dot = name.indexOf('.'); dot > 0; dot = name.indexOf('.', dot + 1)) {
             IndexFieldCapabilities parent = fields.get(name.substring(0, dot));
-            if (parent != null && FlattenedFieldMapper.CONTENT_TYPE.equals(parent.type())) {
+            if (parent != null && holdsKeys(parent)) {
                 return parent;
             }
         }
         return null;
+    }
+
+    /** Whether the field holds the names below it as keys, as a {@code flattened} field does. */
+    private static boolean holdsKeys(IndexFieldCapabilities fc) {
+        return FlattenedFieldMapper.CONTENT_TYPE.equals(fc.type());
     }
 
     /** The key {@code name} of the {@code flattened} field {@code root}, a {@code keyword}. */

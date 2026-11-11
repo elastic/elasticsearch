@@ -62,8 +62,8 @@ public class SegmentBuffersTests extends ESTestCase {
     }
 
     /**
-     * Another thread can fill a slice of the unscoped buffer with a positional {@link FileChannel} read, which is how the blob cache
-     * completes a read into the scratch segment.
+     * Another thread can fill a slice of the unscoped buffer with a positional {@link FileChannel} read, and the owner thread sees the
+     * bytes in the confined segment.
      */
     public void testOtherThreadChannelReadIsVisibleToOwner() throws Exception {
         final byte[] fileData = randomByteArrayOfLength(randomIntBetween(2, 4096));

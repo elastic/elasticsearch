@@ -26,8 +26,8 @@ public final class SegmentBuffers {
      *
      * <p>This is deliberately unsafe: if the memory is freed while the buffer is still reachable, using it reads or writes freed memory
      * instead of failing. Only components that enforce the memory's lifetime themselves should use it, and only hand the buffer out for as
-     * long as they can guarantee that, as {@code BufferFillScope} does. If you have a {@link MemorySegment}, use
-     * {@link MemorySegment#asByteBuffer()} instead.
+     * long as they can guarantee that, for example by waiting for every user of the buffer before the memory is freed. If you have a
+     * {@link MemorySegment}, use {@link MemorySegment#asByteBuffer()} instead.
      *
      * @param address address of the first byte, in memory that stays allocated for as long as the buffer is used
      * @param length the number of bytes in the buffer

@@ -70,6 +70,6 @@ They apply only to the [{{prom}}-compatible HTTP API](/reference/query-languages
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
 | 62 | `start` and `end` of exemplar queries | `GET /api/v1/query_exemplars?query=up` | Required | Optional. Without them, all stored exemplars are considered | - |
-| 63 | `offset` in exemplar queries | `rate(m[5m] offset 1h)` | Only the exemplars that influenced the returned metric values and fall into the requested time range. For example, with `offset 1h`, only exemplars older than one hour are returned, so a time range shorter than the offset returns no exemplars | The `offset` is ignored. The exemplars recorded in the requested time range are returned, even though they don't influence the metric values | - |
+| 63 | `offset` in exemplar queries | `rate(m[5m] offset 1h)` | Only the exemplars that influenced the returned metric values and fall into the requested time range are returned. For example, with `offset 1h`, only exemplars older than one hour are returned, so a time range shorter than the offset returns no exemplars | The `offset` is ignored. The exemplars recorded in the requested time range are returned, even though they don't influence the metric values | - |
 | 64 | Number of exemplars | `GET /api/v1/query_exemplars` | At most the 10,000 most recent exemplars. Exemplars are stored like other documents and follow the retention of their data stream | All exemplars still held in the fixed-size in-memory exemplar storage | - |
 :::

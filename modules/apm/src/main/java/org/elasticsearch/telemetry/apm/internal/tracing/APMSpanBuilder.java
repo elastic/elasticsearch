@@ -25,6 +25,7 @@ import java.time.Instant;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.Objects.requireNonNullElseGet;
+import static org.elasticsearch.telemetry.apm.internal.tracing.AbstractSpan.isSpanRecording;
 
 public class APMSpanBuilder implements SpanBuilder {
 
@@ -82,8 +83,8 @@ public class APMSpanBuilder implements SpanBuilder {
 
     @Override
     public SpanBuilder setParent(Span parentSpan) {
-        if (parentSpan instanceof APMSpan apmSpan) {
-            this.parentContext = apmSpan.context();
+        if (parentSpan instanceof AbstractSpan abstractSpan) {
+            this.parentContext = abstractSpan.context();
             // the last call wins, as it does in the OTel API
             this.noParent = false;
         }
@@ -103,11 +104,12 @@ public class APMSpanBuilder implements SpanBuilder {
     }
 
     @Override
-    public Span startSpan() {
+    public AbstractSpan startSpan() {
         // The span is returned even if it is not sampled, with the context that stands for that decision. This is what makes the
         // decision part of what is propagated to the descendants of the span, both local and remote ones, when it is stored in a thread
         // context.
-        return new APMSpan(tracer, startSpanContext());
+        Context otelContext = startSpanContext();
+        return isSpanRecording(otelContext) ? new APMSpan(tracer, otelContext) : new PropagatedSpan(tracer, otelContext);
     }
 
     private Context startSpanContext() {

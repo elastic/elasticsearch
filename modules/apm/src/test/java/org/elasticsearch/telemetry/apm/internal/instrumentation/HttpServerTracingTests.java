@@ -20,9 +20,9 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.telemetry.apm.internal.tracing.APMSpan;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMSpanBuilder;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
+import org.elasticsearch.telemetry.apm.internal.tracing.AbstractSpan;
 import org.elasticsearch.telemetry.tracing.Span;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -51,7 +51,7 @@ public class HttpServerTracingTests extends ESTestCase {
 
     final APMTracer tracer = mock(APMTracer.class);
     final APMSpanBuilder spanBuilder = mock(APMSpanBuilder.class, RETURNS_SELF);
-    final APMSpan span = mock(APMSpan.class);
+    final AbstractSpan span = mock(AbstractSpan.class);
     /** The attributes that the instrumentation adds to the span builder, apart from the ones that it sets one by one. */
     final AttributesBuilder extractedAttributes = Attributes.builder();
     final ThreadContext.StoredContext storedContext = mock(ThreadContext.StoredContext.class);
@@ -63,6 +63,7 @@ public class HttpServerTracingTests extends ESTestCase {
         when(spanBuilder.startSpan()).thenReturn(span);
         when(spanBuilder.attributesBuilder()).thenReturn(extractedAttributes);
         when(span.storeInThreadContext()).thenReturn(storedContext);
+        when(span.isRecording()).thenReturn(true);
         // the span of the request is the current one, as it is when the response is sent
         when(tracer.currentSpan()).thenReturn(span);
     }
@@ -189,21 +190,22 @@ public class HttpServerTracingTests extends ESTestCase {
         verifyNoMoreInteractions(span);
     }
 
-    /**
-     * When there is no span at all, as without a tracer, nothing happens when the response is sent or an exception is recorded.
-     */
-    public void test_start_withNoopSpan_doesNothingMore() {
-        when(spanBuilder.startSpan()).thenReturn(Span.noop());
+    public void test_withNoopCurrentSpan_doesNothing() {
         when(tracer.currentSpan()).thenReturn(Span.noop());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/my-index/_search")
             .build();
         RestResponse response = new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
 
+<<<<<<< HEAD
         try (var ignored = instrumentation.start(request, "/{index}/_search").storeInThreadContext()) {
             instrumentation.recordException(request, new RuntimeException("test"));
             instrumentation.prepareEnd(request, response).close();
         }
+=======
+        instrumentation.recordException(request, new RuntimeException("test"));
+        instrumentation.prepareEnd(request, response).close();
+>>>>>>> bd7b7c475465 (Tracing: add PropagatedSpan for dropped spans)
 
         verifyNoInteractions(span);
     }
@@ -239,7 +241,9 @@ public class HttpServerTracingTests extends ESTestCase {
 
         var releasable = instrumentation.prepareEnd(request, response);
 
-        verifyNoInteractions(span); // nothing happens before the response is sent
+        // nothing happens before the response is sent
+        verify(span).isRecording();
+        verifyNoMoreInteractions(span);
 
         releasable.close();
 
@@ -266,7 +270,9 @@ public class HttpServerTracingTests extends ESTestCase {
 
         var releasable = instrumentation.prepareEnd(request, response);
 
-        verifyNoInteractions(span);
+        // nothing happens before the response is sent
+        verify(span).isRecording();
+        verifyNoMoreInteractions(span);
 
         releasable.close();
 
@@ -296,6 +302,19 @@ public class HttpServerTracingTests extends ESTestCase {
         instrumentation.prepareEnd(request, response).close();
 
         verifyNoInteractions(span);
+    }
+
+    public void test_end_ofASpanThatIsNotRecording_doesNothing() {
+        when(span.isRecording()).thenReturn(false);
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/my-index/_search")
+            .build();
+        RestResponse response = new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
+
+        instrumentation.prepareEnd(request, response).close();
+
+        verify(span).isRecording();
+        verifyNoMoreInteractions(span);
     }
 
     private Map<String, String> requestAttributes() {

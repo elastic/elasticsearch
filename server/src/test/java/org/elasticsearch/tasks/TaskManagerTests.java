@@ -581,6 +581,11 @@ public class TaskManagerTests extends ESTestCase {
         }
 
         @Override
+        public boolean isRecording() {
+            return endCount == 0;
+        }
+
+        @Override
         public Span setAttribute(String key, boolean value) {
             attributes.put(key, value);
             return this;

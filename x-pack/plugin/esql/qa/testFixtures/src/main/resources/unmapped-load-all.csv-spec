@@ -8323,3 +8323,69 @@ FROM no_mapping_sample_data
 unmapped_message:keyword | message:keyword | _fork:keyword | _unmapped_fields:_source
 43                       | 42              | fork2         | "{""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e"",""language_code"":""2""}"
 ;
+
+// A column that a sibling branch gets from a lookup join, or computes, is not one the query reads when nothing downstream names it, so
+// the branch that lacks it is not asked to load it: the field caps requests do not ask for it, and the index of that branch may map it.
+loadAllSiblingColumnNobodyReadsIsNotLoadedLookupJoin
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_all_sibling_column_from_source
+required_capability: join_lookup_v12
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data,
+     (FROM partial_mapping_sample_data | LOOKUP JOIN sample__data_ts_nanos_lookup ON message | LIMIT 1)
+| STATS c = COUNT(*)
+;
+
+c:long
+8
+;
+
+loadAllSiblingColumnNobodyReadsIsNotLoadedComputed
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_all_sibling_column_from_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | EVAL event_duration = "a" | LIMIT 1), no_mapping_sample_data
+| STATS c = COUNT(*)
+;
+
+c:long
+15
+;
+
+loadAllSiblingColumnNobodyReadsIsNotLoadedFork
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+required_capability: optional_fields_load_all_sibling_column_from_source
+required_capability: join_lookup_v12
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (LOOKUP JOIN sample__data_ts_nanos_lookup ON message | LIMIT 1) (WHERE true)
+| STATS c = COUNT(*)
+;
+
+c:long
+8
+;
+
+// The same branches as above, but now the query names the column, so the field caps requests ask for it. The mapped long of one branch
+// and the computed keyword of another conflict, and the branch that lacks it neither loads nor casts it.
+loadAllSiblingColumnTheQueryNamesConflictsAndStaysUnsupported
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_all_sibling_column_from_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | EVAL event_duration = "a" | LIMIT 1), no_mapping_sample_data
+| KEEP event_duration
+| LIMIT 1
+;
+
+event_duration:unsupported
+null
+;

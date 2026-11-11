@@ -2415,10 +2415,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if ((mergePlan instanceof UnionAll || mergePlan instanceof Fork)
                 && unmappedResolution.loadsAllUnmappedFields()
                 && siblingColumnMayBeInSource(attr)
+                && context.fieldCapsAsksFor(attr.name())
                 && branchCanSurfaceLoadedField(branch, attr.name())) {
                 // A sibling has the column, and has it with one type in every branch that does (otherwise the merged column is
                 // unsupported). The branch does not, so read it from its own _source and cast it to that type. What the sibling does
-                // to get the column (a mapping, an EVAL, a RENAME, a nested union or FORK) makes no difference.
+                // to get the column (a mapping, an EVAL, a RENAME, a nested union or FORK) makes no difference. Only a column the field
+                // caps requests ask for: a branch that lacks one that was not asked for may well map it, with another type, and the
+                // query does not read the column then (see AnalyzerContext#fieldCapsAsksFor).
                 FieldAttribute loaded = unmappedKeyword(attr);
                 AbstractConvertFunction cast = EsqlDataTypeConverter.castFromKeyword(attr.dataType(), loaded, context.configuration());
                 if (cast != null) {

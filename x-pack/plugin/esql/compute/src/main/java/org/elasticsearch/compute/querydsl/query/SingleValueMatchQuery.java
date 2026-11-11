@@ -421,13 +421,13 @@ public final class SingleValueMatchQuery extends Query {
 
     /**
      * A numeric field's doc values as a singleton, or {@code null} when they hold more than one value for some document or
-     * aren't {@code SORTED_NUMERIC} at all, as for a numeric field the ColumNAR codec stores as binary doc values. Those are
-     * checked a document at a time through their field data instead.
+     * are binary, as for a numeric field the ColumNAR codec stores. Those are checked a document at a time through their
+     * field data instead.
      */
     @Nullable
     private static NumericDocValues sortedNumericSingleton(LeafReader reader, String fieldName) throws IOException {
         final FieldInfo fieldInfo = reader.getFieldInfos().fieldInfo(fieldName);
-        if (fieldInfo != null && fieldInfo.getDocValuesType() != DocValuesType.SORTED_NUMERIC) {
+        if (fieldInfo != null && fieldInfo.getDocValuesType() == DocValuesType.BINARY) {
             return null;
         }
         return DocValues.unwrapSingleton(DocValues.getSortedNumeric(reader, fieldName));

@@ -25,7 +25,9 @@ import org.apache.parquet.schema.MessageTypeParser;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -1025,6 +1027,85 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         } finally {
             ioExecutor.shutdownNow();
         }
+    }
+
+    /**
+     * After the first bucket lands, look-ahead GETs may already be done. {@code waitForNextCompleted}
+     * then returns those slots on its fast path without reading the cancel signal; taking their
+     * value through {@code .get()} would keep decoding. Cancel must be observed on that second
+     * wait and the landed chunks released so the breaker returns to zero.
+     */
+    public void testCancelledExtractAfterFirstBucketReleasesLandedChunks() throws Exception {
+        byte[] data = writeMultiRowGroupFile(2000);
+        ParquetMetadata fullFooter = loadFooter(new TrackingStorageObject(data));
+        assertTrue("expected at least 3 row groups", fullFooter.getBlocks().size() >= 3);
+
+        long rg0Rows = fullFooter.getBlocks().get(0).getRowCount();
+        long rg1Rows = fullFooter.getBlocks().get(1).getRowCount();
+        long[] survivors = new long[] { 0L, rg0Rows + 1, rg0Rows + rg1Rows + 1 };
+
+        long[][] rgWindows = new long[3][2];
+        for (int i = 0; i < 3; i++) {
+            BlockMetaData rg = fullFooter.getBlocks().get(i);
+            rgWindows[i][0] = rg.getStartingPos();
+            rgWindows[i][1] = rg.getStartingPos() + rg.getCompressedSize();
+        }
+
+        AtomicBoolean cancelled = new AtomicBoolean();
+        AtomicInteger blockCharges = new AtomicInteger();
+        TrackingCircuitBreaker trackingBreaker = new TrackingCircuitBreaker() {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                super.addEstimateBytesAndMaybeBreak(bytes, label);
+                // Decode of the first landed bucket is the first ESQL block charge. Flip cancel
+                // there so the next value-take — not waitForNextCompleted's anyOf wait — sees it.
+                if (bytes > 0 && "<esql_block_factory>".equals(label)) {
+                    cancelled.set(true);
+                    blockCharges.incrementAndGet();
+                }
+            }
+        };
+        BlockFactory trackingFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(trackingBreaker).build();
+
+        ExecutorService ioExecutor = Executors.newFixedThreadPool(4);
+        try {
+            BlockingChunkStorageObject blocking = new BlockingChunkStorageObject(data, ioExecutor, rgWindows);
+            ParquetFormatReader reader = new ParquetFormatReader(trackingFactory);
+            AtomicReference<Throwable> thrown = new AtomicReference<>();
+            CountDownLatch returned = new CountDownLatch(1);
+            try (ColumnExtractor extractor = new ParquetColumnExtractor(blocking, reader, fullFooter, ErrorPolicy.PERMISSIVE)) {
+                blocking.armLatch();
+                Thread t = new Thread(() -> {
+                    try {
+                        StorageRetryCancellation.runWithCancellation(cancelled::get, () -> {
+                            try (Block b = extractor.extract("v", survivors, trackingFactory)) {
+                                thrown.set(new AssertionError("extract returned " + b.getPositionCount() + " positions"));
+                            }
+                        });
+                    } catch (Throwable e) {
+                        thrown.set(e);
+                    } finally {
+                        returned.countDown();
+                    }
+                }, "extract-second-wait");
+                t.setDaemon(true);
+                t.start();
+
+                assertTrue(
+                    "expected 3 in-flight chunk prefetches; observed " + blocking.observedDispatches.get(),
+                    blocking.dispatchedAtLeast.await(15, TimeUnit.SECONDS)
+                );
+                // Land every look-ahead GET so waitForNextCompleted's later iterations take the
+                // already-done fast path rather than blocking on anyOf.
+                blocking.release();
+                assertTrue("extract did not return within 5s of first-bucket cancel", returned.await(5, TimeUnit.SECONDS));
+                assertThat(thrown.get(), instanceOf(TaskCancelledException.class));
+                assertTrue("first bucket must have started decoding before cancel", blockCharges.get() > 0);
+            }
+        } finally {
+            ioExecutor.shutdownNow();
+        }
+        assertBusy(() -> assertEquals("landed prefetch chunks must be released", 0L, trackingBreaker.getUsed()));
     }
 
     /**

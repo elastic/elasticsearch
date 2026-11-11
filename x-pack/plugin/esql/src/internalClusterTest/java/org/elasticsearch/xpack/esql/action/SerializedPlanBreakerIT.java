@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -18,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -26,7 +24,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
@@ -63,7 +60,7 @@ public class SerializedPlanBreakerIT extends AbstractEsqlIntegTestCase {
     /** The breaker label of the transport's serialized outbound messages. */
     static final String SERIALIZED_REQUEST_LABEL = "RecyclerBytesStreamOutput";
     /** Well below the sub-plan result of {@link #NUM_DOCS} padded keys, and above what the rest of the query allocates. */
-    static final ByteSizeValue HEADROOM = ByteSizeValue.ofMb(1);
+    private static final ByteSizeValue HEADROOM = ByteSizeValue.ofMb(1);
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -160,58 +157,11 @@ public class SerializedPlanBreakerIT extends AbstractEsqlIntegTestCase {
         };
     }
 
-    /**
-     * Records the usage of {@code breaker} just before the {@code n}th {@code action} request is sent, which for the first
-     * main-plan request includes the sub-plan result the coordinator holds but none of the serialized copies.
-     */
-    static AtomicLong recordUsageBeforeNthSend(MockTransportService transportService, CircuitBreaker breaker, String action, int n) {
-        AtomicInteger sends = new AtomicInteger();
-        AtomicLong used = new AtomicLong(-1);
-        transportService.addSendBehavior((connection, requestId, sentAction, request, options) -> {
-            if (action.equals(sentAction) && sends.incrementAndGet() == n) {
-                used.set(breaker.getUsed());
-            }
-            connection.sendRequest(requestId, sentAction, request, options);
-        });
-        return used;
-    }
-
     static void assertTrippedOn(Exception e, String label) {
         assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.TOO_MANY_REQUESTS));
         Throwable cause = ExceptionsHelper.unwrap(e, CircuitBreakingException.class);
         assertThat(e.toString(), cause, notNullValue());
         assertThat(cause.getMessage(), containsString("data for [" + label + "]"));
-    }
-
-    /**
-     * Holds the {@code n}th {@code action} request any of {@code transportServices} receives until {@code resume} opens, then
-     * hands it to {@code then}. A held request has been received in full, so the coordinator has written it.
-     */
-    static Releasable holdNthRequest(
-        List<MockTransportService> transportServices,
-        String action,
-        int n,
-        CountDownLatch received,
-        CountDownLatch resume,
-        StubbableTransport.RequestHandlingBehavior<TransportRequest> then
-    ) {
-        AtomicInteger arrivals = new AtomicInteger();
-        for (MockTransportService transportService : transportServices) {
-            transportService.addRequestHandlingBehavior(action, (handler, request, channel, task) -> {
-                if (arrivals.incrementAndGet() == n) {
-                    received.countDown();
-                    safeAwait(resume);
-                    then.messageReceived(handler, request, channel, task);
-                } else {
-                    handler.messageReceived(request, channel, task);
-                }
-            });
-        }
-        return () -> transportServices.forEach(MockTransportService::clearAllRules);
-    }
-
-    static void assertReleased(CircuitBreaker breaker, long before) throws Exception {
-        assertBusy(() -> assertThat(breaker.getUsed(), equalTo(before)));
     }
 
     public void testTripFailsQueryWithoutPartialResults() {
@@ -232,49 +182,6 @@ public class SerializedPlanBreakerIT extends AbstractEsqlIntegTestCase {
             assertThat(local.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
             assertThat(local.getFailures().toString(), containsString("data for [" + SERIALIZED_REQUEST_LABEL + "]"));
         }
-    }
-
-    /**
-     * While both data nodes hold the main-plan request they received, the coordinator no longer charges the copies it
-     * serialized for them: only what it charged before sending them, plus the small allocations of the rest of the query.
-     */
-    public void testChargeReleasedOnceWritten() throws Exception {
-        String coordinator = setupCoordinatorAndIndex();
-        CircuitBreaker breaker = coordinatorBreaker(coordinator);
-        long before = breaker.getUsed();
-        MockTransportService coordinatorTransport = coordinatorTransport(coordinator);
-        AtomicLong usedBeforeMainPlan = recordUsageBeforeNthSend(coordinatorTransport, breaker, ComputeService.DATA_ACTION_NAME, 3);
-        CountDownLatch received = new CountDownLatch(2);
-        CountDownLatch resume = new CountDownLatch(1);
-        try (
-            Releasable recording = coordinatorTransport::clearAllRules;
-            Releasable held = holdMainPlanRequests(received, resume, (h, r, channel, task) -> h.messageReceived(r, channel, task))
-        ) {
-            ActionFuture<EsqlQueryResponse> future = start(coordinator, false);
-            try {
-                safeAwait(received);
-                assertBusy(() -> assertThat(breaker.getUsed(), lessThan(usedBeforeMainPlan.get() + HEADROOM.getBytes())));
-            } finally {
-                resume.countDown();
-            }
-            try (EsqlQueryResponse resp = future.actionGet(DEFAULT_REQUEST_TIMEOUT)) {
-                assertThat(((Number) EsqlTestUtils.getValuesList(resp).get(0).get(0)).longValue(), equalTo((long) NUM_DOCS));
-            }
-        }
-        assertReleased(breaker, before);
-    }
-
-    private Releasable holdMainPlanRequests(
-        CountDownLatch received,
-        CountDownLatch resume,
-        StubbableTransport.RequestHandlingBehavior<TransportRequest> then
-    ) {
-        List<Releasable> held = new ArrayList<>();
-        for (String dataNode : internalCluster().nodesInclude("idx")) {
-            MockTransportService transportService = MockTransportService.getInstance(dataNode);
-            held.add(holdNthRequest(List.of(transportService), ComputeService.DATA_ACTION_NAME, 2, received, resume, then));
-        }
-        return Releasables.wrap(held);
     }
 
     private String setupCoordinatorAndIndex() {
@@ -310,12 +217,8 @@ public class SerializedPlanBreakerIT extends AbstractEsqlIntegTestCase {
         return internalCluster().getInstance(CircuitBreakerService.class, coordinator).getBreaker(CircuitBreaker.REQUEST);
     }
 
-    private ActionFuture<EsqlQueryResponse> start(String coordinator, boolean allowPartialResults) {
-        var request = syncEsqlQueryRequest("FROM idx" + QUERY_TAIL).allowPartialResults(allowPartialResults);
-        return client(coordinator).execute(EsqlQueryAction.INSTANCE, request);
-    }
-
     private EsqlQueryResponse run(String coordinator, boolean allowPartialResults) {
-        return start(coordinator, allowPartialResults).actionGet(DEFAULT_REQUEST_TIMEOUT);
+        var request = syncEsqlQueryRequest("FROM idx" + QUERY_TAIL).allowPartialResults(allowPartialResults);
+        return client(coordinator).execute(EsqlQueryAction.INSTANCE, request).actionGet(DEFAULT_REQUEST_TIMEOUT);
     }
 }

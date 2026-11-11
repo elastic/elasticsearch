@@ -117,6 +117,19 @@ public final class Counters implements Writeable {
         }
     }
 
+    /**
+     * A copy of these counters without the ones whose name starts with {@code prefix}.
+     */
+    public Counters withoutPrefix(String prefix) {
+        Counters result = new Counters();
+        for (var entry : counters.entrySet()) {
+            if (entry.getKey().startsWith(prefix) == false) {
+                result.counters.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return result;
+    }
+
     public static Counters merge(List<Counters> counters) {
         Counters result = new Counters();
         for (Counters c : counters) {

@@ -18,6 +18,8 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.esql.telemetry.DirectClient;
+import org.elasticsearch.xpack.esql.telemetry.QueryEntryPoint;
 
 import java.io.IOException;
 import java.util.List;
@@ -73,6 +75,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             esqlRequest = RequestXContent.parseSync(parser);
         }
+        esqlRequest.directClient(DirectClient.classify(request));
 
         if (STREAMING_ENABLED) {
             boolean streaming = request.paramAsBoolean(STREAMING_OPTION, false);
@@ -90,9 +93,11 @@ public class RestEsqlQueryAction extends BaseRestHandler {
             }
 
             if (streaming) {
+                esqlRequest.entryPoint(QueryEntryPoint.QUERY_STREAM);
                 return streamingChannelConsumer(esqlRequest, request, client, batchSizeParam);
             }
         }
+        esqlRequest.entryPoint(QueryEntryPoint.QUERY);
         return restChannelConsumer(esqlRequest, request, client);
     }
 

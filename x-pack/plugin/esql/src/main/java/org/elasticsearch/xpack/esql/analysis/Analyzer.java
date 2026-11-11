@@ -393,9 +393,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     public LogicalPlan analyze(LogicalPlan plan) {
+        return analyze(plan, new BitSet(FeatureMetric.values().length));
+    }
+
+    /**
+     * Analyzes and verifies {@code plan}, adding to {@code usedFeatures} the {@link FeatureMetric}s found in it: the set a verifier
+     * with metrics counts in {@code features.*}. {@code usedFeatures} is only changed when verification passes.
+     */
+    public LogicalPlan analyze(LogicalPlan plan, BitSet usedFeatures) {
         BitSet partialMetrics = new BitSet(FeatureMetric.values().length);
         LogicalPlan analyzed = execute(plan);
         LogicalPlan verified = verify(analyzed, gatherPreAnalysisMetrics(plan, partialMetrics));
+        usedFeatures.or(partialMetrics);
         // verify throws on failure, so we only reach here once the plan is valid: flush the warnings deferred during analysis.
         context().deferredHeaderWarnings().forEach(HeaderWarning::addWarning);
         viewBoundaryNullFillWarnings(context().viewBoundaryNullFills()).forEach(HeaderWarning::addWarning);

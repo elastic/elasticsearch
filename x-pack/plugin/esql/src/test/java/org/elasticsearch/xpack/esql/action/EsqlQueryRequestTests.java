@@ -45,9 +45,13 @@ import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.session.ExemplarsSettings;
+import org.elasticsearch.xpack.esql.telemetry.DirectClient;
+import org.elasticsearch.xpack.esql.telemetry.QueryEntryPoint;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -77,6 +81,48 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class EsqlQueryRequestTests extends ESTestCase {
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(List.of(EsqlQueryStatus.ENTRY));
+
+    public void testDefaultEntryPointIsInternal() {
+        assertThat(EsqlQueryRequest.syncEsqlQueryRequest("FROM idx").entryPoint(), is(QueryEntryPoint.INTERNAL));
+        assertThat(EsqlQueryRequest.asyncEsqlQueryRequest("FROM idx").entryPoint(), is(QueryEntryPoint.INTERNAL));
+        assertThat(new EsqlQueryRequest().entryPoint(), is(QueryEntryPoint.INTERNAL));
+    }
+
+    public void testEntryPointIsSettable() {
+        QueryEntryPoint entryPoint = randomFrom(QueryEntryPoint.values());
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx").entryPoint(entryPoint);
+        assertThat(request.entryPoint(), is(entryPoint));
+    }
+
+    public void testPreparedCopyKeepsEntryPoint() {
+        QueryEntryPoint entryPoint = randomFrom(QueryEntryPoint.values());
+        EsqlQueryRequest source = EsqlQueryRequest.syncEsqlQueryRequest("ROW a = 1").entryPoint(entryPoint);
+        EsqlStatement statement = new EsqlStatement(new Row(Source.EMPTY, List.of()), List.of());
+        assertThat(PreparedEsqlQueryRequest.from(source, statement, "copy").entryPoint(), is(entryPoint));
+    }
+
+    public void testDefaultDirectClientIsOther() {
+        assertThat(EsqlQueryRequest.syncEsqlQueryRequest("FROM idx").directClient(), is(DirectClient.OTHER));
+        assertThat(EsqlQueryRequest.asyncEsqlQueryRequest("FROM idx").directClient(), is(DirectClient.OTHER));
+        assertThat(new EsqlQueryRequest().directClient(), is(DirectClient.OTHER));
+    }
+
+    public void testDirectClientIsSettable() {
+        DirectClient directClient = randomFrom(DirectClient.values());
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx").directClient(directClient);
+        assertThat(request.directClient(), is(directClient));
+    }
+
+    public void testDirectClientRejectsNull() {
+        expectThrows(NullPointerException.class, () -> EsqlQueryRequest.syncEsqlQueryRequest("FROM idx").directClient(null));
+    }
+
+    public void testPreparedCopyKeepsDirectClient() {
+        DirectClient directClient = randomFrom(DirectClient.values());
+        EsqlQueryRequest source = EsqlQueryRequest.syncEsqlQueryRequest("ROW a = 1").directClient(directClient);
+        EsqlStatement statement = new EsqlStatement(new Row(Source.EMPTY, List.of()), List.of());
+        assertThat(PreparedEsqlQueryRequest.from(source, statement, "copy").directClient(), is(directClient));
+    }
 
     public void testParseFields() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);

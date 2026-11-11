@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165389
+summary: "[Telemetry] Count each query path in usage"
+type: enhancement

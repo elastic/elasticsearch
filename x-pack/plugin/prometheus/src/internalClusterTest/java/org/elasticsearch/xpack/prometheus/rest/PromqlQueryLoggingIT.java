@@ -17,6 +17,7 @@ import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.telemetry.QueryEntryPoint;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -83,7 +84,7 @@ public class PromqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             Instant.ofEpochSecond(1_000_000),
             PrometheusQueryResponseListener.QueryMode.INSTANT
         );
-        var request = new PromqlQueryRequest(TEST_INDEX, result.esqlStatement(), promqlExpr);
+        var request = new PromqlQueryRequest(QueryEntryPoint.PROMETHEUS_QUERY, TEST_INDEX, result.esqlStatement(), promqlExpr);
         try (var ignored = run(request)) {
             var event = appender.getLastEventAndReset();
             Map<String, String> message = getMessageData(event);
@@ -102,7 +103,16 @@ public class PromqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             Instant.ofEpochSecond(1_000_000),
             PrometheusQueryResponseListener.QueryMode.INSTANT
         );
-        var request = new PromqlQueryRequest(TEST_INDEX, result.esqlStatement(), promqlExpr, "metric_name", "http_requests", "limit", 100);
+        var request = new PromqlQueryRequest(
+            QueryEntryPoint.PROMETHEUS_QUERY,
+            TEST_INDEX,
+            result.esqlStatement(),
+            promqlExpr,
+            "metric_name",
+            "http_requests",
+            "limit",
+            100
+        );
         try (var ignored = run(request)) {
             var event = appender.getLastEventAndReset();
             var message = getMessageData(event);
@@ -115,6 +125,7 @@ public class PromqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         }
 
         var request2 = new PromqlQueryRequest(
+            QueryEntryPoint.PROMETHEUS_QUERY,
             TEST_INDEX,
             result.esqlStatement(),
             promqlExpr,
@@ -144,7 +155,7 @@ public class PromqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             Instant.ofEpochSecond(1_000_000),
             PrometheusQueryResponseListener.QueryMode.INSTANT
         );
-        var request = new PromqlQueryRequest(TEST_INDEX, result.esqlStatement(), promqlExpr);
+        var request = new PromqlQueryRequest(QueryEntryPoint.PROMETHEUS_QUERY, TEST_INDEX, result.esqlStatement(), promqlExpr);
         expectThrows(VerificationException.class, () -> run(request));
         Map<String, String> message = getMessageData(appender.getLastEventAndReset());
         assertMessageFailure(message, PROMQL_TYPE, promqlExpr, VerificationException.class, "Found 1 problem");

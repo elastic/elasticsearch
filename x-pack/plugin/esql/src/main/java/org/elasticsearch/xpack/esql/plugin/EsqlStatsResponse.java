@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -18,11 +19,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
+import org.elasticsearch.xpack.esql.telemetry.QueryPath;
 
 import java.io.IOException;
 import java.util.List;
 
 public class EsqlStatsResponse extends BaseNodesResponse<EsqlStatsResponse.NodeStatsResponse> implements ToXContentObject {
+
+    static final TransportVersion QUERY_PATHS = TransportVersion.fromName("esql_usage_query_paths");
 
     public EsqlStatsResponse(ClusterName clusterName, List<NodeStatsResponse> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
@@ -77,7 +81,9 @@ public class EsqlStatsResponse extends BaseNodesResponse<EsqlStatsResponse.NodeS
             super.writeTo(out);
             out.writeBoolean(stats != null);
             if (stats != null) {
-                stats.writeTo(out);
+                // An older node would print these as a nested map instead of the list of paths, so it does not get them.
+                Counters sent = out.getTransportVersion().supports(QUERY_PATHS) ? stats : stats.withoutPrefix(QueryPath.USAGE_KEY + ".");
+                sent.writeTo(out);
             }
         }
 

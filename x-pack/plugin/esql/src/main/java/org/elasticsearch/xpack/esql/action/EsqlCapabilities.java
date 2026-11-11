@@ -4743,6 +4743,42 @@ public class EsqlCapabilities {
         UNMAPPED_FIELDS_RESOLVED_BY_SHARD,
 
         /**
+         * The usage information for ESQL counts queries by the Elastic product in {@code X-elastic-product-origin}: one
+         * {@code queries.<product>} per known product origin, {@code queries.other} for any other origin, and {@code queries.rest}
+         * for a request without the header. Before this, every query was counted as {@code rest}.
+         */
+        USAGE_QUERIES_BY_CLIENT,
+
+        /**
+         * Does the usage information for ESQL count queries by the API they came in on ({@code entry_points.<entry_point>})?
+         */
+        USAGE_ENTRY_POINTS,
+
+        /**
+         * Does the usage information for ESQL count queries by their first source command ({@code leading_commands.<command>})?
+         */
+        USAGE_LEADING_COMMANDS,
+
+        /**
+         * Does the usage information for ESQL count queries without an Elastic product origin by the tool that sent them
+         * ({@code direct_clients.<client>}), classified from the {@code x-elastic-client-meta} and {@code User-Agent} headers?
+         */
+        USAGE_DIRECT_CLIENTS,
+
+        /**
+         * Does the usage information for ESQL count queries from Kibana by the Kibana feature that sent them
+         * ({@code kibana_features.<feature>}) and by whether a person chose to run them ({@code kibana_interactions.<interaction>}),
+         * classified from the execution context Kibana puts in {@code X-Opaque-Id}?
+         */
+        USAGE_KIBANA_FEATURES,
+
+        /**
+         * Does {@code _xpack/usage} list every {@code query_paths} entry: caller, source and leading command, with the commands
+         * the queries on that path used?
+         */
+        USAGE_QUERY_PATHS,
+
+        /**
          * Loading a field that a pushed down {@code ROUND_TO} (or the {@code DATE_TRUNC} / {@code BUCKET} date histograms rewritten
          * to it) also buckets no longer assumes the source query filtered out the documents without a value. The pushdown runs one
          * query per rounding point plus one for the documents without a value, and older nodes only looked at the first of them.

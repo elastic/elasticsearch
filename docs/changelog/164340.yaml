@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 164340
+summary: "Count queries by Kibana, other, or rest"
+type: enhancement

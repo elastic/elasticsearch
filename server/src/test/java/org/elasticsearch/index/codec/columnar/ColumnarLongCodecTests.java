@@ -234,20 +234,7 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
         arrays.put("only-nulls", "[null, null]");
         arrays.put("null", "null");
         arrays.put("empty", "[]");
-        for (String index : List.of(WITH_CODEC, WITHOUT_CODEC)) {
-            for (Map.Entry<String, String> entry : shuffledList(new ArrayList<>(arrays.entrySet()))) {
-                prepareIndex(index).setId(entry.getKey())
-                    .setSource("{\"@timestamp\":\"2024-01-01T00:00:00Z\",\"l\":" + entry.getValue() + "}", XContentType.JSON)
-                    .get();
-                if (rarely()) {
-                    indicesAdmin().prepareRefresh(index).get();
-                }
-            }
-            if (randomBoolean()) {
-                indicesAdmin().prepareForceMerge(index).setMaxNumSegments(1).get();
-            }
-            indicesAdmin().prepareRefresh(index).get();
-        }
+        indexIntoBoth(arrays);
 
         final Map<String, Object> expected = new LinkedHashMap<>();
         expected.put("unsorted", List.of(3, 1, 2));
@@ -385,6 +372,81 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
             });
         } while (after.get() != null);
         return buckets;
+    }
+
+    /**
+     * Malformed values of an {@code ignore_malformed} field aren't in the column; synthetic source reads them back from the field's
+     * own fallback column, which strict columnar indices write in place of {@code _ignored_source}.
+     */
+    public void testSourceKeepsMalformedValues() throws IOException {
+        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        final boolean indexed = randomBoolean();
+        final String mapping = "type=long,ignore_malformed=true,index=" + indexed + ",index_terms=" + (indexed && randomBoolean());
+        createIndex(WITH_CODEC, settings(mode, true), "@timestamp", "type=date", FIELD, mapping);
+        createIndex(WITHOUT_CODEC, settings(mode, false), "@timestamp", "type=date", FIELD, mapping);
+        final Map<String, String> arrays = new LinkedHashMap<>();
+        arrays.put("malformed", "\"foo\"");
+        arrays.put("only-malformed", "[\"foo\", \"bar\"]");
+        arrays.put("malformed-among-values", "[3, \"foo\", 1, \"bar\", 3]");
+        arrays.put("malformed-among-nulls", "[null, \"foo\", 2, null]");
+        arrays.put("malformed-and-null", "[\"foo\", null]");
+        arrays.put("values", "[3, 1, 2]");
+        indexIntoBoth(arrays);
+
+        final Map<String, Object> withCodec = sourceValues(WITH_CODEC, arrays.size());
+        assertEquals("foo", withCodec.get("malformed"));
+        assertEquals(List.of(3, 1, 2), withCodec.get("values"));
+        assertEquals(sourceValues(WITHOUT_CODEC, arrays.size()), withCodec);
+        assertSameHits(QueryBuilders.existsQuery(FIELD));
+        assertSameHits(QueryBuilders.rangeQuery(FIELD).gte(2));
+    }
+
+    /**
+     * With {@code multi_value: false} and {@code on_failure: ignore}, a document's first value goes into the column and the rest
+     * into the field's {@code ._on_failure} column, which synthetic source reads back after it.
+     */
+    public void testSourceKeepsOnFailureValues() throws IOException {
+        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        final boolean indexed = randomBoolean();
+        final String mapping = "type=long,multi_value=false,on_failure=ignore,index="
+            + indexed
+            + ",index_terms="
+            + (indexed && randomBoolean());
+        createIndex(WITH_CODEC, settings(mode, true), "@timestamp", "type=date", FIELD, mapping);
+        createIndex(WITHOUT_CODEC, settings(mode, false), "@timestamp", "type=date", FIELD, mapping);
+        final Map<String, String> arrays = new LinkedHashMap<>();
+        arrays.put("scalar", "4");
+        arrays.put("array", "[3, 1, 2]");
+        arrays.put("duplicates", "[5, 5, 1]");
+        arrays.put("with-null", "[null, 2, 1]");
+        arrays.put("only-null", "[null]");
+        indexIntoBoth(arrays);
+
+        final Map<String, Object> withCodec = sourceValues(WITH_CODEC, arrays.size());
+        assertEquals(4, withCodec.get("scalar"));
+        assertEquals(List.of(3, 1, 2), withCodec.get("array"));
+        assertEquals(sourceValues(WITHOUT_CODEC, arrays.size()), withCodec);
+        // Only the first value is in the column, so only it is searchable.
+        assertSameHits(QueryBuilders.termQuery(FIELD, 1));
+        assertSameHits(QueryBuilders.existsQuery(FIELD));
+    }
+
+    /** Indexes each of {@code arrays}, by id, as the field's value in both indices, across a few segments and maybe a merge. */
+    private void indexIntoBoth(Map<String, String> arrays) {
+        for (String index : List.of(WITH_CODEC, WITHOUT_CODEC)) {
+            for (Map.Entry<String, String> entry : shuffledList(new ArrayList<>(arrays.entrySet()))) {
+                prepareIndex(index).setId(entry.getKey())
+                    .setSource("{\"@timestamp\":\"2024-01-01T00:00:00Z\",\"l\":" + entry.getValue() + "}", XContentType.JSON)
+                    .get();
+                if (rarely()) {
+                    indicesAdmin().prepareRefresh(index).get();
+                }
+            }
+            if (randomBoolean()) {
+                indicesAdmin().prepareForceMerge(index).setMaxNumSegments(1).get();
+            }
+            indicesAdmin().prepareRefresh(index).get();
+        }
     }
 
     /** The field's value in each document's {@code _source}, by id. */

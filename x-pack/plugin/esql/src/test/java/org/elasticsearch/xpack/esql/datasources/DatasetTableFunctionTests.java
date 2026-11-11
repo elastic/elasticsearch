@@ -21,13 +21,13 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * What {@code DATASET(...)} accepts and refuses before anything is authorized or bound. The binding itself is
+ * What {@code DATASET(...)} accepts and refuses before anything is bound. The binding itself is
  * covered where the validator is ({@code InlineDefinitionValidationParityTests}) and where the node-side rebind is
  * ({@link DatasetConfigResolverTests}); nothing here needs a cluster.
  */
 public class DatasetTableFunctionTests extends ESTestCase {
 
-    private static final DatasetTableFunction FUNCTION = new DatasetTableFunction(null, new DatasetDefinitionValidator(Map.of()));
+    private static final DatasetTableFunction FUNCTION = new DatasetTableFunction(new DatasetDefinitionValidator(Map.of()));
 
     public void testTheShapeIsADataSourceAndADefinition() {
         assertThat(FUNCTION.signature().arguments().size(), equalTo(2));
@@ -60,10 +60,10 @@ public class DatasetTableFunctionTests extends ESTestCase {
     /**
      * One data source, never a pattern, a list, an exclusion or a remote-prefixed name.
      * <p>
-     * {@code ?} and a leading {@code /} are in the list because the authorization layer reads both as patterns -
-     * {@code StringMatcher} routes a grant containing either to an automaton - while {@code Regex.isSimpleMatchPattern},
-     * the obvious predicate to reach for here, tests {@code *} alone. Admitting one would authorize the literal string
-     * and then resolve nothing, leaving the read singular by the later exact lookup rather than by this check.
+     * {@code ?} and a leading {@code /} are in the list because the predicate this shares with the dataset-name
+     * check treats both as patterns, while {@code Regex.isSimpleMatchPattern}, the obvious predicate to reach for
+     * here, tests {@code *} alone. Admitting one would leave the read singular by the reading node's later exact
+     * lookup rather than by this check, which is where the user-facing diagnostic is.
      */
     public void testTheDataSourceIsOneRegisteredName() {
         for (String plural : List.of("", "*", "logs-*", "d?1", "/d1/", "a,b", "-a", "remote:a")) {

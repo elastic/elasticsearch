@@ -228,10 +228,7 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton READ_VIEW_METADATA_AUTOMATON = patterns(EsqlViewActionNames.ESQL_GET_VIEW_ACTION_NAME);
     private static final Automaton DELETE_VIEW_AUTOMATON = patterns(EsqlViewActionNames.ESQL_DELETE_VIEW_ACTION_NAME);
     private static final Automaton MANAGE_VIEW_AUTOMATON = patterns("indices:admin/esql/view*");
-    private static final Automaton CREATE_DATASET_AUTOMATON = patterns(
-        EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME,
-        EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASOURCE_ACTION_NAME
-    );
+    private static final Automaton CREATE_DATASET_AUTOMATON = patterns(EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME);
     private static final Automaton DELETE_DATASET_AUTOMATON = patterns(EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME);
     private static final Automaton READ_DATASET_METADATA_AUTOMATON = patterns(EsqlDatasetActionNames.ESQL_GET_DATASET_ACTION_NAME);
     private static final Automaton MANAGE_DATASET_AUTOMATON = patterns("indices:admin/esql/dataset/*");

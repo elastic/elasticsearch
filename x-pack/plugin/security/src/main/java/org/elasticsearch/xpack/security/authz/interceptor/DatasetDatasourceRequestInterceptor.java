@@ -18,22 +18,14 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 
-import java.util.Set;
-
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
 import static org.elasticsearch.xpack.security.authz.RBACEngine.maybeGetRBACEngineRole;
 
 /**
- * Authorizes {@code global.data_source} for the actions that attach a dataset to a data source — registering one,
- * and reading one whose definition the query carries — when the request advertises a separate datasource cluster
- * action via {@link DataSourceRequestInfo#dataSourceClusterActionName()}.
+ * Authorizes {@code global.data_source} for {@link EsqlDatasetActionNames#ESQL_PUT_DATASET_ACTION_NAME} when the request
+ * advertises a separate datasource cluster action via {@link DataSourceRequestInfo#dataSourceClusterActionName()}.
  */
 public class DatasetDatasourceRequestInterceptor implements RequestInterceptor {
-
-    private static final Set<String> INTERCEPTED_ACTIONS = Set.of(
-        EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME,
-        EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASOURCE_ACTION_NAME
-    );
 
     private final ThreadContext threadContext;
     private final AuditTrailService auditTrailService;
@@ -50,7 +42,7 @@ public class DatasetDatasourceRequestInterceptor implements RequestInterceptor {
         AuthorizationInfo authorizationInfo
     ) {
         if (requestInfo.getRequest() instanceof DataSourceRequestInfo dsi
-            && INTERCEPTED_ACTIONS.contains(requestInfo.getAction())
+            && EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME.equals(requestInfo.getAction())
             && dsi.dataSourceClusterActionName().equals(requestInfo.getAction()) == false) {
             var auditTrail = auditTrailService.get();
 

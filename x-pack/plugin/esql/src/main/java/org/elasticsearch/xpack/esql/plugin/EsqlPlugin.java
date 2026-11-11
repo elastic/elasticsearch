@@ -81,7 +81,6 @@ import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
 import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncStopAction;
-import org.elasticsearch.xpack.esql.action.EsqlAuthorizeDatasourceAction;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
@@ -818,7 +817,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
             new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class),
             new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class),
-            new ActionHandler(EsqlAuthorizeDatasourceAction.TYPE, EsqlAuthorizeDatasourceAction.class),
             new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class),
             new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class),
             new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class),
@@ -1001,10 +999,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
      * already-constructed functions rather than names, and why the client and the dataset validator are parameters
      * here rather than something a function reaches for: a function that has to ask the cluster something, or to
      * hold a definition to what a registration is held to, is given the handles it needs, and the facility itself
-     * never acquires one.
+     * never acquires one. {@link DatasetTableFunction} takes the validator and not the client.
      */
     protected List<TableFunction> tableFunctions(Client client, DatasetDefinitionValidator datasetDefinitionValidator) {
-        return List.of(new DatasetTableFunction(client, datasetDefinitionValidator));
+        return List.of(new DatasetTableFunction(datasetDefinitionValidator));
     }
 
     @Override

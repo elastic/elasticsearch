@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.esql.action.EsqlAuthorizeDatasourceAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -175,37 +174,13 @@ public class ExternalSourceAuthorizerTests extends ESTestCase {
     }
 
     /**
-     * A data source name that is a pattern, a remote reference or an exclusion cannot be asked about as it stands:
-     * the authorize request is fixed on its names, so a pattern there would authorize the literal string and then
-     * read through whatever it later expanded to. Refused before any request goes out.
+     * A plan carrying a definition of its own names no dataset, so there is nothing to authorize by name and no
+     * request goes out. Pinned because the feature adds no gate of its own and an arm that silently started asking
+     * one would be a privilege this path does not have.
      */
-    public void testMalformedDataSourceNamesAreRefusedWithoutARequest() {
-        for (String dataSource : List.of("", "-s3", "s3*", "s3?", "/s3/", "s3,other", "remote:s3")) {
-            client.dataSourceRequests.clear();
-            ElasticsearchStatusException e = expectRefusal(inlinePlan(dataSource), true);
-            assertThat(e.status(), is(RestStatus.BAD_REQUEST));
-            assertThat(e.getMessage(), containsString("external data source [" + dataSource + "] cannot be read by that name"));
-            assertThat("no request for " + dataSource, client.dataSourceRequests, hasSize(0));
-        }
-    }
-
-    /**
-     * A plan holding both arms authorizes the data source before the names, and a refusal of the data source stops
-     * there — so a caller who may not use the source is not told which of the query's datasets exist.
-     */
-    public void testADataSourceIsSettledBeforeTheNames() {
-        client.answer = request -> response(Set.of("a"));
-        authorize(mixedPlan("a", "s3_source"), true);
-        assertThat(client.dataSourceRequests, hasSize(1));
-        assertThat(client.dataSourceRequests.get(0).dataSourceNames(), arrayContaining("s3_source"));
-        assertThat(client.requests, hasSize(1));
-
-        client.dataSourceRequests.clear();
-        client.requests.clear();
-        client.dataSourceAnswer = request -> new ElasticsearchStatusException("no", RestStatus.FORBIDDEN);
-        expectThrows(ElasticsearchStatusException.class, () -> authorize(mixedPlan("a", "s3_source"), true));
-        assertThat(client.dataSourceRequests, hasSize(1));
-        assertThat("the names were never asked about", client.requests, hasSize(0));
+    public void testACarriedDefinitionIsNotAuthorizedByName() {
+        authorize(inlinePlan("s3_source"), true);
+        assertThat(client.requests, hasSize(0));
     }
 
     public void testIsExactLocalName() {
@@ -316,15 +291,6 @@ public class ExternalSourceAuthorizerTests extends ESTestCase {
         return new ExchangeSinkExec(SRC, output(), false, child);
     }
 
-    /** One node carrying a registered name beside one carrying an inline definition, which is a legal plan. */
-    private static PhysicalPlan mixedPlan(String datasetName, String dataSource) {
-        PhysicalPlan named = new ExternalSourceExec(SRC, "s3://bucket/data/*.parquet", "parquet", output(), Map.of(), Map.of(), null, 10)
-            .withDatasetReference(new DatasetReference.Named(datasetName));
-        PhysicalPlan inline = new ExternalSourceExec(SRC, "s3://bucket/other/*.parquet", "parquet", output(), Map.of(), Map.of(), null, 10)
-            .withDatasetReference(new DatasetReference.Inline(dataSource, Map.of("resource", "s3://bucket/other/*.parquet")));
-        return new ExchangeSinkExec(SRC, output(), false, new MergeExec(SRC, List.of(named, inline), output(), MergeExec.Kind.UNION));
-    }
-
     private static List<Attribute> output() {
         return List.of(new FieldAttribute(SRC, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)));
     }
@@ -335,12 +301,9 @@ public class ExternalSourceAuthorizerTests extends ESTestCase {
      */
     private static final class ScriptedClient extends NoOpNodeClient {
         final List<EsqlResolveDatasetAction.Request> requests = new ArrayList<>();
-        /** The data-source half, recorded separately so a test can read the order the two were asked in. */
-        final List<EsqlAuthorizeDatasourceAction.Request> dataSourceRequests = new ArrayList<>();
         Function<EsqlResolveDatasetAction.Request, EsqlResolveDatasetAction.Response> answer = request -> {
             throw new AssertionError("unexpected resolve request " + Arrays.toString(request.indices()));
         };
-        Function<EsqlAuthorizeDatasourceAction.Request, RuntimeException> dataSourceAnswer = request -> null;
 
         ScriptedClient(ThreadPool threadPool) {
             super(threadPool);
@@ -353,17 +316,6 @@ public class ExternalSourceAuthorizerTests extends ESTestCase {
             Request request,
             ActionListener<Response> listener
         ) {
-            if (action == EsqlAuthorizeDatasourceAction.TYPE) {
-                EsqlAuthorizeDatasourceAction.Request authorize = (EsqlAuthorizeDatasourceAction.Request) request;
-                dataSourceRequests.add(authorize);
-                RuntimeException refusal = dataSourceAnswer.apply(authorize);
-                if (refusal != null) {
-                    listener.onFailure(refusal);
-                    return;
-                }
-                listener.onResponse((Response) ActionResponse.Empty.INSTANCE);
-                return;
-            }
             assertThat(action, equalTo(EsqlResolveDatasetAction.TYPE));
             EsqlResolveDatasetAction.Request resolve = (EsqlResolveDatasetAction.Request) request;
             requests.add(resolve);

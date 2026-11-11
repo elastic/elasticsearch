@@ -25,7 +25,6 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.esql.action.EsqlAuthorizeDatasourceAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 
 import java.util.Set;
@@ -34,13 +33,11 @@ import java.util.concurrent.Executor;
 import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
 
 /**
- * Decides, on the node that received a plan, whether the request's credential may read the datasets the plan reads.
+ * Decides, on the node that received a plan, whether the request's credential may read the datasets the plan names.
  * <p>
- * Two kinds, each authorized by its own privilege on its own object before anything binds. A plan naming a
- * <b>registered</b> dataset goes through the coordinator's gate for {@code FROM <dataset>}, described below; a plan
- * carrying the <b>definition itself</b> goes through {@link EsqlAuthorizeDatasourceAction}, the gate a registration
- * against that data source needs. That refusal is reported as it arrives rather than folded into the message below,
- * since it names an object the caller typed.
+ * A plan carrying a definition of its own rather than a registered dataset's name is nothing to this: a definition
+ * names no dataset to authorize, and the feature adds no privilege of its own. It is confined to snapshot builds,
+ * where {@link DatasetConfigResolver#rebind} binds it and a release node refuses it.
  * <p>
  * The compute actions are authorized by the security filter on their {@code indices()}, which the sender sets, and
  * a plan can pair an allowed index pattern with an external source for any dataset registered here; the filter never
@@ -110,12 +107,11 @@ public final class ExternalSourceAuthorizer {
 
     /**
      * Completes {@code listener} once every dataset in {@code datasets} is confirmed readable by the caller, or fails
-     * it with the refusal. A plan with no external node is accepted without a round-trip. The data sources behind
-     * carried definitions are settled first, so a caller who may not use one is refused before any dataset name of
-     * theirs is resolved. Cancellation of the parent task propagates to both actions; that failure and the others
-     * that say nothing about the names are reported as such rather than as a refusal ({@link #isUnrelatedToNames}).
+     * it with the refusal. A plan with no external node is accepted without a round-trip. Cancellation of the parent
+     * task propagates to the resolve action; it and the other failures that say nothing about the names are reported
+     * as such rather than as a refusal ({@link #isUnrelatedToNames}).
      *
-     * @param parentTaskId the handler's task, so both actions are cancelled with it
+     * @param parentTaskId the handler's task, so the resolve action is cancelled with it
      */
     public void authorize(ExternalSourceDatasets datasets, TaskId parentTaskId, ActionListener<Void> listener) {
         if (datasets.isEmpty()) {
@@ -133,40 +129,9 @@ public final class ExternalSourceAuthorizer {
                 return;
             }
         }
-        for (String dataSource : datasets.dataSources()) {
-            if (isExactLocalName(dataSource) == false) {
-                listener.onFailure(notAuthorizable(dataSource));
-                return;
-            }
-        }
-        if (datasets.dataSources().isEmpty() == false) {
-            authorizeDataSources(
-                datasets.dataSources(),
-                parentTaskId,
-                listener.delegateFailureAndWrap((delegate, ignored) -> authorizeNames(names, parentTaskId, delegate))
-            );
-            return;
-        }
-        authorizeNames(names, parentTaskId, listener);
-    }
-
-    /** The data sources behind the plan's carried definitions, in one request whatever the plan holds. */
-    private void authorizeDataSources(Set<String> dataSources, TaskId parentTaskId, ActionListener<Void> listener) {
-        EsqlAuthorizeDatasourceAction.Request request = new EsqlAuthorizeDatasourceAction.Request(
-            REST_MASTER_TIMEOUT_DEFAULT,
-            dataSources.toArray(String[]::new)
-        );
-        request.setParentTask(parentTaskId);
-        client.execute(
-            EsqlAuthorizeDatasourceAction.TYPE,
-            request,
-            new ThreadedActionListener<>(executor, true, listener.map(ignored -> null))
-        );
-    }
-
-    private void authorizeNames(Set<String> names, TaskId parentTaskId, ActionListener<Void> listener) {
         if (names.isEmpty()) {
-            // No registered dataset to authorize: the external nodes carried their own definitions, settled above.
+            // Nothing to authorize by name: the plan's external nodes carried their own definitions, or are the
+            // unnamed snapshot-only kind the rebind lets through.
             listener.onResponse(null);
             return;
         }
@@ -241,15 +206,6 @@ public final class ExternalSourceAuthorizer {
         return new ElasticsearchStatusException(
             "external datasets are local to the cluster that registered them and cannot be read by a cross-cluster request",
             RestStatus.BAD_REQUEST
-        );
-    }
-
-    /** The refusal for a data source name the authorize action cannot be asked about as it stands. */
-    public static ElasticsearchStatusException notAuthorizable(String dataSource) {
-        return new ElasticsearchStatusException(
-            "external data source [{}] cannot be read by that name",
-            RestStatus.BAD_REQUEST,
-            dataSource
         );
     }
 

@@ -8,13 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.ThreadedActionListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.esql.action.EsqlAuthorizeDatasourceAction;
-import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.datasources.dataset.DatasetDefinitionValidator;
@@ -29,8 +23,6 @@ import org.elasticsearch.xpack.esql.tablefunction.TableFunctionSignature;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
-
 /**
  * {@code DATASET(<data source>, <definition>)}: a dataset read written where it is read, without registering the
  * dataset first.
@@ -44,13 +36,10 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
  * its resource may be written as that resource alone. It goes through the validator a registration goes through
  * ({@link DatasetDefinitionValidator}), so whatever a registration refuses this refuses in the same words.
  * <p>
- * It names one object, the data source, and is authorized both ways that object is governed — the dataset-creation
- * privilege on the name, and {@code read} on the source under {@code global.data_source} — because describing a
- * dataset against a source is the same act whether or not the description is kept. Both are settled by
- * {@link EsqlAuthorizeDatasourceAction}, here and again on a node receiving the plan
- * ({@link ExternalSourceAuthorizer}). One asymmetry is left, and it is a missing name rather than a weaker check: a
- * registration is authorized against the <i>dataset's</i> name, and an inline read, having none, against the
- * <i>data source's</i>.
+ * It adds no authorization of its own, so a caller who may run the query may describe a dataset against any data
+ * source registered in the project. That is why the syntax is confined to snapshot builds: the permission model for
+ * a dataset described where it is read is still being designed, and a release node refuses the definition on the
+ * wire as well ({@link DatasetConfigResolver#rebind}).
  */
 public final class DatasetTableFunction implements TableFunction {
 
@@ -59,11 +48,9 @@ public final class DatasetTableFunction implements TableFunction {
     /** The definition field the shorthand form supplies on its own. */
     private static final String RESOURCE_FIELD = "resource";
 
-    private final Client client;
     private final DatasetDefinitionValidator definitionValidator;
 
-    public DatasetTableFunction(Client client, DatasetDefinitionValidator definitionValidator) {
-        this.client = client;
+    public DatasetTableFunction(DatasetDefinitionValidator definitionValidator) {
         this.definitionValidator = definitionValidator;
     }
 
@@ -81,9 +68,10 @@ public final class DatasetTableFunction implements TableFunction {
     }
 
     /**
-     * The data source is one registered name, not a way of asking for several: admitting a pattern, comma list,
-     * remote prefix or exclusion would make the read's identity — what both privileges are checked against — plural.
-     * The definition is checked by the validator that holds a registration to it, once the caller is authorized.
+     * The data source is one registered name, not a way of asking for several: the reading node looks the name up
+     * in its own registry exactly, so a pattern, comma list, remote prefix or exclusion would resolve to nothing at
+     * all rather than to the several sources it looks like it asks for. The definition itself is checked by the
+     * validator that holds a registration to it.
      */
     @Override
     public void validate(TableFunctionInvocation call) {
@@ -93,6 +81,7 @@ public final class DatasetTableFunction implements TableFunction {
         }
     }
 
+    /** Nothing here needs I/O, so the listener completes on the caller's thread, which is the planning pool. */
     @Override
     public void toRelation(
         TableFunctionInvocation call,
@@ -101,18 +90,7 @@ public final class DatasetTableFunction implements TableFunction {
         ActionListener<LeafPlan> listener
     ) {
         DatasetReference.Inline inline = new DatasetReference.Inline(call.name(0), definitionOf(call));
-        // The binding runs on the search pool rather than on whichever transport thread answered the authorization,
-        // as DatasetResolver's does, so its validation is charged to the query's planning CPU.
-        ActionListener<ActionResponse.Empty> authorized = new ThreadedActionListener<>(
-            client.threadPool().executor(ThreadPool.Names.SEARCH),
-            true,
-            PlanningCpuTracker.inheritMeteredCpu(listener.map(ignored -> bind(call, metadataFields, projectMetadata, inline)))
-        );
-        client.execute(
-            EsqlAuthorizeDatasourceAction.TYPE,
-            new EsqlAuthorizeDatasourceAction.Request(REST_MASTER_TIMEOUT_DEFAULT, inline.dataSource()),
-            authorized
-        );
+        ActionListener.completeWith(listener, () -> bind(call, metadataFields, projectMetadata, inline));
     }
 
     private LeafPlan bind(

@@ -21,10 +21,4 @@ public class EsqlDatasetActionNames {
 
     /** Read-side resolve action for {@code FROM <dataset>}: read-authorizes the dataset names of an ES|QL query. */
     public static final String ESQL_RESOLVE_DATASET_ACTION_NAME = "indices:data/read/esql/resolve_datasets";
-
-    /**
-     * Gate for a dataset a query defines rather than names. Outside {@code indices:data/read/*} so that {@code read}
-     * cannot reach it: an inline definition is held to the privilege registering one is held to.
-     */
-    public static final String ESQL_AUTHORIZE_DATASOURCE_ACTION_NAME = "indices:admin/esql/dataset/authorize_inline_datasource";
 }

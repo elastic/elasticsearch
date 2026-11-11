@@ -37,7 +37,6 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -117,14 +116,6 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
     private static final String DLS_READER = "ds_dls_reader";
     /** {@code read} on {@link #OTHER_INDEX} only: a credential allowed to send the compute action, with no dataset. */
     private static final String INDEX_ONLY_READER = "ds_index_only_reader";
-    /** {@code create_dataset} on {@link #DATA_SOURCE} and {@code read} on it under {@code global.data_source}. */
-    private static final String INLINE_READER = "ds_inline_reader";
-    /** {@code create_dataset} on {@link #DATA_SOURCE}, nothing under {@code global.data_source}. */
-    private static final String INLINE_NO_DATASOURCE = "ds_inline_no_datasource";
-    /** {@code read} on {@link #DATA_SOURCE} under {@code global.data_source}, the index half on another name. */
-    private static final String INLINE_NO_NAME = "ds_inline_no_name";
-    /** Both halves over {@link #DATA_SOURCE}, but index {@code read} rather than the creation privilege. */
-    private static final String INLINE_READ_ONLY = "ds_inline_read_only";
 
     private static final String DATA_SOURCE = "authz_ds";
     private static final String DATASET_A = "authz_a";
@@ -156,16 +147,7 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
     }
 
     private static List<String> users() {
-        return List.of(
-            READER,
-            PATTERN_READER,
-            DLS_READER,
-            INDEX_ONLY_READER,
-            INLINE_READER,
-            INLINE_NO_DATASOURCE,
-            INLINE_NO_NAME,
-            INLINE_READ_ONLY
-        );
+        return List.of(READER, PATTERN_READER, DLS_READER, INDEX_ONLY_READER);
     }
 
     @Override
@@ -188,38 +170,6 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
               indices:
                 - names: [ 'authz_other_idx' ]
                   privileges: [ 'read' ]
-            ds_inline_reader:
-              indices:
-                - names: [ 'authz_ds' ]
-                  privileges: [ 'read', 'create_dataset' ]
-                - names: [ 'authz_idx' ]
-                  privileges: [ 'read' ]
-              global:
-                data_source:
-                  - names: [ 'authz_ds' ]
-                    privileges: [ 'read' ]
-            ds_inline_no_datasource:
-              indices:
-                - names: [ 'authz_ds' ]
-                  privileges: [ 'read', 'create_dataset' ]
-                - names: [ 'authz_idx' ]
-                  privileges: [ 'read' ]
-            ds_inline_no_name:
-              indices:
-                - names: [ 'authz_other_idx' ]
-                  privileges: [ 'read', 'create_dataset' ]
-              global:
-                data_source:
-                  - names: [ 'authz_ds' ]
-                    privileges: [ 'read' ]
-            ds_inline_read_only:
-              indices:
-                - names: [ 'authz_ds', 'authz_idx' ]
-                  privileges: [ 'read' ]
-              global:
-                data_source:
-                  - names: [ 'authz_ds' ]
-                    privileges: [ 'read' ]
             """;
     }
 
@@ -325,57 +275,17 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
     }
 
     /**
-     * The same shape for a definition the query supplied, which is what a coordinator actually sends for an inline
-     * read: the reference reaches the node inside a {@link FragmentExec}'s logical fragment, not as a physical
-     * {@code ExternalSourceExec}. That second shape arrives only in a crafted request, so the tests built on
-     * {@code inlineExec} exercise the branch a real query does not take, and nothing reached this one — dropping
-     * the fragment branch of {@code ExternalSourceDatasets.of} left every suite green.
-     * <p>
-     * The two refusals are what pin it. An accepted read cannot: with the reference uncollected no gate is asked,
-     * so the row assertion passes either way. Each refusal is a user whose index grant covers {@link #INDEX}, so
-     * the shard request passes the security filter and whatever refuses it is the datasource gate rather than the
-     * filter in front of it.
+     * A shard request whose fragment carries a definition rather than a registered name reads, because the feature
+     * adds no gate of its own: nothing the node asks is about the data source. Pinned so that the day one is added
+     * it is added here too, where the crafted-request shapes are.
      */
-    public void testShardRequestCarryingAnInlineDefinitionIsAuthorizedOnItsDataSource() throws Exception {
-        assertThat(sendShard(INLINE_READER, inlineFragment(fileA)).expectRows(), contains("a1", "a2"));
-
-        Outcome noDataSource = sendShard(INLINE_NO_DATASOURCE, inlineFragment(fileA));
-        assertThat(
-            noDataSource.failure.getMessage(),
-            containsString("action [" + EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME + "] is unauthorized")
-        );
-
-        // Index read on the source's name is not the privilege this gate asks for, here as on the coordinator.
-        Outcome readOnly = sendShard(INLINE_READ_ONLY, inlineFragment(fileA));
-        assertThat(
-            readOnly.failure.getMessage(),
-            containsString("action [" + EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASOURCE_ACTION_NAME + "] is unauthorized")
-        );
+    public void testShardRequestCarryingAnInlineDefinitionReads() throws Exception {
+        assertThat(sendShard(READER, inlineFragment(fileA)).expectRows(), contains("a1", "a2"));
     }
 
-    /**
-     * A request carrying a definition rather than a name is authorized on the data source it reads through, by both
-     * privileges that govern one. These three send the crafted request straight to the data node, so the
-     * coordinator's own gate cannot be what refuses them.
-     */
-    public void testCraftedInlineDefinitionReadsForACallerHoldingBothPrivileges() throws Exception {
-        assertThat(sendExternal(INLINE_READER, inlineExec(fileA)).expectRows(), contains("a1", "a2"));
-    }
-
-    public void testCraftedInlineDefinitionIsRefusedWithoutTheDataSourcePrivilege() throws Exception {
-        Outcome outcome = sendExternal(INLINE_NO_DATASOURCE, inlineExec(fileA));
-        assertThat(
-            outcome.failure.getMessage(),
-            containsString("action [" + EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME + "] is unauthorized")
-        );
-    }
-
-    public void testCraftedInlineDefinitionIsRefusedWithoutTheNamePrivilege() throws Exception {
-        Outcome outcome = sendExternal(INLINE_NO_NAME, inlineExec(fileA));
-        assertThat(
-            outcome.failure.getMessage(),
-            containsString("action [" + EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASOURCE_ACTION_NAME + "] is unauthorized")
-        );
+    /** The same for a crafted request carrying the definition on a physical node rather than inside a fragment. */
+    public void testCraftedInlineDefinitionReads() throws Exception {
+        assertThat(sendExternal(READER, inlineExec(fileA)).expectRows(), contains("a1", "a2"));
     }
 
     public void testCrossClusterAccessAuthenticationIsRefused() throws Exception {

@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -166,6 +167,21 @@ public class InlineDatasetReadIT extends AbstractExternalDataSourceIT {
         String query = "FROM inline_pat_*, DATASET(" + DATA_SOURCE + ", \"" + glob(dir) + "\") | STATS c = COUNT(*)";
         try (EsqlQueryResponse response = run(syncEsqlQueryRequest(query))) {
             assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(6L));
+        }
+    }
+
+    /**
+     * {@code _name} is the registered dataset's name on the {@code FROM <dataset>} path and NULL here, because a
+     * dataset the query defines has no name to report. Pinned so the difference is a decision rather than a
+     * discovery.
+     */
+    public void testTheReadHasNoDatasetNameToReport() throws IOException {
+        Path dir = csvFixture();
+        registerDataSource(DATA_SOURCE, Map.of());
+
+        String query = "FROM DATASET(" + DATA_SOURCE + ", \"" + glob(dir) + "\") METADATA _name | KEEP _name | LIMIT 1";
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest(query))) {
+            assertThat(getValuesList(response), equalTo(List.of(Collections.singletonList(null))));
         }
     }
 

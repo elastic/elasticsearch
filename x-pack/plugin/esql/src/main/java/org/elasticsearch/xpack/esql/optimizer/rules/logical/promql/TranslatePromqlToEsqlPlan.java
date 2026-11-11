@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommandLabelTranslation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
 
@@ -40,6 +41,10 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
     @Override
     protected LogicalPlan rule(PromqlCommand cmd, AnalyzerContext context) {
+        if (context.configuration().pragmas().promqlLabelTranslation()) {
+            // the translation over one label container, while its nodes join one by one
+            return PromqlCommandLabelTranslation.translate(cmd, context);
+        }
         return new TranslationContext(cmd, context).translateFinal();
     }
 }

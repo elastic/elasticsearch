@@ -1019,7 +1019,8 @@ public class ExternalSourceResolver {
                 effectiveReadSpec = declaredReadSpec;
             }
             resolved.put(spec, finalSource.withDeclaredReadSpec(effectiveReadSpec));
-            LOGGER.debug("Successfully resolved external source: {}", path);
+            // The spec, not the raw path: an https resource can be a pre-signed URL, and the spec redacts it.
+            LOGGER.debug("Successfully resolved external source: {}", spec);
             // Dispatch to the executor rather than calling directly: on a cache-hit the callback fires
             // synchronously, so a direct recursive call would stack one frame per path and overflow the
             // JVM stack for large comma-separated path lists.

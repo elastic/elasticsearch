@@ -13,8 +13,10 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -33,8 +35,37 @@ public record ExternalSourceSpec(String path, Map<String, Object> config) {
 
     public ExternalSourceSpec {
         Objects.requireNonNull(path, "path");
-        // Not Map.copyOf: Dataset.PARSER reads settings with p.map(), so a null value is reachable and copyOf throws.
-        config = config == null ? Map.of() : Collections.unmodifiableMap(new HashMap<>(config));
+        config = config == null ? Map.of() : deepCopy(config);
+    }
+
+    /**
+     * Copies every level, not just the top one. {@code DatasetRewriter.mergeSettings} builds the config with
+     * {@code putAll}, so its nested maps are shared and mutable; a one-level copy leaves this key's
+     * {@code hashCode} free to change underneath it while it is a key in the resolution map, and the analyzer's
+     * rebuilt key would then miss.
+     * <p>
+     * Not {@code Map.copyOf}: {@code Dataset.PARSER} reads settings with {@code p.map()}, so a null value is
+     * reachable and {@code copyOf} throws on it.
+     */
+    private static Map<String, Object> deepCopy(Map<String, Object> config) {
+        Map<String, Object> copy = new HashMap<>(config.size());
+        for (Map.Entry<String, Object> entry : config.entrySet()) {
+            copy.put(entry.getKey(), deepCopyValue(entry.getValue()));
+        }
+        return Collections.unmodifiableMap(copy);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object deepCopyValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            return deepCopy((Map<String, Object>) map);
+        }
+        if (value instanceof List<?> list) {
+            List<Object> copy = new ArrayList<>(list.size());
+            list.forEach(element -> copy.add(deepCopyValue(element)));
+            return Collections.unmodifiableList(copy);
+        }
+        return value;
     }
 
     /**

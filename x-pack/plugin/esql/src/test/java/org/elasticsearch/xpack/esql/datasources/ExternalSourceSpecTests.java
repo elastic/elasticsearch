@@ -161,6 +161,29 @@ public class ExternalSourceSpecTests extends ESTestCase {
         assertThat(new ExternalSourceSpec(PATH, otherSecret).toString(), equalTo(printed));
     }
 
+    /**
+     * The key must not move underneath the map it is a key in. {@code DatasetRewriter.mergeSettings} builds the
+     * config with {@code putAll}, so a nested map is shared and mutable; a one-level copy would let a later put
+     * change this spec's {@code hashCode} and make the analyzer's rebuilt key miss.
+     */
+    public void testANestedMutationCannotMoveTheKey() {
+        Map<String, Object> datasource = new HashMap<>(Map.of("access_key", "id"));
+        Map<String, Object> config = config(Map.of("format", "csv"));
+        config.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, datasource);
+
+        ExternalSourceSpec spec = new ExternalSourceSpec(PATH, config);
+        // An equal spec built before the mutation. Rebuilding from the mutated config would differ, and should.
+        ExternalSourceSpec rebuilt = new ExternalSourceSpec(PATH, config);
+        int before = spec.hashCode();
+        Map<ExternalSourceSpec, String> resolved = new HashMap<>();
+        resolved.put(spec, "resolution");
+
+        datasource.put("secret_key", "added after the spec was built");
+
+        assertEquals("the key may not move once built", before, spec.hashCode());
+        assertEquals("and its entry must stay reachable", "resolution", resolved.get(rebuilt));
+    }
+
     /** A pre-signed https resource carries its signature in the query string, and this is rendered into a log. */
     public void testToStringRedactsAPreSignedUrl() {
         String path = "https://host/bucket/sales.csv?X-Amz-Signature=deadbeefnotarealsignature";

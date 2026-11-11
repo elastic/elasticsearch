@@ -282,20 +282,20 @@ public enum StringFormat {
     /**
      * Throws unless the column is plain and carries a skip index exactly when the format asks for one.
      */
-    void requirePlainLayout(Column column, int numDocs) throws IOException {
+    void requirePlainLayout(Column column, int numDocs, boolean ordered) throws IOException {
         if (column.shape().startsWith("plain") == false) {
             throw new IllegalStateException(this + " produced a non-plain layout: " + column.shape());
         }
         final boolean hasBounds = column.skipIndexBytes() >= emptySkipIndexBytes() + MIN_PLAIN_BOUNDS_BYTES;
-        if (hasBounds != (this == COLUMNAR_PLAIN_BOUNDED)) {
+        if (hasBounds != (this == COLUMNAR_PLAIN_BOUNDED && ordered)) {
             throw new IllegalStateException(
                 this + " wrote a skip index of " + column.skipIndexBytes() + " bytes for " + numDocs + " documents: " + column.shape()
             );
         }
     }
 
-    /** One directory entry of a long, an int and a long, and the flag byte of its bounds. */
-    private static final long MIN_PLAIN_BOUNDS_BYTES = Long.BYTES + Integer.BYTES + Long.BYTES + Byte.BYTES;
+    /** The header of a region, one directory entry of a long, an int and a long, and the length of a separator. */
+    private static final long MIN_PLAIN_BOUNDS_BYTES = Byte.BYTES + Long.BYTES + (Long.BYTES + Integer.BYTES + Long.BYTES) + Integer.BYTES;
 
     /** The size of a skip index with nothing in it, which is what a plain column without bounds leaves. */
     private static long emptySkipIndexBytes() throws IOException {

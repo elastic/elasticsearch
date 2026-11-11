@@ -74,6 +74,6 @@ public class ColumnarPlainStringRangeSlicingBenchmark extends AbstractStringRang
 
     @Override
     void validateLayout(StringFormat.Column column) throws IOException {
-        format.requirePlainLayout(column, numDocs);
+        format.requirePlainLayout(column, numDocs, data.ordered());
     }
 }

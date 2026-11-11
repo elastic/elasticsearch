@@ -44,7 +44,7 @@ public class PlainSkipBoundsFormatTests extends ESTestCase {
         }
     }
 
-    public void testBothFormatsAnswerAlikeAndOnlyTheBoundedOneWritesTheIndex() throws IOException {
+    public void testBothFormatsAnswerAlikeAndOnlyTheBoundedOneWritesTheIndexForOrderedValues() throws IOException {
         for (StringData data : new StringData[] {
             StringData.SORTED_POD_NAME,
             StringData.DESCENDING_POD_NAME,
@@ -60,9 +60,13 @@ public class PlainSkipBoundsFormatTests extends ESTestCase {
                     StringFormat.Column plain = StringFormat.COLUMNAR_PLAIN.open(plainDirectory, DOCS, 1024);
                     StringFormat.Column bounded = StringFormat.COLUMNAR_PLAIN_BOUNDED.open(boundedDirectory, DOCS, 1024)
                 ) {
-                    StringFormat.COLUMNAR_PLAIN.requirePlainLayout(plain, DOCS);
-                    StringFormat.COLUMNAR_PLAIN_BOUNDED.requirePlainLayout(bounded, DOCS);
-                    assertThat(bounded.skipIndexBytes(), greaterThan(plain.skipIndexBytes()));
+                    StringFormat.COLUMNAR_PLAIN.requirePlainLayout(plain, DOCS, data.ordered());
+                    StringFormat.COLUMNAR_PLAIN_BOUNDED.requirePlainLayout(bounded, DOCS, data.ordered());
+                    if (data.ordered()) {
+                        assertThat(data.toString(), bounded.skipIndexBytes(), greaterThan(plain.skipIndexBytes()));
+                    } else {
+                        assertEquals(data.toString(), plain.skipIndexBytes(), bounded.skipIndexBytes());
+                    }
                     assertSameAnswers(data.toString(), plain, bounded, sorted);
                 }
             }

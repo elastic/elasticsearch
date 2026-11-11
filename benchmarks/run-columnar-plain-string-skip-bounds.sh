@@ -7,20 +7,20 @@
 # your election, the "Elastic License 2.0", the "GNU Affero General Public
 # License v3.0 only", or the "Server Side Public License, v 1".
 #
-# Runner for the plain string range and terms slicing benchmarks, with the plain skip index off and on.
+# Runner for the plain string range slicing benchmark, with the plain skip index off and on.
 # Options left unset keep the defaults declared on the benchmark class.
 # Works with bash 3.2 (macOS default).
 
 set -euo pipefail
 
 # ---- CONFIG -------------------------------------------------------------------------------------
-BENCHMARK="ColumnarPlainString"   # class name, simple or fully qualified
+BENCHMARK="ColumnarPlainStringRangeSlicingBenchmark"   # class name, simple or fully qualified
 RUNNER="es"                           # es: ./gradlew -p benchmarks run --args | lucene: java --module-path
 GRADLE_PROJECT_DIR="benchmarks"       # es only
 LUCENE_MODULE_PATH="lucene/benchmark-jmh/build/benchmarks"   # lucene only, created by :lucene:benchmark-jmh:assemble
 DEFAULT_OUT_DIR="build/bench-results"
 # One entry per @Param on the benchmark class: "cli-option:jmhParamName"
-PARAM_SPECS=("format:format" "data:data" "num-docs:numDocs" "selectivity:selectivity" "query-terms:queryTerms" "probe:probe")
+PARAM_SPECS=("format:format" "data:data" "num-docs:numDocs" "selectivity:selectivity")
 # ---- END CONFIG ---------------------------------------------------------------------------------
 
 SCRIPT_NAME="$(basename "$0")"
@@ -75,7 +75,7 @@ EOF
     cat <<EOF
 
 Selection:
-  --method NAME               run only the benchmark method NAME of the ${BENCHMARK} classes
+  --method NAME               run only the benchmark method NAME of ${BENCHMARK}
   --exclude REGEX             JMH -e, skip matching benchmarks
 
 JMH options:

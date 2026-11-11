@@ -14,10 +14,9 @@ import org.openjdk.jmh.annotations.Param;
 import java.io.IOException;
 
 /**
- * A {@code terms} query over a {@code PLAIN} column, with the plain skip index off and on, over the data shapes
- * {@link ColumnarPlainStringRangeSlicingBenchmark} ranges over. One of the four arrives in term order, so it
- * is bisected by rank, and the others are compared value by value. A {@code terms} query does not use the skip
- * index, so the two formats must measure the same: this is the control that the index costs it nothing.
+ * A {@code terms} query over a {@code PLAIN} column, over the data shapes
+ * {@link ColumnarPlainStringRangeSlicingBenchmark} ranges over. One of the three arrives in term order, so it
+ * is bisected by rank, and the other two are compared value by value.
  *
  * <p>Run with:
  * <pre>
@@ -27,10 +26,7 @@ import java.io.IOException;
  */
 public class ColumnarPlainStringTermsSlicingBenchmark extends AbstractStringTermsSlicingBenchmark {
 
-    @Param({ "COLUMNAR_PLAIN", "COLUMNAR_PLAIN_BOUNDED" })
-    private StringFormat format;
-
-    @Param({ "SORTED_POD_NAME", "DESCENDING_POD_NAME", "SHUFFLED_POD_NAME", "TRACE_ID" })
+    @Param({ "SORTED_POD_NAME", "SHUFFLED_POD_NAME", "TRACE_ID" })
     private StringData data;
 
     /**
@@ -51,7 +47,7 @@ public class ColumnarPlainStringTermsSlicingBenchmark extends AbstractStringTerm
 
     @Override
     StringFormat format() {
-        return format;
+        return StringFormat.COLUMNAR_PLAIN;
     }
 
     @Override
@@ -66,6 +62,8 @@ public class ColumnarPlainStringTermsSlicingBenchmark extends AbstractStringTerm
 
     @Override
     void validateLayout(StringFormat.Column column) throws IOException {
-        format.requirePlainLayout(column, numDocs);
+        if (column.shape().startsWith("plain") == false) {
+            throw new IllegalStateException("COLUMNAR_PLAIN produced a non-plain layout: " + column.shape());
+        }
     }
 }

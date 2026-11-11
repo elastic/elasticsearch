@@ -177,6 +177,11 @@ public enum StringData {
      */
     SORTED_HOSTNAME {
         @Override
+        boolean ordered() {
+            return true;
+        }
+
+        @Override
         BytesRef[] generate(int count, Random random) {
             final String[] vocabulary = new String[5_000];
             for (int i = 0; i < vocabulary.length; i++) {
@@ -200,6 +205,11 @@ public enum StringData {
      */
     SORTED_POD_NAME {
         @Override
+        boolean ordered() {
+            return true;
+        }
+
+        @Override
         BytesRef[] generate(int count, Random random) {
             final String[] vocabulary = new String[50_000];
             for (int i = 0; i < vocabulary.length; i++) {
@@ -219,6 +229,11 @@ public enum StringData {
      * order. A descending column is not bisected, so a plain skip index is the only thing that narrows a search.
      */
     DESCENDING_POD_NAME {
+        @Override
+        boolean ordered() {
+            return true;
+        }
+
         @Override
         BytesRef[] generate(int count, Random random) {
             final BytesRef[] values = SORTED_POD_NAME.generate(count, random);
@@ -322,6 +337,11 @@ public enum StringData {
     };
 
     abstract BytesRef[] generate(int count, Random random);
+
+    /** Whether the values are in term order, ascending or descending, which is what a plain skip index needs to be written. */
+    boolean ordered() {
+        return false;
+    }
 
     /** {@code headPercent} of the values drawn from sixteen repeated paths, the rest distinct to the index. */
     private static BytesRef[] headOverDistinctTail(int headPercent, int count, Random random) {

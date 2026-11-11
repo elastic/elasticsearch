@@ -83,6 +83,27 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
         return NumericBinaryPayload.encode(values, (int) count, payload);
     }
 
+    /** Whether every document in the column holds exactly one value. */
+    public boolean isSingleValued() {
+        return singleValued;
+    }
+
+    /** Whether every document in the segment has a value. */
+    public boolean isDense() {
+        return reader.numDocsWithField() == maxDoc;
+    }
+
+    /** The number of values the current document holds; at least one. */
+    public int docValueCount() {
+        return (int) reader.valueCount(iterator.rank());
+    }
+
+    /** The current document's {@code index}-th value, in the order the values were written. */
+    public long valueAt(int index) throws IOException {
+        assert index >= 0 && index < docValueCount() : "value " + index + " of a document holding " + docValueCount();
+        return reader.valueAt(reader.firstValueAddress(iterator.rank()) + index);
+    }
+
     @Override
     public boolean advanceExact(int target) throws IOException {
         return iterator.advanceExact(target);

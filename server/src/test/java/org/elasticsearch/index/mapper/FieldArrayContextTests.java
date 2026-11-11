@@ -26,6 +26,8 @@ import java.util.Map;
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 import static org.elasticsearch.index.mapper.FieldArrayContext.parseOffsetArray;
 import static org.elasticsearch.index.mapper.FieldArrayContext.shouldRecordOffsets;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class FieldArrayContextTests extends ESTestCase {
 
@@ -61,6 +63,67 @@ public class FieldArrayContextTests extends ESTestCase {
         var binaryDocValues = parserContext.doc().getField("field");
         int[] offsetToOrd = parseOffsetArray(new ByteArrayStreamInput(binaryDocValues.binaryValue().bytes));
         assertArrayEquals(new int[] { -1, 0, 1, 2, -1, 1 }, offsetToOrd);
+    }
+
+    /**
+     * Values recorded in document order take the ordinal of their place among the non-null values, whatever they are, so
+     * duplicates and values out of order don't share or reorder ordinals.
+     */
+    public void testOffsetsInDocOrder() throws IOException {
+        var context = new FieldArrayContext();
+        var offsets = context.docOrderOffsets("field");
+        offsets.recordNull();
+        offsets.recordValue();
+        offsets.recordValue();
+        offsets.recordNull();
+        offsets.recordValue();
+        offsets.recordNull();
+
+        var parserContext = randomBoolean() ? new TestDocumentParserContext() : strictColumnarParserContext();
+        context.addToLuceneDocument(parserContext);
+
+        var binaryDocValues = parserContext.doc().getField("field");
+        int[] offsetToOrd = parseOffsetArray(new ByteArrayStreamInput(binaryDocValues.binaryValue().bytes));
+        assertArrayEquals(new int[] { -1, 0, 1, -1, 2, -1 }, offsetToOrd);
+    }
+
+    /** Values in document order carry their own order, so without a null there is nothing for the offsets to say. */
+    public void testOffsetsInDocOrderWithoutNullsAreNotWritten() throws IOException {
+        var context = new FieldArrayContext();
+        int count = between(1, 5);
+        for (int i = 0; i < count; i++) {
+            context.docOrderOffsets("field").recordValue();
+        }
+
+        var parserContext = randomBoolean() ? new TestDocumentParserContext() : strictColumnarParserContext();
+        context.addToLuceneDocument(parserContext);
+
+        assertNull(parserContext.doc().getField("field"));
+    }
+
+    /** Offsets in document order don't keep the values, so an array too large for them can't move to _ignored_source. */
+    public void testOversizedOffsetsInDocOrderAreRejected() {
+        var context = new FieldArrayContext();
+        var offsets = context.docOrderOffsets("field.offsets");
+        offsets.recordNull();
+        for (int i = 0; i < 20_000; i++) {
+            offsets.recordValue();
+        }
+
+        var e = expectThrows(IllegalArgumentException.class, () -> context.addToLuceneDocument(strictColumnarParserContext()));
+        assertThat(e.getMessage(), containsString("encoded offsets of field [field.offsets] are too large to store"));
+        assertThat(e.getMessage(), not(containsString("_ignored_source")));
+    }
+
+    public void testOnlyNullsInDocOrder() throws IOException {
+        var context = new FieldArrayContext();
+        context.docOrderOffsets("field").recordNull();
+
+        var parserContext = strictColumnarParserContext();
+        context.addToLuceneDocument(parserContext);
+
+        var binaryDocValues = parserContext.doc().getField("field");
+        assertArrayEquals(new int[] { -1 }, parseOffsetArray(new ByteArrayStreamInput(binaryDocValues.binaryValue().bytes)));
     }
 
     public void testEmptyOffset() throws IOException {

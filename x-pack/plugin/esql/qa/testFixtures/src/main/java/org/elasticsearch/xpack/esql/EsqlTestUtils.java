@@ -1419,7 +1419,7 @@ public final class EsqlTestUtils {
             }
             case FLATTENED -> FlattenedCases.RANDOM.get();
             case TSID_DATA_TYPE -> randomTsId().toBytesRef();
-            case TSMD_DATA_TYPE -> {
+            case TIME_SERIES_METADATA_DATA_TYPE -> {
                 try {
                     yield BytesReference.bytes(
                         JsonXContent.contentBuilder().startObject().field(randomAlphaOfLength(3), randomUnicodeOfLength(10)).endObject()

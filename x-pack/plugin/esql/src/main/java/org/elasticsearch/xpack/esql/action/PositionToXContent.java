@@ -296,7 +296,9 @@ public abstract class PositionToXContent {
                 }
             };
             case DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, SHORT, BYTE, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT, PARTIAL_AGG,
-                TSMD_DATA_TYPE -> throw new IllegalArgumentException("can't convert values of type [" + columnInfo.type() + "]");
+                TIME_SERIES_METADATA_DATA_TYPE -> throw new IllegalArgumentException(
+                    "can't convert values of type [" + columnInfo.type() + "]"
+                );
         };
     }
 }

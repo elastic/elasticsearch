@@ -30,9 +30,6 @@ public class TransportRequestOptions {
         return of(timeout, type, null);
     }
 
-    /**
-     * @param circuitBreaker charged for the serialized request until it has been written to the network, see {@link #circuitBreaker()}
-     */
     public static TransportRequestOptions of(@Nullable TimeValue timeout, Type type, @Nullable CircuitBreaker circuitBreaker) {
         if (timeout == null && type == Type.REG && circuitBreaker == null) {
             return EMPTY;
@@ -56,14 +53,10 @@ public class TransportRequestOptions {
     }
 
     /**
-     * The breaker charged for the serialized bytes of the request until they have been written to the network, or {@code null} if they
-     * are not charged. The bytes of a large request sent to many nodes stay on the heap until each copy is written, which can take far
-     * longer than serializing it, so callers that send large requests can use this to fail them instead of running out of memory.
-     * <p>
-     * If the breaker trips while the request is serialized, the request is not sent and its response handler fails with a
-     * {@link SendRequestTransportException} caused by a {@link CircuitBreakingException}. Requests to the local node are not serialized
-     * and are not charged. For a pre-serialized {@link BytesTransportRequest}, only the message header is charged, since the caller
-     * already holds its bytes.
+     * Charged for the serialized request until it has been written to the network, so that a large request waiting in outbound
+     * buffers fails with a {@link CircuitBreakingException}, wrapped in a {@link SendRequestTransportException}, instead of running
+     * the node out of memory. {@code null} charges nothing. Connections that don't serialize, such as the local-node connection, don't
+     * charge it; for a {@link BytesTransportRequest}, only the header is charged.
      */
     @Nullable
     public CircuitBreaker circuitBreaker() {

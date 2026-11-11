@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -29,6 +30,7 @@ import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +43,12 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
 
     private final int size;
     private final List<InternalBucket> buckets;
+    /**
+     * Formats are written once for the whole composite, which is wrong when buckets of a partially reduced composite (e.g. with batched
+     * query phase) have different formats for a non-null key. This version adds per-bucket formats when needed.
+     */
+    static final TransportVersion COMPOSITE_PER_BUCKET_FORMATS = TransportVersion.fromName("composite_per_bucket_formats");
+
     private final CompositeKey afterKey;
     private final int[] reverseMuls;
     private final MissingOrder[] missingOrders;
@@ -102,7 +110,23 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         }
         this.reverseMuls = in.readIntArray();
         this.missingOrders = in.readArray(MissingOrder::readFromStream, MissingOrder[]::new);
-        this.buckets = in.readCollectionAsList((input) -> new InternalBucket(input, sourceNames, formats));
+        Map<Integer, List<DocValueFormat>> bucketFormats = Map.of();
+        if (in.getTransportVersion().supports(COMPOSITE_PER_BUCKET_FORMATS)) {
+            // Only the buckets whose formats differ from the composite's ones are serialized, keyed by their index
+            bucketFormats = in.readMap(StreamInput::readVInt, input -> {
+                final List<DocValueFormat> bucketFormat = new ArrayList<>(sourceNames.size());
+                for (int i = 0; i < sourceNames.size(); i++) {
+                    bucketFormat.add(input.readNamedWriteable(DocValueFormat.class));
+                }
+                return bucketFormat;
+            });
+        }
+        final int numBuckets = in.readVInt();
+        final List<InternalBucket> readBuckets = new ArrayList<>(numBuckets);
+        for (int i = 0; i < numBuckets; i++) {
+            readBuckets.add(new InternalBucket(in, sourceNames, bucketFormats.getOrDefault(i, formats)));
+        }
+        this.buckets = readBuckets;
         this.afterKey = in.readOptionalWriteable(CompositeKey::new);
         this.earlyTerminated = in.readBoolean();
     }
@@ -116,9 +140,34 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         }
         out.writeIntArray(reverseMuls);
         out.writeArray(missingOrders);
+        if (out.getTransportVersion().supports(COMPOSITE_PER_BUCKET_FORMATS)) {
+            writeBucketFormats(out);
+        }
         out.writeCollection(buckets);
         out.writeOptionalWriteable(afterKey);
         out.writeBoolean(earlyTerminated);
+    }
+
+    /**
+     * Writes the formats of the buckets that can't use the formats of the composite, as a map from bucket index to formats.
+     * <p>
+     * A bucket can use the composite's formats if they are the same for all the non-null key components, as null keys are never
+     * formatted. This is the case of a missing bucket coming from an index where the source is unmapped. The map is empty
+     * (a single byte) in the common case where all buckets can.
+     */
+    private void writeBucketFormats(StreamOutput out) throws IOException {
+        final Map<Integer, List<DocValueFormat>> bucketFormats = new HashMap<>();
+        for (int i = 0; i < buckets.size(); i++) {
+            final InternalBucket bucket = buckets.get(i);
+            if (bucket.canUseFormats(formats) == false) {
+                bucketFormats.put(i, bucket.formats);
+            }
+        }
+        out.writeMap(bucketFormats, StreamOutput::writeVInt, (o, bucketFormat) -> {
+            for (DocValueFormat format : bucketFormat) {
+                o.writeNamedWriteable(format);
+            }
+        });
     }
 
     @Override
@@ -244,9 +293,9 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
                 CompositeKey lastKey = null;
                 if (result.size() > 0) {
                     lastBucket = result.get(result.size() - 1);
-                    /* Attach the formats from the last bucket to the reduced composite
-                     * so that we can properly format the after key. */
-                    reducedFormats = lastBucket.formats;
+                    /* Attach the formats to the reduced composite, which are written only once on the wire and
+                     * applied to all its buckets, and are used to format the after key. */
+                    reducedFormats = formatsForBuckets(result, formats);
                     lastKey = lastBucket.getRawKey();
                 }
                 reduceContext.consumeBucketsAndMaybeBreak(result.size());
@@ -278,7 +327,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             name,
             size,
             sourceNames,
-            buckets.isEmpty() ? formats : buckets.get(buckets.size() - 1).formats,
+            formatsForBuckets(buckets, formats),
             buckets,
             buckets.isEmpty() ? afterKey : buckets.get(buckets.size() - 1).getRawKey(),
             reverseMuls,
@@ -286,6 +335,44 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             earlyTerminated,
             metadata
         );
+    }
+
+    /**
+     * Computes the formats to attach to a composite built from the given buckets. They are written once on the wire and applied to
+     * all the buckets of the composite, and are used to format the after key.
+     * <p>
+     * Buckets coming from different indices may have different formats for a source. In particular, a source that is unmapped in an
+     * index uses {@link DocValueFormat#RAW}, and its buckets only have a <code>null</code> key (missing bucket) for that source. A
+     * <code>null</code> key is never formatted, so for each source we use the format of the last bucket that has a non-null key for
+     * it. Using the format of the last bucket blindly would apply {@link DocValueFormat#RAW} to the keys of other indices, e.g. when
+     * decoding binary <code>ip</code> keys as UTF-8.
+     *
+     * @param buckets the buckets of the composite, in order. The last one holds the after key.
+     * @param defaultFormats the formats to use when there are no buckets
+     */
+    static List<DocValueFormat> formatsForBuckets(List<InternalBucket> buckets, List<DocValueFormat> defaultFormats) {
+        if (buckets.isEmpty()) {
+            return defaultFormats;
+        }
+        final List<DocValueFormat> lastFormats = buckets.get(buckets.size() - 1).formats;
+        List<DocValueFormat> result = lastFormats;
+        for (int i = 0; i < lastFormats.size(); i++) {
+            // Find the last bucket that has a non-null key for this source, if any
+            for (int b = buckets.size() - 1; b >= 0; b--) {
+                final InternalBucket bucket = buckets.get(b);
+                if (bucket.key.get(i) != null) {
+                    final DocValueFormat format = bucket.formats.get(i);
+                    if (format.equals(result.get(i)) == false) {
+                        if (result == lastFormats) {
+                            result = new ArrayList<>(lastFormats);
+                        }
+                        result.set(i, format);
+                    }
+                    break;
+                }
+            }
+        }
+        return result;
     }
 
     private InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
@@ -354,6 +441,22 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             this.aggregations = InternalAggregations.readFrom(in);
             this.sourceNames = sourceNames;
             this.formats = formats;
+        }
+
+        /**
+         * Whether the given formats format this bucket's key the same as its own formats. Null key components are never formatted, so
+         * their format is irrelevant.
+         */
+        boolean canUseFormats(List<DocValueFormat> otherFormats) {
+            if (formats == otherFormats) {
+                return true;
+            }
+            for (int i = 0; i < formats.size(); i++) {
+                if (key.get(i) != null && formats.get(i).equals(otherFormats.get(i)) == false) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         @Override

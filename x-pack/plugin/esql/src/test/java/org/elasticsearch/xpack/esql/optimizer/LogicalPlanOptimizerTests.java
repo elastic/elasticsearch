@@ -15,6 +15,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -172,6 +174,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -183,6 +186,7 @@ import java.util.stream.Collectors;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.K_FIELD;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
@@ -206,12 +210,14 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.expression.function.vector.Knn.ALLOWED_OPTIONS;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.EQ;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GT;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GTE;
@@ -237,6 +243,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
@@ -3300,6 +3308,32 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
     }
 
+    public void testPropagateEmptyRelationThroughPlanDeeperThanRuleExecutionLimit() {
+        var plan = optimizedPlan(emptyRelationBelowDeepLookupJoinChain());
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), is(EmptyLocalSupplier.EMPTY));
+    }
+
+    public void testPropagateEmptyRelationThroughPlanDeeperThanRuleExecutionLimitWithUngroupedStats() {
+        var plan = optimizedPlan(emptyRelationBelowDeepLookupJoinChain() + " | STATS c = COUNT(*)");
+
+        var limit = as(plan, Limit.class);
+        var local = as(limit.child(), LocalRelation.class);
+        assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
+        Page page = local.supplier().get();
+        assertEquals(1, page.getPositionCount());
+        assertEquals(0L, ((LongBlock) page.getBlock(0)).getLong(0));
+    }
+
+    private static String emptyRelationBelowDeepLookupJoinChain() {
+        StringBuilder query = new StringBuilder("FROM test | WHERE false");
+        for (int i = 0; i < 150; i++) {
+            query.append(" | EVAL language_code = languages + ").append(i).append(" | LOOKUP JOIN languages_lookup ON language_code");
+        }
+        return query.toString();
+    }
+
     /**
      * Expected:
      * <pre>{@code
@@ -3380,7 +3414,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * \_LocalRelation[[count{r}#7],Page{blocks=[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]}]
      * }</pre>
      *
-     * Same final plan as testPropagateEmptyRelationWithUngroupedStats but requires two fixed-point iterations:
+     * Same final plan as testPropagateEmptyRelationWithUngroupedStats but with an intervening Eval:
      * first the Eval over empty LocalRelation is collapsed, then the Aggregate over empty LocalRelation is folded.
      */
     public void testPropagateEmptyRelationWithInterveningEvalAndStats() {
@@ -9740,8 +9774,53 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testKnnWithStats() {
         assertThat(
             typesError("from types | where knn(dense_vector, [0, 1, 2]) | stats c = count(*)"),
-            containsString("Knn function must be used with a LIMIT clause")
+            containsString("[KNN] function must specify a k option or be used with a LIMIT clause")
         );
+    }
+
+    /**
+     * A LIMIT after STATS bounds the number of groups, not the number of documents, so it must not be pushed into KNN as k.
+     */
+    public void testKnnWithStatsAndLimitAfterStats() {
+        assertThat(
+            typesError("from types | where knn(dense_vector, [0, 1, 2]) | stats c = count(*) | limit 100"),
+            containsString("[KNN] function must specify a k option or be used with a LIMIT clause")
+        );
+    }
+
+    /**
+     * An explicit {@code k} option satisfies the k requirement even when STATS prevents a LIMIT from being pushed into KNN.
+     */
+    public void testKnnWithKOptionAndStats() {
+        var query = "from types | where knn(dense_vector, [0, 1, 2], {\"k\": 10}) | stats c = count(*)"
+            + (randomBoolean() ? "" : " | limit 100");
+        var optimized = planTypes(query);
+
+        List<Knn> knns = new ArrayList<>();
+        optimized.forEachExpressionDown(Knn.class, knns::add);
+        assertThat(knns, hasSize(1));
+        var knn = knns.get(0);
+        assertThat(knn.implicitK(), nullValue());
+        assertThat(knn.options(), notNullValue());
+        Map<String, Object> optionsMap = new HashMap<>();
+        Options.populateMap((MapExpression) knn.options(), optionsMap, EMPTY, FOURTH, ALLOWED_OPTIONS);
+        assertEquals(10, optionsMap.get(K_FIELD.getPreferredName()));
+    }
+
+    /**
+     * KNN on a runtime (non-indexed) dense_vector is evaluated per row and doesn't use k, so it doesn't need a LIMIT or a k option.
+     */
+    public void testRuntimeKnnWithStats() {
+        // Older versions reject runtime KNN outright, see OptimizerVerificationTests#testKnnRuntimeRejectedOnOlderTransportVersion
+        assumeTrue("requires runtime knn", minimumVersion.supports(Knn.ESQL_KNN_RUNTIME_FIELD));
+        var optimized = planTypes("from types | eval dv = to_dense_vector(float) | where knn(dv, [0, 1, 2]) | stats c = count(*)");
+
+        List<Knn> knns = new ArrayList<>();
+        optimized.forEachExpressionDown(Knn.class, knns::add);
+        assertThat(knns, hasSize(1));
+        var knn = knns.get(0);
+        assertThat(knn.isRuntimeSearch(), is(true));
+        assertThat(knn.implicitK(), nullValue());
     }
 
     public void testKnnWithRerankWithoutLimit() {
@@ -9791,7 +9870,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testKnnWithLimitBy() {
         assertThat(
             typesError("from types | where knn(dense_vector, [0, 1, 2]) | limit 10 by keyword | limit 5"),
-            containsString("Knn function must be used with a LIMIT clause")
+            containsString("[KNN] function must specify a k option or be used with a LIMIT clause")
         );
     }
 
@@ -9802,7 +9881,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testKnnWithTopNBy() {
         assertThat(
             typesError("from types metadata _score | where knn(dense_vector, [0, 1, 2]) | sort _score | limit 10 by keyword | limit 5"),
-            containsString("Knn function must be used with a LIMIT clause")
+            containsString("[KNN] function must specify a k option or be used with a LIMIT clause")
         );
     }
 

@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.DistinctBy;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -957,6 +958,25 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         )) {
             assertNotNull(promql, planPrometheusLayout(promql));
         }
+    }
+
+    /**
+     * group_left and group_right copy labels over the many side's, so two of its series can end up with one label set: a
+     * DistinctBy right over the join fails the query then, as Prometheus does. Default matching cannot repeat a label set.
+     */
+    public void testGroupModifierChecksUniqueSeries() {
+        for (String modifier : List.of("group_left(pod)", "group_right(pod)")) {
+            String operands = modifier.startsWith("group_left")
+                ? "network.eth0.tx * on(cluster) " + modifier + " sum by (cluster) (network.eth0.rx)"
+                : "sum by (cluster) (network.eth0.rx) * on(cluster) " + modifier + " network.eth0.tx";
+            var plan = planPromql("PROMQL index=k8s step=5m result=(" + operands + ")");
+            var check = plan.collect(DistinctBy.class);
+            assertThat(modifier, check, hasSize(1));
+            assertTrue(modifier, check.getFirst().failOnDuplicate());
+            assertThat(modifier, check.getFirst().child().collect(HashJoin.class), hasSize(1));
+        }
+        var plan = planPromql("PROMQL index=k8s step=5m result=(network.eth0.tx * on(cluster, pod, region) network.eth0.rx)");
+        assertThat(plan.collect(DistinctBy.class), hasSize(0));
     }
 
     /**

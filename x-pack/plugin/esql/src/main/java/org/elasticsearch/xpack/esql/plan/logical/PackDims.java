@@ -62,8 +62,13 @@ public class PackDims extends UnaryPlan {
     }
 
     public static FieldAttribute newPackedAttribute(Source source) {
-        EsField field = new EsField(PACKED_FIELD_NAME, DataType.SOURCE, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION);
-        return new FieldAttribute(source, null, null, PACKED_FIELD_NAME, field, Nullability.TRUE, new NameId(), true);
+        return newPackedAttribute(source, PACKED_FIELD_NAME);
+    }
+
+    /** A packed column under its own {@code name}, for a pack above another one whose column it must not shadow. */
+    public static FieldAttribute newPackedAttribute(Source source, String name) {
+        EsField field = new EsField(name, DataType.SOURCE, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION);
+        return new FieldAttribute(source, null, null, name, field, Nullability.TRUE, new NameId(), true);
     }
 
     public static Alias newPackedGrouping(Source source, Attribute packed) {

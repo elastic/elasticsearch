@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.stateless.objectstore;
 
-import org.apache.logging.log4j.Level;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -75,9 +74,7 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.client.NoOpNodeClient;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -1283,114 +1280,6 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 assertThat(deletedShardFiles.iterator().next(), startsWith("indices/" + testHarness.shardId.getIndex().getUUID()));
             });
 
-        }
-    }
-
-    @TestLogging(
-        reason = "test that non-slow and slow translog uploads log at DEBUG and WARN level respectively",
-        value = "org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService:DEBUG"
-    )
-    public void testTranslogUploadTimesLogLevels() throws Exception {
-        var time = new AtomicLong(0);
-        AtomicBoolean exceedThreshold = new AtomicBoolean(false);
-        final TimeValue slowTranslogUploadLogThreshold = TimeValue.timeValueMillis(10);
-
-        final long fastUploadDuration = randomLongBetween(0, slowTranslogUploadLogThreshold.millis() - 1);
-        final long slowUploadDuration = randomLongBetween(
-            slowTranslogUploadLogThreshold.millis() + 1,
-            slowTranslogUploadLogThreshold.millis() + 100
-        );
-
-        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
-            @Override
-            protected Settings nodeSettings() {
-                return Settings.builder()
-                    .put(super.nodeSettings())
-                    .put(
-                        ObjectStoreService.OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING.getKey(),
-                        slowTranslogUploadLogThreshold
-                    )
-                    .build();
-            }
-
-            @Override
-            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
-                return new FilterBlobContainer(innerContainer) {
-                    @Override
-                    protected BlobContainer wrapChild(BlobContainer child) {
-                        return child;
-                    }
-
-                    @Override
-                    public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
-                        throws IOException {
-                        if (purpose == OperationPurpose.TRANSLOG) {
-                            if (exceedThreshold.get()) {
-                                time.addAndGet(slowUploadDuration);
-                            } else {
-                                time.addAndGet(fastUploadDuration);
-                            }
-                        }
-                        super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
-                    }
-                };
-            }
-
-            @Override
-            protected ThreadPool createThreadPool(Settings nodeSettings) {
-                return new TestThreadPool("test", nodeSettings, StatelessPlugin.statelessExecutorBuilders(nodeSettings, true)) {
-                    @Override
-                    public long relativeTimeInMillis() {
-                        return time.get();
-                    }
-                };
-            }
-        }) {
-            var objectStoreService = testHarness.objectStoreService;
-
-            // In case of no-delay, translog upload is fast and hence we log at DEBUG level
-            var future1 = new PlainActionFuture<Void>();
-            MockLog.assertThatLogger(() -> {
-                objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1 }), () -> false, () -> {}, future1);
-                safeGet(future1);
-            },
-                ObjectStoreService.class,
-                new MockLog.SeenEventExpectation(
-                    "slow translog debug",
-                    ObjectStoreService.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "*translog file*uploaded in*ms*"
-                ),
-                new MockLog.UnseenEventExpectation(
-                    "slow translog warn",
-                    ObjectStoreService.class.getCanonicalName(),
-                    Level.WARN,
-                    "*translog file*uploaded in*ms*"
-                )
-            );
-
-            exceedThreshold.set(true);
-
-            // In case of a delay that exceeds the slow translog upload threshold we log at WARN level
-            var future2 = new PlainActionFuture<Void>();
-            MockLog.assertThatLogger(() -> {
-                objectStoreService.uploadTranslogFile("translog-2", new BytesArray(new byte[] { 2 }), () -> false, () -> {}, future2);
-                safeGet(future2);
-            },
-                ObjectStoreService.class,
-                new MockLog.UnseenEventExpectation(
-                    "slow translog debug",
-                    ObjectStoreService.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "*translog file*uploaded in*ms*"
-                ),
-                new MockLog.SeenEventExpectation(
-                    "slow translog warn",
-                    ObjectStoreService.class.getCanonicalName(),
-                    Level.WARN,
-                    "*translog file*uploaded in*ms*"
-                )
-            );
         }
     }
 

@@ -373,16 +373,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         Setting.Property.Dynamic
     );
 
-    /**
-     * Translog uploads that exceed this threshold are logged at WARN instead of DEBUG level.
-     */
-    public static final Setting<TimeValue> OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING = Setting.timeSetting(
-        "stateless.object_store.slow_translog_upload_log_threshold",
-        TimeValue.timeValueMillis(20_000),
-        TimeValue.ZERO,
-        Setting.Property.NodeScope
-    );
-
     public static final String TRANSLOG_UPLOAD_DURATION_HISTOGRAM = "es.stateless.translog.upload.duration.histogram";
     public static final String TRANSLOG_UPLOAD_SIZE_HISTOGRAM = "es.stateless.translog.upload.size.histogram";
 
@@ -456,8 +446,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     private final boolean concurrentMultipartUploads;
     private final boolean cacheSearchRecoveryBcc;
 
-    private final long slowTranslogUploadLogThresholdMillis;
-
     private final LongHistogram translogUploadDurationHistogram;
     private final LongHistogram translogUploadSizeHistogram;
     private final LongHistogram bccMultipartUploadPartStartLatencyHistogram;
@@ -495,7 +483,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         this.permits = new Semaphore(0);
         this.concurrentMultipartUploads = OBJECT_STORE_CONCURRENT_MULTIPART_UPLOADS.get(settings);
         this.cacheSearchRecoveryBcc = CACHE_SEARCH_RECOVERY_BCC_ENABLED_SETTING.get(settings);
-        this.slowTranslogUploadLogThresholdMillis = OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING.get(settings).getMillis();
 
         // see `TranslogReplicator.TRANSLOG_UPLOAD_TOTAL_DURATION_HISTOGRAM` metric that captures the total duration including
         // potential translog-upload retries
@@ -1629,20 +1616,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             var uploadDuration = threadPool.relativeTimeInMillis() - before;
             translogUploadDurationHistogram.record(uploadDuration);
             translogUploadSizeHistogram.record(ByteSizeUnit.BYTES.toKB(reference.length()));
-
-            final Supplier<String> logMessage = () -> format(
-                "translog file %s of size [%d] bytes uploaded in [%d] ms",
-                blobContainer.path().add(fileName),
-                reference.length(),
-                uploadDuration
-            );
-
-            if (uploadDuration >= slowTranslogUploadLogThresholdMillis) {
-                logger.warn(logMessage);
-            } else {
-                logger.debug(logMessage);
-            }
-
             listener.onResponse(null);
         }
 

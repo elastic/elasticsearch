@@ -1,0 +1,13 @@
+FROM employees
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang
+| DROP language_code
+| EVAL language_code = languages - 1
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang_minus_one
+| DROP language_code
+| EVAL language_code = languages - 2
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang_minus_two
+| DROP language_code

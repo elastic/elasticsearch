@@ -148,6 +148,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         "statsAndLookupMessageFromIndex",
         "mvJoinKeyOnTheLookupIndexAfterStats",
         "mvJoinKeyOnFromAfterStats",
+        "lookupBlocksAfterStatsWithRenamesAndLimit",
         // Lookup join after SORT is not supported in CCS yet
         "nullifiedJoinKeyToPurgeTheJoin",
         "sortBeforeAndAfterJoin",
@@ -166,6 +167,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         "inSubqueryWithInSubqueryInsideFromSubqueryWithLookupJoin",
         // Lookup join after INLINE STATS (coordinator-only) is not supported in CCS yet
         "Inline stats by and lookup join",
+        "lookupBlocksAroundInlineStats",
         "aggFilter_NoGroupMatches_ThenLookupJoin_PastInlineJoin",
         "aggFilter_ThenLookupJoin_PastInlineJoin",
         // Lookup join after STATS (coordinator-only) is not supported in CCS yet

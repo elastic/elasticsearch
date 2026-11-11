@@ -6854,7 +6854,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
 
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-            resolver.resolve(List.of(asFirstFileWins, asUnionByName), future);
+            resolver.resolve(List.of(asFirstFileWins, asUnionByName), null, null, null, null, future);
             ExternalSourceResolution resolution = future.actionGet();
 
             assertThat(

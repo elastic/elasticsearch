@@ -195,7 +195,7 @@ public final class ColumnarNumericSortField extends SortField {
 
     @Override
     public boolean equals(Object obj) {
-        return super.equals(obj) && maxMode == ((ColumnarNumericSortField) obj).maxMode;
+        return obj instanceof ColumnarNumericSortField other && super.equals(obj) && maxMode == other.maxMode;
     }
 
     @Override

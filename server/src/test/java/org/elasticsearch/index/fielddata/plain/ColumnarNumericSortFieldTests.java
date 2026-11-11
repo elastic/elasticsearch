@@ -37,6 +37,15 @@ public class ColumnarNumericSortFieldTests extends ESTestCase {
         assertEquals(original.maxMode(), ((ColumnarNumericSortField) restored).maxMode());
     }
 
+    /** A plain sort on the same field, type and missing value isn't equal to one that reads the column. */
+    public void testNotEqualToPlainSortField() {
+        Long missing = randomBoolean() ? null : randomLong();
+        boolean reverse = randomBoolean();
+        ColumnarNumericSortField columnar = new ColumnarNumericSortField("field", SortField.Type.LONG, reverse, randomBoolean(), missing);
+        SortField plain = new SortField("field", SortField.Type.LONG, reverse, missing);
+        assertNotEquals(columnar, plain);
+    }
+
     /** Only long fields are stored with ColumNAR so far. */
     public void testOnlyLongIsSupported() {
         SortField.Type type = randomValueOtherThan(SortField.Type.LONG, () -> randomFrom(SortField.Type.values()));

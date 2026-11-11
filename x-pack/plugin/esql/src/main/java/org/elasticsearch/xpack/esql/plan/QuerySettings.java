@@ -296,8 +296,10 @@ public final class QuerySettings {
     @Param(
         name = "exemplars",
         type = { "boolean", "map_param" },
+        since = "9.7+",
         description = "When enabled, the provided `TS ... | STATS` or `PROMQL` query is not executed. Instead, exemplars considered"
             + " relevant to the query are returned based on heuristics that take the selected metrics and series into account."
+            + " For details, refer to [Query exemplars](/reference/query-languages/esql/commands/ts.md#esql-ts-exemplars)."
     )
     @MapParam(
         name = "exemplars",
@@ -321,7 +323,7 @@ public final class QuerySettings {
     )
         .withRequestBody()
         .withDefault(ExemplarsSettings.DISABLED)
-        .withSnapshotOnly()
+        .withPreview()
         .streamFormat((out, value) -> value.writeTo(out), ExemplarsSettings::new)
         .build();
 

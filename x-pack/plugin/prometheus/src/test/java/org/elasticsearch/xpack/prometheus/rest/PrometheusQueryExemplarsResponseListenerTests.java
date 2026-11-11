@@ -18,8 +18,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
-import org.elasticsearch.xpack.prometheus.PrometheusPlugin;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -35,11 +33,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class PrometheusQueryExemplarsResponseListenerTests extends ESTestCase {
-
-    @BeforeClass
-    public static void checkFeatureFlag() {
-        assumeTrue("requires the query_exemplars feature flag", PrometheusPlugin.QUERY_EXEMPLARS_FEATURE_FLAG.isEnabled());
-    }
 
     /** The columns of an exemplars query with {@code include_timeseries}, see {@code ExemplarsRewriter#exemplarProjections}. */
     private static final List<ColumnInfoImpl> COLUMNS = List.of(

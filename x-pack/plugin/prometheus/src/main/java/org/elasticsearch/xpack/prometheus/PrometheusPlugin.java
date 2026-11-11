@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -34,19 +33,12 @@ import org.elasticsearch.xpack.prometheus.rest.PrometheusRemoteWriteTransportAct
 import org.elasticsearch.xpack.prometheus.rest.PrometheusSeriesRestAction;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusStatusBuildInfoRestAction;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class PrometheusPlugin extends Plugin implements ActionPlugin {
-
-    /**
-     * Gates the {@code query_exemplars} endpoint, which runs on top of the snapshot-only ES|QL {@code SET exemplars} setting.
-     * TODO: remove this feature flag once {@code SET exemplars} is released.
-     */
-    public static final FeatureFlag QUERY_EXEMPLARS_FEATURE_FLAG = new FeatureFlag("prometheus_query_exemplars");
 
     // Controls enabling the index template registry.
     // This setting will be ignored if the plugin is disabled.
@@ -135,22 +127,17 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
     ) {
         if (enabled) {
             assert indexingPressure.get() != null : "indexing pressure must be set if plugin is enabled";
-            List<RestHandler> handlers = new ArrayList<>(
-                List.of(
-                    new PrometheusRemoteWriteRestAction(indexingPressure.get(), maxProtobufContentLengthBytes, recycler.get()),
-                    new PrometheusSeriesRestAction(),
-                    new PrometheusQueryRangeRestAction(() -> queryTimeout),
-                    new PrometheusInstantQueryRestAction(() -> queryTimeout),
-                    new PrometheusLabelsRestAction(),
-                    new PrometheusLabelValuesRestAction(),
-                    new PrometheusMetadataRestAction(),
-                    new PrometheusStatusBuildInfoRestAction()
-                )
+            return List.of(
+                new PrometheusRemoteWriteRestAction(indexingPressure.get(), maxProtobufContentLengthBytes, recycler.get()),
+                new PrometheusSeriesRestAction(),
+                new PrometheusQueryRangeRestAction(() -> queryTimeout),
+                new PrometheusInstantQueryRestAction(() -> queryTimeout),
+                new PrometheusQueryExemplarsRestAction(() -> queryTimeout),
+                new PrometheusLabelsRestAction(),
+                new PrometheusLabelValuesRestAction(),
+                new PrometheusMetadataRestAction(),
+                new PrometheusStatusBuildInfoRestAction()
             );
-            if (QUERY_EXEMPLARS_FEATURE_FLAG.isEnabled()) {
-                handlers.add(new PrometheusQueryExemplarsRestAction(() -> queryTimeout));
-            }
-            return handlers;
         }
         return List.of();
     }

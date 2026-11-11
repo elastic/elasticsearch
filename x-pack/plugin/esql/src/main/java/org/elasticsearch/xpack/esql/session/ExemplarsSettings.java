@@ -38,7 +38,7 @@ public record ExemplarsSettings(boolean enabled, @Nullable Integer limit, boolea
 
     /**
      * The setting is written with the configuration of every query, not only of an exemplars one, so an ungated field here fails all
-     * of them against a peer that predates it. The development capability of the setting does not cover its wire format.
+     * of them against a peer that predates it.
      */
     private static final TransportVersion EXEMPLARS_INCLUDE_TIMESERIES = TransportVersion.fromName("esql_exemplars_include_timeseries");
 

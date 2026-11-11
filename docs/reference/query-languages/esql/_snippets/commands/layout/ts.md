@@ -188,6 +188,110 @@ For example, `TS k8s | STATS rate(network.total_bytes_in) BY host` is rejected; 
 query leads to an error.
 ::::
 
+## Query exemplars [esql-ts-exemplars]
+
+```{applies_to}
+stack: preview 9.7
+serverless: preview
+```
+
+Exemplars are individual measurements recorded alongside aggregated metrics, for example the latency of a single
+request together with the trace and span it belongs to. They let you drill down from a metric to the requests behind
+it. Exemplars are typically ingested through
+[OTLP](docs-content://manage-data/data-store/data-streams/tsds-ingest-otlp.md) or
+[{{prom}} remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md),
+which store them in `exemplars-*` data streams next to the `metrics-*` data streams of the metrics
+(refer to [`xpack.metrics.exemplars.enabled`](/reference/elasticsearch/configuration-reference/index-management-settings.md#metric-exemplar-ingestion-settings)).
+
+With the [`exemplars`](/reference/query-languages/esql/directives/set.md#esql-exemplars) setting, a `TS ... | STATS`
+query returns the exemplars that are relevant to it instead of its result. This lets tools such as Kibana show the
+exemplars of an existing metrics query without a second, hand-written query:
+
+```esql
+SET exemplars=true;
+TS metrics-cpu
+| WHERE attributes.state == "idle"
+| STATS AVG(cpu_time) BY attributes.cpu
+```
+
+| @timestamp:date | metric_name:keyword | value:double | trace_id:keyword | span_id:keyword | _source |
+| --- | --- | --- | --- | --- | --- |
+| 2024-05-10T00:02:20.000Z | cpu_time | 2.9 | trace-idle-cpu1-cpu | span-5 | `{"@timestamp": ..., "attributes": {"cpu": "cpu1", "state": "idle"}, ...}` |
+| 2024-05-10T00:00:10.000Z | cpu_time | 1.7 | trace-idle-cpu0-cpu | span-1 | `{"@timestamp": ..., "attributes": {"cpu": "cpu0", "state": "idle"}, ...}` |
+
+The setting works the same way for [`PROMQL`](/reference/query-languages/esql/commands/promql.md#esql-promql-exemplars).
+Instead of prepending `SET`, you can also pass the setting in the `settings` object of the request body, which leaves
+the query itself unchanged:
+
+```json
+{
+  "query": "TS metrics-cpu | STATS AVG(cpu_time) BY attributes.cpu",
+  "settings": { "exemplars": true }
+}
+```
+
+### How exemplars are selected [esql-ts-exemplars-selection]
+
+The metrics query is not executed. Instead, {{esql}} statically analyzes it and finds the relevant exemplars using
+heuristics that take into account the metrics the query aggregates and its filters on `@timestamp` and on dimensions.
+
+The exemplars are read from the exemplar data streams that belong to the metrics data streams the query targets: the
+exemplars of `metrics-<name>` are stored in `exemplars-<name>`. Aliases and wildcards are resolved to the underlying
+data streams first. A metrics data stream without an exemplar data stream, or one whose name does not start with
+`metrics-`, contributes no exemplars, but doesn't cause an error.
+
+::::{important}
+The heuristics might change between versions, so the same query can return a different set of exemplars after an
+upgrade. If you need stable results, query the exemplar data streams directly with
+[`FROM`](/reference/query-languages/esql/commands/from.md) instead:
+
+```esql
+FROM exemplars-cpu
+| WHERE metric_name == "cpu_time" AND attributes.state == "idle"
+| SORT @timestamp DESC
+```
+::::
+
+### Output [esql-ts-exemplars-output]
+
+The result contains the following columns:
+
+| Column | Description |
+|--------|-------------|
+| `@timestamp` | When the exemplar was recorded |
+| `metric_name` | The metric the exemplar belongs to, without the name of its passthrough object. For example, `cpu_time` for the metric `metrics.cpu_time` |
+| `value` | The observed value |
+| `trace_id` | The trace the exemplar was recorded in |
+| `span_id` | The span the exemplar was recorded in |
+| `_timeseries` | Only with `include_timeseries`. The dimensions of the time series the exemplar belongs to, as a JSON string |
+| `_source` | The full exemplar document, including the additional labels recorded with it |
+
+A column that none of the exemplar data streams map is `null`.
+
+The most recent exemplars are returned first. Unless you configure a `limit`, the
+[default result set size](/reference/query-languages/esql/limitations.md#esql-max-rows) of a query applies.
+Use a map instead of `true` to configure the number of exemplars or to add the `_timeseries` column:
+
+```esql
+SET exemplars={"limit": 100, "include_timeseries": true};
+TS metrics-cpu | STATS AVG(cpu_time) BY attributes.cpu
+```
+
+### Limitations [esql-ts-exemplars-limitations]
+
+- **One metrics command**: The query can contain at most one `TS ... | STATS` or `PROMQL` command, otherwise it is
+  rejected. A query with neither returns no exemplars.
+- **Views**: Queries that use [views](/reference/query-languages/esql/esql-views.md) are rejected.
+- **No processing of exemplars**: Commands after the metrics query are part of the metrics query, so they can't
+  filter or transform the returned exemplars. To process exemplars, query the exemplar data streams with `FROM`.
+- **Filtered aliases**: Exemplar data streams are found by the names of the metrics data streams, not by alias.
+  The filter of a [filtered alias](docs-content://manage-data/data-store/aliases.md) over the metrics doesn't apply to
+  their exemplars. A user who can only read the metrics through such an alias gets no exemplars, unless they are
+  allowed to read the exemplar data stream directly, which gives them access to all of its exemplars.
+- **Privileges**: Reading exemplars requires the `read` privilege on the exemplar data streams. Exemplar data streams
+  the user can't read contribute no exemplars.
+- **{{ccs-cap}}**: Remote clusters must run version 9.3 or later.
+
 ## Best practices
 
 - [Prefer `TS` over `FROM`](#when-to-use-ts-vs-from) for time series aggregations.

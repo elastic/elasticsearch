@@ -35,7 +35,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'FROM decay_test | EVAL score = ROUND(DECAY(price, ?origin, ?scale, {"type": ?type}), 4) | SORT id | KEEP id, score'
+          query: 'FROM decay_test | EVAL score = ROUND(DECAY(price, ?origin, ?scale, {"type": ?type}), 4) | SORT id | KEEP id, score | LIMIT 10'
           params: [{"origin": 10.0}, {"scale": 10.0}, {"type": "exp"}]
 
   - match: { columns.0.name: "id" }

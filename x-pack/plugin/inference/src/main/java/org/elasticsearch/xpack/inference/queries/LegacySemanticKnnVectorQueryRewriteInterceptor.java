@@ -26,10 +26,8 @@ import java.util.Map;
 /**
  * Legacy knn query rewrite interceptor for semantic_text fields.
  * <p>
- * Knn filters on nested fields do not work with this interceptor, because the filters are built in the chunks nested scope instead of
- * the root scope (see <a href="https://github.com/elastic/elasticsearch/issues/162043">#162043</a>).
- * {@link InterceptedInferenceKnnVectorQueryBuilder} fixes this with {@link RootScopedQueryBuilder}, but that fix cannot be applied here:
- * this interceptor runs entirely on the coordinator node, and the fix must be applied on the data node.
+ * Knn filters are built in the chunks nested scope, so filters on nested fields only work on data nodes that evaluate each knn
+ * filter at the level of the fields it reads (see <a href="https://github.com/elastic/elasticsearch/issues/162043">#162043</a>).
  */
 @Deprecated
 public class LegacySemanticKnnVectorQueryRewriteInterceptor extends LegacySemanticQueryRewriteInterceptor {

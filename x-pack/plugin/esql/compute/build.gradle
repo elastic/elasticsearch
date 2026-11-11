@@ -641,7 +641,7 @@ tasks.named('stringTemplates').configure {
     }
   }
 
-  generateTwoStateFiles(file("src/main/java/org/elasticsearch/compute/aggregation/X-2State.java.st"))
+  generateTwoStateFiles(file("src/main/java/org/elasticsearch/compute/aggregation/X-2State.java.st"), true)
   generateTwoStateFiles(file("src/main/java/org/elasticsearch/compute/aggregation/X-All2State.java.st"), true, true, "All")
 
   File legacyIrateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-LegacyIrateAggregator.java.st")
@@ -1278,7 +1278,6 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/xpack/compute/operator/lookup/EnrichResultBuilderForDoubleRange.java"
   }
 
-  // TODO: add {value}_over_time for other types: boolean, bytes_refs
   def generateTimestampAggregatorClasses = { inputFilename, includeBooleanV1 = false, includeIntegerV2 = false, prefix = "" ->
     def inputFile = file(inputFilename)
 
@@ -1325,7 +1324,7 @@ tasks.named('stringTemplates').configure {
     }
   }
 
-  generateTimestampAggregatorClasses("src/main/java/org/elasticsearch/compute/aggregation/X-ValueByTimestampAggregator.java.st")
+  generateTimestampAggregatorClasses("src/main/java/org/elasticsearch/compute/aggregation/X-ValueByTimestampAggregator.java.st", true)
   generateTimestampAggregatorClasses("src/main/java/org/elasticsearch/compute/aggregation/X-AllValueByTimestampAggregator.java.st", true, true, "All")
 
   def generateAggregatorClassesOnConstantType = { inputFilename ->

@@ -163,6 +163,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -1936,6 +1937,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     private EsPhysicalOperationProviders esPhysicalOperationProviders(List<EsPhysicalOperationProviders.ShardContext> shardContexts) {
         return new EsPhysicalOperationProviders(
             FoldContext.small(),
+            TEST_CFG,
             new IndexedByShardIdFromList<>(shardContexts),
             null,
             PlannerSettings.DEFAULTS,

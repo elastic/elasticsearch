@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.join.mapper.Joiner;
+import org.elasticsearch.join.mapper.ParentIdFieldMapper.ParentIdFieldType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -94,8 +95,8 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<C
     ) throws IOException {
         Query parentFilter = null;
         Query childFilter = null;
-        Joiner joiner = Joiner.getJoiner(context);
-        if (joiner != null && joiner.childTypeExists(childType)) {
+        if (config.fieldType() instanceof ParentIdFieldType parentIdFieldType) {
+            Joiner joiner = parentIdFieldType.getJoiner();
             parentFilter = joiner.parentFilter(childType, context);
             childFilter = joiner.filter(childType, context);
         }

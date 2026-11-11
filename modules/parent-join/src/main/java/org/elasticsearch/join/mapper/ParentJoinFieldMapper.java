@@ -140,16 +140,19 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                 );
             }
             checkObjectOrNested(context, leafName());
+            final JoinFieldType joinFieldType = new JoinFieldType(context.buildFullName(leafName()), relations.get(), meta.get());
             final Map<String, ParentIdFieldMapper> parentIdFields = new HashMap<>();
             relations.get()
                 .stream()
-                .map(relation -> new ParentIdFieldMapper(leafName() + "#" + relation.parent(), eagerGlobalOrdinals.get()))
+                .map(
+                    relation -> new ParentIdFieldMapper(
+                        leafName() + "#" + relation.parent(),
+                        eagerGlobalOrdinals.get(),
+                        joinFieldType.getJoiner()
+                    )
+                )
                 .forEach(mapper -> parentIdFields.put(mapper.fullPath(), mapper));
-            return new ParentJoinFieldMapper(
-                leafName(),
-                new JoinFieldType(context.buildFullName(leafName()), relations.get(), meta.get()),
-                Collections.unmodifiableMap(parentIdFields)
-            );
+            return new ParentJoinFieldMapper(leafName(), joinFieldType, Collections.unmodifiableMap(parentIdFields));
         }
     }
 

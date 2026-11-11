@@ -10,12 +10,14 @@
 package org.elasticsearch.join.mapper;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -92,6 +94,15 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
         doc = docMapper.parse(source("2", b -> b.startObject("join_field").field("name", "child").field("parent", 1.0).endObject(), "1"));
         assertEquals("1.0", doc.rootDoc().getBinaryValue("join_field#parent").utf8ToString());
         assertEquals("child", doc.rootDoc().getBinaryValue("join_field").utf8ToString());
+    }
+
+    public void testParentIdFilterOnUnmappedParentJoinField() throws IOException {
+        Joiner joiner = new ParentJoinFieldMapper.Builder("join_field").addRelation("parent", singleton("child"))
+            .build(MapperBuilderContext.root(false, false))
+            .fieldType()
+            .getJoiner();
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        assertEquals(new MatchNoDocsQuery(), joiner.parentIdFilter("child", "1", createSearchExecutionContext(mapperService)));
     }
 
     public void testMultipleLevels() throws Exception {

@@ -249,7 +249,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
             }
         } catch (IOException e) {
             // Bail on any exceptions, going with a regular prefix query
-            return ft.prefixQuery(termStr, null, context);
+            return ft.prefixQuery(analyzer.normalize(field, termStr).utf8ToString(), null, context);
         }
 
         if (tlist.size() == 0) {

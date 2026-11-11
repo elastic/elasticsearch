@@ -12,6 +12,7 @@ package org.elasticsearch.join.mapper;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -116,7 +117,11 @@ public final class Joiner {
      * @return a filter for child documents of a specific child type whose parent has the given id
      */
     public Query parentIdFilter(String childType, String parentId, SearchExecutionContext context) {
-        return context.getFieldType(parentJoinField(childType)).termQuery(parentId, context);
+        String field = parentJoinField(childType);
+        if (context.isFieldMapped(field) == false) {
+            return new MatchNoDocsQuery();
+        }
+        return context.getFieldType(field).termQuery(parentId, context);
     }
 
     /**

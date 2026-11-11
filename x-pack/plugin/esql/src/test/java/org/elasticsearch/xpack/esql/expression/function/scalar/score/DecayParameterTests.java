@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.score;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -19,8 +20,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.score.Decay.DecayFunction;
 
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -34,7 +37,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class DecayParameterTests extends ESTestCase {
 
     public void testNodePropertiesWithoutOptions() {
-        Decay decay = new Decay(Source.EMPTY, integer(5), integer(0), integer(10), null);
+        Decay decay = new Decay(Source.EMPTY, of(5), of(0), of(10), null);
         List<Object> properties = decay.nodeProperties();
         assertThat(properties, hasSize(4));
         assertThat(properties.get(3), nullValue());
@@ -55,49 +58,37 @@ public class DecayParameterTests extends ESTestCase {
     }
 
     public void testDecayOfOne() {
-        assertFoldError(
-            "[decay] option must be in the range (0, 1), found [1.0]",
-            integer(5),
-            integer(10),
-            integer(10),
-            options("decay", dbl(1.0))
-        );
+        assertFoldError("[decay] option must be in the range (0, 1), found [1.0]", of(5), of(10), of(10), options("decay", 1.0));
     }
 
     public void testDecayOfZero() {
         assertFoldError(
             "[decay] option must be in the range (0, 1), found [0.0]",
-            integer(10),
-            integer(10),
-            integer(10),
-            options("decay", dbl(0.0), "type", Literal.keyword(Source.EMPTY, "exp"))
+            of(10),
+            of(10),
+            of(10),
+            options("decay", 0.0, "type", "exp")
         );
     }
 
     public void testDecayNaN() {
-        assertFoldError(
-            "[decay] option must be in the range (0, 1), found [NaN]",
-            integer(5),
-            integer(10),
-            integer(10),
-            options("decay", dbl(Double.NaN))
-        );
+        assertFoldError("[decay] option must be in the range (0, 1), found [NaN]", of(5), of(10), of(10), options("decay", Double.NaN));
     }
 
     public void testNegativeScale() {
-        assertFoldError("[scale] must be a finite number greater than 0, found [-10.0]", integer(5), integer(0), integer(-10), null);
+        assertFoldError("[scale] must be a finite number greater than 0, found [-10.0]", of(5), of(0), of(-10), null);
     }
 
     public void testZeroScale() {
-        assertFoldError("[scale] must be a finite number greater than 0, found [0.0]", integer(10), integer(10), integer(0), null);
+        assertFoldError("[scale] must be a finite number greater than 0, found [0.0]", of(10), of(10), of(0), null);
     }
 
     public void testInfiniteScale() {
         assertFoldError(
             "[scale] must be a finite number greater than 0, found [Infinity]",
-            dbl(1.0),
-            dbl(0.0),
-            dbl(Double.POSITIVE_INFINITY),
+            of(1.0),
+            of(0.0),
+            of(Double.POSITIVE_INFINITY),
             null
         );
     }
@@ -105,10 +96,10 @@ public class DecayParameterTests extends ESTestCase {
     public void testNegativeOffset() {
         assertFoldError(
             "[offset] option must be a finite number greater than or equal to 0, found [-3.0]",
-            integer(5),
-            integer(0),
-            integer(10),
-            options("offset", integer(-3))
+            of(5),
+            of(0),
+            of(10),
+            options("offset", -3)
         );
     }
 
@@ -117,19 +108,13 @@ public class DecayParameterTests extends ESTestCase {
             "[scale] must be a finite number greater than 0, found [0km]",
             geoPoint("POINT (1 1)"),
             geoPoint("POINT (1 1)"),
-            Literal.keyword(Source.EMPTY, "0km"),
+            of("0km"),
             null
         );
     }
 
     public void testInvalidGeoScale() {
-        assertFoldError(
-            "[scale] is not a valid distance: [abc]",
-            geoPoint("POINT (1 1)"),
-            geoPoint("POINT (0 0)"),
-            Literal.keyword(Source.EMPTY, "abc"),
-            null
-        );
+        assertFoldError("[scale] is not a valid distance: [abc]", geoPoint("POINT (1 1)"), geoPoint("POINT (0 0)"), of("abc"), null);
     }
 
     public void testInvalidGeoOffset() {
@@ -137,8 +122,8 @@ public class DecayParameterTests extends ESTestCase {
             "[offset] is not a valid distance: [abc]",
             geoPoint("POINT (1 1)"),
             geoPoint("POINT (0 0)"),
-            Literal.keyword(Source.EMPTY, "100km"),
-            options("offset", Literal.keyword(Source.EMPTY, "abc"))
+            of("100km"),
+            options("offset", "abc")
         );
     }
 
@@ -147,8 +132,8 @@ public class DecayParameterTests extends ESTestCase {
             "[offset] option must be a finite number greater than or equal to 0, found [-5km]",
             geoPoint("POINT (1 1)"),
             geoPoint("POINT (0 0)"),
-            Literal.keyword(Source.EMPTY, "100km"),
-            options("offset", Literal.keyword(Source.EMPTY, "-5km"))
+            of("100km"),
+            options("offset", "-5km")
         );
     }
 
@@ -194,24 +179,11 @@ public class DecayParameterTests extends ESTestCase {
         return new Decay(Source.EMPTY, value, origin, scale, options).fold(FoldContext.small());
     }
 
-    private static Literal integer(int value) {
-        return Literal.integer(Source.EMPTY, value);
-    }
-
-    private static Literal dbl(double value) {
-        return Literal.fromDouble(Source.EMPTY, value);
-    }
-
     private static Literal geoPoint(String wkt) {
         return new Literal(Source.EMPTY, GEO.wktToWkb(wkt), DataType.GEO_POINT);
     }
 
     private static MapExpression options(Object... keysAndValues) {
-        Expression[] entries = new Expression[keysAndValues.length];
-        for (int i = 0; i < keysAndValues.length; i += 2) {
-            entries[i] = Literal.keyword(Source.EMPTY, (String) keysAndValues[i]);
-            entries[i + 1] = (Expression) keysAndValues[i + 1];
-        }
-        return new MapExpression(Source.EMPTY, List.of(entries));
+        return new MapExpression(Source.EMPTY, Arrays.stream(keysAndValues).<Expression>map(EsqlTestUtils::of).toList());
     }
 }

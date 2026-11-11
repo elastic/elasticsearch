@@ -377,7 +377,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         NumberFieldType fieldType = new NumberFieldMapper.NumberFieldType("float_field", numberType);
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
             LuceneDocument doc = new LuceneDocument();
-            numberType.addFields(doc, "float_field", 1.5, IndexType.points(true, true), false);
+            numberType.addFields(doc, "float_field", 1.5, true, true, false);
             w.addDocument(doc);
             SignificantTermsAggregationBuilder sigAgg = new SignificantTermsAggregationBuilder("sig_float").field("float_field");
             try (DirectoryReader reader = DirectoryReader.open(w)) {

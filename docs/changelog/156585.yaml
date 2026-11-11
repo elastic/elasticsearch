@@ -2,6 +2,5 @@ area: ES|QL
 issues:
  - 156173
 pr: 156585
-summary: "ESQL: Optimize `unmaped_fields` blob away during analysis if there are unpatterned\
-  \ KEEPs"
+summary: Skip loading `unmapped_fields` blob during analysis when there are unpatterned `KEEP` commands
 type: feature

@@ -78,6 +78,66 @@ tasks.named('validateBuildGradleScripts').configure {
         result.output.contains('cross-project-dereference') == false
     }
 
+    def "execution closure findings have structured problems and exact-count ratcheting"() {
+        given:
+        file('subproject/build.gradle').text = "tasks.register('probe') { onlyIf { project.name } }\n"
+
+        when:
+        def result = gradleRunner('validateBuildGradleScripts').buildAndFail()
+
+        then:
+        result.output.contains('execution-closure-project-reference')
+        result.output.contains('subproject/build.gradle:1')
+        result.output.contains('Problems report is available at')
+
+        when:
+        buildFile << """
+tasks.named('validateBuildGradleScripts') {
+  ignore.set(['execution-closure-project-reference': ['subproject/build.gradle::1']])
+}
+"""
+        result = gradleRunner('validateBuildGradleScripts').build()
+
+        then:
+        result.task(':validateBuildGradleScripts').outcome == TaskOutcome.SUCCESS
+
+        when:
+        file('subproject/build.gradle').text = "tasks.register('probe') { onlyIf { true } }\n"
+        result = gradleRunner('validateBuildGradleScripts').buildAndFail()
+
+        then:
+        result.output.contains('stale-ignore-entry')
+    }
+
+    def "parse failures are actionable problems rather than a silently skipped script"() {
+        given:
+        file('subproject/build.gradle').text = "tasks.register('broken') {\n"
+
+        when:
+        def result = gradleRunner('validateBuildGradleScripts').buildAndFail()
+
+        then:
+        result.output.contains('build-script-parse-failure')
+        result.output.contains('subproject/build.gradle')
+        result.output.contains('Unexpected input')
+        result.output.contains('Problems report is available at')
+    }
+
+    def "validator executes again from a reused configuration cache and ignores precompiled scripts"() {
+        given:
+        file('subproject/build.gradle').text = "def name = project.name; tasks.register('probe') { doLast { println name } }\n"
+        file('src/main/groovy/fixture.gradle').text = "tasks.register('unsafe') { doLast { project.name } }\n"
+
+        when:
+        def first = gradleRunner('validateBuildGradleScripts', '--rerun-tasks').build()
+        def reused = gradleRunner('validateBuildGradleScripts', '--rerun-tasks').build()
+
+        then:
+        first.task(':validateBuildGradleScripts').outcome == TaskOutcome.SUCCESS
+        reused.task(':validateBuildGradleScripts').outcome == TaskOutcome.SUCCESS
+        reused.output.contains('Reusing configuration cache.')
+    }
+
     def "is up to date when inputs are unchanged"() {
         given:
         file('subproject/build.gradle').text = 'dependencies { implementation project(":server") }\n'

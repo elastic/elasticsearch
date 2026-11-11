@@ -66,7 +66,7 @@ public abstract class FoldablesConvertFunction extends AbstractConvertFunction i
     }
 
     @Override
-    public final Object fold(FoldContext ctx) {
+    public final Object doFold(Source source, FoldContext ctx) {
         return foldToTemporalAmount(ctx, field(), sourceText(), dataType());
     }
 

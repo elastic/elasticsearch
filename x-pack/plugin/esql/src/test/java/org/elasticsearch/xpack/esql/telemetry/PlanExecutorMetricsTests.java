@@ -1031,6 +1031,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     IndexMode.STANDARD,
                     0,
                     0,
+                    0,
                     0
                 )
             );

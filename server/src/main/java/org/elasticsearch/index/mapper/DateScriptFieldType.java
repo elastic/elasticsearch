@@ -53,24 +53,17 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(Builder::new);
 
     private static class Builder extends AbstractScriptFieldType.Builder<DateFieldScript.Factory> {
-        private final FieldMapper.Parameter<String> format = FieldMapper.Parameter.stringParam(
-            "format",
-            true,
-            RuntimeField.initializerNotSupported(),
-            null,
-            (b, n, v) -> {
-                if (v != null && false == v.equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern())) {
-                    b.field(n, v);
-                }
+        private final FieldMapper.Parameter<String> format = FieldMapper.Parameter.stringParam("format", true, null, (b, n, v) -> {
+            if (v != null && false == v.equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern())) {
+                b.field(n, v);
             }
-        ).acceptsNull();
+        }).acceptsNull();
 
         private final FieldMapper.Parameter<Locale> locale = new FieldMapper.Parameter<>(
             "locale",
             true,
             () -> null,
             (n, c, o) -> o == null ? null : LocaleUtils.parse(o.toString()),
-            RuntimeField.initializerNotSupported(),
             (b, n, v) -> {
                 if (v != null && false == v.equals(DateFieldMapper.DEFAULT_LOCALE)) {
                     b.field(n, v.toString());

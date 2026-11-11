@@ -25,7 +25,8 @@ import java.util.Objects;
  * matter: one prefix read as CSV and as TSV yields different columns, so the schema a resolution carries depends
  * on the configuration and not on the resource alone.
  * <p>
- * Derived, never stored. A field on a plan node would travel to data nodes and need a transport version; resolution
+ * This is derived wherever it is needed and never held on a plan node. A field on a plan node would travel to data
+ * nodes and need a transport version; resolution
  * finishes before a plan is serialized.
  *
  * @param path   the resource, as the relation's {@code tablePath} literal spells it

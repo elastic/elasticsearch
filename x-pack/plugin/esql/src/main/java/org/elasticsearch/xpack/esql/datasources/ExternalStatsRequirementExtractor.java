@@ -51,8 +51,8 @@ import java.util.Set;
  * is no longer the bias.
  *
  * <h2>Per-spec conservatism for mixed branches</h2>
- * Keyed by {@link ExternalSourceSpec}, as resolution is: a resource read two ways is two entries, and what one
- * of them demands says nothing about the other. Within one spec the result is still a union — a spec under an
+ * Keyed by {@link ExternalSourceSpec}, as resolution is, for the reason that class gives. Within one spec the
+ * result is still a union — a spec under an
  * ungrouped aggregate in one branch (a {@code FORK} arm, say) and under {@code LIMIT} in another stays eager —
  * which never makes a spec less eager than its own branch needs.
  */

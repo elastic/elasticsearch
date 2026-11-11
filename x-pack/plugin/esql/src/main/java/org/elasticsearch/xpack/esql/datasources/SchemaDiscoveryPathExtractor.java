@@ -40,8 +40,8 @@ public final class SchemaDiscoveryPathExtractor {
 
     /**
      * Every {@link UnresolvedExternalRelation} whose occurrences all sit below a {@link Limit} of literal zero,
-     * as the spec it denotes. Keyed by spec rather than by resource: two datasets over one resource are two reads,
-     * and one of them reading no rows says nothing about the other.
+     * as the spec it denotes. Keyed by the {@link ExternalSourceSpec} for the reason that class gives, so one read
+     * discarding its rows does not decide what another read over the same resource gets.
      *
      * @param unresolvedPlan the root of the unresolved logical plan
      * @return the specs whose resolution needs no rows read

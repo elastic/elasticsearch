@@ -2463,7 +2463,7 @@ public class EsqlSession {
      * Projects the query's partition-filter hints through each spec's own {@code partition_spec}, and takes the
      * folder range before that projection drops {@code @timestamp}.
      * <p>
-     * Per spec rather than per resource: keying by resource would narrow one spec's listing by the other's spec. The
+     * Computed for each spec, because keying by resource would narrow one spec's listing by the other's. The
      * extractor's hints stay per path, intersected across occurrences, so one value is right for every spec over it.
      */
     private static ListingInputs listingInputsPerSpec(

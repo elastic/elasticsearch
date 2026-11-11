@@ -5128,8 +5128,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
      * Both datasets read the one file as CSV and resolve the same columns, so their read-config fingerprints are
      * equal and only the reader's own configuration -- the error policy -- differs. The contributions for the one
      * path therefore agree on everything the reconcile treats as non-negotiable, which is what made the merge
-     * assert rather than refuse. It fails on the parent commit with
-     * {@code whole-file contributions for the same file must agree on row count, mtime, and config fingerprint}.
+     * assert rather than refuse. With the reconcile keyed by read configuration alone this fails with
+     * {@code whole-file contributions for the same file must agree on row count, mtime, and config fingerprint};
+     * on {@code main} the same query never reaches the reconcile, because the data node refuses it first with
+     * {@code external dataset [policy_default] definition changed while the query was planned}.
      */
     public void testTwoErrorPoliciesOverOneFileDoNotTripTheReconcile() throws Exception {
         Path fixture = createTempFile("dataset-two-policies-", ".csv");

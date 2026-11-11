@@ -48,6 +48,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -1683,7 +1684,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
         assertPromqlRows(index, "sum without(host)(tx)", List.of(List.of(30.0, "{\"cluster\":\"prod\"}")));
         try (EsqlQueryResponse response = run(promqlQuery(index, "sum by(optional)(tx)") + " | KEEP result, optional")) {
-            assertThat(EsqlTestUtils.getValuesList(response), equalTo(List.of(java.util.Arrays.asList(30.0, null))));
+            assertThat(EsqlTestUtils.getValuesList(response), equalTo(List.of(Arrays.asList(30.0, null))));
         }
     }
 
@@ -1799,6 +1800,213 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /** (... or ...) * scalar must pin UnionAll layout before the composed Eval (#158164). */
+    public void testPromqlOrUnderArithmetic() {
+        assumeTrue("requires a typed label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
+        String index = "promql-or-under-arithmetic";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "tx", 10.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "tx", 20.0);
+        refresh(index);
+        assertRowsAnyOrder(promqlQuery(index, "(tx or (tx * 0)) * 2") + " | KEEP result", List.of(List.of(20.0), List.of(40.0)));
+    }
+
+    /** (agg or agg) under arithmetic / join must keep a pin-safe UnionAll layout. */
+    public void testPromqlOrUnderArithmeticJoin() {
+        assumeTrue("requires a typed label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
+        String index = "promql-or-under-arithmetic-join";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "tx", 10.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "tx", 20.0);
+        refresh(index);
+        // join path: or x by-agg vector (series-preserving so labels match)
+        assertRowsAnyOrder(
+            promqlQuery(index, "((max by (cluster)(tx)) or (min by (cluster)(tx))) * (min by (cluster) (floor(tx)))")
+                + " | KEEP result, cluster",
+            List.of(List.of(200.0, "prod"))
+        );
+        // grafanalabs-shaped ratio of or-chains
+        assertRowsAnyOrder(
+            promqlQuery(
+                index,
+                "((max by (cluster)(tx)) or (min by (cluster)(tx)))"
+                    + " / (((max by (cluster)(tx)) or (min by (cluster)(tx)))"
+                    + " + ((max by (cluster)(tx)) or (min by (cluster)(tx))))"
+            ) + " | KEEP result, cluster",
+            List.of(List.of(0.5, "prod"))
+        );
+    }
+
+    /** Empty right of or (disjoint label_replace/and) must keep left fingerprints. */
+    public void testPromqlOrWithLabelReplaceRightKeepsTierWhenDisjoint() {
+        assumeTrue("requires a typed label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
+        String index = "promql-or-with-label-replace-right-keeps-tier-when-disjoint";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "tx", "tx", 10.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "__name__", "rx", "rx", 20.0);
+        refresh(index);
+        // Destination is a named column beside rest (not necessarily inside the _timeseries blob).
+        assertRowsAnyOrder(
+            promqlQuery(index, "label_replace(rx, \"tier\", \"x-$1\", \"host\", \"(.*)\")") + " | KEEP result, tier, _timeseries",
+            List.of(List.of(20.0, "x-b", "{\"__name__\":\"rx\",\"cluster\":\"prod\",\"host\":\"b\"}"))
+        );
+        // Different hosts -> or keeps both; right still exposes tier.
+        assertRowsAnyOrder(
+            promqlQuery(index, "(floor(tx)) or (label_replace(rx, \"tier\", \"x-$1\", \"host\", \"(.*)\"))")
+                + " | KEEP result, tier, _timeseries",
+            List.of(
+                Arrays.asList(10.0, null, "{\"cluster\":\"prod\",\"host\":\"a\"}"),
+                Arrays.asList(20.0, "x-b", "{\"__name__\":\"rx\",\"cluster\":\"prod\",\"host\":\"b\"}")
+            )
+        );
+        // Fuzz 050 shape: empty right (label_replace x and-ignoring does not match on tier) must not wipe left labels.
+        assertRowsAnyOrder(
+            promqlQuery(
+                index,
+                "(floor(tx)) or (label_replace(rx, \"tier\", \"x-$1\", \"host\", \".+\") " + "and ((rx) and ignoring (host, cluster) (tx)))"
+            ) + " | KEEP result, _timeseries",
+            List.of(List.of(10.0, "{\"cluster\":\"prod\",\"host\":\"a\"}"))
+        );
+        // Same with bottomk on the left (fuzz wraps bottomk in math); union must still expose left rest.
+        assertRowsAnyOrder(
+            promqlQuery(
+                index,
+                "(bottomk(1, tx)) or (label_replace(rx, \"tier\", \"x-$1\", \"host\", \".+\") "
+                    + "and ((rx) and ignoring (host, cluster) (tx)))"
+            ) + " | KEEP result, _timeseries",
+            List.of(List.of(10.0, "{\"__name__\":\"tx\",\"cluster\":\"prod\",\"host\":\"a\"}"))
+        );
+    }
+
+    /** or with name-dropping label_replace right keeps both limbs; listener finds _timeseries. */
+    public void testPromqlOrWithLabelReplaceIncreaseKeepsBothLimbs() {
+        assumeTrue("requires a typed label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
+        String index = "promql-or-with-label-replace-increase-keeps-both-limbs";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSampleAt(index, "2024-05-10T00:00:00Z", "cluster", "prod", "host", "a", "__name__", "tx", "tx", 10.0);
+        indexPromqlSampleAt(index, PROMQL_QUERY_TIME, "cluster", "prod", "host", "a", "__name__", "tx", "tx", 10.0);
+        indexPromqlSampleAt(index, "2024-05-10T00:00:00Z", "cluster", "prod", "host", "b", "__name__", "rx", "rx", 0.0);
+        indexPromqlSampleAt(index, PROMQL_QUERY_TIME, "cluster", "prod", "host", "b", "__name__", "rx", "rx", 60.0);
+        refresh(index);
+        assertRowsAnyOrder(
+            promqlQuery(index, "(floor(tx)) or (label_replace(round(increase(rx[5m])), \"tier\", \"x-$1\", \"host\", \"(.*)\"))")
+                + " | KEEP result, tier, _timeseries",
+            List.of(
+                Arrays.asList(10.0, null, "{\"cluster\":\"prod\",\"host\":\"a\"}"),
+                Arrays.asList(60.0, "x-b", "{\"cluster\":\"prod\",\"host\":\"b\"}")
+            )
+        );
+    }
+
+    /**
+     * or with on/ignoring keeps every left series, several sharing a match signature included, and adds the right series
+     * no left series matches on the listed labels, as in Prometheus.
+     */
+    public void testPromqlOrWithMatching() {
+        assumeTrue("requires a typed label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
+        String index = "promql-or-with-matching";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "region", "east", "tx", 1.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "region", "east", "tx", 3.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "c", "region", "west", "tx", 5.0);
+        refresh(index);
+        String a = "{\"cluster\":\"prod\",\"host\":\"a\",\"region\":\"east\"}";
+        String b = "{\"cluster\":\"prod\",\"host\":\"b\",\"region\":\"east\"}";
+        String c = "{\"cluster\":\"prod\",\"host\":\"c\",\"region\":\"west\"}";
+
+        assertRowsAnyOrder(
+            promqlQuery(index, "tx{region=\"east\"} or on(region) tx{region=\"west\"}") + " | KEEP result, _timeseries | SORT result",
+            List.of(List.of(1.0, a), List.of(3.0, b), List.of(5.0, c))
+        );
+        // a and b share region east: both stay, and the right operand adds only c.
+        assertRowsAnyOrder(
+            promqlQuery(index, "tx{region=\"east\"} or on(region) tx") + " | KEEP result, _timeseries | SORT result",
+            List.of(List.of(1.0, a), List.of(3.0, b), List.of(5.0, c))
+        );
+        // b shares cluster and region with a, so only c is added.
+        assertRowsAnyOrder(
+            promqlQuery(index, "tx{host=\"a\"} or ignoring(host) tx{host=~\"b|c\"}") + " | KEEP result, _timeseries | SORT result",
+            List.of(List.of(1.0, a), List.of(5.0, c))
+        );
+        assertRowsAnyOrder(
+            promqlQuery(index, "tx{host=\"a\"} or ignoring(host, region) tx") + " | KEEP result, _timeseries",
+            List.of(List.of(1.0, a))
+        );
+        // on () adds the right operand only at steps where the left one has no series.
+        assertRowsAnyOrder(
+            promqlQuery(index, "tx{host=\"nope\"} or on() tx{host=\"c\"}") + " | KEEP result, _timeseries",
+            List.of(List.of(5.0, c))
+        );
+        assertRowsAnyOrder(
+            promqlQuery(index, "tx{host=\"a\"} or on() tx{host=\"c\"}") + " | KEEP result, _timeseries",
+            List.of(List.of(1.0, a))
+        );
+        // vector(7) has no region: its signature never matches a series that has one. Its constant holds on its own rows only.
+        assertRowsAnyOrder(
+            promqlQuery(index, "tx{host=\"a\"} unless on(region) vector(7)") + " | KEEP result, _timeseries",
+            List.of(List.of(1.0, a))
+        );
+        assertRowsAnyOrder(
+            promqlQuery(index, "vector(7) or on(region) tx{host=\"c\"}") + " | KEEP result, _timeseries | SORT result",
+            List.of(List.of(5.0, c), List.of(7.0, "{}"))
+        );
+    }
+
+    /** unless with empty right keeps left. */
+    public void testPromqlUnlessEmptyRightKeepsLeft() {
+        assumeTrue("requires a typed label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
+        String index = "promql-unless-empty-right-keeps-left";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "rx", "rx", 60.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "__name__", "rx", "rx", 80.0);
+        // tx exists but host filter matches nothing -> empty right
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "tx", "tx", 1.0);
+        refresh(index);
+        List<List<Object>> expected = List.of(
+            List.of(60.0, "{\"__name__\":\"rx\",\"cluster\":\"prod\",\"host\":\"a\"}"),
+            List.of(80.0, "{\"__name__\":\"rx\",\"cluster\":\"prod\",\"host\":\"b\"}")
+        );
+        assertRowsAnyOrder(promqlQuery(index, "rx") + " | KEEP result, _timeseries", expected);
+        assertRowsAnyOrder(promqlQuery(index, "(rx) unless (tx{host=\"nope\"})") + " | KEEP result, _timeseries", expected);
+    }
+
+    /** or ignores __name__: name-keeping left preferred over name-dropping right of the same labels. */
+    public void testPromqlOrNameKeepingVsNameDroppingRest() {
+        assumeTrue("requires a typed label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
+        String index = "promql-or-name-keeping-vs-name-dropping-rest";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "tx", "tx", 10.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "__name__", "tx", "tx", 20.0);
+        refresh(index);
+        List<List<Object>> leftOnly = List.of(
+            List.of(10.0, "{\"__name__\":\"tx\",\"cluster\":\"prod\",\"host\":\"a\"}"),
+            List.of(20.0, "{\"__name__\":\"tx\",\"cluster\":\"prod\",\"host\":\"b\"}")
+        );
+        assertRowsAnyOrder(promqlQuery(index, "(tx) or (ceil(tx))") + " | KEEP result, _timeseries", leftOnly);
+        assertRowsAnyOrder(promqlQuery(index, "(tx) or (sum_over_time(tx[1m]))") + " | KEEP result, _timeseries", leftOnly);
+        // ceil over the collapsed or drops __name__ from the kept left limb.
+        assertRowsAnyOrder(
+            promqlQuery(index, "ceil((tx) or (sum_over_time(tx[1m])))") + " | KEEP result, _timeseries",
+            List.of(List.of(10.0, "{\"cluster\":\"prod\",\"host\":\"a\"}"), List.of(20.0, "{\"cluster\":\"prod\",\"host\":\"b\"}"))
+        );
+    }
+
+    /**
+     * Matching on __name__ is rejected even where the series store it, as here: which series store it is known only from
+     * the data, and one whose metric is a field reads it as absent.
+     */
+    public void testPromqlMatchingOnMetricNameIsRejected() {
+        String index = "promql-matching-on-metric-name-is-rejected";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "rx", "rx", 60.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "tx", "tx", 10.0);
+        refresh(index);
+        for (String q : List.of("tx or on(__name__, host) rx", "tx / on(__name__, host) rx")) {
+            var error = expectThrows(Exception.class, () -> run(promqlQuery(index, q)));
+            assertThat(error.getMessage(), containsString("matching on __name__ is not supported at this time"));
+        }
+    }
+
     private void createOptionalLabelMetricsIndex(String index) {
         assertAcked(
             indicesAdmin().prepareCreate(index)
@@ -1820,7 +2028,11 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                     "type=keyword,time_series_dimension=true",
                     "region",
                     "type=keyword,time_series_dimension=true",
+                    "__name__",
+                    "type=keyword,time_series_dimension=true",
                     "tx",
+                    "type=double,time_series_metric=gauge",
+                    "rx",
                     "type=double,time_series_metric=gauge"
                 )
         );
@@ -1855,9 +2067,13 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
     }
 
     private void indexPromqlSample(String index, Object... fields) {
+        indexPromqlSampleAt(index, PROMQL_QUERY_TIME, fields);
+    }
+
+    private void indexPromqlSampleAt(String index, String timestamp, Object... fields) {
         Object[] source = new Object[fields.length + 2];
         source[0] = "@timestamp";
-        source[1] = PROMQL_QUERY_TIME;
+        source[1] = timestamp;
         System.arraycopy(fields, 0, source, 2, fields.length);
         client().prepareIndex(index).setSource(source).get();
     }
@@ -1877,6 +2093,12 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
     private void assertPromqlColumns(String index, String expression, String columns, List<List<Object>> expected) {
         try (EsqlQueryResponse response = run(promqlQuery(index, expression) + " | KEEP result, " + columns + " | SORT result")) {
             assertThat(EsqlTestUtils.getValuesList(response), equalTo(expected));
+        }
+    }
+
+    private void assertRowsAnyOrder(String query, List<List<Object>> expected) {
+        try (EsqlQueryResponse response = run(query)) {
+            assertThat(EsqlTestUtils.getValuesList(response), containsInAnyOrder(expected.toArray()));
         }
     }
 

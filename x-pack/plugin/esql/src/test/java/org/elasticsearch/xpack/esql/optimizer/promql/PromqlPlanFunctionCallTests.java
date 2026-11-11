@@ -583,6 +583,30 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         );
     }
 
+    /**
+     * Classic Prometheus shape {@code sum by (dst) (label_replace(m, "dst", "$1", "src", "(.*):.*"))}: derive a host from
+     * {@code host:port}, then regroup. The derived {@code dst} must be the outer STATS grouping key and the regex must
+     * survive translation as RegexExpand.
+     */
+    public void testSumByLabelReplaceHostPortPlans() {
+        assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
+        String q =
+            "PROMQL index=k8s step=1h result=(sum by (dst) (label_replace(network.bytes_in, \"dst\", \"$1\", \"pod\", \"(.*):.*\")))";
+        LogicalPlan plan = planPromql(q);
+        assertTrue(plan.resolved());
+        assertTrue("outer result must expose dst", plan.output().stream().anyMatch(a -> "dst".equals(a.name())));
+        List<Expression> expands = new ArrayList<>();
+        plan.forEachExpressionDown(org.elasticsearch.xpack.esql.expression.promql.function.RegexExpand.class, expands::add);
+        assertThat(expands, not(empty()));
+        // Outer regroup by the derived label (not only the per-series TSA), packed so a multivalued label stays one key.
+        List<Aggregate> outer = plan.collect(Aggregate.class).stream().filter(a -> (a instanceof TimeSeriesAggregate) == false).toList();
+        assertThat(outer, not(empty()));
+        assertTrue(
+            outer.stream()
+                .anyMatch(a -> a.child() instanceof PackDims pack && pack.dims().stream().anyMatch(dim -> dim.name().contains("dst")))
+        );
+    }
+
     private static List<Expression> nonFiniteExpressions(LogicalPlan plan) {
         List<Expression> nonFiniteExpressions = new ArrayList<>();
         plan.forEachExpressionDown(Expression.class, e -> {

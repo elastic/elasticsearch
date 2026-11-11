@@ -12,10 +12,13 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
 import java.util.List;
 
@@ -119,5 +122,144 @@ public class PromqlPlanSetOperatorTests extends AbstractPromqlPlanOptimizerTests
         // The synthetic branch tag must not leak into the command output.
         List<String> outputNames = plan.output().stream().map(Attribute::name).toList();
         assertFalse("the synthetic _branch column must be projected away", outputNames.contains("_branch"));
+    }
+
+    /** Nested {@code or} under an aggregation flattens to UnionAll + TopNBy like the top-level chain. */
+    public void testNestedUnionUnderSum() {
+        assumeTrue("set operators match without __name__, which needs a typed label container", typedLabelContainer());
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1m sum(network.bytes_in or network.cost)", false);
+        assertTrue(plan.resolved());
+        assertUnionDedupShape(plan, 2);
+    }
+
+    public void testNestedUnionRateOrIrate() {
+        assumeTrue("set operators match without __name__, which needs a typed label container", typedLabelContainer());
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s step=1m max(rate(network.total_bytes_in[5m]) or irate(network.total_bytes_in[5m]))",
+            false
+        );
+        assertTrue(plan.resolved());
+        assertUnionDedupShape(plan, 2);
+    }
+
+    /** Nested {@code or} as an arithmetic operand joins rather than folding UnionAll into one Aggregate. */
+    public void testNestedUnionInArithmetic() {
+        assumeTrue("set operators match without __name__, which needs a typed label container", typedLabelContainer());
+        assumeTrue("joining union results needs typed label container regrouping", versionMode == VersionMode.CURRENT);
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s step=1m (rate(network.total_bytes_in[5m]) or irate(network.total_bytes_in[5m])) "
+                + "/ (rate(network.bytes_in[5m]) or irate(network.bytes_in[5m]))",
+            false
+        );
+        assertTrue(plan.resolved());
+        assertFalse(plan.collect(HashJoin.class).isEmpty());
+    }
+
+    /**
+     * {@code a or on(K) b} unions {@code a} with {@code b unless on(K) a} and deduplicates nothing: several series of
+     * {@code a} sharing a signature all stay. The second branch anti-joins the right operand against the left one.
+     */
+    public void testOrOnUnionsTheUnmatchedRightSeries() {
+        assumeTrue("set operators match without __name__, which needs a typed label container", typedLabelContainer());
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s step=1m sum by (cluster, pod) (network.bytes_in) or on (cluster) sum by (cluster) (network.cost)",
+            false
+        );
+        assertTrue(plan.resolved());
+        List<UnionAll> unions = plan.collect(UnionAll.class);
+        assertThat(unions, hasSize(1));
+        List<LogicalPlan> branches = unions.getFirst().children();
+        assertThat(branches, hasSize(2));
+        assertTrue("nothing deduplicates the union", plan.collect(TopNBy.class).stream().noneMatch(t -> t.child() instanceof UnionAll));
+        assertTrue("the left operand is kept as is", branches.getFirst().collect(HashJoin.class).isEmpty());
+        List<HashJoin> joins = branches.get(1).collect(HashJoin.class);
+        assertThat(joins, hasSize(1));
+        assertThat(joins.getFirst().config().type(), equalTo(JoinTypes.LEFT));
+    }
+
+    /** The empty-guard idiom: {@code on ()} adds the right operand at the steps where the left one has no series. */
+    public void testOrOnEmptyAntiJoinsOnStep() {
+        assumeTrue("set operators match without __name__, which needs a typed label container", typedLabelContainer());
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1m sum(rate(network.total_bytes_in[5m])) or on () vector(1)", false);
+        assertTrue(plan.resolved());
+        List<HashJoin> joins = plan.collect(HashJoin.class);
+        assertThat(joins, hasSize(1));
+        assertThat(joins.getFirst().leftFields(), hasSize(1));
+    }
+
+    /**
+     * {@code unless} keeps a left series no right one matches, where the right value is null: a constant right operand
+     * ({@code vector(1)}) must not fold into the expression above the join as if every left series had a match.
+     */
+    public void testUnlessConstantRightStaysNullWhereUnmatched() {
+        assumeTrue("set operators match without __name__, which needs a typed label container", typedLabelContainer());
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1m network.bytes_in unless on (cluster) vector(1)");
+        List<HashJoin> joins = plan.collect(HashJoin.class);
+        assertThat(joins, hasSize(1));
+        assertThat(joins.getFirst().config().type(), equalTo(JoinTypes.LEFT));
+        Attribute right = joins.getFirst().addedFields().getFirst();
+        assertTrue(
+            "the result still reads the right value",
+            plan.anyMatch(p -> p instanceof Eval eval && eval.references().contains(right))
+        );
+    }
+
+    /**
+     * A default {@code or} whose left limb matches {@code on(__name__, ...)} can hold two series apart only by their name:
+     * it unions by anti-join too, rather than keeping one series per default signature.
+     */
+    /**
+     * {@code and} matches many-to-many: several left series may share one right series under {@code ignoring(pod)}.
+     * The join must not demand one-to-one matching, and the build side is cut to one row per key so each left row
+     * matches at most once.
+     */
+    public void testAndIgnoringJoinsManyToMany() {
+        assumeTrue("set operators match without __name__, which needs a typed label container", typedLabelContainer());
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s step=1m sum by (cluster, pod) (network.bytes_in) and ignoring (pod) sum by (cluster) (network.cost)",
+            false
+        );
+        assertTrue(plan.resolved());
+        List<HashJoin> joins = plan.collect(HashJoin.class);
+        assertThat(joins, hasSize(1));
+        HashJoin join = joins.getFirst();
+        assertFalse("set operators match many-to-many", join.unique());
+        List<TopNBy> dedup = join.right().collect(TopNBy.class);
+        assertThat(dedup, hasSize(1));
+        assertThat(dedup.getFirst().limitPerGroup().fold(FoldContext.small()), equalTo(1));
+        assertThat(dedup.getFirst().groupings(), hasSize(join.rightFields().size()));
+    }
+
+    /**
+     * {@code unless} between operands whose series never share a group cannot fold into one aggregate, which would come
+     * back empty: it anti-joins (LEFT) on the union of the operands' labels, so the left operand is kept whole.
+     */
+    public void testUnlessBetweenDifferentLabelSetsAntiJoins() {
+        assumeTrue("set operators match without __name__, which needs a typed label container", typedLabelContainer());
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s step=1m sum by (cluster, pod) (network.bytes_in) unless sum by (cluster) (network.cost)",
+            false
+        );
+        assertTrue(plan.resolved());
+        List<HashJoin> joins = plan.collect(HashJoin.class);
+        assertThat(joins, hasSize(1));
+        assertThat(joins.getFirst().config().type(), equalTo(JoinTypes.LEFT));
+    }
+
+    /**
+     * grafanalabs baseline-2 cases 2357/2358: {@code (rate or irate)/(rate or irate)} is admitted and plans, but e2e
+     * fails with "Cannot project block". Plan-only coverage is insufficient; keep this as a typed-path shape pin until
+     * an e2e {@code @AwaitsFix} (FunctionalTimeSeriesIT / csv-spec) owns the runtime assertion.
+     */
+    public void testOrFallbackRatioPlans() {
+        assumeTrue("requires typed _timeseries", typedLabelContainer());
+        var plan = planPromql("""
+            PROMQL index=k8s step=1m result=(
+              (rate(network.total_bytes_in[5m]) or irate(network.total_bytes_in[5m]))
+              /
+              (rate(network.total_bytes_out[5m]) or irate(network.total_bytes_out[5m]))
+            )
+            """, true);
+        assertTrue(plan.resolved());
     }
 }

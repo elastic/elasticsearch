@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.promql.function.HashOffset;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.DistinctBy;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
@@ -165,7 +166,12 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
 
         static Classes of(LogicalPlan plan) {
             Classes classes = new Classes();
-            plan.forEachUp(classes::visit);
+            // A join can class a key whose container is computed below it: visit again until no container joins a class.
+            int known;
+            do {
+                known = classes.byId.size();
+                plan.forEachUp(classes::visit);
+            } while (classes.byId.size() != known);
             return classes;
         }
 
@@ -235,13 +241,26 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
             for (Expression expression : node.expressions()) {
                 Expression body = expression instanceof Alias alias ? alias.child() : expression;
                 Integer cls = classOf(body, promql);
+                if (expression instanceof Alias alias && isContainer(alias)) {
+                    cls = merge(cls, byId.get(alias.id()));
+                }
                 if (cls != null) {
-                    if (expression instanceof Alias alias && alias.dataType() == DataType.TIME_SERIES_METADATA_DATA_TYPE) {
-                        assign(alias.id(), cls);
+                    int root = cls;
+                    if (expression instanceof Alias alias && isContainer(alias)) {
+                        assign(alias.id(), root);
                     }
+                    body.forEachDown(Attribute.class, attribute -> {
+                        if (isContainer(attribute)) {
+                            assign(attribute.id(), root);
+                        }
+                    });
                     collect(body, cls);
                 }
             }
+        }
+
+        private static boolean isContainer(NamedExpression named) {
+            return named.resolved() && named.dataType() == DataType.TIME_SERIES_METADATA_DATA_TYPE;
         }
 
         private @Nullable Integer classOf(Expression expression, boolean promql) {
@@ -385,6 +404,8 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
 
         /** Whether this run only finds the views read above each collapse. */
         private final boolean finding;
+        /** The packed keys of checks for repeated label sets a keyword label container cannot state. */
+        private final Set<NameId> unstated = new HashSet<>();
         /** Whether every node reads the typed label container; otherwise the residual containers stay keyword. */
         private final boolean typed;
 
@@ -415,6 +436,7 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
                 case HashJoin join -> join(join);
                 case TopNBy topNBy -> topNBy(topNBy);
                 case PackDims pack -> pack(pack);
+                case DistinctBy check when unstated.contains(check.key().id()) -> check.child();
                 default -> rewritten.transformExpressionsOnlyUp(Expression.class, this::scalar);
             };
         }
@@ -775,13 +797,20 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
                     names.addAll(shape.labels().keySet());
                     excluded.addAll(shape.excluded());
                 });
+                // The union's residual container leaves a label out only where every branch's does.
+                excluded.addAll(names);
+                excluded.removeIf(
+                    label -> branches.stream()
+                        .anyMatch(branch -> inRest(branch, label) || branch.hasRest() == false && branch.labels().containsKey(label))
+                );
                 Source source = out.source();
                 Attribute restOut = null;
                 // Union outputs are named apart: the container's own name for its residual part, prefixed for its labels.
                 if (rest) {
                     var parts = new ArrayList<Expression>();
                     for (Shape branch : branches) {
-                        parts.add(branch.rest() != null ? branch.rest() : cast(source, absent(source)));
+                        // A branch holding all its labels in columns has them in its residual container as well, as the others do.
+                        parts.add(branch.rest() != null ? branch.rest() : container(branch, source));
                     }
                     restOut = unionOutput(parts, out.name(), containerType(), evals, projections, output, outputs);
                 }
@@ -902,6 +931,13 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
                         dims.add(attribute(label, name, evals));
                     }
                 });
+            }
+            if (typed == false
+                && evals.stream().anyMatch(eval -> eval.child().anyMatch(AbstractTimeSeriesMetadataFunction.class::isInstance))) {
+                // A keyword label container cannot state the label set a check for repeated ones packs: the check goes, as it
+                // always has there.
+                unstated.add(pack.packed().id());
+                return pack.child();
             }
             return new PackDims(pack.source(), withEvals(pack.child(), evals), dims, pack.packed(), pack.emptyAsAbsent());
         }

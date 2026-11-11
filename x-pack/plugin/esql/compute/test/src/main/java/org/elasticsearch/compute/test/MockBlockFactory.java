@@ -13,7 +13,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.AbstractBlockBuilder;
 import org.elasticsearch.compute.data.AbstractDelegatingCompoundBlock;
-import org.elasticsearch.compute.data.AbstractVectorBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
@@ -22,28 +21,23 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryBuilder;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.data.BooleanVectorFixedBuilder;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleRangeBlock;
 import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.data.DoubleVectorFixedBuilder;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.FloatVector;
-import org.elasticsearch.compute.data.FloatVectorFixedBuilder;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.IntVectorFixedBuilder;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongVector;
-import org.elasticsearch.compute.data.LongVectorFixedBuilder;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.data.TDigestBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
@@ -156,29 +150,14 @@ public class MockBlockFactory extends BlockFactory {
 
     static boolean isKeyReleased(IdentityKey key) {
         Object b = key.object;
-        if (b instanceof Block block) {
-            return block.isReleased();
-        } else if (b instanceof AbstractBlockBuilder blockBuilder) {
-            return blockBuilder.isReleased();
-        } else if (b instanceof IntVectorFixedBuilder vecBuilder) {
-            return vecBuilder.isReleased();
-        } else if (b instanceof LongVectorFixedBuilder vecBuilder) {
-            return vecBuilder.isReleased();
-        } else if (b instanceof DoubleVectorFixedBuilder vecBuilder) {
-            return vecBuilder.isReleased();
-        } else if (b instanceof BooleanVectorFixedBuilder vecBuilder) {
-            return vecBuilder.isReleased();
-        } else if (b instanceof FloatVectorFixedBuilder vecBuilder) {
-            return vecBuilder.isReleased();
-        } else if (b instanceof AbstractDelegatingCompoundBlock.AbstractCompositeBlockBuilder<?> compositeBuilder) {
-            return compositeBuilder.isReleased();
-        } else if (b instanceof AbstractVectorBuilder vecBuilder) {
-            return vecBuilder.isReleased();
-        } else if (b instanceof Vector vector) {
-            return vector.isReleased();
-        } else {
-            throw new RuntimeException("Unexpected: " + b);
-        }
+        return switch (b) {
+            case Block block -> block.isReleased();
+            case Vector vector -> vector.isReleased();
+            case AbstractBlockBuilder builder -> builder.isReleased();
+            case Vector.Builder builder -> builder.isReleased();
+            case AbstractDelegatingCompoundBlock.AbstractCompositeBlockBuilder<?> builder -> builder.isReleased();
+            default -> throw new RuntimeException("Unexpected: " + b);
+        };
     }
 
     void purgeTrackBlocks() {

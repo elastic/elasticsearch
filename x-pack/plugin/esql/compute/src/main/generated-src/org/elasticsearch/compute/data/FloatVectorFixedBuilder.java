@@ -84,6 +84,7 @@ public final class FloatVectorFixedBuilder implements FloatVector.FixedBuilder {
         }
     }
 
+    @Override
     public boolean isReleased() {
         return closed;
     }

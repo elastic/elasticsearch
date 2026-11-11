@@ -84,6 +84,7 @@ public final class IntVectorFixedBuilder implements IntVector.FixedBuilder {
         }
     }
 
+    @Override
     public boolean isReleased() {
         return closed;
     }

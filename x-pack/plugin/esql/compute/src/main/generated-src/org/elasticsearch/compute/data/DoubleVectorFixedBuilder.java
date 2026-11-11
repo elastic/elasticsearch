@@ -84,6 +84,7 @@ public final class DoubleVectorFixedBuilder implements DoubleVector.FixedBuilder
         }
     }
 
+    @Override
     public boolean isReleased() {
         return closed;
     }

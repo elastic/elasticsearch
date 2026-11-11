@@ -84,6 +84,7 @@ public final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuild
         }
     }
 
+    @Override
     public boolean isReleased() {
         return closed;
     }

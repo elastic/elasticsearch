@@ -84,6 +84,7 @@ public final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
         }
     }
 
+    @Override
     public boolean isReleased() {
         return closed;
     }

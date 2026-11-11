@@ -84,6 +84,7 @@ public final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder
         }
     }
 
+    @Override
     public boolean isReleased() {
         return closed;
     }

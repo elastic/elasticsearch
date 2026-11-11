@@ -13,7 +13,9 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.core.Nullable;
@@ -67,7 +69,7 @@ public class ColumnarNumericPayloadSyntheticFieldLoaderLayer implements Composit
     }
 
     private boolean advanceToDoc(int docId) throws IOException {
-        count = values.advanceExact(docId) ? NumericBinaryPayload.decode(values.binaryValue(), decoded) : 0;
+        count = readValues(docId);
         if (offsets.advanceExact(docId)) {
             final BytesRef encoded = offsets.lookupOrd(offsets.ordValue());
             scratch.reset(encoded.bytes, encoded.offset, encoded.length);
@@ -77,6 +79,24 @@ public class ColumnarNumericPayloadSyntheticFieldLoaderLayer implements Composit
             offsetToOrd = null;
         }
         return hasValue();
+    }
+
+    /** Reads the document's values into {@link #decoded}, returning how many it holds. */
+    private int readValues(int docId) throws IOException {
+        if (values.advanceExact(docId) == false) {
+            return 0;
+        }
+        if (values instanceof ColumnarNumericBinaryDocValues columnar) {
+            // Read straight out of the column rather than building a payload only to decode it.
+            final int valueCount = columnar.docValueCount();
+            decoded[0] = ArrayUtil.grow(decoded[0], valueCount);
+            for (int i = 0; i < valueCount; i++) {
+                decoded[0][i] = columnar.valueAt(i);
+            }
+            return valueCount;
+        }
+        // Payloads that haven't been through the codec.
+        return NumericBinaryPayload.decode(values.binaryValue(), decoded);
     }
 
     private boolean slotsPointAtValuesInOrder() {

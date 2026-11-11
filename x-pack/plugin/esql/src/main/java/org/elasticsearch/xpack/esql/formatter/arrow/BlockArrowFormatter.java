@@ -47,7 +47,7 @@ public abstract class BlockArrowFormatter {
         // Add the exact ESQL type as field metadata
         var meta = new HashMap<>(extraMetadata);
         meta.put(ESQL_TYPE_METADATA, esqlType.outputType());
-        this.fieldType = new FieldType(true, minorType.getType(), null, meta);
+        this.fieldType = new FieldType(true, minorType.getType(), null, Map.copyOf(meta));
     }
 
     public Field arrowField(String name) {
@@ -476,23 +476,26 @@ public abstract class BlockArrowFormatter {
          */
         private static final String GEO_CRS_METADATA = "{\"crs\":\"OGC:CRS84\",\"crs_type\":\"authority_code\"}";
 
+        public AsGeoArrowWkb(DataType esqlType) {
+            super(esqlType, Types.MinorType.VARBINARY, extensionMetadata(esqlType));
+        }
+
         /**
-         * @param geographic if true, declare the CRS as lon/lat. Otherwise the {@code crs} is omitted, which GeoArrow defines as "the
-         *                   producer does not have any information about the CRS".
+         * Geo types declare the CRS as lon/lat. Cartesian types omit the {@code crs}, which GeoArrow defines as "the
+         * producer does not have any information about the CRS".
          */
-        public AsGeoArrowWkb(DataType esqlType, boolean geographic) {
-            super(
-                esqlType,
-                Types.MinorType.VARBINARY,
-                geographic
-                    ? Map.of(
-                        ExtensionType.EXTENSION_METADATA_KEY_NAME,
-                        GEOARROW_WKB,
-                        ExtensionType.EXTENSION_METADATA_KEY_METADATA,
-                        GEO_CRS_METADATA
-                    )
-                    : Map.of(ExtensionType.EXTENSION_METADATA_KEY_NAME, GEOARROW_WKB)
-            );
+        private static Map<String, String> extensionMetadata(DataType esqlType) {
+            boolean geographic = switch (esqlType) {
+                case GEO_POINT, GEO_SHAPE -> true;
+                case CARTESIAN_POINT, CARTESIAN_SHAPE -> false;
+                default -> throw new IllegalArgumentException("Not a WKB geometry type: " + esqlType);
+            };
+            var metadata = new HashMap<String, String>();
+            metadata.put(ExtensionType.EXTENSION_METADATA_KEY_NAME, GEOARROW_WKB);
+            if (geographic) {
+                metadata.put(ExtensionType.EXTENSION_METADATA_KEY_METADATA, GEO_CRS_METADATA);
+            }
+            return metadata;
         }
     }
 

@@ -460,8 +460,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case IP -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARBINARY, ValueConversions::shortenIpV4Addresses);
 
             // Geo types: keep the WKB format (JSON converts to WKT), tagged with the geoarrow.wkb extension type
-            case GEO_POINT, GEO_SHAPE -> new BlockArrowFormatter.AsGeoArrowWkb(type, true);
-            case CARTESIAN_POINT, CARTESIAN_SHAPE -> new BlockArrowFormatter.AsGeoArrowWkb(type, false);
+            case GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> new BlockArrowFormatter.AsGeoArrowWkb(type);
 
             // version: convert to string
             case VERSION -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::versionToString);

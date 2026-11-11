@@ -218,10 +218,15 @@ public class ArrowResponseTests extends ESTestCase {
      * Random points or shapes encoded as WKB, as found in ES|QL geo blocks. Values read back from Arrow are
      * checked to be valid WKB, and the field is checked to be tagged with the {@code geoarrow.wkb} extension type.
      *
-     * @param geographic true for geo types, that declare a CRS, false for cartesian types that don't.
-     * @param point true to generate points, false to generate shapes (any kind of geometry).
+     * Geo types must declare a CRS, cartesian types must not. Point types get points, shape types get any kind of geometry.
      */
-    static ValueType wkbValues(boolean geographic, boolean point) {
+    static ValueType wkbValues(DataType type) {
+        boolean geographic = switch (type) {
+            case GEO_POINT, GEO_SHAPE -> true;
+            case CARTESIAN_POINT, CARTESIAN_SHAPE -> false;
+            default -> throw new IllegalArgumentException("Not a WKB geometry type: " + type);
+        };
+        boolean point = DataType.isSpatialPoint(type);
         return new ValueTypeImpl<BytesRefBlock.Builder, BytesRefBlock, VarBinaryVector>(
             "wkb",
             factory -> factory.newBytesRefBlockBuilder(0),
@@ -245,10 +250,10 @@ public class ArrowResponseTests extends ESTestCase {
         );
     }
 
-    static final ValueType GEO_POINT_VALUES = wkbValues(true, true);
-    static final ValueType GEO_SHAPE_VALUES = wkbValues(true, false);
-    static final ValueType CARTESIAN_POINT_VALUES = wkbValues(false, true);
-    static final ValueType CARTESIAN_SHAPE_VALUES = wkbValues(false, false);
+    static final ValueType GEO_POINT_VALUES = wkbValues(DataType.GEO_POINT);
+    static final ValueType GEO_SHAPE_VALUES = wkbValues(DataType.GEO_SHAPE);
+    static final ValueType CARTESIAN_POINT_VALUES = wkbValues(DataType.CARTESIAN_POINT);
+    static final ValueType CARTESIAN_SHAPE_VALUES = wkbValues(DataType.CARTESIAN_SHAPE);
 
     private static BytesRef randomWkb(boolean point) {
         boolean hasAlt = randomBoolean();
@@ -1275,12 +1280,12 @@ public class ArrowResponseTests extends ESTestCase {
             BiFunction<VectorT, Integer, Object> vectorGetter,
             Consumer<Map<String, String>> metadataChecker
         ) {
-            this.metadataChecker = metadataChecker;
             this.name = name;
             this.builderCreator = builderCreator;
             this.valueAdder = valueAdder;
             this.blockGetter = blockGetter;
             this.vectorGetter = vectorGetter;
+            this.metadataChecker = metadataChecker;
         }
 
         @Override

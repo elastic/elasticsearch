@@ -261,7 +261,7 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
      *
      * @return A {@code boolean} so that this method can be used in an {@code assert} statement.
      * This will be {@code true} if the routing table and metadata are in-sync.
-     * Will never return {@code false} because validation execptions always throw an exception.
+     * Will never return {@code false} because validation exceptions always throw an exception.
      * @throws IllegalStateException if validation fails
      */
     public boolean validate(Metadata metadata) {

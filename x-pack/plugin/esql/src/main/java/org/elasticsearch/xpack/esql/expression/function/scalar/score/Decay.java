@@ -471,7 +471,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
                 decayFolded,
                 decayFunction
             );
-            default -> throw new UnsupportedOperationException("Unsupported data typeExpr: " + valueDataType);
+            default -> throw new UnsupportedOperationException("Unsupported data type: " + valueDataType);
         };
     }
 

@@ -401,13 +401,11 @@ public final class OutboundHandler {
             // We have to close here before accessing the bytes when using compression to ensure that some marker bytes (EOS marker)
             // are written. But note that the inner stream is wrapped in a noCloseStream() so it remains open.
             if (toClose1 != null) {
-                if (failure != null) {
-                    // Closing can trip the breaker, so a close failure is suppressed onto the original rather than replacing it.
-                    IOUtils.close(failure, toClose1, toClose2);
-                } else if (toClose2 == null) {
-                    IOUtils.close(toClose1);
+                // Closing can trip the breaker, so a close failure is suppressed onto the original rather than replacing it.
+                if (toClose2 == null) {
+                    IOUtils.close(failure, toClose1);
                 } else {
-                    IOUtils.close(toClose1, toClose2);
+                    IOUtils.close(failure, toClose1, toClose2);
                 }
             }
         }

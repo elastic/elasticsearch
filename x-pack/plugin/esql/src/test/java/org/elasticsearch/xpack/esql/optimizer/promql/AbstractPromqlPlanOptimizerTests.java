@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -19,6 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
 
 import java.time.Instant;
@@ -60,10 +63,20 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
      * {@code SubstituteTransportVersionAwareExpressionsTests}.
      */
     protected LogicalPlan planPromql(String query, boolean allowEmptyReferences, boolean optimize) {
+        return planPromql(tsAnalyzer(), query, allowEmptyReferences, optimize);
+    }
+
+    /** Plans {@code query} translated over a label container, see {@link QueryPragmas#ENABLE_PROMQL_TRANSLATION_V2}. */
+    protected LogicalPlan planPromqlOverLabels(String query, boolean optimize) {
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.ENABLE_PROMQL_TRANSLATION_V2.getKey(), true).build());
+        return planPromql(tsAnalyzer().configuration(EsqlTestUtils.configuration(pragmas)), query, false, optimize);
+    }
+
+    private LogicalPlan planPromql(TestAnalyzer analyzer, String query, boolean allowEmptyReferences, boolean optimize) {
         var now = Instant.now();
         query = query.replace("$now-1h", "\"" + now.minus(1, ChronoUnit.HOURS) + "\"");
         query = query.replace("$now", "\"" + now + "\"");
-        var analyzed = tsAnalyzer().query(query);
+        var analyzed = analyzer.query(query);
         AttributeSet.Builder references = AttributeSet.builder();
         analyzed.forEachDown(lp -> references.addAll(lp.references()));
         if (allowEmptyReferences) {

@@ -514,36 +514,9 @@ public final class PartitionSpec {
     }
 
     /**
-     * Closed {@code @timestamp} bounds from the request filter, as listing hints, on paths whose
-     * spec binds that column. Other paths keep {@code hints}. An open range is not represented here:
-     * the extractor only returns bounds when both ends parsed.
-     */
-    public static Map<String, List<PartitionFilterHint>> addTimestampBounds(
-        Map<String, List<PartitionFilterHint>> hints,
-        @Nullable Map<String, Map<String, Object>> pathConfigs,
-        @Nullable Instant start,
-        @Nullable Instant end
-    ) {
-        if (start == null || end == null || start.isAfter(end) || pathConfigs == null || pathConfigs.isEmpty()) {
-            return hints;
-        }
-        Map<String, List<PartitionFilterHint>> withBounds = null;
-        for (Map.Entry<String, Map<String, Object>> entry : pathConfigs.entrySet()) {
-            PartitionSpec spec = fromConfig(entry.getValue());
-            if (spec.bindsColumn(MetadataAttribute.TIMESTAMP_FIELD) == false) {
-                continue;
-            }
-            if (withBounds == null) {
-                withBounds = new LinkedHashMap<>(hints);
-            }
-            withBounds.put(entry.getKey(), spec.withTimestampBounds(withBounds.get(entry.getKey()), start, end));
-        }
-        return withBounds == null ? hints : withBounds;
-    }
-
-    /**
-     * {@code hints} with closed {@code @timestamp} bounds prepended, or {@code hints} unchanged when this spec does
-     * not bind that column or the range is not closed. The single-spec form of {@link #addTimestampBounds}.
+     * {@code hints} with the request filter's closed {@code @timestamp} bounds prepended, as listing hints, or
+     * {@code hints} unchanged when this spec does not bind that column or the range is not closed. An open range is
+     * not represented here: the extractor only returns bounds when both ends parsed.
      */
     public List<PartitionFilterHint> withTimestampBounds(
         @Nullable List<PartitionFilterHint> hints,

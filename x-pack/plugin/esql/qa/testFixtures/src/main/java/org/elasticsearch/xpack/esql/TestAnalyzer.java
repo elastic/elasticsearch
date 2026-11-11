@@ -552,9 +552,8 @@ public class TestAnalyzer {
     /**
      * Set external source resolution from a bare data-only schema, mirroring the production path in
      * {@link ExternalSourceResolver}: the schema is used as-is, with no {@code _file.*} auto-attach.
-     * External metadata columns are request-driven now — they reach the relation only through the
-     * METADATA clause (FROM path) or the temporary EXTERNAL-command shim that injects {@code _file.*}
-     * into the relation's metadataFields at parse time.
+     * External metadata columns are request-driven: they reach the relation only through a METADATA
+     * clause, which puts them in the relation's metadataFields at parse time.
      * <p>
      * Keyed under an <b>empty</b> configuration, which only matches a relation built by hand with one — see
      * {@link #externalSourceResolution(ProjectMetadata, String, List, FileList)} for a plan the

@@ -76,7 +76,8 @@ public record ExternalSourceResolution(Map<ExternalSourceSpec, ResolvedSource> r
      *
      * @throws IllegalStateException if more than one spec over {@code path} resolved
      */
-    public ResolvedSource soleResolvedSource(String path) {
+    // Package-private: no production caller, and the tests that use it are in this package.
+    ResolvedSource soleResolvedSource(String path) {
         ResolvedSource found = null;
         for (Map.Entry<ExternalSourceSpec, ResolvedSource> entry : resolved.entrySet()) {
             if (entry.getKey().path().equals(path)) {

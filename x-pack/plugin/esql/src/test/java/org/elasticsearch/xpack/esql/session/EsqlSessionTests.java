@@ -89,6 +89,7 @@ import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -442,7 +443,7 @@ public class EsqlSessionTests extends ESTestCase {
     }
 
     /**
-     * Two datasets over one resource that read it <em>differently</em> are two reads, and both must survive to the
+     * Two datasets over one resource that read it <em>differently</em> are two specs, and both must survive to the
      * resolver: one bucket read as CSV and as TSV yields different columns. Keyed by
      * the resource alone, the second relation's configuration overwrote the first and both relations then resolved
      * against whichever was visited last.
@@ -452,25 +453,25 @@ public class EsqlSessionTests extends ESTestCase {
         Map<String, Object> asCsv = configWith("format", "csv");
         Map<String, Object> asTsv = configWith("format", "tsv");
 
-        List<ExternalSourceSpec> reads = EsqlSession.extractExternalSourceSpecs(twoRelationsOnOnePath(path, asCsv, asTsv));
+        List<ExternalSourceSpec> specs = EsqlSession.extractExternalSourceSpecs(twoRelationsOnOnePath(path, asCsv, asTsv));
 
-        assertThat("two reads of one resource must both survive", reads, hasSize(2));
-        assertThat(reads, equalTo(List.of(new ExternalSourceSpec(path, asCsv), new ExternalSourceSpec(path, asTsv))));
+        assertThat("two specs over one resource must both survive", specs, hasSize(2));
+        assertThat(specs, equalTo(List.of(new ExternalSourceSpec(path, asCsv), new ExternalSourceSpec(path, asTsv))));
     }
 
-    /** One resource read the same way twice is one read, so the two relations share a listing and a schema. */
+    /** One resource read the same way twice is one spec, so the two relations share a listing and a schema. */
     public void testOneResourceReadOneWayTwiceCollapsesToOneSpec() {
         String path = "s3://bucket/sales";
 
-        List<ExternalSourceSpec> reads = EsqlSession.extractExternalSourceSpecs(
+        List<ExternalSourceSpec> specs = EsqlSession.extractExternalSourceSpecs(
             twoRelationsOnOnePath(path, configWith("format", "csv"), configWith("format", "csv"))
         );
 
-        assertThat("equal configurations are one read", reads, equalTo(List.of(new ExternalSourceSpec(path, configWith("format", "csv")))));
+        assertThat("equal configurations are one spec", specs, equalTo(List.of(new ExternalSourceSpec(path, configWith("format", "csv")))));
     }
 
     /**
-     * Two datasets over one resource are two reads even when only their {@code _dataset_context} differs. The context
+     * Two datasets over one resource are two specs even when only their {@code _dataset_context} differs. The context
      * does not change which bytes are read, but {@code ExternalSourceResolver} annotates a classified failure with it,
      * so collapsing the two would report one dataset's failure under the other's name.
      */
@@ -482,11 +483,11 @@ public class EsqlSessionTests extends ESTestCase {
         second.put(ExternalSourceResolver.DATASET_CONTEXT_KEY, Map.of("dataset", "b", "datasource", "src", "type", "s3"));
         assertThat("the two configs must be unequal as maps, or this test proves nothing", first, not(equalTo(second)));
 
-        List<ExternalSourceSpec> reads = EsqlSession.extractExternalSourceSpecs(twoRelationsOnOnePath(path, first, second));
+        List<ExternalSourceSpec> specs = EsqlSession.extractExternalSourceSpecs(twoRelationsOnOnePath(path, first, second));
 
         assertThat(
-            "two named datasets are two reads",
-            reads,
+            "two named datasets are two specs",
+            specs,
             equalTo(List.of(new ExternalSourceSpec(path, first), new ExternalSourceSpec(path, second)))
         );
     }
@@ -504,9 +505,9 @@ public class EsqlSessionTests extends ESTestCase {
             configWith("format", "ndjson")
         );
 
-        List<ExternalSourceSpec> reads = EsqlSession.extractExternalSourceSpecs(new UnionAll(EMPTY, List.of(left, right), List.of()));
+        List<ExternalSourceSpec> specs = EsqlSession.extractExternalSourceSpecs(new UnionAll(EMPTY, List.of(left, right), List.of()));
 
-        assertThat(reads.stream().map(ExternalSourceSpec::path).toList(), equalTo(List.of("s3://bucket/left", "s3://bucket/right")));
+        assertThat(specs.stream().map(ExternalSourceSpec::path).toList(), equalTo(List.of("s3://bucket/left", "s3://bucket/right")));
     }
 
     private static Map<String, Object> configWith(String key, Object value) {
@@ -1044,21 +1045,21 @@ public class EsqlSessionTests extends ESTestCase {
         UnresolvedExternalRelation relation = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), Map.of());
         LogicalPlan plan = new Limit(EMPTY, new Literal(EMPTY, 10, DataType.INTEGER), relation);
 
-        Set<String> captured = capturePathsRequiringStats(plan, path);
+        Set<ExternalSourceSpec> captured = captureSpecsRequiringStats(plan, path);
         assertNotNull("wiring must forward a non-null set", captured);
         assertTrue("LIMIT forwards an empty set (defer everything)", captured.isEmpty());
     }
 
     /**
      * Wiring test: an ungrouped {@code STATS COUNT(*)} over an external relation forwards a set
-     * containing the relation's path, so the resolver keeps eager all-file stats aggregation for it.
+     * containing the relation's spec, so the resolver keeps eager all-file stats aggregation for it.
      */
-    public void testPreAnalyzeExternalSourcesForwardsPathForUngroupedStats() {
+    public void testPreAnalyzeExternalSourcesForwardsSpecForUngroupedStats() {
         String path = "s3://bucket/data/*.parquet";
         UnresolvedExternalRelation relation = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), Map.of());
         LogicalPlan plan = new Aggregate(EMPTY, relation, List.of(), List.of());
 
-        assertEquals(Set.of(path), capturePathsRequiringStats(plan, path));
+        assertEquals(Set.of(new ExternalSourceSpec(path, Map.of())), captureSpecsRequiringStats(plan, path));
     }
 
     /**
@@ -1127,8 +1128,8 @@ public class EsqlSessionTests extends ESTestCase {
         LogicalPlan plan = new Limit(EMPTY, new Literal(EMPTY, 0, DataType.INTEGER), relation);
 
         CapturedExternalResolve captured = captureExternalResolve(plan, path);
-        assertEquals(Set.of(path), captured.pathsReadingNoRows());
-        assertTrue("a path reading no rows cannot also require eager stats", captured.pathsRequiringStats().isEmpty());
+        assertEquals(Set.of(new ExternalSourceSpec(path, Map.of())), captured.specsReadingNoRows());
+        assertTrue("a path reading no rows cannot also require eager stats", captured.specsRequiringStats().isEmpty());
     }
 
     /**
@@ -1141,17 +1142,16 @@ public class EsqlSessionTests extends ESTestCase {
         LogicalPlan plan = new Limit(EMPTY, new Literal(EMPTY, 10, DataType.INTEGER), relation);
 
         CapturedExternalResolve captured = captureExternalResolve(plan, path);
-        assertNotNull("wiring must forward a non-null set", captured.pathsReadingNoRows());
-        assertTrue("a query that reads rows bounds nothing", captured.pathsReadingNoRows().isEmpty());
+        assertNotNull("wiring must forward a non-null set", captured.specsReadingNoRows());
+        assertTrue("a query that reads rows bounds nothing", captured.specsReadingNoRows().isEmpty());
     }
 
     /**
      * A read whose {@code partition_spec} binds {@code @timestamp} earns the request's own time bounds as listing
-     * hints with no {@code WHERE} in the query at all — the Kibana time-picker shape. The per-read loop must call
-     * {@link PartitionSpec#addTimestampBounds} even though {@code PartitionFilterHintExtractor} found nothing for
-     * this path, because that method reads the configs rather than the hints and creates the entry itself. An
-     * earlier revision of this PR skipped the call on a null and lost both the {@code year} IN and the folder
-     * range, listing the whole glob.
+     * hints with no {@code WHERE} in the query at all — the Kibana time-picker shape. The per-spec loop calls
+     * {@link PartitionSpec#withTimestampBounds} even when {@code PartitionFilterHintExtractor} found nothing for
+     * this path: the bounds come from the spec's own {@code partition_spec} and the request filter, not from the
+     * hints, so skipping the call on a null hint list loses both the {@code year} IN and the folder range.
      */
     public void testPreAnalyzeExternalSourcesAppliesTimestampBoundsWithNoQueryFilter() {
         String path = "s3://bucket/logs/**";
@@ -1170,9 +1170,9 @@ public class EsqlSessionTests extends ESTestCase {
             )
         );
 
-        ExternalSourceSpec read = captured.reads().get(0);
+        ExternalSourceSpec spec = captured.specs().get(0);
         assertNotNull("bounds alone must produce listing hints", captured.filterHints());
-        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = captured.filterHints().get(read);
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = captured.filterHints().get(spec);
         assertNotNull("the read must carry the projected hints", hints);
         assertThat(hints.stream().map(PartitionFilterHintExtractor.PartitionFilterHint::columnName).toList(), equalTo(List.of("year")));
         assertEquals(PartitionFilterHintExtractor.Operator.IN, hints.get(0).operator());
@@ -1181,41 +1181,144 @@ public class EsqlSessionTests extends ESTestCase {
         assertEquals(List.of(2026), hints.get(0).values());
 
         assertNotNull("bounds alone must produce a folder range", captured.folderRanges());
-        assertNotNull("the read must carry the folder range", captured.folderRanges().get(read));
+        assertNotNull("the spec must carry the folder range", captured.folderRanges().get(spec));
+    }
+
+    /**
+     * The demand sets are per spec too. Two datasets over one resource, one read under {@code LIMIT 0} and one
+     * reading rows: the first owes a schema and nothing else, and the second must not drag it into reading rows.
+     * Keyed by resource, the subtraction removes the shared path for both and the {@code LIMIT 0} spec is resolved
+     * as a reading query — over-eager at best, and at worst running a declared-mapping check it would have skipped.
+     */
+    public void testTwoSpecsOverOnePathKeepTheirOwnReadDemand() {
+        String path = "s3://bucket/logs/**";
+        Map<String, Object> asCsv = Map.of("format", "csv");
+        Map<String, Object> asTsv = Map.of("format", "tsv");
+        UnresolvedExternalRelation bounded = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), asCsv);
+        UnresolvedExternalRelation reading = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), asTsv);
+        LogicalPlan plan = new UnionAll(
+            EMPTY,
+            List.of(new Limit(EMPTY, new Literal(EMPTY, 0, DataType.INTEGER), bounded), reading),
+            List.of()
+        );
+
+        CapturedExternalResolve captured = captureExternalResolve(plan, path);
+
+        assertThat(captured.specs(), hasSize(2));
+        assertEquals(
+            "only the spec under LIMIT 0 reads no rows",
+            Set.of(new ExternalSourceSpec(path, asCsv)),
+            captured.specsReadingNoRows()
+        );
+    }
+
+    /**
+     * The eager-stats half of the same separation, which the no-rows test above does not reach. One spec under an
+     * ungrouped aggregate and one under a positive {@code LIMIT}, over one resource: only the aggregating spec
+     * owes all-file statistics. Forget the configuration when building the key here and every dataset-backed spec
+     * falls out of the set, because a dataset's config is never empty — the planning-time statistics path would go
+     * silently unused.
+     */
+    public void testTwoSpecsOverOnePathKeepTheirOwnStatsDemand() {
+        String path = "s3://bucket/logs/**";
+        Map<String, Object> asCsv = Map.of("format", "csv");
+        Map<String, Object> asTsv = Map.of("format", "tsv");
+        UnresolvedExternalRelation aggregating = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), asCsv);
+        UnresolvedExternalRelation limited = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), asTsv);
+        LogicalPlan plan = new UnionAll(
+            EMPTY,
+            List.of(
+                new Aggregate(EMPTY, aggregating, List.of(), List.of()),
+                new Limit(EMPTY, new Literal(EMPTY, 10, DataType.INTEGER), limited)
+            ),
+            List.of()
+        );
+
+        CapturedExternalResolve captured = captureExternalResolve(plan, path);
+
+        assertThat(captured.specs(), hasSize(2));
+        assertEquals(
+            "only the aggregating spec owes all-file statistics",
+            Set.of(new ExternalSourceSpec(path, asCsv)),
+            captured.specsRequiringStats()
+        );
+    }
+
+    /**
+     * The pruning inputs are per spec, not per resource. Two datasets over one path whose {@code partition_spec}
+     * binds a different column each get the hints and folder range their own spec earns: one binds
+     * {@code @timestamp} and takes the request's bounds, the other binds {@code ts} and takes nothing. Keyed by the
+     * resource, whichever spec the loop reached last would decide for both — listing the bound one's whole glob, or
+     * pruning the unbound one's folders against a column it does not partition by.
+     * <p>
+     * Both relation orders, because the defect this PR fixes was a last-write-wins map and an order-dependent gate
+     * passes in whichever order happens to be written.
+     */
+    public void testTwoSpecsOverOnePathEachGetTheirOwnPruningInputs() {
+        String path = "s3://bucket/logs/**";
+        Map<String, Object> bound = Map.of(PartitionSpec.CONFIG_PARTITION_SPEC, "year(@timestamp)");
+        Map<String, Object> unbound = Map.of(PartitionSpec.CONFIG_PARTITION_SPEC, "year(ts)");
+        QueryDslTimestampBoundsExtractor.TimestampBounds bounds = new QueryDslTimestampBoundsExtractor.TimestampBounds(
+            Instant.parse("2026-02-01T00:00:00Z"),
+            Instant.parse("2026-03-01T00:00:00Z")
+        );
+
+        for (boolean boundFirst : List.of(true, false)) {
+            CapturedExternalResolve captured = captureExternalResolve(
+                boundFirst ? twoRelationsOnOnePath(path, bound, unbound) : twoRelationsOnOnePath(path, unbound, bound),
+                path,
+                bounds
+            );
+
+            assertThat("both specs must survive to the resolver", captured.specs(), hasSize(2));
+            ExternalSourceSpec boundSpec = new ExternalSourceSpec(path, bound);
+            ExternalSourceSpec unboundSpec = new ExternalSourceSpec(path, unbound);
+            assertThat(captured.specs(), containsInAnyOrder(boundSpec, unboundSpec));
+
+            List<PartitionFilterHintExtractor.PartitionFilterHint> boundHints = captured.filterHints().get(boundSpec);
+            assertNotNull("the @timestamp-bound spec earns the request's bounds", boundHints);
+            assertThat(
+                boundHints.stream().map(PartitionFilterHintExtractor.PartitionFilterHint::columnName).toList(),
+                equalTo(List.of("year"))
+            );
+            assertEquals(List.of(2026), boundHints.get(0).values());
+            assertNotNull("and its folder range", captured.folderRanges().get(boundSpec));
+
+            assertNull("the spec binding another column earns no hints", captured.filterHints().get(unboundSpec));
+            assertNull("and no folder range", captured.folderRanges().get(unboundSpec));
+        }
     }
 
     /**
      * Drives {@code EsqlSession#preAnalyzeExternalSources} with a capturing {@link ExternalSourceResolver}
-     * and returns the {@code pathsRequiringStats} argument it forwarded to {@code resolve(...)}.
+     * and returns the {@code specsRequiringStats} argument it forwarded to {@code resolve(...)}.
      */
-    private static Set<String> capturePathsRequiringStats(LogicalPlan plan, String path) {
-        return captureExternalResolve(plan, path).pathsRequiringStats();
+    private static Set<ExternalSourceSpec> captureSpecsRequiringStats(LogicalPlan plan, String path) {
+        return captureExternalResolve(plan, path).specsRequiringStats();
     }
 
     /**
-     * The forwarded hints, re-keyed by resource. Hints reach the resolver per read, and these plans hold one read of
-     * each resource, so the two keyings carry the same information here; a plan with two reads of one resource would
+     * The forwarded hints, re-keyed by resource. Hints reach the resolver per spec, and these plans hold one spec of
+     * each resource, so the two keyings carry the same information here; a plan with two specs over one resource would
      * collide, and this throws rather than drop one.
      */
     private static Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> captureFilterHints(LogicalPlan plan, String path) {
-        Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> byRead = captureExternalResolve(plan, path)
+        Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> bySpec = captureExternalResolve(plan, path)
             .filterHints();
-        if (byRead == null) {
+        if (bySpec == null) {
             return null;
         }
         Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> byPath = new HashMap<>();
-        byRead.forEach((read, hints) -> {
-            if (byPath.put(read.path(), hints) != null) {
-                throw new AssertionError("two reads of [" + read.path() + "]; assert on the read-keyed map instead");
-            }
+        bySpec.forEach((spec, hints) -> {
+            assertNull("two specs over [" + spec.path() + "]; assert on the spec-keyed map instead", byPath.put(spec.path(), hints));
         });
         return byPath;
     }
 
     private record CapturedExternalResolve(
-        List<ExternalSourceSpec> reads,
-        Set<String> pathsRequiringStats,
-        Set<String> pathsReadingNoRows,
+        List<ExternalSourceSpec> specs,
+        Set<ExternalSourceSpec> specsRequiringStats,
+        Set<ExternalSourceSpec> specsReadingNoRows,
         Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         Map<ExternalSourceSpec, FolderRangePredicate> folderRanges
     ) {}
@@ -1229,31 +1332,30 @@ public class EsqlSessionTests extends ESTestCase {
         String path,
         @Nullable QueryDslTimestampBoundsExtractor.TimestampBounds listingBounds
     ) {
-        AtomicReference<List<ExternalSourceSpec>> capturedReads = new AtomicReference<>();
-        AtomicReference<Set<String>> capturedStats = new AtomicReference<>();
-        AtomicReference<Set<String>> capturedNoRows = new AtomicReference<>();
+        AtomicReference<List<ExternalSourceSpec>> capturedSpecs = new AtomicReference<>();
+        AtomicReference<Set<ExternalSourceSpec>> capturedStats = new AtomicReference<>();
+        AtomicReference<Set<ExternalSourceSpec>> capturedNoRows = new AtomicReference<>();
         AtomicReference<Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>>> capturedHints =
             new AtomicReference<>();
         AtomicReference<Map<ExternalSourceSpec, FolderRangePredicate>> capturedFolderRanges = new AtomicReference<>();
         AtomicBoolean resolveCalled = new AtomicBoolean();
-        // The arity the session calls. Overriding a narrower overload would capture nothing and silently run the
-        // real resolver instead, which is how this fake first went blind; every other overload is final now, so
-        // that mistake no longer compiles.
+        // The arity the session calls, and the only overridable one: every other overload is final and delegates
+        // here, so a fake cannot override a narrower one and silently run the real resolver instead.
         ExternalSourceResolver capturingResolver = new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, null) {
             @Override
             public void resolve(
-                List<ExternalSourceSpec> reads,
+                List<ExternalSourceSpec> specs,
                 Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
                 Map<String, DatasetMapping> declaredMappings,
-                Set<String> pathsRequiringStats,
-                Set<String> pathsReadingNoRows,
+                Set<ExternalSourceSpec> specsRequiringStats,
+                Set<ExternalSourceSpec> specsReadingNoRows,
                 Map<ExternalSourceSpec, FolderRangePredicate> folderRanges,
                 ActionListener<ExternalSourceResolution> listener
             ) {
                 resolveCalled.set(true);
-                capturedReads.set(reads);
-                capturedStats.set(pathsRequiringStats);
-                capturedNoRows.set(pathsReadingNoRows);
+                capturedSpecs.set(specs);
+                capturedStats.set(specsRequiringStats);
+                capturedNoRows.set(specsReadingNoRows);
                 capturedHints.set(filterHints);
                 capturedFolderRanges.set(folderRanges);
                 listener.onResponse(ExternalSourceResolution.EMPTY);
@@ -1288,15 +1390,16 @@ public class EsqlSessionTests extends ESTestCase {
         );
         future.actionGet();
         assertTrue("resolve must be invoked when externalSourcePaths is non-empty", resolveCalled.get());
-        // The reads come from the plan's relations, not from preAnalysis.externalSourcePaths(); these plans hold one
-        // relation, so one read of `path` is what the session owes the resolver.
+        // The specs come from the plan's relations, not from preAnalysis.externalSourcePaths(). Every relation in
+        // these plans reads `path`, and a plan may hold more than one of them reading it differently, so the
+        // assertion is that the session forwards that resource and nothing else — not how many specs it forwards.
         assertThat(
-            "the session must forward the plan's own reads",
-            capturedReads.get().stream().map(ExternalSourceSpec::path).toList(),
+            "the session must forward the plan's own specs",
+            capturedSpecs.get().stream().map(ExternalSourceSpec::path).distinct().toList(),
             equalTo(List.of(path))
         );
         return new CapturedExternalResolve(
-            capturedReads.get(),
+            capturedSpecs.get(),
             capturedStats.get(),
             capturedNoRows.get(),
             capturedHints.get(),

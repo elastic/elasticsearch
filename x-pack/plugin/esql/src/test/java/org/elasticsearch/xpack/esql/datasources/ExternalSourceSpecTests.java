@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -50,7 +52,7 @@ public class ExternalSourceSpecTests extends ESTestCase {
         assertThat(a.hashCode(), equalTo(b.hashCode()));
     }
 
-    /** The defect itself: one resource, two formats, two reads. */
+    /** The defect itself: one resource, two formats, two specs. */
     public void testDifferingFormatIsTwoSpecs() {
         assertThat(
             new ExternalSourceSpec(PATH, config(Map.of("format", "csv"))),
@@ -79,8 +81,8 @@ public class ExternalSourceSpecTests extends ESTestCase {
      * <p>
      * Nothing upstream catches that case: {@code DefinitionVersion} folds an encrypted secret's key id and not its
      * value — a fresh IV per write makes ciphertext unstable — and folds neither name, so the two definitions have
-     * <em>equal</em> versions and the data node's rebind check finds nothing wrong. Keyed by the resource alone,
-     * both relations would have resolved under whichever configuration was stored last, credentials included.
+     * <em>equal</em> versions and the data node's check against its own registry finds nothing wrong. Keyed by the
+     * resource alone, both relations would have listed and inferred under whichever configuration was stored last.
      */
     public void testDifferingEncryptedSecretIsTwoSpecs() {
         Map<String, Object> withSecretA = config(Map.of("access_key", "same"));
@@ -93,7 +95,7 @@ public class ExternalSourceSpecTests extends ESTestCase {
         assertThat(new ExternalSourceSpec(PATH, withSecretA), not(equalTo(new ExternalSourceSpec(PATH, withSecretB))));
     }
 
-    /** The same secret under the same key id is one read, so an identical pair still shares its resolution. */
+    /** The same secret under the same key id is one spec, so an identical pair still shares its resolution. */
     public void testIdenticalEncryptedSecretIsOneSpec() {
         Map<String, Object> one = config(Map.of("access_key", "same"));
         one.put("secret_key", new EncryptedData("key-1", new byte[] { 1, 2, 3 }));
@@ -118,20 +120,20 @@ public class ExternalSourceSpecTests extends ESTestCase {
         withNull.put("format", "csv");
         withNull.put("region", null);
 
-        ExternalSourceSpec read = new ExternalSourceSpec(PATH, withNull);
+        ExternalSourceSpec spec = new ExternalSourceSpec(PATH, withNull);
 
-        assertThat(read.config(), equalTo(withNull));
-        assertThat(read, equalTo(new ExternalSourceSpec(PATH, withNull)));
+        assertThat(spec.config(), equalTo(withNull));
+        assertThat(spec, equalTo(new ExternalSourceSpec(PATH, withNull)));
     }
 
     /** The copy is defensive: mutating the caller's map afterwards cannot move a key already in a resolution. */
     public void testConfigIsCopiedNotAliased() {
         Map<String, Object> config = config(Map.of("format", "csv"));
-        ExternalSourceSpec read = new ExternalSourceSpec(PATH, config);
+        ExternalSourceSpec spec = new ExternalSourceSpec(PATH, config);
 
         config.put("format", "tsv");
 
-        assertThat(read.config(), equalTo(Map.of("format", "csv")));
+        assertThat(spec.config(), equalTo(Map.of("format", "csv")));
     }
 
     /** A null configuration is the empty one rather than an NPE at the first lookup. */
@@ -152,5 +154,82 @@ public class ExternalSourceSpecTests extends ESTestCase {
 
         assertThat(printed, not(containsString(secret)));
         assertThat(printed, containsString(PATH));
+
+        // Not merely absent as a substring: nothing printed may be a function of the secret. A digest or a hash of
+        // the configuration would pass the assertion above while still varying with it, and on a cluster that opted
+        // out of state encryption that value is the plaintext.
+        Map<String, Object> otherSecret = config(Map.of("format", "csv"));
+        otherSecret.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, Map.of("access_key", "id", "secret_key", "a different one"));
+        assertThat(new ExternalSourceSpec(PATH, otherSecret).toString(), equalTo(printed));
+    }
+
+    /**
+     * The key must not move underneath the map it is a key in. {@code DatasetRewriter.mergeSettings} builds the
+     * config with {@code putAll}, so a nested map is shared and mutable; a one-level copy would let a later put
+     * change this spec's {@code hashCode} and make the analyzer's rebuilt key miss.
+     */
+    /**
+     * The list arm of the deep copy, which a dataset reaches without trying: {@code Dataset.PARSER} reads
+     * {@code settings} with {@code p.map()}, so a JSON array arrives as a {@code List}, and
+     * {@code DatasetRewriter.mergeSettings} {@code putAll}s it into the config by reference. A list holding a map
+     * is the strongest shape, since it needs both arms to recurse: without the list arm the map inside it stays
+     * shared, and mutating it moves this spec's {@code hashCode} while it is a key in the resolution map, which is
+     * the miss {@link #testANestedMutationCannotMoveTheKey} pins for a map one level up.
+     */
+    public void testAMutationInsideAListCannotMoveTheKey() {
+        Map<String, Object> inner = new HashMap<>(Map.of("field", "amount"));
+        List<Object> columns = new ArrayList<>(List.of(inner));
+        Map<String, Object> config = new HashMap<>(Map.of("format", "csv", "columns", columns));
+
+        ExternalSourceSpec spec = new ExternalSourceSpec("s3://bucket/data/*.csv", config);
+        int before = spec.hashCode();
+
+        inner.put("field", "total");
+        columns.add("appended");
+        config.put("format", "tsv");
+
+        assertThat("the spec must not see a mutation of the caller's list or of a map inside it", spec.hashCode(), equalTo(before));
+        assertThat(
+            spec,
+            equalTo(
+                new ExternalSourceSpec("s3://bucket/data/*.csv", Map.of("format", "csv", "columns", List.of(Map.of("field", "amount"))))
+            )
+        );
+    }
+
+    public void testANestedMutationCannotMoveTheKey() {
+        Map<String, Object> datasource = new HashMap<>(Map.of("access_key", "id"));
+        Map<String, Object> config = config(Map.of("format", "csv"));
+        config.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, datasource);
+
+        ExternalSourceSpec spec = new ExternalSourceSpec(PATH, config);
+        // An equal spec built before the mutation. Rebuilding from the mutated config would differ, and should.
+        ExternalSourceSpec rebuilt = new ExternalSourceSpec(PATH, config);
+        int before = spec.hashCode();
+        Map<ExternalSourceSpec, String> resolved = new HashMap<>();
+        resolved.put(spec, "resolution");
+
+        datasource.put("secret_key", "added after the spec was built");
+
+        assertEquals("the key may not move once built", before, spec.hashCode());
+        assertEquals("and its entry must stay reachable", "resolution", resolved.get(rebuilt));
+    }
+
+    /** A pre-signed https resource carries its signature in the query string, and this is rendered into a log. */
+    public void testToStringRedactsAPreSignedUrl() {
+        String path = "https://host/bucket/sales.csv?X-Amz-Signature=deadbeefnotarealsignature";
+
+        String printed = new ExternalSourceSpec(path, config(Map.of("format", "csv"))).toString();
+
+        assertThat(printed, not(containsString("X-Amz-Signature")));
+        assertThat(printed, equalTo("https://host/bucket/sales.csv"));
+    }
+
+    /** What an operator can act on: two specs over one resource are told apart by name, not by an opaque number. */
+    public void testToStringNamesTheDataset() {
+        Map<String, Object> config = config(Map.of("format", "csv"));
+        config.put(ExternalSourceResolver.DATASET_CONTEXT_KEY, Map.of("dataset", "sales_csv", "datasource", "s3_ds", "type", "s3"));
+
+        assertThat(new ExternalSourceSpec(PATH, config).toString(), equalTo(PATH + "[sales_csv]"));
     }
 }

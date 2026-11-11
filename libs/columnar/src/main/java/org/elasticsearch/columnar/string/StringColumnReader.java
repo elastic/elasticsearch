@@ -144,6 +144,14 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     }
 
     /**
+     * Whether some document holds more than one slot. A null slot counts, so this is true of a column some
+     * document of which holds one value beside a null: it says a document may hold several values, not that one does.
+     */
+    public boolean multiValued() {
+        return meta.multiValued();
+    }
+
+    /**
      * Whether a page can carry this column's slots. A page holds one entry a document, addressed by the
      * document's rank, and has no shape for a slot that holds nothing. So it needs both that a rank is its
      * own value address — which a document holding several slots breaks, and one holding none breaks just as

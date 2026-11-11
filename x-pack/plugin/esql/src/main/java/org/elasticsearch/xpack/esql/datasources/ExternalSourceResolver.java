@@ -732,8 +732,8 @@ public class ExternalSourceResolver {
      * {@link #resolve(List, Map, Map, Set, Set, Map, ActionListener)} with the reads its relations denote.
      * <p>
      * This form and the wider path-keyed ones below exist for those callers; every one of them lifts its arguments
-     * into reads and delegates to the widest path-keyed form, which delegates to the read-keyed resolve. Production
-     * has one caller and it is read-keyed: {@code EsqlSession}.
+     * into specs and delegates to the widest path-keyed form, which delegates to the spec-keyed resolve. Production
+     * has one caller and it is spec-keyed: {@code EsqlSession}.
      */
     public final void resolve(
         List<String> paths,

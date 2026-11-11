@@ -1238,7 +1238,7 @@ public class EsqlSessionTests extends ESTestCase {
     }
 
     /**
-     * The forwarded hints, re-keyed by resource. Hints reach the resolver per read, and these plans hold one read of
+     * The forwarded hints, re-keyed by resource. Hints reach the resolver per spec, and these plans hold one spec of
      * each resource, so the two keyings carry the same information here; a plan with two specs over one resource would
      * collide, and this throws rather than drop one.
      */

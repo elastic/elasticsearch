@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
 import java.util.Collections;
@@ -62,6 +63,8 @@ public record ExternalSourceSpec(String path, Map<String, Object> config) {
     public String toString() {
         Object context = config.get(ExternalSourceResolver.DATASET_CONTEXT_KEY);
         Object name = context instanceof Map<?, ?> map ? map.get("dataset") : null;
-        return name == null ? path : path + "[" + name + "]";
+        // Redacted for the same reason RequestFilterRewriter redacts a relation's path: an https resource may be a
+        // pre-signed URL whose query string IS the signature.
+        return name == null ? ExternalFailures.redactHttpUrl(path) : ExternalFailures.redactHttpUrl(path) + "[" + name + "]";
     }
 }

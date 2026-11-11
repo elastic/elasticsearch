@@ -161,6 +161,16 @@ public class ExternalSourceSpecTests extends ESTestCase {
         assertThat(new ExternalSourceSpec(PATH, otherSecret).toString(), equalTo(printed));
     }
 
+    /** A pre-signed https resource carries its signature in the query string, and this is rendered into a log. */
+    public void testToStringRedactsAPreSignedUrl() {
+        String path = "https://host/bucket/sales.csv?X-Amz-Signature=deadbeefnotarealsignature";
+
+        String printed = new ExternalSourceSpec(path, config(Map.of("format", "csv"))).toString();
+
+        assertThat(printed, not(containsString("X-Amz-Signature")));
+        assertThat(printed, equalTo("https://host/bucket/sales.csv"));
+    }
+
     /** What an operator can act on: two specs over one resource are told apart by name, not by an opaque number. */
     public void testToStringNamesTheDataset() {
         Map<String, Object> config = config(Map.of("format", "csv"));

@@ -2423,7 +2423,8 @@ public class EsqlSession {
      * schema are absent — the resolver infers them as before.
      *
      * <p>Still keyed by path while resolution is keyed by spec, so two datasets over one resource with differing
-     * mappings cannot be told apart here and are refused. Keying this by spec too is tracked separately.
+     * mappings cannot be told apart here and are refused. That is a limitation of this method and not a property of
+     * the resolution it feeds: those two datasets are two specs and would resolve separately if they got that far.
      */
     // package-private for testing
     static Map<String, DatasetMapping> extractDeclaredMappings(LogicalPlan plan) {

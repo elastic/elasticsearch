@@ -1750,6 +1750,7 @@ FROM partial_mapping_sample_data
 enrichExpandsUnmappedFields
 skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -1770,6 +1771,7 @@ FROM partial_mapping_sample_data
 enrichWithNamedOutputExpandsUnmappedFields
 skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -1790,6 +1792,7 @@ FROM partial_mapping_sample_data
 enrichWithRenamedOutputShadowsUnmappedField
 skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -1829,6 +1832,7 @@ FROM partial_mapping_sample_data
 enrichCoordinatorExpandsUnmappedFields
 skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data

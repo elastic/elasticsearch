@@ -1,0 +1,590 @@
+setup:
+  - requires:
+      test_runner_features: [ headers ]
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: fls_stored
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              labels:
+                type: flattened
+
+  - do:
+      indices.create:
+        index: fls_synthetic
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              labels:
+                type: flattened
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"create": { "_index": "fls_stored" }}'
+          - '{"name": "A", "labels": {"env": "prod", "secret": "hunter2"}}'
+          - '{"create": { "_index": "fls_synthetic" }}'
+          - '{"name": "A", "labels": {"env": "prod", "secret": "hunter2"}}'
+
+---
+"Except a key: partial access hides the flattened storage, stored _source keeps the other keys":
+  - do:
+      security.create_api_key:
+        body:
+          name: "fls-except-key"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "fls_*" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "labels.secret" ]
+  - set: { encoded: credentials }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_stored
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.labels.env: prod }
+  - is_false: hits.hits.0._source.labels.secret
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_synthetic
+  - match: { hits.hits.0._source.name: A }
+  - is_false: hits.hits.0._source.labels
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_*
+        body:
+          query:
+            term:
+              labels.env: prod
+  - match: { hits.total.value: 0 }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_*
+        body:
+          query:
+            term:
+              labels.secret: hunter2
+  - match: { hits.total.value: 0 }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_*
+        body:
+          query:
+            term:
+              labels: hunter2
+  - match: { hits.total.value: 0 }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_*
+        body:
+          size: 0
+          aggs:
+            secrets:
+              terms:
+                field: labels.secret
+            values:
+              terms:
+                field: labels
+  - length: { aggregations.secrets.buckets: 0 }
+  - length: { aggregations.values.buckets: 0 }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_*
+        body:
+          _source: false
+          docvalue_fields: [ "labels.secret", "labels" ]
+  - match: { hits.total.value: 2 }
+  - is_false: hits.hits.0.fields
+  - is_false: hits.hits.1.fields
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      terms_enum:
+        index: fls_*
+        body:
+          field: labels.secret
+  - length: { terms: 0 }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      field_caps:
+        index: fls_*
+        fields: "labels*"
+  - match: { fields.labels.flattened.type: flattened }
+
+---
+"Grant a key: partial access hides the flattened storage, stored _source keeps the key":
+  - do:
+      security.create_api_key:
+        body:
+          name: "fls-grant-key"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "fls_*" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "name", "labels.env" ]
+  - set: { encoded: credentials }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_stored
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.labels.env: prod }
+  - is_false: hits.hits.0._source.labels.secret
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_synthetic
+  - match: { hits.hits.0._source.name: A }
+  - is_false: hits.hits.0._source.labels
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_*
+        body:
+          query:
+            term:
+              labels.env: prod
+  - match: { hits.total.value: 0 }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_*
+        body:
+          query:
+            term:
+              labels: prod
+  - match: { hits.total.value: 0 }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_*
+        body:
+          _source: false
+          docvalue_fields: [ "labels.env" ]
+  - is_false: hits.hits.0.fields
+  - is_false: hits.hits.1.fields
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      field_caps:
+        index: fls_*
+        fields: "labels*"
+  - is_false: fields.labels
+
+---
+"Grant the field name alone: it grants no key, so the root values are hidden too":
+  - do:
+      security.create_api_key:
+        body:
+          name: "fls-grant-field"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "fls_*" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "name", "labels" ]
+  - set: { encoded: credentials }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_stored
+  - match: { hits.hits.0._source.name: A }
+  - is_false: hits.hits.0._source.labels
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_synthetic
+  - match: { hits.hits.0._source.name: A }
+  - is_false: hits.hits.0._source.labels
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_*
+        body:
+          query:
+            term:
+              labels.secret: hunter2
+  - match: { hits.total.value: 0 }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_*
+        body:
+          query:
+            term:
+              labels: hunter2
+  - match: { hits.total.value: 0 }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_*
+        body:
+          size: 0
+          aggs:
+            values:
+              terms:
+                field: labels
+  - length: { aggregations.values.buckets: 0 }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_*
+        body:
+          _source: false
+          docvalue_fields: [ "labels" ]
+  - is_false: hits.hits.0.fields
+  - is_false: hits.hits.1.fields
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      field_caps:
+        index: fls_*
+        fields: "labels*"
+  - match: { fields.labels.flattened.type: flattened }
+
+---
+"Grant the field and every key: full access behaves as before":
+  - do:
+      security.create_api_key:
+        body:
+          name: "fls-grant-field-and-keys"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "fls_*" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "name", "labels", "labels.*" ]
+  - set: { encoded: credentials }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_stored
+  - match: { hits.hits.0._source.labels.env: prod }
+  - match: { hits.hits.0._source.labels.secret: hunter2 }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_*
+        body:
+          query:
+            term:
+              labels.secret: hunter2
+  - match: { hits.total.value: 2 }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_*
+        body:
+          query:
+            term:
+              labels: hunter2
+  - match: { hits.total.value: 2 }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_*
+        body:
+          size: 0
+          aggs:
+            secrets:
+              terms:
+                field: labels.secret
+            values:
+              terms:
+                field: labels
+  - match: { aggregations.secrets.buckets.0.key: hunter2 }
+  - length: { aggregations.values.buckets: 2 }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_*
+        body:
+          _source: false
+          docvalue_fields: [ "labels.secret", "labels" ]
+  - match: { hits.hits.0.fields.labels\.secret: [ hunter2 ] }
+  - match: { hits.hits.0.fields.labels: [ hunter2, prod ] }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      terms_enum:
+        index: fls_*
+        body:
+          field: labels.secret
+  - match: { terms: [ hunter2 ] }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      field_caps:
+        index: fls_*
+        fields: "labels*"
+  - match: { fields.labels.flattened.type: flattened }
+
+---
+"ES|QL: a flattened field under partial access loads no values":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_datatype, fn_field_extract ]
+      reason: "Requires flattened datatype and field_extract support"
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "fls-esql-except-key"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "fls_*" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "labels.secret" ]
+  - set: { encoded: credentials }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      esql.query:
+        body:
+          query: 'FROM fls_synthetic | KEEP labels | LIMIT 1'
+  - match: { columns.0.name: labels }
+  - match: { columns.0.type: flattened }
+  - match: { values.0.0: null }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      esql.query:
+        body:
+          query: 'FROM fls_synthetic | EVAL env = field_extract(labels, "env") | KEEP env | LIMIT 1'
+  - match: { values.0.0: null }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "fls-esql-grant-field"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "fls_*" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "name", "labels", "labels.*" ]
+  - set: { encoded: credentials }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      esql.query:
+        body:
+          query: 'FROM fls_synthetic | EVAL env = field_extract(labels, "env") | KEEP env | LIMIT 1'
+  - match: { values.0.0: prod }
+
+---
+"logsdb_columnar: partial access hides the keyed storage, full access exposes it":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "Strict columnar index modes are only available on builds where the columnar feature flag is enabled"
+
+  - do:
+      indices.create:
+        index: fls_columnar
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              name:
+                type: keyword
+              labels:
+                type: flattened
+
+  - do:
+      bulk:
+        index: fls_columnar
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"@timestamp": "2026-10-22T00:00:00Z", "name": "A", "labels": {"env": "prod", "secret": "hunter2"}}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "fls-columnar-except-key"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "fls_columnar" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "labels.secret" ]
+  - set: { encoded: credentials }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_columnar
+  - match: { hits.hits.0._source.name: A }
+  - is_false: hits.hits.0._source.labels
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_columnar
+        body:
+          query:
+            term:
+              labels.env: prod
+  - match: { hits.total.value: 0 }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_columnar
+        body:
+          _source: false
+          docvalue_fields: [ "labels.env" ]
+  - is_false: hits.hits.0.fields
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      field_caps:
+        index: fls_columnar
+        fields: "labels*"
+  - match: { fields.labels.flattened.type: flattened }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "fls-columnar-grant-field"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "fls_columnar" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "name", "labels", "labels.*" ]
+  - set: { encoded: credentials }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_columnar
+  - match: { hits.hits.0._source.labels.env: prod }
+  - match: { hits.hits.0._source.labels.secret: hunter2 }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_columnar
+        body:
+          query:
+            term:
+              labels.secret: hunter2
+  - match: { hits.total.value: 1 }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: fls_columnar
+        body:
+          _source: false
+          docvalue_fields: [ "labels.env" ]
+  - match: { hits.hits.0.fields.labels\.env.0: prod }

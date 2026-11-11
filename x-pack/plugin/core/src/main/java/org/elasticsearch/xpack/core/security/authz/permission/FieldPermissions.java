@@ -19,7 +19,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.FieldArrayContext;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReader;
@@ -35,6 +38,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -62,6 +66,18 @@ public final class FieldPermissions implements Accountable, CacheKey {
         // not be fully loaded
         BASE_HASHSET_ENTRY_SIZE = mapEntryShallowSize + 2 * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
     }
+
+    // The Lucene fields a flattened field writes under its own name.
+    private static final Automaton FLATTENED_STORAGE = Operations.optional(
+        Automatons.patterns(
+            FlattenedFieldMapper.KEYED_FIELD_SUFFIX, // labels._keyed
+            FlattenedFieldMapper.KEYED_FIELD_SUFFIX + ".*", // labels._keyed.*
+            FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX, // labels.offsets
+            FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX + SeparateCount.COUNT_FIELD_SUFFIX, // labels.offsets.counts
+            SeparateCount.COUNT_FIELD_SUFFIX // labels.counts
+        )
+    );
+    private static final Predicate<String> FLATTENED_STORAGE_PREDICATE = Automatons.predicate(FLATTENED_STORAGE);
 
     private final List<FieldPermissionsDefinition> fieldPermissionsDefinitions;
 
@@ -246,17 +262,71 @@ public final class FieldPermissions implements Accountable, CacheKey {
     }
 
     /** Return a wrapped reader that only exposes allowed fields. */
-    public DirectoryReader filter(DirectoryReader reader, IndexSettings indexSettings, Function<String, Boolean> isMapped)
-        throws IOException {
+    public DirectoryReader filter(
+        DirectoryReader reader,
+        IndexSettings indexSettings,
+        Function<String, Boolean> isMapped,
+        Set<String> flattenedFields
+    ) throws IOException {
         if (hasFieldLevelSecurity() == false) {
             return reader;
         }
+        // Only the Lucene field names lose the storage; _source paths keep the role's automaton, so a granted key named like the storage
+        // (ex. labels.counts) stays in _source.
+        List<Automaton> partial = flattenedFields.stream().filter(this::partiallyGrants).map(Automata::makeString).toList();
+        CharacterRunAutomaton fieldAutomaton = partial.isEmpty()
+            ? permittedFieldsAutomaton
+            : new CharacterRunAutomaton(
+                Automatons.minusAndMinimize(
+                    originalAutomaton,
+                    Operations.concatenate(List.of(Automatons.unionAndMinimize(partial), FLATTENED_STORAGE))
+                )
+            );
         return FieldSubsetReader.wrap(
             reader,
             permittedFieldsAutomaton,
+            fieldAutomaton,
             IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
             isMapped
         );
+    }
+
+    /**
+     * Returns whether this role grants something at or below the flattened field {@code flattenedField} but not every path below it. Such
+     * a field's Lucene storage holds the values of every key and cannot be filtered per key, so the reader hides it whole, and queries on
+     * it must not share the query cache with roles that can read it.
+     */
+    public boolean partiallyGrants(String flattenedField) {
+        int state = FieldSubsetReader.step(permittedFieldsAutomaton, flattenedField, 0);
+        if (state == -1) {
+            return false;
+        }
+        int below = permittedFieldsAutomaton.step(state, '.');
+        return (permittedFieldsAutomaton.isAccept(state) || below != -1) && acceptsEverything(below) == false;
+    }
+
+    /**
+     * Returns whether {@code field} is one of the Lucene fields that store the keys of the flattened field {@code flattenedField}.
+     * {@link #filter} hides these fields when the role {@link #partiallyGrants} the flattened field.
+     */
+    public static boolean isFlattenedStorage(String flattenedField, String field) {
+        return field.startsWith(flattenedField) && FLATTENED_STORAGE_PREDICATE.test(field.substring(flattenedField.length()));
+    }
+
+    /**
+     * Returns whether every string is accepted from {@code state}. The automaton is minimized, so all such states are one accepting state
+     * that steps to itself on every character.
+     */
+    private boolean acceptsEverything(int state) {
+        if (state == -1 || permittedFieldsAutomaton.isAccept(state) == false) {
+            return false;
+        }
+        for (int c : permittedFieldsAutomaton.getCharIntervals()) {
+            if (permittedFieldsAutomaton.step(state, c) != state) {
+                return false;
+            }
+        }
+        return true;
     }
 
     Automaton getIncludeAutomaton() {

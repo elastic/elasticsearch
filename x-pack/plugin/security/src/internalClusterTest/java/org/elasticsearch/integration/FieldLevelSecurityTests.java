@@ -169,6 +169,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             + "\n"
             + "user_different_fields:"
             + usersPasswHashed
+            + "\n"
+            + "user_flattened_partial:"
+            + usersPasswHashed
             + "\n";
     }
 
@@ -184,7 +187,8 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             role7:user6
             role8:user9
             role_dls_fls:user_dls_fls
-            role_different_fields:user_different_fields""";
+            role_different_fields:user_different_fields
+            role_flattened_partial:user_flattened_partial""";
     }
 
     @Override
@@ -264,6 +268,13 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                   privileges: [ 'read' ]
                   field_security:
                     grant: [ value ]
+            role_flattened_partial:
+              indices:
+                - names: [ 'flattened_cache' ]
+                  privileges: [ read ]
+                  field_security:
+                    grant: [ '*' ]
+                    except: [ 'labels.secret' ]
             """;
     }
 
@@ -1645,6 +1656,41 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                     assertThat(source.get("field2"), is("value2"));
                     assertThat(source.get("field3"), is("value3"));
                 }
+            );
+        }
+    }
+
+    /**
+     * A role that denies one key of a flattened field cannot read the field's storage, so it must neither reuse query cache entries on
+     * that storage built for a user who can read it, nor build ones of its own.
+     */
+    public void testQueryCacheFlattenedPartialAccess() throws Exception {
+        assertAcked(
+            indicesAdmin().prepareCreate("flattened_cache")
+                .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
+                .setMapping("labels", "type=flattened")
+        );
+        String secret = randomAlphaOfLength(8);
+        prepareIndex("flattened_cache").setId("1")
+            .setSource("labels", Map.of("env", randomAlphaOfLength(5), "secret", secret))
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+
+        int max = scaledRandomIntBetween(4, 32);
+        for (int i = 0; i < max; i++) {
+            // the keyed query reads labels._keyed and the root query reads labels, both hidden from the partial user. The hits are checked
+            // as well as the count, since the count comes from the reader's term statistics and skips the query cache.
+            QueryBuilder query = constantScoreQuery(termQuery(randomFrom("labels", "labels.secret"), secret));
+            assertSearchHitsWithoutFailures(
+                client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
+                    .prepareSearch("flattened_cache")
+                    .setQuery(query),
+                "1"
+            );
+            assertSearchHitsWithoutFailures(
+                client().filterWithHeader(
+                    Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_flattened_partial", USERS_PASSWD))
+                ).prepareSearch("flattened_cache").setQuery(query)
             );
         }
     }

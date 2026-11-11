@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDe
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -48,7 +49,7 @@ public class FieldCheckingVisitorTests extends ESTestCase {
     private static final Query UNUSED_QUERY = new UnusedQuery();
 
     public void testAcceptField() {
-        FieldCheckingVisitor visitor = new FieldCheckingVisitor(PERMISSIONS);
+        FieldCheckingVisitor visitor = new FieldCheckingVisitor(PERMISSIONS, Set.of());
 
         assertTrue(visitor.acceptField(CACHEABLE_FIELD));
         assertTrue(visitor.isCacheable());
@@ -61,7 +62,7 @@ public class FieldCheckingVisitorTests extends ESTestCase {
     }
 
     public void testConsumeTerms() {
-        FieldCheckingVisitor visitor = new FieldCheckingVisitor(PERMISSIONS);
+        FieldCheckingVisitor visitor = new FieldCheckingVisitor(PERMISSIONS, Set.of());
         visitor.consumeTerms(UNUSED_QUERY);
         assertTrue(visitor.isCacheable());
 
@@ -79,7 +80,7 @@ public class FieldCheckingVisitorTests extends ESTestCase {
     }
 
     public void testConsumeTermsMatching() {
-        FieldCheckingVisitor visitor = new FieldCheckingVisitor(PERMISSIONS);
+        FieldCheckingVisitor visitor = new FieldCheckingVisitor(PERMISSIONS, Set.of());
 
         visitor.consumeTermsMatching(UNUSED_QUERY, CACHEABLE_FIELD, UNUSED_AUTOMATON);
         assertTrue(visitor.isCacheable());
@@ -89,7 +90,7 @@ public class FieldCheckingVisitorTests extends ESTestCase {
     }
 
     public void testVisitLeaf() {
-        FieldCheckingVisitor visitor = new FieldCheckingVisitor(PERMISSIONS);
+        FieldCheckingVisitor visitor = new FieldCheckingVisitor(PERMISSIONS, Set.of());
 
         visitor.visitLeaf(MatchAllDocsQuery.INSTANCE);
         visitor.visitLeaf(MatchNoDocsQuery.INSTANCE);
@@ -109,7 +110,7 @@ public class FieldCheckingVisitorTests extends ESTestCase {
     }
 
     public void testGetSubVisitor() {
-        FieldCheckingVisitor visitor = new FieldCheckingVisitor(PERMISSIONS);
+        FieldCheckingVisitor visitor = new FieldCheckingVisitor(PERMISSIONS, Set.of());
         assertThat(visitor.getSubVisitor(randomFrom(BooleanClause.Occur.values()), UNUSED_QUERY), sameInstance(visitor));
         assertTrue(visitor.isCacheable());
 
@@ -122,7 +123,7 @@ public class FieldCheckingVisitorTests extends ESTestCase {
     }
 
     public void testUncacheableIsSticky() {
-        FieldCheckingVisitor visitor = new FieldCheckingVisitor(PERMISSIONS);
+        FieldCheckingVisitor visitor = new FieldCheckingVisitor(PERMISSIONS, Set.of());
         List<Runnable> uncacheableCalls = List.of(
             () -> visitor.acceptField(randomUncacheableField()),
             () -> visitor.consumeTerms(UNUSED_QUERY, new Term(randomUncacheableField(), "x")),
@@ -145,7 +146,7 @@ public class FieldCheckingVisitorTests extends ESTestCase {
     }
 
     public void testReset() {
-        FieldCheckingVisitor visitor = new FieldCheckingVisitor(PERMISSIONS);
+        FieldCheckingVisitor visitor = new FieldCheckingVisitor(PERMISSIONS, Set.of());
         assertFalse(visitor.acceptField(randomUncacheableField()));
         assertFalse(visitor.isCacheable());
 

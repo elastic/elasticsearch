@@ -1,7 +1,7 @@
 // The PromQL tests of `k8s-timeseries-promql.csv-spec` over `index=k8s`, run on `prometheus-k8s`: the same samples in the Prometheus
 // remote-write layout (one document per sample, `labels.*` dimensions including `__name__`, one
 // `metrics.<name>` field per metric). Queries are identical up to the index name; `_timeseries` carries
-// the labels under `labels`, with `__name__` where Prometheus keeps the metric name. Keep in sync with the
+// the `labels.*` dimensions by label name, with `__name__` where Prometheus keeps the metric name. Keep in sync with the
 // source file.
 
 // Contains tests for functionality that's PromQL specific.
@@ -2064,12 +2064,13 @@ required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(topk(2, network.total_bytes_in{cluster="prod"}))
 | SORT result DESC;
 
 result:double | step:datetime            | _timeseries:keyword
-10277.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}}"
-9969.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
+10277.0       | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
 ;
 
 // k larger than the number of available series: every series is returned, still ranked.
@@ -2078,13 +2079,14 @@ required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(topk(5, network.total_bytes_in{cluster="prod"}))
 | SORT result DESC;
 
 result:double | step:datetime            | _timeseries:keyword
-10277.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}}"
-9969.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
-947.0         | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
+10277.0       | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+947.0         | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
 ;
 
 // topk is evaluated independently at every step of a range query, so the winning series can change from
@@ -2096,12 +2098,13 @@ required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" result=(topk(1, network.total_bytes_in{cluster="prod"}))
 | SORT step, result DESC;
 
 result:double | step:datetime            | _timeseries:keyword
-9969.0        | 2024-05-10T00:20:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
-10277.0       | 2024-05-10T00:25:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}}"
+9969.0        | 2024-05-10T00:20:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+10277.0       | 2024-05-10T00:25:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
 ;
 
 // k=0: Prometheus returns an empty result.
@@ -2124,13 +2127,14 @@ required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(topk(100000, network.total_bytes_in{cluster="prod"}))
 | SORT result DESC;
 
 result:double | step:datetime            | _timeseries:keyword
-10277.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}}"
-9969.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
-947.0         | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
+10277.0       | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+947.0         | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
 ;
 
 // `by (pod)` partitions the ranking by pod across ALL clusters (pod names repeat across prod/qa/staging), so each
@@ -2141,15 +2145,16 @@ required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(topk(2, network.total_bytes_in) by (pod));
 
 result:double | step:datetime            | _timeseries:keyword
-10797.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""qa"",""pod"":""three""}}"
-10277.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}}"
-9969.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
-8568.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""qa"",""pod"":""two""}}"
-7286.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""qa"",""pod"":""one""}}"
-6637.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""staging"",""pod"":""one"",""region"":""us""}}"
+10797.0       | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""qa"",""pod"":""three""}"
+10277.0       | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+8568.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""qa"",""pod"":""two""}"
+7286.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""qa"",""pod"":""one""}"
+6637.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
 ;
 
 // topk over an already-aggregated vector (sum by). The inner aggregation collapses to the BY labels, then topk
@@ -2168,18 +2173,47 @@ result:double | step:datetime            | pod:keyword
 9969.0        | 2024-05-10T01:00:00.000Z | three
 ;
 
+// topk over an aggregate without labels: the aggregate already holds one series per step.
+topk_over_sum_without_labels
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: fix_promql_topk_over_aggregate
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=prometheus-k8s step=1h result=(topk(1, sum(network.total_bytes_in{cluster="prod"})))
+| SORT result DESC;
+
+result:double | step:datetime
+21193.0       | 2024-05-10T01:00:00.000Z
+;
+
+// topk over quantile(0.9) of 947, 9969 and 10277: 9969 + 0.8 * (10277 - 9969).
+topk_over_quantile
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: fix_promql_topk_over_aggregate
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=prometheus-k8s step=1h result=(topk(1, quantile(0.9, network.total_bytes_in{cluster="prod"})))
+| SORT result DESC;
+
+result:double | step:datetime
+10215.4       | 2024-05-10T01:00:00.000Z
+;
+
 // bottomk mirrors topk but keeps the k series with the lowest values.
 bottomk_bare
 required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(bottomk(2, network.total_bytes_in{cluster="prod"}))
 | SORT result ASC;
 
 result:double | step:datetime            | _timeseries:keyword
-947.0         | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
-9969.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
+947.0         | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
 ;
 
 // k larger than the number of available series: every series is returned, still ranked.
@@ -2188,13 +2222,14 @@ required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(bottomk(5, network.total_bytes_in{cluster="prod"}))
 | SORT result ASC;
 
 result:double | step:datetime            | _timeseries:keyword
-947.0         | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
-9969.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
-10277.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}}"
+947.0         | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+10277.0       | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
 ;
 
 // bottomk is evaluated independently at every step of a range query, so the winning series can change from
@@ -2206,12 +2241,13 @@ required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" result=(bottomk(1, network.total_bytes_in{cluster="prod"}))
 | SORT step, result ASC;
 
 result:double | step:datetime            | _timeseries:keyword
-9969.0        | 2024-05-10T00:20:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
-947.0         | 2024-05-10T00:25:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
+9969.0        | 2024-05-10T00:20:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+947.0         | 2024-05-10T00:25:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
 ;
 
 // k=0: Prometheus returns an empty result.
@@ -2232,15 +2268,16 @@ required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(bottomk(2, network.total_bytes_in) by (pod));
 
 result:double | step:datetime            | _timeseries:keyword
-947.0         | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
-5187.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""staging"",""pod"":""two"",""region"":""us""}}"
-6637.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""staging"",""pod"":""one"",""region"":""us""}}"
-7403.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""staging"",""pod"":""three"",""region"":""us""}}"
-8568.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""qa"",""pod"":""two""}}"
-9969.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
+947.0         | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+5187.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+6637.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+7403.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+8568.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""qa"",""pod"":""two""}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
 ;
 
 // bottomk over an already-aggregated vector (sum by). The inner aggregation collapses to the BY labels, then bottomk
@@ -2257,4 +2294,134 @@ PROMQL index=prometheus-k8s step=1h result=(bottomk(2, sum by (pod) (network.tot
 result:double | step:datetime            | pod:keyword
 947.0         | 2024-05-10T01:00:00.000Z | one
 9969.0        | 2024-05-10T01:00:00.000Z | three
+;
+
+// A within-series function under WITHOUT: each series is evaluated first, then grouped by the labels left.
+max_without_over_ceil
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(max without (pod) (ceil(last_over_time(network.cost[5m]))))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, _timeseries
+| SORT _timeseries;
+
+result:double | _timeseries:keyword
+11.0          | "{""cluster"":""prod"",""region"":[""eu"",""us""]}"
+12.0          | "{""cluster"":""qa""}"
+13.0          | "{""cluster"":""staging"",""region"":""us""}"
+;
+
+// A count over no series is no element, not a count of 0, at every level of grouping.
+count_over_empty_selection_is_no_element
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(count(count by (cluster) (rate(network.total_bytes_in{pod="missing"}[10m]))))
+| KEEP result;
+
+result:double
+;
+
+// A label the inner aggregation dropped reads as absent: every cluster sum groups under a null pod.
+by_label_dropped_below_reads_as_absent
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(sum by (pod) (sum by (cluster) (last_over_time(network.eth0.tx[5m]))))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, pod;
+
+result:double | pod:keyword
+4248.0        | null
+;
+
+// The matcher on a promoted label keeps filtering the series the aggregation reads.
+by_promoted_label_keeps_selector_filter
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(sum by (pod) (last_over_time(network.eth0.tx{pod="one"}[5m])))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, pod;
+
+result:double | pod:keyword
+1261.0        | one
+;
+
+// or compares label sets without __name__: the rate of another metric over the same series adds nothing.
+or_left_wins_over_rate_of_other_metric
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(last_over_time(network.eth0.rx{cluster="qa"}[5m]) or rate(network.total_bytes_in{cluster="qa"}[10m]))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, _timeseries
+| SORT _timeseries;
+
+result:double | _timeseries:keyword
+818.0         | "{""__name__"":""network.eth0.rx"",""cluster"":""qa"",""pod"":""one""}"
+529.0         | "{""__name__"":""network.eth0.rx"",""cluster"":""qa"",""pod"":""three""}"
+620.0         | "{""__name__"":""network.eth0.rx"",""cluster"":""qa"",""pod"":""two""}"
+;
+
+// A range function over a selection without samples yields no element rather than a 0 or a 1.
+range_functions_over_no_samples_are_empty
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(max without (pod) (count_over_time(network.eth0.tx{pod="missing"}[10m])))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result;
+
+result:double
+;
+
+// A pattern that matches no index is an empty vector, through any grouping.
+missing_source_index_is_an_empty_vector
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=prometheus-k8s-missing-* step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(sum by (pod) (sum without (pod) (network.eth0.tx)))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result;
+
+result:double
+;
+
+// or keeps a right-side series whose labels no left-side series has.
+or_keeps_right_series_with_disjoint_labels
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(last_over_time(network.eth0.rx{cluster="qa", pod="one"}[5m]) or last_over_time(network.eth0.rx{cluster="qa", pod="two"}[5m]))
+| WHERE step == "2024-05-10T00:20:00.000Z"
+| EVAL result = ROUND(result, 6)
+| KEEP result, _timeseries
+| SORT _timeseries;
+
+result:double | _timeseries:keyword
+1262.0        | "{""__name__"":""network.eth0.rx"",""cluster"":""qa"",""pod"":""one""}"
+1068.0        | "{""__name__"":""network.eth0.rx"",""cluster"":""qa"",""pod"":""two""}"
+;
+
+// An offset range aggregation reads the same windows whether @timestamp is a date or a date_nanos.
+offset_range_aggregation_over_date
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_offset_modifier
+required_capability: enable_tsmd_data_type
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:10:00Z" end="2024-05-10T00:20:00Z" result=(sum without (pod) (sum_over_time(network.cost[10m] offset 10m)))
+| EVAL result = ROUND(result, 6)
+| KEEP result, step, _timeseries
+| SORT step, _timeseries;
+
+result:double | step:datetime            | _timeseries:keyword
+160.75        | 2024-05-10T00:20:00.000Z | "{""cluster"":""prod"",""region"":[""eu"",""us""]}"
+273.625       | 2024-05-10T00:20:00.000Z | "{""cluster"":""qa""}"
+154.75        | 2024-05-10T00:20:00.000Z | "{""cluster"":""staging"",""region"":""us""}"
 ;

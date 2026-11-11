@@ -468,11 +468,9 @@ public class PromqlVerifierTests extends ESTestCase {
         tsdb.error("PROMQL index=test step=5m foo / on(bar) 1", containsString("vector matching only allowed between instant vectors"));
     }
 
-    public void testNonScalarComparison() {
-        tsdb.error(
-            "PROMQL index=test step=5m foo > bar",
-            containsString("comparison operators with non-literal right-hand side are not supported at this time")
-        );
+    /** Two instant vectors compare like arithmetic: the operands are independent pipelines joined on their series. */
+    public void testVectorComparisonJoinsOperands() {
+        assertTrue(tsdb.query("PROMQL index=test step=5m network.bytes_in > network.connections").resolved());
     }
 
     /**
@@ -643,6 +641,14 @@ public class PromqlVerifierTests extends ESTestCase {
         tsdb.error(
             "PROMQL index=test step=5m avg(network.bytes_in[5m])",
             containsString("expected type instant_vector in call to function [avg], got range_vector")
+        );
+    }
+
+    /** The result's label container is exposed as {@code _timeseries}, so a value column under that name would shadow it. */
+    public void testResultNamedAfterLabelContainerIsRejected() {
+        tsdb.error(
+            "PROMQL index=test step=5m _timeseries=(network.bytes_in)",
+            containsString("result column [_timeseries] collides with the label container column")
         );
     }
 

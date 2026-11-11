@@ -1,7 +1,7 @@
 // The PromQL tests of `k8s-timeseries.csv-spec` over `index=k8s`, run on `prometheus-k8s`: the same samples in the Prometheus
 // remote-write layout (one document per sample, `labels.*` dimensions including `__name__`, one
 // `metrics.<name>` field per metric). Queries are identical up to the index name; `_timeseries` carries
-// the labels under `labels`, with `__name__` where Prometheus keeps the metric name. Keep in sync with the
+// the `labels.*` dimensions by label name, with `__name__` where Prometheus keeps the metric name. Keep in sync with the
 // source file.
 
 oneRateWithPromql
@@ -36,6 +36,7 @@ instant_selector_dimensions_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
 
 PROMQL index=prometheus-k8s step=1h network.cost
 | SORT network.cost DESC
@@ -43,15 +44,15 @@ PROMQL index=prometheus-k8s step=1h network.cost
 ignoreOrder:true
 
 network.cost:double | step:datetime            | _timeseries:keyword
-0.0                 | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.cost"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
-1.75                | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.cost"",""cluster"":""staging"",""pod"":""two"",""region"":""us""}}"
-4.625               | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.cost"",""cluster"":""staging"",""pod"":""one"",""region"":""us""}}"
-6.25                | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.cost"",""cluster"":""qa"",""pod"":""one""}}"
-7.875               | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.cost"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
-9.375               | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.cost"",""cluster"":""qa"",""pod"":""two""}}"
-9.5                 | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.cost"",""cluster"":""staging"",""pod"":""three"",""region"":""us""}}"
-10.75               | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.cost"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}}"
-10.875              | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.cost"",""cluster"":""qa"",""pod"":""three""}}"
+0.0                 | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.cost"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+1.75                | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.cost"",""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+4.625               | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.cost"",""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+6.25                | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.cost"",""cluster"":""qa"",""pod"":""one""}"
+7.875               | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.cost"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+9.375               | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.cost"",""cluster"":""qa"",""pod"":""two""}"
+9.5                 | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.cost"",""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+10.75               | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.cost"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+10.875              | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.cost"",""cluster"":""qa"",""pod"":""three""}"
 ;
 
 // Fails until the translator drops the metric name here, as Prometheus does.
@@ -81,21 +82,22 @@ bare_metric_with_tbucket_outputs_dimensions_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h network.cost
 | SORT network.cost DESC
 ;
 ignoreOrder:true
 
 network.cost:double | step:datetime            | _timeseries:keyword
-0.0                 | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.cost"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
-1.75                | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.cost"",""cluster"":""staging"",""pod"":""two"",""region"":""us""}}"
-4.625               | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.cost"",""cluster"":""staging"",""pod"":""one"",""region"":""us""}}"
-6.25                | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.cost"",""cluster"":""qa"",""pod"":""one""}}"
-7.875               | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.cost"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
-9.375               | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.cost"",""cluster"":""qa"",""pod"":""two""}}"
-9.5                 | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.cost"",""cluster"":""staging"",""pod"":""three"",""region"":""us""}}"
-10.75               | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.cost"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}}"
-10.875              | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.cost"",""cluster"":""qa"",""pod"":""three""}}"
+0.0                 | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.cost"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+1.75                | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.cost"",""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+4.625               | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.cost"",""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+6.25                | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.cost"",""cluster"":""qa"",""pod"":""one""}"
+7.875               | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.cost"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+9.375               | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.cost"",""cluster"":""qa"",""pod"":""two""}"
+9.5                 | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.cost"",""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+10.75               | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.cost"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+10.875              | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.cost"",""cluster"":""qa"",""pod"":""three""}"
 ;
 
 // Fails until the translator drops the metric name here, as Prometheus does.

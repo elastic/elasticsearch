@@ -1803,3 +1803,55 @@ TS aggregating a converted metric alongside a plain metric:
   - length: {values: 1}
   - match: {values.0.0: 1.0}
   - match: {values.0.1: 2}
+
+---
+PromQL by non-dimension label keeps every value of a series:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_command_v0, fix_promql_time_bucket_v2]
+      reason: "PromQL support"
+  - do:
+      indices.create:
+        index: nondim
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [host]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              event:
+                type: keyword
+              tx:
+                type: double
+                time_series_metric: gauge
+  - do:
+      bulk:
+        refresh: true
+        index: nondim
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:10.000Z", "host": "a", "event": "start", "tx": 1.0}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:20.000Z", "host": "a", "event": "stop", "tx": 2.0}'
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=nondim step=1m tx=(sum by (event) (tx)) | SORT step, event | LIMIT 2'
+
+  - match: {columns.2.name: "event"}
+  - length: {values: 2}
+  - match: {values.0.2: "start"}
+  - match: {values.1.2: "stop"}

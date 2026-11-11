@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -511,6 +512,66 @@ public class TableFunctionResolverTests extends ESTestCase {
         assertThat(children.get(0), instanceOf(LocalRelation.class));
         assertThat(children.get(1), instanceOf(LocalRelation.class));
         assertThat(children.get(0) == children.get(1), equalTo(false));
+    }
+
+    /**
+     * And the mirror of it: one leaf the plan reaches from several parents is one call, asked once. {@code FORK}
+     * builds exactly this shape — {@code LogicalPlanBuilder#visitForkCommand} applies every branch's factory to
+     * the one plan above it — so {@code FROM f(x) | FORK (..) (..)} arrives here with the same leaf object under
+     * each branch. Asked per arrival, a function doing I/O pays a round trip per branch for a call written once,
+     * and every relation but the last is built and discarded.
+     */
+    public void testALeafReachedFromSeveralParentsIsAskedOnce() {
+        Numbers function = new Numbers();
+        UnresolvedTableFunctionRelation shared = call("2");
+        LogicalPlan plan = new UnionAll(
+            Source.EMPTY,
+            List.of(new Filter(Source.EMPTY, shared, Literal.TRUE), new Filter(Source.EMPTY, shared, Literal.TRUE)),
+            List.of()
+        );
+
+        LogicalPlan resolved = resolve(function, plan);
+
+        assertThat(function.bindings.get(), equalTo(1));
+        LogicalPlan left = resolved.children().get(0).children().get(0);
+        LogicalPlan right = resolved.children().get(1).children().get(0);
+        assertThat(left, instanceOf(LocalRelation.class));
+        // The one relation stands under both, as the one EsRelation a resolved index pattern becomes does.
+        assertSame(left, right);
+    }
+
+    /**
+     * A query may name many calls, and they go out together, so the ceiling is checked before any of them is
+     * asked rather than by the branch-count check on the optimized plan, which would arrive after every one of
+     * them had been made.
+     */
+    public void testAQueryWiderThanTheCeilingIsRefusedBeforeAnythingIsAsked() {
+        Numbers function = new Numbers();
+        List<LogicalPlan> calls = new ArrayList<>();
+        for (int i = 0; i <= TableFunctionResolver.MAX_CALLS_PER_QUERY; i++) {
+            calls.add(call("1"));
+        }
+
+        ParsingException e = expectThrows(ParsingException.class, () -> resolve(function, new UnionAll(Source.EMPTY, calls, List.of())));
+
+        assertThat(
+            e.getMessage(),
+            containsString("a query may call up to [" + TableFunctionResolver.MAX_CALLS_PER_QUERY + "] table functions, found [")
+        );
+        assertThat("nothing may have been asked", function.bindings.get(), equalTo(0));
+    }
+
+    /** And a query exactly at the ceiling is not refused, so the check discriminates rather than always firing. */
+    public void testAQueryAtTheCeilingIsAllowed() {
+        Numbers function = new Numbers();
+        List<LogicalPlan> calls = new ArrayList<>();
+        for (int i = 0; i < TableFunctionResolver.MAX_CALLS_PER_QUERY; i++) {
+            calls.add(call("1"));
+        }
+
+        resolve(function, new UnionAll(Source.EMPTY, calls, List.of()));
+
+        assertThat(function.bindings.get(), equalTo(TableFunctionResolver.MAX_CALLS_PER_QUERY));
     }
 
     /** A call of the same function with nothing in the parentheses, which its signature refuses. */

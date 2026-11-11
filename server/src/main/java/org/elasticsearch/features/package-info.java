@@ -111,7 +111,7 @@
  * <p>
  * To go into more detail what happens during a rolling upgrade:
  * <ol>
- *     <li>Start with a homogenous 8.18 cluster, with an 8.18 cluster feature set (including assumed features)</li>
+ *     <li>Start with a homogeneous 8.18 cluster, with an 8.18 cluster feature set (including assumed features)</li>
  *     <li>
  *         The first 9.0 node joins the cluster. Even though it is missing the features marked as assumed in 8.18,
  *         the 8.18 master lets the 9.0 node join because all the missing features are marked as assumed,
@@ -139,7 +139,7 @@
  *         (as there is at least one 9.0 node in the cluster - itself).
 *      </li>
  *     <li>
- *         At some point, the last 8.18 node leaves the cluster, and the cluster is a homogenous 9.0 cluster
+ *         At some point, the last 8.18 node leaves the cluster, and the cluster is a homogeneous 9.0 cluster
  *         with only the cluster features known about by 9.0.
  *     </li>
  * </ol>

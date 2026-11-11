@@ -2033,7 +2033,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     // since none of the data used to create it changed.
                                     // As such it will deduplicate and reuse the adjusted metadata which is
                                     // wrong since we want to either use a "clean" (non-adjusted) post resharding state metadata
-                                    // or possibly metadata with different adjustement.
+                                    // or possibly metadata with different adjustment.
                                     //
                                     // By using a unique identifier here we make sure that the next non-adjusted snapshot doesn't reuse
                                     // this metadata blob.

@@ -59,7 +59,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * String or a list of Strings, each of which will be parsed into a content object with {@link DataType} equal to
  * {@link DataType#TEXT} and {@link DataFormat} equal to {@link DataFormat#TEXT}:
  * <pre>
- * "input": "singe text input"</pre>
+ * "input": "single text input"</pre>
  * OR
  * <pre>
  * "input": ["first text input", "second text input"]</pre>

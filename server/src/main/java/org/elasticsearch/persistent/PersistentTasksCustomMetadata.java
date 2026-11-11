@@ -137,7 +137,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
     /**
      * Unassign any persistent tasks executing on nodes that are no longer in
-     * the cluster. If the task's assigment has a non-null executor node and that
+     * the cluster. If the task's assignment has a non-null executor node and that
      * node is no longer in the cluster then the assignment is set to
      * {@link PersistentTasks#LOST_NODE_ASSIGNMENT}
      *

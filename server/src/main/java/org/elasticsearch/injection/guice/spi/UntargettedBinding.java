@@ -19,7 +19,7 @@ package org.elasticsearch.injection.guice.spi;
 import org.elasticsearch.injection.guice.Binding;
 
 /**
- * An untargetted binding. This binding indicates that the injector should use its implicit binding
+ * An untargeted binding. This binding indicates that the injector should use its implicit binding
  * strategies to resolve injections.
  *
  * @author jessewilson@google.com (Jesse Wilson)

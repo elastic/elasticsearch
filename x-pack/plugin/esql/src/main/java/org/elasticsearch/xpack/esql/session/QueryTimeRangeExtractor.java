@@ -169,8 +169,19 @@ final class QueryTimeRangeExtractor {
      */
     static Map<IndexPattern, TimeRange> ranges(LogicalPlan parsed, Configuration configuration) {
         Map<IndexPattern, TimeRange> ranges = new HashMap<>();
-        return collect(parsed, TimeRange.UNBOUNDED, configuration, ranges, new Calls(MAX_CALLS)) ? ranges : Map.of();
+        Context context = new Context(
+            configuration,
+            configuration.now().toEpochMilli(),
+            QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())
+        );
+        return collect(parsed, TimeRange.UNBOUNDED, context, ranges, new Calls(MAX_CALLS)) ? ranges : Map.of();
     }
+
+    /**
+     * What the constants of a query are evaluated with. The time that {@code NOW()} returns and the time zone are read once,
+     * so that every bound of a query is taken from the same instant, the one that the query itself runs with.
+     */
+    private record Context(Configuration configuration, long now, ZoneId zone) {}
 
     /** What is left of the calls that a recursion may make, which keeps it shallow and cheap on any plan or expression. */
     private static final class Calls {
@@ -194,13 +205,7 @@ final class QueryTimeRangeExtractor {
      *
      * @return {@code false} if the walk ran out of calls before it reached every relation
      */
-    private static boolean collect(
-        LogicalPlan plan,
-        TimeRange range,
-        Configuration configuration,
-        Map<IndexPattern, TimeRange> ranges,
-        Calls calls
-    ) {
+    private static boolean collect(LogicalPlan plan, TimeRange range, Context context, Map<IndexPattern, TimeRange> ranges, Calls calls) {
         if (calls.next() == false) {
             return false;
         }
@@ -212,40 +217,40 @@ final class QueryTimeRangeExtractor {
                 return true;
             }
             case Filter filter -> {
-                TimeRange filtered = range.intersect(rangeOf(filter.condition(), configuration, new Calls(MAX_CALLS)));
-                return collect(filter.child(), filtered, configuration, ranges, calls);
+                TimeRange filtered = range.intersect(rangeOf(filter.condition(), context, new Calls(MAX_CALLS)));
+                return collect(filter.child(), filtered, context, ranges, calls);
             }
             case Eval eval -> {
-                return collect(eval.child(), defines(eval.fields()) ? TimeRange.UNBOUNDED : range, configuration, ranges, calls);
+                return collect(eval.child(), defines(eval.fields()) ? TimeRange.UNBOUNDED : range, context, ranges, calls);
             }
             case Rename rename -> {
-                return collect(rename.child(), defines(rename.renamings()) ? TimeRange.UNBOUNDED : range, configuration, ranges, calls);
+                return collect(rename.child(), defines(rename.renamings()) ? TimeRange.UNBOUNDED : range, context, ranges, calls);
             }
             case Keep keep -> {
-                return collect(keep.child(), range, configuration, ranges, calls);
+                return collect(keep.child(), range, context, ranges, calls);
             }
             case Drop drop -> {
-                return collect(drop.child(), range, configuration, ranges, calls);
+                return collect(drop.child(), range, context, ranges, calls);
             }
             case OrderBy orderBy -> {
-                return collect(orderBy.child(), range, configuration, ranges, calls);
+                return collect(orderBy.child(), range, context, ranges, calls);
             }
             // The wrapper that FROM ... METADATA puts around its relation, which only adds the metadata fields.
             case UnresolvedMetadata metadata -> {
-                return collect(metadata.child(), range, configuration, ranges, calls);
+                return collect(metadata.child(), range, context, ranges, calls);
             }
             // The wrapper of a subquery or of a view body, whose columns are those of its child.
             case Subquery subquery -> {
-                return collect(subquery.child(), range, configuration, ranges, calls);
+                return collect(subquery.child(), range, context, ranges, calls);
             }
             // Its rows are not those of the index, a filter on them says nothing about it. Its own time range does.
             case PromqlCommand promql -> {
-                return collect(promql.child(), rangeOf(promql), configuration, ranges, calls);
+                return collect(promql.child(), rangeOf(promql), context, ranges, calls);
             }
             // A filter on the rows of a union filters the rows of each of its branches.
             case UnionAll union -> {
                 for (LogicalPlan branch : union.children()) {
-                    if (collect(branch, range, configuration, ranges, calls) == false) {
+                    if (collect(branch, range, context, ranges, calls) == false) {
                         return false;
                     }
                 }
@@ -253,7 +258,7 @@ final class QueryTimeRangeExtractor {
             }
             default -> {
                 for (LogicalPlan child : plan.children()) {
-                    if (collect(child, TimeRange.UNBOUNDED, configuration, ranges, calls) == false) {
+                    if (collect(child, TimeRange.UNBOUNDED, context, ranges, calls) == false) {
                         return false;
                     }
                 }
@@ -346,15 +351,15 @@ final class QueryTimeRangeExtractor {
      * The range of {@code @timestamp} outside of which {@code condition} cannot hold, {@link TimeRange#UNBOUNDED} if unknown.
      * Whatever part of the condition is left once the calls run out counts as unknown, which only widens the range.
      */
-    private static TimeRange rangeOf(Expression condition, Configuration configuration, Calls calls) {
+    private static TimeRange rangeOf(Expression condition, Context context, Calls calls) {
         if (calls.next() == false) {
             return TimeRange.UNBOUNDED;
         }
         return switch (condition) {
-            case And and -> rangeOf(and.left(), configuration, calls).intersect(rangeOf(and.right(), configuration, calls));
-            case Or or -> rangeOf(or.left(), configuration, calls).cover(rangeOf(or.right(), configuration, calls));
-            case EsqlBinaryComparison comparison -> rangeOf(comparison, configuration, calls);
-            case UnresolvedFunction function when isFunction(function, TRANGE) -> rangeOfTRange(function, configuration, calls);
+            case And and -> rangeOf(and.left(), context, calls).intersect(rangeOf(and.right(), context, calls));
+            case Or or -> rangeOf(or.left(), context, calls).cover(rangeOf(or.right(), context, calls));
+            case EsqlBinaryComparison comparison -> rangeOf(comparison, context, calls);
+            case UnresolvedFunction function when isFunction(function, TRANGE) -> rangeOfTRange(function, context, calls);
             default -> TimeRange.UNBOUNDED;
         };
     }
@@ -362,13 +367,13 @@ final class QueryTimeRangeExtractor {
     /**
      * The range of a comparison of {@code @timestamp}, or of {@code DATE_TRUNC(interval, @timestamp)}, with a constant date.
      */
-    private static TimeRange rangeOf(EsqlBinaryComparison comparison, Configuration configuration, Calls calls) {
+    private static TimeRange rangeOf(EsqlBinaryComparison comparison, Context context, Calls calls) {
         boolean timestampOnLeft = isTimestamp(comparison.left()) || truncationOfTimestamp(comparison.left()) != null;
         Expression timestamp = timestampOnLeft ? comparison.left() : comparison.right();
         if (timestampOnLeft == false && isTimestamp(timestamp) == false && truncationOfTimestamp(timestamp) == null) {
             return TimeRange.UNBOUNDED;
         }
-        Long value = millis(timestampOnLeft ? comparison.right() : comparison.left(), configuration, calls);
+        Long value = millis(timestampOnLeft ? comparison.right() : comparison.left(), context, calls);
         if (value == null) {
             return TimeRange.UNBOUNDED;
         }
@@ -381,7 +386,7 @@ final class QueryTimeRangeExtractor {
             default -> TimeRange.UNBOUNDED;
         };
         TemporalAmount interval = truncationOfTimestamp(timestamp);
-        return interval == null ? range : rangeOfTruncated(range, interval, configuration);
+        return interval == null ? range : rangeOfTruncated(range, interval, context);
     }
 
     /** The interval of {@code DATE_TRUNC(interval, @timestamp)}, {@code null} for any other expression. */
@@ -397,12 +402,12 @@ final class QueryTimeRangeExtractor {
      * date itself, so the lower end holds as it is. An upper end of the truncated date allows any date up to the end of the
      * bucket that this end falls into.
      */
-    private static TimeRange rangeOfTruncated(TimeRange truncated, TemporalAmount interval, Configuration configuration) {
+    private static TimeRange rangeOfTruncated(TimeRange truncated, TemporalAmount interval, Context context) {
         if (truncated.to() == null) {
             return truncated;
         }
         try {
-            Rounding.Prepared rounding = DateTrunc.createRounding(interval, zone(configuration), null, null);
+            Rounding.Prepared rounding = DateTrunc.createRounding(interval, context.zone(), null, null);
             long nextBucket = rounding.nextRoundingValue(rounding.round(truncated.to()));
             return new TimeRange(truncated.from(), nextBucket - 1);
         } catch (RuntimeException e) {
@@ -414,16 +419,16 @@ final class QueryTimeRangeExtractor {
     /**
      * {@code TRANGE(offset)} keeps the rows from {@code offset} ago until now, {@code TRANGE(start, end)} those in between.
      */
-    private static TimeRange rangeOfTRange(UnresolvedFunction trange, Configuration configuration, Calls calls) {
+    private static TimeRange rangeOfTRange(UnresolvedFunction trange, Context context, Calls calls) {
         List<Expression> arguments = trange.arguments();
         if (arguments.size() == 1 && temporalAmount(arguments.get(0)) instanceof TemporalAmount offset) {
-            long now = configuration.now().toEpochMilli();
-            Long from = plus(now, offset, -1, zone(configuration));
+            long now = context.now();
+            Long from = plus(now, offset, -1, context.zone());
             return from == null ? TimeRange.UNBOUNDED : new TimeRange(from, now);
         }
         if (arguments.size() == 2) {
-            Long from = trangeEnd(arguments.get(0), configuration, calls);
-            Long to = trangeEnd(arguments.get(1), configuration, calls);
+            Long from = trangeEnd(arguments.get(0), context, calls);
+            Long to = trangeEnd(arguments.get(1), context, calls);
             // An end that is not understood leaves the function to fail or to filter on its own, nothing to conclude from it.
             return from == null || to == null ? TimeRange.UNBOUNDED : new TimeRange(from, to);
         }
@@ -431,13 +436,13 @@ final class QueryTimeRangeExtractor {
     }
 
     /** An end of a two argument {@code TRANGE}, which also takes epoch milliseconds as a number. */
-    private static Long trangeEnd(Expression expression, Configuration configuration, Calls calls) {
+    private static Long trangeEnd(Expression expression, Context context, Calls calls) {
         if (expression instanceof Literal literal
             && (literal.dataType() == DataType.LONG || literal.dataType() == DataType.INTEGER)
             && literal.value() instanceof Number number) {
             return number.longValue();
         }
-        return millis(expression, configuration, calls);
+        return millis(expression, context, calls);
     }
 
     private static boolean isTimestamp(Expression expression) {
@@ -453,56 +458,56 @@ final class QueryTimeRangeExtractor {
      * that time ranges are commonly written with: a date string, {@code NOW()}, casts to and parsing of a date, and time spans added to,
      * subtracted from or truncating those. Nanoseconds are rounded down to the millisecond, which {@link TimeRange} allows for.
      */
-    private static Long millis(Expression expression, Configuration configuration, Calls calls) {
+    private static Long millis(Expression expression, Context context, Calls calls) {
         if (calls.next() == false) {
             return null;
         }
         return switch (expression) {
             case Literal literal when literal.dataType() == DataType.DATETIME && literal.value() instanceof Long value -> value;
             // The conversion that the analyzer casts a string compared to a date with.
-            case Literal literal when literal.dataType() == DataType.KEYWORD -> parse(literal, DataType.DATETIME, configuration);
+            case Literal literal when literal.dataType() == DataType.KEYWORD -> parse(literal, DataType.DATETIME, context);
             // The inline casts, which the parser turns into the conversion functions right away.
-            case ToDatetime cast -> cast(cast.field(), DataType.DATETIME, configuration, calls);
-            case ToDateNanos cast -> cast(cast.field(), DataType.DATE_NANOS, configuration, calls);
-            case UnresolvedFunction function -> millis(function, configuration, calls);
+            case ToDatetime cast -> cast(cast.field(), DataType.DATETIME, context, calls);
+            case ToDateNanos cast -> cast(cast.field(), DataType.DATE_NANOS, context, calls);
+            case UnresolvedFunction function -> millis(function, context, calls);
             case Add add -> {
                 if (temporalAmount(add.right()) instanceof TemporalAmount amount) {
-                    yield plus(millis(add.left(), configuration, calls), amount, 1, zone(configuration));
+                    yield plus(millis(add.left(), context, calls), amount, 1, context.zone());
                 }
                 if (temporalAmount(add.left()) instanceof TemporalAmount amount) {
-                    yield plus(millis(add.right(), configuration, calls), amount, 1, zone(configuration));
+                    yield plus(millis(add.right(), context, calls), amount, 1, context.zone());
                 }
                 yield null;
             }
             case Sub sub -> temporalAmount(sub.right()) instanceof TemporalAmount amount
-                ? plus(millis(sub.left(), configuration, calls), amount, -1, zone(configuration))
+                ? plus(millis(sub.left(), context, calls), amount, -1, context.zone())
                 : null;
             default -> null;
         };
     }
 
-    private static Long millis(UnresolvedFunction function, Configuration configuration, Calls calls) {
+    private static Long millis(UnresolvedFunction function, Context context, Calls calls) {
         List<Expression> arguments = function.arguments();
         String name = function.name().toLowerCase(Locale.ROOT);
         if (NOW.equals(name) && arguments.isEmpty()) {
-            return configuration.now().toEpochMilli();
+            return context.now();
         }
         if (TO_DATETIME.contains(name) && arguments.size() == 1) {
-            return cast(arguments.get(0), DataType.DATETIME, configuration, calls);
+            return cast(arguments.get(0), DataType.DATETIME, context, calls);
         }
         if (TO_DATE_NANOS.contains(name) && arguments.size() == 1) {
-            return cast(arguments.get(0), DataType.DATE_NANOS, configuration, calls);
+            return cast(arguments.get(0), DataType.DATE_NANOS, context, calls);
         }
         if (DATE_PARSE.equals(name)) {
-            return dateParse(arguments, configuration);
+            return dateParse(arguments, context);
         }
         if (DATE_TRUNC.equals(name) && arguments.size() == 2 && temporalAmount(arguments.get(0)) instanceof TemporalAmount interval) {
-            Long date = millis(arguments.get(1), configuration, calls);
+            Long date = millis(arguments.get(1), context, calls);
             if (date == null) {
                 return null;
             }
             try {
-                return DateTrunc.createRounding(interval, zone(configuration), null, null).round(date);
+                return DateTrunc.createRounding(interval, context.zone(), null, null).round(date);
             } catch (RuntimeException e) {
                 // An interval that cannot be rounded to, which is for the analyzer to report.
                 return null;
@@ -515,7 +520,7 @@ final class QueryTimeRangeExtractor {
      * {@code DATE_PARSE(date)} and {@code DATE_PARSE(pattern, date)} of string literals. The options of the function, which
      * change the locale and the time zone of the pattern, are left alone.
      */
-    private static Long dateParse(List<Expression> arguments, Configuration configuration) {
+    private static Long dateParse(List<Expression> arguments, Context context) {
         if (arguments.isEmpty() || arguments.size() > 2) {
             return null;
         }
@@ -528,7 +533,7 @@ final class QueryTimeRangeExtractor {
             DateFormatter formatter = pattern == null
                 ? EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER
                 : DateFormatter.forPattern(pattern.utf8ToString());
-            return DateParse.process(date, formatter.withLocale(Locale.ROOT), zone(configuration), Locale.ROOT);
+            return DateParse.process(date, formatter.withLocale(Locale.ROOT), context.zone(), Locale.ROOT);
         } catch (RuntimeException e) {
             // A pattern or a date that does not parse, which is for the analyzer or the evaluation to report.
             return null;
@@ -545,22 +550,22 @@ final class QueryTimeRangeExtractor {
      * The epoch milliseconds of a cast to {@code target}, a date type. A string is parsed, a number counts the units of the
      * type since the epoch, and a date is converted between the two resolutions.
      */
-    private static Long cast(Expression argument, DataType target, Configuration configuration, Calls calls) {
+    private static Long cast(Expression argument, DataType target, Context context, Calls calls) {
         if (argument instanceof Literal literal) {
             if (literal.dataType() == DataType.KEYWORD) {
-                return parse(literal, target, configuration);
+                return parse(literal, target, context);
             }
             if ((literal.dataType() == DataType.LONG || literal.dataType() == DataType.INTEGER)
                 && literal.value() instanceof Number number) {
                 return epochMillis(number.longValue(), target);
             }
         }
-        return millis(argument, configuration, calls);
+        return millis(argument, context, calls);
     }
 
-    private static Long parse(Literal string, DataType target, Configuration configuration) {
+    private static Long parse(Literal string, DataType target, Context context) {
         try {
-            return EsqlDataTypeConverter.convert(string.value(), target, configuration) instanceof Long date
+            return EsqlDataTypeConverter.convert(string.value(), target, context.configuration()) instanceof Long date
                 ? epochMillis(date, target)
                 : null;
         } catch (RuntimeException e) {
@@ -575,10 +580,6 @@ final class QueryTimeRangeExtractor {
             return value < 0 ? null : Long.valueOf(Math.floorDiv(value, 1_000_000L));
         }
         return value;
-    }
-
-    private static ZoneId zone(Configuration configuration) {
-        return QuerySettings.TIME_ZONE.get(configuration.resolvedSettings());
     }
 
     private static TemporalAmount temporalAmount(Expression expression) {

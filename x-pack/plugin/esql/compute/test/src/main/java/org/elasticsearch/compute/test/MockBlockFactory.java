@@ -58,6 +58,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * A block factory that tracks the creation of blocks, vectors, builders that it creates. The
@@ -87,6 +88,10 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     final ConcurrentMap<IdentityKey, Object> TRACKED_BLOCKS = new ConcurrentHashMap<>();
+
+    private static final long PURGE_RELEASED_BYTES = 1024 * 1024;
+    private volatile int nextPurgeSize = 128;
+    private final AtomicLong releasedBytes = new AtomicLong();
 
     public void ensureAllBlocksAreReleased() {
 
@@ -143,7 +148,9 @@ public class MockBlockFactory extends BlockFactory {
 
     @Override
     public void adjustBreaker(final long delta) {
-        purgeTrackBlocks();
+        if (delta < 0 && releasedBytes.addAndGet(-delta) >= PURGE_RELEASED_BYTES) {
+            purgeTrackBlocks();
+        }
         super.adjustBreaker(delta);
     }
 
@@ -175,16 +182,20 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     void purgeTrackBlocks() {
+        releasedBytes.set(0);
         for (var entries : TRACKED_BLOCKS.entrySet()) {
             var key = entries.getKey();
             if (isKeyReleased(key)) {
                 TRACKED_BLOCKS.remove(key);
             }
         }
+        nextPurgeSize = TRACKED_BLOCKS.size() + Math.clamp(TRACKED_BLOCKS.size(), 128, 1024);
     }
 
     void track(Object obj, Object trackDetail) {
-        purgeTrackBlocks();
+        if (TRACKED_BLOCKS.size() >= nextPurgeSize) {
+            purgeTrackBlocks();
+        }
         TRACKED_BLOCKS.put(new IdentityKey(obj), trackDetail);
     }
 

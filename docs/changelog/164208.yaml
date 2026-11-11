@@ -1,0 +1,5 @@
+area: "Mapping, Security"
+issues: []
+pr: 164208
+summary: Hide flattened storage from roles that grant only some keys
+type: bug

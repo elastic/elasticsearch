@@ -958,6 +958,11 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
      */
     public void testSubFieldOfUnsupportedFieldNamedAlone() throws IOException {
         assumeOriginalTypesReported();
+        var parentPaths = EsqlCapabilities.Cap.PARENT_PATHS_ARE_NOT_FIELDS.name().toLowerCase(Locale.ROOT);
+        assumeTrue(
+            "a parent path is not a field of the query",
+            clusterHasCapability("POST", "/_query", List.of(), List.of(parentPaths)).orElse(false)
+        );
         createIndex("test", index -> {
             index.startObject("properties");
             index.startObject("f");

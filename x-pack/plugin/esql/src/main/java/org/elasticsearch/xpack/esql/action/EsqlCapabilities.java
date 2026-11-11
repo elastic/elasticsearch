@@ -616,6 +616,12 @@ public class EsqlCapabilities {
         FLATTENED_KEYS(EsqlPlugin.FLATTENED_KEYS_FEATURE_FLAG),
 
         /**
+         * A field that field caps returns only as the parent path of a name the query uses is not one of the query's fields, unless
+         * it holds keys.
+         */
+        PARENT_PATHS_ARE_NOT_FIELDS,
+
+        /**
          * Support for requesting the "_ignored" metadata field.
          */
         METADATA_IGNORED_FIELD,

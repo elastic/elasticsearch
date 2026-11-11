@@ -57,7 +57,7 @@ Every column in scope is part of the comparison, so `DEDUP` reads every column o
 
 Columns of an `unsupported` type are ignored when comparing rows, and `DEDUP` does not fail because of them. This includes fields mapped to incompatible types across the indices of a `FROM` (a union type): such a field is returned as `null` until it is converted, so it cannot tell rows apart. For example, if `emp_no` is `integer` in one index and `long` in another, `FROM employees, employees_incompatible | KEEP emp_no | DEDUP` returns a single row. A later conversion such as `EVAL e = emp_no::long` does not bring the removed rows back. To deduplicate on the value of such a field, convert it first and then `DEDUP`: `EVAL e = emp_no::long | DROP emp_no | DEDUP`.
 
-Full-text search functions (such as `MATCH` or `KQL`) cannot appear after `DEDUP` in the same pipeline.
+Full-text searches on indexed fields (such as `MATCH` or `KQL`) can't appear after `DEDUP` in the same pipeline.
 
 ## Examples
 

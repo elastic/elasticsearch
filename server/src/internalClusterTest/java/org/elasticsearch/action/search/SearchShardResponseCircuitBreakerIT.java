@@ -12,17 +12,25 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -48,6 +56,11 @@ public class SearchShardResponseCircuitBreakerIT extends ESIntegTestCase {
 
     private List<String> dataNodes;
     private String coordinator;
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(MockTransportService.TestPlugin.class, MockSearchService.TestPlugin.class);
+    }
 
     private void startCluster() {
         // The hits of a large shard, about 600 KB, then arrive as the last chunk, embedded in the fetch response. Spread over several
@@ -124,6 +137,61 @@ public class SearchShardResponseCircuitBreakerIT extends ESIntegTestCase {
                 FetchSearchPhase.NAME,
                 ShardResponseReservation.FETCH_BREAKER_LABEL
             );
+        }
+    }
+
+    /**
+     * The breaker trips after the coordinator decided to send a shard request, but before it was sent. Every reader context opened
+     * on a data node must be released, so the search must fail only once that request is sent.
+     * For the reasoning, see {@code AbstractSearchAsyncAction#deferCoordinatorTripFailure}.
+     */
+    public void testTripWhileSendingShardRequestLeavesNoReaderContext() throws Exception {
+        dataNodes = internalCluster().startNodes(2);
+        coordinator = internalCluster().startCoordinatingOnlyNode(
+            Settings.builder().put("indices.breaker.request.type", "memory").put("indices.breaker.request.limit", "1b").build()
+        );
+        createIndex(SMALL, dataNodes.get(0));
+        createIndex(LARGE, dataNodes.get(1));
+
+        CircuitBreaker breaker = internalCluster().getInstance(CircuitBreakerService.class, coordinator).getBreaker(CircuitBreaker.REQUEST);
+        long tripsBefore = breaker.getTrippedCount();
+        PlainActionFuture<SearchResponse> search = new PlainActionFuture<>();
+        AtomicReference<Thread> sender = new AtomicReference<>();
+        AtomicBoolean heldSecondRequest = new AtomicBoolean();
+        MockTransportService transportService = MockTransportService.getInstance(coordinator);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(SearchTransportService.DFS_ACTION_NAME)) {
+                sender.compareAndSet(null, Thread.currentThread());
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        // The thread that sent the first request holds up the next one, after its trip check. Every response trips, so it waits
+        // for the first to, then up to 1s for a search that fails at once to complete. With the fix that wait always times
+        // out; it only bounds how long the bug has to show. The unit tests in SearchQueryThenFetchAsyncActionTests cover the
+        // same order without timing.
+        transportService.addGetConnectionBehavior((connectionManager, node) -> {
+            if (Thread.currentThread() == sender.get() && heldSecondRequest.compareAndSet(false, true)) {
+                waitUntil(() -> breaker.getTrippedCount() > tripsBefore);
+                waitUntil(search::isDone, 1, TimeUnit.SECONDS);
+            }
+            return connectionManager.getConnection(node);
+        });
+
+        try {
+            client(coordinator).prepareSearch(SMALL, LARGE)
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setMaxConcurrentShardRequests(SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS)
+                // Without a can_match round, the requests are sent from the thread that starts the search, not a transport thread
+                .setPreFilterShardSize(Integer.MAX_VALUE)
+                .execute(search);
+            Exception e = expectThrows(Exception.class, () -> search.actionGet(SAFE_AWAIT_TIMEOUT));
+            assertThat(ExceptionsHelper.unwrap(e, CircuitBreakingException.class), notNullValue());
+            assertTrue("the second shard request was never held", heldSecondRequest.get());
+            // The second response trips too, once its reader context is open. The trip skips the shards after the second.
+            assertBusy(() -> assertThat(breaker.getTrippedCount(), equalTo(tripsBefore + 2)));
+            assertBusy(MockSearchService::assertNoInFlightContext);
+        } finally {
+            transportService.clearAllRules();
         }
     }
 

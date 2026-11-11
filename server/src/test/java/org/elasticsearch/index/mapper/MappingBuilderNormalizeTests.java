@@ -99,7 +99,8 @@ public class MappingBuilderNormalizeTests extends MapperServiceTestCase {
     }
 
     private static String built(MappingBuilder mappingBuilder) {
-        return mappingBuilder.build(MergeReason.MAPPING_UPDATE).toCompressedXContent().string();
+        mappingBuilder.build(MergeReason.MAPPING_UPDATE);
+        return mappingBuilder.toCompressedXContent().string();
     }
 
     public void testNormalizeMergesDuplicateChildren() throws IOException {
@@ -216,10 +217,12 @@ public class MappingBuilderNormalizeTests extends MapperServiceTestCase {
             }
             """;
 
-        Exception e = expectThrows(Exception.class, () -> built(parse(duplicateInsideDissolvedObject)));
+        Exception e = expectThrows(Exception.class, () -> parse(duplicateInsideDissolvedObject).normalize(MergeReason.MAPPING_UPDATE));
         assertThat(e.getMessage(), containsString("cannot be changed from type [keyword] to [text]"));
 
-        String template = parse(duplicateInsideDissolvedObject).build(MergeReason.INDEX_TEMPLATE).toCompressedXContent().string();
+        MappingBuilder normalizedAsTemplate = parse(duplicateInsideDissolvedObject);
+        normalizedAsTemplate.normalize(MergeReason.INDEX_TEMPLATE);
+        String template = normalizedAsTemplate.toCompressedXContent().string();
         assertThat(template, containsString("\"text\""));
         assertThat(template, not(containsString("keyword")));
 
@@ -258,7 +261,7 @@ public class MappingBuilderNormalizeTests extends MapperServiceTestCase {
             }
             """;
 
-        Exception e = expectThrows(Exception.class, () -> built(parse(nestedInsideDissolvedObject)));
+        Exception e = expectThrows(Exception.class, () -> parse(nestedInsideDissolvedObject).normalize(MergeReason.MAPPING_UPDATE));
         assertThat(e.getMessage(), containsString("mapper [m.n.b.x] cannot be changed from type [keyword] to [text]"));
     }
 

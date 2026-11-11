@@ -25,10 +25,13 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -50,11 +53,15 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -499,6 +506,57 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             firstShard.releaseQueryConstructionMemory();
             secondShard.releaseQueryConstructionMemory();
             parsedShard.releaseQueryConstructionMemory();
+        }
+        assertEquals(before, cb.getUsed());
+    }
+
+    /**
+     * Terms read from a stream that charges what they decode to, as a node's inbound transport requests do, are charged there once and
+     * not again when a shard builds its query, as long as the stream holds the charge. Once it is released, for instance when a scroll
+     * keeps the request after it responded, the query charges them again.
+     */
+    public void testTermsChargedOnReadAreChargedForTheQueryOnlyOnceReleased() throws IOException {
+        TermsQueryBuilder original = new TermsQueryBuilder(KEYWORD_FIELD_NAME, randomTermsList(5_000));
+        Map<String, Long> chargedOnRead = new HashMap<>();
+        AtomicBoolean held = new AtomicBoolean(true);
+        TermsQueryBuilder deserialized;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeNamedWriteable(original);
+            // Stands in for the stream a node reads a transport request from, which charges the request breaker until it responds
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry()) {
+                @Override
+                public BooleanSupplier chargeDecodedBytes(long bytes, String label) {
+                    chargedOnRead.merge(label, bytes, Long::sum);
+                    return held::get;
+                }
+            }) {
+                deserialized = (TermsQueryBuilder) in.readNamedWriteable(QueryBuilder.class);
+            }
+        }
+        long decodedBytes = deserialized.getValues().decodedBytesOverWire();
+        assertThat(decodedBytes, greaterThan(0L));
+        assertEquals(Map.of(ChildMemoryCircuitBreaker.CATEGORY_TERMS, decodedBytes), chargedOnRead);
+
+        CircuitBreaker cb = createCircuitBreakerService();
+        long before = cb.getUsed();
+        SearchExecutionContext whileHeld = new SearchExecutionContext(createSearchExecutionContext(), cb);
+        try {
+            deserialized.toQuery(whileHeld);
+            assertFalse("terms charged on read register no shared charge", whileHeld.hasQueryConstructionReleasables());
+            assertEquals(whileHeld.getQueryConstructionMemoryUsed(), cb.getUsed() - before);
+        } finally {
+            whileHeld.releaseQueryConstructionMemory();
+        }
+        assertEquals(before, cb.getUsed());
+
+        held.set(false);
+        SearchExecutionContext afterRelease = new SearchExecutionContext(createSearchExecutionContext(), cb);
+        try {
+            deserialized.toQuery(afterRelease);
+            assertTrue("released terms are charged by the query again", afterRelease.hasQueryConstructionReleasables());
+            assertEquals(decodedBytes + afterRelease.getQueryConstructionMemoryUsed(), cb.getUsed() - before);
+        } finally {
+            afterRelease.releaseQueryConstructionMemory();
         }
         assertEquals(before, cb.getUsed());
     }

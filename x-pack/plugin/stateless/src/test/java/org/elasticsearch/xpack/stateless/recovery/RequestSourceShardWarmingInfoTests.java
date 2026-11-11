@@ -45,13 +45,13 @@ import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportGetShardWar
 import org.mockito.ArgumentCaptor;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
@@ -87,8 +87,9 @@ public class RequestSourceShardWarmingInfoTests extends ESTestCase {
             final var warmingInfo = newListener().requestSourceShardWarmingInfo(relocationTarget());
 
             assertThat(shutdownType.toString(), warmingInfo.isRequested(), is(true));
+            assertThat(warmingInfo.isDone(), is(false));
             assertThat(warmingInfo.shutdownSignalTimestamp(), equalTo(startedAtMillis));
-            assertThat(warmingInfo.warmingInfo(), nullValue());
+            assertThat(warmingInfo.get(startedAtMillis), equalTo(Optional.empty()));
 
             final var sent = sentRequest();
             assertThat(sent.request().sourceNode(), sameInstance(state.nodes().get(SOURCE)));
@@ -98,7 +99,8 @@ public class RequestSourceShardWarmingInfoTests extends ESTestCase {
             );
 
             sent.listener().onResponse(new TransportGetShardWarmingInfoAction.Response(600L, 1000L));
-            assertThat(warmingInfo.warmingInfo(), equalTo(new SourceShardWarmingInfo.WarmingInfo(600L, 1000L)));
+            assertThat(warmingInfo.isDone(), is(true));
+            assertThat(warmingInfo.get(startedAtMillis), equalTo(Optional.of(new SourceShardWarmingInfo.WarmingInfo(600L, 1000L))));
         }
     }
 
@@ -115,7 +117,8 @@ public class RequestSourceShardWarmingInfoTests extends ESTestCase {
                     new ElasticsearchException("simulated")
                 )
             );
-        assertThat(warmingInfo.warmingInfo(), equalTo(SourceShardWarmingInfo.WarmingInfo.NONE));
+        assertThat(warmingInfo.isDone(), is(true));
+        assertThat(warmingInfo.get(startedAtMillis), equalTo(Optional.empty()));
     }
 
     public void testNoRequestWhenSourceWarmingInfoDisabled() {

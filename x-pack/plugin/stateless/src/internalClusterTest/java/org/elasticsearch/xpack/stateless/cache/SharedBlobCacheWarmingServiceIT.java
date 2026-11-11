@@ -1816,7 +1816,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             SourceShardWarmingInfo sourceShardWarmingInfo
         ) {
             final var plan = super.searchRecoveryTimeout(state, indexShard, bytesToWarm, previous, sourceShardWarmingInfo);
-            evaluations.add(new TimeoutEvaluation(indexShard.shardId(), bytesToWarm, plan, sourceShardWarmingInfo.warmingInfo()));
+            evaluations.add(
+                new TimeoutEvaluation(
+                    indexShard.shardId(),
+                    bytesToWarm,
+                    plan,
+                    sourceShardWarmingInfo.get(sourceShardWarmingInfo.shutdownSignalTimestamp()).orElse(null)
+                )
+            );
             return plan;
         }
     }
@@ -1997,10 +2004,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             SourceShardWarmingInfo sourceShardWarmingInfo,
             ActionListener<Void> resumeRecoveryListener
         ) {
-            if (awaitSourceShardWarmingInfo && sourceShardWarmingInfo.isRequested() && sourceShardWarmingInfo.warmingInfo() == null) {
+            if (awaitSourceShardWarmingInfo && sourceShardWarmingInfo.isRequested() && sourceShardWarmingInfo.isDone() == false) {
                 // Forked so that the waiting never blocks the thread that delivers the warming info
                 threadPool.generic().execute(() -> {
-                    assertTrue(waitUntil(() -> sourceShardWarmingInfo.warmingInfo() != null));
+                    assertTrue(waitUntil(sourceShardWarmingInfo::isDone));
                     warmCacheForSearchShardRecovery(
                         clusterStateSupplier,
                         indexShard,

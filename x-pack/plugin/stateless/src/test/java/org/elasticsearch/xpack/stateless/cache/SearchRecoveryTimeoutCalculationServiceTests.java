@@ -65,6 +65,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.IntStream;
 
@@ -2841,24 +2842,31 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
     }
 
-    public void testSourceShardWarmingInfoStatus() {
+    public void testSourceShardWarmingInfoStatusAndLookup() {
         final long startedAtMillis = randomNonNegativeLong() / 2;
         assertThat(SourceShardWarmingInfo.NOT_REQUESTED.status(startedAtMillis), equalTo(SourceShardWarmingInfo.Status.NOT_REQUESTED));
-        assertThat(
-            SourceShardWarmingInfo.newPending(startedAtMillis).status(startedAtMillis),
-            equalTo(SourceShardWarmingInfo.Status.PENDING)
-        );
+        assertThat(SourceShardWarmingInfo.NOT_REQUESTED.get(startedAtMillis), equalTo(Optional.empty()));
+
+        final var pending = SourceShardWarmingInfo.newPending(startedAtMillis);
+        assertThat(pending.status(startedAtMillis), equalTo(SourceShardWarmingInfo.Status.PENDING));
+        assertThat(pending.get(startedAtMillis), equalTo(Optional.empty()));
+
         final var answered = answeredWarmingInfo(startedAtMillis, 600L, 1000L);
         assertThat(answered.status(startedAtMillis), equalTo(SourceShardWarmingInfo.Status.AVAILABLE));
+        assertThat(answered.get(startedAtMillis), equalTo(Optional.of(new SourceShardWarmingInfo.WarmingInfo(600L, 1000L))));
+        assertThat(answered.get(startedAtMillis).orElseThrow().warmBytesRatio(), equalTo(0.6));
+
         assertThat(answered.status(startedAtMillis + 1), equalTo(SourceShardWarmingInfo.Status.UNAVAILABLE));
-        assertThat(
-            answeredWarmingInfo(startedAtMillis, 0L, 1000L).status(startedAtMillis),
-            equalTo(SourceShardWarmingInfo.Status.AVAILABLE)
-        );
-        assertThat(
-            answeredWarmingInfo(startedAtMillis, 0L, 0L).status(startedAtMillis),
-            equalTo(SourceShardWarmingInfo.Status.UNAVAILABLE)
-        );
+        assertThat(answered.get(startedAtMillis + 1), equalTo(Optional.empty()));
+
+        final var zeroShardBytes = answeredWarmingInfo(startedAtMillis, 0L, 1000L);
+        assertThat(zeroShardBytes.status(startedAtMillis), equalTo(SourceShardWarmingInfo.Status.AVAILABLE));
+        assertThat(zeroShardBytes.get(startedAtMillis), equalTo(Optional.of(new SourceShardWarmingInfo.WarmingInfo(0L, 1000L))));
+
+        final var none = answeredWarmingInfo(startedAtMillis, 0L, 0L);
+        assertThat(none.status(startedAtMillis), equalTo(SourceShardWarmingInfo.Status.UNAVAILABLE));
+        assertThat(none.get(startedAtMillis), equalTo(Optional.empty()));
+        assertThat(SourceShardWarmingInfo.WarmingInfo.NONE.warmBytesRatio(), equalTo(0.0));
     }
 
     /// Warm amount is 4800ms for a 600 of 1000 bytes share, data volume 4000ms for 250 bytes against a 500-byte warming cache, and both

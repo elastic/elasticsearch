@@ -433,12 +433,8 @@ public class SearchRecoveryTimeoutCalculationService {
         }
 
         // Warm-amount shares use the source's estimates of its current commits; they can differ from this target's WarmTarget plan.
-        final SourceShardWarmingInfo.Status warmingInfoStatus = sourceShardWarmingInfo.status(shutdown.getStartedAtMillis());
-        final double warmAmountMs;
-        if (warmingInfoStatus == SourceShardWarmingInfo.Status.AVAILABLE) {
-            final var warmingInfo = sourceShardWarmingInfo.warmingInfo();
-            assert warmingInfo != null;
-            warmAmountMs = (warmingInfo.shardBytesToWarm() / (double) warmingInfo.sourceBytesToWarm()) * remaining;
+        final long shutdownStartedAtMillis = shutdown.getStartedAtMillis();
+        final double warmAmountMs = sourceShardWarmingInfo.get(shutdownStartedAtMillis).map(warmingInfo -> {
             logger.debug(
                 "{} source shard warming info [{}/{}] bytes, target plans to warm [{}] bytes",
                 shardId,
@@ -446,30 +442,22 @@ public class SearchRecoveryTimeoutCalculationService {
                 warmingInfo.sourceBytesToWarm(),
                 totalBytesToWarm
             );
-        } else {
-            warmAmountMs = 0;
-        }
+            return warmingInfo.warmBytesRatio() * remaining;
+        }).orElse(0.0);
 
         // The decision below is per-shard whereas the three heuristics above assume all shards opt with the same heuristic.
         // This is an inherent problem of the fact that, during relocation, we don't know up-front all the shards that are going
         // to be relocated between two given nodes, so we can't know which of the three heuristics is more suitable overall.
         // Though the per-shard local decision here is OKish, because it's all relative to the remaining deadline and shards,
         // so the impact of currently choosing a different heuristic from previous (or future) relocating shards is partially mitigated.
-        final ShutdownHeuristic heuristic;
-        if (warmAmountMs > equalShareMs && warmAmountMs > dataVolumeMs) {
-            heuristic = new ShutdownHeuristic("warm_amount", TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_AMOUNT, warmAmountMs);
-        } else if (dataVolumeMs > equalShareMs) {
-            heuristic = new ShutdownHeuristic("data_volume", TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME, dataVolumeMs);
-        } else {
-            heuristic = new ShutdownHeuristic("equal_share", TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE, equalShareMs);
-        }
+        final ShutdownHeuristic heuristic = ShutdownHeuristic.select(equalShareMs, dataVolumeMs, warmAmountMs);
         drainTimeoutHeuristicTotalMetric.incrementBy(
             1,
             Map.of(
                 SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY,
                 heuristic.name(),
                 SEARCH_RECOVERY_SOURCE_WARMING_INFO_STATUS_ATTRIBUTE_KEY,
-                warmingInfoStatus.attributeValue()
+                sourceShardWarmingInfo.status(shutdownStartedAtMillis).attributeValue()
             )
         );
         return new SearchRecoveryTimeout(
@@ -480,7 +468,17 @@ public class SearchRecoveryTimeoutCalculationService {
         );
     }
 
-    private record ShutdownHeuristic(String name, TimeoutContext context, double perShardShareMs) {}
+    private record ShutdownHeuristic(String name, TimeoutContext context, double perShardShareMs) {
+        static ShutdownHeuristic select(double equalShareMs, double dataVolumeMs, double warmAmountMs) {
+            if (warmAmountMs > equalShareMs && warmAmountMs > dataVolumeMs) {
+                return new ShutdownHeuristic("warm_amount", TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_AMOUNT, warmAmountMs);
+            } else if (dataVolumeMs > equalShareMs) {
+                return new ShutdownHeuristic("data_volume", TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME, dataVolumeMs);
+            } else {
+                return new ShutdownHeuristic("equal_share", TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE, equalShareMs);
+            }
+        }
+    }
 
     /// Counts relocations whose source is `sourceNodeId` and whose target is `targetNodeId` (i.e. shards relocating
     /// from `sourceNodeId` to `targetNodeId`, as seen from the source's `RoutingNode`).

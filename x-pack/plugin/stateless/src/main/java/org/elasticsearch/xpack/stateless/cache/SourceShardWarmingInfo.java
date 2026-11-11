@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.elasticsearch.core.Nullable;
 
 import java.util.Locale;
+import java.util.Optional;
 
 /// Created per recovery, before the request is sent, and completed when the response or failure arrives.
 public final class SourceShardWarmingInfo {
@@ -22,19 +23,10 @@ public final class SourceShardWarmingInfo {
     ///                          including this one; `0` when the source could not compute it
     public record WarmingInfo(long shardBytesToWarm, long sourceBytesToWarm) {
         public static final WarmingInfo NONE = new WarmingInfo(0L, 0L);
-    }
 
-    public enum Status {
-        /** The source answered for its current shutdown signal. */
-        AVAILABLE,
-        /** The source could not compute the warming info, the request failed, or it was sent under a since-replaced shutdown signal. */
-        UNAVAILABLE,
-        /** The request was sent but the answer has not arrived yet. */
-        PENDING,
-        NOT_REQUESTED;
-
-        String attributeValue() {
-            return name().toLowerCase(Locale.ROOT);
+        /// Fraction of `sourceBytesToWarm` accounted for by this shard, or `0` when `sourceBytesToWarm` is not positive.
+        public double warmBytesRatio() {
+            return sourceBytesToWarm > 0L ? shardBytesToWarm / (double) sourceBytesToWarm : 0.0;
         }
     }
 
@@ -62,22 +54,48 @@ public final class SourceShardWarmingInfo {
         return requested;
     }
 
+    public boolean isDone() {
+        return warmingInfo != null;
+    }
+
     public long shutdownSignalTimestamp() {
         return shutdownSignalTimestamp;
     }
 
-    /// The answer, or `null` while it is pending (or when no request was sent).
-    @Nullable
-    public WarmingInfo warmingInfo() {
-        return warmingInfo;
+    public Optional<WarmingInfo> get(long currentShutdownSignalTimestamp) {
+        final var answer = warmingInfo;
+        if (status(answer, currentShutdownSignalTimestamp) == Status.AVAILABLE) {
+            assert answer != null;
+            return Optional.of(answer);
+        } else {
+            return Optional.empty();
+        }
     }
 
-    /// Whether the answer can be used by a plan for the source's shutdown signal started at `currentShutdownSignalTimestamp`.
-    public Status status(long currentShutdownSignalTimestamp) {
+    // This is only used for metrics. Can be removed once metrics are no longer needed.
+    enum Status {
+        /** The source answered for its current shutdown signal. */
+        AVAILABLE,
+        /** The source could not compute the warming info, the request failed, or it was sent under a since-replaced shutdown signal. */
+        UNAVAILABLE,
+        /** The request was sent but the answer has not arrived yet. */
+        PENDING,
+        NOT_REQUESTED;
+
+        String attributeValue() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    /// Status of the answer for the source's shutdown signal started at `currentShutdownSignalTimestamp`.
+    Status status(long currentShutdownSignalTimestamp) {
+        return status(warmingInfo, currentShutdownSignalTimestamp);
+    }
+
+    private Status status(@Nullable WarmingInfo answer, long currentShutdownSignalTimestamp) {
         if (requested == false) {
             return Status.NOT_REQUESTED;
         }
-        final var answer = warmingInfo;
         if (answer == null) {
             return Status.PENDING;
         }

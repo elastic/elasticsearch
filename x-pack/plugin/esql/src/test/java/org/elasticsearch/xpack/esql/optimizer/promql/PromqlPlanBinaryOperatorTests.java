@@ -292,6 +292,15 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertThat(as(last.field(), FieldAttribute.class).sourceText(), equalTo("network.bytes_in"));
     }
 
+    /**
+     * {@code time()} beside {@code scalar()} of a vector runs as its own pipeline, keyed by a step of its own, and the two
+     * join on step. It must read that step, not the command's, which nothing below the join produces.
+     */
+    public void testTimeBesideScalarOfVectorReadsItsOwnStep() {
+        var plan = planPromql("PROMQL index=k8s step=1m result=(time() / scalar(sum(network.cost)))");
+        assertThat(plan.collect(HashJoin.class), hasSize(1));
+    }
+
     public void testTopLevelBinaryArithmeticQuery() {
         var plan = planPromql("""
             PROMQL index=k8s step=1m in_n_out=(
@@ -599,10 +608,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         );
         var joins = plan.collect(HashJoin.class);
         assertThat(joins, hasSize(1));
-        assertThat(
-            joins.getFirst().leftFields().stream().map(Attribute::name).toList(),
-            containsInAnyOrder("step", PackDims.PACKED_FIELD_NAME)
-        );
+        assertThat(joins.getFirst().leftFields().stream().map(Attribute::name).toList(), equalTo(List.of("step")));
     }
 
     public void testVectorMatchRejectsOpaqueWithoutOperand() {
@@ -628,8 +634,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
 
     public void testVectorMatchComposedWithOpaqueOperandRejected() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        // The unmatched + composes over a vector match and therefore translates as another join: it inherits the
-        // concrete-label requirement, which the bare selector operand does not satisfy.
+        // The unmatched + pairs the aggregated match result with the raw selector in one shared aggregation.
         VerificationException e = assertThrows(
             VerificationException.class,
             () -> planPromql(

@@ -341,12 +341,17 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
                 );
             }
             // TODO: Add support for VERSION by implementing QueryList.versionTermQueryList similar to ipTermQueryList
-            if (Arrays.stream(UNSUPPORTED_TYPES).anyMatch(t -> rightField.dataType().equals(t))) {
+            if (supportedKey(rightField.dataType()) == false) {
                 failures.add(
                     fail(leftField, "JOIN with right field [{}] of type [{}] is not supported", rightField.name(), rightField.dataType())
                 );
             }
         }
+    }
+
+    /** Whether the join can key by a field of {@code type}. */
+    protected boolean supportedKey(DataType type) {
+        return Arrays.asList(UNSUPPORTED_TYPES).contains(type) == false;
     }
 
     private static boolean comparableTypes(Attribute left, Attribute right) {

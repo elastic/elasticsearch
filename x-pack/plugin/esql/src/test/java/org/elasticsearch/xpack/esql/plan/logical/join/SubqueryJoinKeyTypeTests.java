@@ -26,7 +26,18 @@ public class SubqueryJoinKeyTypeTests extends ESTestCase {
     /** Label container dictionaries are not scalar subquery equality keys. */
     public void testLabelContainerKeysRemainUnsupported() {
         for (Join join : joins(DataType.TIME_SERIES_METADATA_DATA_TYPE, DataType.TIME_SERIES_METADATA_DATA_TYPE)) {
-            assertThat(verify(join).toString(), containsString("is not supported"));
+            if (join instanceof HashJoin == false) {
+                assertThat(verify(join).toString(), containsString("is not supported"));
+            }
+        }
+    }
+
+    /** A hash join keys by a label container as a whole: it is canonical, so equal bytes are equal label sets. */
+    public void testHashJoinKeysByLabelContainer() {
+        for (Join join : joins(DataType.TIME_SERIES_METADATA_DATA_TYPE, DataType.TIME_SERIES_METADATA_DATA_TYPE)) {
+            if (join instanceof HashJoin) {
+                assertFalse(verify(join).toString(), verify(join).hasFailures());
+            }
         }
     }
 

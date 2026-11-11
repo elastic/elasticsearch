@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
@@ -1910,11 +1911,6 @@ public class EsqlSession {
         PreAnalysisResult result = resolveFieldNames(parsed, preAnalysis, unmappedResolution, viewSettings, requestFilter, configuration)
             .withMinimumTransportVersion(localClusterMinimumVersion)
             .withIndexViewOrigins(indexViewOrigins);
-        // The time range that the query itself restricts each index pattern to prunes index resolution like the request filter does.
-        Map<IndexPattern, QueryBuilder> queryTimeFilters = queryTimeFilters(parsed, unmappedResolution, viewSettings, configuration);
-        String description = requestFilter == null && queryTimeFilters.isEmpty()
-            ? "the only attempt without filter"
-            : "first attempt with filter";
         // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer
         // and to listing, even when index resolution is retried without the filter (e.g. because the filter covers
         // an empty time range). Extraction uses configuration::absoluteStartedTimeInMillis (fixed at request start).
@@ -1929,6 +1925,14 @@ public class EsqlSession {
             configuration::absoluteStartedTimeInMillis,
             BoundSemantics.RANGE_QUERY
         );
+        // The time range that the query itself restricts each index pattern to prunes index resolution like the request filter
+        // does. A request filter that filters on time itself is taken to say what there is to say about it.
+        Map<IndexPattern, QueryBuilder> queryTimeFilters = filtersOnTimestamp(requestFilter, configuration)
+            ? Map.of()
+            : queryTimeFilters(parsed, unmappedResolution, viewSettings, configuration);
+        String description = requestFilter == null && queryTimeFilters.isEmpty()
+            ? "the only attempt without filter"
+            : "first attempt with filter";
         // Decided here, from the original request filter, for the same reason as timestampBounds above: index resolution may be
         // retried without the filter, but the post-analysis steps that consume view boundaries
         // ({@link ViewRequestFilterRewriter#rewrite} and {@link PlannerUtils#integrateEsFilterIntoFragment}) always run against
@@ -1963,11 +1967,25 @@ public class EsqlSession {
      * They are only used while an unmapped field fails the query, which is the default. An index that does not map
      * {@code @timestamp} never matches the filter, which is right as long as the missing field reads as {@code null}, but not
      * once it is loaded from {@code _source}. Exemplars resolve data streams of their own from the indices that the query
-     * resolved, and are left out as well.
+     * resolved, and are left out as well. So is any query whose request filter already filters on {@code @timestamp}, see
+     * {@link #filtersOnTimestamp}.
      * <p>
      * A filter that leaves a pattern without any index is given up on, see {@link #analyzeWithRetry}: the query then gets the
      * mapping, and with that the columns, of the indices that it would have read without the filter.
      */
+    /**
+     * Whether the request filter filters on {@code @timestamp}, in any way and at any depth. The caller, typically a time
+     * picker, then says which time range to resolve the indices for, and the time range of the query is not looked for. A
+     * filter whose fields cannot be told counts as one that does.
+     */
+    static boolean filtersOnTimestamp(@Nullable QueryBuilder requestFilter, Configuration configuration) {
+        if (requestFilter == null) {
+            return false;
+        }
+        QueryDslFieldNameExtractor.Result referenced = QueryDslFieldNameExtractor.extract(requestFilter, configuration);
+        return referenced.requiresAllFields() || referenced.fieldNames().contains(MetadataAttribute.TIMESTAMP_FIELD);
+    }
+
     private static Map<IndexPattern, QueryBuilder> queryTimeFilters(
         LogicalPlan parsed,
         UnmappedResolution unmappedResolution,

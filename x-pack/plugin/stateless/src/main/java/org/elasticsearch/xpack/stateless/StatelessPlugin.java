@@ -963,6 +963,7 @@ public class StatelessPlugin extends Plugin
                 commitServiceProvider,
                 indexShardCacheWarmer,
                 hollowShardMetrics.get(),
+                relocationMetricsCollectorProvider,
                 services.client(),
                 JvmInfo.jvmInfo().getMem().getHeapMax()
             )
@@ -1455,6 +1456,7 @@ public class StatelessPlugin extends Plugin
             UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN,
             PostRecoveryMerger.POST_RECOVERY_MERGER_DELAY,
             StatelessPrimaryRelocationSourceService.PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING,
+            StatelessPrimaryRelocationSourceService.PREWARM_WAIT_TIMEOUT_SETTING,
             StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING,
             DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING,
             DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,

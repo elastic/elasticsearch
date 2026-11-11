@@ -1,1 +1,2 @@
 org.elasticsearch.index.fielddata.plain.MultiValuedBinaryDocValuesSortField$Provider
+org.elasticsearch.index.fielddata.plain.ColumnarNumericSortField$Provider

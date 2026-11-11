@@ -20,6 +20,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
+import org.elasticsearch.index.fielddata.plain.ColumnarNumericSortField;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -190,6 +191,8 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
             builder.field("field", field.getField());
             if (field instanceof SortedNumericSortField sortedNumericSortField) {
                 builder.field("mode", sortedNumericSortField.getSelector().toString().toLowerCase(Locale.ROOT));
+            } else if (field instanceof ColumnarNumericSortField columnar) {
+                builder.field("mode", columnar.maxMode() ? "max" : "min");
             } else if (field instanceof SortedSetSortField sortedSetSortField) {
                 builder.field("mode", sortedSetSortField.getSelector().toString().toLowerCase(Locale.ROOT));
             }

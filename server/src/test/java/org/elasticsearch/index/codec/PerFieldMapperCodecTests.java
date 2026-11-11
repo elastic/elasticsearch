@@ -883,11 +883,13 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat(supplier.getDocValuesFormatForField("size"), instanceOf(ColumNARDocValuesFormat.class));
         assertThat(supplier.getDocValuesFormatForField("requests"), instanceOf(ColumNARDocValuesFormat.class));
         assertThat(supplier.getDocValuesFormatForField("terms"), instanceOf(ColumNARDocValuesFormat.class));
+        // The index sort field too: ColumnarNumericSortField sorts the index by its column.
+        assertThat(supplier.getDocValuesFormatForField("sorted"), instanceOf(ColumNARDocValuesFormat.class));
         assertEquals(ColumnarFieldType.LONG, supplier.columnarFields().fieldType(fieldInfo("size")));
         assertEquals(ColumnarFieldType.LONG, supplier.columnarFields().fieldType(fieldInfo("terms")));
+        assertEquals(ColumnarFieldType.LONG, supplier.columnarFields().fieldType(fieldInfo("sorted")));
         assertEquals(ColumnarFieldType.STRING, supplier.columnarFields().fieldType(fieldInfo("category")));
-        // An index sort field stays SORTED_NUMERIC, which Lucene's index sort reads.
-        for (String field : List.of("sorted", "count", "score")) {
+        for (String field : List.of("count", "score")) {
             assertFalse(field, supplier.getDocValuesFormatForField(field) instanceof ColumNARDocValuesFormat);
             assertNull(field, supplier.columnarFields().numericTypeOf(field));
         }

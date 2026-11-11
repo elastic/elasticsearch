@@ -11,7 +11,9 @@ package org.elasticsearch.index.codec.columnar;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
@@ -22,7 +24,11 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.fielddata.plain.ColumnarLongIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.ColumnarNumericSortField;
 import org.elasticsearch.index.mapper.FieldArrayContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -30,6 +36,12 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
+import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
@@ -51,6 +63,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -242,6 +256,135 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
             assertNull(nothingButNulls, withCodec.get(nothingButNulls));
         }
         assertEquals(sourceValues(WITHOUT_CODEC, arrays.size()), withCodec);
+    }
+
+    /**
+     * An index sorted by a ColumNAR long keeps its documents in the order {@code SORTED_NUMERIC} doc values would put them in,
+     * across flushes and a merge, and searches, sorts and aggregations over it agree with an index sorted the same way on
+     * {@code SORTED_NUMERIC} doc values.
+     */
+    public void testIndexSortedByColumnarLong() throws IOException {
+        final boolean reverse = randomBoolean();
+        final boolean max = randomBoolean();
+        final boolean missingFirst = randomBoolean();
+        final Settings sort = Settings.builder()
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), FIELD)
+            .put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), reverse ? "desc" : "asc")
+            .put(IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(), max ? "max" : "min")
+            .put(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), missingFirst ? "_first" : "_last")
+            .build();
+        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        final boolean indexed = randomBoolean();
+        final String mapping = Strings.format("""
+            {"properties":{"@timestamp":{"type":"date"},"id":{"type":"keyword"},"l":{"type":"long","index":%s,"index_terms":%s}}}\
+            """, indexed, indexed && randomBoolean());
+        for (String index : List.of(WITH_CODEC, WITHOUT_CODEC)) {
+            final Settings settings = Settings.builder().put(settings(mode, index.equals(WITH_CODEC))).put(sort).build();
+            indicesAdmin().prepareCreate(index).setSettings(settings).setMapping(mapping).get();
+        }
+
+        final boolean singleValued = randomBoolean();
+        final List<String> ids = new ArrayList<>();
+        for (int d = between(1, 300); d > 0; d--) {
+            final String id = Integer.toString(d);
+            ids.add(id);
+            final String source = source(id, randomValues(singleValued, true));
+            for (String index : List.of(WITH_CODEC, WITHOUT_CODEC)) {
+                prepareIndex(index).setId(id).setSource(source, XContentType.JSON).get();
+            }
+            if (rarely()) {
+                indicesAdmin().prepareRefresh(WITH_CODEC, WITHOUT_CODEC).get();
+            }
+        }
+        if (randomBoolean()) {
+            indicesAdmin().prepareForceMerge(WITH_CODEC, WITHOUT_CODEC).setMaxNumSegments(1).get();
+        }
+        indicesAdmin().prepareRefresh(WITH_CODEC, WITHOUT_CODEC).get();
+
+        assertEquals(ColumnarFormat.NAME, fieldInfo(WITH_CODEC, FIELD).getAttribute("PerFieldDocValuesFormat.format"));
+        final IndexShard shard = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(WITH_CODEC)).getShard(0);
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+            for (LeafReaderContext leaf : searcher.getLeafContexts()) {
+                final SortField sortField = leaf.reader().getMetaData().sort().getSort()[0];
+                assertEquals(
+                    new ColumnarNumericSortField(
+                        FIELD,
+                        SortField.Type.LONG,
+                        reverse,
+                        max,
+                        missingFirst ^ reverse ? Long.MIN_VALUE : Long.MAX_VALUE
+                    ),
+                    sortField
+                );
+                assertSegmentSorted(leaf.reader(), reverse, max, missingFirst);
+            }
+        }
+        assertNotNull(indicesAdmin().prepareSegments(WITH_CODEC).get());
+
+        assertSameHits(QueryBuilders.rangeQuery(FIELD).gte(randomLongBetween(-100, 100)));
+        assertSameHits(QueryBuilders.existsQuery(FIELD));
+        assertSameSort(SortOrder.ASC);
+        assertSameSort(SortOrder.DESC);
+        assertSameAggregations();
+        final SortOrder compositeOrder = randomFrom(SortOrder.values());
+        final int pageSize = between(1, 50);
+        final Supplier<CompositeValuesSourceBuilder<?>> terms = () -> new TermsValuesSourceBuilder("l").field(FIELD).order(compositeOrder);
+        assertEquals(compositeBuckets(WITHOUT_CODEC, terms, pageSize), compositeBuckets(WITH_CODEC, terms, pageSize));
+        // A rounded source can't use a ColumNAR index sort to terminate early. Its pages are checked against a single page of
+        // every bucket rather than the SORTED_NUMERIC index's pages, which can undercount a bucket that spans two pages when
+        // they terminate early on the rounded index sort.
+        final Supplier<CompositeValuesSourceBuilder<?>> rounded = () -> new DateHistogramValuesSourceBuilder("l").field(FIELD)
+            .fixedInterval(new DateHistogramInterval("10ms"))
+            .order(compositeOrder);
+        assertEquals(compositeBuckets(WITHOUT_CODEC, rounded, 10_000), compositeBuckets(WITH_CODEC, rounded, pageSize));
+    }
+
+    /** Each document's sort key, in doc id order, never goes against the index sort. */
+    private static void assertSegmentSorted(LeafReader reader, boolean reverse, boolean max, boolean missingFirst) throws IOException {
+        final SortedNumericLongValues values = ColumnarLongIndexFieldData.longValues(reader, FIELD);
+        Long previous = null;
+        boolean seenMissing = false;
+        boolean seenValue = false;
+        for (int doc = 0; doc < reader.maxDoc(); doc++) {
+            if (values.advanceExact(doc) == false) {
+                assertFalse("missing documents sort " + (missingFirst ? "first" : "last"), missingFirst ? seenValue : false);
+                seenMissing = true;
+                continue;
+            }
+            assertFalse("missing documents sort " + (missingFirst ? "first" : "last"), missingFirst == false && seenMissing);
+            seenValue = true;
+            long key = values.nextValue();
+            for (int i = 1; i < values.docValueCount(); i++) {
+                long value = values.nextValue();
+                key = max ? Math.max(key, value) : Math.min(key, value);
+            }
+            if (previous != null) {
+                assertTrue("doc " + doc + " sorts after its predecessor", reverse ? key <= previous : key >= previous);
+            }
+            previous = key;
+        }
+    }
+
+    /** All buckets of a composite aggregation over the field, which can use the index sort to terminate early. */
+    private List<Object> compositeBuckets(String index, Supplier<CompositeValuesSourceBuilder<?>> source, int pageSize) {
+        final List<Object> buckets = new ArrayList<>();
+        final AtomicReference<Map<String, Object>> after = new AtomicReference<>();
+        do {
+            final CompositeAggregationBuilder composite = new CompositeAggregationBuilder("composite", List.of(source.get())).size(
+                pageSize
+            );
+            if (after.get() != null) {
+                composite.aggregateAfter(after.get());
+            }
+            assertResponse(client().prepareSearch(index).setSize(0).addAggregation(composite), response -> {
+                final InternalComposite result = response.getAggregations().get("composite");
+                for (InternalComposite.InternalBucket bucket : result.getBuckets()) {
+                    buckets.add(Arrays.asList(bucket.getKey(), bucket.getDocCount()));
+                }
+                after.set(result.getBuckets().isEmpty() ? null : result.afterKey());
+            });
+        } while (after.get() != null);
+        return buckets;
     }
 
     /**

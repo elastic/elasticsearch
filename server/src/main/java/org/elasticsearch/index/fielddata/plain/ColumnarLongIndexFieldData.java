@@ -14,18 +14,22 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LongValues;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -107,6 +111,17 @@ public class ColumnarLongIndexFieldData extends IndexNumericFieldData {
     @Override
     public IndexType indexType() {
         return indexType;
+    }
+
+    /** Lucene's native numeric sort can't sort an index by these fields, so they sort it with a {@link ColumnarNumericSortField}. */
+    @Override
+    public SortField indexSort(IndexVersion indexCreatedVersion, Object missingValue, MultiValueMode sortMode, boolean reverse) {
+        assert sortMode == MultiValueMode.MIN || sortMode == MultiValueMode.MAX : "an index sorts by a field's min or max";
+        Object missing = new LongValuesComparatorSource(this, missingValue, sortMode, null, NumericType.LONG).missingObject(
+            missingValue,
+            reverse
+        );
+        return new ColumnarNumericSortField(getFieldName(), SortField.Type.LONG, reverse, sortMode == MultiValueMode.MAX, missing);
     }
 
     @Override

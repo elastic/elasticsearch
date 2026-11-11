@@ -459,6 +459,8 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
         }
     }
 
+    // Obsolete since 8.0: all compatible nodes use the snapshot initialization introduced by #55918, so UNKNOWN_REPO_GEN entries can no
+    // longer be created. TODO remove this and the corresponding branch in `SnapshotExternalChangesBatcher`
     public void testBwcUnknownRepoGenEntryCleanup() {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var repo = "repo-bwc";

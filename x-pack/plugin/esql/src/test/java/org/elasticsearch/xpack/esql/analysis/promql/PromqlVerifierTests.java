@@ -709,25 +709,29 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     /**
-     * A histogram function regroups by every label but {@code le}. A reduction or a {@code without} over raw series leaves those
-     * labels packed in one {@code _timeseries} column, so the regrouping cannot be expressed.
+     * Shape 6 (typed): classic histogram over opaque reduction/WITHOUT. Binding refines rest ({@code labelContainer(le)})
+     * with {@code ts_transform}; the keyword path still rejects these shapes.
      */
-    public void testHistogramOverReductionOrWithoutIsRejected() {
+    public void testHistogramOverOpaqueReductionOrWithoutIsAccepted() {
+        assumeTrue("requires a functional label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
+        TestAnalyzer classicHistograms = analyzer().addIndex("prom_hist", "mapping-promql-classic-histogram.json", IndexMode.TIME_SERIES)
+            .minimumTransportVersion(TransportVersion.current());
         for (String function : List.of("histogram_quantile(0.9, ", "histogram_fraction(0, 0.2, ")) {
             for (String buckets : List.of(
-                "topk(3, network.bytes_in)",
-                "bottomk(3, network.bytes_in)",
-                "limitk(3, network.bytes_in)",
-                "limit_ratio(0.5, network.bytes_in)",
-                "sum without (host) (network.bytes_in)"
+                "topk(3, request_duration_seconds_bucket)",
+                "sum without (instance) (request_duration_seconds_bucket)"
             )) {
-                tsdb.error(
-                    "PROMQL index=test step=5m " + function + buckets + ")",
-                    containsString(
-                        "over topk, bottomk, limitk, limit_ratio or a WITHOUT aggregate is not supported at this time "
-                            + "unless the input is first aggregated with BY"
-                    )
-                );
+                String query = "PROMQL index=prom_hist step=5m " + function + buckets + ")";
+                assertNotNull(query, classicHistograms.query(query));
+            }
+        }
+        // Non-histogram metrics: no {@code le}, so the function warns and evaluates to empty rather than failing bind.
+        tsdb.minimumTransportVersion(TransportVersion.current());
+        for (String function : List.of("histogram_quantile", "histogram_fraction")) {
+            String call = function.equals("histogram_quantile") ? "histogram_quantile(0.9, " : "histogram_fraction(0, 0.2, ";
+            for (String buckets : List.of("topk(3, network.bytes_in)", "sum without (host) (network.bytes_in)")) {
+                assertNotNull(call + buckets, tsdb.query("PROMQL index=test step=5m " + call + buckets + ")"));
+                assertWarnings(function + ": input vector has no le label; no buckets to evaluate");
             }
         }
     }
@@ -749,25 +753,30 @@ public class PromqlVerifierTests extends ESTestCase {
         }
     }
 
-    /** A native histogram aggregated with {@code without} is rejected like classic buckets are. */
-    public void testNativeHistogramOverWithoutIsRejected() {
+    /**
+     * Native histograms carry buckets in the value, so {@code without} does not force an {@code le} regroup - the open
+     * schema model helps here once the verifier gate is gone.
+     */
+    public void testNativeHistogramOverWithoutIsAccepted() {
+        assumeTrue("requires a functional label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
         TestAnalyzer nativeHistograms = analyzer().addIndex("exp_histo", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
-            .stripErrorPrefix(true);
-        for (String rejected : List.of(
+            .minimumTransportVersion(TransportVersion.current());
+        for (String accepted : List.of(
             "histogram_quantile(0.5, sum without (instance) (responseTime))",
             "histogram_fraction(0, 0.2, sum without (instance) (responseTime))"
         )) {
-            nativeHistograms.error(
-                "PROMQL index=exp_histo step=5m " + rejected,
-                containsString("over topk, bottomk, limitk, limit_ratio or a WITHOUT aggregate is not supported at this time")
-            );
+            assertNotNull(accepted, nativeHistograms.query("PROMQL index=exp_histo step=5m " + accepted));
         }
     }
 
     public void testNestedComparisons() {
-        tsdb.error(
-            "PROMQL index=test step=5m avg(foo > 5)",
-            containsString("comparison operators are only supported at the top-level at this time")
+        // Filter-mode comparisons finish in translateAggregate, so nesting under aggregations / label_replace is allowed.
+        assertNotNull(tsdb.query("PROMQL index=test step=5m avg(network.bytes_in > 5)"));
+        assertTrue(
+            tsdb.query(
+                "PROMQL index=test step=5m "
+                    + "sum by (dst) (label_replace(sum by (host) (network.bytes_in) > 0, \"dst\", \"$1\", \"host\", \"(.+)\"))"
+            ).resolved()
         );
     }
 

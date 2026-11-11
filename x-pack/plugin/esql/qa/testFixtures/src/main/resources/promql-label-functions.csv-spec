@@ -437,6 +437,22 @@ result:double | state:keyword
 ;
 
 
+// Filter-mode comparison nested under label_replace, consumed by by(...): by(dst) drops rest so no replaced-label leak.
+label_replace_under_by_with_filter_comparison
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+required_capability: promql_label_references
+PROMQL index=prom-metrics-name step=1h result=(sum by (region) (label_replace(sum by (pod, zone) (metrics.requests{pod=~"pod[AB]"}) > 15, "region", "$1", "zone", "(.+)")))
+| KEEP result, region
+| SORT result;
+
+result:double | region:keyword
+20.0          | us
+;
+
+
 // Classic Prometheus shape: invent host:port via label_join, then label_replace(..., "(.*):.*") into dst and sum by it.
 label_replace_sum_by_host_port_capture
 required_capability: promql_command_v0

@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
@@ -776,7 +775,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                 );
             }
         });
-        Holder<Boolean> root = new Holder<>(true);
         p.forEachDown(lp -> {
             switch (lp) {
                 case Selector selector -> verifySelector(selector, failures);
@@ -786,24 +784,15 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                 case AcrossSeriesReduction reduction -> verifyGroupingLabels(reduction, reduction.groupings(), failures);
                 case HistogramFunctionCall histogram -> {
                     LogicalPlan buckets = histogram.child();
-                    // Regrouping by every label but `le` needs the labels as named columns. A reduction or a WITHOUT over
-                    // opaque series hides them in the label container instead.
-                    if (hasConcreteLabels(buckets) == false && (usesReduction(buckets) || usesWithoutGrouping(buckets))) {
-                        failures.add(
-                            fail(
-                                histogram,
-                                "{} over topk, bottomk, limitk, limit_ratio or a WITHOUT aggregate is not supported at this time "
-                                    + "unless the input is first aggregated with BY [{}]",
-                                histogram.functionName(),
-                                histogram.sourceText()
-                            )
-                        );
-                    } else if (readsNativeHistograms(buckets) == false
+                    // Classic histograms regroup by every label but `le` via unresolved label container/label refs
+                    // (HistogramFunctionCall); ResolvePromqlLabelRefs materializes them from the label container when it can.
+                    // Cases that still need a BY first (a keyword label container that cannot be refined) fail in binding instead.
+                    if (readsNativeHistograms(buckets) == false
                         && selectsMappedMetric(buckets)
                         && inputLabel(buckets, HistogramFunctionCall.LE_LABEL) == null) {
-                            // like Prometheus: an input without buckets evaluates to nothing; one without series has nothing to say
-                            warnings.add(histogram.functionName() + ": input vector has no le label; no buckets to evaluate");
-                        }
+                        // like Prometheus: an input without buckets evaluates to nothing; one without series has nothing to say
+                        warnings.add(histogram.functionName() + ": input vector has no le label; no buckets to evaluate");
+                    }
                 }
                 case MetadataManipulationFunction relabel -> verifyRelabelInputs(relabel, failures);
                 case PromqlFunctionCall functionCall -> {
@@ -853,33 +842,12 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                             failures.add(fail(lp, "vector matching requires operands with concrete label sets [{}]", lp.sourceText()));
                         }
                     }
-                    if (binaryOperator instanceof VectorBinaryComparison comparison
-                        && comparison.match() == VectorMatch.NONE
-                        && root.get() == false) {
-                        failures.add(
-                            fail(lp, "comparison operators are only supported at the top-level at this time [{}]", lp.sourceText())
-                        );
-                    }
                     if (binaryOperator instanceof VectorBinaryComparison comp) {
                         // Filter-mode comparisons finish inside translateOverSharedFrame (literal operand), as a step
                         // broadcast (a scalar computed from the source, on either side), or in translateAsLeftJoin (two
                         // vectors), like arithmetic.
                         if (comp.boolMode() == false && PromqlPlan.returnsScalar(comp.left()) && PromqlPlan.returnsScalar(comp.right())) {
                             failures.add(fail(comp, "Comparisons [{}] between scalars must use the BOOL modifier", comp.op()));
-                        }
-                        if (comp.filterMode()
-                            && PromqlPlan.returnsScalar(comp.left())
-                            && PromqlPlan.returnsScalar(comp.right()) == false
-                            && comp.left() instanceof LiteralSelector == false) {
-                            // A filter keeps the vector's samples where a scalar function on the left compares true; translation
-                            // returns rows Prometheus does not until the typed label container translation lands.
-                            failures.add(
-                                fail(
-                                    lp,
-                                    "comparison filters with a non-literal scalar on the left are not supported at this time [{}]",
-                                    lp.sourceText()
-                                )
-                            );
                         }
                     }
                     if ((binaryOperator.match().filter() == VectorMatch.Filter.ON
@@ -906,7 +874,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     fail(lp, "{} queries are not supported at this time [{}]", lp.getClass().getSimpleName(), lp.sourceText())
                 );
             }
-            root.set(false);
         });
 
         verifyMetadataManipulationPlacement(p, null, failures, typedLabelContainer);
@@ -1345,10 +1312,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
 
     private static List<String> namedLabels(LogicalPlan plan) {
         return PromqlLabels.labelNames(plan.output().stream().filter(a -> PromqlLabels.isTagsLabel(a) == false).toList());
-    }
-
-    private static boolean usesWithoutGrouping(LogicalPlan plan) {
-        return plan.anyMatch(p -> p instanceof AcrossSeriesAggregate agg && agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT);
     }
 
     private static boolean hasConcreteLabels(LogicalPlan plan) {

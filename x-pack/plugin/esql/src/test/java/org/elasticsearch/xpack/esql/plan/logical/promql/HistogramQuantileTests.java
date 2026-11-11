@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.AbstractNodeTestCase;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -21,11 +20,13 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests.randomSource;
@@ -156,7 +157,9 @@ public class HistogramQuantileTests extends AbstractNodeTestCase<HistogramQuanti
             List.of(randomQuantile(source))
         );
 
-        assertEquals(List.of(MetadataAttribute.TIMESERIES), node.output().stream().map(Attribute::name).toList());
+        // one rest view, every label but le and the metric name; the relation's own dimensions never become named labels
+        assertEquals(1, node.output().size());
+        assertEquals(Set.of(LabelMatcher.NAME, HistogramQuantile.LE_LABEL), PromqlLabels.excluded(node));
     }
 
     private static EsRelation randomEsRelationWithLeAndIrrelevantLabel(Source source) {

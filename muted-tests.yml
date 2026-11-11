@@ -585,3 +585,8 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.3.8#javaRestTest
   method: testMergeKeywordAndFlattenedKey {NONE}
   issue: https://github.com/elastic/elasticsearch/issues/165491
+- class: org.elasticsearch.search.vectors.KnnNestedFilterLevelTests
+  tasks:
+  - :server:test
+  method: testCompoundFilters
+  issue: https://github.com/elastic/elasticsearch/issues/165502

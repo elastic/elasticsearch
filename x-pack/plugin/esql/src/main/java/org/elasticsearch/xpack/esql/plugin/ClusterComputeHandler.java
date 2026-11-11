@@ -135,15 +135,19 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         return r.getCompletionInfo();
                     });
                     ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+                    var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
                     transportService.sendChildRequest(
                         cluster.connection,
                         ComputeService.CLUSTER_ACTION_NAME,
                         clusterRequest,
                         groupTask,
                         computeService.planRequestOptions(),
-                        new ActionListenerResponseHandler<>(clusterListener, in -> new ComputeResponse(in, threadContext), searchExecutor)
+                        new ActionListenerResponseHandler<>(
+                            ComputeService.finishRemoteSinkIfNotSent(remoteSink, clusterListener),
+                            in -> new ComputeResponse(in, threadContext),
+                            searchExecutor
+                        )
                     );
-                    var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
                     exchangeSource.addRemoteSink(
                         remoteSink,
                         failFast,

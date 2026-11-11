@@ -48,6 +48,7 @@ import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.exchange.RemoteSink;
 import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Assertions;
@@ -73,6 +74,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -312,6 +314,23 @@ public class ComputeService {
      */
     TransportRequestOptions planRequestOptions() {
         return TransportRequestOptions.of(null, TransportRequestOptions.Type.REG, blockFactory.breaker());
+    }
+
+    /**
+     * Wraps the listener of a plan request whose target already holds the exchange that {@code remoteSink} reads from. When the
+     * request fails before it is sent, for example because serializing it trips the breaker, nothing runs on the target to finish
+     * that exchange, and once the failure cancels the request's task the coordinator can no longer tell the target to finish it.
+     * So the exchange is finished through {@code remoteSink} before the failure propagates, rather than left on the target until
+     * its inactive-sink reaper removes it.
+     */
+    static <T> ActionListener<T> finishRemoteSinkIfNotSent(RemoteSink remoteSink, ActionListener<T> listener) {
+        return listener.delegateResponse((l, e) -> {
+            if (e instanceof SendRequestTransportException) {
+                remoteSink.close(ActionListener.running(() -> l.onFailure(e)));
+            } else {
+                l.onFailure(e);
+            }
+        });
     }
 
     FormatReaderRegistry formatReaderRegistry() {

@@ -15,9 +15,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
@@ -55,39 +53,30 @@ import static org.hamcrest.Matchers.notNullValue;
 public class SerializedPlanBreakerIT extends AbstractEsqlIntegTestCase {
 
     static final int NUM_DOCS = 15_000;
-    static final String KEY_PADDING = "x".repeat(200);
     static final String QUERY_TAIL = " | INLINE STATS c = COUNT(*) BY k | STATS n = COUNT(*), s = SUM(c)";
     /** The breaker label of the transport's serialized outbound messages. */
     static final String SERIALIZED_REQUEST_LABEL = "RecyclerBytesStreamOutput";
-    /** Well below the sub-plan result of {@link #NUM_DOCS} padded keys, and above what the rest of the query allocates. */
+    /** Well below the sub-plan result of {@link #NUM_DOCS} {@link #key keys}, and above what the rest of the query allocates. */
     private static final ByteSizeValue HEADROOM = ByteSizeValue.ofMb(1);
+
+    /**
+     * A unique key with a random suffix. The test cluster sometimes compresses transport messages, and only the compressed bytes
+     * are charged, so the keys must not compress below {@link #HEADROOM}.
+     */
+    static String key(int i) {
+        return i + randomAlphaOfLength(200);
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(MockTransportService.TestPlugin.class);
-        plugins.add(InternalExchangePlugin.class);
         return plugins;
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(memoryRequestBreaker())
-            .put(reapUnusedExchanges())
-            .build();
-    }
-
-    /**
-     * A trip fails a request after the exchange it feeds was opened on the target. The target never runs the request, so
-     * nothing there finishes that exchange, and once the trip cancels the request's task the coordinator cannot tell the
-     * target to finish it either. The target reaps it once it has been inactive for this interval.
-     */
-    static Settings reapUnusedExchanges() {
-        return Settings.builder()
-            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
-            .build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put(memoryRequestBreaker()).build();
     }
 
     /** The test cluster sometimes picks the {@code noop} request breaker, which never trips. */
@@ -194,7 +183,7 @@ public class SerializedPlanBreakerIT extends AbstractEsqlIntegTestCase {
         ensureGreen("idx");
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < NUM_DOCS; i++) {
-            bulk.add(prepareIndex("idx").setSource("k", i + KEY_PADDING));
+            bulk.add(prepareIndex("idx").setSource("k", key(i)));
         }
         assertFalse(bulk.get().hasFailures());
         return coordinator;

@@ -28,8 +28,8 @@ import java.io.IOException;
  * - the {@link LocalRelation} from the left-hand side is used as a source for the right-hand side
  * - the same {@link LocalRelation} is then used to continue the execution of the query on the left-hand side
  *
- * It delegates all its operations to {@link ImmediateLocalSupplier} and, to prevent the double release, it will always
- * create a deep copy of the page received in the constructor initially.
+ * It delegates all its operations to {@link ImmediateLocalSupplier} and, to prevent the double release, {@link #get()} always
+ * creates a deep copy of the page received in the constructor initially. {@link #peek()} returns that page itself.
  *
  * Example with the flow and the page reuse for a query like "row x = 1 | inline stats y = max(x)"
  * Step 1:

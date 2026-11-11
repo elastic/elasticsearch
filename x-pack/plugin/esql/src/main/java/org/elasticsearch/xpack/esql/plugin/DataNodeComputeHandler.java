@@ -269,18 +269,22 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias)
                             );
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+                            final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                             transportService.sendChildRequest(
                                 connection,
                                 ComputeService.DATA_ACTION_NAME,
                                 dataNodeRequest,
                                 groupTask,
                                 computeService.planRequestOptions(),
-                                new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
-                                    nodeResponseRef.set(r);
-                                    return r.completionInfo();
-                                }), in -> new DataNodeComputeResponse(in, threadContext), searchExecutor)
+                                new ActionListenerResponseHandler<>(
+                                    ComputeService.finishRemoteSinkIfNotSent(remoteSink, computeListener.acquireCompute().map(r -> {
+                                        nodeResponseRef.set(r);
+                                        return r.completionInfo();
+                                    })),
+                                    in -> new DataNodeComputeResponse(in, threadContext),
+                                    searchExecutor
+                                )
                             );
-                            final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                             exchangeSource.addRemoteSink(
                                 remoteSink,
                                 configuration.allowPartialResults() == false,
@@ -400,6 +404,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         }
                     }))) {
                         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+                        var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                         transportService.sendChildRequest(
                             connection,
                             ComputeService.DATA_ACTION_NAME,
@@ -414,12 +419,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             groupTask,
                             computeService.planRequestOptions(),
                             new ActionListenerResponseHandler<>(
-                                computeListener.acquireCompute().map(DataNodeComputeResponse::completionInfo),
+                                ComputeService.finishRemoteSinkIfNotSent(
+                                    remoteSink,
+                                    computeListener.acquireCompute().map(DataNodeComputeResponse::completionInfo)
+                                ),
                                 in -> new DataNodeComputeResponse(in, threadContext),
                                 searchExecutor
                             )
                         );
-                        var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                         exchangeSource.addRemoteSink(
                             remoteSink,
                             allowPartial == false,

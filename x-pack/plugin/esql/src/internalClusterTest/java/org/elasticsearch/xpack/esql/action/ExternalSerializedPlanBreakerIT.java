@@ -29,12 +29,12 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
-import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.KEY_PADDING;
 import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.NUM_DOCS;
 import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.QUERY_TAIL;
 import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.SERIALIZED_REQUEST_LABEL;
 import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.assertTrippedOn;
 import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.fillBreakerAfterNthSend;
+import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.key;
 
 /**
  * The coordinator charges its request breaker for each serialized request that carries the sub-plan result to an external
@@ -55,7 +55,6 @@ public class ExternalSerializedPlanBreakerIT extends AbstractExternalDataSourceI
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(MockTransportService.TestPlugin.class);
-        plugins.add(InternalExchangePlugin.class);
         return plugins;
     }
 
@@ -64,11 +63,19 @@ public class ExternalSerializedPlanBreakerIT extends AbstractExternalDataSourceI
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(SerializedPlanBreakerIT.memoryRequestBreaker())
-            .put(SerializedPlanBreakerIT.reapUnusedExchanges())
             .build();
     }
 
-    public void testTripFailsQuery() throws Exception {
+    public void testTripFailsQueryWithoutPartialResults() throws Exception {
+        assertTripFailsQuery(false);
+    }
+
+    /** A failed external worker fails the whole query, so a trip does too, even when partial results are allowed. */
+    public void testTripFailsQueryWithPartialResults() throws Exception {
+        assertTripFailsQuery(true);
+    }
+
+    private void assertTripFailsQuery(boolean allowPartialResults) throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(2);
         String coordinator = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
@@ -76,7 +83,7 @@ public class ExternalSerializedPlanBreakerIT extends AbstractExternalDataSourceI
         registerDataSource("breaker_ds", Map.of());
         registerDataset("breaker_dataset", "breaker_ds", StoragePath.fileUri(writeFixture()) + "/*.csv", Map.of());
 
-        var request = syncEsqlQueryRequest("FROM breaker_dataset" + QUERY_TAIL).allowPartialResults(false);
+        var request = syncEsqlQueryRequest("FROM breaker_dataset" + QUERY_TAIL).allowPartialResults(allowPartialResults);
         request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "round_robin").build()));
         request.acceptedPragmaRisks(true);
         try (
@@ -102,7 +109,7 @@ public class ExternalSerializedPlanBreakerIT extends AbstractExternalDataSourceI
         for (int f = 0; f < FILES; f++) {
             StringBuilder body = new StringBuilder("k\n");
             for (int i = 0; i < rowsPerFile; i++) {
-                body.append(f * rowsPerFile + i).append(KEY_PADDING).append('\n');
+                body.append(key(f * rowsPerFile + i)).append('\n');
             }
             Files.writeString(root.resolve("part_" + f + ".csv"), body.toString(), StandardCharsets.UTF_8);
         }

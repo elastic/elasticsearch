@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -24,12 +25,12 @@ import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
-import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.KEY_PADDING;
 import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.NUM_DOCS;
 import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.QUERY_TAIL;
 import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.SERIALIZED_REQUEST_LABEL;
 import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.assertTrippedOn;
 import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.fillBreakerAfterNthSend;
+import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.key;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -50,7 +51,12 @@ public class CrossClusterSerializedPlanBreakerIT extends AbstractCrossClusterTes
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put(super.nodeSettings()).put(SerializedPlanBreakerIT.memoryRequestBreaker()).build();
+        return Settings.builder()
+            .put(super.nodeSettings())
+            .put(SerializedPlanBreakerIT.memoryRequestBreaker())
+            // The base class reaps inactive exchanges within seconds, which would hide one that a trip leaves on a remote cluster.
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, ExchangeService.INACTIVE_SINKS_INTERVAL_DEFAULT)
+            .build();
     }
 
     public void testTripFailsQueryWithoutPartialResults() {
@@ -83,7 +89,7 @@ public class CrossClusterSerializedPlanBreakerIT extends AbstractCrossClusterTes
             assertAcked(remote.admin().indices().prepareCreate(INDEX).setMapping("k", "type=keyword"));
             BulkRequestBuilder bulk = remote.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int i = 0; i < NUM_DOCS / 2; i++) {
-                bulk.add(remote.prepareIndex(INDEX).setSource("k", alias + i + KEY_PADDING));
+                bulk.add(remote.prepareIndex(INDEX).setSource("k", alias + key(i)));
             }
             assertFalse(bulk.get().hasFailures());
         }

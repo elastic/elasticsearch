@@ -177,6 +177,9 @@ public final class DatasetConfigResolver {
         if (split instanceof FileSplit file && resources.stream().anyMatch(resource -> isWithin(file.path(), resource))) {
             return;
         }
+        if (split instanceof FileSplit == false && resources.stream().anyMatch(resource -> split.isWithin(resource.path()))) {
+            return;
+        }
         throw new ElasticsearchStatusException(
             "external dataset [{}] does not cover split [{}]",
             RestStatus.BAD_REQUEST,

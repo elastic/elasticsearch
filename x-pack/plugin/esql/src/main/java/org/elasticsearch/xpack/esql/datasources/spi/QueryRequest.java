@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.util.List;
@@ -24,8 +25,21 @@ public record QueryRequest(
     Map<String, Object> config,
     int batchSize,
     int rowLimit,
-    BlockFactory blockFactory
+    BlockFactory blockFactory,
+    @Nullable Map<String, Object> fragment // satellite fragment request the connector sends instead of a plain scan, null for a plain scan
 ) {
+
+    public QueryRequest(
+        String target,
+        List<String> projectedColumns,
+        List<Attribute> attributes,
+        Map<String, Object> config,
+        int batchSize,
+        int rowLimit,
+        BlockFactory blockFactory
+    ) {
+        this(target, projectedColumns, attributes, config, batchSize, rowLimit, blockFactory, null);
+    }
 
     public QueryRequest(
         String target,
@@ -39,6 +53,6 @@ public record QueryRequest(
     }
 
     public QueryRequest withBlockFactory(BlockFactory blockFactory) {
-        return new QueryRequest(target, projectedColumns, attributes, config, batchSize, rowLimit, blockFactory);
+        return new QueryRequest(target, projectedColumns, attributes, config, batchSize, rowLimit, blockFactory, fragment);
     }
 }

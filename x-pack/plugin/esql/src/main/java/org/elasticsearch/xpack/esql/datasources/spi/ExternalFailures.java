@@ -136,6 +136,8 @@ public final class ExternalFailures {
         "flight://",
         "grpc://",
         "grpcs://",
+        "flight+tls://",
+        "grpc+tls://",
         "file:/" };
 
     /**

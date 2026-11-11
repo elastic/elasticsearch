@@ -30,6 +30,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -108,6 +109,13 @@ public final class AsyncExternalSourceBuffer {
      * woken by {@link #waitForReadyOrFinished} on any finish, STOP included, and exits between pages.
      */
     private volatile boolean readCancelled = false;
+
+    /**
+     * Actions to run when a live producer is hard-cut (the same transition that sets {@link #readCancelled}). Unlike that polled
+     * flag they can wake a producer blocked inside a read it cannot poll from, such as a remote call that waits for the first
+     * batch. Registered with {@link #addCancelListener}.
+     */
+    private final List<Runnable> cancelListeners = new CopyOnWriteArrayList<>();
 
     /**
      * Per-file captured source metadata contributions, populated by the background reader thread as
@@ -531,6 +539,7 @@ public final class AsyncExternalSourceBuffer {
         // backoff aborts; see the readCancelled javadoc.
         if (drainingPages && transitioned) {
             readCancelled = true;
+            runCancelListeners();
         }
         // See the javadoc above for why this must not be gated on `transitioned`.
         if (drainingPages) {
@@ -593,6 +602,32 @@ public final class AsyncExternalSourceBuffer {
      */
     public boolean readCancelled() {
         return readCancelled;
+    }
+
+    /**
+     * Runs {@code action} when a live producer is hard-cut (task cancel, async DELETE, LIMIT teardown), or at once if that already
+     * happened. The action may run on any thread, must not block, and must tolerate being called while the producer is anywhere
+     * in its loop. It is not run for a stop that keeps the buffered pages, nor for a natural end of input.
+     */
+    public void addCancelListener(Runnable action) {
+        cancelListeners.add(action);
+        if (readCancelled) {
+            runCancelListeners();
+        }
+    }
+
+    private void runCancelListeners() {
+        for (Runnable listener : cancelListeners) {
+            // a listener runs at most once: removing it first makes a racing registration and cancel agree on who runs it
+            if (cancelListeners.remove(listener)) {
+                try {
+                    listener.run();
+                } catch (Exception e) {
+                    // cancellation is best effort: a failing listener must not stop the others or the finish itself
+                    logger.debug("cancel listener failed", e);
+                }
+            }
+        }
     }
 
     public int size() {

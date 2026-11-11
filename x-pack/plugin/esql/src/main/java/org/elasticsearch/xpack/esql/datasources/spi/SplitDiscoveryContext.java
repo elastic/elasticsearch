@@ -214,6 +214,29 @@ public record SplitDiscoveryContext(
         );
     }
 
+    /** The same context with another {@code config}, for a wrapper that hands a provider the config it can use (decrypted). */
+    public SplitDiscoveryContext withConfig(Map<String, Object> newConfig) {
+        return new SplitDiscoveryContext(
+            metadata,
+            fileList,
+            schemaMap,
+            newConfig,
+            partitionInfo,
+            filterHints,
+            querySchema,
+            unifiedSchema,
+            maxRecordBytes,
+            isCancelled,
+            declaredReadSpec,
+            metadataColumnNames,
+            retainedPartitionKeys,
+            rowLimit,
+            listingMemory,
+            taskConcurrency,
+            minTransportVersion
+        );
+    }
+
     /**
      * Without a row demand: the shape every caller had before a limit could reach split discovery.
      * <p>

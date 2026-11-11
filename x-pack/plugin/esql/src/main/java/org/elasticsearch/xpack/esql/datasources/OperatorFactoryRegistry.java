@@ -7,13 +7,17 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryRequest;
+import org.elasticsearch.xpack.esql.datasources.spi.SatelliteFragment;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 
@@ -43,6 +47,8 @@ public class OperatorFactoryRegistry {
     private final Map<String, SourceOperatorFactoryProvider> pluginFactories;
     private final Executor executor;
     private final Executor fileReadExecutor;
+    @Nullable
+    private final BlockFactory producerBlockFactory;
 
     public OperatorFactoryRegistry(
         Map<String, ExternalSourceFactory> sourceFactories,
@@ -58,12 +64,27 @@ public class OperatorFactoryRegistry {
         Executor executor,
         Executor fileReadExecutor
     ) {
+        this(sourceFactories, pluginFactories, executor, fileReadExecutor, null);
+    }
+
+    /**
+     * @param producerBlockFactory the node-level (root) block factory that connector producer threads allocate from; null in tests,
+     *                             where the driver's factory is used
+     */
+    public OperatorFactoryRegistry(
+        Map<String, ExternalSourceFactory> sourceFactories,
+        Map<String, SourceOperatorFactoryProvider> pluginFactories,
+        Executor executor,
+        Executor fileReadExecutor,
+        @Nullable BlockFactory producerBlockFactory
+    ) {
         Check.notNull(executor, "executor cannot be null");
         Check.notNull(fileReadExecutor, "fileReadExecutor cannot be null");
         this.sourceFactories = sourceFactories != null ? Map.copyOf(sourceFactories) : Map.of();
         this.pluginFactories = pluginFactories != null ? Map.copyOf(pluginFactories) : Map.of();
         this.executor = executor;
         this.fileReadExecutor = fileReadExecutor;
+        this.producerBlockFactory = producerBlockFactory;
     }
 
     public SourceOperator.SourceOperatorFactory factory(SourceOperatorContext context) {
@@ -86,11 +107,21 @@ public class OperatorFactoryRegistry {
                     target,
                     projectedColumns,
                     context.attributes(),
-                    context.config(),
+                    SatelliteFragment.withTableParameters(context.config(), context.sourceMetadata()),
                     context.batchSize(),
-                    null
+                    FormatReader.NO_LIMIT,
+                    null,
+                    // the satellite pushdown rule parks the fragment in the (opaque, non-serialized) pushedFilter slot
+                    context.pushedFilter() instanceof SatelliteFragment frag ? frag.request() : null
                 );
-                return new AsyncConnectorSourceOperatorFactory(connector, request, context.maxBufferSize(), executor, context.sliceQueue());
+                return new AsyncConnectorSourceOperatorFactory(
+                    connector,
+                    request,
+                    context.maxBufferSize(),
+                    executor,
+                    context.sliceQueue(),
+                    producerBlockFactory
+                );
             }
             SourceOperatorFactoryProvider opFactory = sf.operatorFactory();
             if (opFactory != null) {
@@ -115,6 +146,11 @@ public class OperatorFactoryRegistry {
      */
     public boolean isFileSourceFactory(String sourceType) {
         return sourceType != null && sourceFactories.get(sourceType) instanceof FileSourceFactory;
+    }
+
+    /** Whether a source type resolves to a connector (a remote engine), which may also back a registered dataset. */
+    public boolean isConnectorFactory(String sourceType) {
+        return sourceType != null && sourceFactories.get(sourceType) instanceof ConnectorFactory;
     }
 
     public Map<String, ExternalSourceFactory> sourceFactories() {

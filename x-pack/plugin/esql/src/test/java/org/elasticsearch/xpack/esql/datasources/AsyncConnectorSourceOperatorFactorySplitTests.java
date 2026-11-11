@@ -85,6 +85,36 @@ public class AsyncConnectorSourceOperatorFactorySplitTests extends ESTestCase {
         assertSame(splitC, receivedSplits.get(2));
     }
 
+    /**
+     * The planner groups many small splits into one {@link CoalescedSplit} to save drivers. A connector reads the splits it
+     * knows, so every child is executed, in order, with the group itself never handed to it: a connector that is given a group
+     * reads the wrong data and nothing says so.
+     */
+    public void testCoalescedSplitsAreReadChildByChild() throws Exception {
+        List<ExternalSplit> receivedSplits = new CopyOnWriteArrayList<>();
+        StubExternalSplit a = new StubExternalSplit("a");
+        StubExternalSplit b = new StubExternalSplit("b");
+        StubExternalSplit c = new StubExternalSplit("c");
+        StubExternalSplit d = new StubExternalSplit("d");
+        StubExternalSplit e = new StubExternalSplit("e");
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(
+            List.of(new CoalescedSplit("stub", List.of(a, b, c)), d, new CoalescedSplit("stub", List.of(e)))
+        );
+        QueryRequest baseRequest = new QueryRequest("target", List.of("col"), List.of(), Map.of(), 100, TEST_BLOCK_FACTORY);
+        AsyncConnectorSourceOperatorFactory factory = new AsyncConnectorSourceOperatorFactory(
+            new SplitCapturingConnector(receivedSplits),
+            baseRequest,
+            10,
+            Runnable::run,
+            sliceQueue
+        );
+        SourceOperator operator = factory.get(mockDriverContext());
+        drainOperator(operator);
+        operator.close();
+
+        assertEquals(List.of(a, b, c, d, e), receivedSplits);
+    }
+
     public void testNoSliceQueueUsesSplitSingle() throws Exception {
         List<Split> receivedSplits = new CopyOnWriteArrayList<>();
         LegacySplitCapturingConnector connector = new LegacySplitCapturingConnector(receivedSplits);

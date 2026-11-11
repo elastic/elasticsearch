@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
@@ -152,6 +153,46 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
         assertThat(cpuNanos, greaterThanOrEqualTo(closeBurnNanos));
     }
 
+    /**
+     * The driver's block factory sits on a local breaker that only the driver thread may touch, while a connector allocates its blocks
+     * on a producer thread. With the node-level factory given to the source, the connector allocates from that one and the local
+     * breaker is never touched from the producer thread.
+     */
+    public void testProducerAllocatesFromTheNodeLevelFactoryNotTheDriversLocalBreaker() throws Exception {
+        LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(NoopCircuitBreaker.INSTANCE, 1024, 4096);
+        BlockFactory driverFactory = TEST_BLOCK_FACTORY.newChildFactory(localBreaker);
+        int splitCount = between(2, 4);
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < splitCount; i++) {
+            splits.add(new StubSplit("s" + i));
+        }
+        QueryRequest request = new QueryRequest("target", List.of("col"), List.of(), Map.of(), 100, TEST_BLOCK_FACTORY);
+        ExecutorService pool = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory("test", "acsof-breaker"));
+        try {
+            AsyncConnectorSourceOperatorFactory factory = new AsyncConnectorSourceOperatorFactory(
+                new RequestFactoryAllocatingConnector(),
+                request,
+                10,
+                pool,
+                new ExternalSliceQueue(splits),
+                TEST_BLOCK_FACTORY
+            );
+            DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, driverFactory, null);
+            assertTrue(ctx.assertBeginRunLoop());
+            SourceOperator operator = factory.get(ctx);
+            assertThat(drainRows(operator), equalTo(splitCount));
+            operator.close();
+            ctx.finish();
+            PlainActionFuture<Void> producerDone = new PlainActionFuture<>();
+            ctx.waitForAsyncActions(producerDone);
+            producerDone.actionGet(30, TimeUnit.SECONDS);
+        } finally {
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+            localBreaker.close();
+        }
+    }
+
     /** Drains {@code splitCount} splits from {@code connector} into a driver and returns the driver's CPU time. */
     private static long drainIntoDriver(Connector connector, int splitCount) throws Exception {
         List<ExternalSplit> splits = new ArrayList<>();
@@ -211,6 +252,109 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
                 throw new AssertionError("timed out draining connector operator");
             }
         }
+    }
+
+    /**
+     * A task cancel or LIMIT teardown closes the operator while the producer is blocked inside the cursor, waiting for a first batch
+     * that a remote engine is still computing. The producer cannot poll the buffer from there, so the cut has to reach the cursor.
+     */
+    public void testHardCutCancelsACursorBlockedInItsFirstRead() throws Exception {
+        CancellableConnector connector = new CancellableConnector(false);
+        ExecutorService pool = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory("test", "acsof-cancel"));
+        try {
+            QueryRequest request = new QueryRequest("target", List.of("col"), List.of(), Map.of(), 100, TEST_BLOCK_FACTORY);
+            SourceOperator operator = new AsyncConnectorSourceOperatorFactory(connector, request, 10, pool, null).get(mockDriverContext());
+            assertTrue("the producer never reached the read", connector.inRead.await(30, TimeUnit.SECONDS));
+
+            operator.close();
+
+            assertTrue("the cursor was not cancelled", connector.cancelled.await(30, TimeUnit.SECONDS));
+        } finally {
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    /** A cut that arrives while {@code execute} is still running saw no cursor to cancel, so it is applied once there is one. */
+    public void testCutDuringExecuteIsAppliedToTheCursorThatComesBack() throws Exception {
+        CancellableConnector connector = new CancellableConnector(true);
+        ExecutorService pool = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory("test", "acsof-cancel-early"));
+        try {
+            QueryRequest request = new QueryRequest("target", List.of("col"), List.of(), Map.of(), 100, TEST_BLOCK_FACTORY);
+            SourceOperator operator = new AsyncConnectorSourceOperatorFactory(connector, request, 10, pool, null).get(mockDriverContext());
+            assertTrue("the producer never reached execute", connector.inExecute.await(30, TimeUnit.SECONDS));
+
+            operator.close();
+            connector.proceed.countDown();
+
+            assertTrue("the cursor was not cancelled", connector.cancelled.await(30, TimeUnit.SECONDS));
+        } finally {
+            connector.proceed.countDown();
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * A stand-in for a connector to a remote engine, which a unit test cannot start: its cursor blocks in {@code hasNext} until it is
+     * cancelled, like a read waiting for the remote engine's first batch. Optionally {@code execute} itself blocks first.
+     */
+    private static class CancellableConnector implements Connector {
+        final CountDownLatch inExecute = new CountDownLatch(1);
+        final CountDownLatch proceed = new CountDownLatch(1);
+        final CountDownLatch inRead = new CountDownLatch(1);
+        final CountDownLatch cancelled = new CountDownLatch(1);
+        private final boolean blockInExecute;
+
+        CancellableConnector(boolean blockInExecute) {
+            this.blockInExecute = blockInExecute;
+        }
+
+        @Override
+        public ResultCursor execute(QueryRequest request, Split split) {
+            inExecute.countDown();
+            if (blockInExecute) {
+                try {
+                    assertTrue(proceed.await(30, TimeUnit.SECONDS));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(e);
+                }
+            }
+            return new ResultCursor() {
+                @Override
+                public boolean hasNext() {
+                    inRead.countDown();
+                    try {
+                        cancelled.await(30, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    return false;
+                }
+
+                @Override
+                public Page next() {
+                    throw new NoSuchElementException();
+                }
+
+                @Override
+                public void cancel() {
+                    cancelled.countDown();
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public ResultCursor execute(QueryRequest request, ExternalSplit split) {
+            throw new AssertionError("single-shot reads use Split.SINGLE");
+        }
+
+        @Override
+        public void close() {}
     }
 
     private static class LatchedConnector implements Connector {
@@ -321,6 +465,45 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
      * Emits one single-row page per split, spending {@code burnNanos} of CPU time to produce it, and spends
      * {@code closeBurnNanos} to close.
      */
+    /** Each split yields one page whose block is allocated from the factory the request carries, on the producer thread. */
+    private static class RequestFactoryAllocatingConnector implements Connector {
+        @Override
+        public ResultCursor execute(QueryRequest request, Split split) {
+            return cursor(request);
+        }
+
+        @Override
+        public ResultCursor execute(QueryRequest request, ExternalSplit split) {
+            return cursor(request);
+        }
+
+        @Override
+        public void close() {}
+
+        private static ResultCursor cursor(QueryRequest request) {
+            return new ResultCursor() {
+                private boolean emitted;
+
+                @Override
+                public boolean hasNext() {
+                    return emitted == false;
+                }
+
+                @Override
+                public Page next() {
+                    if (hasNext() == false) {
+                        throw new NoSuchElementException();
+                    }
+                    emitted = true;
+                    return new Page(request.blockFactory().newConstantIntBlockWith(1, 1));
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+    }
+
     private static class CpuBurningConnector implements Connector {
         private final long burnNanos;
         private final long closeBurnNanos;

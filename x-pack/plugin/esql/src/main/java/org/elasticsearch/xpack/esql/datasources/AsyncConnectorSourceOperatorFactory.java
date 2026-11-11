@@ -10,12 +10,16 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -63,6 +67,19 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
     @Nullable
     private volatile Limiter observedLimiter;
     private final AtomicBoolean started = new AtomicBoolean();
+    /**
+     * The producers of this factory that have not completed. The drivers of a query share the one connector, so it is closed by the
+     * last of them to finish, not by the first: a driver that has more splits to read must still find it open.
+     */
+    private final java.util.concurrent.atomic.AtomicInteger liveProducers = new java.util.concurrent.atomic.AtomicInteger();
+
+    /**
+     * Factory the connector allocates blocks from. The connector runs on producer threads, so production wires the node-level (root)
+     * factory, whose breaker is thread-safe; the driver-local breaker asserts single-thread access and would race with the driver's
+     * run loop. Null falls back to the driver's factory, which is safe only when producer and driver share a thread (tests).
+     */
+    @Nullable
+    private final BlockFactory producerBlockFactory;
 
     public AsyncConnectorSourceOperatorFactory(
         Connector connector,
@@ -70,6 +87,17 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         int maxBufferSize,
         Executor executor,
         @Nullable ExternalSliceQueue sliceQueue
+    ) {
+        this(connector, baseRequest, maxBufferSize, executor, sliceQueue, null);
+    }
+
+    public AsyncConnectorSourceOperatorFactory(
+        Connector connector,
+        QueryRequest baseRequest,
+        int maxBufferSize,
+        Executor executor,
+        @Nullable ExternalSliceQueue sliceQueue,
+        @Nullable BlockFactory producerBlockFactory
     ) {
         if (connector == null) {
             throw new IllegalArgumentException("connector must not be null");
@@ -88,6 +116,7 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         this.maxBufferSize = maxBufferSize;
         this.executor = executor;
         this.sliceQueue = sliceQueue;
+        this.producerBlockFactory = producerBlockFactory;
     }
 
     /**
@@ -118,27 +147,65 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
     @Override
     public SourceOperator get(DriverContext driverContext) {
         started.set(true);
-        QueryRequest request = baseRequest.withBlockFactory(driverContext.blockFactory());
+        QueryRequest request = baseRequest.withBlockFactory(
+            producerBlockFactory != null ? producerBlockFactory : driverContext.blockFactory()
+        );
         long maxBufferBytes = (long) maxBufferSize * Operator.TARGET_PAGE_SIZE;
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
         driverContext.addAsyncAction();
+        liveProducers.incrementAndGet();
 
         // Single completion listener: exactly one of {finish(false), onFailure(e)} fires, and
-        // driverContext.removeAsyncAction() plus connector.close() run exactly once via runAfter.
+        // driverContext.removeAsyncAction() and the release of the shared connector run exactly once via runAfter.
         ActionListener<Void> completionListener = ActionListener.assertOnce(
             ActionListener.runAfter(ActionListener.wrap(v -> buffer.finish(false), buffer::onFailure), () -> {
-                closeConnectorQuietly();
+                if (liveProducers.decrementAndGet() == 0) {
+                    closeConnectorQuietly();
+                }
                 driverContext.removeAsyncAction();
             })
         );
 
         ProducerState state = new ProducerState(request, sliceQueue, buffer, driverContext);
+        // A hard cut (task cancel, LIMIT teardown) must reach a cursor that is blocked waiting for its first batch: the producer
+        // thread cannot poll the buffer from inside that read.
+        buffer.addCancelListener(() -> {
+            ResultCursor active = state.cursor;
+            if (active != null) {
+                active.cancel();
+            }
+        });
         try {
             executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
         } catch (Exception e) {
             completionListener.onFailure(e);
         }
-        return new AsyncExternalSourceOperator(buffer, driverContext);
+        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext);
+        return request.fragment() == null ? operator : operator.describedAs(fragmentDescription());
+    }
+
+    /** The most of a pushed fragment shown in a profile: a fragment can be megabytes, and the profile of every driver carries it. */
+    private static final int MAX_PROFILED_FRAGMENT_CHARS = 4096;
+
+    private volatile String fragmentDescription;
+
+    /** What the profile says about the fragment pushed to the remote engine, computed once per factory and cut to a readable size. */
+    private String fragmentDescription() {
+        String description = fragmentDescription;
+        if (description == null) {
+            String json;
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                json = Strings.toString(builder.map(baseRequest.fragment()));
+            } catch (IOException | RuntimeException e) {
+                json = String.valueOf(baseRequest.fragment());
+            }
+            description = "fragment="
+                + (json.length() <= MAX_PROFILED_FRAGMENT_CHARS
+                    ? json
+                    : json.substring(0, MAX_PROFILED_FRAGMENT_CHARS) + "...[" + json.length() + " chars]");
+            fragmentDescription = description;
+        }
+        return description;
     }
 
     /**
@@ -155,11 +222,14 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         /** Context of the driver that consumes the buffer. The producer's CPU time is metered into it. */
         final DriverContext driverContext;
 
+        /** The children of the coalesced split being read, not yet started. */
+        final java.util.ArrayDeque<ExternalSplit> pending = new java.util.ArrayDeque<>();
+
         /** True iff single-shot mode has already opened its one cursor (subsequent advances return EOF). */
         boolean singleShotStarted;
         /** Currently active cursor, or {@code null} if between units or before the first open. */
         @Nullable
-        ResultCursor cursor;
+        volatile ResultCursor cursor;
         /** The buffer's space signal when the last drain returned {@link DrainResult#BLOCKED}, else {@code null}. */
         @Nullable
         SubscribableListener<Void> blockedOn;
@@ -316,6 +386,13 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         }));
     }
 
+    /** A cut that happened before the cursor was published to the state saw no cursor to cancel, so it is applied here. */
+    private static void cancelIfCut(ProducerState state) {
+        if (state.buffer.readCancelled()) {
+            state.cursor.cancel();
+        }
+    }
+
     /**
      * Open a cursor for the next unit of work: either the next split pulled from the queue, or
      * the single-shot {@link Split#SINGLE} execution. Returns {@code false} if iteration is
@@ -330,11 +407,21 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
             return false;
         }
         if (state.queue != null) {
-            ExternalSplit split = state.queue.nextSplit();
-            if (split == null) {
-                return false;
+            ExternalSplit split = state.pending.poll();
+            while (split == null) {
+                split = state.queue.nextSplit();
+                if (split == null) {
+                    return false;
+                }
+                if (split instanceof CoalescedSplit coalesced) {
+                    // a group of small splits the planner put together to save drivers: a connector reads the splits it knows, one
+                    // cursor each, never the group
+                    state.pending.addAll(coalesced.children());
+                    split = state.pending.poll();
+                }
             }
             state.cursor = connector.execute(state.request, split);
+            cancelIfCut(state);
             return true;
         } else {
             if (state.singleShotStarted) {
@@ -342,6 +429,7 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
             }
             state.singleShotStarted = true;
             state.cursor = connector.execute(state.request, Split.SINGLE);
+            cancelIfCut(state);
             return true;
         }
     }

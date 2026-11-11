@@ -143,6 +143,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.AsyncConnectorSourceOperatorFactory;
 import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFactory;
 import org.elasticsearch.xpack.esql.datasources.DatasetConfigResolver;
+import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
 import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.ExternalLimitSplits;
@@ -2353,8 +2354,16 @@ public class LocalExecutionPlanner {
         if (operatorFactoryRegistry == null) {
             throw new IllegalStateException("OperatorFactoryRegistry is required for external sources");
         }
-        // The plan carries the source type, but registered dataset settings are only valid with the file source factory.
-        if (externalSource.datasetName() != null && operatorFactoryRegistry.isFileSourceFactory(externalSource.sourceType()) == false) {
+        // The plan carries the source type, but registered dataset settings are only valid with the file source factory, or with a
+        // connector of the very type the dataset's data source has (the worker rebuilt the config from the registry, so the type
+        // it holds is the registered one, not the plan's claim).
+        if (externalSource.datasetName() != null
+            && operatorFactoryRegistry.isFileSourceFactory(externalSource.sourceType()) == false
+            && (operatorFactoryRegistry.isConnectorFactory(externalSource.sourceType()) == false
+                || Objects.equals(
+                    externalSource.sourceType(),
+                    externalSource.config().get(DatasetRewriter.DATASOURCE_TYPE_KEY)
+                ) == false)) {
             throw new IllegalArgumentException(
                 "external dataset ["
                     + externalSource.datasetName()

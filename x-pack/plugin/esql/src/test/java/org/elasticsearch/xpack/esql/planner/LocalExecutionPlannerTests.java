@@ -93,6 +93,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
+import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
@@ -105,9 +106,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.QueryRequest;
+import org.elasticsearch.xpack.esql.datasources.spi.ResultCursor;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.Split;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.TableCatalog;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -162,6 +166,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
@@ -579,6 +584,94 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         };
         OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of("flight", connector), Map.of(), Runnable::run);
         assertRegisteredDatasetRefusedForNonFileSourceType(operatorFactoryRegistry, "flight");
+        assertNull(opened.get());
+    }
+
+    /**
+     * The only way a registered dataset reaches a connector is when the connector is of the type of the dataset's own data source,
+     * which the worker's rebound config records: the plan's claim alone, as in the test above, is not enough.
+     */
+    public void testRegisteredDatasetReachesAConnectorOfItsOwnDataSourceType() throws IOException {
+        AtomicReference<Map<String, Object>> opened = new AtomicReference<>();
+        ConnectorFactory connector = new ConnectorFactory() {
+            @Override
+            public String type() {
+                return "flight";
+            }
+
+            @Override
+            public boolean canHandle(String location) {
+                return true;
+            }
+
+            @Override
+            public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void validateConfig(String location, Map<String, Object> config) {
+                ConfigKeyValidator.check(config, List.of());
+            }
+
+            @Override
+            public Connector open(Map<String, Object> config) {
+                opened.set(config);
+                return new Connector() {
+                    @Override
+                    public ResultCursor execute(QueryRequest request, Split split) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public ResultCursor execute(QueryRequest request, ExternalSplit split) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public void close() {}
+                };
+            }
+        };
+        OperatorFactoryRegistry registry = new OperatorFactoryRegistry(Map.of("flight", connector), Map.of(), Runnable::run);
+        List<Attribute> attrs = List.of(
+            new FieldAttribute(Source.EMPTY, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+        );
+        Function<String, ExternalSourceExec> execOfDataSourceType = dataSourceType -> new ExternalSourceExec(
+            Source.EMPTY,
+            "flight://127.0.0.1:1/t",
+            "flight",
+            attrs,
+            Map.of("endpoint", "flight://127.0.0.1:1", "target", "t", DatasetRewriter.DATASOURCE_TYPE_KEY, dataSourceType),
+            Map.of(),
+            null,
+            10
+        ).withDatasetName("ds");
+
+        planner(registry, true, null, randomBoolean()).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            execOfDataSourceType.apply("flight"),
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        );
+        assertNotNull("the dataset of a flight data source is read through the flight connector", opened.get());
+
+        // the same plan over a dataset that belongs to an s3 data source is refused: its credentials must not reach this connector
+        opened.set(null);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> planner(registry, true, null, randomBoolean()).plan(
+                "test",
+                FoldContext.small(),
+                PlannerSettings.DEFAULTS,
+                execOfDataSourceType.apply("s3"),
+                EmptyIndexedByShardId.instance(),
+                randomBoolean()
+            )
+        );
+        assertThat(e.getMessage(), equalTo("external dataset [ds] cannot be read through non-file source type [flight]"));
         assertNull(opened.get());
     }
 

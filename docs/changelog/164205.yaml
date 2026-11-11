@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 164205
+summary: Fall back to CPU when GPU can't build the graph
+type: enhancement

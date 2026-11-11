@@ -24,7 +24,7 @@ import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.IOException;
@@ -77,11 +77,11 @@ public class StatelessPersistedClusterStateService extends PersistedClusterState
     }
 
     protected Executor getClusterStateUploadsThreadPool() {
-        return threadPool.executor(StatelessPlugin.CLUSTER_STATE_READ_WRITE_THREAD_POOL);
+        return threadPool.executor(StatelessThreadPools.CLUSTER_STATE_READ_WRITE_THREAD_POOL);
     }
 
     protected Executor getClusterStateDownloadsThreadPool() {
-        return threadPool.executor(StatelessPlugin.CLUSTER_STATE_READ_WRITE_THREAD_POOL);
+        return threadPool.executor(StatelessThreadPools.CLUSTER_STATE_READ_WRITE_THREAD_POOL);
     }
 
     private BlobContainer getBlobContainerForCurrentTerm() {

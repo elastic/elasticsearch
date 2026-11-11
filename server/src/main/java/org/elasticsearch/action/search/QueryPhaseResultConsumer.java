@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -68,6 +69,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private static final Logger logger = LogManager.getLogger(QueryPhaseResultConsumer.class);
 
     private final Executor executor;
+    /** Where the time spent merging results is charged, or {@code null}. */
+    private volatile TaskLoadAttribution.Target mergeLoad;
     private final CircuitBreaker circuitBreaker;
     private final SearchProgressListener progressListener;
     private final AggregationReduceContext.Builder aggReduceContextBuilder;
@@ -135,6 +138,21 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.aggReduceContextBuilder = hasAggs ? controller.getReduceContext(isCanceled, source.aggregations()) : null;
         batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
         topDocsStats = new TopDocsStats(request.resolveTrackTotalHitsUpTo());
+    }
+
+    /**
+     * Charges the time spent merging results to {@code mergeLoad}.
+     */
+    public void mergeLoad(TaskLoadAttribution.Target mergeLoad) {
+        this.mergeLoad = mergeLoad;
+    }
+
+    /**
+     * Where the time spent merging results is charged, or {@code null} when it is not charged.
+     */
+    @Nullable
+    TaskLoadAttribution.Target mergeLoad() {
+        return mergeLoad;
     }
 
     /**
@@ -771,6 +789,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         executor.execute(new AbstractRunnable() {
             @Override
             protected void doRun() {
+                TaskLoadAttribution.Target load = mergeLoad;
+                if (load != null) {
+                    TaskLoadAttribution.attribute(load);
+                }
                 MergeTask mergeTask = task;
                 while (mergeTask != null) {
                     List<QuerySearchResult> toConsume = mergeTask.consumeBuffer();

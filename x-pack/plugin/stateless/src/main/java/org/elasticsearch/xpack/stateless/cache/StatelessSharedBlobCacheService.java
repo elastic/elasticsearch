@@ -33,7 +33,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
 import org.elasticsearch.xpack.stateless.cache.reader.LazyRangeMissingHandler;
@@ -225,7 +225,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             blobCacheMetrics,
             evictionPolicyFactory.create(settings, clusterService, indicesService, threadPool),
             System::nanoTime,
-            threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
+            threadPool.executor(StatelessThreadPools.SHARD_READ_THREAD_POOL),
             metricsHolder
         );
     }
@@ -348,8 +348,8 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             force,
             timestampMillis,
             listener,
-            StatelessPlugin.PREWARM_THREAD_POOL,
-            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+            StatelessThreadPools.PREWARM_THREAD_POOL,
+            StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
         );
     }
 

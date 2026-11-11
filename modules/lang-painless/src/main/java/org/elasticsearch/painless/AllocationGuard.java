@@ -68,19 +68,24 @@ public final class AllocationGuard {
      * specific allocation that crossed the limit is not reported: it is whichever happened to tip the running total, not
      * necessarily the dominant cost, so naming it would mislead more than help.
      *
+     * @param scriptContextName the script's context
      * @param attemptedBytes the size of the allocation that tripped the limit
      * @param totalBytes the running total after charging the allocation
      * @param limitBytes the per-context limit
      */
-    public static void allocationLimitExceeded(long attemptedBytes, long totalBytes, long limitBytes) {
+    public static void allocationLimitExceeded(String scriptContextName, long attemptedBytes, long totalBytes, long limitBytes) {
         logger.warn(
-            "Painless script allocation limit exceeded: allocation of [{}] bytes brings running total to [{}] bytes (limit [{}] bytes)",
+            "Painless script allocation limit exceeded in context [{}]: allocation of [{}] bytes brings running total to [{}] bytes "
+                + "(limit [{}] bytes)",
+            scriptContextName,
             attemptedBytes,
             totalBytes,
             limitBytes
         );
         throw new PainlessError(
-            "script allocation limit exceeded: allocation of ["
+            "script allocation limit exceeded in context ["
+                + scriptContextName
+                + "]: allocation of ["
                 + attemptedBytes
                 + "] bytes brings the running total to ["
                 + totalBytes

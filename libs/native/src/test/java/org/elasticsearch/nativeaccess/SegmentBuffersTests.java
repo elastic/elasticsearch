@@ -28,33 +28,27 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SegmentBuffersTests extends ESTestCase {
 
     /**
-     * The scoped buffer of a confined segment cannot be filled by another thread. This is the failure that
-     * {@link SegmentBuffers#unscopedByteBuffer} lets a caller that enforces the memory's lifetime avoid.
+     * A scoped buffer of a confined segment rejects a put from another thread, but the unscoped buffer
+     * over the same memory accepts it, and the owner thread sees the bytes in the confined segment.
      */
-    public void testScopedBufferOfConfinedSegmentRejectsOtherThread() {
-        try (Arena arena = Arena.ofConfined()) {
-            ByteBuffer scoped = arena.allocate(randomIntBetween(1, 1024)).asByteBuffer();
-            AtomicReference<Throwable> failure = new AtomicReference<>();
-            onOtherThread(() -> {
-                try {
-                    scoped.put((byte) 1);
-                } catch (Throwable t) {
-                    failure.set(t);
-                }
-            });
-            assertThat(failure.get(), instanceOf(WrongThreadException.class));
-        }
-    }
-
-    /** Another thread can fill the unscoped buffer by direct put, and the owner thread sees the bytes in the confined segment. */
     public void testOtherThreadPutIsVisibleToOwner() throws Exception {
         final int length = randomIntBetween(1, 4096);
         final byte[] expected = randomByteArrayOfLength(length);
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment scratch = arena.allocate(length);
+            ByteBuffer scoped = scratch.asByteBuffer();
+            AtomicReference<Throwable> failure = new AtomicReference<>();
+            onOtherThread(() -> {
+                try {
+                    scoped.put(expected);
+                } catch (Throwable t) {
+                    failure.set(t);
+                }
+            });
+            assertThat(failure.get(), instanceOf(WrongThreadException.class));
+
             ByteBuffer unscoped = SegmentBuffers.unscopedByteBuffer(scratch.address(), length);
             assertThat(unscoped.remaining(), equalTo(length));
-
             onOtherThread(() -> unscoped.put(expected));
 
             assertSegmentEquals(expected, scratch);

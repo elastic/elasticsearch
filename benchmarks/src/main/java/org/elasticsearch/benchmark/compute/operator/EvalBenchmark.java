@@ -32,6 +32,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.score.Decay;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Replace;
@@ -102,6 +104,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
 @Warmup(iterations = 5)
 @Measurement(iterations = 7)
@@ -208,6 +212,28 @@ public class EvalBenchmark {
             @Override
             void checkExpected(Page actual) {
                 checkDateTruncExpected(this, actual);
+            }
+        },
+        DECAY_DOUBLE("decay_double") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return decayDoubleEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkDecayDoubleExpected(this, actual);
+            }
+        },
+        DECAY_GEO("decay_geo") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return decayGeoEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkDecayGeoExpected(this, actual);
             }
         },
         EQUAL_TO_CONST("equal_to_const") {
@@ -892,6 +918,26 @@ public class EvalBenchmark {
         return evaluator;
     }
 
+    private static ExpressionEvaluator decayDoubleEvaluator() {
+        FieldAttribute doubleField = doubleField();
+        Literal origin = new Literal(Source.EMPTY, 0D, DataType.DOUBLE);
+        Literal scale = new Literal(Source.EMPTY, (double) BLOCK_LENGTH, DataType.DOUBLE);
+        return EvalMapper.toEvaluator(FOLD_CONTEXT, new Decay(Source.EMPTY, doubleField, origin, scale, null), layout(doubleField))
+            .get(driverContext);
+    }
+
+    private static ExpressionEvaluator decayGeoEvaluator() {
+        FieldAttribute geoField = new FieldAttribute(
+            Source.EMPTY,
+            "geo",
+            new EsField("geo", DataType.GEO_POINT, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Literal origin = new Literal(Source.EMPTY, GEO.wktToWkb("POINT (0 0)"), DataType.GEO_POINT);
+        Literal scale = Literal.keyword(Source.EMPTY, "1000km");
+        return EvalMapper.toEvaluator(FOLD_CONTEXT, new Decay(Source.EMPTY, geoField, origin, scale, null), layout(geoField))
+            .get(driverContext);
+    }
+
     private static ExpressionEvaluator dateTruncEvaluator() {
         FieldAttribute timestamp = new FieldAttribute(
             Source.EMPTY,
@@ -1372,6 +1418,29 @@ public class EvalBenchmark {
         }
     }
 
+    private static void checkDecayDoubleExpected(Operation operation, Page actual) {
+        DoubleVector v = actual.<DoubleBlock>getBlock(1).asVector();
+        double scaling = BLOCK_LENGTH / 0.5;
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            double expected = (scaling - i) / scaling;
+            if (v.getDouble(i) != expected) {
+                throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getDouble(i) + "]");
+            }
+        }
+    }
+
+    private static void checkDecayGeoExpected(Operation operation, Page actual) {
+        DoubleVector v = actual.<DoubleBlock>getBlock(1).asVector();
+        if (v.getDouble(0) != 1.0) {
+            throw new AssertionError("[" + operation + "] expected [1.0] at the origin but was [" + v.getDouble(0) + "]");
+        }
+        for (int i = 1; i < BLOCK_LENGTH; i++) {
+            if (v.getDouble(i) > v.getDouble(i - 1) || v.getDouble(i) <= 0.5) {
+                throw new AssertionError("[" + operation + "] expected a decreasing score above 0.5 but was [" + v.getDouble(i) + "]");
+            }
+        }
+    }
+
     private static void checkCaseExpected(Operation operation, Page actual, boolean lazy) {
         LongVector f1 = actual.<LongBlock>getBlock(0).asVector();
         LongVector f2 = actual.<LongBlock>getBlock(1).asVector();
@@ -1731,6 +1800,21 @@ public class EvalBenchmark {
                 var builder = blockFactory.newDoubleBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     builder.appendDouble(i * 100_000D);
+                }
+                yield new Page(builder.build());
+            }
+            case DECAY_DOUBLE -> {
+                var builder = blockFactory.newDoubleBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.appendDouble(i);
+                }
+                yield new Page(builder.build());
+            }
+            case DECAY_GEO -> {
+                // points along the equator, up to about 910km from the origin
+                var builder = blockFactory.newBytesRefBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.appendBytesRef(GEO.asWkb(new Point(i * 0.001, 0)));
                 }
                 yield new Page(builder.build());
             }

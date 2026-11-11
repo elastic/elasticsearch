@@ -1165,6 +1165,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private Optional<PendingAllocationState.InFlight> tryClaimInFlight(ShardAllocationKey key, long primaryTerm) {
         assert Thread.holdsLock(this);
         PendingAllocationState current = pendingAllocationStates.get(key);
+        assert current == null || current.primaryTerm() == primaryTerm
+            : "stale-term entry " + current + " should have been evicted by the sweep before claiming term " + primaryTerm;
         if (current instanceof PendingAllocationState.InFlight || current instanceof PendingAllocationState.FailureReported) {
             return Optional.empty();
         }

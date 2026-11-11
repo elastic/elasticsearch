@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.DesiredNodeWithStatus;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
@@ -1364,6 +1365,10 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
         assertThat(resultingState.clusterFeatures().clusterHasFeature(resultingState.nodes(), new NodeFeature("f1")), is(true));
         assertThat(resultingState.clusterFeatures().clusterHasFeature(resultingState.nodes(), new NodeFeature("f2")), is(true));
+    }
+
+    public void testPostJoinReroutePriorityIsNotBelowShardStartedPriority() {
+        assertFalse(NodeJoinExecutor.POST_JOIN_REROUTE_PRIORITY.after(ShardStateAction.SHARD_STARTED_TASK_PRIORITY));
     }
 
     private DesiredNodeWithStatus createActualizedDesiredNode() {

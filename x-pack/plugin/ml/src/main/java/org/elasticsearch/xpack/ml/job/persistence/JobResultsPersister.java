@@ -294,12 +294,20 @@ public class JobResultsPersister {
                 return;
             }
             logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, items.size());
-            resultsPersisterService.bulkIndexWithRetry(
-                buildBulkRequest(),
-                jobId,
-                shouldRetry,
-                retryMessage -> logger.debug("[{}] Bulk indexing of results failed {}", jobId, retryMessage)
-            );
+            try {
+                resultsPersisterService.bulkIndexWithRetry(
+                    buildBulkRequest(),
+                    jobId,
+                    shouldRetry,
+                    retryMessage -> logger.debug("[{}] Bulk indexing of results failed {}", jobId, retryMessage)
+                );
+            } catch (ResultsPersisterService.IrrecoverableException e) {
+                // Documents the index permanently rejected must not be kept: they would be resubmitted, and fail again, with every
+                // later bulk. All other items stay queued so that failures that may heal (e.g. a missing index) are retried by the
+                // next call.
+                items.keySet().removeAll(e.rejectedDocIds());
+                throw e;
+            }
             clear();
         }
 

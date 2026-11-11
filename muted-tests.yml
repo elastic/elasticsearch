@@ -601,3 +601,8 @@ tests:
   - :x-pack:plugin:searchable-snapshots:test
   method: testRandomReads
   issue: https://github.com/elastic/elasticsearch/issues/165519
+- class: org.elasticsearch.xpack.stateless.StatelessComponentsOrderIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testClosingNodeShouldWaitForOngoingMerge
+  issue: https://github.com/elastic/elasticsearch/issues/165534

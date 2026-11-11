@@ -2414,6 +2414,7 @@ public class NumberFieldMapper extends FieldMapper {
         private final boolean isSyntheticSource;
         private final boolean readInArrayOrder;
         private final boolean indexTerms;
+        private final boolean staticallySingleValued;
         private final DocValuesDiskFormat diskFormat;
         /** The readers of the field's ColumNAR column, or {@code null} when the ColumNAR codec doesn't store its doc values. */
         @Nullable
@@ -2433,7 +2434,8 @@ public class NumberFieldMapper extends FieldMapper {
             IndexMode indexMode,
             boolean isSyntheticSource,
             boolean readInArrayOrder,
-            boolean indexTerms
+            boolean indexTerms,
+            boolean staticallySingleValued
         ) {
             this(
                 name,
@@ -2450,6 +2452,7 @@ public class NumberFieldMapper extends FieldMapper {
                 isSyntheticSource,
                 readInArrayOrder,
                 indexTerms,
+                staticallySingleValued,
                 indexType.hasDocValues() ? DocValuesDiskFormat.SORTED_NUMERIC : DocValuesDiskFormat.NONE
             );
         }
@@ -2469,6 +2472,7 @@ public class NumberFieldMapper extends FieldMapper {
             boolean isSyntheticSource,
             boolean readInArrayOrder,
             boolean indexTerms,
+            boolean staticallySingleValued,
             DocValuesDiskFormat diskFormat
         ) {
             super(name, indexType, isStored, meta);
@@ -2484,6 +2488,12 @@ public class NumberFieldMapper extends FieldMapper {
             this.isSyntheticSource = isSyntheticSource;
             this.readInArrayOrder = readInArrayOrder;
             this.indexTerms = indexTerms;
+            this.staticallySingleValued = staticallySingleValued;
+        }
+
+        @Override
+        public boolean isStaticallySingleValued() {
+            return staticallySingleValued;
         }
 
         NumberFieldType(String name, Builder builder, boolean isSyntheticSource) {
@@ -2506,6 +2516,7 @@ public class NumberFieldMapper extends FieldMapper {
                     && builder.indexSettings.getMode().isStrictColumnar()
                     && builder.diskFormat != DocValuesDiskFormat.COLUMNAR,
                 builder.indexTerms.getValue(),
+                builder.script.get() == null && builder.docValuesParameters.getValue().multiValue() == false,
                 builder.diskFormat
             );
         }
@@ -2529,6 +2540,7 @@ public class NumberFieldMapper extends FieldMapper {
                 null,
                 false,
                 false,
+                false,
                 false
             );
         }
@@ -2546,6 +2558,7 @@ public class NumberFieldMapper extends FieldMapper {
                 false,
                 null,
                 null,
+                false,
                 false,
                 false,
                 false

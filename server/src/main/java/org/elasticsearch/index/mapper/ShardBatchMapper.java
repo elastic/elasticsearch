@@ -173,9 +173,9 @@ public final class ShardBatchMapper {
                 // every flattened batch is incorrectly classified as containing a runtime-field shadow.
                 final ColumnGroupLookup group = ColumnGroupResolver.findColumnGroup(fullPath, lookup);
                 if (group instanceof ColumnGroupLookup.Conflict(FieldMapper mapper, String ownerPath)) {
-                    // The document nests values beneath a leaf field. The sequential path reports this as a document
-                    // parsing error, so fall back and let it do so rather than treating the leaf as unmapped, which
-                    // under a dynamic=false prefix would silently drop the value.
+                    // The document nests values beneath a leaf field. The sequential path reports this as a document parsing error or,
+                    // with subobjects disabled, flattens the object into dotted fields. Fall back and let it do either rather than
+                    // treating the leaf as unmapped, which could silently drop the value.
                     logger.debug(
                         "batch indexing disabled: leaf [{}] nests under the [{}] field mapper at [{}]",
                         fullPath,
@@ -233,6 +233,14 @@ public final class ShardBatchMapper {
                 }
                 final ObjectMapper.Dynamic parentDynamic = findNearestParentDynamic(fullPath, lookup);
                 if (parentDynamic == ObjectMapper.Dynamic.FALSE) {
+                    // In strict-columnar modes an enabled: false prefix resolves to dynamic: false too, and the sequential path can keep
+                    // values here that the batch path cannot see. An array of objects is packed into one column named after the array, so
+                    // {"obj":[{"field":1}]} arrives as the unmapped leaf [obj] and dropping it would lose a mapped obj.field. With
+                    // subobjects disabled an object-matching dynamic template can also still map the value.
+                    if (indexSettings.getMode().isStrictColumnar()) {
+                        logger.debug("batch indexing disabled: unmapped leaf [{}] under dynamic=false", fullPath);
+                        return null;
+                    }
                     // The sequential path rejects an unmapped field that matches routing_path rather than dropping it,
                     // so fall back and let it raise the error with its own token location.
                     if (matchesRoutingPath(fullPath, indexSettings)) {
@@ -243,7 +251,7 @@ public final class ShardBatchMapper {
                     // records ignored source for this index at all, so that synthetic source still returns it. The batch path writes no
                     // such entry, so
                     // dropping the leaf here would lose the value; leave those batches to the sequential path. Where it does not
-                    // capture (stored source, strict-columnar modes), the value stays in _source and dropping the leaf is correct.
+                    // capture (stored source), the value stays in _source and dropping the leaf is correct.
                     if (sequentialPathCapturesDynamicFalseLeaves(lookup, indexSettings)) {
                         logger.debug(
                             "batch indexing disabled: unmapped leaf [{}] under dynamic=false is kept in _ignored_source",
@@ -549,7 +557,11 @@ public final class ShardBatchMapper {
                     // support is extended to nested fields, this will need to handle nested required
                     // fields as well.
                     for (String fieldName : mappingLookup.requiredFields("")) {
-                        if (schemaLeafPaths.contains(fieldName) == false) {
+                        // A multi-field has no column of its own: it is mapped from its parent's, so it is present whenever the parent is.
+                        final String sourcePath = isMultiFieldSubField(fieldName, mappingLookup)
+                            ? fieldName.substring(0, fieldName.lastIndexOf('.'))
+                            : fieldName;
+                        if (schemaLeafPaths.contains(sourcePath) == false) {
                             final Mapper m = mappingLookup.getMapper(fieldName);
                             assert m instanceof FieldMapper : "required field [" + fieldName + "] must be a FieldMapper";
                             final FieldMapper fieldMapper = (FieldMapper) m;

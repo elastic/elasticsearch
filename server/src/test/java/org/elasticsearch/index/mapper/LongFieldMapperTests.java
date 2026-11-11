@@ -473,4 +473,8 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         return values;
     }
 
+    public void testScriptedFieldIsNotStaticallySingleValued() throws IOException {
+        assertScriptedFieldIsNotStaticallySingleValued("test");
+    }
+
 }

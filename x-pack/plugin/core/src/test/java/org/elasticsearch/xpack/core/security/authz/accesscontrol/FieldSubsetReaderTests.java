@@ -1865,6 +1865,49 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
     }
 
     /**
+     * An array that holds only nulls writes the field's {@code .offsets} companion but nothing under the field itself, so a segment made
+     * only of such documents has the companion without its parent. The companion must still follow the parent's FLS decision.
+     */
+    public void testOffsetsWithoutTheirFieldInTheSegment() throws Exception {
+        String type = randomFrom("keyword", "long", "ip", "boolean");
+        Settings settings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.mapping.synthetic_source_keep", "arrays")
+            .build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+            b.startObject("keep").field("type", type).endObject();
+            b.startObject("secret").field("type", type).endObject();
+        })).documentMapper();
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startArray("keep").nullValue().endArray();
+            b.startArray("secret").nullValue().nullValue().endArray();
+        }));
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                doc.updateSeqID(0, 0);
+                doc.version().setLongValue(0);
+                iw.addDocuments(doc.docs());
+            }
+            var deny = new CharacterRunAutomaton(
+                FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "secret" })
+            );
+            var grant = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "keep" }, null));
+            for (CharacterRunAutomaton filter : List.of(deny, grant)) {
+                try (
+                    DirectoryReader reader = FieldSubsetReader.wrap(
+                        wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                        filter,
+                        mapper.mapping().ignoredSourceFormat(),
+                        fieldName -> mapper.mappers().getFieldType(fieldName) != null
+                    )
+                ) {
+                    assertEquals("{\"keep\":[null]}", syntheticSource(mapper, reader, doc.docs().size() - 1));
+                }
+            }
+        }
+    }
+
+    /**
      * When a field survives an exact FLS grant, its {@code ._ignore_malformed} companion is re-mapped to the parent name so it survives
      * too, but the companion's own {@code .counts} field is not - an exact grant of {@code keep} matches {@code keep} but not
      * {@code keep._ignore_malformed.counts}, so the counts get dropped while the binary blob stays visible. The modern reader then decodes
@@ -1947,6 +1990,41 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                         // Ungranted field drops both.
                         assertNull(leaf.getBinaryDocValues(dropped + suffix));
                         assertNull(leaf.getNumericDocValues(dropped + suffix + counts));
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * A field that keeps array order inline writes only its {@code .counts} companion for an array that holds only nulls, so a segment
+     * made only of such documents has the companion without its parent. The companion must still follow the parent's FLS decision.
+     */
+    public void testCountsWithoutTheirFieldInTheSegment() throws Exception {
+        String counts = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(null))) {
+                Document doc = new Document();
+                doc.add(new NumericDocValuesField("keep" + counts, 1));
+                doc.add(new NumericDocValuesField("secret" + counts, 2));
+                iw.addDocument(doc);
+
+                var deny = new CharacterRunAutomaton(
+                    FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "secret" })
+                );
+                var grant = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "keep" }, null));
+                for (CharacterRunAutomaton filter : List.of(deny, grant)) {
+                    try (
+                        DirectoryReader ir = FieldSubsetReader.wrap(
+                            wrapInMockESDirectoryReader(DirectoryReader.open(iw)),
+                            filter,
+                            IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+                            fieldName -> fieldName.equals("keep") || fieldName.equals("secret")
+                        )
+                    ) {
+                        LeafReader leaf = ir.leaves().get(0).reader();
+                        assertNotNull(leaf.getNumericDocValues("keep" + counts));
+                        assertNull(leaf.getNumericDocValues("secret" + counts));
                     }
                 }
             }

@@ -644,6 +644,8 @@ final class SnapshotDeletionStartBatcher {
             batchCompletionHandler.deletionUuid = newEntry.uuid();
 
             if (newEntryState == SnapshotDeletionsInProgress.State.STARTED) {
+                assert batchCompletionHandler.triggerRepositoryDataWriteTask == false
+                    : "cannot start a deletion while aborted snapshots need finalization";
                 logger.debug("creating new batch of deletions and starting their processing");
                 batchCompletionHandler.triggerRepositoryDataWriteTask = true;
             } else {

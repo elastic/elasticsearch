@@ -179,7 +179,8 @@ public class HasParentQueryBuilder extends LeafQueryBuilder<HasParentQueryBuilde
             }
         }
 
-        Query parentFilter = joiner.filter(parentType, context);
+        // The one-argument toQuery charges the inner query to the breaker. LateParsingQuery is a leaf, so the outer
+        // visitor never reaches the inner query, and it is charged only once.
         Query innerQuery = Queries.filtered(query.toQuery(context), parentFilter);
         Query childFilter = joiner.childrenFilter(parentType, context);
         MappedFieldType fieldType = context.getFieldType(joiner.childJoinField(parentType));

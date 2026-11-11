@@ -21,6 +21,9 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -34,9 +37,20 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class QueryCaptureServiceTests extends ESTestCase {
+    private final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+
+    public void testMetricsRegistered() {
+        try (var pool = new TestThreadPool(getTestName())) {
+            new QueryCaptureService(pool, meterRegistry);
+            for (var name : List.of("submitted", "completed", "processing_failures", "dropped")) {
+                assertNotNull(meterRegistry.getLongCounter("es.search.query_capture." + name + ".total"));
+            }
+        }
+    }
+
     public void testQueuedResponseAndRejectedResponseOwnership() throws Exception {
         try (var pool = new TestThreadPool(getTestName(), Settings.builder().put("thread_pool.query_capture.queue_size", 1).build())) {
-            var service = new QueryCaptureService(pool);
+            var service = new QueryCaptureService(pool, meterRegistry);
             var started = new CountDownLatch(1);
             var release = new CountDownLatch(1);
             var processed = new AtomicBoolean();
@@ -56,6 +70,14 @@ public class QueryCaptureServiceTests extends ESTestCase {
                 assertFalse(queued.decRef());
                 service.execute(() -> fail("rejected work must never run"), rejected);
                 assertTrue(rejected.decRef());
+                assertCounters(3, 0, 0, 1);
+                assertEquals(
+                    Map.of("es_query_capture_drop_reason", "queue_full"),
+                    meterRegistry.getRecorder()
+                        .getMeasurements(InstrumentType.LONG_COUNTER, "es.search.query_capture.dropped.total")
+                        .getFirst()
+                        .attributes()
+                );
                 for (var stats : pool.stats()) {
                     if (stats.name().equals(ThreadPool.Names.QUERY_CAPTURE)) {
                         assertEquals(1L, stats.rejected());
@@ -67,13 +89,14 @@ public class QueryCaptureServiceTests extends ESTestCase {
             assertBusy(() -> {
                 assertTrue(processed.get());
                 assertFalse(queued.hasReferences());
+                assertCounters(3, 2, 0, 1);
             });
         }
     }
 
     public void testListenerCompletesBeforeWorkerAndResponseRemainsReadable() throws Exception {
         try (var pool = new TestThreadPool(getTestName())) {
-            var service = new QueryCaptureService(pool);
+            var service = new QueryCaptureService(pool, meterRegistry);
             var started = new CountDownLatch(1);
             var release = new CountDownLatch(1);
             var captured = new AtomicBoolean();
@@ -129,11 +152,19 @@ public class QueryCaptureServiceTests extends ESTestCase {
 
     public void testShutdownRejectionReleasesResponse() {
         try (var pool = new TestThreadPool(getTestName())) {
-            var service = new QueryCaptureService(pool);
+            var service = new QueryCaptureService(pool, meterRegistry);
             pool.shutdown();
             var response = SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
             service.execute(() -> fail("shutdown executor must reject"), response);
             assertTrue(response.decRef());
+            assertCounters(1, 0, 0, 1);
+            assertEquals(
+                Map.of("es_query_capture_drop_reason", "queue_full"),
+                meterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_COUNTER, "es.search.query_capture.dropped.total")
+                    .getFirst()
+                    .attributes()
+            );
         }
     }
 
@@ -148,9 +179,12 @@ public class QueryCaptureServiceTests extends ESTestCase {
                 )
             );
             var response = SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
-            new QueryCaptureService(pool).execute(() -> { throw new IllegalStateException("test failure"); }, response);
+            new QueryCaptureService(pool, meterRegistry).execute(() -> { throw new IllegalStateException("test failure"); }, response);
             response.decRef();
-            assertBusy(() -> assertFalse(response.hasReferences()));
+            assertBusy(() -> {
+                assertFalse(response.hasReferences());
+                assertCounters(1, 1, 1, 0);
+            });
             log.assertAllExpectationsMatched();
         }
     }
@@ -173,9 +207,12 @@ public class QueryCaptureServiceTests extends ESTestCase {
                 ActionListener.wrap(r -> fail("expected failure"), e -> assertSame(failure, e)),
                 builder,
                 listener -> listener.onFailure(failure),
-                new QueryCaptureService(pool)
+                new QueryCaptureService(pool, meterRegistry)
             );
-            assertBusy(() -> assertTrue(captured.get()));
+            assertBusy(() -> {
+                assertTrue(captured.get());
+                assertCounters(1, 1, 0, 0);
+            });
         }
     }
 
@@ -192,8 +229,88 @@ public class QueryCaptureServiceTests extends ESTestCase {
                 original,
                 builder,
                 listener -> assertSame(original, listener),
-                new QueryCaptureService(pool)
+                new QueryCaptureService(pool, meterRegistry)
+            );
+            assertCounters(0, 0, 0, 0);
+        }
+    }
+
+    public void testSinkFailureIsCountedAndOtherSinksStillRun() throws Exception {
+        try (var pool = new TestThreadPool(getTestName()); var log = MockLog.capture(QueryInterceptor.class)) {
+            boolean failEnabledCheck = randomBoolean();
+            var caller = Thread.currentThread();
+            var failingSink = new TestQuerySink<SearchCaptureContext>(() -> {
+                if (failEnabledCheck && Thread.currentThread() != caller) {
+                    throw new IllegalStateException("enabled check failed");
+                }
+                return true;
+            }, context -> { throw new IllegalStateException("sink failed"); }, () -> "failing");
+            log.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "sink failure",
+                    QueryInterceptor.class.getCanonicalName(),
+                    Level.WARN,
+                    failEnabledCheck ? "query sink [failing] failed to report whether it is enabled" : "query sink [failing] failed"
+                )
+            );
+            var captured = new AtomicBoolean();
+            var succeedingSink = new TestQuerySink<SearchCaptureContext>(() -> true, context -> captured.set(true), () -> "succeeding");
+            var builder = new SearchCaptureContextBuilder(
+                new Task(1, "test", "search", "", TaskId.EMPTY_TASK_ID, Map.of()),
+                new NamedWriteableRegistry(List.of()),
+                new SearchRequest()
+            );
+            var response = SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
+            try {
+                new QueryInterceptor<>(List.of(failingSink, succeedingSink)).wrapAndRun(
+                    ActionListener.wrap(r -> assertSame(response, r), e -> fail(e.toString())),
+                    builder,
+                    listener -> listener.onResponse(response),
+                    new QueryCaptureService(pool, meterRegistry)
+                );
+                assertBusy(() -> {
+                    assertCounters(1, 1, 1, 0);
+                    assertTrue(captured.get());
+                });
+                log.assertAllExpectationsMatched();
+            } finally {
+                response.decRef();
+            }
+        }
+    }
+
+    public void testDropReasonsAreBounded() {
+        try (var pool = new TestThreadPool(getTestName())) {
+            var service = new QueryCaptureService(pool, meterRegistry);
+            for (var reason : QueryCaptureService.DropReason.values()) {
+                service.recordDropped(reason);
+            }
+            assertCounters(0, 0, 0, QueryCaptureService.DropReason.values().length);
+            var drops = meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, "es.search.query_capture.dropped.total");
+            assertTrue(drops.stream().allMatch(measurement -> measurement.getLong() == 1L));
+            assertEquals(
+                List.of(
+                    Map.of("es_query_capture_drop_reason", "queue_full"),
+                    Map.of("es_query_capture_drop_reason", "circuit_breaker"),
+                    Map.of("es_query_capture_drop_reason", "sampler")
+                ),
+                drops.stream().map(Measurement::attributes).toList()
             );
         }
+    }
+
+    private void assertCounters(long submitted, long completed, long failures, long dropped) {
+        assertEquals(submitted, count("submitted"));
+        assertEquals(completed, count("completed"));
+        assertEquals(failures, count("processing_failures"));
+        assertEquals(dropped, count("dropped"));
+    }
+
+    private long count(String name) {
+        return meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, "es.search.query_capture." + name + ".total")
+            .stream()
+            .mapToLong(Measurement::getLong)
+            .sum();
     }
 }

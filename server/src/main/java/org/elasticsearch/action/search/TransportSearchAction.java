@@ -114,6 +114,7 @@ import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -225,6 +226,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Client client,
         UsageService usageService,
         QuerySinkRegistry querySinkRegistry,
+        TelemetryProvider telemetryProvider,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
         CrossProjectModeDecider crossProjectModeDecider
@@ -281,7 +283,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             indexNameExpressionResolver.getSystemNamePredicate()
         );
         this.queryInterceptor = querySinkRegistry.createInterceptor(queryLogger);
-        this.queryCaptureService = new QueryCaptureService(threadPool);
+        this.queryCaptureService = new QueryCaptureService(threadPool, telemetryProvider.getMeterRegistry());
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(

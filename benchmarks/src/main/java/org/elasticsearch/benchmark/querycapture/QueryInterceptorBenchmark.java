@@ -198,7 +198,7 @@ public class QueryInterceptorBenchmark {
                 MeterRegistry.NOOP,
                 new DefaultBuiltInExecutorBuilders()
             );
-            service = new QueryCaptureService(pool);
+            service = new QueryCaptureService(pool, MeterRegistry.NOOP);
             executor = (EsThreadPoolExecutor) pool.executor(ThreadPool.Names.QUERY_CAPTURE);
         }
 

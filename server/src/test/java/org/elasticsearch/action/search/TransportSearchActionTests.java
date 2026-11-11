@@ -2614,6 +2614,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 client,
                 new UsageService(),
                 new QuerySinkRegistry(List.of()),
+                TelemetryProvider.NOOP,
                 new TestActionActionLoggingFieldsProvider(),
                 ActivityLogWriterProvider.NOOP,
                 CrossProjectModeDecider.NOOP

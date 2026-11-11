@@ -12,6 +12,7 @@ package org.elasticsearch.common.logging.activity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -46,9 +47,16 @@ public final class QueryInterceptor<Context extends QueryCaptureContext> {
 
     /** A sink whose switch fails is treated as disabled: a sink must never fail the intercepted query. */
     private static boolean isEnabled(QuerySink<?> sink) {
+        return isEnabled(sink, null);
+    }
+
+    private static boolean isEnabled(QuerySink<?> sink, @Nullable QueryCaptureService captureService) {
         try {
             return sink.isEnabled();
         } catch (Exception e) {
+            if (captureService != null) {
+                captureService.recordProcessingFailure();
+            }
             logger.warn(() -> Strings.format("query sink [%s] failed to report whether it is enabled", sink), e);
             return false;
         }
@@ -56,12 +64,19 @@ public final class QueryInterceptor<Context extends QueryCaptureContext> {
 
     // Accessible for tests
     void notifySinks(Context context) {
+        notifySinks(context, null);
+    }
+
+    private void notifySinks(Context context, @Nullable QueryCaptureService captureService) {
         for (var sink : sinks) {
-            if (isEnabled(sink)) {
+            if (isEnabled(sink, captureService)) {
                 try {
                     sink.accept(context);
                 } catch (Exception e) {
                     // a sink must never fail the query or starve the other sinks
+                    if (captureService != null) {
+                        captureService.recordProcessingFailure();
+                    }
                     logger.warn(() -> Strings.format("query sink [%s] failed", sink), e);
                 }
             }
@@ -139,7 +154,10 @@ public final class QueryInterceptor<Context extends QueryCaptureContext> {
             listener,
             contextBuilder,
             action,
-            (supplier, response) -> capture(supplier, context -> captureService.execute(() -> notifySinks(context), response))
+            (supplier, response) -> capture(
+                supplier,
+                context -> captureService.execute(() -> notifySinks(context, captureService), response)
+            )
         );
     }
 

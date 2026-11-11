@@ -10,12 +10,16 @@
 package org.elasticsearch.common.logging.activity;
 
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Map;
 import java.util.concurrent.Executor;
 
 /**
@@ -24,10 +28,50 @@ import java.util.concurrent.Executor;
 public final class QueryCaptureService {
     private static final Logger logger = LogManager.getLogger(QueryCaptureService.class);
     private final Executor executor;
+    private final LongCounter submitted;
+    private final LongCounter completed;
+    private final LongCounter processingFailures;
+    private final LongCounter dropped;
 
-    /** Uses the node's single capture worker, shared by all searches. */
-    public QueryCaptureService(ThreadPool threadPool) {
+    /** The reason why the captured query was not processed */
+    public enum DropReason {
+        QUEUE_FULL("queue_full"),
+        CIRCUIT_BREAKER("circuit_breaker"), // TODO
+        SAMPLER("sampler"); // TODO
+
+        private final Map<String, Object> attributes;
+
+        DropReason(String reason) {
+            attributes = Map.of("es_query_capture_drop_reason", reason);
+        }
+    }
+
+    /** Uses the node's single capture executor. */
+    public QueryCaptureService(ThreadPool threadPool, MeterRegistry meterRegistry) {
+        assert threadPool.executor(ThreadPool.Names.QUERY_CAPTURE) instanceof EsThreadPoolExecutor
+            : "Query capture executor must be an instance of EsThreadPoolExecutor";
+
         executor = threadPool.executor(ThreadPool.Names.QUERY_CAPTURE);
+        submitted = meterRegistry.registerLongCounter(
+            "es.search.query_capture.submitted.total",
+            "Captures submitted for processing",
+            "count"
+        );
+        completed = meterRegistry.registerLongCounter(
+            "es.search.query_capture.completed.total",
+            "Captures whose worker processing finished, including failures",
+            "count"
+        );
+        processingFailures = meterRegistry.registerLongCounter(
+            "es.search.query_capture.processing_failures.total",
+            "Failures during capture processing",
+            "count"
+        );
+        dropped = meterRegistry.registerLongCounter(
+            "es.search.query_capture.dropped.total",
+            "Captures discarded before processing, by reason",
+            "count"
+        );
     }
 
     /**
@@ -40,20 +84,25 @@ public final class QueryCaptureService {
             response.incRef();
         }
         // EsThreadPoolExecutor delivers rejection to AbstractRunnable and calls onAfter on both execution and rejection.
-        executor.execute(new AbstractRunnable() {
+        var task = new AbstractRunnable() {
             @Override
             protected void doRun() {
-                capture.run();
+                try {
+                    capture.run();
+                } finally {
+                    completed.increment();
+                }
             }
 
             @Override
             public void onFailure(Exception e) {
+                recordProcessingFailure();
                 logger.warn("query capture processing failed", e);
             }
 
             @Override
             public void onRejection(Exception e) {
-                // Capture is best effort: do not block, run on the caller, or log once per dropped query.
+                recordDropped(DropReason.QUEUE_FULL);
             }
 
             @Override
@@ -62,6 +111,18 @@ public final class QueryCaptureService {
                     response.decRef();
                 }
             }
-        });
+        };
+        executor.execute(task);
+        submitted.increment();
+    }
+
+    /** Records a pre-processing drop without acquiring response references or submitting work. */
+    public void recordDropped(DropReason reason) {
+        dropped.incrementBy(1, reason.attributes);
+    }
+
+    /** Includes failures caught by individual sinks, which do not escape to the worker. */
+    void recordProcessingFailure() {
+        processingFailures.increment();
     }
 }

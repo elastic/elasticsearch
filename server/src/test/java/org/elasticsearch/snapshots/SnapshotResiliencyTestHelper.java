@@ -1073,6 +1073,7 @@ public class SnapshotResiliencyTestHelper {
                         client,
                         usageService,
                         new QuerySinkRegistry(List.of()),
+                        TelemetryProvider.NOOP,
                         new IndicesServiceTests.TestActionActionLoggingFieldsProvider(),
                         ActivityLogWriterProvider.NOOP,
                         CrossProjectModeDecider.NOOP

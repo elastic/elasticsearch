@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.plugins.internal.BatchMeteringModel;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.KeyValueReader;
 import org.elasticsearch.sourcebatch.SliceableColumn;
@@ -188,6 +189,12 @@ public abstract class EscfColumn implements SliceableColumn {
      */
     public abstract void addSizesInBytes(int[] sizes);
 
+    /**
+     * Adds the size {@code model} charges for every present document's value to {@code sizes[row]}, in one sweep over this
+     * column.
+     */
+    public abstract void addMeteredSizes(long[] sizes, BatchMeteringModel model);
+
     /** Returns {@code true} if document {@code row} holds an explicit JSON {@code null}. */
     public final boolean isNull(int row) {
         return getTypeByte(row) == SourceValueType.NULL;
@@ -229,6 +236,11 @@ public abstract class EscfColumn implements SliceableColumn {
     /** Returns the string value at {@code row}. The column kind must be {@link EscfColumnKind#STRING}. */
     public Text getStringValue(int row) {
         throw notA("string");
+    }
+
+    /** The payload length in bytes of document {@code row}'s value; only a string or binary column has one. */
+    public int getValueLength(int row) {
+        throw notA("variable-length");
     }
 
     /** Returns the binary value at {@code row}. The column kind must be {@link EscfColumnKind#BINARY}. */

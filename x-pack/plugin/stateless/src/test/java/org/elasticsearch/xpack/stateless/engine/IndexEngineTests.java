@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.junit.After;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
@@ -91,6 +92,7 @@ import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.IntToLongFunction;
 import java.util.stream.LongStream;
 
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
@@ -112,7 +114,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -585,7 +586,11 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 )
             ) {
                 engine.onBatchParsingCompleted(context);
-                verify(documentSizeReporter).onBatchParsingCompleted(same(context));
+                ArgumentCaptor<IntToLongFunction> normalizedSizes = ArgumentCaptor.forClass(IntToLongFunction.class);
+                verify(documentSizeReporter).onBatchParsingCompleted(eq(ops.size()), normalizedSizes.capture(), any());
+                for (int i = 0; i < ops.size(); i++) {
+                    assertThat(normalizedSizes.getValue().applyAsLong(i), equalTo(ops.get(i).parsedDoc().getNormalizedSize()));
+                }
             }
 
             // Success case: all docs in the batch succeed. Indexing is reported for the materialized per-op views

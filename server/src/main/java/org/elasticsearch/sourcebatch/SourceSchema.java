@@ -157,6 +157,19 @@ public final class SourceSchema {
         return sb.toString();
     }
 
+    /**
+     * The root field of leaf {@code leafIdx}: the name of its outermost ancestor, or its own name when it sits at the root, cut
+     * at the first dot.
+     */
+    public String getRootFieldName(int leafIdx) {
+        String name = getLeafName(leafIdx);
+        for (int parentIdx = getLeafParent(leafIdx); parentIdx != 0; parentIdx = getNonLeafParent(parentIdx)) {
+            name = getNonLeafName(parentIdx);
+        }
+        final int dot = name.indexOf('.');
+        return dot < 0 ? name : name.substring(0, dot);
+    }
+
     private void buildNonLeafPath(StringBuilder sb, int nonLeafIdx) {
         if (nonLeafIdx == 0) {
             return;

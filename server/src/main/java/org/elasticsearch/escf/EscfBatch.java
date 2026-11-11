@@ -14,6 +14,7 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.plugins.internal.BatchMeteringModel;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.sourcebatch.SourceSchema;
@@ -136,6 +137,24 @@ public final class EscfBatch implements SourceBatch {
         final int[] sizes = new int[docCount];
         for (EscfColumn column : columns) {
             column.addSizesInBytes(sizes);
+        }
+        return sizes;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Each column is charged in one sweep, and whether its root field is excluded is decided once per column rather than
+     * once per row. A slice view meters only its own rows, as its columns are already windowed to the slice.
+     */
+    @Override
+    public long[] meteredRowSizes(BatchMeteringModel model) {
+        assertOpen();
+        final long[] sizes = new long[docCount];
+        for (int c = 0; c < columns.length; c++) {
+            if (model.isExcludedRootField(schema.getRootFieldName(c)) == false) {
+                columns[c].addMeteredSizes(sizes, model);
+            }
         }
         return sizes;
     }

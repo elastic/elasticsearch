@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.internal.BatchMeteringModel;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.sourcebatch.SourceBatch;
@@ -44,14 +46,16 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * Verifies that the columnar batch path meters documents exactly like the sequential path: every row is streamed through
- * the request's {@link XContentMeteringParserDecorator} and the resulting normalized size travels with the
- * {@link IndexOperationBatch}, so a {@code DocumentSizeReporter} sees the same value whichever path indexed the document.
+ * Verifies that the columnar batch path meters documents exactly like the sequential path: the batch is charged in one sweep
+ * under the provider's {@link BatchMeteringModel}, with the accounting its {@link XContentMeteringParserDecorator} applies to
+ * the tokens of a row-parsed document, and the resulting normalized size travels with the {@link IndexOperationBatch}, so a
+ * {@code DocumentSizeReporter} sees the same value whichever path indexed the document.
  */
 public class ShardBatchMapperMeteringTests extends IndexShardTestCase {
 
@@ -96,12 +100,44 @@ public class ShardBatchMapperMeteringTests extends IndexShardTestCase {
         }""";
 
     /**
-     * A decorator with an arbitrary but deterministic accounting, the length of field names and string values plus one
-     * per other value token, that publishes its total only once the parser is closed.
+     * An arbitrary but deterministic accounting: the UTF-8 bytes of strings, 3 per number, 2 per boolean, and nothing below the
+     * root fields {@code obj} and {@code metrics}, whichever way a document spells them.
      */
+    private static final BatchMeteringModel TEST_MODEL = new BatchMeteringModel() {
+        private final Set<String> excludedRootFields = Set.of("obj", "metrics");
+
+        @Override
+        public boolean isExcludedRootField(String rootFieldName) {
+            return excludedRootFields.contains(rootFieldName);
+        }
+
+        @Override
+        public long stringBytes(int utf8Length) {
+            return utf8Length;
+        }
+
+        @Override
+        public long binaryBytes(int length) {
+            return length;
+        }
+
+        @Override
+        public long numberBytes() {
+            return 3;
+        }
+
+        @Override
+        public long booleanBytes() {
+            return 2;
+        }
+    };
+
+    /** {@link #TEST_MODEL} applied to the tokens of a row-parsed document, publishing the total only once the parser is closed. */
     private static final class SizeOnCloseDecorator implements XContentMeteringParserDecorator {
         private long inFlight = 0;
         private long published = UNKNOWN_SIZE;
+        private int depth = 0;
+        private boolean charged = true;
 
         @Override
         public XContentParser decorate(XContentParser xContentParser, Mapping mapping) {
@@ -109,12 +145,31 @@ public class ShardBatchMapperMeteringTests extends IndexShardTestCase {
                 @Override
                 public Token nextToken() throws IOException {
                     final Token token = super.nextToken();
-                    if (token == Token.FIELD_NAME) {
-                        inFlight += currentName().length();
-                    } else if (token == Token.VALUE_STRING) {
-                        inFlight += text().length();
-                    } else if (token == Token.VALUE_NUMBER || token == Token.VALUE_BOOLEAN) {
-                        inFlight += 1;
+                    if (token == null) {
+                        return null;
+                    }
+                    switch (token) {
+                        case START_OBJECT, START_ARRAY -> depth++;
+                        case END_OBJECT, END_ARRAY -> depth--;
+                        case FIELD_NAME -> {
+                            if (depth == 1) {
+                                // a dotted root name is only expanded below an enabled root object, so cut it here like the batch path
+                                final String name = currentName();
+                                final int dot = name.indexOf('.');
+                                charged = TEST_MODEL.isExcludedRootField(dot < 0 ? name : name.substring(0, dot)) == false;
+                            }
+                        }
+                        case VALUE_STRING -> {
+                            if (charged) {
+                                final String text = text();
+                                inFlight += TEST_MODEL.stringBytes(UnicodeUtil.calcUTF16toUTF8Length(text, 0, text.length()));
+                            }
+                        }
+                        case VALUE_NUMBER -> inFlight += charged ? TEST_MODEL.numberBytes() : 0;
+                        case VALUE_BOOLEAN -> inFlight += charged ? TEST_MODEL.booleanBytes() : 0;
+                        case VALUE_EMBEDDED_OBJECT, VALUE_NULL -> {
+                        }
+                        default -> throw new AssertionError(token);
                     }
                     return token;
                 }
@@ -137,6 +192,11 @@ public class ShardBatchMapperMeteringTests extends IndexShardTestCase {
         @Override
         public XContentMeteringParserDecorator newMeteringParserDecorator() {
             return new SizeOnCloseDecorator();
+        }
+
+        @Override
+        public BatchMeteringModel newBatchMeteringModel() {
+            return TEST_MODEL;
         }
     };
 
@@ -275,7 +335,7 @@ public class ShardBatchMapperMeteringTests extends IndexShardTestCase {
     public void testBatchRowsReportTheSameNormalizedSizeAsSequentialParsing() throws IOException {
         IndexShard shard = newColumnarShard();
         try {
-            final int numDocs = randomIntBetween(1, 10);
+            final int numDocs = randomIntBetween(1, 100);
             final List<BytesReference> sources = randomDocuments(numDocs);
             final BulkItemRequest[] items = items(sources);
             final long[] expected = new long[numDocs];
@@ -304,10 +364,10 @@ public class ShardBatchMapperMeteringTests extends IndexShardTestCase {
         }
     }
 
-    public void testDotExpansionFollowsTheMapping() throws IOException {
+    public void testExcludedRootFieldsAcrossSpellings() throws IOException {
         IndexShard shard = newPrimaryShard(TIME_SERIES_SETTINGS, SUBOBJECTS_MAPPING);
         try {
-            final int numDocs = randomIntBetween(1, 10);
+            final int numDocs = randomIntBetween(1, 100);
             final List<BytesReference> sources = randomSubobjectsDocuments(numDocs);
             final BulkItemRequest[] items = timeSeriesItems(shard, sources);
             final long[] expected = new long[numDocs];

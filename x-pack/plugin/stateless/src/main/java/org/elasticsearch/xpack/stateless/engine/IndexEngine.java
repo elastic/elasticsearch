@@ -578,7 +578,7 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     public void onBatchParsingCompleted(BatchMappingContext context) {
-        documentParsingReporter.onBatchParsingCompleted(context);
+        documentParsingReporter.onBatchParsingCompleted(context.docCount(), context::normalizedSize, context::addColumn);
     }
 
     @Override

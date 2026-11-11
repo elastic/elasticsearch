@@ -10,8 +10,11 @@
 package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.sourcebatch.LuceneColumn;
+
+import java.util.function.Consumer;
+import java.util.function.IntToLongFunction;
 
 /**
  * An interface to allow performing an action when parsing and indexing has been completed
@@ -36,7 +39,8 @@ public interface DocumentSizeReporter {
 
     /**
      * Batch counterpart of {@link #onParsingCompleted(ParsedDocument)}: called once per columnar batch chunk, after the metadata mappers
-     * ran and before the chunk's columns are frozen.
+     * ran and before the chunk's columns are frozen. The chunk's documents have no LuceneDocument to add a field to, so an
+     * implementation that stores the sizes attaches a column over the chunk through {@code columnConsumer}.
      */
-    default void onBatchParsingCompleted(BatchMappingContext context) {}
+    default void onBatchParsingCompleted(int docCount, IntToLongFunction normalizedSizeByDoc, Consumer<LuceneColumn> columnConsumer) {}
 }

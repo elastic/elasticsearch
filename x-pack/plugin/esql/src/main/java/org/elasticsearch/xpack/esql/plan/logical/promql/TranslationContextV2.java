@@ -11,6 +11,10 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.SelectorLabelTranslation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -100,9 +104,12 @@ public record TranslationContextV2(
      * intermediate results travel back up.
      */
     public IntermediateResult translate(LogicalPlan node) {
-        switch (node) {
+        return switch (node) {
+            case InstantSelector selector -> SelectorLabelTranslation.translate(selector, this);
+            case RangeSelector selector -> SelectorLabelTranslation.translate(selector, this);
+            case LiteralSelector selector -> SelectorLabelTranslation.translate(selector, this);
             default -> throw new QlIllegalArgumentException("PromQL plan node [{}] does not translate in V2 yet", node.nodeName());
-        }
+        };
     }
 
     /** The labels of a vector without labels. */
@@ -621,8 +628,7 @@ public record TranslationContextV2(
                             labels,
                             Literal.keyword(labels.source(), PromqlLabels.labelName(label))
                         ),
-                        attr.dataType()
-                    );
+                        attr.dataType());
                 Alias alias = new Alias(source, attr.name(), value, attr.id());
                 evals.add(alias);
                 projected.set(i, alias.toAttribute());

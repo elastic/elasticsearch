@@ -58,6 +58,7 @@ public class FieldSemanticsTests extends ESTestCase {
             meta,
             null,
             0,
+            false,
             false
         );
     }

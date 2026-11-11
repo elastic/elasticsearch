@@ -388,7 +388,6 @@ public class PlanExecutor {
         long begin,
         String client
     ) {
-        countFinishedQuery(finishCounted, caller, true);
         planTelemetryManager.publish(planTelemetry, true);
         boolean partial = result != null && result.inner().completionInfo().partial();
         recordExternalSourceQuery(
@@ -407,6 +406,10 @@ public class PlanExecutor {
                 planTelemetry.settings().containsKey("PROJECT_ROUTING"),
                 executionInfo.isHasLinkedProjects()
             );
+        // Last step before the response. ActionListener.wrap sends a throw from the bookkeeping above to onQueryFailure,
+        // which counts the query as failed. Counting success any earlier would leave es_esql_success=true and the guard
+        // below would drop that failure measurement.
+        countFinishedQuery(finishCounted, caller, true);
         listener.onResponse(result);
     }
 
@@ -446,7 +449,9 @@ public class PlanExecutor {
 
     /**
      * Counts a finished query on the APM query counter. {@link ActionListener#wrap} runs the failure handler when the success
-     * handler throws, so one query can reach both; {@code finishCounted} keeps it to one count.
+     * handler throws, so one query can reach both; {@code finishCounted} keeps it to one count. Record success only after the
+     * other success bookkeeping, immediately before the response is delivered, so a throw from that bookkeeping is counted
+     * as a failure instead of a success that this guard then refuses to correct.
      */
     private void countFinishedQuery(AtomicBoolean finishCounted, QueryCaller caller, boolean success) {
         if (finishCounted.compareAndSet(false, true)) {

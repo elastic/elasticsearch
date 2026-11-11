@@ -799,9 +799,12 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             Counters stats = planExecutor.metrics().stats();
             assertThat(stats.get("queries.rest.total"), equalTo(1L));
             assertThat(stats.get("queries.rest.failed"), equalTo(1L));
+            List<Measurement> measurements = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS);
+            assertThat(measurements, hasSize(1));
             assertThat(
-                meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS),
-                hasSize(1)
+                measurements.get(0).attributes(),
+                equalTo(Map.of(PlanTelemetryManager.CLIENT, "rest", PlanTelemetryManager.QUERY_SUCCESS, false))
             );
         }
     }

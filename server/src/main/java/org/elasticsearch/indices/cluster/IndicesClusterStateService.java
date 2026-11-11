@@ -186,8 +186,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         /// [ShardRecoveryListener] and the lock-wait continuation ([#createShardWhenLockAvailable]) compare
         /// it against the current map entry by reference before acting.
         ///
-        /// This is a final class rather than a record because we rely on pendingAllocationStates.remove(key, inFlightTicket)
-        /// to remove the exact instance rather than a record that just has the same fields.
+        /// This is a final class rather than a record: `pendingAllocationStates.remove(key, ticket)` must match this
+        /// exact instance (by reference), and records use value equality.
         final class InFlight implements PendingAllocationState {
             private final long startTimeMillis;
             private final long primaryTerm;

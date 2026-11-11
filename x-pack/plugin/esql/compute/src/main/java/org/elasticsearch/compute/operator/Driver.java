@@ -88,8 +88,8 @@ public class Driver implements Releasable, Describable {
     private final List<OperatorStatus> statusOfCompletedOperators = new ArrayList<>();
     /**
      * Operators that asked to be resnapshotted after {@code waitForAsyncActions}. Index is into
-     * {@link #statusOfCompletedOperators}. Mutated only after {@link #isFinished()} when the
-     * driver loop is dead.
+     * {@link #statusOfCompletedOperators}. Mutated only when the driver loop is dead: once the driver is finished, or
+     * when it fails or is aborted and drains its operators.
      */
     private final List<PendingFinalStatus> pendingFinalStatus = new ArrayList<>();
     private final Releasable releasable;
@@ -201,8 +201,10 @@ public class Driver implements Releasable, Describable {
      * this runs inside an operator's measurement of this driver. That happens once the driver was cancelled or finished
      * early: the scheduler then runs it directly on the thread that completes the listener it is blocked on, such as a
      * worker's.
-     * CPU and driver time are published at status updates. If an iteration throws, including cancellation,
-     * time accumulated since the last status update is not included in the reported totals.
+     * CPU and driver time are published at status updates. If an iteration throws, including cancellation, the driver
+     * still publishes a final status, with the status of its operators, once it has drained them. That status includes the
+     * CPU time of the failed iteration, which is committed when its measurement closes, but not the CPU time of draining
+     * and closing the operators afterwards, nor the driver time since the last status update.
      */
     SubscribableListener<Void> run(TimeValue maxTime, int maxIterations, LongSupplier currentTimeNanosSupplier) {
         // the driver charges its own time, and its pool the rest of the task to the load target
@@ -343,7 +345,13 @@ public class Driver implements Releasable, Describable {
         completionListener.addListener(listener);
         if (started.compareAndSet(false, true)) {
             drainAndCloseOperators(reason);
-            completionListener.onFailure(reason);
+            try {
+                // Unlike the failure of a running driver, this does not wait for asynchronous actions, as abort never did:
+                // operators with off-driver work are read again now, not after it.
+                publishFinalStatus();
+            } finally {
+                completionListener.onFailure(reason);
+            }
         } else {
             cancel(reason.getMessage());
         }
@@ -454,7 +462,13 @@ public class Driver implements Releasable, Describable {
                             reportedByClosedSource = now - lastStatusUpdate;
                         }
                     }
-                    op.close();
+                    try {
+                        op.close();
+                    } catch (RuntimeException e) {
+                        // The operator stays active, so the failure's drain closes it again and records its status then.
+                        statusOfCompletedOperators.remove(statusIndex);
+                        throw e;
+                    }
                     if (op.finalStatusAfterAsyncActions()) {
                         pendingFinalStatus.add(new PendingFinalStatus(statusIndex, op));
                     }
@@ -579,7 +593,13 @@ public class Driver implements Releasable, Describable {
         Iterator<Operator> itr = activeOperators.iterator();
         while (itr.hasNext()) {
             try {
-                Releasables.closeWhileHandlingException(itr.next());
+                Operator op = itr.next();
+                if (e != null) {
+                    // The driver failed or was aborted: keep what the operator did, as the early-finish path does but
+                    // tolerating a failing status, so the failed driver still reports its usage. A plain close() does not.
+                    recordStatusBeforeClose(op);
+                }
+                Releasables.closeWhileHandlingException(op);
             } catch (Exception x) {
                 if (e != null) {
                     e.addSuppressed(x);
@@ -589,6 +609,26 @@ public class Driver implements Releasable, Describable {
         }
         driverContext.finish();
         Releasables.closeWhileHandlingException(releasable, driverContext.getSnapshot());
+    }
+
+    /**
+     * Adds the status of an operator that is about to be closed without having finished, because the driver failed or was
+     * cancelled. This must never throw: the operator still has to be closed and the failure that is being handled must not
+     * be hidden, so an operator whose status cannot be read is recorded without one.
+     */
+    private void recordStatusBeforeClose(Operator op) {
+        int statusIndex = statusOfCompletedOperators.size();
+        try {
+            statusOfCompletedOperators.add(new OperatorStatus(op.toString(), op.status()));
+            if (op.finalStatusAfterAsyncActions()) {
+                pendingFinalStatus.add(new PendingFinalStatus(statusIndex, op));
+            }
+        } catch (Exception statusFailure) {
+            LOGGER.debug("failed to read the status of an operator that is being closed [{}]", shortDescription, statusFailure);
+            if (statusOfCompletedOperators.size() == statusIndex) {
+                statusOfCompletedOperators.add(new OperatorStatus(op.getClass().getSimpleName(), null));
+            }
+        }
     }
 
     private static void schedule(
@@ -634,10 +674,15 @@ public class Driver implements Releasable, Describable {
             public void onFailure(Exception e) {
                 driver.drainAndCloseOperators(e);
                 driver.driverContext.waitForAsyncActions(
-                    ContextPreservingActionListener.wrapPreservingContext(
-                        ActionListener.running(() -> listener.onFailure(e)),
-                        threadContext
-                    )
+                    ContextPreservingActionListener.wrapPreservingContext(ActionListener.running(() -> {
+                        try {
+                            // A failed driver is finished too: publish what it did so the caller can account for it.
+                            driver.finishNanos = System.nanoTime();
+                            driver.publishFinalStatus();
+                        } finally {
+                            listener.onFailure(e);
+                        }
+                    }), threadContext)
                 );
             }
 
@@ -753,7 +798,12 @@ public class Driver implements Releasable, Describable {
     private void publishFinalStatus() {
         for (PendingFinalStatus pending : pendingFinalStatus) {
             Operator op = pending.operator;
-            statusOfCompletedOperators.set(pending.index, new OperatorStatus(op.toString(), op.status()));
+            try {
+                statusOfCompletedOperators.set(pending.index, new OperatorStatus(op.toString(), op.status()));
+            } catch (Exception statusFailure) {
+                // Keep the status taken before the close: failing to refresh it must not leave the driver unfinished.
+                LOGGER.debug("failed to re-read the status of a closed operator [{}]", shortDescription, statusFailure);
+            }
         }
         pendingFinalStatus.clear();
         updateStatus(0, 0, DriverStatus.Status.DONE, "driver done", System.nanoTime());
@@ -782,6 +832,12 @@ public class Driver implements Releasable, Describable {
             // Sorry for the complexity here. If anyone has a nice way to refactor this, be my guest.
             switch (status) {
                 case ASYNC, WAITING -> sleeps = sleeps.sleep(reason, now);
+                case DONE -> {
+                    // A driver whose blocked future failed ends while asleep: close the sleep, as running again would.
+                    switch (prev.status()) {
+                        case ASYNC, WAITING -> sleeps = sleeps.wake(now);
+                    }
+                }
                 case RUNNING -> {
                     switch (prev.status()) {
                         case ASYNC, WAITING -> sleeps = sleeps.wake(now);

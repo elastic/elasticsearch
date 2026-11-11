@@ -875,7 +875,8 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
             RetentionLeaseSyncer retentionLeaseSyncer,
             DiscoveryNode targetNode,
             DiscoveryNode sourceNode,
-            long clusterStateVersion
+            long clusterStateVersion,
+            int localRecoveryRetries
         ) throws IOException {
             createShardCalls.incrementAndGet();
             lastRecoveryListener = recoveryListener;
@@ -896,7 +897,8 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
                 retentionLeaseSyncer,
                 targetNode,
                 sourceNode,
-                clusterStateVersion
+                clusterStateVersion,
+                localRecoveryRetries
             );
         }
 

@@ -99,7 +99,12 @@ public final class ListingWalkHarness implements StorageProvider {
 
     /** Sep–Oct 2026, unpadded {@code year}/{@code month}/{@code day}, {@link #FILES_PER_DAY} files per day. */
     public static List<StorageEntry> fieldShapedTree() {
-        return calendarTree(LOGS_PREFIX);
+        return calendarTree(LOGS_PREFIX, FILES_PER_DAY);
+    }
+
+    /** Same calendar as {@link #fieldShapedTree()} with {@code filesPerDay} objects under each day folder. */
+    public static List<StorageEntry> fieldShapedTree(int filesPerDay) {
+        return calendarTree(LOGS_PREFIX, filesPerDay);
     }
 
     /** Zero-padded {@code month=06}, {@code day=03} under 2026, plus a sibling month so equality is not the whole tree. */
@@ -125,16 +130,27 @@ public final class ListingWalkHarness implements StorageProvider {
         }
     }
 
-    private static List<StorageEntry> calendarTree(String prefix) {
+    private static List<StorageEntry> calendarTree(String prefix, int filesPerDay) {
         List<StorageEntry> entries = new ArrayList<>();
         for (LocalDate day = TREE_START; day.isAfter(TREE_END) == false; day = day.plusDays(1)) {
-            addDay(entries, prefix, day.getYear(), Integer.toString(day.getMonthValue()), Integer.toString(day.getDayOfMonth()));
+            addDay(
+                entries,
+                prefix,
+                day.getYear(),
+                Integer.toString(day.getMonthValue()),
+                Integer.toString(day.getDayOfMonth()),
+                filesPerDay
+            );
         }
         return entries;
     }
 
     private static void addDay(List<StorageEntry> entries, String prefix, int year, String month, String day) {
-        for (int n = 0; n < FILES_PER_DAY; n++) {
+        addDay(entries, prefix, year, month, day, FILES_PER_DAY);
+    }
+
+    private static void addDay(List<StorageEntry> entries, String prefix, int year, String month, String day, int filesPerDay) {
+        for (int n = 0; n < filesPerDay; n++) {
             entries.add(entry(prefix + "/year=" + year + "/month=" + month + "/day=" + day + "/f-" + n + ".parquet"));
         }
     }

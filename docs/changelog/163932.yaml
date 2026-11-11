@@ -1,0 +1,5 @@
+area: Data streams
+issues: []
+pr: 163932
+summary: Reject data streams matching system index patterns
+type: bug

@@ -1203,7 +1203,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 retentionLeaseSyncer,
                 state.nodes().getLocalNode(),
                 sourceNode,
-                state.version()
+                state.version(),
+                // No local recovery retry exists yet; a future retry mechanism will supply the real count here.
+                0
             );
             listener.onResponse(true);
         } catch (ShardLockObtainFailedException e) {
@@ -1621,13 +1623,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             || shard.state() == IndexShardState.POST_RECOVERY
             : "found shard in unexpected state despite live ticket: " + shardRouting + " in state " + shard.state();
 
+        // TODO: local recovery retry is not supported yet, so we always fall back to notifying master for a RETRY.
+        // Add recovery retry support (see: elastic/elasticsearch-team#4351)
+        final FailureStrategy finalStrategy = failureStrategy == FailureStrategy.RETRY ? FailureStrategy.FAIL_SEND : failureStrategy;
         final String message = isRecoveryCancellation(failure) ? "recovery cancelled by master" : "failed recovery";
         try {
             CloseUtils.executeDirectly(
                 l -> failAndRemoveShard(
                     shardRouting,
                     primaryTerm,
-                    failureStrategy.notifyMaster(),
+                    finalStrategy.notifyMaster(),
                     message,
                     failure,
                     clusterService.state(),
@@ -1641,7 +1646,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             logger.debug(
                 "{} recovery failure handled [{}]: {}",
                 key,
-                failureStrategy,
+                finalStrategy,
                 cleared ? "cleared InFlight ticket" : "ticket already superseded"
             );
         } catch (Exception e) {
@@ -1934,6 +1939,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * @param targetNode             the node where this shard will be recovered
          * @param sourceNode             the source node to recover this shard from (it might be null)
          * @param clusterStateVersion    the cluster state version in which the shard was created
+         * @param localRecoveryRetries   how many times this shard's recovery has already failed and been retried locally
          * @throws IOException if an I/O exception occurs when creating the shard
          */
         void createShard(
@@ -1947,7 +1953,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             RetentionLeaseSyncer retentionLeaseSyncer,
             DiscoveryNode targetNode,
             @Nullable DiscoveryNode sourceNode,
-            long clusterStateVersion
+            long clusterStateVersion,
+            int localRecoveryRetries
         ) throws IOException;
 
         /**

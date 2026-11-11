@@ -610,4 +610,9 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
         }
     }
 
+    @Override
+    protected boolean supportsDynamicallyAddedMultiFields() {
+        // an aggregate_metric_double can not be created without its metrics, so it can not stand in for an existing field in an update
+        return false;
+    }
 }

@@ -17,7 +17,7 @@
 class java.util.stream.BaseStream {
   void close()
   boolean isParallel()
-  Iterator iterator()
+  Iterator iterator() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="iteratorBytes"]
   BaseStream sequential()
   Spliterator spliterator()
   BaseStream unordered()
@@ -50,7 +50,7 @@ class java.util.stream.DoubleStream {
   DoubleStream flatMap(DoubleFunction)
   void org.elasticsearch.painless.api.Augmentation forEach(DoubleConsumer) @script_aware
   void org.elasticsearch.painless.api.Augmentation forEachOrdered(DoubleConsumer) @script_aware
-  PrimitiveIterator.OfDouble iterator()
+  PrimitiveIterator.OfDouble iterator() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="iteratorBytes"]
   DoubleStream limit(long)
   DoubleStream map(DoubleUnaryOperator)
   IntStream mapToInt(DoubleToIntFunction)
@@ -96,7 +96,7 @@ class java.util.stream.IntStream {
   IntStream flatMap(IntFunction)
   void org.elasticsearch.painless.api.Augmentation forEach(IntConsumer) @script_aware
   void org.elasticsearch.painless.api.Augmentation forEachOrdered(IntConsumer) @script_aware
-  PrimitiveIterator.OfInt iterator()
+  PrimitiveIterator.OfInt iterator() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="iteratorBytes"]
   IntStream limit(long)
   IntStream map(IntUnaryOperator)
   DoubleStream mapToDouble(IntToDoubleFunction)
@@ -143,7 +143,7 @@ class java.util.stream.LongStream {
   LongStream flatMap(LongFunction)
   void org.elasticsearch.painless.api.Augmentation forEach(LongConsumer) @script_aware
   void org.elasticsearch.painless.api.Augmentation forEachOrdered(LongConsumer) @script_aware
-  PrimitiveIterator.OfLong iterator()
+  PrimitiveIterator.OfLong iterator() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="iteratorBytes"]
   LongStream limit(long)
   LongStream map(LongUnaryOperator)
   DoubleStream mapToDouble(LongToDoubleFunction)

@@ -1,6 +1,5 @@
-# TODO: when the pull request is opened, set `pr` to its number and rename this file to `<number>.yaml`.
 area: ES|QL
 issues: []
-pr: 0
+pr: 165496
 summary: Compute `AVG` of a `long` with an exact 128-bit sum, reading the values without materializing them
 type: enhancement

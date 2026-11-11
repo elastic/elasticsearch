@@ -55,11 +55,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
-public class FromAggregateMetricDouble extends EsqlScalarFunction
-    implements
-        MetricPreservingConvertFunction,
-        BlockLoaderExpression,
-        AnyNullIsNull {
+public class FromAggregateMetricDouble extends EsqlScalarFunction implements ConvertFunction, BlockLoaderExpression, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "FromAggregateMetricDouble",

@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.intToUnsig
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToUnsignedLong;
 
-public class ToUnsignedLong extends AbstractConvertFunction implements MetricPreservingConvertFunction, UnitAware.PreservesUnit {
+public class ToUnsignedLong extends AbstractConvertFunction implements UnitAware.PreservesUnit {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "ToUnsignedLong",

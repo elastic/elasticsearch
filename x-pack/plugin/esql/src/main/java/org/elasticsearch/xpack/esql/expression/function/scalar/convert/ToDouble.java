@@ -39,7 +39,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToDouble;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 
-public class ToDouble extends AbstractConvertFunction implements MetricPreservingConvertFunction, UnitAware.PreservesUnit {
+public class ToDouble extends AbstractConvertFunction implements UnitAware.PreservesUnit {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToDouble", ToDouble::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToDouble.class)
         .unary(ToDouble::new)

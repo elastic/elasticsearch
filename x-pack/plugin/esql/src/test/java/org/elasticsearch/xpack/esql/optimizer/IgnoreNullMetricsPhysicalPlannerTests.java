@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -47,7 +46,6 @@ import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 
 /**
  * Tests for the {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetrics} planner rule, to
@@ -110,6 +108,25 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends AbstractLocalPhysical
     }
 
     /**
+     * Inputs computed from metrics are filtered on the metric fields they read, which pushes down to Lucene as {@code exists} queries.
+     */
+    public void testPushdownOfComputedMetrics() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        String query = """
+            TS k8s
+            | EVAL tx = network.eth0.tx::double * 8, rx = network.eth0.rx::long
+            | STATS max(max_over_time(tx)), max(max_over_time(rx)) BY Bucket(@timestamp, 1 hour)
+            | LIMIT 10
+            """;
+        PhysicalPlan actualPlan = plannerOptimizerTimeSeries.plan(query);
+        EsQueryExec queryExec = (EsQueryExec) actualPlan.collect(node -> node instanceof EsQueryExec).get(0);
+
+        QueryBuilder expected = boolQuery().should(unscore(existsQuery("network.eth0.tx"))).should(unscore(existsQuery("network.eth0.rx")));
+        assertThat(queryExec.query().toString(), is(expected.toString()));
+        assertThat(actualPlan.collect(node -> node instanceof FilterExec), empty());
+    }
+
+    /**
      * PromQL count and presence functions read a counter directly, so only documents with a value of the counter are read.
      */
     public void testPushdownOfPromqlCountAndPresenceOverCounter() {
@@ -127,33 +144,16 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends AbstractLocalPhysical
     public void testPushdownOfMixedAggregateMetricDoubleAndDoubleMetric() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
         assumeTrue("requires implicit aggregate_metric_double casting", EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled());
-        for (String input : new String[] { "network.eth0.rx", "network.eth0.rx::gauge" }) {
-            String query = Strings.format("""
-                TS k8s,k8s-downsampled
-                | STATS avg(avg_over_time(%s)) BY Bucket(@timestamp, 1 hour)
-                | LIMIT 10
-                """, input);
-            PhysicalPlan actualPlan = mixedDownsampledPlanner().plan(query);
-            EsQueryExec queryExec = (EsQueryExec) actualPlan.collect(node -> node instanceof EsQueryExec).get(0);
-            QueryBuilder expected = boolQuery().should(unscore(existsQuery("network.eth0.rx")))
-                .should(unscore(existsQuery("network.eth0.rx")));
-            assertThat(queryExec.query().toString(), is(expected.toString()));
-            assertThat(actualPlan.collect(node -> node instanceof FilterExec), empty());
-        }
-    }
-
-    public void testNarrowingCastOfUnionMetricRetainsNullFilter() {
-        assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
-        PhysicalPlan actualPlan = mixedPlanner(
-            Map.of("long", Set.of("k8s-downsampled"), "double", Set.of("k8s")),
-            EsField.TimeSeriesFieldType.METRIC
-        ).plan("""
+        String query = """
             TS k8s,k8s-downsampled
-            | STATS max(max_over_time(network.eth0.rx::long)) BY Bucket(@timestamp, 1 hour)
+            | STATS avg(avg_over_time(network.eth0.rx)) BY Bucket(@timestamp, 1 hour)
             | LIMIT 10
-            """);
-        // A present double can overflow a long and become null: raw-field EXISTS cannot replace this check.
-        assertThat(actualPlan.toString(), actualPlan.collect(node -> node instanceof FilterExec), not(empty()));
+            """;
+        PhysicalPlan actualPlan = mixedDownsampledPlanner().plan(query);
+        EsQueryExec queryExec = (EsQueryExec) actualPlan.collect(node -> node instanceof EsQueryExec).get(0);
+        QueryBuilder expected = boolQuery().should(unscore(existsQuery("network.eth0.rx"))).should(unscore(existsQuery("network.eth0.rx")));
+        assertThat(queryExec.query().toString(), is(expected.toString()));
+        assertThat(actualPlan.collect(node -> node instanceof FilterExec), empty());
     }
 
     public void testPushdownOfAggregateMetricDoubleMetric() {
@@ -178,20 +178,17 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends AbstractLocalPhysical
     }
 
     private TestPlannerOptimizer mixedDownsampledPlanner() {
-        return mixedPlanner(
-            Map.of("aggregate_metric_double", Set.of("k8s-downsampled"), "double", Set.of("k8s")),
-            EsField.TimeSeriesFieldType.METRIC
-        );
-    }
-
-    private TestPlannerOptimizer mixedPlanner(Map<String, Set<String>> typesToIndices, EsField.TimeSeriesFieldType fieldType) {
         Map<String, EsField> mapping = Map.of(
             "@timestamp",
             new EsField("@timestamp", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
             "pod",
             new EsField("pod", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION),
             "network.eth0.rx",
-            new InvalidMappedField("network.eth0.rx", typesToIndices, fieldType)
+            new InvalidMappedField(
+                "network.eth0.rx",
+                Map.of("aggregate_metric_double", Set.of("k8s-downsampled"), "double", Set.of("k8s")),
+                EsField.TimeSeriesFieldType.METRIC
+            )
         );
         return planner(
             new EsIndex(

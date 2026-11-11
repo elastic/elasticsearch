@@ -4677,10 +4677,10 @@ public class EsqlCapabilities {
         FIX_TS_NULL_FILTER_ON_COMPUTED_INPUTS,
 
         /**
-         * Numeric, histogram, counter and gauge casts preserve metric identity through aliases and transport.
-         * Converted metrics receive the same TS null filtering as mapped metric fields.
+         * TS null filtering follows aliases through null-propagating expressions, such as casts and arithmetic, to the metric
+         * fields they read. Converted or computed metrics receive the same null filtering as mapped metric fields.
          */
-        METRIC_IDENTITY_THROUGH_CASTS,
+        TS_NULL_FILTER_THROUGH_EXPRESSIONS,
 
         /**
          * {@code DEDUP} ignores the synthetic {@code $$<field>$converted_to$<type>} attributes that a conversion pushed into

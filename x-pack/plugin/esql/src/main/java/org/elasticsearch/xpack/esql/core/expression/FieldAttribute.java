@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
@@ -350,16 +349,6 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
 
     @Override
     public boolean isMetric() {
-        if (field instanceof UnionTypeEsField union) {
-            // Union fields include their conversions, so use the converted expressions' metric identity.
-            return union.getConversionExpressions()
-                .stream()
-                .allMatch(
-                    expression -> expression instanceof ConvertFunction
-                        ? MetricExpression.isMetric(expression)
-                        : field.getTimeSeriesFieldType() == EsField.TimeSeriesFieldType.METRIC
-                );
-        }
         return field.getTimeSeriesFieldType() == EsField.TimeSeriesFieldType.METRIC;
     }
 

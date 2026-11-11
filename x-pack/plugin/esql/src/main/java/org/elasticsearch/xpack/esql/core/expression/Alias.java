@@ -30,7 +30,7 @@ import static java.util.Collections.singletonList;
  * Note on equality: The id is respected in {@link #equals(Object)} for Alias because the {@link ReferenceAttribute}
  * created by {@link #toAttribute()} uses it.
  */
-public final class Alias extends NamedExpression implements MetricExpression {
+public final class Alias extends NamedExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(NamedExpression.class, "Alias", Alias::new);
 
     private final Expression child;
@@ -128,11 +128,6 @@ public final class Alias extends NamedExpression implements MetricExpression {
     }
 
     @Override
-    public boolean isMetric() {
-        return MetricExpression.isMetric(child);
-    }
-
-    @Override
     public Attribute toAttribute() {
         if (lazyAttribute == null) {
             lazyAttribute = resolved()
@@ -147,8 +142,7 @@ public final class Alias extends NamedExpression implements MetricExpression {
                     nullable(),
                     id(),
                     synthetic(),
-                    AnalyzedTextExpression.valuesAnalyzerOf(child),
-                    isMetric()
+                    AnalyzedTextExpression.valuesAnalyzerOf(child)
                 )
                 : new UnresolvedAttribute(source(), name());
         }

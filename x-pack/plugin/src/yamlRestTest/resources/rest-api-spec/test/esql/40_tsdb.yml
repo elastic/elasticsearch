@@ -1805,15 +1805,15 @@ TS aggregating a converted metric alongside a plain metric:
   - match: {values.0.1: 2}
 
 ---
-TS null filtering through metric casts:
+TS null filtering through expressions over metrics:
   - requires:
       test_runner_features: [ capabilities ]
       capabilities:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ ts_command_v0, metric_identity_through_casts, fix_ts_null_filter_on_computed_inputs ]
-      reason: "metric casts retain null filtering without changing counter types"
+          capabilities: [ ts_command_v0, ts_null_filter_through_expressions, fix_ts_null_filter_on_computed_inputs ]
+      reason: "null filtering follows null-propagating expressions to the metrics they read"
 
   - do:
       indices.create:
@@ -1839,6 +1839,8 @@ TS null filtering through metric casts:
               b:
                 type: long
                 time_series_metric: gauge
+              plain:
+                type: long
   - do:
       bulk:
         refresh: true
@@ -1847,7 +1849,7 @@ TS null filtering through metric casts:
           - '{"create": {}}'
           - '{"@timestamp": "2021-04-28T18:00:00Z", "host": "h1", "a": 1}'
           - '{"create": {}}'
-          - '{"@timestamp": "2021-04-28T18:00:00Z", "host": "h2", "b": 2}'
+          - '{"@timestamp": "2021-04-28T18:00:00Z", "host": "h2", "b": 2, "plain": 3}'
 
   # Buckets whose only input metric is missing are omitted, including through chained casts and aliases.
   - do:
@@ -1857,7 +1859,15 @@ TS null filtering through metric casts:
   - length: {values: 1}
   - match: {values.0: [1, "h1"]}
 
-  # Computing after casting must also disable the metric filter.
+  # Arithmetic and conversions through strings propagate nulls, so they are filtered like the metric they read.
+  - do:
+      esql.query:
+        body:
+          query: 'TS test-metric-casts | EVAL bits = a * 8, converted = a::string::double | STATS bits = max(bits), converted = max(converted) BY host | SORT host'
+  - length: {values: 1}
+  - match: {values.0: [8, 1.0, "h1"]}
+
+  # COALESCE can be non-null for null inputs, so it disables the metric filter.
   - do:
       esql.query:
         body:
@@ -1866,20 +1876,11 @@ TS null filtering through metric casts:
   - match: {values.0: [1.0, 0.0, "h1"]}
   - match: {values.1: [null, 2.0, "h2"]}
 
-  # A cast of a computed value remains non-metric, so presence and absence see the null rows.
+  # Reading a field that is not a metric also disables the metric filter, so presence and absence see the null rows.
   - do:
       esql.query:
         body:
-          query: 'TS test-metric-casts | EVAL computed = (b + 0)::double | STATS a = max(a::double), absent = max(absent_over_time(computed)), present = max(present_over_time(computed)) BY host | SORT host'
+          query: 'TS test-metric-casts | EVAL computed = a + plain | STATS a = max(a), absent = max(absent_over_time(computed)) BY host | SORT host'
   - length: {values: 2}
-  - match: {values.0: [1.0, true, false, "h1"]}
-  - match: {values.1: [null, false, true, "h2"]}
-
-  # Casting back to a numeric type does not restore identity lost through a string conversion.
-  - do:
-      esql.query:
-        body:
-          query: 'TS test-metric-casts | EVAL converted = a::string::double | STATS maximum = max(converted) BY host | SORT host'
-  - length: {values: 2}
-  - match: {values.0: [1.0, "h1"]}
-  - match: {values.1: [null, "h2"]}
+  - match: {values.0: [1, true, "h1"]}
+  - match: {values.1: [null, true, "h2"]}

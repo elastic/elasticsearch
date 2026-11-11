@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
@@ -57,6 +58,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -73,6 +75,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressCodecs("*") // require production codecs
 public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
+    private static final String PROMQL_QUERY_TIME = "2024-05-10T00:01:00Z";
 
     public void testEmpty() {
         Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host")).build();
@@ -1565,6 +1568,138 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                     assertThat(rows, hasSize(metrics.length));
                 }
             }
+        }
+    }
+
+    /**
+     * PromQL names a label by its field path, so a passthrough sub-field shadowed by a root field keeps its full path, and
+     * {@code without} leaves out exactly the field it names.
+     */
+    public void testPromqlWithoutOverPassthroughRespectsRootFieldPrecedence() {
+        assumeTrue("requires a typed label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
+        String index = "promql-passthrough-root";
+        createPassthroughMetricsIndex(index, "\"cpu\": {\"type\": \"keyword\", \"time_series_dimension\": true},");
+        indexPromqlSample(index, "cpu", "a", "attributes", Map.of("cpu", "0", "state", "idle"), "tx", 1.0);
+        indexPromqlSample(index, "cpu", "a", "attributes", Map.of("cpu", "1", "state", "idle"), "tx", 2.0);
+        indexPromqlSample(index, "cpu", "b", "attributes", Map.of("cpu", "0", "state", "idle"), "tx", 5.0);
+        indexPromqlSample(index, "cpu", "b", "attributes", Map.of("cpu", "1", "state", "idle"), "tx", 10.0);
+        refresh(index);
+
+        assertPromqlRows(
+            index,
+            "sum without(cpu)(tx)",
+            List.of(
+                List.of(6.0, "{\"attributes.cpu\":\"0\",\"attributes.state\":\"idle\"}"),
+                List.of(12.0, "{\"attributes.cpu\":\"1\",\"attributes.state\":\"idle\"}")
+            )
+        );
+        assertPromqlRows(
+            index,
+            "sum without(attributes.cpu)(tx)",
+            List.of(
+                List.of(3.0, "{\"attributes.state\":\"idle\",\"cpu\":\"a\"}"),
+                List.of(15.0, "{\"attributes.state\":\"idle\",\"cpu\":\"b\"}")
+            )
+        );
+    }
+
+    /** Of two passthrough objects with the same sub-field, the higher priority one owns the short name. */
+    public void testPromqlWithoutOverPassthroughRespectsSourcePriority() {
+        assumeTrue("requires a typed label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
+        String index = "promql-passthrough-priority";
+        createPassthroughMetricsIndex(index, """
+            "resource": {
+              "properties": {
+                "attributes": {
+                  "type": "passthrough", "priority": 2, "time_series_dimension": true,
+                  "properties": {"cpu": {"type": "keyword"}}
+                }
+              }
+            },
+            """);
+        for (String resourceCpu : List.of("a", "b")) {
+            for (String cpu : List.of("0", "1")) {
+                double value = (resourceCpu.equals("a") ? 1.0 : 5.0) * (cpu.equals("0") ? 1.0 : 2.0);
+                indexPromqlSample(
+                    index,
+                    "attributes",
+                    Map.of("cpu", cpu, "state", "idle"),
+                    "resource",
+                    Map.of("attributes", Map.of("cpu", resourceCpu)),
+                    "tx",
+                    value
+                );
+            }
+        }
+        refresh(index);
+
+        for (String cpu : List.of("cpu", "resource.attributes.cpu")) {
+            assertPromqlRows(
+                index,
+                "sum without(" + cpu + ")(tx)",
+                List.of(
+                    List.of(6.0, "{\"attributes.cpu\":\"0\",\"attributes.state\":\"idle\"}"),
+                    List.of(12.0, "{\"attributes.cpu\":\"1\",\"attributes.state\":\"idle\"}")
+                )
+            );
+        }
+        assertPromqlRows(
+            index,
+            "sum without(attributes.cpu)(tx)",
+            List.of(
+                List.of(3.0, "{\"attributes.state\":\"idle\",\"resource.attributes.cpu\":\"a\"}"),
+                List.of(15.0, "{\"attributes.state\":\"idle\",\"resource.attributes.cpu\":\"b\"}")
+            )
+        );
+    }
+
+    private void createPassthroughMetricsIndex(String index, String extraProperties) {
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.mode", "time_series")
+                        .putList("index.routing_path", "attributes.cpu")
+                        .put("index.time_series.start_time", "2024-05-10T00:00:00Z")
+                        .put("index.time_series.end_time", "2024-05-10T01:00:00Z")
+                )
+                .setMapping(Strings.format("""
+                    {
+                      "properties": {
+                        "@timestamp": {"type": "date"},
+                        "attributes": {
+                          "type": "passthrough", "priority": 1, "time_series_dimension": true,
+                          "properties": {"cpu": {"type": "keyword"}, "state": {"type": "keyword"}}
+                        },
+                        %s
+                        "tx": {"type": "double", "time_series_metric": "gauge"}
+                      }
+                    }
+                    """, extraProperties))
+        );
+        ensureGreen(index);
+    }
+
+    private void indexPromqlSample(String index, Object... fields) {
+        Object[] source = new Object[fields.length + 2];
+        source[0] = "@timestamp";
+        source[1] = PROMQL_QUERY_TIME;
+        System.arraycopy(fields, 0, source, 2, fields.length);
+        client().prepareIndex(index).setSource(source).get();
+    }
+
+    private void assertPromqlRows(String index, String expression, List<List<Object>> expected) {
+        String query = "PROMQL index="
+            + index
+            + " start=\""
+            + PROMQL_QUERY_TIME
+            + "\" end=\""
+            + PROMQL_QUERY_TIME
+            + "\" step=1m result=("
+            + expression
+            + ") | KEEP result, _timeseries";
+        try (EsqlQueryResponse response = run(query)) {
+            assertThat(EsqlTestUtils.getValuesList(response), containsInAnyOrder(expected.toArray()));
         }
     }
 

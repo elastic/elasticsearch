@@ -617,3 +617,15 @@ ROW value = TO_DATETIME(9223372036854775807)
 decay_result:double
 0.0
 ;
+
+datetimeDistanceAboveLongRangeOneMillisecondBeyondOffset
+required_capability: fn_decay_ga_fixes
+
+// the distance is 2^63 ms and the offset 2^63 - 1 ms, so 1 ms remains: (2 - 1) / 2 with a 1 ms scale
+ROW value = TO_DATETIME(9223372036854775807)
+| EVAL decay_result = decay(value, TO_DATETIME(-1), 1 millisecond, {"offset": 9223372036854775807 milliseconds})
+| KEEP decay_result;
+
+decay_result:double
+0.5
+;

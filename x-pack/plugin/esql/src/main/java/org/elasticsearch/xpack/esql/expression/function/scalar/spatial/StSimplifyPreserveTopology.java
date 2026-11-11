@@ -59,7 +59,10 @@ public class StSimplifyPreserveTopology extends SpatialDocValuesFunction impleme
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StSimplifyPreserveTopology.class)
         .binary(StSimplifyPreserveTopology::new)
+        // Non-constant inputs are quantized to the Lucene grid, matching the coordinates of shape fields simplified from doc values
+        .capabilities("quantized")
         .name("st_simplifypreservetopology");
+    /** Used for constant geometries, which are not quantized, and for doc-values geometries, which already are. */
     private static final SpatialGeometryBlockProcessor processor = new SpatialGeometryBlockProcessor(
         UNSPECIFIED,
         TopologyPreservingSimplifier::simplify
@@ -81,7 +84,9 @@ public class StSimplifyPreserveTopology extends SpatialDocValuesFunction impleme
         description = "Simplifies the input geometry by applying a topology-preserving variant of the Douglas-Peucker algorithm "
             + "with a specified tolerance. "
             + "Vertices that fall within the tolerance distance from the simplified shape are removed. "
-            + "Unlike `ST_SIMPLIFY`, the resulting geometry is guaranteed to be topologically valid.",
+            + "Unlike `ST_SIMPLIFY`, the resulting geometry is guaranteed to be topologically valid. "
+            + "Except for constant geometries, input coordinates are first rounded to the precision of indexed spatial fields, "
+            + "so results do not depend on whether the geometry is loaded from the index or from the document source.",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
         examples = @Example(file = "spatial-jts", tag = "st_simplifypreservetopology"),
@@ -196,11 +201,18 @@ public class StSimplifyPreserveTopology extends SpatialDocValuesFunction impleme
                 inputTolerance
             );
         }
-        return new StSimplifyPreserveTopologyNonFoldableGeometryAndFoldableToleranceEvaluator.Factory(
-            source(),
-            geometryEvaluator,
-            inputTolerance
-        );
+        // For WKB, we need to know if it is Geo or Cartesian to quantize the inputs to match Lucene grids
+        return DataType.isSpatialGeo(geometry.dataType())
+            ? new StSimplifyPreserveTopologyNonFoldableGeoShapeAndFoldableToleranceEvaluator.Factory(
+                source(),
+                geometryEvaluator,
+                inputTolerance
+            )
+            : new StSimplifyPreserveTopologyNonFoldableCartesianShapeAndFoldableToleranceEvaluator.Factory(
+                source(),
+                geometryEvaluator,
+                inputTolerance
+            );
     }
 
     /**
@@ -242,14 +254,24 @@ public class StSimplifyPreserveTopology extends SpatialDocValuesFunction impleme
         };
     }
 
-    @Evaluator(extraName = "NonFoldableGeometryAndFoldableTolerance", warnExceptions = { IllegalArgumentException.class })
-    static void processNonFoldableGeometryAndConstantTolerance(
+    @Evaluator(extraName = "NonFoldableGeoShapeAndFoldableTolerance", warnExceptions = { IllegalArgumentException.class })
+    static void processGeoShapeAndConstantTolerance(
         BytesRefBlock.Builder builder,
         @Position int p,
         BytesRefBlock geometry,
         @Fixed double tolerance
     ) {
-        processor.processGeometries(builder, p, geometry, tolerance);
+        geoProcessor.processGeometries(builder, p, geometry, tolerance);
+    }
+
+    @Evaluator(extraName = "NonFoldableCartesianShapeAndFoldableTolerance", warnExceptions = { IllegalArgumentException.class })
+    static void processCartesianShapeAndConstantTolerance(
+        BytesRefBlock.Builder builder,
+        @Position int p,
+        BytesRefBlock geometry,
+        @Fixed double tolerance
+    ) {
+        cartesianProcessor.processGeometries(builder, p, geometry, tolerance);
     }
 
     @Evaluator(

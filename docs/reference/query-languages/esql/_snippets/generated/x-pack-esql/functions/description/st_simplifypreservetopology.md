@@ -2,5 +2,5 @@
 
 ## Description
 
-Simplifies the input geometry by applying a topology-preserving variant of the Douglas-Peucker algorithm with a specified tolerance. Vertices that fall within the tolerance distance from the simplified shape are removed. Unlike `ST_SIMPLIFY`, the resulting geometry is guaranteed to be topologically valid.
+Simplifies the input geometry by applying a topology-preserving variant of the Douglas-Peucker algorithm with a specified tolerance. Vertices that fall within the tolerance distance from the simplified shape are removed. Unlike `ST_SIMPLIFY`, the resulting geometry is guaranteed to be topologically valid. Except for constant geometries, input coordinates are first rounded to the precision of indexed spatial fields, so results do not depend on whether the geometry is loaded from the index or from the document source.
 

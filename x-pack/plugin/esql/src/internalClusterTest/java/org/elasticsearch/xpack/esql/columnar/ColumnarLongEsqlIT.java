@@ -107,6 +107,17 @@ public class ColumnarLongEsqlIT extends AbstractEsqlIntegTestCase {
             | KEEP id, l
             | SORT id
             | LIMIT 1000""");
+        // Documents holding only nulls have no value, so they are null here, whether or not the filter is pushed down.
+        assertSameResults("""
+            | WHERE l IS NULL
+            | KEEP id
+            | SORT id
+            | LIMIT 1000""");
+        assertSameResults("""
+            | WHERE l IS NOT NULL
+            | KEEP id
+            | SORT id
+            | LIMIT 1000""");
         // Multi-value functions take shortcuts on blocks that say their values are sorted, so these catch a block of values in
         // array order that claims to be sorted.
         assertSameResults("""
@@ -129,13 +140,16 @@ public class ColumnarLongEsqlIT extends AbstractEsqlIntegTestCase {
             return source.append('}').toString();
         }
         source.append(",\"l\":");
-        if (singleValued) {
+        if (rarely()) {
+            // Nothing but nulls: the document has no value, so l IS NULL, though the field appears in its source.
+            source.append(randomFrom("null", "[null]", "[null, null]"));
+        } else if (singleValued) {
             source.append(randomLongBetween(-100, 100));
         } else {
             final int count = between(1, 4);
             final List<Long> values = new ArrayList<>(count);
             for (int i = 0; i < count; i++) {
-                values.add(randomLongBetween(-100, 100));
+                values.add(rarely() ? null : randomLongBetween(-100, 100));
             }
             source.append(values);
         }

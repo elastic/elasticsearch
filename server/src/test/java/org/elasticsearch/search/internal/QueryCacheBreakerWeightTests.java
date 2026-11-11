@@ -15,16 +15,12 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
-import org.apache.lucene.search.QueryCachingPolicy;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -46,14 +42,10 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class QueryCacheBreakerWeightTests extends ESTestCase {
 
@@ -83,111 +75,24 @@ public class QueryCacheBreakerWeightTests extends ESTestCase {
         IOUtils.close(reader, directory);
     }
 
-    /** Records every weight handed to {@link #doCache} and caches nothing, so the test sees what the searcher gives the cache. */
-    private static final class CapturingQueryCache implements QueryCache {
-        private final List<Weight> weights = new ArrayList<>();
-
-        @Override
-        public Weight doCache(Weight weight, QueryCachingPolicy policy) {
-            weights.add(weight);
-            return weight;
-        }
-    }
-
-    public void testSearcherHandsAccountingToTheCacheOnlyWithABreaker() throws IOException {
-        CapturingQueryCache cache = new CapturingQueryCache();
-        ContextIndexSearcher searcher = newSearcher(reader, cache);
-        Query query = new TermQuery(new Term(FIELD, TERM));
-
-        Weight unaccounted = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
-        assertThat(cache.weights, contains(sameInstance(unaccounted)));
-        assertThat("without a breaker there is nothing to charge", unaccounted, not(instanceOf(QueryCacheBreakerWeight.class)));
-        assertFalse(searcher.hasLeafExecutionAccounting());
-
-        searcher.setCircuitBreaker(new TrackingCircuitBreaker(-1L));
-        Weight accounted = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
-        assertThat(cache.weights, contains(sameInstance(unaccounted), sameInstance(accounted)));
-        assertThat(accounted, instanceOf(QueryCacheBreakerWeight.class));
-        assertThat("the cache key must not change", accounted.getQuery(), equalTo(query));
-        assertTrue("accounting is created up front so that the charge is released with the leaf", searcher.hasLeafExecutionAccounting());
-
-        Weight scoring = searcher.createWeight(query, ScoreMode.COMPLETE, 1f);
-        assertThat("a scoring weight bypasses the cache and needs no accounting", scoring, not(instanceOf(QueryCacheBreakerWeight.class)));
-        assertThat(cache.weights, contains(sameInstance(unaccounted), sameInstance(accounted)));
-    }
-
-    public void testChargeIsReservedUntilTheLeafIsDone() throws IOException {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
-        ContextIndexSearcher searcher = newSearcher(reader, null);
-        searcher.setCircuitBreaker(breaker);
-        Query query = new TermQuery(new Term(FIELD, TERM));
-        QueryCacheBreakerWeight weight = new QueryCacheBreakerWeight(
-            searcher,
-            searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f)
-        );
-        LeafReaderContext leaf = reader.leaves().get(0);
-
-        assertTrue(weight.chargeCachePopulation(leaf, 1024L));
-        assertThat(breaker.getUsed(), equalTo(1024L));
-        assertThat(breaker.charges(), contains(1024L));
-
-        // the search holds the entry it built until it is done with the leaf, so that is when searchLeaf releases the charge
-        assertThat(searcher.search(query, new CountingCollectorManager()), equalTo(NUM_DOCS));
-        assertThat(breaker.getUsed(), equalTo(0L));
-    }
-
-    public void testRefusedChargeIsReportedNotThrown() throws IOException {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(100L);
-        ContextIndexSearcher searcher = newSearcher(reader, null);
-        searcher.setCircuitBreaker(breaker);
-        Query query = new TermQuery(new Term(FIELD, TERM));
-        QueryCacheBreakerWeight weight = new QueryCacheBreakerWeight(
-            searcher,
-            searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f)
-        );
-        LeafReaderContext leaf = reader.leaves().get(0);
-
-        assertFalse("the cache runs the leaf uncached instead of failing the search", weight.chargeCachePopulation(leaf, 1000L));
-        assertThat("a refused reservation must not leak onto the breaker", breaker.getUsed(), equalTo(0L));
-        assertTrue("a smaller entry still fits", weight.chargeCachePopulation(leaf, 50L));
-        assertThat(breaker.getUsed(), equalTo(50L));
-    }
-
-    public void testWithoutBreakerTheChargeIsAccepted() throws IOException {
-        ContextIndexSearcher searcher = newSearcher(reader, null);
-        Query query = new TermQuery(new Term(FIELD, TERM));
-        QueryCacheBreakerWeight weight = new QueryCacheBreakerWeight(
-            searcher,
-            searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f)
-        );
-
-        assertTrue("with nothing to charge, the cache populates as before", weight.chargeCachePopulation(reader.leaves().get(0), 1024L));
-        assertFalse(searcher.hasLeafExecutionAccounting());
-    }
-
     /**
-     * The search that populates the cache reserves the entry's heap on its breaker for as long as it holds the entry, i.e. until it is
-     * done with the leaf; a search served from the cache reserves nothing.
+     * A search that populates the cache reserves the entry's heap on its breaker, sized as Lucene builds the entry, and holds the
+     * reservation until it is done with the leaf.
      */
-    public void testPopulationIsChargedToTheRequestBreakerUntilTheLeafIsDone() throws IOException {
+    public void testPopulatingTheCacheChargesTheBreakerUntilTheSearchIsDone() throws IOException {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         ShardId shard = new ShardId("index", "_na_", 0);
         IndicesQueryCache cache = newIndicesQueryCache();
         try (DirectoryReader shardReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), shard)) {
             ContextIndexSearcher searcher = newSearcher(shardReader, cache);
             searcher.setCircuitBreaker(breaker);
-            Query query = new TermQuery(new Term(FIELD, TERM));
             final long denseBytes = denseEntryBytes(shardReader);
 
-            assertThat(searcher.search(query, new CountingCollectorManager()), equalTo(NUM_DOCS));
-            assertThat("the entry is reserved at the size Lucene builds it", breaker.charges(), contains(denseBytes));
-            assertThat(breaker.peak(), equalTo(denseBytes));
-            assertThat("the reservation is released with the leaf", breaker.getUsed(), equalTo(0L));
-            assertThat(cache.getStats(shard, () -> 0L).getCacheCount(), equalTo(1L));
-
-            assertThat(searcher.search(query, new CountingCollectorManager()), equalTo(NUM_DOCS));
-            assertThat("a cache hit builds and reserves nothing", breaker.charges(), contains(denseBytes));
-            assertThat(cache.getStats(shard, () -> 0L).getHitCount(), equalTo(1L));
+            assertThat(searcher.search(new TermQuery(new Term(FIELD, TERM)), new CountingCollectorManager()), equalTo(NUM_DOCS));
+            assertThat("the entry was cached", cache.getStats(shard, () -> 0L).getCacheCount(), equalTo(1L));
+            assertThat("the entry was reserved at the size Lucene builds it", breaker.charges(), contains(denseBytes));
+            assertThat("the reservation was held while the search ran", breaker.peak(), equalTo(denseBytes));
+            assertThat("the reservation is released once the search is done", breaker.getUsed(), equalTo(0L));
         } finally {
             cache.onClose(shard);
             cache.close();

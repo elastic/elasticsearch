@@ -223,11 +223,6 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
             this.useLegacyFormat = useLegacyFormat(indexSettings);
         }
 
-        public Builder(SemanticTextFieldMapper mapper) {
-            super(mapper);
-            this.useLegacyFormat = useLegacyFormat(indexSettings);
-        }
-
         @Override
         public Builder setInferenceId(String id) {
             return (SemanticTextFieldMapper.Builder) super.setInferenceId(id);
@@ -484,11 +479,6 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
             vectorsFormatProviders,
             sourceColumnarStored
         );
-    }
-
-    @Override
-    public SemanticTextFieldMapper.Builder getMergeBuilder() {
-        return new Builder(this);
     }
 
     @Override

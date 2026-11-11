@@ -208,41 +208,25 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> indexed;
         private final DocValuesParameter docValuesParameters;
-        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType.stored(), false);
+        private final Parameter<Boolean> stored = Parameter.storeParam(false);
 
-        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).fieldType().nullValue, null)
-            .acceptsNull();
+        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, null).acceptsNull();
 
-        private final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam(
-            "eager_global_ordinals",
-            true,
-            m -> toType(m).fieldType().eagerGlobalOrdinals(),
-            false
-        );
+        private final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam("eager_global_ordinals", true, false);
         private final Parameter<Integer> ignoreAbove;
-        private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> toType(m).indexOptions);
-        private final Parameter<Boolean> hasNorms = Parameter.normsParam(m -> toType(m).fieldType.omitNorms() == false, false);
-        private final Parameter<SimilarityProvider> similarity = TextParams.similarity(
-            m -> toType(m).fieldType().getTextSearchInfo().similarity()
-        );
+        private final Parameter<String> indexOptions = TextParams.keywordIndexOptions();
+        private final Parameter<Boolean> hasNorms = Parameter.normsParam(false);
+        private final Parameter<SimilarityProvider> similarity = TextParams.similarity();
 
         private final Parameter<String> normalizer;
         private final Parameter<Boolean> normalizerSkipStoreOriginalValue;
 
-        private final Parameter<Boolean> splitQueriesOnWhitespace = Parameter.boolParam(
-            "split_queries_on_whitespace",
-            true,
-            m -> toType(m).splitQueriesOnWhitespace,
-            false
-        );
+        private final Parameter<Boolean> splitQueriesOnWhitespace = Parameter.boolParam("split_queries_on_whitespace", true, false);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
-        private final Parameter<OnScriptError> onScriptError = Parameter.onScriptErrorParam(
-            m -> toType(m).builderParams.onScriptError(),
-            script
-        );
+        private final Parameter<Script> script = Parameter.scriptParam();
+        private final Parameter<OnScriptError> onScriptError = Parameter.onScriptErrorParam(script);
         private final Parameter<Boolean> dimension;
         // A dimension inherited from a parent object has always been applied after the layout of the field was decided, so it
         // takes no part in choosing between postings and a doc values skipper.
@@ -282,16 +266,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.indexAnalyzers = indexAnalyzers;
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
-            this.normalizer = Parameter.stringParam(
-                "normalizer",
-                indexCreatedVersion.isLegacyIndexVersion(),
-                m -> toType(m).normalizerName,
-                null
-            ).acceptsNull();
+            this.normalizer = Parameter.stringParam("normalizer", indexCreatedVersion.isLegacyIndexVersion(), null).acceptsNull();
             this.normalizerSkipStoreOriginalValue = Parameter.boolParam(
                 "normalizer_skip_store_original_value",
                 false,
-                m -> ((KeywordFieldMapper) m).isNormalizerSkipStoreOriginalValue(),
                 () -> "lowercase".equals(normalizer.getValue())
                     && indexAnalyzers.getNormalizer(normalizer.getValue()).analyzer() instanceof LowercaseNormalizer
             );
@@ -304,18 +282,15 @@ public final class KeywordFieldMapper extends FieldMapper {
                     DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
                     DocValuesParameter.Values.Cardinality.HIGH
                 ),
-                m -> toType(m).docValuesParameters(),
                 indexSettings
             );
 
-            this.dimension = TimeSeriesParams.dimensionParam(
-                m -> toType(m).fieldType().isDimension(),
-                () -> docValuesParameters.getValue().enabled()
-            ).precludesParameters(normalizer);
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings, dimension);
+            this.dimension = TimeSeriesParams.dimensionParam(() -> docValuesParameters.getValue().enabled())
+                .precludesParameters(normalizer);
+            this.indexed = Parameter.indexParam(indexSettings, dimension);
             addScriptValidation(script, indexed, () -> docValuesParameters.getValue().enabled());
 
-            this.ignoreAbove = Parameter.ignoreAboveParam(m -> toType(m).fieldType().ignoreAbove().get(), indexSettings.getIgnoreAbove());
+            this.ignoreAbove = Parameter.ignoreAboveParam(indexSettings.getIgnoreAbove());
             this.forceDocValuesSkipper = forceDocValuesSkipper;
             this.isWithinMultiField = isWithinMultiField;
             this.indexSettings = indexSettings;
@@ -716,6 +691,7 @@ public final class KeywordFieldMapper extends FieldMapper {
          * {@link FieldMapper#EMPTY_KEYWORD_STRING_AS_NULL_SETTING}.
          */
         private final boolean emptyStringAsNull;
+        private final boolean staticallySingleValued;
 
         public KeywordFieldType(
             String name,
@@ -751,6 +727,13 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.emptyStringAsNull = EMPTY_KEYWORD_STRING_AS_NULL_SETTING.get(builder.indexSettings.getSettings());
             this.diskFormat = builder.diskFormat();
             this.preservesArrayOrder = builder.preservesArrayOrder();
+            // An index-time script can emit multiple values, even if the multi_value param is false.
+            this.staticallySingleValued = builder.script.get() == null && builder.docValuesParameters().multiValue() == false;
+        }
+
+        @Override
+        public boolean isStaticallySingleValued() {
+            return staticallySingleValued;
         }
 
         public KeywordFieldType(String name) {
@@ -784,6 +767,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 : (usesBinaryDocValues ? DocValuesDiskFormat.BINARY_SEPARATE_COUNT : DocValuesDiskFormat.SORTED_SET);
             this.preservesArrayOrder = false;
             this.emptyStringAsNull = false;
+            this.staticallySingleValued = false;
         }
 
         public KeywordFieldType(String name, FieldType fieldType, boolean isSyntheticSource) {
@@ -809,6 +793,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.diskFormat = fieldType.docValuesType() == DocValuesType.NONE ? DocValuesDiskFormat.NONE : DocValuesDiskFormat.SORTED_SET;
             this.preservesArrayOrder = false;
             this.emptyStringAsNull = false;
+            this.staticallySingleValued = false;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
@@ -834,6 +819,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.diskFormat = DocValuesDiskFormat.SORTED_SET;
             this.preservesArrayOrder = false;
             this.emptyStringAsNull = false;
+            this.staticallySingleValued = false;
         }
 
         public boolean usesBinaryDocValues() {
@@ -2357,7 +2343,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexed) {
                 context.getOffSetContext().recordOffset(offsetsFieldName, value.bytes(), OFFSETS_FALLBACK);
             } else if (value == null) {
-                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
+                context.getOffSetContext().recordNull(context, offsetsFieldName, OFFSETS_FALLBACK);
             } else {
                 // The value tripped ignore_above: a field that records offsets has doc values, so that is the only reason a non-null
                 // value is not indexed. It gets no slot, but is recorded so that the _ignored_source fallback for oversized offsets
@@ -2553,18 +2539,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Map.of(mappedFieldType.name(), fieldType().normalizer);
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            indexAnalyzers,
-            scriptCompiler,
-            indexSettings,
-            forceDocValuesSkipper,
-            fieldType().isWithinMultiField()
-        ).dimension(fieldType().isDimension()).init(this);
     }
 
     // Uses this mapper's frozen FieldType; for high-cardinality doc values that type has DocValuesType.NONE because binary doc values

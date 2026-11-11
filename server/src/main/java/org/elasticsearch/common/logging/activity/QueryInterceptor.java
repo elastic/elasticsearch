@@ -33,9 +33,9 @@ import java.util.function.Supplier;
 public final class QueryInterceptor<Context extends QueryCaptureContext> {
     private static final Logger logger = LogManager.getLogger(QueryInterceptor.class);
 
-    private final List<QuerySink<Context>> sinks;
+    private final List<QuerySink<? super Context>> sinks;
 
-    public QueryInterceptor(List<QuerySink<Context>> sinks) {
+    public QueryInterceptor(List<? extends QuerySink<? super Context>> sinks) {
         this.sinks = List.copyOf(sinks);
     }
 

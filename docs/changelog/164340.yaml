@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 164340
+summary: "Count ES|QL queries by product origin; Kibana no longer counts as rest"
+type: enhancement

@@ -3148,12 +3148,13 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testReconcileWholeFileContributionsWithMismatchedMtimeTripsAssertion() throws Exception {
-        // Defends the Javadoc contract in mergeWholeFileContributions: row count, mtime, and
-        // config fingerprint must agree across all whole-file contributions for the same file.
-        // Only row count was previously asserted; mtime and fingerprint mismatches were silently
-        // swallowed, which could cause the merged entry to carry the wrong mtime and miss the
-        // downstream cache-match in reconcileSourceStats.
+    public void testReconcileWholeFileContributionsWithMismatchedMtimeIsASafeMiss() throws Exception {
+        // Two data sources can hold different files under one object name -- two endpoints, one object key -- and
+        // a query may now read both, because a read is keyed by its resource AND its configuration. A contribution
+        // is addressed by its path string alone, so the two arrive as one list agreeing on both fingerprints and
+        // differing on mtime. The fold cannot tell that from one file measured twice, so it refuses rather than
+        // calling an ordinary query an invariant violation: the assertion this replaces escaped the reconcile as an
+        // Error, which the query's listener does not catch, and the query hung until the client timed out.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
@@ -3163,12 +3164,21 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
                 false
             );
-            seedSchemaCache(service, key, path, "fp");
+            // Stamped with the read configuration the contributions carry, so a merge that DID happen would be
+            // committed and this assertion can see it. An entry seeded without one refuses every stamped
+            // contribution, which would make the assertion below pass whatever the gate does.
+            seedSchemaCacheWithReadConfig(service, key, path, "fp1", "config-own");
 
-            Map<String, Object> first = wholeFileStats(mtime, "fp", 100L);
-            Map<String, Object> second = wholeFileStats(mtime + 1, "fp", 100L); // different mtime, same row count
+            Map<String, Object> first = wholeFileWithShape(mtime, "fp1", "config-own", 100L);
+            Map<String, Object> second = wholeFileWithShape(mtime + 1, "fp1", "config-own", 100L);
 
-            expectThrows(AssertionError.class, () -> service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second))));
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second)));
+
+            SchemaCacheEntry entry = warm(service, key);
+            assertFalse(
+                "contributions that do not describe one read must not merge into one measurement",
+                entry.safeMetadata().containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
         }
     }
 
@@ -3208,10 +3218,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testReconcileWholeFileContributionsWithMismatchedRowCountStillTripsAssertion() throws Exception {
-        // The dual of the test above, so the gate discriminates rather than having been widened into a no-op. One
-        // read, configured one way, measured twice and differently: that is a non-deterministic read and still an
-        // invariant violation.
+    public void testReconcileWholeFileContributionsWithMismatchedRowCountIsASafeMiss() throws Exception {
+        // The row-count half of the same input: two files under one object name that differ in length rather than
+        // in timestamp. Refused for the same reason and in the same way, so neither disagreement can reach a merge
+        // that would relabel one store's measurement as the other's.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
@@ -3221,21 +3231,29 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
                 false
             );
-            seedSchemaCache(service, key, path, "fp1");
+            // Stamped with the read configuration the contributions carry, so a merge that DID happen would be
+            // committed and this assertion can see it. An entry seeded without one refuses every stamped
+            // contribution, which would make the assertion below pass whatever the gate does.
+            seedSchemaCacheWithReadConfig(service, key, path, "fp1", "config-own");
 
             Map<String, Object> first = wholeFileWithShape(mtime, "fp1", "config-own", 100L);
             Map<String, Object> second = wholeFileWithShape(mtime, "fp1", "config-own", 101L);
 
-            expectThrows(AssertionError.class, () -> service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second))));
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second)));
+
+            SchemaCacheEntry entry = warm(service, key);
+            assertFalse(
+                "contributions that do not describe one read must not merge into one measurement",
+                entry.safeMetadata().containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
         }
     }
 
-    public void testReconcileWholeFileContributionsWithDisagreeingColumnStatTripsAssertion() throws Exception {
-        // Two whole-file contributions for the same file+fingerprint+mtime must agree on every
-        // column-stat key they both publish. Disagreement is a bug in the upstream publisher
-        // (e.g., a race or a mis-configured probe pass), not a legitimate coverage difference.
-        // Without this assertion the "first-wins" putIfAbsent produces a non-deterministic pick
-        // whose survivor depends on data-node response ordering.
+    public void testReconcileWholeFileContributionsWithDisagreeingColumnStatIsASafeMiss() throws Exception {
+        // Equal row count and equal mtime do not establish one file: a replica copied with its timestamp preserved
+        // measures the same rows under the same name and can still disagree on a column. So the last gate is
+        // refused rather than asserted on too, and the first-wins putIfAbsent never decides which store's extrema
+        // the other store's twin is served.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
@@ -3245,15 +3263,24 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
                 false
             );
-            seedSchemaCache(service, key, path, "fp");
+            // Stamped with the read configuration the contributions carry, so a merge that DID happen would be
+            // committed and this assertion can see it. An entry seeded without one refuses every stamped
+            // contribution, which would make the assertion below pass whatever the gate does.
+            seedSchemaCacheWithReadConfig(service, key, path, "fp1", "config-own");
 
-            Map<String, Object> first = wholeFileStats(mtime, "fp", 100L);
+            Map<String, Object> first = wholeFileWithShape(mtime, "fp1", "config-own", 100L);
             first.put(SourceStatisticsSerializer.columnNullCountKey("id"), 0L);
 
-            Map<String, Object> second = wholeFileStats(mtime, "fp", 100L);
-            second.put(SourceStatisticsSerializer.columnNullCountKey("id"), 5L); // same key, different value
+            Map<String, Object> second = wholeFileWithShape(mtime, "fp1", "config-own", 100L);
+            second.put(SourceStatisticsSerializer.columnNullCountKey("id"), 5L);
 
-            expectThrows(AssertionError.class, () -> service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second))));
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second)));
+
+            SchemaCacheEntry entry = warm(service, key);
+            assertFalse(
+                "contributions that do not describe one read must not merge into one measurement",
+                entry.safeMetadata().containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
         }
     }
 

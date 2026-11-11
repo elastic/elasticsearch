@@ -96,7 +96,7 @@ public record ExternalSourceSpec(String path, Map<String, Object> config) {
      * pre-analysis can still see. A caller that must not throw there gets the same derivation and no exception, and
      * the relation is simply absent from the set it was being collected into.
      */
-    public static ExternalSourceSpec ofOrNull(UnresolvedExternalRelation relation) {
+    static ExternalSourceSpec ofOrNull(UnresolvedExternalRelation relation) {
         Expression tablePath = relation.tablePath();
         return tablePath instanceof Literal literal && literal.value() != null
             ? new ExternalSourceSpec(BytesRefs.toString(literal.value()), relation.config())

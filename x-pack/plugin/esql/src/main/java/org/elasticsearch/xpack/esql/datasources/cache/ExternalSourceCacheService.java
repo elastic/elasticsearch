@@ -694,7 +694,9 @@ public class ExternalSourceCacheService implements Closeable {
                 // A whole-file read is authoritative for the whole file; fragments (if any arrived
                 // alongside) add nothing and must not be summed on top.
                 Map<String, Object> mergedForFile = mergeWholeFileContributions(wholeFile);
-                if (mergedForFile != null && mergedForFile.isEmpty() == false) {
+                if (mergedForFile == null) {
+                    logger.debug("dropping captured stats for [{}]: whole-file contributions do not describe one read", e.getKey());
+                } else if (mergedForFile.isEmpty() == false) {
                     merged.put(e.getKey(), mergedForFile);
                     if (anyPendingDatasetAggregate) {
                         completedWholeFile.put(e.getKey(), mergedForFile);
@@ -1616,13 +1618,20 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
-     * Folds duplicate whole-file contributions for the same file into one map. Row count, mtime,
-     * and config fingerprint must agree across entries (asserted) since each contribution already
-     * covers the entire file under the same pinned config. Column-stats keys, however, may differ
-     * between callers — a schema-probe pass typically projects fewer columns than the data scan —
-     * so {@code _stats.columns.*} entries are unioned: for any key present in only one contribution
-     * the unique value is taken; for keys present in multiple contributions the values must agree
-     * (asserted) since they measure the same file under the same config.
+     * Folds duplicate whole-file contributions for one path into one map, or refuses them.
+     * <p>
+     * Column-stats keys may legitimately differ between contributions — a schema-probe pass typically projects
+     * fewer columns than the data scan — so {@code _stats.columns.*} entries are unioned: for any key present in
+     * only one contribution the unique value is taken. Every other disagreement returns {@code null} and the
+     * caller skips caching that path.
+     * <p>
+     * None of those refusals is asserted on, because the premise that would make one an invariant violation is
+     * not available here. A contribution is addressed by its path string, and external reads are keyed by a
+     * resource <i>and</i> the configuration it is read under, so two data sources holding different files under
+     * one object name are one list by the time they arrive. What separates them — the dataset identity that is a
+     * key component on the cache side — never travels with a contribution, so this fold cannot tell one file
+     * measured twice from two files sharing a name, and must not call either shape a bug. The chunked sibling
+     * {@link #foldStripeFragments} already answers the same input the same way.
      */
     private static Map<String, Object> mergeWholeFileContributions(List<SourceStatsContribution.WholeFile> wholeFile) {
         // The whole-file column-union below keys off the flat _stats.* layout, so re-serialize the
@@ -1646,24 +1655,19 @@ public class ExternalSourceCacheService implements Closeable {
                 return null;
             }
             if (agreesWithBase(base, next) == false) {
-                // Two whole-file scans of one file, configured identically, disagree on row count or mtime --
-                // non-deterministic, so neither can be trusted. Assert-and-bail: fail fast in test (an invariant
-                // violation), but in production SAFE-MISS (return null -> the caller skips caching) rather than
-                // silently first-wins-merging a stat that would then serve wrong warm answers.
-                assert false
-                    : "whole-file contributions for the same file read the same way must agree on row count and mtime: "
-                        + base
-                        + " vs "
-                        + next;
+                // Two contributions under one object name, configured identically, disagree on row count or mtime.
+                // That is no longer evidence of a non-deterministic read: a contribution is addressed by its path
+                // string alone, so two data sources holding different files under one object key arrive here as one
+                // list, and the identity that tells them apart never travels with a contribution. Refuse the merge.
                 return null;
             }
             for (Map.Entry<String, Object> e : next.entrySet()) {
                 if (e.getKey().startsWith(SourceStatisticsSerializer.STATS_COL_PREFIX)) {
                     Object prev = merged.putIfAbsent(e.getKey(), e.getValue());
                     if (prev != null && Objects.equals(prev, e.getValue()) == false) {
-                        // Same-file column-stat disagreement — safe-miss for the same reason.
-                        assert false
-                            : "whole-file contributions disagree on column stat [" + e.getKey() + "]: " + prev + " vs " + e.getValue();
+                        // Reached only behind equal row count and mtime, which two different files can still meet --
+                        // a replica copied with its timestamp preserved measures the same rows and different columns.
+                        // Refused for the reason above rather than asserted on.
                         return null;
                     }
                 }
@@ -1677,7 +1681,7 @@ public class ExternalSourceCacheService implements Closeable {
      * (how the file's columns are bound and typed) and the same format configuration (how the reader itself is
      * configured). Either may differ on its own -- two branches of one query binding one file differently, two
      * datasets over one resource setting a different delimiter or error policy -- and each is a legitimate shape
-     * rather than an invariant violation, which is why this gate safe-misses where {@link #agreesWithBase} asserts.
+     * rather than an invariant violation, so this gate safe-misses, as every other gate in the fold now does.
      */
     private static boolean sameRead(Map<String, Object> a, Map<String, Object> b) {
         return Objects.equals(a.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY), b.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY))
@@ -1685,12 +1689,11 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
-     * Whether two whole-file contributions for the same path, already known to be the same read, agree on the facts
-     * that CANNOT legitimately differ within one reconcile -- the row count and the mtime. Disagreement there means
-     * a non-deterministic read, which is an invariant violation rather than a state to handle.
+     * Whether two whole-file contributions for one path, already known to be configured the same way, agree on the
+     * row count and the mtime. Disagreement means they do not describe one file version: either the file changed
+     * between sibling scans, or the two contributions are from different files that share an object name.
      * <p>
-     * Neither fingerprint is here: both belong to {@link #sameRead}, which safe-misses on either before this is
-     * reached.
+     * Neither fingerprint is here: both belong to {@link #sameRead}, which refuses on either before this is reached.
      */
     private static boolean agreesWithBase(Map<String, Object> a, Map<String, Object> b) {
         return sameNumericOrEqual(a.get(SourceStatisticsSerializer.STATS_ROW_COUNT), b.get(SourceStatisticsSerializer.STATS_ROW_COUNT))

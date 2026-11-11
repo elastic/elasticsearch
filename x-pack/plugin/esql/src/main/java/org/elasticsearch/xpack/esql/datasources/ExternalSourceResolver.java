@@ -731,7 +731,7 @@ public class ExternalSourceResolver {
      * into specs and delegates to the widest path-keyed form, which delegates to the spec-keyed resolve. Production
      * has one caller and it is spec-keyed: {@code EsqlSession}.
      */
-    public final void resolve(
+    final void resolve(
         List<String> paths,
         Map<String, Map<String, Object>> pathConfigs,
         ActionListener<ExternalSourceResolution> listener

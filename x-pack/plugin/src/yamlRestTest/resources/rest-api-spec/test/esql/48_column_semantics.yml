@@ -1,0 +1,171 @@
+---
+setup:
+  - requires:
+      test_runner_features: [allowed_warnings_regex, capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ describe_command, column_metadata_field_semantics ]
+      reason: "column_metadata reports field semantics as _meta.field"
+
+  - do:
+      indices.create:
+        index: test_semantics
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ host ]
+              time_series:
+                start_time: 2026-11-01T00:00:00Z
+                end_time: 2026-11-30T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              latency:
+                type: double
+                time_series_metric: gauge
+                meta:
+                  unit: ms
+                  description: Request latency
+              message:
+                type: text
+              region:
+                type: keyword
+                meta:
+                  description: Deployment region
+
+  - do:
+      indices.create:
+        index: test_semantics_standard
+        body:
+          mappings:
+            properties:
+              host:
+                type: keyword
+                time_series_dimension: true
+              latency:
+                type: double
+                time_series_metric: gauge
+                meta:
+                  unit: ms
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_semantics" } }
+          - { "@timestamp": "2026-11-03T00:00:00Z", "host": "a", "latency": 12.5, "message": "slow request", "region": "eu" }
+
+---
+"Field semantics in column metadata":
+  - do:
+      esql.query:
+        body:
+          query: 'SET column_metadata=true; FROM test_semantics | KEEP host, latency, message | RENAME latency AS lat | EVAL doubled = lat * 2, lat_s = lat / 1000 | LIMIT 0'
+
+  - match:    { columns.0.name: host }
+  - match:    { columns.0._meta.field.name: host }
+  - match:    { columns.0._meta.field.role: dimension }
+  - is_false: columns.0._meta.field.searchable
+  - is_false: columns.0._meta.field.aggregatable
+  - match:    { columns.1.name: lat }
+  - match:    { columns.1._meta.field.name: latency }
+  - match:    { columns.1._meta.field.role: metric }
+  - match:    { columns.1._meta.field.metric_type: gauge }
+  - is_false: columns.1._meta.field.unit
+  - match:    { columns.1._meta.field.description: Request latency }
+  - match:    { columns.2.name: message }
+  - match:    { columns.2._meta.field.role: text }
+  - match:    { columns.2._meta.field.name: message }
+  - match:    { columns.1._meta.unit: ms }
+  - match:    { columns.3.name: doubled }
+  - is_false: columns.3._meta.field
+  - match:    { columns.3._meta.unit: "ms*2" }
+  - match:    { columns.4.name: lat_s }
+  - match:    { columns.4._meta.unit: s }
+  - length:   { values: 0 }
+
+---
+"No field semantics without column_metadata":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test_semantics | KEEP host, latency | LIMIT 0'
+
+  - match:    { columns.0.name: host }
+  - is_false: columns.0._meta
+  - is_false: columns.1._meta
+
+---
+"Standard indices report units but not time-series roles":
+  - do:
+      esql.query:
+        body:
+          query: 'SET column_metadata=true; FROM test_semantics_standard | KEEP host, latency | LIMIT 0'
+
+  - match:    { columns.0._meta.field.role: attribute }
+  - match:    { columns.1._meta.field.role: numeric }
+  - match:    { columns.1._meta.unit: ms }
+  - is_false: columns.1._meta.field.metric_type
+
+---
+"DESCRIBE returns the same semantics as rows":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_semantics | DESCRIBE | WHERE name == "latency" | KEEP name, role, metric_type, unit, description, origin'
+
+  - match: { columns.0.name: name }
+  - length: { values: 1 }
+  - match: { values.0: [ "latency", "metric", "gauge", "ms", "Request latency", "mapped" ] }
+
+---
+"Grouping keys keep the semantics of the field they read":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET column_metadata=true; TS test_semantics | STATS avg = AVG(AVG_OVER_TIME(latency)) BY node = host, r = region'
+
+  - match:    { columns.0.name: avg }
+  - is_false: columns.0._meta.field
+  - match:    { columns.0._meta.unit: ms }
+  - match:    { columns.1.name: node }
+  - match:    { columns.1._meta.field.name: host }
+  - match:    { columns.1._meta.field.role: dimension }
+  - match:    { columns.2.name: r }
+  - match:    { columns.2._meta.field.name: region }
+  - match:    { columns.2._meta.field.description: Deployment region }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET column_metadata=true; TS test_semantics | STATS avg = AVG(AVG_OVER_TIME(latency)) BY host, region'
+
+  - match:    { columns.1.name: host }
+  - match:    { columns.1._meta.field.name: host }
+  - match:    { columns.1._meta.field.role: dimension }
+  - match:    { columns.2.name: region }
+  - match:    { columns.2._meta.field.name: region }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET column_metadata=true; FROM test_semantics | STATS avg = AVG(latency) BY node = host'
+
+  - match:    { columns.1.name: node }
+  - match:    { columns.1._meta.field.name: host }
+  - match:    { columns.1._meta.field.role: dimension }

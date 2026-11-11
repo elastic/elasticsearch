@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.SortByLabelFunction;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -57,6 +58,24 @@ public class PromqlVerifierTests extends ESTestCase {
     private final TestAnalyzer tsdb = analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
         .stripErrorPrefix(true)
         .unmappedResolution(UnmappedResolution.NULLIFY);
+
+    public void testPredictLinearArguments() {
+        tsdb.error(
+            "PROMQL index=test step=5m predict_linear(network.bytes_in[5m])",
+            ParsingException.class,
+            containsString("Invalid number of parameters for function [predict_linear], required [2], found [1]")
+        );
+        tsdb.error(
+            "PROMQL index=test step=5m predict_linear(network.bytes_in[5m], network.bytes_in)",
+            containsString("expected type scalar in call to function [predict_linear], got instant_vector")
+        );
+        for (String horizon : List.of("time()", "scalar(sum(network.bytes_in))")) {
+            tsdb.error(
+                "PROMQL index=test step=5m predict_linear(network.bytes_in[5m], " + horizon + ")",
+                containsString("expected literal parameter in call to function [predict_linear]")
+            );
+        }
+    }
 
     public void testPromqlRangeVector() {
         tsdb.error(
@@ -665,6 +684,39 @@ public class PromqlVerifierTests extends ESTestCase {
     /** The outermost position is the supported one: only an enclosing function makes a sort unreachable. */
     public void testSortAtTopLevelWrappingAnotherFunctionResolves() {
         assertTrue(tsdb.query("PROMQL index=test time=\"2025-10-31T00:00:00Z\" sort(abs(network.bytes_in))").resolved());
+    }
+
+    public void testSortByLabelRejectedBelowValueTransformation() {
+        tsdb.error(
+            "PROMQL index=test step=5m abs(sort_by_label(network.bytes_in, \"pod\"))",
+            containsString("[sort_by_label] is only supported at the top-level at this time")
+        );
+    }
+
+    public void testSortByLabelDescRejectedBelowValueTransformation() {
+        tsdb.error(
+            "PROMQL index=test step=5m abs(sort_by_label_desc(network.bytes_in, \"pod\"))",
+            containsString("[sort_by_label_desc] is only supported at the top-level at this time")
+        );
+    }
+
+    /** Like Prometheus, an empty label name is accepted: it is equal on every series, so it is dropped from the sort labels. */
+    public void testSortByLabelSkipsEmptyLabelName() {
+        assertSortLabels("sort_by_label(network.bytes_in, \"pod\", \"\")", List.of("pod"));
+        assertSortLabels("sort_by_label_desc(network.bytes_in, \"\", \"pod\")", List.of("pod"));
+    }
+
+    public void testSortByLabelWithOnlyEmptyLabelNameResolves() {
+        assertSortLabels("sort_by_label(network.bytes_in, \"\")", List.of());
+        assertTrue(tsdb.query("PROMQL index=test time=\"2025-10-31T00:00:00Z\" sort_by_label(network.bytes_in, \"\")").resolved());
+    }
+
+    private void assertSortLabels(String promql, List<String> expected) {
+        PromqlCommand command = resolvePromqlWithoutTranslation("PROMQL index=test time=\"2025-10-31T00:00:00Z\" " + promql).collect(
+            PromqlCommand.class
+        ).getFirst();
+        SortByLabelFunction sort = command.promqlPlan().collect(SortByLabelFunction.class).getFirst();
+        assertEquals(expected, sort.sortLabels().stream().map(Attribute::name).toList());
     }
 
     public void testInstantVectorExpectedWithGrouping() {

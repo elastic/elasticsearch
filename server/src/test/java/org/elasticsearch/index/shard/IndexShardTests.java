@@ -17,6 +17,7 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.TermQuery;
@@ -44,6 +45,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
@@ -121,6 +123,7 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.store.StoreUtils;
 import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -142,6 +145,7 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryFactory;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -160,6 +164,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -279,7 +284,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new ShardStateMetadata(routing.primary(), shard.indexSettings().getUUID(), routing.allocationId())
         );
 
-        routing = shard.shardRouting.relocate("some node", 42L, ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
+        routing = shard.shardRouting.relocate("some node", 42L, RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
         IndexShardTestCase.updateRoutingEntry(shard, routing);
         shardStateMetadata = load(logger, shardStatePath);
         assertEquals(shardStateMetadata, getShardStateMetadata(shard));
@@ -2156,11 +2161,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testLockingBeforeAndAfterRelocated() throws Exception {
         final IndexShard shard = newStartedShard(true);
-        final ShardRouting routing = ShardRoutingHelper.relocate(
-            shard.routingEntry(),
-            "other_node",
-            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
-        );
+        final ShardRouting routing = ShardRoutingHelper.relocate(shard.routingEntry(), "other_node", RecoveryPriority.RELOCATE_REBALANCING);
         IndexShardTestCase.updateRoutingEntry(shard, routing);
         CountDownLatch latch = new CountDownLatch(1);
         Thread recoveryThread = new Thread(() -> {
@@ -2187,11 +2188,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testDelayedOperationsBeforeAndAfterRelocated() throws Exception {
         final IndexShard shard = newStartedShard(true);
-        final ShardRouting routing = ShardRoutingHelper.relocate(
-            shard.routingEntry(),
-            "other_node",
-            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
-        );
+        final ShardRouting routing = ShardRoutingHelper.relocate(shard.routingEntry(), "other_node", RecoveryPriority.RELOCATE_REBALANCING);
         IndexShardTestCase.updateRoutingEntry(shard, routing);
         final CountDownLatch startRecovery = new CountDownLatch(1);
         final CountDownLatch relocationStarted = new CountDownLatch(1);
@@ -2271,11 +2268,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testStressRelocated() throws Exception {
         final IndexShard shard = newStartedShard(true);
         assertFalse(shard.isRelocatedPrimary());
-        final ShardRouting routing = ShardRoutingHelper.relocate(
-            shard.routingEntry(),
-            "other_node",
-            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
-        );
+        final ShardRouting routing = ShardRoutingHelper.relocate(shard.routingEntry(), "other_node", RecoveryPriority.RELOCATE_REBALANCING);
         IndexShardTestCase.updateRoutingEntry(shard, routing);
         final int numThreads = randomIntBetween(2, 4);
         Thread[] indexThreads = new Thread[numThreads];
@@ -2327,11 +2320,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testRelocatedShardCanNotBeRevived() throws IOException {
         final IndexShard shard = newStartedShard(true);
         final ShardRouting originalRouting = shard.routingEntry();
-        final ShardRouting routing = ShardRoutingHelper.relocate(
-            originalRouting,
-            "other_node",
-            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
-        );
+        final ShardRouting routing = ShardRoutingHelper.relocate(originalRouting, "other_node", RecoveryPriority.RELOCATE_REBALANCING);
         IndexShardTestCase.updateRoutingEntry(shard, routing);
         blockingCallRelocated(shard, routing, (primaryContext, listener) -> listener.onResponse(null));
         expectThrows(IllegalIndexShardStateException.class, () -> IndexShardTestCase.updateRoutingEntry(shard, originalRouting));
@@ -2356,7 +2345,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final ShardRouting relocationRouting = ShardRoutingHelper.relocate(
             originalRouting,
             "other_node",
-            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
+            RecoveryPriority.RELOCATE_REBALANCING
         );
         IndexShardTestCase.updateRoutingEntry(shard, relocationRouting);
         IndexShardTestCase.updateRoutingEntry(shard, originalRouting);
@@ -2379,7 +2368,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final ShardRouting relocationRouting = ShardRoutingHelper.relocate(
             originalRouting,
             "other_node",
-            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
+            RecoveryPriority.RELOCATE_REBALANCING
         );
         IndexShardTestCase.updateRoutingEntry(shard, relocationRouting);
         CyclicBarrier cyclicBarrier = new CyclicBarrier(3);
@@ -2446,7 +2435,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final ShardRouting wrongTargetNodeShardRouting = ShardRoutingHelper.relocate(
             original,
             "node_1",
-            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
+            RecoveryPriority.RELOCATE_REBALANCING
         );
         IndexShardTestCase.updateRoutingEntry(shard, wrongTargetNodeShardRouting);
         IndexShardTestCase.updateRoutingEntry(shard, original);
@@ -2454,16 +2443,12 @@ public class IndexShardTests extends IndexShardTestCase {
         final ShardRouting wrongTargetAllocationIdShardRouting = ShardRoutingHelper.relocate(
             original,
             "node_2",
-            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
+            RecoveryPriority.RELOCATE_REBALANCING
         );
         IndexShardTestCase.updateRoutingEntry(shard, wrongTargetAllocationIdShardRouting);
         IndexShardTestCase.updateRoutingEntry(shard, original);
 
-        final ShardRouting correctShardRouting = ShardRoutingHelper.relocate(
-            original,
-            "node_2",
-            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
-        );
+        final ShardRouting correctShardRouting = ShardRoutingHelper.relocate(original, "node_2", RecoveryPriority.RELOCATE_REBALANCING);
         IndexShardTestCase.updateRoutingEntry(shard, correctShardRouting);
 
         final AtomicBoolean relocated = new AtomicBoolean();
@@ -2675,7 +2660,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         IndexShardTestCase.updateRoutingEntry(
             primarySource,
-            primarySource.routingEntry().relocate(randomAlphaOfLength(10), -1, ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO)
+            primarySource.routingEntry().relocate(randomAlphaOfLength(10), -1, RecoveryPriority.RELOCATION_CAN_REMAIN_NO)
         );
         final ShardRouting primaryTargetRouting = primarySource.routingEntry().getTargetRelocatingShard();
         final IndexShard primaryTarget = newShard(
@@ -2812,7 +2797,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         routing = routing.moveToUnassigned(
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "because I say so"),
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+            RecoveryPriority.UNASSIGNED_EXPECTED
         );
         routing = ShardRoutingHelper.initialize(routing, newShard.routingEntry().currentNodeId());
         assertTrue("it's already recovering, we should ignore new ones", newShard.ignoreRecoveryAttempt());
@@ -2840,6 +2825,80 @@ public class IndexShardTests extends IndexShardTestCase {
         assertDocCount(newShard, 1);
 
         closeShards(newShard);
+    }
+
+    /// A failed store recovery is only aborted (and not reported to the master) if this shard was closed, since whoever
+    /// closed it is responsible for informing the master. An [IndexShardClosedException] about some other shard, such as
+    /// a reshard split source on a remote node, must still be reported, otherwise this shard is left initializing forever.
+    /// See #161494.
+    public void testStoreRecoveryFailureIsOnlyAbortedIfShardIsClosed() throws Exception {
+        final var closeShardDuringRecovery = randomBoolean();
+        final var indexName = randomIndexName();
+        final var indexUuid = randomUUID();
+        final var shardId = new ShardId(indexName, indexUuid, 0);
+        final var shardRouting = shardRoutingBuilder(shardId, "node", true, ShardRoutingState.INITIALIZING).withRecoverySource(
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE
+        ).build();
+        final var dataPath = new NodeEnvironment.DataPath(createTempDir());
+        final var shardPath = new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId);
+        final var metadata = IndexMetadata.builder(shardRouting.getIndexName())
+            .settings(indexSettings(IndexVersion.current(), 1, 0).build())
+            .primaryTerm(0, 1)
+            .build();
+
+        final var recoveryFailure = randomFrom(
+            new IndexShardRecoveryException(
+                shardId,
+                "failed to recover from gateway",
+                new RemoteTransportException("simulated", new IndexShardClosedException(new ShardId(indexName, indexUuid, 1)))
+            ),
+            new IndexShardClosedException(new ShardId(indexName, randomUUID(), 1)),
+            new ElasticsearchException("simulated")
+        );
+
+        final var shard = newShard(
+            shardRouting,
+            null,
+            shardPath,
+            metadata,
+            null,
+            null,
+            new InternalEngineFactory(),
+            NOOP_GCP_SYNCER,
+            RetentionLeaseSyncer.EMPTY,
+            new IndexEventListener() {
+                @Override
+                public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+                    ActionListener.run(listener, l -> {
+                        if (closeShardDuringRecovery) {
+                            closeShardNoCheck(indexShard);
+                        }
+                        l.onFailure(recoveryFailure);
+                    });
+                }
+            }
+        );
+
+        final var failureStrategyFuture = new PlainActionFuture<FailureStrategy>();
+        final var recoveryListener = new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                failureStrategyFuture.onFailure(new IllegalStateException("recovery should have failed"));
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
+                failureStrategyFuture.onResponse(failureStrategy);
+            }
+        };
+        threadPool.generic().execute(() -> shard.startRecovery(null, recoveryListener, null, (mapping, l) -> l.onResponse(null), null, 0L));
+
+        assertThat(safeGet(failureStrategyFuture), equalTo(closeShardDuringRecovery ? FailureStrategy.ABORT : FailureStrategy.FAIL_SEND));
+        closeShards(shard);
     }
 
     public void testRecoverFromStoreRemoveStaleOperations() throws Exception {
@@ -2913,11 +2972,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard shard = newStartedShard(true);
         ShardRouting origRouting = shard.routingEntry();
         assertThat(shard.state(), equalTo(IndexShardState.STARTED));
-        ShardRouting inRecoveryRouting = ShardRoutingHelper.relocate(
-            origRouting,
-            "some_node",
-            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
-        );
+        ShardRouting inRecoveryRouting = ShardRoutingHelper.relocate(origRouting, "some_node", RecoveryPriority.RELOCATE_REBALANCING);
         IndexShardTestCase.updateRoutingEntry(shard, inRecoveryRouting);
         blockingCallRelocated(shard, inRecoveryRouting, (primaryContext, listener) -> listener.onResponse(null));
         assertTrue(shard.isRelocatedPrimary());
@@ -3376,6 +3431,46 @@ public class IndexShardTests extends IndexShardTestCase {
         safeAwait(shard::openEngineAndRecoverFromTranslog);
         // Shard should now be active since we did recover:
         assertTrue(shard.isActive());
+        closeShards(shard);
+    }
+
+    public void testOpenEngineAndSkipTranslogRecoveryWithKnownLastCommit() throws IOException {
+        IndexShard shard = newStartedShard(false);
+        indexDoc(shard, "_doc", "0");
+        flushShard(shard);
+        final SegmentInfos segmentInfos = shard.store().readLastCommittedSegmentsInfo();
+        // a different translog UUID shows that the given last commit is used rather than the one read from the store
+        final boolean knownLastCommitMatches = randomBoolean();
+        final Map<String, String> userData = new HashMap<>(segmentInfos.getUserData());
+        if (knownLastCommitMatches == false) {
+            userData.put(Translog.TRANSLOG_UUID_KEY, UUIDs.randomBase64UUID());
+        }
+        final var lastCommit = new IndexShard.LastCommitInfo(segmentInfos.getGeneration(), userData, segmentInfos.getCommitLuceneVersion());
+
+        shard = reinitShard(shard);
+        assertThat(shard.routingEntry().recoverySource().getType(), equalTo(RecoverySource.Type.PEER));
+        shard.markAsRecovering("for testing");
+        shard.prepareForIndexRecovery();
+        shard.recoveryState().getIndex().setFileDetailsComplete();
+        shard.recoveryState().setStage(RecoveryState.Stage.VERIFY_INDEX);
+        shard.recoveryState().setStage(RecoveryState.Stage.TRANSLOG);
+
+        // the given last commit must be the last commit of the store
+        final var otherGeneration = new IndexShard.LastCommitInfo(
+            segmentInfos.getGeneration() + randomFrom(-1, 1),
+            segmentInfos.getUserData(),
+            segmentInfos.getCommitLuceneVersion()
+        );
+        final IndexShard shardWithOtherGeneration = shard;
+        expectThrows(AssertionError.class, () -> shardWithOtherGeneration.openEngineAndSkipTranslogRecovery(otherGeneration));
+
+        if (knownLastCommitMatches) {
+            shard.openEngineAndSkipTranslogRecovery(lastCommit);
+            assertNotNull(shard.getEngineOrNull());
+        } else {
+            final IndexShard recoveringShard = shard;
+            expectThrows(TranslogCorruptedException.class, () -> recoveringShard.openEngineAndSkipTranslogRecovery(lastCommit));
+        }
         closeShards(shard);
     }
 

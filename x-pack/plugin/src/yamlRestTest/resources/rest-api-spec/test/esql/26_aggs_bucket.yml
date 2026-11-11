@@ -334,7 +334,7 @@
           query: 'SET column_metadata=true; FROM test_dates | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")'
 
   - match:    { columns.0.name: date }
-  - is_false: columns.0._meta
+  - is_false: columns.0._meta.bucket
   - match:    { columns.1.name: bucket }
   - match:    { columns.1.type: date }
   - match:    { columns.1._meta.bucket.interval: 1 }
@@ -349,12 +349,12 @@
 
   - match:    { columns.0.name: c }
   - match:    { columns.0.type: long }
-  - is_false: columns.0._meta
+  - is_false: columns.0._meta.bucket
   - match:    { columns.1.name: b }
   - match:    { columns.1.type: double }
   - match:    { columns.1._meta.bucket.interval: 10.0 }
 
-  # Sanity: even with metadata enabled, a query without BUCKET produces no _meta on any column.
+  # Sanity: even with metadata enabled, a query without BUCKET produces no _meta.bucket on any column.
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -363,9 +363,9 @@
           query: 'SET column_metadata=true; FROM test_numbers | STATS c = COUNT(*) BY number'
 
   - match:    { columns.0.name: c }
-  - is_false: columns.0._meta
+  - is_false: columns.0._meta.bucket
   - match:    { columns.1.name: number }
-  - is_false: columns.1._meta
+  - is_false: columns.1._meta.bucket
 
   - do:
       allowed_warnings_regex:
@@ -474,7 +474,7 @@
           columnar: true
 
   - match:    { columns.0.name: c }
-  - is_false: columns.0._meta
+  - is_false: columns.0._meta.bucket
   - match:    { columns.1.name: bucket }
   - match:    { columns.1.type: date }
   - match:    { columns.1._meta.bucket.interval: 1 }
@@ -518,7 +518,7 @@
           query: 'SET approximation={"rows":10000}; SET column_metadata=true; FROM test_dates | STATS c=COUNT(*) BY bucket=BUCKET(date, 1 month)'
 
   - match:    { columns.0.name: c }
-  - is_false: columns.0._meta
+  - is_false: columns.0._meta.bucket
   - match:    { columns.1.name: bucket }
   - match:    { columns.1._meta.bucket.interval: 1 }
   - match:    { columns.1._meta.bucket.unit: month }
@@ -577,7 +577,7 @@
         body:
           query: 'SET column_metadata=true; TS ts_metrics | STATS max(metric) BY tb = TBUCKET(30 minutes)'
 
-  - is_false: columns.0._meta
+  - is_false: columns.0._meta.bucket
   - match:    { columns.1.name: tb }
   - match:    { columns.1.type: date }
   - match:    { columns.1._meta.bucket.interval: 30 }

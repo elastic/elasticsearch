@@ -27,7 +27,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFol
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-/** Internal function that evaluates expressions on metadata container {@link DataType#TSMD_DATA_TYPE}. */
+/** Internal function that evaluates expressions on metadata container {@link DataType#TIME_SERIES_METADATA_DATA_TYPE}. */
 public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunction {
     protected AbstractTimeSeriesMetadataFunction(Source source, List<Expression> arguments) {
         super(source, arguments);
@@ -60,7 +60,7 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
         // A null metadata container is the empty one.
         TypeResolution resolution = isType(
             children().getFirst(),
-            type -> type == DataType.TSMD_DATA_TYPE,
+            type -> type == DataType.TIME_SERIES_METADATA_DATA_TYPE,
             sourceText(),
             ParamOrdinal.FIRST,
             "_timeseries"

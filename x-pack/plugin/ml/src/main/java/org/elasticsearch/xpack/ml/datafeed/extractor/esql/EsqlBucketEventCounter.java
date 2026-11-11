@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
-import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.AbstractDelayedDataDetector;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.BucketEventCounter;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,8 +26,8 @@ import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.E
 import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.VALUE;
 import static org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig.MAX_NUMBER_SPANABLE_BUCKETS;
 
-/** Delayed-data detector for ES|QL datafeeds: one aggregate query per check window. */
-public class EsqlDelayedDataDetector extends AbstractDelayedDataDetector {
+/** Counts events per bucket for an ES|QL datafeed with one aggregate query appended to the datafeed query. */
+public final class EsqlBucketEventCounter implements BucketEventCounter {
 
     static final String ML_COUNT_COLUMN = "__ml_count";
     static final String ML_BUCKET_COLUMN = "__ml_bucket";
@@ -39,37 +39,32 @@ public class EsqlDelayedDataDetector extends AbstractDelayedDataDetector {
         | STATS %s = SUM(??countField) BY %s = TO_LONG(TO_DATETIME(??timeField)) / ?bucketSpan
         | LIMIT %d""", ML_COUNT_COLUMN, ML_BUCKET_COLUMN, MAX_NUMBER_SPANABLE_BUCKETS);
 
+    private final String jobId;
+    private final long bucketSpan;
     private final String emittedTimeField;
     private final String summaryCountFieldName;
     private final String esqlQuery;
-    @Nullable
-    private final String projectRouting;
     private final String sourceTimeField;
     private final EsqlSyncQueryRunner queryRunner;
 
-    public EsqlDelayedDataDetector(
-        long bucketSpan,
-        long window,
+    public EsqlBucketEventCounter(
         String jobId,
+        long bucketSpan,
         String emittedTimeField,
         String summaryCountFieldName,
         String esqlQuery,
+        String sourceTimeField,
         Map<String, String> headers,
         @Nullable String projectRouting,
-        String sourceTimeField,
         Client client
     ) {
         this(
-            bucketSpan,
-            window,
             jobId,
+            bucketSpan,
             emittedTimeField,
             summaryCountFieldName,
             esqlQuery,
-            headers,
-            projectRouting,
             sourceTimeField,
-            client,
             (query, filter, params) -> EsqlQueryExecutor.executeSync(
                 client,
                 EsqlQueryExecutor.newRequest(client, query, filter, params, projectRouting),
@@ -78,25 +73,21 @@ public class EsqlDelayedDataDetector extends AbstractDelayedDataDetector {
         );
     }
 
-    EsqlDelayedDataDetector(
-        long bucketSpan,
-        long window,
+    EsqlBucketEventCounter(
         String jobId,
+        long bucketSpan,
         String emittedTimeField,
         String summaryCountFieldName,
         String esqlQuery,
-        Map<String, String> headers,
-        @Nullable String projectRouting,
         String sourceTimeField,
-        Client client,
         EsqlSyncQueryRunner queryRunner
     ) {
-        super(bucketSpan, window, Objects.requireNonNull(jobId), Objects.requireNonNull(client));
         assert bucketSpan > 0 : "bucketSpan must be positive";
+        this.jobId = Objects.requireNonNull(jobId);
+        this.bucketSpan = bucketSpan;
         this.emittedTimeField = Objects.requireNonNull(emittedTimeField);
         this.summaryCountFieldName = Objects.requireNonNull(summaryCountFieldName);
         this.esqlQuery = Objects.requireNonNull(esqlQuery);
-        this.projectRouting = projectRouting;
         this.sourceTimeField = Objects.requireNonNull(sourceTimeField);
         this.queryRunner = Objects.requireNonNull(queryRunner);
     }
@@ -106,7 +97,7 @@ public class EsqlDelayedDataDetector extends AbstractDelayedDataDetector {
     }
 
     @Override
-    protected Map<Long, Long> currentBucketEventCounts(long start, long end) {
+    public Map<Long, Long> currentBucketEventCounts(long start, long end) {
         String query = bucketEventCountQuery(esqlQuery);
         QueryBuilder filter = EsqlDataExtractorQueryUtils.timeRangeFilter(sourceTimeField, start, end);
         List<EsqlQueryParam> params = List.of(

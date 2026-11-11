@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
-import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDelayedDataDetector;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlBucketEventCounter;
 
 import java.util.Objects;
 
@@ -62,23 +62,22 @@ public class DelayedDataDetectorFactory {
                 long groupingInterval = datafeedConfig.getGroupingInterval().millis();
                 // DatafeedJobValidator rejects grouping_interval != bucket_span for ES|QL datafeeds.
                 assert groupingInterval == bucketSpan : "grouping_interval must equal bucket_span";
-                return new EsqlDelayedDataDetector(
-                    bucketSpan,
-                    window,
+                BucketEventCounter esqlCounter = new EsqlBucketEventCounter(
                     job.getId(),
+                    bucketSpan,
                     job.getDataDescription().getTimeField(),
                     summaryCountField,
                     datafeedConfig.getEsqlQuery(),
+                    datafeedConfig.getSourceTimeField(),
                     datafeedConfig.getHeaders(),
                     datafeedConfig.getProjectRouting(),
-                    datafeedConfig.getSourceTimeField(),
                     client
                 );
+                return new DatafeedDelayedDataDetector(bucketSpan, window, job.getId(), client, esqlCounter);
             }
-            return new DatafeedDelayedDataDetector(
-                bucketSpan,
-                window,
+            BucketEventCounter searchCounter = new SearchBucketEventCounter(
                 job.getId(),
+                bucketSpan,
                 job.getDataDescription().getTimeField(),
                 datafeedConfig.getParsedQuery(xContentRegistry),
                 datafeedConfig.getIndices().toArray(new String[0]),
@@ -86,6 +85,7 @@ public class DelayedDataDetectorFactory {
                 datafeedConfig.getRuntimeMappings(),
                 client
             );
+            return new DatafeedDelayedDataDetector(bucketSpan, window, job.getId(), client, searchCounter);
         } else {
             return new NullDelayedDataDetector();
         }

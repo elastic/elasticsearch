@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDelayedDataDetector;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlBucketEventCounter;
 
 import java.util.Collections;
 import java.util.Date;
@@ -112,7 +112,8 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
             mock(Client.class),
             xContentRegistry()
         );
-        assertThat(detector.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(false));
+        SearchBucketEventCounter counter = (SearchBucketEventCounter) detector.getBucketEventCounter();
+        assertThat(counter.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(false));
     }
 
     private Job createJob(TimeValue bucketSpan) {
@@ -160,7 +161,8 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
             xContentRegistry()
         );
 
-        assertThat(detector, instanceOf(EsqlDelayedDataDetector.class));
+        assertThat(detector, instanceOf(DatafeedDelayedDataDetector.class));
+        assertThat(((DatafeedDelayedDataDetector) detector).getBucketEventCounter(), instanceOf(EsqlBucketEventCounter.class));
         assertThat(detector.getWindow(), equalTo(TimeValue.timeValueMinutes(10).millis()));
     }
 
@@ -190,7 +192,7 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
             xContentRegistry()
         );
 
-        assertThat(detector, instanceOf(EsqlDelayedDataDetector.class));
+        assertThat(((DatafeedDelayedDataDetector) detector).getBucketEventCounter(), instanceOf(EsqlBucketEventCounter.class));
     }
 
     public void testBuilderGivenEsqlDatafeedAndDelayedDataCheckDisabledShouldReturnNullDetector() {

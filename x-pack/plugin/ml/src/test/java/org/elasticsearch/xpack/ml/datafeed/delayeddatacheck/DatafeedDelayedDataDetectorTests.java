@@ -25,14 +25,17 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DatafeedDelayedDataDetectorTests extends ESTestCase {
 
@@ -76,24 +79,70 @@ public class DatafeedDelayedDataDetectorTests extends ESTestCase {
         }
     }
 
-    private DatafeedDelayedDataDetector detectorWithSearchResponse(SearchResponse searchResponse) {
-        return new DatafeedDelayedDataDetector(
+    public void testBucketsWithUnchangedOrRemovedDocsShouldNotBeReported() {
+        Bucket unchanged = newBucket(LATEST_FINALIZED_BUCKET_MS - 3 * BUCKET_SPAN_MS, 5L);
+        Bucket withMissing = newBucket(LATEST_FINALIZED_BUCKET_MS - 2 * BUCKET_SPAN_MS, 3L);
+        Bucket dataRemoved = newBucket(LATEST_FINALIZED_BUCKET_MS - BUCKET_SPAN_MS, 5L);
+        Map<Long, Long> currentCounts = Map.of(
+            unchanged.getTimestamp().getTime(),
+            5L,
+            withMissing.getTimestamp().getTime(),
+            7L,
+            dataRemoved.getTimestamp().getTime(),
+            3L
+        );
+        DatafeedDelayedDataDetector detector = new DatafeedDelayedDataDetector(
             BUCKET_SPAN_MS,
             WINDOW_MS,
             "job",
+            clientRespondingWith(List.of(unchanged, withMissing, dataRemoved), null),
+            (start, end) -> currentCounts
+        );
+
+        List<BucketWithMissingData> missing = detector.detectMissingData(LATEST_FINALIZED_BUCKET_MS);
+
+        assertThat(missing, equalTo(List.of(BucketWithMissingData.fromMissingAndBucket(4L, withMissing))));
+    }
+
+    public void testWindowSmallerThanOneBucketShouldNotCountEvents() {
+        DatafeedDelayedDataDetector detector = new DatafeedDelayedDataDetector(
+            BUCKET_SPAN_MS,
+            BUCKET_SPAN_MS / 2,
+            "job",
+            clientRespondingWith(List.of(), null),
+            (start, end) -> {
+                throw new AssertionError("events must not be counted when the window is empty");
+            }
+        );
+
+        assertThat(detector.detectMissingData(LATEST_FINALIZED_BUCKET_MS + 3 * BUCKET_SPAN_MS / 4), empty());
+    }
+
+    private DatafeedDelayedDataDetector detectorWithSearchResponse(SearchResponse searchResponse) {
+        Client client = clientRespondingWith(List.of(), searchResponse);
+        SearchBucketEventCounter counter = new SearchBucketEventCounter(
+            "job",
+            BUCKET_SPAN_MS,
             "time",
             QueryBuilders.matchAllQuery(),
             new String[] { "index" },
             IndicesOptions.lenientExpandOpen(),
             Map.of(),
-            clientRespondingWith(searchResponse)
+            client
         );
+        return new DatafeedDelayedDataDetector(BUCKET_SPAN_MS, WINDOW_MS, "job", client, counter);
+    }
+
+    private static Bucket newBucket(long epochMs, long eventCount) {
+        Bucket bucket = new Bucket("job", new Date(epochMs), BUCKET_SPAN_MS / 1000);
+        bucket.setEventCount(eventCount);
+        return bucket;
     }
 
     /**
-     * A client that returns no finalized buckets for the job and the given response for the search over the datafeed indices.
+     * A client that returns the given finalized buckets for the job and the given response for the search over the datafeed indices.
      */
-    private Client clientRespondingWith(SearchResponse searchResponse) {
+    private Client clientRespondingWith(List<Bucket> finalizedBuckets, SearchResponse searchResponse) {
         return new NoOpClient(threadPool) {
             @Override
             @SuppressWarnings("unchecked")
@@ -103,8 +152,12 @@ public class DatafeedDelayedDataDetectorTests extends ESTestCase {
                 ActionListener<Response> listener
             ) {
                 if (action == GetBucketsAction.INSTANCE) {
-                    listener.onResponse((Response) new GetBucketsAction.Response(new QueryPage<>(List.of(), 0, Bucket.RESULTS_FIELD)));
-                } else if (action == TransportSearchAction.TYPE) {
+                    listener.onResponse(
+                        (Response) new GetBucketsAction.Response(
+                            new QueryPage<>(finalizedBuckets, finalizedBuckets.size(), Bucket.RESULTS_FIELD)
+                        )
+                    );
+                } else if (action == TransportSearchAction.TYPE && searchResponse != null) {
                     listener.onResponse((Response) searchResponse);
                 } else {
                     throw new AssertionError("unexpected action [" + action.name() + "]");

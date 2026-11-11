@@ -180,7 +180,7 @@ public class BulkProcessor2 implements Closeable {
     private final AtomicLong totalBytesInFlight = new AtomicLong(0);
 
     /**
-     * This is a task (which might be null) that is scheduled at some pont in the future to flush the bulk request and start a new bulk
+     * This is a task (which might be null) that is scheduled at some point in the future to flush the bulk request and start a new bulk
      * request. This variable is read and written to from multiple threads, and is protected by mutex.
      */
     private volatile Scheduler.Cancellable cancellableFlushTask = null;

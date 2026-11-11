@@ -162,7 +162,7 @@ public abstract class TransportBroadcastByNodeAction<
     }
 
     /**
-     * Create a response factory based on the requst and the cluster state captured at the time the request was handled. Implementations
+     * Create a response factory based on the request and the cluster state captured at the time the request was handled. Implementations
      * must avoid capturing the full cluster state if possible.
      */
     protected abstract ResponseFactory<Response, ShardOperationResult> getResponseFactory(Request request, ClusterState clusterState);

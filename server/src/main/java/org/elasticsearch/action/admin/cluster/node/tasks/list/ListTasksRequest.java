@@ -102,7 +102,7 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
     }
 
     /**
-     * Description patters on which to match.
+     * Description patterns on which to match.
      *
      * If other matching criteria are set, descriptions are matched last once other criteria are satisfied
      *

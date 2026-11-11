@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
@@ -61,7 +60,7 @@ public final class WithinSeriesAggregate extends PromqlFunctionCall {
     public List<Attribute> output() {
         if (output == null) {
             // returns values grouped per time series
-            output = List.of(FieldAttribute.timeSeriesAttribute(source()));
+            output = List.of(UnresolvedPromqlLabelAttribute.newTagsLabel(source()));
         }
         return output;
     }

@@ -33,6 +33,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
@@ -162,6 +163,9 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         DEFAULT_EIS_ELSER_MODEL,
         DEFAULT_FALLBACK_ELSER_MODEL
     );
+
+    // The default endpoints that may be unknown to the model registry; the ML-node ELSER fallback is always known
+    private static final Set<String> EIS_DEFAULT_INFERENCE_IDS = Set.of(DEFAULT_EIS_JINA_V5_INFERENCE_ID, DEFAULT_EIS_ELSER_INFERENCE_ID);
 
     private final boolean useLegacyFormat;
 
@@ -976,6 +980,129 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             assertSemanticField(mapperService, fieldName, true, sparseSettings, null, null);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
         }
+    }
+
+    /**
+     * A mapping update that omits {@code inference_id} must keep the inference id already persisted on the field rather than
+     * switch it to whatever the default resolves to at merge time.
+     */
+    public void testMergeWithoutInferenceIdKeepsPersistedInferenceId() throws IOException {
+        final String fieldName = "field";
+        final IndexVersion maxIndexVersion = useLegacyFormat
+            ? IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)
+            : IndexVersion.current();
+        final IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5,
+            maxIndexVersion
+        );
+
+        // No EIS endpoint is known when the field is created, so the default falls back to the ML-node ELSER and is persisted
+        removeDefaultEndpoints(EIS_DEFAULT_INFERENCE_IDS);
+        MapperService mapperService = createSemanticMapperServiceWithIndexVersion(fieldMapping(this::minimalMapping), indexVersion);
+        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_FALLBACK_ELSER_INFERENCE_ID, DEFAULT_FALLBACK_ELSER_INFERENCE_ID);
+
+        // The first indexed document persists the sparse model settings
+        final EndpointClusterState sparseSettings = new EndpointClusterState(DEFAULT_FALLBACK_ELSER_MODEL);
+        performDynamicUpdate(mapperService, fieldName, DEFAULT_FALLBACK_ELSER_INFERENCE_ID, sparseSettings);
+        assertSemanticField(mapperService, fieldName, true, sparseSettings, null, null);
+
+        // The EIS endpoints become known, so the default for this index version is now the dense Jina model
+        registerDefaultEndpoints();
+
+        // Re-applying the same mapping without inference_id keeps the persisted inference id and model settings
+        merge(mapperService, fieldMapping(this::minimalMapping));
+        assertSemanticField(mapperService, fieldName, true, sparseSettings, null, null);
+        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_FALLBACK_ELSER_INFERENCE_ID, DEFAULT_FALLBACK_ELSER_INFERENCE_ID);
+
+        // An explicit, incompatible inference id is still rejected
+        Exception exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(mapperService, semanticMapping(fieldName, DEFAULT_EIS_JINA_V5_INFERENCE_ID))
+        );
+        assertThat(exc.getMessage(), containsString("is not compatible with new inference endpoint [" + DEFAULT_EIS_JINA_V5_INFERENCE_ID));
+        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_FALLBACK_ELSER_INFERENCE_ID, DEFAULT_FALLBACK_ELSER_INFERENCE_ID);
+
+        // An explicit, compatible inference id is still applied
+        merge(mapperService, semanticMapping(fieldName, DEFAULT_EIS_ELSER_INFERENCE_ID));
+        assertSemanticField(mapperService, fieldName, true, sparseSettings, null, null);
+        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_EIS_ELSER_INFERENCE_ID, DEFAULT_EIS_ELSER_INFERENCE_ID);
+    }
+
+    /**
+     * Randomized sweep over a mapping update applied to a field created without an explicit {@code inference_id}.
+     * <p>
+     * An update that omits {@code inference_id} keeps the persisted one and its model settings while still applying the unrelated
+     * change.
+     */
+    public void testMergeWithRandomInferenceIdUpdate() throws IOException {
+        final String fieldName = "field";
+        for (int i = 0; i < 20; i++) {
+            resetDefaultEndpoints(randomSubsetOf(EIS_DEFAULT_INFERENCE_IDS));
+
+            final IndexVersion indexVersion = SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat);
+            MapperService mapperService = createSemanticMapperServiceWithIndexVersion(fieldMapping(this::minimalMapping), indexVersion);
+            final String createdInferenceId = getInferenceId(mapperService, fieldName);
+            final EndpointClusterState createdSettings = new EndpointClusterState(defaultModel(createdInferenceId));
+
+            final boolean indexDocument = randomBoolean();
+            if (indexDocument) {
+                performDynamicUpdate(mapperService, fieldName, createdInferenceId, createdSettings);
+            }
+
+            // The default endpoints known at merge time can differ from those known at creation time, but endpoints are not removed
+            resetDefaultEndpoints(randomSubsetOf(Sets.difference(EIS_DEFAULT_INFERENCE_IDS, Set.of(createdInferenceId))));
+
+            final String updateInferenceId = randomBoolean()
+                ? null
+                : randomFrom(
+                    DEFAULT_MODELS.stream()
+                        .map(TestModel::getInferenceEntityId)
+                        .filter(id -> globalModelRegistry.containsPreconfiguredInferenceEndpointId(id))
+                        .toList()
+                );
+            final String updateSearchInferenceId = randomBoolean() ? null : randomAlphaOfLength(8);
+            final ChunkingSettings updateChunkingSettings = generateRandomChunkingSettings(true);
+            final XContentBuilder update = semanticMapping(
+                fieldName,
+                updateInferenceId,
+                updateSearchInferenceId,
+                null,
+                updateChunkingSettings,
+                null
+            );
+
+            final String expectedInferenceId = updateInferenceId == null ? createdInferenceId : updateInferenceId;
+            final EndpointClusterState expectedSettings = new EndpointClusterState(defaultModel(expectedInferenceId));
+            if (indexDocument && createdSettings.canMergeWith(expectedSettings) == false) {
+                Exception exc = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, update));
+                assertThat(exc.getMessage(), containsString("is not compatible with new inference endpoint [" + expectedInferenceId));
+                assertSemanticField(mapperService, fieldName, true, createdSettings, null, null);
+                assertInferenceEndpoints(mapperService, fieldName, createdInferenceId, createdInferenceId);
+                continue;
+            }
+
+            merge(mapperService, update);
+            assertSemanticField(mapperService, fieldName, indexDocument, expectedSettings, updateChunkingSettings, null);
+            assertInferenceEndpoints(
+                mapperService,
+                fieldName,
+                expectedInferenceId,
+                updateSearchInferenceId == null ? expectedInferenceId : updateSearchInferenceId
+            );
+        }
+    }
+
+    private void resetDefaultEndpoints(List<String> unavailableInferenceIds) {
+        registerDefaultEndpoints();
+        removeDefaultEndpoints(Set.copyOf(unavailableInferenceIds));
+    }
+
+    private static String getInferenceId(MapperService mapperService, String fieldName) {
+        return ((SemanticFieldMapper.SemanticFieldType) mapperService.fieldType(fieldName)).getInferenceId();
+    }
+
+    private static TestModel defaultModel(String inferenceId) {
+        return DEFAULT_MODELS.stream().filter(m -> m.getInferenceEntityId().equals(inferenceId)).findFirst().orElseThrow();
     }
 
     @Override

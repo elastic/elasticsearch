@@ -3441,6 +3441,13 @@ public class EsqlCapabilities {
         FIX_TBUCKET_TARGET_COUNT_WINDOW_VALIDATION,
 
         /**
+         * Reject aggregate function windows that are not {@code time_duration}. Invalid args (integers, fields,
+         * nested aggs, …) previously escaped analysis and failed later with fold/cast errors
+         * (<a href="https://github.com/elastic/elasticsearch/issues/159176">#159176</a>).
+         */
+        FIX_AGGREGATE_WINDOW_TIME_DURATION_TYPE,
+
+        /**
          * TSDB Temporality support.
          */
         TSDB_TEMPORALITY_SUPPORT_V8,

@@ -15,7 +15,7 @@ import java.lang.foreign.ValueLayout;
 import java.util.function.IntFunction;
 
 /**
- * Reusable, lazily-grown off-heap scratch buffer. Holding one instance
+ * Reusable, lazily-grown off-heap (native) scratch buffer. Holding one instance
  * avoids allocating on every call.
  *
  * <p>Not thread-safe; instances must not be shared across threads.
@@ -26,7 +26,7 @@ public final class SegmentBufferScratch implements IntFunction<MemorySegment> {
     private MemorySegment slice;
 
     /**
-     * Returns a {@link MemorySegment} of exactly {@code count} bytes, aligned for
+     * Returns an off-heap (native) {@link MemorySegment} of exactly {@code count} bytes, aligned for
      * any primitive layout. The backing allocation is grown lazily and never shrunk,
      * so a run of equally-sized requests allocates nothing at all.
      *

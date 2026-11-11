@@ -1308,7 +1308,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 double randomDecay = randomDecayOpenUnitInterval();
                 String randomType = randomFrom("linear", "gauss", "exp");
 
-                double scoreScriptNumericResult = referenceDecay(
+                double expected = referenceDecay(
                     randomType,
                     referenceDistance(
                         BigInteger.valueOf(randomValue),
@@ -1329,7 +1329,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                     ),
                     startsWith("DecayDateNanosEvaluator["),
                     DataType.DOUBLE,
-                    decayValueMatcher(scoreScriptNumericResult)
+                    decayValueMatcher(expected)
                 );
             })
         );
@@ -1444,7 +1444,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
      */
     private static List<TestCaseSupplier> distanceEqualToScaleTestCases() {
         long origin = LocalDateTime.of(2023, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli();
-        long day = Duration.ofDays(1).toMillis();
+        Duration day = Duration.ofDays(1);
+        long value = origin + day.toMillis();
         String oneDegreeAtEquator = GeoDistance.ARC.calculate(0, 0, 0, 1, DistanceUnit.METERS) + "m";
         BytesRef cartesianValue = CARTESIAN.wktToWkb("POINT (20 0)");
         BytesRef cartesianOrigin = CARTESIAN.wktToWkb("POINT (10 0)");
@@ -1458,17 +1459,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
             suppliers.add(atScale(type, DataType.DOUBLE, 20.0, 10.0, DataType.DOUBLE, 10.0));
             suppliers.add(atScale(type, DataType.CARTESIAN_POINT, cartesianValue, cartesianOrigin, DataType.DOUBLE, 10.0));
             suppliers.add(atScale(type, DataType.GEO_POINT, geoValue, geoOrigin, DataType.KEYWORD, oneDegreeAtEquator));
-            suppliers.add(atScale(type, DataType.DATETIME, origin + day, origin, DataType.TIME_DURATION, Duration.ofDays(1)));
-            suppliers.add(
-                atScale(
-                    type,
-                    DataType.DATE_NANOS,
-                    (origin + day) * 1_000_000L,
-                    origin * 1_000_000L,
-                    DataType.TIME_DURATION,
-                    Duration.ofDays(1)
-                )
-            );
+            suppliers.add(atScale(type, DataType.DATETIME, value, origin, DataType.TIME_DURATION, day));
+            suppliers.add(atScale(type, DataType.DATE_NANOS, value * 1_000_000L, origin * 1_000_000L, DataType.TIME_DURATION, day));
         }
         return suppliers;
     }

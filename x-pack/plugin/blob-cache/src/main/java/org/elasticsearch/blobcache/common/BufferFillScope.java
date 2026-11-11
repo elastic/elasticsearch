@@ -66,7 +66,7 @@ public abstract class BufferFillScope {
             // threads can use, while the segment's scope would reject them
             final MemorySegment segment = MemorySegment.ofBuffer(buffer);
             if (segment.isAccessibleBy(ANOTHER_THREAD) == false) {
-                return new Unscoped(buffer, segment.address(), buffer.remaining());
+                return new Unscoped(buffer, segment.scope(), segment.address(), buffer.remaining());
             }
         }
         return new Sliced(buffer);
@@ -89,9 +89,12 @@ public abstract class BufferFillScope {
             return valueIfComplete;
         }
         try {
+            assert checkMemoryValid(true);
             final ByteBuffer slice = newSlice(position, length);
             assert claim(position, length);
-            return filler.apply(slice);
+            final R result = filler.apply(slice);
+            assert checkMemoryValid(false);
+            return result;
         } finally {
             permits.release();
         }
@@ -99,6 +102,18 @@ public abstract class BufferFillScope {
 
     /** Returns a slice of the buffer that the caller holding a permit may write to. */
     abstract ByteBuffer newSlice(int position, int length);
+
+    /**
+     * Debug-only check, called by a filler holding a permit, that the memory it is about to write to, or has just written to, is still
+     * allocated. Holding a permit means {@link #complete} has not returned, so the owner cannot have freed the memory; this turns a
+     * broken protocol, which would otherwise silently write to freed memory, into an {@link AssertionError} on the filler thread.
+     *
+     * @param beforeFill {@code true} when checked before the filler runs, so that it is never run against freed memory
+     */
+    boolean checkMemoryValid(boolean beforeFill) {
+        assert buffer != null : "a filler holds a permit but the scope is complete";
+        return true;
+    }
 
     /**
      * Ends the scope: waits, uninterruptibly, for fillers in progress, then advances the buffer's position. Later calls have no effect.
@@ -167,13 +182,25 @@ public abstract class BufferFillScope {
      * memory that are not bound to the arena, created per call.
      */
     private static final class Unscoped extends BufferFillScope {
+        /** Scope of the owner's segment: unlike the segment, it can be asked whether it is alive by any thread. */
+        private final MemorySegment.Scope memoryScope;
         private final long address;
         private final int capacity;
 
-        Unscoped(ByteBuffer buffer, long address, int capacity) {
+        Unscoped(ByteBuffer buffer, MemorySegment.Scope memoryScope, long address, int capacity) {
             super(buffer);
+            this.memoryScope = memoryScope;
             this.address = address;
             this.capacity = capacity;
+        }
+
+        @Override
+        boolean checkMemoryValid(boolean beforeFill) {
+            super.checkMemoryValid(beforeFill);
+            assert memoryScope.isAlive()
+                : (beforeFill ? "the arena was closed before a filler ran" : "the arena was closed while a filler was running")
+                    + ": complete must be called before the owner frees the memory";
+            return true;
         }
 
         @Override

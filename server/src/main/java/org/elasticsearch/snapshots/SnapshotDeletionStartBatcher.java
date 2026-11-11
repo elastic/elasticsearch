@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -38,7 +37,6 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.ProjectRepo;
@@ -78,9 +76,8 @@ final class SnapshotDeletionStartBatcher {
     private final ProjectId projectId;
     private final String repositoryName;
     private final Consumer<Snapshot> notifyAbortedByDeletion;
-    private final FinalizeTaskSubmitter finalizeTaskSubmitter;
+    private final SnapshotsService.RepositoryDataWriteTaskRunner repositoryDataWriteTaskRunner;
     private final ItemCompletionHandler subscribeToPendingDelete;
-    private final DeleteTaskSubmitter deleteTaskSubmitter;
     private final String queueName;
     private final MasterServiceTaskQueue<Batch> snapshotDeletionBatchTaskQueue;
     private final ExecutorService snapshotExecutor;
@@ -99,17 +96,11 @@ final class SnapshotDeletionStartBatcher {
      *                                deletion to occur, and therefore need not even be finalized: they are simply removed from the cluster
      *                                state, and any listeners waiting for the completion of the snapshot are immediately notified of the
      *                                failure.
-     * @param finalizeTaskSubmitter Callback invoked after successfully updating the cluster state where the cluster state update has
-     *                              aborted a running snapshot after that snapshot has written some data to the repository, and the abort
-     *                              itself has made the snapshot ready to finalize (i.e. all remaining incomplete shards moved straight from
-     *                              {@link SnapshotsInProgress.ShardState#QUEUED} to {@link SnapshotsInProgress.ShardState#FAILED} leaving
-     *                              none in state {@link SnapshotsInProgress.ShardState#ABORTED}).
+     * @param repositoryDataWriteTaskRunner Callback invoked after successfully updating the cluster state to make snapshot finalizations
+     *                                      or deletions ready to run, to ensure that repository writes are processed.
      * @param subscribeToPendingDelete Callback invoked after successfully updating the cluster state to reflect the requested aborts, to
      *                                 subscribe all the listeners submitted to {@link #startDeletion} to wait for a particular
      *                                 {@link SnapshotDeletionsInProgress.Entry} to complete.
-     * @param deleteTaskSubmitter Callback invoked after successfully updating the cluster state to add a new
-     *                            {@link SnapshotDeletionsInProgress.Entry} which is already in state
-     *                            {@link SnapshotDeletionsInProgress.State#STARTED}, in order to trigger the execution of this deletion.
      * @param restoreSourceProtection Consulted alongside {@link RestoreInProgress} to determine which snapshots are still the source of a
      *                                restore and therefore cannot be deleted. {@link RestoreSourceProtection#NOOP} leaves
      *                                {@link RestoreInProgress} as the only such evidence.
@@ -121,9 +112,8 @@ final class SnapshotDeletionStartBatcher {
         ProjectId projectId,
         String repositoryName,
         Consumer<Snapshot> notifyAbortedByDeletion,
-        FinalizeTaskSubmitter finalizeTaskSubmitter,
+        SnapshotsService.RepositoryDataWriteTaskRunner repositoryDataWriteTaskRunner,
         ItemCompletionHandler subscribeToPendingDelete,
-        DeleteTaskSubmitter deleteTaskSubmitter,
         RestoreSourceProtection restoreSourceProtection
     ) {
         this.repositoriesService = repositoriesService;
@@ -131,9 +121,8 @@ final class SnapshotDeletionStartBatcher {
         this.projectId = projectId;
         this.repositoryName = repositoryName;
         this.notifyAbortedByDeletion = notifyAbortedByDeletion;
-        this.finalizeTaskSubmitter = finalizeTaskSubmitter;
+        this.repositoryDataWriteTaskRunner = repositoryDataWriteTaskRunner;
         this.subscribeToPendingDelete = subscribeToPendingDelete;
-        this.deleteTaskSubmitter = deleteTaskSubmitter;
         this.queueName = "snapshot-deletion-start" + ProjectRepo.projectRepoString(projectId, repositoryName);
         this.snapshotDeletionBatchTaskQueue = clusterService.createTaskQueue(queueName, Priority.NORMAL, new Executor());
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
@@ -557,7 +546,7 @@ final class SnapshotDeletionStartBatcher {
             // added to the cluster state (see SnapshotDeletionsItem#startedDeletionUuid).
             // TODO does this mean that here it's enough to check the safe generation?
 
-            final var batchCompletionHandler = new BatchCompletionHandler(initialState, task.repositoryData, task.batch);
+            final var batchCompletionHandler = new BatchCompletionHandler(task.repositoryData, task.batch);
             taskContext.success(batchCompletionHandler);
 
             final var snapshotsInProgress = SnapshotsInProgress.get(initialState);
@@ -656,7 +645,7 @@ final class SnapshotDeletionStartBatcher {
 
             if (newEntryState == SnapshotDeletionsInProgress.State.STARTED) {
                 logger.debug("creating new batch of deletions and starting their processing");
-                batchCompletionHandler.entryToStart = newEntry;
+                batchCompletionHandler.triggerRepositoryDataWriteTask = true;
             } else {
                 logger.debug("creating new batch of deletions to be executed later");
             }
@@ -688,7 +677,7 @@ final class SnapshotDeletionStartBatcher {
                         snapshotIdsRequiringCleanup.remove(existingNotYetStartedSnapshot.getSnapshotId());
                     } else {
                         if (abortedEntry.state().completed()) {
-                            batchCompletionHandler.abortedAndNeedingFinalization.add(abortedEntry);
+                            batchCompletionHandler.triggerRepositoryDataWriteTask = true;
                         }
                         updatedEntries.add(abortedEntry);
                     }
@@ -722,22 +711,17 @@ final class SnapshotDeletionStartBatcher {
      */
     private class BatchCompletionHandler implements Runnable {
 
-        private final Metadata metadata;
-
         private final RepositoryData repositoryData;
 
         private final SnapshotDeletionsItem[] batch;
-
-        private final IndexVersion maxDataNodeCompatibleIndexVersion;
 
         // Snapshots to be aborted that had all of their shard snapshots in QUEUED state, hence have not yet written anything to the
         // repository, and thus they could be removed from the cluster state right away, but we now need to notify their listeners.
         final Collection<Snapshot> abortedAndImmediatelyRemoved = new ArrayList<>();
 
-        // Snapshots to be aborted that already potentially wrote something to the repository, but became complete due to the abort
-        // (e.g. all shard snapshots were either complete or QUEUED, since the QUEUED ones all move straight to FAILED) so their
-        // finalizations must now be started.
-        final Collection<SnapshotsInProgress.Entry> abortedAndNeedingFinalization = new ArrayList<>();
+        // Trigger repository work if a deletion is ready to start, or aborting a snapshot made it ready to finalize
+        // (e.g. all shard snapshots were either complete or QUEUED, since the QUEUED ones all move straight to FAILED).
+        boolean triggerRepositoryDataWriteTask;
 
         // Constructs the log message
         private final StringBuilder finalLogBuilder = new StringBuilder("deleting snapshots [");
@@ -748,19 +732,13 @@ final class SnapshotDeletionStartBatcher {
             ByteSizeUnit.KB.toIntBytes(4)
         );
 
-        // A deletion that's ready to start processing straight away.
-        @Nullable
-        SnapshotDeletionsInProgress.Entry entryToStart;
-
         /**
          * Identifies the deletion task in the cluster state, so that wait_for_completion tasks can subscribe to it.
          */
         @Nullable
         String deletionUuid;
 
-        BatchCompletionHandler(ClusterState clusterState, RepositoryData repositoryData, SnapshotDeletionsItem[] batch) {
-            this.metadata = clusterState.metadata();
-            this.maxDataNodeCompatibleIndexVersion = clusterState.nodes().getMaxDataNodeCompatibleIndexVersion();
+        BatchCompletionHandler(RepositoryData repositoryData, SnapshotDeletionsItem[] batch) {
             this.repositoryData = repositoryData;
             this.batch = batch;
         }
@@ -777,21 +755,8 @@ final class SnapshotDeletionStartBatcher {
                 notifyAbortedByDeletion.accept(snapshot);
             }
 
-            assert abortedAndNeedingFinalization.isEmpty() || entryToStart == null
-                : "unexpectedly completed " + abortedAndNeedingFinalization + " while starting " + entryToStart;
-
-            for (var entry : abortedAndNeedingFinalization) {
-                finalizeTaskSubmitter.submitFinalizeSnapshotRepositoryDataWriteTask(entry, metadata, repositoryData);
-            }
-
-            if (entryToStart != null) {
-                deleteTaskSubmitter.submitDeleteSnapshotsRepositoryDataWriteTask(
-                    projectId,
-                    repositoryName,
-                    entryToStart,
-                    repositoryData,
-                    maxDataNodeCompatibleIndexVersion
-                );
+            if (triggerRepositoryDataWriteTask) {
+                repositoryDataWriteTaskRunner.ensureRepositoryDataWriteTaskRunning(projectId, repositoryName, repositoryData);
             }
 
             for (var item : batch) {
@@ -815,26 +780,6 @@ final class SnapshotDeletionStartBatcher {
                 finalLogCollector.appendItem(snapshot);
             }
         }
-    }
-
-    public interface FinalizeTaskSubmitter {
-        /// Trigger the (eventual) finalization of a newly-ready-to-finalize snapshot.
-        void submitFinalizeSnapshotRepositoryDataWriteTask(
-            SnapshotsInProgress.Entry entry,
-            Metadata metadata,
-            RepositoryData repositoryData
-        );
-    }
-
-    public interface DeleteTaskSubmitter {
-        /// Trigger the (eventual) start of a newly-ready-to-process deletion.
-        void submitDeleteSnapshotsRepositoryDataWriteTask(
-            ProjectId projectId,
-            String repositoryName,
-            SnapshotDeletionsInProgress.Entry deleteEntry,
-            RepositoryData repositoryData,
-            IndexVersion minNodeVersion
-        );
     }
 
     /**

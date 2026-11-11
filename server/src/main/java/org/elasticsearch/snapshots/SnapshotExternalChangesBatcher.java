@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -27,7 +26,6 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.RepositoryShardId;
 
@@ -51,21 +49,9 @@ final class SnapshotExternalChangesBatcher {
     private static final Logger logger = LogManager.getLogger(SnapshotExternalChangesBatcher.class);
 
     @FunctionalInterface
-    interface FinalizeTaskSubmitter {
-        /// Trigger the (eventual) finalization of a newly-ready-to-finalize snapshot.
-        void submitFinalizeSnapshotRepositoryDataWriteTask(SnapshotsInProgress.Entry entry, Metadata metadata);
-    }
-
-    @FunctionalInterface
     interface ClonesStarter {
         /** Dispatches any shard clone operations in {@code INIT} state across all repositories. */
         void startClones(SnapshotsInProgress snapshotsInProgress);
-    }
-
-    @FunctionalInterface
-    interface DeleteTaskSubmitter {
-        /// Trigger the (eventual) start of a newly-ready-to-process deletion.
-        void submitDeleteSnapshotsRepositoryDataWriteTask(SnapshotDeletionsInProgress.Entry deleteEntry, IndexVersion minNodeVersion);
     }
 
     private enum State {
@@ -85,37 +71,32 @@ final class SnapshotExternalChangesBatcher {
 
     private final MasterServiceTaskQueue<Task> taskQueue;
     private final Predicate<Snapshot> isInitializingClone;
-    private final FinalizeTaskSubmitter finalizeTaskSubmitter;
+    private final SnapshotsService.RepositoryDataWriteTaskRunner repositoryDataWriteTaskRunner;
     private final ClonesStarter clonesStarter;
-    private final DeleteTaskSubmitter deleteTaskSubmitter;
     private State state = State.IDLE;
 
     SnapshotExternalChangesBatcher(
         ClusterService clusterService,
         Predicate<Snapshot> isInitializingClone,
-        FinalizeTaskSubmitter finalizeTaskSubmitter,
         ClonesStarter clonesStarter,
-        DeleteTaskSubmitter deleteTaskSubmitter
+        SnapshotsService.RepositoryDataWriteTaskRunner repositoryDataWriteTaskRunner
     ) {
         this.isInitializingClone = isInitializingClone;
-        this.finalizeTaskSubmitter = finalizeTaskSubmitter;
         this.clonesStarter = clonesStarter;
-        this.deleteTaskSubmitter = deleteTaskSubmitter;
+        this.repositoryDataWriteTaskRunner = repositoryDataWriteTaskRunner;
         this.taskQueue = clusterService.createTaskQueue("snapshots-service-external-changes", Priority.NORMAL, new Executor());
     }
 
     SnapshotExternalChangesBatcher(
         MasterServiceTaskQueue<Task> taskQueue,
         Predicate<Snapshot> isInitializingClone,
-        FinalizeTaskSubmitter finalizeTaskSubmitter,
         ClonesStarter clonesStarter,
-        DeleteTaskSubmitter deleteTaskSubmitter
+        SnapshotsService.RepositoryDataWriteTaskRunner repositoryDataWriteTaskRunner
     ) {
         this.taskQueue = taskQueue;
         this.isInitializingClone = isInitializingClone;
-        this.finalizeTaskSubmitter = finalizeTaskSubmitter;
         this.clonesStarter = clonesStarter;
-        this.deleteTaskSubmitter = deleteTaskSubmitter;
+        this.repositoryDataWriteTaskRunner = repositoryDataWriteTaskRunner;
     }
 
     /**
@@ -344,10 +325,7 @@ final class SnapshotExternalChangesBatcher {
             for (SnapshotDeletionsInProgress.Entry entry : SnapshotDeletionsInProgress.get(newState).getEntries()) {
                 if (entry.state() == SnapshotDeletionsInProgress.State.STARTED) {
                     repositoriesRunningDeletes.computeIfAbsent(entry.projectId(), ignored -> new HashSet<>()).add(entry.repository());
-                    deleteTaskSubmitter.submitDeleteSnapshotsRepositoryDataWriteTask(
-                        entry,
-                        newState.nodes().getMaxDataNodeCompatibleIndexVersion()
-                    );
+                    repositoryDataWriteTaskRunner.ensureRepositoryDataWriteTaskRunning(entry.projectId(), entry.repository(), null);
                 }
             }
             for (SnapshotsInProgress.Entry entry : finishedSnapshots) {
@@ -358,7 +336,7 @@ final class SnapshotExternalChangesBatcher {
                     // shards failed). The existence of the running delete operation means that we should not start the finalization yet.
                     continue;
                 }
-                finalizeTaskSubmitter.submitFinalizeSnapshotRepositoryDataWriteTask(entry, newState.metadata());
+                repositoryDataWriteTaskRunner.ensureRepositoryDataWriteTaskRunning(entry.projectId(), entry.repository(), null);
             }
             finishedSnapshots.clear();
             clonesStarter.startClones(SnapshotsInProgress.get(newState));

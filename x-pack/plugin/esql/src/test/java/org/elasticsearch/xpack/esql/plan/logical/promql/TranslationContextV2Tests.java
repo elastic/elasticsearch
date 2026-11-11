@@ -16,13 +16,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.promql.LabelTranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2.IntermediateResult;
 
 import java.util.List;
 
 import static org.hamcrest.Matchers.sameInstance;
 
-public class LabelTranslationContextTests extends ESTestCase {
+public class TranslationContextV2Tests extends ESTestCase {
 
     public void testFindByNameMatchesCanonicalNamesAndPrefersPassthroughFields() {
         Attribute bare = attr("cluster");

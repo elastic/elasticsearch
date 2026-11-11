@@ -486,13 +486,13 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
 
         throttle.enqueueRelocation(
             null,
-            createStartRelocationRequest(DiscoveryNodeUtils.create(randomIdentifier()), shardId1),
+            createStartRelocationRequest(DiscoveryNodeUtils.create(randomIdentifier()), shard1),
             shard1,
             ActionListener.wrap(ignored -> fail("expected failure"), failures::add)
         );
         throttle.enqueueRelocation(
             null,
-            createStartRelocationRequest(DiscoveryNodeUtils.create(randomIdentifier()), shardId2),
+            createStartRelocationRequest(DiscoveryNodeUtils.create(randomIdentifier()), shard2),
             shard2,
             ActionListener.wrap(result::set, e -> fail("unexpected relocation failure: " + e))
         );
@@ -509,6 +509,8 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         assertThat(throttle.queuedRelocationCount(), equalTo(0));
         assertTrue(shard1.recoveryStats().noCurrentRecoveries());
         assertTrue(shard2.recoveryStats().noCurrentRecoveries());
+        assertFalse(shard1.isActivelyRelocatingPrimary());
+        assertFalse(shard2.isActivelyRelocatingPrimary());
     }
 
     public void testMultipleSlotsAllowParallelRelocations() {

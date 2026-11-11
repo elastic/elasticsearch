@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 /**
  * Listener for the completion of a compute, which is also told what the drivers did when the compute fails.
  * <p>
@@ -29,5 +31,28 @@ interface ComputeCompletionListener extends ActionListener<DriverCompletionInfo>
     @Override
     default void onFailure(Exception e) {
         onFailure(e, DriverCompletionInfo.EMPTY);
+    }
+
+    /**
+     * Same as {@link ActionListener#notifyOnce}, and still a {@code ComputeCompletionListener}: only the first completion, with or
+     * without usage, reaches {@code delegate}.
+     */
+    static ComputeCompletionListener notifyOnce(ComputeCompletionListener delegate) {
+        AtomicBoolean completed = new AtomicBoolean();
+        return new ComputeCompletionListener() {
+            @Override
+            public void onResponse(DriverCompletionInfo info) {
+                if (completed.compareAndSet(false, true)) {
+                    delegate.onResponse(info);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e, DriverCompletionInfo usage) {
+                if (completed.compareAndSet(false, true)) {
+                    delegate.onFailure(e, usage);
+                }
+            }
+        };
     }
 }

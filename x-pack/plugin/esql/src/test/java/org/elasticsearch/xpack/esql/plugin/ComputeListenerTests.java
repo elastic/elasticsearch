@@ -289,4 +289,28 @@ public class ComputeListenerTests extends ESTestCase {
         // to the outer listener the failed inner listener is a slot that failed without saying what it did
         assertThat(outerUsage.get().bytesRead(), equalTo(outerSucceeded.bytesRead()));
     }
+
+    public void testNotifyOnceDeliversOnlyTheFirstCompletionWithItsUsage() {
+        List<String> events = new ArrayList<>();
+        AtomicReference<DriverCompletionInfo> usage = new AtomicReference<>();
+        ComputeCompletionListener delegate = new ComputeCompletionListener() {
+            @Override
+            public void onResponse(DriverCompletionInfo info) {
+                events.add("response");
+            }
+
+            @Override
+            public void onFailure(Exception e, DriverCompletionInfo failedUsage) {
+                events.add("failure");
+                usage.set(failedUsage);
+            }
+        };
+        ComputeCompletionListener once = ComputeCompletionListener.notifyOnce(delegate);
+        var firstUsage = randomCompletionInfo();
+        once.onFailure(new IllegalStateException("first"), firstUsage);
+        once.onFailure(new IllegalStateException("second"), randomCompletionInfo());
+        once.onResponse(randomCompletionInfo());
+        assertThat(events, equalTo(List.of("failure")));
+        assertThat(usage.get(), sameInstance(firstUsage));
+    }
 }

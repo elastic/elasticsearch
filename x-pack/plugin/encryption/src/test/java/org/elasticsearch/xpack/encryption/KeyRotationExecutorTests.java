@@ -70,16 +70,6 @@ public class KeyRotationExecutorTests extends ESTestCase {
         return executor.executeTask(new KeyRotationCoordinator.RestoreKeysTask(ownCopy, new AtomicBoolean(true)), state);
     }
 
-    public void testRestoreReplacesDegradedInstanceWithSameActiveKey() {
-        ProjectEncryptionKeyMetadata ownCopy = healthy("k2", "k1", "k2");
-        ProjectEncryptionKeyMetadata restored = metadataOf(restore(ownCopy, stateWith(degraded("k2"))).v1());
-
-        assertFalse(restored.isUnwrapFailed());
-        assertEquals(ownCopy.getKeys(), restored.getKeys());
-        assertEquals("k2", restored.getActiveKeyId());
-        assertEquals(ownCopy.getHandlerKeyIds(), restored.getHandlerKeyIds());
-    }
-
     /**
      * A node may restore a copy that is older than the last committed instance: it still holds a retired key and a stale handler key id.
      * The copy holds every current key, and the normal lifecycle tasks bring it up to date again.

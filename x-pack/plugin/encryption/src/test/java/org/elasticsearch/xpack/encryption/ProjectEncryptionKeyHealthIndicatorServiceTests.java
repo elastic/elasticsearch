@@ -243,21 +243,6 @@ public class ProjectEncryptionKeyHealthIndicatorServiceTests extends ESTestCase 
         assertEquals(ProjectEncryptionKeyHealthIndicatorService.WRAP_FAILURE_IMPACTS, result.impacts());
     }
 
-    public void testCannotPersistTakesPrecedenceOverNotYetPersisted() {
-        ProjectEncryptionKeyMetadata metadata = pekMetadata(PASSWORD_ID);
-        ClusterState state = stateWith(metadata);
-
-        ProjectEncryptionKeyHealthIndicatorService indicator = indicator(
-            state,
-            mockPekService(EncryptionServiceState.READY, PASSWORD_ID, true, false),
-            true
-        );
-
-        HealthIndicatorResult result = indicator.calculate(true, 1, HealthInfo.EMPTY_HEALTH_INFO);
-        assertEquals(HealthStatus.YELLOW, result.status());
-        assertEquals(ProjectEncryptionKeyHealthIndicatorService.YELLOW_CANNOT_PERSIST, result.symptom());
-    }
-
     public void testRedWhenElectedMasterHoldsNoKeyAndDataIsEncrypted() {
         assertMasterHasNoKey(true, HealthStatus.RED);
     }

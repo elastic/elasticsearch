@@ -32,7 +32,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -204,36 +203,6 @@ public class ProjectEncryptionKeyMissingPasswordIT extends ESIntegTestCase {
         for (String node : internalCluster().getNodeNames()) {
             assertBusy(() -> assertArrayEquals(cluster.payload(), decryptOn(node, cluster.encrypted())));
             assertEquals(cluster.activeKeyId(), internalCluster().getInstance(EncryptionService.class, node).encrypt(new byte[1]).keyId());
-        }
-    }
-
-    public void testResetWhileMasterHoldsNoKeysIsNotUndone() throws Exception {
-        KeyLessMaster cluster = electMasterWithoutKeysFromDisk();
-
-        assertAcked(
-            client().execute(
-                TransportEncryptionResetAction.TYPE,
-                new EncryptionResetRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, true)
-            ).actionGet()
-        );
-        for (String node : internalCluster().getNodeNames()) {
-            assertBusy(() -> assertFalse(internalCluster().getInstance(ProjectEncryptionKeyService.class, node).hasInstalledKey()));
-        }
-
-        clearVotingConfigExclusions();
-        internalCluster().restartNode(cluster.masterWithoutKeys(), new InternalTestCluster.RestartCallback() {
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                assertBusy(() -> assertThat(pekOn(cluster.nodesWithKeys().get(0)), notNullValue()));
-                return passwordSettings();
-            }
-        });
-        ensureStableCluster(4);
-        ProjectEncryptionKeyMetadata pek = pekOn(cluster.nodesWithKeys().get(0));
-        assertFalse(pek.isUnwrapFailed());
-        assertNotEquals("the reset installed a new key and the old one was not restored", cluster.activeKeyId(), pek.getActiveKeyId());
-        for (String node : cluster.nodesWithKeys()) {
-            expectThrows(Exception.class, () -> decryptOn(node, cluster.encrypted()));
         }
     }
 

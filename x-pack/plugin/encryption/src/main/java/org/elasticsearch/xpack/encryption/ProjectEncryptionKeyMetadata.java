@@ -59,12 +59,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * reports {@code UNAVAILABLE_DECRYPTION_FAILED} and all encrypt/decrypt calls fail until the operator fixes the password and restarts,
  * or calls {@code POST /_encryption/_reset?accept_data_loss=true}.
  *
- * <p>If a node cannot wrap the keys for its own disk, GATEWAY serialization does not fail, since that would make the node reject every
- * publication. It persists its last written copy of the same keys, or no key material.
- *
- * <p>A node that holds no keys can still be elected master and publish a degraded instance. Encryption is then unavailable on every node,
- * but each node keeps its own on-disk copy of the keys (see {@link OnDiskKeys}), and the next master that holds them restores them into
- * cluster state.
+ * <p>GATEWAY serialization never fails, since that would make the node reject every publication. A node that cannot wrap the keys, or
+ * that receives a degraded instance, persists its {@link OnDiskKeys} for the same active key instead, or no key material.
  */
 class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
     static final String TYPE = "primary_encryption_key";
@@ -161,11 +157,8 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
     private record DiskCopy(String activeKeyId, String passwordId, Map<String, KeyEntry> wrappedKeys, Map<String, String> handlerKeyIds) {}
 
     /**
-     * The wrapped keys this node last read from or wrote to its own disk. A degraded instance writes them back instead of no key material,
-     * so a master that holds no keys cannot erase them from this node's disk, and a master that holds them can restore them. They are only
-     * used for the same active key. Keys are only added by a rotation, which changes the active key, so they include every current key.
-     * They may be older than the last committed instance: they can still hold retired keys, and their handler key ids and password id can
-     * be stale.
+     * The wrapped keys this node last read from or wrote to its own disk, used only for the same active key. Since only a rotation adds
+     * keys, they include every current key, but may still hold retired keys and stale handler key ids and password id.
      */
     static final class OnDiskKeys {
         private volatile DiskCopy diskCopy;

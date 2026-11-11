@@ -24,9 +24,6 @@ import java.util.function.Supplier;
  *
  * <p>The active password id and password material are sourced from a {@link Supplier} so that secure-settings reloads are reflected
  * automatically: the supplier is re-evaluated on every call.
- *
- * <p>Also tracks the outcome of this node's on-disk writes, so a node that cannot wrap the PEK logs it once per distinct cause and
- * reports via {@link #isKeyMissingOnDisk()} whether its last persisted copy lacks key material.
  */
 final class PasswordPekEncryption implements ProjectEncryptionKeyMetadata.PekEncryption {
 

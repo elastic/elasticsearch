@@ -40,15 +40,19 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraph.NodesIterator;
 import org.apache.lucene.util.hnsw.HnswGraphBuilder;
+import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborArray;
 import org.apache.lucene.util.hnsw.OnHeapHnswGraph;
+import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 import org.apache.lucene.util.quantization.BaseQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedVectorsReader;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.IndexingKnnVectorsWriter;
+import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -57,6 +61,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
@@ -65,7 +70,6 @@ import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_HNSW
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_HNSW_VECTOR_INDEX_CODEC_NAME;
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_HNSW_VECTOR_INDEX_EXTENSION;
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_VERSION_CURRENT;
-import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.MIN_NUM_VECTORS_FOR_GPU_BUILD;
 import static org.elasticsearch.gpu.codec.MemorySegmentUtils.getContiguousMemorySegment;
 import static org.elasticsearch.gpu.codec.MemorySegmentUtils.getContiguousPackedMemorySegment;
 
@@ -79,6 +83,12 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
     private static final int LUCENE99_HNSW_DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
     private static final long DIRECT_COPY_THRESHOLD_IN_BYTES = 128 * 1024 * 1024; // 128MB
 
+    /**
+     * CAGRA can't build a graph from fewer than 2 vectors. A graph threshold of 1 skips the graph for segments of up to
+     * 2 vectors, so it is the lowest threshold the writer uses, even for formats that otherwise always build a graph.
+     */
+    private static final int MIN_TINY_SEGMENTS_THRESHOLD = 1;
+
     // TODO: lower the numVectors threshold when to switch to IVF_PQ based on more benchmarks
     private static final long MAX_NUM_VECTORS_FOR_NN_DESCENT = 5_000_000L;
 
@@ -87,6 +97,7 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
     private final IndexOutput meta, vectorIndex;
     private final int M;
     private final int beamWidth;
+    private final int tinySegmentsThreshold;
 
     private final List<FieldWriter> fields = new ArrayList<>();
     private final CuVSMatrix.DataType dataType;
@@ -100,16 +111,38 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
         FlatVectorsFormat flatVectorsFormat,
         FlatVectorsWriter flatVectorWriter
     ) throws IOException {
+        // TODO: pass the CPU graph threshold for GPU hnsw and int8_hnsw (ES93HnswVectorsFormat#HNSW_GRAPH_THRESHOLD, or the
+        // field's flat_index_threshold) instead of only skipping the graph for the segments CAGRA can't build one for
+        this(cuVSResourceManager, totalDeviceMemory, state, M, beamWidth, flatVectorsFormat, flatVectorWriter, 0);
+    }
+
+    /**
+     * @param tinySegmentsThreshold the expected search cost below which a segment gets no graph and is searched exhaustively,
+     *                              as in {@link org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter}; raised to at least
+     *                              1, see {@link #MIN_TINY_SEGMENTS_THRESHOLD}
+     */
+    ES92GpuHnswVectorsWriter(
+        CuVSResourceManager cuVSResourceManager,
+        long totalDeviceMemory,
+        SegmentWriteState state,
+        int M,
+        int beamWidth,
+        FlatVectorsFormat flatVectorsFormat,
+        FlatVectorsWriter flatVectorWriter,
+        int tinySegmentsThreshold
+    ) throws IOException {
         super(state, flatVectorsFormat, flatVectorWriter);
         this.totalDeviceMemory = totalDeviceMemory;
         assert cuVSResourceManager != null : "CuVSResources must not be null";
         this.cuVSResourceManager = cuVSResourceManager;
         this.M = M;
         this.beamWidth = beamWidth;
+        this.tinySegmentsThreshold = Math.max(tinySegmentsThreshold, MIN_TINY_SEGMENTS_THRESHOLD);
         if (flatVectorWriter instanceof ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter) {
             dataType = CuVSMatrix.DataType.BYTE;
         } else {
-            assert flatVectorWriter instanceof Lucene99FlatVectorsWriter;
+            // for float32 (hnsw) and bbq (bbq_hnsw) types, we send raw float vectors to GPU
+            assert flatVectorWriter instanceof Lucene99FlatVectorsWriter || flatVectorsFormat instanceof ES93BinaryQuantizedVectorsFormat;
             dataType = CuVSMatrix.DataType.FLOAT;
         }
         String metaFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, LUCENE99_HNSW_META_EXTENSION);
@@ -196,25 +229,42 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
             int numVectors = vectorsInSortedOrder.size();
             CagraIndexParams cagraIndexParams = createCagraIndexParams(fieldInfo.getVectorSimilarityFunction(), numVectors, dims);
 
-            if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
-                logger.debug("Skip building carga index; vectors length {} < {} (min for GPU)", numVectors, MIN_NUM_VECTORS_FOR_GPU_BUILD);
-                // Will not be indexed on the GPU
-                generateMockGraphAndWriteMeta(fieldInfo, numVectors);
+            if (shouldBuildGraph(numVectors) == false) {
+                writeMetaWithoutGraph(fieldInfo, numVectors);
             } else {
-                var resource = cuVSResourceManager.tryAcquire(numVectors, dims, CuVSMatrix.DataType.FLOAT, cagraIndexParams, "flush");
-                if (resource != null) {
-                    try (var resourcesHolder = new ResourcesHolder(cuVSResourceManager, resource)) {
-                        var builder = CuVSMatrix.deviceBuilder(resourcesHolder.resources(), numVectors, dims, CuVSMatrix.DataType.FLOAT);
-                        for (var vector : vectorsInSortedOrder) {
-                            builder.addVector(vector);
+                boolean builtOnGpu = false;
+                try {
+                    var resource = cuVSResourceManager.tryAcquire(numVectors, dims, CuVSMatrix.DataType.FLOAT, cagraIndexParams, "flush");
+                    if (resource != null) {
+                        try (var resourcesHolder = new ResourcesHolder(cuVSResourceManager, resource)) {
+                            // Known cuVS limitation: CuVSMatrix.Builder isn't closeable, and the device builder allocates its
+                            // GPU buffer when it's created, so if addVector or build fails after that, the buffer leaks.
+                            CuVSMatrix dataset = wrapCuVSFailure("cuVS failed to copy the vectors to GPU", () -> {
+                                var builder = CuVSMatrix.deviceBuilder(
+                                    resourcesHolder.resources(),
+                                    numVectors,
+                                    dims,
+                                    CuVSMatrix.DataType.FLOAT
+                                );
+                                for (var vector : vectorsInSortedOrder) {
+                                    builder.addVector(vector);
+                                }
+                                return builder.build();
+                            });
+                            try (dataset) {
+                                generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
+                            }
                         }
-                        try (var dataset = builder.build()) {
-                            generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
-                        }
+                        builtOnGpu = true;
+                    } else {
+                        logger.debug("GPU busy, building HNSW on CPU for [{}] vectors", numVectors);
                     }
-                } else {
-                    logger.debug("GPU busy, building HNSW on CPU for [{}] vectors", numVectors);
-                    buildCpuGraphAndWriteMeta(fieldInfo, vectorsInSortedOrder, fieldInfo.getVectorSimilarityFunction());
+                } catch (GPUGraphBuildException e) {
+                    logCpuFallback(fieldInfo, numVectors, "flush", e);
+                }
+                if (builtOnGpu == false) {
+                    // the GPU resource, if any, has been released by now
+                    buildCpuGraphFromFloats(fieldInfo, FloatVectorValues.fromFloats(vectorsInSortedOrder, dims));
                 }
             }
             var elapsed = System.nanoTime() - started;
@@ -265,15 +315,18 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
         CagraIndexParams cagraIndexParams
     ) throws IOException {
         try {
-            assert dataset.size() >= MIN_NUM_VECTORS_FOR_GPU_BUILD;
-
             long vectorIndexOffset = vectorIndex.getFilePointer();
             int[][] graphLevelNodeOffsets = new int[1][];
             final HnswGraph graph;
-            var index = buildGPUIndex(resourcesHolder.resources(), cagraIndexParams, dataset, fieldInfo);
+            CagraIndex index = wrapCuVSFailure(
+                "cuVS failed to build the graph",
+                () -> buildGPUIndex(resourcesHolder.resources(), cagraIndexParams, dataset, fieldInfo)
+            );
             try {
                 assert index != null : "GPU index should be built for field: " + fieldInfo.name;
-                try (var deviceGraph = index.getGraph();) {
+                final CagraIndex builtIndex = index;
+                // Getting the graph and copying it to host memory can still fall back to CPU, since nothing is written yet
+                try (var deviceGraph = wrapCuVSFailure("cuVS failed to get the graph", builtIndex::getGraph)) {
                     var graphSize = deviceGraph.size() * deviceGraph.columns() * Integer.BYTES;
                     if (graphSize < DIRECT_COPY_THRESHOLD_IN_BYTES) {
                         // Graph is small enough to copy to host, allowing us to free GPU resources
@@ -283,13 +336,15 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
                         // CagraIndex.close() calls cuvsCagraIndexDestroy using the CuVSResources
                         // context, which another thread may already be using if the resource was
                         // returned to the pool first.
-                        try (var hostGraph = deviceGraph.toHost()) {
+                        try (var hostGraph = wrapCuVSFailure("cuVS failed to copy the graph to host memory", deviceGraph::toHost)) {
                             index.close();
                             index = null;
                             resourcesHolder.close();
                             graph = writeGraph(hostGraph, graphLevelNodeOffsets);
                         }
                     } else {
+                        // Reads the graph from device memory while writing it, so a cuVS failure here can't fall back
+                        // to CPU: part of the graph may already be written. It fails the flush or merge.
                         graph = writeGraph(deviceGraph, graphLevelNodeOffsets);
                     }
                 }
@@ -307,18 +362,16 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
         }
     }
 
-    private void generateMockGraphAndWriteMeta(FieldInfo fieldInfo, int datasetSize) throws IOException {
-        try {
-            long vectorIndexOffset = vectorIndex.getFilePointer();
-            int[][] graphLevelNodeOffsets = new int[1][];
-            final HnswGraph graph = writeMockGraph(datasetSize, graphLevelNodeOffsets);
-            long vectorIndexLength = vectorIndex.getFilePointer() - vectorIndexOffset;
-            writeMeta(fieldInfo, vectorIndexOffset, vectorIndexLength, datasetSize, graph, graphLevelNodeOffsets);
-        } catch (IOException e) {
-            throw e;
-        } catch (Throwable t) {
-            throw new IOException("Failed to write GPU index: ", t);
-        }
+    /** Whether a segment of this size gets a graph; the same rule as {@link org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter} */
+    private boolean shouldBuildGraph(int numVectors) {
+        int expectedVisitedNodes = HnswGraphSearcher.expectedVisitedNodes(tinySegmentsThreshold, numVectors);
+        return numVectors > expectedVisitedNodes && expectedVisitedNodes > 0;
+    }
+
+    /** Writes a field without a graph: searches visit all of its vectors, as for a tiny segment written by Lucene */
+    private void writeMetaWithoutGraph(FieldInfo fieldInfo, int numVectors) throws IOException {
+        logger.debug("Skip building graph; [{}] vectors are below the graph threshold [{}]", numVectors, tinySegmentsThreshold);
+        writeMeta(fieldInfo, vectorIndex.getFilePointer(), 0, numVectors, null, null);
     }
 
     private CagraIndex buildGPUIndex(
@@ -496,35 +549,6 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
         return createMockGraph(maxElementCount, maxGraphDegree);
     }
 
-    // create a mock graph where every node is connected to every other node
-    private HnswGraph writeMockGraph(int elementCount, int[][] levelNodeOffsets) throws IOException {
-        if (elementCount == 0) {
-            return null;
-        }
-        int nodeDegree = elementCount - 1;
-        levelNodeOffsets[0] = new int[elementCount];
-
-        int[] neighbors = new int[nodeDegree];
-        int[] scratch = new int[nodeDegree];
-        for (int node = 0; node < elementCount; node++) {
-            if (nodeDegree > 0) {
-                for (int j = 0; j < nodeDegree; j++) {
-                    neighbors[j] = j < node ? j : j + 1; // skip self
-                }
-                scratch[0] = neighbors[0];
-                for (int i = 1; i < nodeDegree; i++) {
-                    scratch[i] = neighbors[i] - neighbors[i - 1];
-                }
-            }
-
-            long offsetStart = vectorIndex.getFilePointer();
-            vectorIndex.writeVInt(nodeDegree);
-            vectorIndex.writeGroupVInts(scratch, nodeDegree);
-            levelNodeOffsets[0][node] = Math.toIntExact(vectorIndex.getFilePointer() - offsetStart);
-        }
-        return createMockGraph(elementCount, nodeDegree);
-    }
-
     private static HnswGraph createMockGraph(int elementCount, int graphDegree) {
         return new HnswGraph() {
             @Override
@@ -601,12 +625,34 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
         return graph;
     }
 
-    private void buildCpuGraphAndWriteMeta(FieldInfo fieldInfo, List<float[]> vectors, VectorSimilarityFunction similarity)
-        throws IOException {
-        int numVectors = vectors.size();
-        int dims = fieldInfo.getVectorDimension();
+    /**
+     * Builds the graph on CPU from raw float vectors, when it can't be built on GPU: on flush, where they are all we have in
+     * memory, and on merge when the flat format has no quantized vectors.
+     */
+    private void buildCpuGraphFromFloats(FieldInfo fieldInfo, FloatVectorValues vectors) throws IOException {
         var flatVectorsScorer = flatVectorWriter.getFlatVectorScorer();
-        var scorerSupplier = flatVectorsScorer.getRandomVectorScorerSupplier(similarity, FloatVectorValues.fromFloats(vectors, dims));
+        var scorerSupplier = flatVectorsScorer.getRandomVectorScorerSupplier(fieldInfo.getVectorSimilarityFunction(), vectors);
+        writeCpuGraphAndMeta(fieldInfo, scorerSupplier, vectors.size());
+    }
+
+    /**
+     * Builds the graph on CPU for a merge, when it can't be built on GPU: from the quantized vectors where the flat format has
+     * them, as {@link org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter} does, and from the raw float vectors otherwise.
+     */
+    private void buildCpuGraphFromMerge(FieldInfo fieldInfo) throws IOException {
+        if (flatVectorsReader instanceof QuantizedVectorsReader quantizedVectorsReader) {
+            try (var scorerSupplier = quantizedVectorsReader.getRandomVectorScorerSupplierForMerge(fieldInfo, segmentWriteState)) {
+                if (scorerSupplier == null) {
+                    throw new IllegalStateException("no quantized vectors for field [" + fieldInfo.name + "]");
+                }
+                writeCpuGraphAndMeta(fieldInfo, scorerSupplier, scorerSupplier.totalVectorCount());
+            }
+        } else {
+            buildCpuGraphFromFloats(fieldInfo, flatVectorsReader.getFloatVectorValues(fieldInfo.name));
+        }
+    }
+
+    private void writeCpuGraphAndMeta(FieldInfo fieldInfo, RandomVectorScorerSupplier scorerSupplier, int numVectors) throws IOException {
         var graphBuilder = HnswGraphBuilder.create(scorerSupplier, M, beamWidth, HnswGraphBuilder.randSeed, numVectors);
         OnHeapHnswGraph cpuGraph = graphBuilder.build(numVectors);
 
@@ -636,22 +682,30 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
                 assert fieldInfo.getVectorEncoding() == VectorEncoding.FLOAT32 : "GPU writer only supports FLOAT32 indexing";
                 FloatVectorValues floatVectorValues = flatVectorsReader.getFloatVectorValues(fieldInfo.name);
                 int numVectors = floatVectorValues.size();
-                if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
-                    // we don't really need real value for vectors here,
-                    // we just build a mock graph where every node is connected to every other node
-                    generateMockGraphAndWriteMeta(fieldInfo, numVectors);
-                } else if (dataType == CuVSMatrix.DataType.FLOAT) {
-                    mergeFloatVectorField(fieldInfo, mergeState, floatVectorValues, numVectors);
+                if (shouldBuildGraph(numVectors) == false) {
+                    writeMetaWithoutGraph(fieldInfo, numVectors);
                 } else {
-                    // During merging, we use quantized data, so we need to support byte[] too.
-                    // That's how our current formats work: use floats during indexing, and quantized data to build a graph
-                    // during merging.
-                    assert dataType == CuVSMatrix.DataType.BYTE;
-                    assert flatVectorsReader instanceof QuantizedVectorsReader;
-                    BaseQuantizedByteVectorValues byteVectorValues = ((QuantizedVectorsReader) flatVectorsReader).getQuantizedVectorValues(
-                        fieldInfo.name
-                    );
-                    mergeByteVectorField(fieldInfo, mergeState, byteVectorValues, numVectors);
+                    try {
+                        if (dataType == CuVSMatrix.DataType.FLOAT) {
+                            // for float32 (hnsw) and bbq (bbq_hnsw) types, we send raw float vectors to GPU
+                            mergeFloatVectorField(fieldInfo, mergeState, floatVectorValues, numVectors);
+                        } else {
+                            // During merging, we use quantized data, so we need to support byte[] too.
+                            // That's how our current formats work: use floats during indexing, and quantized data to build a graph
+                            // during merging.
+                            assert dataType == CuVSMatrix.DataType.BYTE;
+                            assert flatVectorsReader instanceof QuantizedVectorsReader;
+                            BaseQuantizedByteVectorValues byteVectorValues = ((QuantizedVectorsReader) flatVectorsReader)
+                                .getQuantizedVectorValues(fieldInfo.name);
+                            mergeByteVectorField(fieldInfo, mergeState, byteVectorValues, numVectors);
+                        }
+                    } catch (GPUGraphBuildException e) {
+                        // Unlike flush, merge waits for the GPU rather than building on CPU when it's busy. But if the GPU
+                        // can't build the graph, for example because it doesn't have the memory for this merge, retrying
+                        // would likely fail the same way, and a failed merge fails the engine. So build the graph on CPU.
+                        logCpuFallback(fieldInfo, numVectors, "merge", e);
+                        buildCpuGraphFromMerge(fieldInfo);
+                    }
                 }
                 var elapsed = System.nanoTime() - started;
                 logger.debug("Merged [{}] vectors in [{}ms]", numVectors, elapsed / 1_000_000.0);
@@ -659,6 +713,53 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
                 throw new IOException("Failed to merge GPU index: ", t);
             }
         };
+    }
+
+    /**
+     * Logs the original cuVS error, if any, at WARN rather than ERROR: the flush or merge still succeeds, with the graph built
+     * on CPU, but it's much slower, and an error other than the GPU running out of memory may point at a bug or a faulty GPU.
+     * The stack trace is only logged for a cuVS error; when the estimated memory exceeds the GPU total memory, the message
+     * says it all.
+     */
+    private static void logCpuFallback(FieldInfo fieldInfo, int numVectors, String operation, GPUGraphBuildException e) {
+        Throwable cause = e.getCause();
+        Supplier<String> message = () -> Strings.format(
+            "GPU graph build failed during [%s] for field [%s] with [%d] vectors: [%s]; building the graph on CPU instead",
+            operation,
+            fieldInfo.name,
+            numVectors,
+            cause == null ? e.getMessage() : Objects.requireNonNullElse(cause.getMessage(), cause.getClass().getName())
+        );
+        if (cause != null) {
+            logger.warn(message, e);
+        } else {
+            logger.warn(message);
+        }
+    }
+
+    @FunctionalInterface
+    private interface CuVSCall<T> {
+        T call() throws Throwable;
+    }
+
+    /**
+     * Runs a cuVS call whose failure the writer recovers from by building the graph on CPU: any exception it throws is
+     * wrapped in a {@link GPUGraphBuildException}, except an {@link IOException}, such as one reading the vectors, which
+     * passes through, as do {@link Error}s.
+     * <p>
+     * cuVS reports native errors, out-of-memory ones included, as plain {@link RuntimeException}s, so all exceptions are
+     * wrapped, programming errors such as an {@link ArrayIndexOutOfBoundsException} from a cuVS matrix builder included.
+     * That's deliberate: the fallback is logged at WARN with the stack trace, and building the graph on CPU is better than
+     * failing the flush or merge, which fails the engine.
+     */
+    private static <T> T wrapCuVSFailure(String message, CuVSCall<T> call) throws IOException {
+        try {
+            return call.call();
+        } catch (IOException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new GPUGraphBuildException(message, t);
+        }
     }
 
     private void mergeByteVectorField(
@@ -714,14 +815,19 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
             );
 
             // TODO: revert to CuVSMatrix.deviceBuilder when cuvs has fixed the multiple copies problem
-            final var builder = CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), dataType);
-            final KnnVectorValues.DocIndexIterator iterator = byteVectorValues.iterator();
-            for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
-                builder.addVector(byteVectorValues.vectorValue(iterator.index()));
-            }
+            // Known cuVS limitation: CuVSMatrix.Builder isn't closeable, and the host builder allocates its buffer when it's
+            // created, so if addVector or build fails after that, the buffer leaks.
+            CuVSMatrix hostDataset = wrapCuVSFailure("cuVS failed to copy the vectors to host memory", () -> {
+                final var builder = CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), dataType);
+                final KnnVectorValues.DocIndexIterator iterator = byteVectorValues.iterator();
+                for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
+                    builder.addVector(byteVectorValues.vectorValue(iterator.index()));
+                }
+                return builder.build();
+            });
 
             try (
-                var dataset = builder.build();
+                var dataset = hostDataset;
                 var resourcesHolder = new ResourcesHolder(
                     cuVSResourceManager,
                     cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge")
@@ -744,6 +850,10 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
             fieldInfo.getVectorDimension()
         );
 
+        // bbq_hnsw's on_disk_rescore and on_disk_merge don't rule out the fast path: flatVectorsReader is opened with the
+        // merge context and reads at random, for which the directory never uses direct I/O, so the merged raw vectors are
+        // mmapped. With on_disk_merge they were written with direct I/O, so this read is cold, see the TODO in
+        // ES97GpuHnswBBQVectorsFormat
         IndexInput slice = floatVectorValues instanceof HasIndexSlice hasIndexSlice ? hasIndexSlice.getSlice() : null;
         var input = slice == null ? null : FilterIndexInput.unwrap(slice);
         if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
@@ -772,14 +882,17 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
             );
 
             // TODO: revert to CuVSMatrix.deviceBuilder when cuvs has fixed the multiple copies problem
-            var builder = CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), dataType);
-
-            final KnnVectorValues.DocIndexIterator iterator = floatVectorValues.iterator();
-            for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
-                builder.addVector(floatVectorValues.vectorValue(iterator.index()));
-            }
+            // Known cuVS limitation: the host builder's buffer leaks if addVector or build fails, see mergeByteVectorField
+            CuVSMatrix hostDataset = wrapCuVSFailure("cuVS failed to copy the vectors to host memory", () -> {
+                var builder = CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), dataType);
+                final KnnVectorValues.DocIndexIterator iterator = floatVectorValues.iterator();
+                for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
+                    builder.addVector(floatVectorValues.vectorValue(iterator.index()));
+                }
+                return builder.build();
+            });
             try (
-                var dataset = builder.build();
+                var dataset = hostDataset;
                 var resourcesHolder = new ResourcesHolder(
                     cuVSResourceManager,
                     cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge")

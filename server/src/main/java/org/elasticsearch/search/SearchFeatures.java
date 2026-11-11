@@ -84,6 +84,11 @@ public final class SearchFeatures implements FeatureSpecification {
      */
     public static final NodeFeature PROFILE_RESCORE = new NodeFeature("search.profile.rescore");
     /**
+     * Test-only gate for REST tests asserting {@code recent_search_waiting} in search stats; it depends on
+     * {@code TransportVersion} {@code search_query_waiting}, so nodes that do not have it report no value.
+     */
+    public static final NodeFeature RECENT_SEARCH_WAITING = new NodeFeature("search.stats.recent_search_waiting");
+    /**
      * Scroll requests whose scroll id encodes zero shard contexts (empty index pattern, all shards skipped by
      * can_match) now return an empty 200 response instead of a 503 {@code SearchPhaseExecutionException}.
      */
@@ -125,6 +130,13 @@ public final class SearchFeatures implements FeatureSpecification {
      * mixed BWC clusters that still contain pre-9.6 nodes.
      */
     public static final NodeFeature OPEN_POINT_IN_TIME_SLICE = new NodeFeature("search.point_in_time_slice");
+
+    /**
+     * Test-only gate for REST tests asserting that a malformed point-in-time id is rejected with a 400. Older nodes
+     * returned a 500 when the id started with a known transport version but could not be decoded after that.
+     */
+    public static final NodeFeature INVALID_PIT_ID_BAD_REQUEST = new NodeFeature("search.pit.invalid_id_bad_request");
+
     /**
      * Test-only gate for REST tests asserting that a kNN query inside a {@code nested} query applies a filtered alias
      * to root documents. Older nodes built the alias filter in the kNN query's nested scope, so it failed to match if the alias filter
@@ -133,6 +145,10 @@ public final class SearchFeatures implements FeatureSpecification {
     public static final NodeFeature KNN_NESTED_ALIAS_FILTER_ROOT_SCOPE = new NodeFeature(
         "search.vectors.knn_nested_alias_filter_root_scope"
     );
+    /**
+     * Test-only gate for REST tests asserting that kNN filters are evaluated at the nested level of the fields they read.
+     */
+    public static final NodeFeature KNN_FILTER_NESTED_LEVELS = new NodeFeature("search.vectors.knn_filter_nested_levels");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -173,8 +189,11 @@ public final class SearchFeatures implements FeatureSpecification {
                 NESTED_EXTRACT_SOURCE_EMPTY_LIST_FIX,
                 COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX,
                 COLUMNAR_DEFAULT_FIELD_LENIENCY,
+                INVALID_PIT_ID_BAD_REQUEST,
                 KNN_NESTED_ALIAS_FILTER_ROOT_SCOPE,
-                PROFILE_RESCORE
+                KNN_FILTER_NESTED_LEVELS,
+                PROFILE_RESCORE,
+                RECENT_SEARCH_WAITING
             )
         );
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {

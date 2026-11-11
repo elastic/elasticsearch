@@ -1,0 +1,6 @@
+ROW a = 2
+| EVAL c = a
+| EVAL a = 12
+| RENAME c AS b
+| KEEP *
+| MV_EXPAND b

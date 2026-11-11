@@ -63,8 +63,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
-import org.elasticsearch.common.logging.activity.ActivityLogger;
+import org.elasticsearch.common.logging.activity.QueryInterceptor;
 import org.elasticsearch.common.logging.activity.QueryLogger;
+import org.elasticsearch.common.logging.activity.QuerySinkRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -117,6 +118,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
@@ -200,7 +202,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final boolean collectCCSTelemetry;
     private final TimeValue forceConnectTimeoutSecs;
     private final CrossProjectModeDecider crossProjectModeDecider;
-    private final ActivityLogger<SearchLogContext> activityLogger;
+    private final QueryInterceptor<SearchCaptureContext> queryInterceptor;
 
     @Inject
     public TransportSearchAction(
@@ -220,6 +222,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponseMetrics searchResponseMetrics,
         Client client,
         UsageService usageService,
+        QuerySinkRegistry querySinkRegistry,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
         CrossProjectModeDecider crossProjectModeDecider
@@ -268,13 +271,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.usageService = usageService;
         this.forceConnectTimeoutSecs = settings.getAsTime("search.ccs.force_connect_timeout", null);
         this.crossProjectModeDecider = crossProjectModeDecider;
-        this.activityLogger = new QueryLogger<>(
+        var queryLogger = new QueryLogger<>(
             clusterService.getClusterSettings(),
             new SearchLogProducer(),
             logWriterProvider,
             fieldProvider,
             indexNameExpressionResolver.getSystemNamePredicate()
         );
+        this.queryInterceptor = querySinkRegistry.createInterceptor(queryLogger);
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -421,10 +425,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        SearchLogContextBuilder searchLogContextBuilder = new SearchLogContextBuilder(task, namedWriteableRegistry, searchRequest);
-        activityLogger.wrapAndRun(
+        SearchCaptureContextBuilder searchCaptureContextBuilder = new SearchCaptureContextBuilder(
+            task,
+            namedWriteableRegistry,
+            searchRequest
+        );
+        queryInterceptor.wrapAndRun(
             listener,
-            searchLogContextBuilder,
+            searchCaptureContextBuilder,
             l -> executeRequest((SearchTask) task, searchRequest, l, AsyncSearchActionProvider::new, true)
         );
     }
@@ -1039,9 +1047,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 @Override
                 public void onFailure(Exception e) {
                     ShardSearchFailure failure = new ShardSearchFailure(e);
-                    logCCSError(failure, clusterAlias, shouldSkipOnFailure);
-                    ccsClusterInfoUpdate(failure, clusters, clusterAlias, shouldSkipOnFailure);
-                    if (shouldSkipOnFailure) {
+                    boolean skip = shouldSkipOnFailure && isTripOnThisNode(e) == false;
+                    logCCSError(failure, clusterAlias, skip);
+                    ccsClusterInfoUpdate(failure, clusters, clusterAlias, skip);
+                    if (skip) {
                         ActionListener.respondAndRelease(
                             listener,
                             SearchResponse.emptyResponseBuilder().tookInMillis(timeProvider.buildTookInMillis()).clusters(clusters).build()
@@ -1059,7 +1068,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         TransportSearchAction.TYPE.name(),
                         ccsSearchRequest,
                         TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(responseListener, SearchResponse::new, remoteClientResponseExecutor)
+                        new RemoteResponseHandler(responseListener, remoteClientResponseExecutor, circuitBreaker)
                     )
                 )
             );
@@ -1078,10 +1087,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchCoordinatorContext,
                 circuitBreaker
             );
+            // The shared source is widened for outgoing subsearches, so snapshot mergers must reuse the requested page.
+            final int originalFrom = searchResponseMerger.from;
+            final int originalSize = searchResponseMerger.size;
+            final int originalTrackTotalHitsUpTo = searchResponseMerger.trackTotalHitsUpTo;
             // Partial results merge responses that searchResponseMerger already holds and charges, so their merger gets no breaker.
             task.setSearchResponseMergerSupplier(
-                () -> createSearchResponseMerger(
-                    searchRequest.source(),
+                () -> new SearchResponseMerger(
+                    originalFrom,
+                    originalSize,
+                    originalTrackTotalHitsUpTo,
                     timeProvider,
                     aggReduceContextBuilder,
                     searchCoordinatorContext,
@@ -1131,7 +1146,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             TransportSearchAction.REMOTE_TYPE.name(),
                             ccsSearchRequest,
                             TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(responseListener, SearchResponse::new, remoteClientResponseExecutor)
+                            new RemoteResponseHandler(responseListener, remoteClientResponseExecutor, circuitBreaker)
                         )
                     )
                 );
@@ -1182,6 +1197,41 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
         circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, SearchResponseMerger.BREAKER_LABEL);
         return Releasables.assertOnce(() -> circuitBreaker.addWithoutBreaking(-bytes, SearchResponseMerger.BREAKER_LABEL));
+    }
+
+    /**
+     * Charges a remote cluster's response from when it starts arriving until it is read. The listener charges what it keeps once it has
+     * the response. A trip on arrival reaches the listener as the {@link CircuitBreakingException} itself, since it is this node that has
+     * no room and not the remote cluster that failed, see {@link #isTripOnThisNode}. A trip while reading would arrive wrapped and count as
+     * the cluster's failure, but no {@link SearchResponse} reader charges a breaker today.
+     */
+    static final class RemoteResponseHandler extends ActionListenerResponseHandler<SearchResponse> {
+        private final ShardResponseReservation reservation;
+
+        RemoteResponseHandler(ActionListener<? super SearchResponse> listener, Executor executor, CircuitBreaker circuitBreaker) {
+            super(listener, SearchResponse::new, executor);
+            this.reservation = new ShardResponseReservation(circuitBreaker, SearchResponseMerger.BREAKER_LABEL, listener::onFailure);
+        }
+
+        @Override
+        public Releasable reserveResponseBytes(int bytes) {
+            return reservation.reserve(bytes);
+        }
+
+        @Override
+        public void handleException(TransportException e) {
+            if (reservation.reportTrip() == false) {
+                listener.onFailure(e);
+            }
+        }
+    }
+
+    /**
+     * Whether {@code e} is a circuit breaker trip on this node. Unlike a failure of the remote cluster, which arrives wrapped in a
+     * transport exception, a 429 included, it fails the search even if the cluster can be skipped.
+     */
+    static boolean isTripOnThisNode(Exception e) {
+        return e instanceof CircuitBreakingException;
     }
 
     static SearchProfileResults getSearchProfileResults(SearchResponse searchResponse, SearchCoordinatorContext searchCoordinatorContext) {
@@ -2280,7 +2330,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                     searchResponseMetrics,
                     searchRequestAttributes,
-                    false
+                    false,
+                    clusterState
                 ).addListener(listener.delegateFailureAndWrap((l, canMatchResult) -> {
                     skippedByClusterAlias.forEach(
                         (cluster, count) -> canMatchResult.skippedByClusterAlias().merge(cluster, count, Integer::sum)
@@ -2519,7 +2570,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         @Override
         public final void onFailure(Exception e) {
             ShardSearchFailure f = new ShardSearchFailure(e);
-            logCCSError(f, clusterAlias, skipOnFailure);
+            var isTaskCancelled = ExceptionsHelper.isTaskCancelledException(e);
+            var skip = skipOnFailure && isTaskCancelled == false && isTripOnThisNode(e) == false;
+            logCCSError(f, clusterAlias, skip);
             remoteExceptions.put(clusterAlias, e);
             SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
             // If all shards failed due the search being cancelled internally, do not include the placeholder exception in the response
@@ -2530,8 +2583,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 maybeFinish();
                 return;
             }
-            var isTaskCancelled = ExceptionsHelper.isTaskCancelledException(e);
-            if (skipOnFailure && isTaskCancelled == false) {
+            if (skip) {
                 if (cluster != null) {
                     ccsClusterInfoUpdate(f, clusters, clusterAlias, true);
                 }
@@ -2555,7 +2607,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         protected final void failSearch(Exception exception) {
             if (exceptions.compareAndSet(null, exception) == false) {
                 exceptions.accumulateAndGet(exception, (previous, current) -> {
-                    if (previous instanceof CircuitBreakingException) {
+                    if (isTripOnThisNode(previous)) {
                         previous.addSuppressed(current);
                         return previous;
                     }
@@ -2569,7 +2621,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
          * Whether a circuit breaker on this node has failed the search, see {@link #failSearch}.
          */
         protected final boolean searchTripped() {
-            return exceptions.get() instanceof CircuitBreakingException;
+            return isTripOnThisNode(exceptions.get());
         }
 
         private void maybeFinish() {
@@ -2605,7 +2657,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * causes of shard failures.
      * @param f ShardSearchFailure to log
      * @param clusterAlias cluster on which the failure occurred
-     * @param shouldSkipOnFailure the shouldSkipOnFailure setting of the cluster with the search error
+     * @param shouldSkipOnFailure whether the cluster is skipped for this failure
      */
     private static void logCCSError(ShardSearchFailure f, String clusterAlias, boolean shouldSkipOnFailure) {
         String errorInfo;
@@ -2623,8 +2675,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         );
     }
 
-    private static RemoteTransportException wrapRemoteClusterFailure(String clusterAlias, Exception e) {
-        return new RemoteTransportException("error while communicating with remote cluster [" + clusterAlias + "]", e);
+    /** A trip on this node is not the remote cluster's failure, so it is reported as is. */
+    private static Exception wrapRemoteClusterFailure(String clusterAlias, Exception e) {
+        return isTripOnThisNode(e)
+            ? e
+            : new RemoteTransportException("error while communicating with remote cluster [" + clusterAlias + "]", e);
     }
 
     static List<SearchShardIterator> getLocalShardsIteratorFromPointInTime(

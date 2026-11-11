@@ -109,3 +109,20 @@ clients:double        | step:datetime                                           
 [205.0, 357.0]        | [2024-05-10T00:03:00.000Z, 2024-05-10T00:04:00.000Z]                           | staging         | 281.0
 // end::ts_collapse_eval-result[]
 ;
+
+// An or of the same series under two ranges, collapsed with the step as epoch millis like the Prometheus query_range API.
+or_collapsed_long_step
+required_capability: promql_command_v0
+required_capability: ts_collapse
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+PROMQL index=k8s step=1m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:04:00.000Z" clients=(last_over_time(network.eth0.currently_connected_clients{cluster="staging"}[1m]) or last_over_time(network.eth0.currently_connected_clients{cluster="staging"}[5m]))
+| TS_COLLAPSE
+| EVAL step = TO_LONG(step)
+| SORT _timeseries;
+
+clients:double        | _timeseries:keyword                               | step:long
+367.0                 | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"   | 1715299440000
+[369.0, 16.0, 16.0]   | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}" | [1715299320000, 1715299380000, 1715299440000]
+[862.0, 394.0, 347.0] | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"   | [1715299320000, 1715299380000, 1715299440000]
+;

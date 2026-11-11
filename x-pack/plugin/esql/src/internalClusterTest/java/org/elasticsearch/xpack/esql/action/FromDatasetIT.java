@@ -5124,15 +5124,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * One file, two datasets over it, read as CSV and as TSV in one query: each gets the format it was registered with.
-     * <p>
-     * {@code COUNT(a) == 2} is uniquely determined. The TSV read of the same bytes finds no tab, so its only column is
-     * named {@code a,b} and it contributes no {@code a}. Reading both as CSV would give 4 instead.
-     * <p>
-     * With {@code ExternalSourceSpec} equality narrowed to the path this fails on the data node with
-     * {@code external dataset [two_formats_tsv] definition changed while the query was planned}.
-     */
-    /**
      * The sibling of the two-formats case, for the pair the statistics reconcile cannot tell apart by itself.
      * Both datasets read the one file as CSV and resolve the same columns, so their read-config fingerprints are
      * equal and only the reader's own configuration -- the error policy -- differs. The contributions for the one
@@ -5154,6 +5145,15 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    /**
+     * One file, two datasets over it, read as CSV and as TSV in one query: each gets the format it was registered with.
+     * <p>
+     * {@code COUNT(a) == 2} is uniquely determined. The TSV read of the same bytes finds no tab, so its only column is
+     * named {@code a,b} and it contributes no {@code a}. Reading both as CSV would give 4 instead.
+     * <p>
+     * With {@code ExternalSourceSpec} equality narrowed to the path this fails on the data node with
+     * {@code external dataset [two_formats_tsv] definition changed while the query was planned}.
+     */
     public void testOneFileReadAsCsvAndAsTsvKeepsEachFormat() throws Exception {
         // Neutral extension: the resolver refuses a .csv file claimed as tsv, which is a different check.
         Path fixture = createTempFile("dataset-two-formats-", ".txt");

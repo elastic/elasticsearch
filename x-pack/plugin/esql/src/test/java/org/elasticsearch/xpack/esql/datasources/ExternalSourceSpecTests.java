@@ -164,11 +164,6 @@ public class ExternalSourceSpecTests extends ESTestCase {
     }
 
     /**
-     * The key must not move underneath the map it is a key in. {@code DatasetRewriter.mergeSettings} builds the
-     * config with {@code putAll}, so a nested map is shared and mutable; a one-level copy would let a later put
-     * change this spec's {@code hashCode} and make the analyzer's rebuilt key miss.
-     */
-    /**
      * The list arm of the deep copy, which a dataset reaches without trying: {@code Dataset.PARSER} reads
      * {@code settings} with {@code p.map()}, so a JSON array arrives as a {@code List}, and
      * {@code DatasetRewriter.mergeSettings} {@code putAll}s it into the config by reference. A list holding a map
@@ -197,6 +192,11 @@ public class ExternalSourceSpecTests extends ESTestCase {
         );
     }
 
+    /**
+     * The key must not move underneath the map it is a key in. {@code DatasetRewriter.mergeSettings} builds the
+     * config with {@code putAll}, so a nested map is shared and mutable; a one-level copy would let a later put
+     * change this spec's {@code hashCode} and make the analyzer's rebuilt key miss.
+     */
     public void testANestedMutationCannotMoveTheKey() {
         Map<String, Object> datasource = new HashMap<>(Map.of("access_key", "id"));
         Map<String, Object> config = config(Map.of("format", "csv"));

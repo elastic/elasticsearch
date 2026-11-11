@@ -3173,10 +3173,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     public void testReconcileWholeFileContributionsWithMismatchedFingerprintIsASafeMiss() throws Exception {
-        // NOT the companion to the mtime test, though it was written as one. A format-config disagreement between
-        // two whole-file contributions for one path is a legitimate plan: external resolution keys a read by its
-        // resource AND its configuration, so two datasets over one file that set a different delimiter or error
-        // policy are two reads whose resolved columns -- and so whose read-config fingerprints -- can be identical.
+        // A format-config disagreement between two whole-file contributions for one path is a legitimate plan:
+        // external resolution keys a read by its resource AND its configuration, so two datasets over one file
+        // that set a different delimiter or error policy are two reads whose resolved columns -- and so whose
+        // read-config fingerprints -- can be identical.
         // Measured: two such datasets in one query produce contributions agreeing on row count, mtime and read
         // config, and differing only here. Asserting would fail an ordinary query on an assertions-enabled build.
         // The merge refuses them instead, exactly as it refuses two different read configurations.

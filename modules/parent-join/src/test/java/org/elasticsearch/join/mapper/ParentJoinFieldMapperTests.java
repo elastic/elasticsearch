@@ -102,7 +102,7 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             .fieldType()
             .getJoiner();
         MapperService mapperService = createMapperService(mapping(b -> {}));
-        assertEquals(new MatchNoDocsQuery(), joiner.parentIdFilter("child", "1", createSearchExecutionContext(mapperService)));
+        assertEquals(MatchNoDocsQuery.INSTANCE, joiner.parentIdFilter("child", "1", createSearchExecutionContext(mapperService)));
     }
 
     public void testMultipleLevels() throws Exception {

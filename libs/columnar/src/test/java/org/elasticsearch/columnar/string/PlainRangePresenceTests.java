@@ -26,7 +26,7 @@ public class PlainRangePresenceTests extends ESTestCase {
     public void testTheDocumentsKeptAreExactlyThoseWithASlotInAnEntryTheBoundsKeep() throws IOException {
         for (int round = 0; round < 25; round++) {
             final BytesRef[] pool = PlainSkipTestValues.randomPool(between(1, 25));
-            final BytesRef[][] docSlots = PlainSkipBoundsTests.randomDocSlots(between(1, 600), pool);
+            final BytesRef[][] docSlots = PlainSkipTestValues.orderedDocSlots(between(1, 600), pool, randomBoolean());
             try (
                 Directory dir = newDirectory();
                 PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, PlainSkipFixture.randomValuesPerBlock())
@@ -44,7 +44,7 @@ public class PlainRangePresenceTests extends ESTestCase {
     public void testAnAdvanceReturnsExactlyTheFirstKeptDocumentFromItsTarget() throws IOException {
         for (int round = 0; round < 25; round++) {
             final BytesRef[] pool = PlainSkipTestValues.randomPool(between(1, 12));
-            final BytesRef[][] docSlots = PlainSkipBoundsTests.randomDocSlots(between(1, 600), pool);
+            final BytesRef[][] docSlots = PlainSkipTestValues.orderedDocSlots(between(1, 600), pool, randomBoolean());
             try (
                 Directory dir = newDirectory();
                 PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, PlainSkipFixture.randomValuesPerBlock())
@@ -77,7 +77,7 @@ public class PlainRangePresenceTests extends ESTestCase {
     public void testARunEndsBeforeADocumentTheIterationWouldNotReturn() throws IOException {
         for (int round = 0; round < 25; round++) {
             final BytesRef[] pool = PlainSkipTestValues.randomPool(between(1, 8));
-            final BytesRef[][] docSlots = PlainSkipBoundsTests.randomDocSlots(between(1, 600), pool);
+            final BytesRef[][] docSlots = PlainSkipTestValues.orderedDocSlots(between(1, 600), pool, randomBoolean());
             try (
                 Directory dir = newDirectory();
                 PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, PlainSkipFixture.randomValuesPerBlock())
@@ -102,16 +102,16 @@ public class PlainRangePresenceTests extends ESTestCase {
     public void testADocumentSpanningEntriesIsKeptWhenAnyOfItsEntriesIsKept() throws IOException {
         final BytesRef[][] docSlots = new BytesRef[][] {
             { new BytesRef("a"), new BytesRef("a") },
-            { new BytesRef("a"), new BytesRef("z"), new BytesRef("a"), new BytesRef("a") },
-            { new BytesRef("a"), new BytesRef("a") },
-            { new BytesRef("a"), new BytesRef("a") } };
+            { new BytesRef("a"), new BytesRef("a"), new BytesRef("m"), new BytesRef("m") },
+            { new BytesRef("z"), new BytesRef("z") },
+            { new BytesRef("z"), new BytesRef("z") } };
         try (Directory dir = newDirectory(); PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, 2)) {
-            final BytesRef z = new BytesRef("z");
-            final PlainRangePresence presence = fixture.presence(PlainSkipQuery.range(z, true, z, true));
+            final BytesRef m = new BytesRef("m");
+            final PlainRangePresence presence = fixture.presence(PlainSkipQuery.range(m, true, m, true));
             assertEquals(1, presence.nextDoc());
             assertEquals(DocIdSetIterator.NO_MORE_DOCS, presence.nextDoc());
             final BytesRef a = new BytesRef("a");
-            assertEquals(List.of(0, 1, 2, 3), collect(fixture.presence(PlainSkipQuery.range(a, true, a, true))));
+            assertEquals(List.of(0, 1), collect(fixture.presence(PlainSkipQuery.range(a, true, a, true))));
         }
     }
 
@@ -124,7 +124,7 @@ public class PlainRangePresenceTests extends ESTestCase {
             { null },
             new BytesRef[0] };
         try (Directory dir = newDirectory(); PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, 1)) {
-            assertEquals(List.of(1), collect(fixture.presence(PlainSkipQuery.range(null, true, null, true))));
+            assertEquals(List.of(1, 4), collect(fixture.presence(PlainSkipQuery.range(null, true, null, true))));
             assertEquals(List.of(), collect(fixture.presence(PlainSkipQuery.range(new BytesRef("b"), true, null, true))));
         }
     }
@@ -139,13 +139,15 @@ public class PlainRangePresenceTests extends ESTestCase {
         try (Directory dir = newDirectory(); PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, perBlock)) {
             final BytesRef wanted = new BytesRef("e");
             final PlainRangePresence presence = fixture.presence(PlainSkipQuery.range(wanted, true, wanted, true));
-            assertEquals(4 * perBlock, presence.nextDoc());
-            assertEquals(5 * perBlock, presence.docIDRunEnd());
+            // NOTE: an entry holds the values up to the first value of the next entry, so the entry before the
+            // one that starts with the term is kept as well.
+            assertEquals(3 * perBlock, presence.nextDoc());
+            assertEquals(4 * perBlock, presence.docIDRunEnd());
             assertEquals(5 * perBlock - 1, presence.advance(5 * perBlock - 1));
             assertEquals(DocIdSetIterator.NO_MORE_DOCS, presence.nextDoc());
             final PlainRangePresence prefix = fixture.presence(PlainSkipQuery.prefix(new BytesRef("j")));
-            assertEquals(9 * perBlock, prefix.nextDoc());
-            assertEquals(10 * perBlock, prefix.docIDRunEnd());
+            assertEquals(8 * perBlock, prefix.nextDoc());
+            assertEquals(9 * perBlock, prefix.docIDRunEnd());
         }
     }
 
@@ -157,8 +159,8 @@ public class PlainRangePresenceTests extends ESTestCase {
         try (Directory dir = newDirectory(); PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, 8)) {
             final PlainSkipQuery z = PlainSkipQuery.range(new BytesRef("z"), true, new BytesRef("z"), true);
             PlainRangePresence presence = fixture.presence(z);
-            assertEquals(16, presence.nextDoc());
-            assertEquals(19, presence.docIDRunEnd());
+            assertEquals(8, presence.nextDoc());
+            assertEquals(16, presence.docIDRunEnd());
             presence = fixture.presence(z);
             assertEquals(18, presence.advance(18));
             assertEquals(DocIdSetIterator.NO_MORE_DOCS, presence.nextDoc());
@@ -174,7 +176,7 @@ public class PlainRangePresenceTests extends ESTestCase {
 
     public void testTwoIteratorsOverTheSameColumnDoNotShareState() throws IOException {
         final BytesRef[] pool = PlainSkipTestValues.randomPool(8);
-        final BytesRef[][] docSlots = PlainSkipBoundsTests.randomDocSlots(400, pool);
+        final BytesRef[][] docSlots = PlainSkipTestValues.orderedDocSlots(400, pool, randomBoolean());
         try (Directory dir = newDirectory(); PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, 4)) {
             final PlainSkipQuery first = PlainBlockOracle.randomQuery(pool);
             final PlainSkipQuery second = PlainBlockOracle.randomQuery(pool);
@@ -247,10 +249,10 @@ public class PlainRangePresenceTests extends ESTestCase {
             docSlots[doc] = new BytesRef[] { new BytesRef("a") };
         }
         for (int doc = 2_000_000; doc < 2_000_008; doc++) {
-            docSlots[doc] = new BytesRef[] { new BytesRef("b") };
+            docSlots[doc] = new BytesRef[] { new BytesRef(doc < 2_000_002 ? "b0" : "b5") };
         }
         try (Directory dir = newDirectory(); PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, 4)) {
-            final BytesRef b = new BytesRef("b");
+            final BytesRef b = new BytesRef("b5");
             final PlainRangePresence presence = fixture.presence(PlainSkipQuery.range(b, true, b, true));
             assertEquals(2_000_000, presence.nextDoc());
             assertEquals(2_000_004, presence.docIDRunEnd());
@@ -267,14 +269,10 @@ public class PlainRangePresenceTests extends ESTestCase {
     }
 
     public void testAnEntryStartingAtOrBeforeTheCurrentDocumentIsCorrupt() throws IOException {
-        final BytesRef[][] docSlots = new BytesRef[8][];
-        for (int doc = 0; doc < docSlots.length; doc++) {
-            docSlots[doc] = new BytesRef[] { new BytesRef(doc < 4 ? "a" : "b") };
-        }
-        try (Directory dir = newDirectory(); PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, 4)) {
-            final BytesRef b = new BytesRef("b");
-            try (PlainSkipFixture corrupt = fixture.withByte(dir, 28, (byte) 0)) {
-                final PlainRangePresence presence = corrupt.presence(PlainSkipQuery.range(b, true, b, true));
+        try (Directory dir = newDirectory(); PlainSkipFixture fixture = twoBlocks(dir)) {
+            final BytesRef c = new BytesRef("c");
+            try (PlainSkipFixture corrupt = fixture.withByte(dir, PlainSkipFixture.SECOND_ENTRY_FIRST_DOC, (byte) 0)) {
+                final PlainRangePresence presence = corrupt.presence(PlainSkipQuery.range(c, true, c, true));
                 expectThrows(CorruptIndexException.class, presence::nextDoc);
             }
         }
@@ -284,7 +282,7 @@ public class PlainRangePresenceTests extends ESTestCase {
         try (Directory dir = newDirectory(); PlainSkipFixture fixture = twoBlocks(dir)) {
             final PlainSkipQuery keepFirstBlock = PlainSkipQuery.range(new BytesRef("a"), true, new BytesRef("a"), true);
             for (int stored : new int[] { 0, 1, 4, 100 }) {
-                try (PlainSkipFixture corrupt = fixture.withByte(dir, 28, (byte) stored)) {
+                try (PlainSkipFixture corrupt = fixture.withByte(dir, PlainSkipFixture.SECOND_ENTRY_FIRST_DOC, (byte) stored)) {
                     final PlainRangePresence presence = corrupt.presence(keepFirstBlock);
                     assertEquals(0, presence.nextDoc());
                     assertEquals(4, presence.docIDRunEnd());
@@ -300,10 +298,10 @@ public class PlainRangePresenceTests extends ESTestCase {
 
     public void testAJumpToADocumentThatDoesNotOwnTheEntryIsCorrupt() throws IOException {
         try (Directory dir = newDirectory(); PlainSkipFixture fixture = twoBlocks(dir)) {
-            final PlainSkipQuery skipFirstBlock = PlainSkipQuery.range(new BytesRef("b"), true, new BytesRef("b"), true);
+            final PlainSkipQuery skipFirstBlock = PlainSkipQuery.range(new BytesRef("c"), true, new BytesRef("c"), true);
             assertEquals(List.of(4, 5, 6, 7), collect(fixture.presence(skipFirstBlock)));
             for (int stored : new int[] { 0, 6, 8, 100 }) {
-                try (PlainSkipFixture corrupt = fixture.withByte(dir, 28, (byte) stored)) {
+                try (PlainSkipFixture corrupt = fixture.withByte(dir, PlainSkipFixture.SECOND_ENTRY_FIRST_DOC, (byte) stored)) {
                     final PlainRangePresence presence = corrupt.presence(skipFirstBlock);
                     expectThrows(CorruptIndexException.class, presence::nextDoc);
                 }
@@ -314,7 +312,7 @@ public class PlainRangePresenceTests extends ESTestCase {
     private static PlainSkipFixture twoBlocks(Directory dir) throws IOException {
         final BytesRef[][] docSlots = new BytesRef[8][];
         for (int doc = 0; doc < docSlots.length; doc++) {
-            docSlots[doc] = new BytesRef[] { new BytesRef(doc < 4 ? "a" : "b") };
+            docSlots[doc] = new BytesRef[] { new BytesRef(doc < 4 ? "a" : doc < 6 ? "b" : "c") };
         }
         return PlainSkipFixture.build(dir, docSlots, 4);
     }

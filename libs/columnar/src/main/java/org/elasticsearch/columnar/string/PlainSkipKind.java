@@ -38,14 +38,14 @@ interface PlainSkipKind {
     /** The kind that wrote a region with this id. */
     static PlainSkipKind forId(byte id) {
         return switch (id) {
-            case ChunkBoundsSkip.ID -> ChunkBoundsSkip.INSTANCE;
+            case SortedSeparatorsSkip.ID -> SortedSeparatorsSkip.INSTANCE;
             default -> throw new IllegalArgumentException("unknown plain skip kind [" + id + "]");
         };
     }
 
     /** The kind a column that asks for a skip region is written with. */
     static PlainSkipKind forWriting() {
-        return ChunkBoundsSkip.INSTANCE;
+        return SortedSeparatorsSkip.INSTANCE;
     }
 
     /** Takes the slots of a column in order, then appends the region they describe to the skip-index file. */

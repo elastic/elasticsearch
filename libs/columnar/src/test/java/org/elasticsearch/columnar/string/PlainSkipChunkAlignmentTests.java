@@ -38,7 +38,7 @@ public class PlainSkipChunkAlignmentTests extends ColumnarStringTestCase {
                 assertEquals(first, entry.firstSlot());
                 assertEquals(first, entry.firstDoc());
                 assertEquals(docSlots[first][0], entry.max());
-                assertEquals(docSlots[end - 1][0], entry.min());
+                assertEquals(docSlots[Math.min(end, numDocs - 1)][0], entry.min());
             }
             StringMatchOracle.assertRange(reader, docSlots, docSlots[numDocs - 1][0], true, docSlots[numDocs - 5][0], true);
             StringMatchOracle.assertRange(reader, docSlots, docSlots[700][0], false, docSlots[300][0], false);
@@ -90,7 +90,7 @@ public class PlainSkipChunkAlignmentTests extends ColumnarStringTestCase {
             assertEquals(numDocs, parsed.size());
             for (int slot = 0; slot < numDocs; slot++) {
                 assertEquals(slot, parsed.get(slot).firstSlot());
-                assertEquals(docSlots[slot][0], parsed.get(slot).min());
+                assertEquals(docSlots[Math.min(slot + 1, numDocs - 1)][0], parsed.get(slot).min());
                 assertEquals(docSlots[slot][0], parsed.get(slot).max());
                 final BytesRef term = docSlots[slot][0];
                 StringMatchOracle.assertMatches(docSlots, term::equals, () -> reader.matchTerm(term));
@@ -115,8 +115,8 @@ public class PlainSkipChunkAlignmentTests extends ColumnarStringTestCase {
             assertEquals(2, parsed.size());
             assertEquals(10, parsed.get(1).firstSlot());
             assertEquals(10, parsed.get(1).firstDoc());
-            assertNull(parsed.get(1).min());
-            assertNull(parsed.get(1).max());
+            assertEquals(values[9][0], parsed.get(1).min());
+            assertEquals(values[9][0], parsed.get(1).max());
             StringMatchOracle.assertRange(reader, docSlots, null, true, null, true);
             StringMatchOracle.assertRange(reader, docSlots, values[9][0], true, values[0][0], true);
         });

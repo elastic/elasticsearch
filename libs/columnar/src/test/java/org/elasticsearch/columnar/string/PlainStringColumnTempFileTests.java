@@ -31,8 +31,8 @@ import static org.hamcrest.Matchers.not;
 
 public class PlainStringColumnTempFileTests extends ColumnarStringTestCase {
 
-    private static final String DIRECTORY_SUFFIX = "columnar-plain-bounds-directory";
-    private static final String PAYLOAD_SUFFIX = "columnar-plain-bounds-payload";
+    private static final String DIRECTORY_SUFFIX = "columnar-plain-separators-directory";
+    private static final String PAYLOAD_SUFFIX = "columnar-plain-separators-payload";
 
     private void write(Directory dir, BytesRef[][] docSlots, boolean eligible) throws IOException {
         write(dir, docSlots, eligible, () -> cursor(docSlots));
@@ -180,7 +180,7 @@ public class PlainStringColumnTempFileTests extends ColumnarStringTestCase {
 
     private static void assertNoStagedBounds(Directory real, String when) throws IOException {
         for (String name : real.listAll()) {
-            assertFalse("temporary file [" + name + "] left behind " + when, name.contains("columnar-plain-bounds"));
+            assertFalse("temporary file [" + name + "] left behind " + when, name.contains("columnar-plain-separators"));
         }
     }
 
@@ -272,7 +272,7 @@ public class PlainStringColumnTempFileTests extends ColumnarStringTestCase {
         @Override
         public IndexOutput createTempOutput(String prefix, String suffix, IOContext context) throws IOException {
             final IndexOutput out = super.createTempOutput(prefix, suffix, context);
-            return suffix.startsWith("columnar-plain-bounds") ? new FailingOutput(out, failAfterBytes, failOnClose) : out;
+            return suffix.startsWith("columnar-plain-separators") ? new FailingOutput(out, failAfterBytes, failOnClose) : out;
         }
     }
 
@@ -332,7 +332,7 @@ public class PlainStringColumnTempFileTests extends ColumnarStringTestCase {
 
         @Override
         public IndexInput openInput(String name, IOContext context) throws IOException {
-            if (name.contains("columnar-plain-bounds")) {
+            if (name.contains("columnar-plain-separators")) {
                 throw new IOException("cannot read " + name);
             }
             return super.openInput(name, context);

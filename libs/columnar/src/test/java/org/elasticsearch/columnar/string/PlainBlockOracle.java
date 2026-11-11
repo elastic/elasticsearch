@@ -19,32 +19,62 @@ final class PlainBlockOracle {
 
     private PlainBlockOracle() {}
 
-    /** The smallest value of each block, null for a block of nulls, worked out from the slots alone. */
+    /** The lowest value each entry can hold, from the separators alone. */
     static BytesRef[] mins(PlainSkipFixture fixture) {
-        return extremes(fixture, true);
+        return bounds(fixture.slotValues, fixture.entryFirstSlot, true);
     }
 
-    /** The largest value of each block, null for a block of nulls. */
+    /** The highest value each entry can hold, from the separators alone. */
     static BytesRef[] maxes(PlainSkipFixture fixture) {
-        return extremes(fixture, false);
+        return bounds(fixture.slotValues, fixture.entryFirstSlot, false);
     }
 
-    private static BytesRef[] extremes(PlainSkipFixture fixture, boolean smallest) {
-        final BytesRef[] result = new BytesRef[fixture.entryCount()];
-        for (int address = 0; address < fixture.slotValues.length; address++) {
-            final BytesRef value = fixture.slotValues[address];
-            final int block = fixture.entryOfSlot[address];
-            if (value == null) {
-                continue;
+    /**
+     * The lowest or highest value each entry can hold given the slots of an ordered column and the first slot of each
+     * entry. The separator of an entry is the first value at or after its first slot, or the last value when there is
+     * none, and an entry holds the values from its separator to the separator of the next entry, or to the last value.
+     */
+    static BytesRef[] bounds(BytesRef[] slotValues, long[] entryFirstSlot, boolean smallest) {
+        BytesRef last = null;
+        for (BytesRef value : slotValues) {
+            if (value != null) {
+                last = value;
             }
-            if (result[block] == null || (smallest ? value.compareTo(result[block]) < 0 : value.compareTo(result[block]) > 0)) {
-                result[block] = value;
+        }
+        final BytesRef[] separators = new BytesRef[entryFirstSlot.length + 1];
+        for (int entry = 0; entry < entryFirstSlot.length; entry++) {
+            separators[entry] = last;
+            for (int address = (int) entryFirstSlot[entry]; address < slotValues.length; address++) {
+                if (slotValues[address] != null) {
+                    separators[entry] = slotValues[address];
+                    break;
+                }
             }
+        }
+        separators[entryFirstSlot.length] = last;
+        final boolean ownSeparator = smallest != descending(slotValues);
+        final BytesRef[] result = new BytesRef[entryFirstSlot.length];
+        for (int entry = 0; entry < result.length; entry++) {
+            result[entry] = separators[ownSeparator ? entry : entry + 1];
         }
         return result;
     }
 
-    /** Whether the closed interval [min, max] holds no value the query asks for; a null interval is a block of nulls. */
+    static boolean descending(BytesRef[] slotValues) {
+        BytesRef previous = null;
+        for (BytesRef value : slotValues) {
+            if (value == null) {
+                continue;
+            }
+            if (previous != null && value.compareTo(previous) != 0) {
+                return value.compareTo(previous) < 0;
+            }
+            previous = value;
+        }
+        return false;
+    }
+
+    /** Whether the closed interval [min, max] holds no value the query asks for; a null interval is a column of nulls. */
     static boolean excludes(BytesRef min, BytesRef max, PlainSkipQuery query) {
         if (min == null) {
             return true;

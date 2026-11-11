@@ -277,11 +277,8 @@ public class PlainStringColumnLifecycleTests extends ESTestCase {
             if (randomInt(9) == 0) {
                 continue;
             }
-            final int index = Math.max(
-                0,
-                Math.min(pool.length - 1, pool.length - 1 - (int) ((long) doc * pool.length / count) + between(-1, 1))
-            );
-            docSlots[doc] = randomInt(7) == 0 ? new BytesRef[] { pool[index], randomFrom(pool) } : new BytesRef[] { pool[index] };
+            final int index = pool.length - 1 - (int) ((long) doc * pool.length / count);
+            docSlots[doc] = randomInt(7) == 0 ? new BytesRef[] { pool[index], pool[index] } : new BytesRef[] { pool[index] };
         }
         return docSlots;
     }

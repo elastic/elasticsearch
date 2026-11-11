@@ -103,7 +103,7 @@ public class PlainRangePresenceColumnTests extends ColumnarStringTestCase {
     ) throws IOException {
         return new PlainRangePresence(
             reader.iterator(),
-            new PlainSkipBounds.Reader(skipper, numValues, skip),
+            PlainSkipKind.forId(skipper.kind()).newReader(skipper, numValues, skip),
             query,
             new PlainRangePresence.Slots() {
                 @Override
@@ -181,7 +181,7 @@ public class PlainRangePresenceColumnTests extends ColumnarStringTestCase {
                 case MULTIVALUED -> switch (between(0, 4)) {
                     case 0 -> new BytesRef[0];
                     case 1 -> null;
-                    case 2 -> new BytesRef[] { value, randomFrom(pool) };
+                    case 2 -> new BytesRef[] { value, value };
                     default -> new BytesRef[] { value };
                 };
             };

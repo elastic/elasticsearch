@@ -34,9 +34,16 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
     private static final DictionaryPolicy FORCED = new DictionaryPolicy(512 * 1024, 0.0, Double.MAX_VALUE);
 
     private enum Shape {
-        DESCENDING,
-        CLUSTERED,
-        SHUFFLED
+        DESCENDING(true),
+        ASCENDING(true),
+        CLUSTERED(false),
+        SHUFFLED(false);
+
+        private final boolean ordered;
+
+        Shape(boolean ordered) {
+            this.ordered = ordered;
+        }
     }
 
     public void testTheOptionDoesNotChangeTheLayoutOrTheValuesWritten() throws IOException {
@@ -66,7 +73,7 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         }
     }
 
-    public void testBoundsAreWrittenOnlyWhenEnabledWhateverTheOrderOfTheValues() throws IOException {
+    public void testBoundsAreWrittenOnlyWhenEnabledAndTheValuesAreInOrder() throws IOException {
         final int count = 3 * INTERVAL + 5;
         final BytesRef[] pool = PlainSkipTestValues.sortedPool(20);
         final BytesRef[][] ascending = new BytesRef[count][];
@@ -92,7 +99,12 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
                 Arrays.stream(docSlots).forEach(slotsOfDoc -> slots.addAll(Arrays.asList(slotsOfDoc)));
                 final int[] owners = PlainChunkModel.owners(slots, sizes.plainChunks(), sizes.valuesPerBlock(), sizes.lengthBlockSize());
                 assertEquals(PlainSkipFixture.entriesOf(owners), column.skipper().entryCount());
-                assertEquals(with - without, column.skipper().entryCount() * 20L + column.skipper().payloadLength());
+                assertEquals(
+                    with - without,
+                    SortedSeparatorsSkip.HEADER_BYTES + column.skipper().entryCount() * (long) SortedSeparatorsSkip.ENTRY_BYTES + column
+                        .skipper()
+                        .payloadLength()
+                );
             });
             withColumn(
                 docSlots,
@@ -103,15 +115,16 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         }
     }
 
-    public void testQueriesAgreeWithTheValuesWhateverTheLayoutAndTheBounds() throws IOException {
+    public void testQueriesAgreeWithTheValuesWhateverTheLayoutAndTheOrder() throws IOException {
         for (int round = 0; round < 4; round++) {
             final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(3, 40));
-            final BytesRef[][] docSlots = column(randomFrom(Shape.values()), between(INTERVAL + 1, 4 * INTERVAL), pool);
+            final Shape shape = randomFrom(Shape.values());
+            final BytesRef[][] docSlots = column(shape, between(INTERVAL + 1, 4 * INTERVAL), pool);
             final StringColumnOptions.Sizes sizes = sizes(randomValidBlockSize(), randomFrom(4096, 65536, 512 * 1024));
             withColumn(docSlots, plain(true, sizes), (metadata, reader) -> {
                 assertThat(metadata, instanceOf(StringColumnMetadata.Plain.class));
                 final StringColumnMetadata.Plain column = (StringColumnMetadata.Plain) metadata;
-                assertEquals(column.valuesSorted() && column.hasValueAddresses() == false, column.skipper() == null);
+                assertEquals(shape.ordered, column.skipper() != null);
                 StringMatchOracle.checkRandomQueries(reader, docSlots, pool, 30);
             });
             withColumn(docSlots, plain(false, sizes), (metadata, reader) -> {
@@ -131,7 +144,7 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         final BytesRef[][] docSlots = new BytesRef[bands * INTERVAL][];
         for (int doc = 0; doc < docSlots.length; doc++) {
             final int band = bands - 1 - doc / INTERVAL;
-            docSlots[doc] = new BytesRef[] { new BytesRef("band" + band + "-" + (char) ('a' + doc % 3)) };
+            docSlots[doc] = new BytesRef[] { new BytesRef("band" + band + "-" + (char) ('c' - (doc % INTERVAL) * 3 / INTERVAL)) };
         }
         final List<BytesRef> edges = new ArrayList<>();
         for (String edge : new String[] { "band1-a", "band1-c", "band1-b", "band1-", "band0-c", "band2-a", "band1-d", "band1" }) {
@@ -163,8 +176,12 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         Arrays.fill(allFf, (byte) 0xFF);
         final BytesRef[][] docSlots = new BytesRef[3 * INTERVAL][];
         for (int doc = 0; doc < docSlots.length; doc++) {
-            docSlots[doc] = new BytesRef[] {
-                doc / INTERVAL == 1 ? new BytesRef(Arrays.copyOf(allFf, allFf.length - doc % 5)) : new BytesRef("a" + doc % 7) };
+            final int group = (doc % INTERVAL) * 5 / INTERVAL;
+            docSlots[doc] = new BytesRef[] { switch (doc / INTERVAL) {
+                case 0 -> new BytesRef("a" + group);
+                case 1 -> new BytesRef(Arrays.copyOf(allFf, allFf.length - 4 + group));
+                default -> new BytesRef(Arrays.copyOf(allFf, allFf.length + 1));
+            } };
         }
         withColumn(docSlots, plain(true, sizes(128, 4096)), (metadata, reader) -> {
             assertNotNull(((StringColumnMetadata.Plain) metadata).skipper());
@@ -180,12 +197,12 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         });
     }
 
-    public void testNullsAndEmptyArraysNeverMatchAndMultiValuedDocumentsAreBoundedByEveryValue() throws IOException {
+    public void testNullsAndEmptyArraysNeverMatchAndMultiValuedDocumentsAreBoundedByTheirValues() throws IOException {
         final BytesRef[][] docSlots = new BytesRef[3 * INTERVAL + 7][];
         for (int doc = 0; doc < docSlots.length; doc++) {
             final int interval = doc / INTERVAL;
             docSlots[doc] = switch (doc % 5) {
-                case 0 -> new BytesRef[] { new BytesRef("a"), new BytesRef("m" + interval), new BytesRef("z") };
+                case 0 -> new BytesRef[] { new BytesRef("m" + interval), new BytesRef("m" + interval), new BytesRef("m" + interval) };
                 case 1 -> new BytesRef[] { null };
                 case 2 -> new BytesRef[0];
                 case 3 -> null;
@@ -219,7 +236,8 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         final BytesRef[][] docSlots = new BytesRef[bands * INTERVAL][];
         for (int doc = 0; doc < docSlots.length; doc++) {
             final int band = bands - 1 - doc / INTERVAL;
-            docSlots[doc] = new BytesRef[] { new BytesRef(String.format(Locale.ROOT, "band-%02d-%08d", band, between(0, 99_999_999))) };
+            docSlots[doc] = new BytesRef[] {
+                new BytesRef(String.format(Locale.ROOT, "band-%02d-%08d", band, 99_999_999 - doc % INTERVAL)) };
         }
         final BytesRef inBand = docSlots[5 * INTERVAL + 17][0];
         final BytesRef bandStart = new BytesRef("band-06-");
@@ -275,7 +293,8 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         final BytesRef[][] docSlots = new BytesRef[bands * INTERVAL][];
         for (int doc = 0; doc < docSlots.length; doc++) {
             final int band = bands - 1 - doc / INTERVAL;
-            docSlots[doc] = new BytesRef[] { new BytesRef(String.format(Locale.ROOT, "band-%02d-%08d", band, between(0, 99_999_999))) };
+            docSlots[doc] = new BytesRef[] {
+                new BytesRef(String.format(Locale.ROOT, "band-%02d-%08d", band, 99_999_999 - doc % INTERVAL)) };
         }
         final NavigableSet<BytesRef> terms = new TreeSet<>(List.of(docSlots[5 * INTERVAL + 17][0], docSlots[5 * INTERVAL + 400][0]));
         final long[] decoded = new long[2];
@@ -340,13 +359,14 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         for (int round = 0; round < 6; round++) {
             final StringColumnOptions.Sizes sizes = sizes(randomValidBlockSize(), randomFrom(64, 256, 4096), randomFrom(128, 1000, 16384));
             final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(3, 30));
-            final BytesRef[][] docSlots = column(randomFrom(Shape.values()), between(INTERVAL, 2 * INTERVAL), pool);
-            docSlots[between(0, docSlots.length - 1)] = new BytesRef[] { null, randomFrom(pool) };
+            final BytesRef[][] docSlots = column(randomFrom(Shape.DESCENDING, Shape.ASCENDING), between(INTERVAL, 2 * INTERVAL), pool);
+            final int withValue = firstDocWithAValue(docSlots, between(0, docSlots.length - 1));
+            docSlots[withValue] = new BytesRef[] { null, docSlots[withValue][0] };
             assertSerializedBoundsAreExact(docSlots, sizes);
         }
     }
 
-    public void testAChunkOfNullsHasNoBoundsAndLaterChunksStayAligned() throws IOException {
+    public void testAChunkOfNullsTakesTheNextSeparatorAndLaterChunksStayAligned() throws IOException {
         final BytesRef[][] docSlots = new BytesRef[1000][];
         for (int doc = 0; doc < docSlots.length; doc++) {
             docSlots[doc] = new BytesRef[] { doc < 300 ? new BytesRef("a") : doc < 700 ? null : new BytesRef("z") };
@@ -362,6 +382,33 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
             StringMatchOracle.assertRange(reader, docSlots, null, true, null, true);
             StringMatchOracle.assertRange(reader, docSlots, new BytesRef("b"), true, null, true);
         });
+    }
+
+    private static int firstDocWithAValue(BytesRef[][] docSlots, int from) {
+        for (int offset = 0; offset < docSlots.length; offset++) {
+            final BytesRef[] slots = docSlots[(from + offset) % docSlots.length];
+            if (slots != null && slots.length > 0 && slots[0] != null) {
+                return (from + offset) % docSlots.length;
+            }
+        }
+        throw new AssertionError("no document holds a value");
+    }
+
+    public void testBoundsAreNotWrittenForValuesOutOfOrder() throws IOException {
+        final BytesRef[] pool = PlainSkipTestValues.sortedPool(12);
+        final List<BytesRef[][]> unordered = new ArrayList<>();
+        unordered.add(column(Shape.SHUFFLED, 2 * INTERVAL, pool));
+        unordered.add(column(Shape.CLUSTERED, 2 * INTERVAL, pool));
+        final BytesRef[][] severalValuesOutOfOrder = column(Shape.ASCENDING, 2 * INTERVAL, pool);
+        severalValuesOutOfOrder[INTERVAL] = new BytesRef[] { pool[pool.length - 1], pool[0] };
+        unordered.add(severalValuesOutOfOrder);
+        for (BytesRef[][] docSlots : unordered) {
+            withColumn(docSlots, plain(true, sizes(128, 4096)), (metadata, reader) -> {
+                assertThat(metadata, instanceOf(StringColumnMetadata.Plain.class));
+                assertNull(((StringColumnMetadata.Plain) metadata).skipper());
+                StringMatchOracle.checkRandomQueries(reader, docSlots, pool, 20);
+            });
+        }
     }
 
     private void assertSerializedBoundsAreExact(BytesRef[][] docSlots, StringColumnOptions.Sizes sizes) throws IOException {
@@ -380,32 +427,25 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
                 }
             }
             final int[] owners = PlainChunkModel.owners(slots, sizes.plainChunks(), sizes.valuesPerBlock(), sizes.lengthBlockSize());
-            int entry = -1;
-            for (int first = 0; first < owners.length; first++) {
-                if (first > 0 && owners[first] == owners[first - 1]) {
-                    continue;
+            final List<Long> firstSlots = new ArrayList<>();
+            for (int slot = 0; slot < owners.length; slot++) {
+                if (slot == 0 || owners[slot] != owners[slot - 1]) {
+                    firstSlots.add((long) slot);
                 }
-                entry++;
-                int end = first + 1;
-                while (end < owners.length && owners[end] == owners[first]) {
-                    end++;
-                }
-                BytesRef min = null;
-                BytesRef max = null;
-                for (int address = first; address < end; address++) {
-                    final BytesRef value = slots.get(address);
-                    if (value != null) {
-                        min = min == null || value.compareTo(min) < 0 ? value : min;
-                        max = max == null || value.compareTo(max) > 0 ? value : max;
-                    }
-                }
+            }
+            final long[] entryFirstSlot = firstSlots.stream().mapToLong(Long::longValue).toArray();
+            final BytesRef[] values = slots.toArray(new BytesRef[0]);
+            final BytesRef[] mins = PlainBlockOracle.bounds(values, entryFirstSlot, true);
+            final BytesRef[] maxes = PlainBlockOracle.bounds(values, entryFirstSlot, false);
+            for (int entry = 0; entry < entryFirstSlot.length; entry++) {
+                final int first = (int) entryFirstSlot[entry];
                 assertThat("entries written", parsed.size(), greaterThan(entry));
                 assertEquals(first, parsed.get(entry).firstSlot());
                 assertEquals(slotDocs.get(first).intValue(), parsed.get(entry).firstDoc());
-                assertEquals(min, parsed.get(entry).min());
-                assertEquals(max, parsed.get(entry).max());
+                assertEquals(mins[entry], parsed.get(entry).min());
+                assertEquals(maxes[entry], parsed.get(entry).max());
             }
-            assertEquals(entry + 1, parsed.size());
+            assertEquals(entryFirstSlot.length, parsed.size());
         });
     }
 
@@ -433,10 +473,8 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         int runValue = 0;
         for (int doc = 0; doc < count; doc++) {
             final int index = switch (shape) {
-                case DESCENDING -> Math.max(
-                    0,
-                    Math.min(pool.length - 1, pool.length - 1 - (int) ((long) doc * pool.length / count) + between(-1, 1))
-                );
+                case DESCENDING -> pool.length - 1 - (int) ((long) doc * pool.length / count);
+                case ASCENDING -> (int) ((long) doc * pool.length / count);
                 case CLUSTERED -> {
                     if (run == 0) {
                         run = between(300, 3000);
@@ -456,7 +494,7 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
             } else if (kind < 9) {
                 final BytesRef[] slots = new BytesRef[between(2, 4)];
                 for (int slot = 0; slot < slots.length; slot++) {
-                    slots[slot] = slot == 0 ? pool[index] : randomBoolean() ? randomFrom(pool) : null;
+                    slots[slot] = slot == 0 ? pool[index] : randomBoolean() ? (shape.ordered ? pool[index] : randomFrom(pool)) : null;
                 }
                 docSlots[doc] = slots;
             } else {

@@ -240,7 +240,7 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
         final BytesRef[] docValues = uniqueValues(between(50, 400));
         withColumnWithSummary(docValues, (metadata, reader) -> {
             final StringColumnMetadata.Plain.Skipper skipper = new StringColumnMetadata.Plain.Skipper(
-                ChunkBoundsSkip.ID,
+                SortedSeparatorsSkip.ID,
                 randomLongBetween(0, 1L << 40),
                 between(1, docValues.length),
                 randomLongBetween(0, 1L << 30)
@@ -256,7 +256,7 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
         final BytesRef[] docValues = uniqueValues(between(50, 400));
         withColumnWithSummary(docValues, (metadata, reader) -> {
             final StringColumnMetadata with = plainOf(metadata).withSkipper(
-                new StringColumnMetadata.Plain.Skipper(ChunkBoundsSkip.ID, 0, 1, 1)
+                new StringColumnMetadata.Plain.Skipper(SortedSeparatorsSkip.ID, 0, 1, 1)
             );
             expectThrows(IllegalStateException.class, () -> written(with, FormatVersion.BASELINE));
         });

@@ -13,7 +13,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.TreeSet;
+import java.util.function.Supplier;
 
 final class PlainSkipTestValues {
 
@@ -79,6 +81,44 @@ final class PlainSkipTestValues {
             pool[i] = ESTestCase.randomBoolean() ? randomValueAfter(stem) : randomValue();
         }
         return pool;
+    }
+
+    /**
+     * Documents in the shapes a column can have (missing, empty, only null, several slots with nulls, one slot) whose
+     * values come from {@code pool} in order, so the column is sorted whichever way {@code descending} says.
+     */
+    static BytesRef[][] orderedDocSlots(int docs, BytesRef[] pool, boolean descending) {
+        final BytesRef[] ordered = pool.clone();
+        Arrays.sort(ordered);
+        if (descending) {
+            Collections.reverse(Arrays.asList(ordered));
+        }
+        final double advance = Math.min(1.0, ordered.length / (double) Math.max(1, docs));
+        final int[] at = new int[1];
+        final Supplier<BytesRef> next = () -> {
+            if (ESTestCase.random().nextDouble() < advance && at[0] < ordered.length - 1) {
+                at[0]++;
+            }
+            return ordered[at[0]];
+        };
+        final BytesRef[][] docSlots = new BytesRef[docs][];
+        for (int doc = 0; doc < docs; doc++) {
+            switch (ESTestCase.between(0, 9)) {
+                case 0 -> docSlots[doc] = null;
+                case 1 -> docSlots[doc] = new BytesRef[0];
+                case 2 -> docSlots[doc] = new BytesRef[] { null };
+                case 3, 4 -> {
+                    final BytesRef[] slots = new BytesRef[ESTestCase.between(2, 5)];
+                    for (int i = 0; i < slots.length; i++) {
+                        slots[i] = ESTestCase.rarely() ? null : next.get();
+                    }
+                    docSlots[doc] = slots;
+                }
+                default -> docSlots[doc] = new BytesRef[] { next.get() };
+            }
+        }
+        docSlots[docs - 1] = new BytesRef[] { next.get() };
+        return docSlots;
     }
 
     static BytesRef[] sortedPool(int size) {

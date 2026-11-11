@@ -151,7 +151,7 @@ final class PlainSkipFixture implements Closeable {
             for (int i = 0; i < leading; i++) {
                 out.writeByte((byte) i);
             }
-            try (PlainSkipBounds.Writer writer = new PlainSkipBounds.Writer(dir, IOContext.DEFAULT, "fixture", total)) {
+            try (PlainSkipKind.Writer writer = PlainSkipKind.forWriting().newWriter(dir, IOContext.DEFAULT, "fixture", total)) {
                 long address = 0;
                 for (int doc = 0; doc < docSlots.length; doc++) {
                     if (docSlots[doc] == null) {
@@ -178,37 +178,48 @@ final class PlainSkipFixture implements Closeable {
         return new PlainSkipFixture(docSlots, owners, skipper, dir.openInput("fixture.cns", IOContext.DEFAULT), leading);
     }
 
-    /** What the region holds for one entry, read straight from the bytes: a null bound is an entry of nulls. */
+    /** What the region holds for one entry, read straight from the bytes: the lowest and highest value it can hold. */
     record Parsed(long firstSlot, int firstDoc, BytesRef min, BytesRef max) {}
 
+    /** Where the second entry stores its first document in a region: after the header and the first entry. */
+    static final int SECOND_ENTRY_FIRST_DOC = SortedSeparatorsSkip.HEADER_BYTES + SortedSeparatorsSkip.ENTRY_BYTES
+        + SortedSeparatorsSkip.DOC_FIELD;
+
     /**
-     * Reads the region the way the format documents it, without going through the reader: a directory of entries
-     * of a long, an int and a long, then a payload of a flag byte and, for an entry with a value, two ints and the bytes.
+     * Reads the region the way the format documents it, without going through the reader: a header of the direction
+     * and the offset of the last value, a directory of entries of a long, an int and a long, then a payload of lengths
+     * and bytes.
      */
     static List<Parsed> parse(IndexInput file, StringColumnMetadata.Plain.Skipper skipper) throws IOException {
-        final long directoryBytes = (long) skipper.entryCount() * 20;
-        final byte[] region = new byte[(int) (directoryBytes + skipper.payloadLength())];
+        final int directoryBytes = skipper.entryCount() * SortedSeparatorsSkip.ENTRY_BYTES;
+        final int payloadStart = SortedSeparatorsSkip.HEADER_BYTES + directoryBytes;
+        final byte[] region = new byte[(int) (payloadStart + skipper.payloadLength())];
         file.seek(skipper.dataOffset());
         file.readBytes(region, 0, region.length);
         final ByteArrayDataInput in = new ByteArrayDataInput(region);
+        final boolean descending = in.readByte() == SortedSeparatorsSkip.DESCENDING;
+        final long endOffset = in.readLong();
+        final BytesRef[] separators = new BytesRef[skipper.entryCount() + 1];
+        final long[] firstSlots = new long[skipper.entryCount()];
+        final int[] firstDocs = new int[skipper.entryCount()];
+        for (int entry = 0; entry <= skipper.entryCount(); entry++) {
+            long offset = endOffset;
+            if (entry < skipper.entryCount()) {
+                in.setPosition(SortedSeparatorsSkip.HEADER_BYTES + entry * SortedSeparatorsSkip.ENTRY_BYTES);
+                firstSlots[entry] = in.readLong();
+                firstDocs[entry] = in.readInt();
+                offset = in.readLong();
+            }
+            in.setPosition((int) (payloadStart + offset));
+            final byte[] bytes = new byte[in.readInt()];
+            in.readBytes(bytes, 0, bytes.length);
+            separators[entry] = new BytesRef(bytes);
+        }
         final List<Parsed> parsed = new ArrayList<>();
         for (int entry = 0; entry < skipper.entryCount(); entry++) {
-            in.setPosition(entry * 20);
-            final long firstSlot = in.readLong();
-            final int firstDoc = in.readInt();
-            final long offset = in.readLong();
-            in.setPosition((int) (directoryBytes + offset));
-            if (in.readByte() == 0) {
-                parsed.add(new Parsed(firstSlot, firstDoc, null, null));
-                continue;
-            }
-            final int minLength = in.readInt();
-            final int maxLength = in.readInt();
-            final byte[] min = new byte[minLength];
-            in.readBytes(min, 0, minLength);
-            final byte[] max = new byte[maxLength];
-            in.readBytes(max, 0, maxLength);
-            parsed.add(new Parsed(firstSlot, firstDoc, new BytesRef(min), new BytesRef(max)));
+            final BytesRef own = separators[entry];
+            final BytesRef next = separators[entry + 1];
+            parsed.add(new Parsed(firstSlots[entry], firstDocs[entry], descending ? next : own, descending ? own : next));
         }
         return parsed;
     }
@@ -238,8 +249,8 @@ final class PlainSkipFixture implements Closeable {
         return entryFirstSlot.length;
     }
 
-    PlainSkipBounds.Reader reader() throws IOException {
-        return new PlainSkipBounds.Reader(skipper, numValues, input);
+    PlainSkipKind.Reader reader() throws IOException {
+        return PlainSkipKind.forId(skipper.kind()).newReader(skipper, numValues, input);
     }
 
     PlainRangePresence.Slots slots() {

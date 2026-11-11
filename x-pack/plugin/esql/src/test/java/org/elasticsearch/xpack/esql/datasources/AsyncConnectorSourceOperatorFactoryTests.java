@@ -98,6 +98,58 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
         }
     }
 
+    public void testFilteredLimitRampDoesNotStartEveryReader() throws Exception {
+        int splitCount = 12;
+        int drivers = 4;
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < splitCount; i++) {
+            splits.add(new StubSplit("s" + i));
+        }
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch proceed = new CountDownLatch(1);
+        AtomicInteger executeCount = new AtomicInteger();
+        LatchedConnector connector = new LatchedConnector(executeCount, entered, proceed);
+        QueryRequest request = new QueryRequest("target", List.of("col"), List.of(), Map.of(), 100, TEST_BLOCK_FACTORY);
+        ExecutorService pool = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory("test", "acsof-ramp"));
+        try {
+            AsyncConnectorSourceOperatorFactory factory = new AsyncConnectorSourceOperatorFactory(connector, request, 10, pool, sliceQueue);
+            Limiter observed = new Limiter(1);
+            factory.setObservedLimiter(observed);
+
+            CountDownLatch done = new CountDownLatch(drivers);
+            List<SourceOperator> operators = new ArrayList<>(drivers);
+            DriverContext first = mockDriverContext();
+            doAnswer(inv -> {
+                done.countDown();
+                return null;
+            }).when(first).removeAsyncAction();
+            operators.add(factory.get(first));
+            assertTrue(entered.await(30, TimeUnit.SECONDS));
+            for (int i = 1; i < drivers; i++) {
+                DriverContext ctx = mockDriverContext();
+                doAnswer(inv -> {
+                    done.countDown();
+                    return null;
+                }).when(ctx).removeAsyncAction();
+                operators.add(factory.get(ctx));
+            }
+            observed.tryAccumulateHits(1);
+            proceed.countDown();
+            assertTrue(done.await(30, TimeUnit.SECONDS));
+            for (SourceOperator operator : operators) {
+                drainRows(operator);
+                operator.close();
+            }
+            assertThat(executeCount.get(), equalTo(1));
+            assertThat(sliceQueue.remaining(), equalTo(splitCount - 1));
+        } finally {
+            proceed.countDown();
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
     public void testObservedRemainingZeroReleasesPageAfterBlockingNext() throws Exception {
         List<ExternalSplit> splits = List.of(new StubSplit("s0"));
         ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);

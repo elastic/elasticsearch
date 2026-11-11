@@ -24,6 +24,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.ResultCursor;
 import org.elasticsearch.xpack.esql.datasources.spi.Split;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -63,6 +66,10 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
     @Nullable
     private volatile Limiter observedLimiter;
     private final AtomicBoolean started = new AtomicBoolean();
+    private final Object filteredLimitRampLock = new Object();
+    private int filteredLimitRunning;
+    private int filteredLimitCap = AsyncExternalSourceOperatorFactory.FILTERED_LIMIT_READER_RAMP;
+    private final ArrayDeque<ParkedProducer> filteredLimitParked = new ArrayDeque<>();
 
     public AsyncConnectorSourceOperatorFactory(
         Connector connector,
@@ -134,12 +141,113 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
 
         ProducerState state = new ProducerState(request, sliceQueue, buffer, driverContext);
         try {
-            executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
+            submitConnectorProducer(state, completionListener);
         } catch (Exception e) {
             completionListener.onFailure(e);
         }
         return new AsyncExternalSourceOperator(buffer, driverContext);
     }
+
+    private void submitConnectorProducer(ProducerState state, ActionListener<Void> finishBuffer) {
+        if (filteredLimitRamp() == false) {
+            executor.execute(ActionRunnable.wrap(finishBuffer, l -> runProducerLoop(state, l)));
+            return;
+        }
+        ActionListener<Void> started = ActionListener.runAfter(finishBuffer, this::onFilteredLimitProducerFinished);
+        boolean startNow;
+        ParkedProducer skipped = null;
+        synchronized (filteredLimitRampLock) {
+            if (noFurtherCandidates() || state.buffer.noMoreInputs()) {
+                skipped = new ParkedProducer(state, finishBuffer);
+                startNow = false;
+            } else if (filteredLimitRunning < filteredLimitCap) {
+                filteredLimitRunning++;
+                startNow = true;
+            } else {
+                filteredLimitParked.add(new ParkedProducer(state, finishBuffer));
+                startNow = false;
+            }
+        }
+        if (startNow) {
+            try {
+                executor.execute(ActionRunnable.wrap(started, l -> runProducerLoop(state, l)));
+            } catch (Exception e) {
+                started.onFailure(e);
+            }
+            return;
+        }
+        if (skipped != null) {
+            skipped.finishBuffer().onResponse(null);
+        }
+    }
+
+    private boolean filteredLimitRamp() {
+        return observedLimiter != null && sliceQueue != null;
+    }
+
+    private void onFilteredLimitProducerFinished() {
+        if (filteredLimitRamp() == false) {
+            return;
+        }
+        List<ParkedProducer> toStart = new ArrayList<>();
+        List<ParkedProducer> toSkip = new ArrayList<>();
+        synchronized (filteredLimitRampLock) {
+            filteredLimitRunning--;
+            drainParkedLocked(toStart, toSkip);
+        }
+        dispatchParked(toStart, toSkip);
+    }
+
+    private void maybeRampAfterUnit() {
+        if (filteredLimitRamp() == false || noFurtherCandidates()) {
+            return;
+        }
+        List<ParkedProducer> toStart = new ArrayList<>();
+        List<ParkedProducer> toSkip = new ArrayList<>();
+        synchronized (filteredLimitRampLock) {
+            if (filteredLimitCap < Integer.MAX_VALUE / 2) {
+                filteredLimitCap *= 2;
+            } else {
+                filteredLimitCap = Integer.MAX_VALUE;
+            }
+            drainParkedLocked(toStart, toSkip);
+        }
+        dispatchParked(toStart, toSkip);
+    }
+
+    private void drainParkedLocked(List<ParkedProducer> toStart, List<ParkedProducer> toSkip) {
+        if (noFurtherCandidates()) {
+            while (filteredLimitParked.isEmpty() == false) {
+                toSkip.add(filteredLimitParked.poll());
+            }
+            return;
+        }
+        while (filteredLimitRunning < filteredLimitCap && filteredLimitParked.isEmpty() == false) {
+            ParkedProducer parked = filteredLimitParked.poll();
+            if (parked.state().buffer.noMoreInputs() || noFurtherCandidates()) {
+                toSkip.add(parked);
+                continue;
+            }
+            filteredLimitRunning++;
+            toStart.add(parked);
+        }
+    }
+
+    private void dispatchParked(List<ParkedProducer> toStart, List<ParkedProducer> toSkip) {
+        for (ParkedProducer parked : toSkip) {
+            parked.finishBuffer().onResponse(null);
+        }
+        for (ParkedProducer parked : toStart) {
+            ActionListener<Void> started = ActionListener.runAfter(parked.finishBuffer(), this::onFilteredLimitProducerFinished);
+            try {
+                executor.execute(ActionRunnable.wrap(started, l -> runProducerLoop(parked.state(), l)));
+            } catch (Exception e) {
+                started.onFailure(e);
+            }
+        }
+    }
+
+    private record ParkedProducer(ProducerState state, ActionListener<Void> finishBuffer) {}
 
     /**
      * Producer-loop state. One instance per {@code get(DriverContext)} call.
@@ -241,6 +349,9 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         if (result != DrainResult.BLOCKED) {
             closeCursorQuietly(state.cursor);
             state.cursor = null;
+        }
+        if (result == DrainResult.EOF) {
+            maybeRampAfterUnit();
         }
         return result;
     }

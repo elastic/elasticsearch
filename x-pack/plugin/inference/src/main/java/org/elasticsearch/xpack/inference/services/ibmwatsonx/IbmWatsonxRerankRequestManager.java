@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -17,13 +16,13 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.TimedListener;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxRerankRequest;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.response.IbmWatsonxRankedResponseEntity;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 public class IbmWatsonxRerankRequestManager extends IbmWatsonxRequestManager {
     private static final Logger logger = LogManager.getLogger(IbmWatsonxRerankRequestManager.class);
@@ -51,8 +50,7 @@ public class IbmWatsonxRerankRequestManager extends IbmWatsonxRequestManager {
     public void execute(
         InferenceInputs inferenceInputs,
         RequestSender requestSender,
-        Supplier<Boolean> hasRequestCompletedFunction,
-        ActionListener<InferenceServiceResults> listener
+        TimedListener<InferenceServiceResults> timedListener
     ) {
         var rerankInput = inferenceInputs.castTo(QueryAndDocsInputs.class);
 
@@ -62,8 +60,7 @@ public class IbmWatsonxRerankRequestManager extends IbmWatsonxRequestManager {
                 logger,
                 getRerankRequest(rerankInput.getQueryAsString(), rerankInput.getDocsAsStrings(), model),
                 HANDLER,
-                hasRequestCompletedFunction,
-                listener
+                timedListener
             )
         );
     }

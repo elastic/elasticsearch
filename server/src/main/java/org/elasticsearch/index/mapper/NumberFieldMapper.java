@@ -210,18 +210,15 @@ public class NumberFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> indexed;
         private final DocValuesParameter docValuesParameters;
-        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
+        private final Parameter<Boolean> stored = Parameter.storeParam(false);
 
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
         private final Parameter<Explicit<Boolean>> coerce;
 
         private final Parameter<Number> nullValue;
 
-        private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
-        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(
-            m -> toType(m).builderParams.onScriptError(),
-            script
-        );
+        private final Parameter<Script> script = Parameter.scriptParam();
+        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(script);
 
         /**
          * Parameter that marks this field as a time series dimension.
@@ -267,33 +264,25 @@ public class NumberFieldMapper extends FieldMapper {
                     DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
                     DocValuesParameter.Values.Cardinality.LOW
                 ),
-                m -> toType(m).docValuesParameters(),
                 indexSettings
             );
 
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
                 true,
-                m -> toType(m).ignoreMalformed,
                 IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings())
             );
-            this.coerce = Parameter.explicitBoolParam(
-                "coerce",
-                true,
-                m -> toType(m).coerce,
-                COERCE_SETTING.get(indexSettings.getSettings())
-            );
+            this.coerce = Parameter.explicitBoolParam("coerce", true, COERCE_SETTING.get(indexSettings.getSettings()));
             this.nullValue = new Parameter<>(
                 "null_value",
                 false,
                 () -> null,
                 (n, c, o) -> o == null ? null : type.parse(o, false),
-                m -> toType(m).nullValue,
                 XContentBuilder::field,
                 Objects::toString
             ).acceptsNull();
-            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, () -> docValuesParameters.get().enabled());
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
+            this.dimension = TimeSeriesParams.dimensionParam(() -> docValuesParameters.get().enabled());
+            this.indexed = Parameter.indexParam(() -> {
                 if (indexSettings.isIndexDisabledByDefault()) {
                     return false;
                 }
@@ -309,7 +298,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
             });
 
-            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, MetricType.GAUGE, MetricType.COUNTER).addValidator(v -> {
+            this.metric = TimeSeriesParams.metricParam(MetricType.GAUGE, MetricType.COUNTER).addValidator(v -> {
                 if (v != null && docValuesParameters.getValue().enabled() == false) {
                     throw new IllegalArgumentException(
                         "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + docValuesParameters.name + "] is true"
@@ -317,7 +306,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
             }).precludesParameters(dimension);
 
-            this.indexTerms = Parameter.boolParam("index_terms", false, m -> toType(m).indexTerms, false).addValidator(v -> {
+            this.indexTerms = Parameter.boolParam("index_terms", false, false).addValidator(v -> {
                 if (v) {
                     if (type != NumberType.INTEGER && type != NumberType.LONG) {
                         throw new IllegalArgumentException("[index_terms] is only supported on [integer] and [long] fields");
@@ -3028,7 +3017,7 @@ public class NumberFieldMapper extends FieldMapper {
                 long sortableLongValue = type.toSortableLong(value);
                 context.getOffSetContext().recordOffset(offsetsFieldName, sortableLongValue, offsetsFallback);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName, offsetsFallback);
+                context.getOffSetContext().recordNull(context, offsetsFieldName, offsetsFallback);
             }
         }
 
@@ -3154,14 +3143,6 @@ public class NumberFieldMapper extends FieldMapper {
         DocumentParserContext documentParserContext
     ) {
         this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(documentParserContext, value));
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), type, scriptCompiler, indexSettings).dimension(dimension)
-            .metric(metricType)
-            .allowMultipleValues(allowMultipleValues)
-            .init(this);
     }
 
     @Override

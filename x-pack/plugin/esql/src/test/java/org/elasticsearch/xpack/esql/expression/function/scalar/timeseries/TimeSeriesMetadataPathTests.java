@@ -40,7 +40,7 @@ public class TimeSeriesMetadataPathTests extends AbstractScalarFunctionTestCase 
     @BeforeClass
     public static void requireTimeSeriesType() {
         // Every case takes a _timeseries container, which release builds can't serialize while it is under construction.
-        assumeTrue("_timeseries is under construction", DataType.TSMD_DATA_TYPE.supportedVersion().supportedLocally());
+        assumeTrue("_timeseries is under construction", DataType.TIME_SERIES_METADATA_DATA_TYPE.supportedVersion().supportedLocally());
     }
 
     @ParametersFactory
@@ -73,9 +73,9 @@ public class TimeSeriesMetadataPathTests extends AbstractScalarFunctionTestCase 
     }
 
     private static TestCaseSupplier read(String name, DataType labelType, String labelContainer, String label, Matcher<?> expected) {
-        return new TestCaseSupplier(name, List.of(DataType.TSMD_DATA_TYPE, labelType), () -> {
+        return new TestCaseSupplier(name, List.of(DataType.TIME_SERIES_METADATA_DATA_TYPE, labelType), () -> {
             List<TestCaseSupplier.TypedData> data = List.of(
-                new TestCaseSupplier.TypedData(new BytesRef(labelContainer), DataType.TSMD_DATA_TYPE, "labelContainer"),
+                new TestCaseSupplier.TypedData(new BytesRef(labelContainer), DataType.TIME_SERIES_METADATA_DATA_TYPE, "labelContainer"),
                 new TestCaseSupplier.TypedData(new BytesRef(label), labelType, "label").forceLiteral()
             );
             String evaluator = "TimeSeriesMetadataFunctionEvaluator[operation=GET, names=["
@@ -92,7 +92,7 @@ public class TimeSeriesMetadataPathTests extends AbstractScalarFunctionTestCase 
 
     /** A label name must be a non-empty constant string, so the evaluator folds it once. */
     public void testLabelMustBeNonEmptyConstantString() {
-        Expression labelContainer = field("labelContainer", DataType.TSMD_DATA_TYPE);
+        Expression labelContainer = field("labelContainer", DataType.TIME_SERIES_METADATA_DATA_TYPE);
         for (Expression label : List.of(
             Literal.integer(Source.EMPTY, 42),
             Literal.keyword(Source.EMPTY, ""),
@@ -129,7 +129,7 @@ public class TimeSeriesMetadataPathTests extends AbstractScalarFunctionTestCase 
     private void read(Object labelContainer) {
         var path = new TimeSeriesMetadataPath(
             Source.EMPTY,
-            field("labelContainer", DataType.TSMD_DATA_TYPE),
+            field("labelContainer", DataType.TIME_SERIES_METADATA_DATA_TYPE),
             Literal.keyword(Source.EMPTY, "pod")
         );
         try (

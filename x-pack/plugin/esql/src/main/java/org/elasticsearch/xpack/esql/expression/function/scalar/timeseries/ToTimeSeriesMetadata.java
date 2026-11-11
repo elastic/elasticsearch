@@ -78,7 +78,7 @@ public final class ToTimeSeriesMetadata extends AbstractConvertFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.TSMD_DATA_TYPE;
+        return DataType.TIME_SERIES_METADATA_DATA_TYPE;
     }
 
     /** The source form of a series' dimensions, encoded as a typed label container in the breaker-accounted {@code scratch}. */

@@ -335,18 +335,21 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
     }
 
     /**
-     * The metrics pattern of a query for exemplars is resolved with the time range of the query, like that of any other
-     * query. The exemplar data streams follow from the indices that it resolves to.
+     * A time series source is resolved with the time range of the query next to the filter on the index mode that it adds.
+     * A query for exemplars is no different: its exemplar data streams follow from the indices that the pattern resolves to.
      */
-    public void testExemplars() {
+    public void testTimeSeriesSources() {
         QueryBuilder timeSeries = QueryBuilders.termQuery("_index_mode", "time_series");
-        try {
-            analyze("SET exemplars=true; TS logs-*" + TIME_RANGE + " | STATS m = MAX(MAX_OVER_TIME(value))", null);
-        } catch (Exception e) {
-            // The indices of the test are not metrics data streams. What the query comes to does not matter here.
-            logger.info("exemplars query failed", e);
+        for (String settings : new String[] { "", "SET exemplars=true; " }) {
+            indexFilters.clear();
+            try {
+                analyze(settings + "TS logs-*" + TIME_RANGE + " | STATS m = MAX(MAX_OVER_TIME(value))", null);
+            } catch (Exception e) {
+                // The indices of the test are not time series indices. What the query comes to does not matter here.
+                logger.info("time series query failed", e);
+            }
+            assertThat(settings, indexFilters.get(0), equalTo(new BoolQueryBuilder().filter(TIME_FILTER).filter(timeSeries)));
         }
-        assertThat(indexFilters.get(0), equalTo(new BoolQueryBuilder().filter(TIME_FILTER).filter(timeSeries)));
     }
 
     private static boolean boundsTimestamp(QueryBuilder filter) {

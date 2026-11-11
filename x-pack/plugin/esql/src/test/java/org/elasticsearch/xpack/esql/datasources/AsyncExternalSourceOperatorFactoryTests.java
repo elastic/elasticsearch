@@ -5684,6 +5684,116 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
     }
 
+    /**
+     * Filtered LIMIT used to start one producer per driver. With the ramp, extra {@code get()}
+     * calls park until the observed limiter is exhausted and then complete without opening a split.
+     */
+    public void testFilteredLimitRampDoesNotStartEveryReader() throws Exception {
+        int splitCount = 12;
+        int drivers = 4;
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < splitCount; i++) {
+            splits.add(new FileSplit("test", StoragePath.of("s3://bucket/f" + i + ".parquet"), 0, 100, "parquet", Map.of(), Map.of()));
+        }
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
+        AtomicInteger readCount = new AtomicInteger();
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch proceed = new CountDownLatch(1);
+        LatchedPageReader formatReader = new LatchedPageReader(readCount, entered, proceed, 1);
+        ExecutorService pool = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory("test", "filtered-limit-ramp"));
+        try {
+            AsyncExternalSourceOperatorFactory factory = limitBudgetFactory(formatReader, sliceQueue, pool, FormatReader.NO_LIMIT, 10);
+            Limiter observed = new Limiter(1);
+            factory.setObservedLimiter(observed);
+
+            CountDownLatch done = new CountDownLatch(drivers);
+            List<SourceOperator> operators = new ArrayList<>(drivers);
+            DriverContext first = mockLimitBudgetDriverContext();
+            doAnswer(inv -> {
+                done.countDown();
+                return null;
+            }).when(first).removeAsyncAction();
+            operators.add(factory.get(first));
+            assertTrue(entered.await(30, TimeUnit.SECONDS));
+            for (int i = 1; i < drivers; i++) {
+                DriverContext ctx = mockLimitBudgetDriverContext();
+                doAnswer(inv -> {
+                    done.countDown();
+                    return null;
+                }).when(ctx).removeAsyncAction();
+                operators.add(factory.get(ctx));
+            }
+            observed.tryAccumulateHits(1);
+            proceed.countDown();
+            assertTrue(done.await(30, TimeUnit.SECONDS));
+            for (SourceOperator op : operators) {
+                drainRemaining(op);
+                op.close();
+            }
+            assertThat(readCount.get(), equalTo(1));
+            assertThat(sliceQueue.remaining(), equalTo(splitCount - 1));
+        } finally {
+            proceed.countDown();
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * A filter that matches nothing early must still add readers. After the first unit EOF with
+     * remaining &gt; 0 the cap doubles, so four parked drivers all run instead of staying at 1.
+     */
+    public void testFilteredLimitRampGrowsWhenRemainingStays() throws Exception {
+        int splitCount = 8;
+        int drivers = 4;
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < splitCount; i++) {
+            splits.add(new FileSplit("test", StoragePath.of("s3://bucket/f" + i + ".parquet"), 0, 100, "parquet", Map.of(), Map.of()));
+        }
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
+        AtomicInteger readCount = new AtomicInteger();
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch proceed = new CountDownLatch(1);
+        LatchedPageReader formatReader = new LatchedPageReader(readCount, entered, proceed, 1);
+        ExecutorService pool = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory("test", "filtered-limit-grow"));
+        try {
+            AsyncExternalSourceOperatorFactory factory = limitBudgetFactory(formatReader, sliceQueue, pool, FormatReader.NO_LIMIT, 10);
+            factory.setObservedLimiter(new Limiter(100));
+
+            CountDownLatch done = new CountDownLatch(drivers);
+            List<SourceOperator> operators = new ArrayList<>(drivers);
+            DriverContext first = mockLimitBudgetDriverContext();
+            doAnswer(inv -> {
+                done.countDown();
+                return null;
+            }).when(first).removeAsyncAction();
+            operators.add(factory.get(first));
+            assertTrue(entered.await(30, TimeUnit.SECONDS));
+            for (int i = 1; i < drivers; i++) {
+                DriverContext ctx = mockLimitBudgetDriverContext();
+                doAnswer(inv -> {
+                    done.countDown();
+                    return null;
+                }).when(ctx).removeAsyncAction();
+                operators.add(factory.get(ctx));
+            }
+            proceed.countDown();
+            assertTrue(done.await(30, TimeUnit.SECONDS));
+            int rows = 0;
+            for (SourceOperator op : operators) {
+                rows += drainRemaining(op);
+                op.close();
+            }
+            assertThat(readCount.get(), equalTo(splitCount));
+            assertThat(rows, equalTo(splitCount));
+            assertThat(sliceQueue.remaining(), equalTo(0));
+        } finally {
+            proceed.countDown();
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
     public void testPushedLimiterIgnoresObservedLimiter() throws Exception {
         List<ExternalSplit> splits = List.of(
             new FileSplit("test", StoragePath.of("s3://bucket/f0.parquet"), 0, 100, "parquet", Map.of(), Map.of()),

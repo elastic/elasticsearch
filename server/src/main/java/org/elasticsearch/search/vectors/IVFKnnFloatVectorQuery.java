@@ -201,7 +201,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         float[] leafQuery
     ) throws IOException {
         LeafReader reader = context.reader();
-        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, numCands, k, knnCollectorManager.longAccumulator);
+        IVFKnnSearchStrategy strategy = knnCollectorManager.newSearchStrategy(visitRatio, numCands, k);
         AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
         if (knnCollector == null) {
             return NO_RESULTS;

@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.plan.PlanJsonLog;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -425,7 +426,7 @@ public class PlannerUtils {
         PhysicalPlan resultPlan = localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile, optimizedFragment -> {
             logicalPlanString.set(optimizedFragment.toString());
             if (capturePlanJson) {
-                logicalPlanJson.set(optimizedFragment.toJsonString());
+                logicalPlanJson.set(PlanJsonLog.toJsonOrNull(optimizedFragment));
             }
         });
         return new LocalPlanResult(resultPlan, logicalPlanString.get(), logicalPlanJson.get(), physicalOptimizer.approximationApplied());

@@ -88,7 +88,9 @@ public class ExchangeExec extends UnaryExec {
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new ExchangeExec(source(), output, inBetweenAggs, newChild);
+        // The same hop with a different child. Callers of replaceChild do not go through the transforms that copy identity, and
+        // without this the hop would be a new one, with another exchange id, from here on.
+        return passIdentityTo(new ExchangeExec(source(), output, inBetweenAggs, newChild));
     }
 
     @Override

@@ -24,38 +24,12 @@ import java.util.concurrent.atomic.AtomicLong;
  * tree. A data node's {@code plan_json} still joins to that node's operator {@code plan_node_id}s, but
  * those ids do not match the coordinator's until a follow-up writes {@code PlanId} on the wire.
  */
-public final class PlanId {
+public record PlanId(long id) {
     private static final AtomicLong COUNTER = new AtomicLong();
 
-    private final long id;
-
+    /** A new id, unique in this JVM. The canonical constructor is only for tests. */
     public PlanId() {
-        this.id = COUNTER.incrementAndGet();
-    }
-
-    /** Test hook. Production code must use {@link #PlanId()} so ids stay unique. */
-    public PlanId(long id) {
-        this.id = id;
-    }
-
-    public long id() {
-        return id;
-    }
-
-    @Override
-    public int hashCode() {
-        return Long.hashCode(id);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == this) {
-            return true;
-        }
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        return id == ((PlanId) obj).id;
+        this(COUNTER.incrementAndGet());
     }
 
     @Override

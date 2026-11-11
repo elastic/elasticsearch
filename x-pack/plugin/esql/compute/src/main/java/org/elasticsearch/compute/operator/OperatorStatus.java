@@ -39,11 +39,6 @@ public record OperatorStatus(String operator, @Nullable Operator.Status status, 
         this(operator, status, null, null);
     }
 
-    /** Operators that are not one side of an exchange. */
-    public OperatorStatus(String operator, @Nullable Operator.Status status, @Nullable String planNodeId) {
-        this(operator, status, planNodeId, null);
-    }
-
     public static final ProfileSchema<OperatorStatus> PROFILE_SCHEMA = ProfileSchema.of(OperatorStatus.class, (builder, value, params) -> {
         builder.startObject();
         builder.field("operator", value.operator);
@@ -65,15 +60,13 @@ public record OperatorStatus(String operator, @Nullable Operator.Status status, 
         .build();
 
     public static OperatorStatus readFrom(StreamInput in) throws IOException {
-        String operator = in.readString();
-        Operator.Status status = in.readOptionalNamedWriteable(Operator.Status.class);
-        String planNodeId = null;
-        String exchangeId = null;
-        if (in.getTransportVersion().supports(PlanProfile.JSON_PLANS_VERSION)) {
-            planNodeId = in.readOptionalString();
-            exchangeId = in.readOptionalString();
-        }
-        return new OperatorStatus(operator, status, planNodeId, exchangeId);
+        boolean hasIds = in.getTransportVersion().supports(PlanProfile.JSON_PLANS_VERSION);
+        return new OperatorStatus(
+            in.readString(),
+            in.readOptionalNamedWriteable(Operator.Status.class),
+            hasIds ? in.readOptionalString() : null,
+            hasIds ? in.readOptionalString() : null
+        );
     }
 
     @Override

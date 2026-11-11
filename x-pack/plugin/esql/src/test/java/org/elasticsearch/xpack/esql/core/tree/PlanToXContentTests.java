@@ -17,17 +17,20 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -36,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -95,6 +99,76 @@ public class PlanToXContentTests extends ESTestCase {
         for (String hidden : List.of("secret-bucket", "secret-prefix", "s3://")) {
             assertThat("the ASCII plan shows [" + hidden + "]", ascii, not(containsString(hidden)));
             assertThat("the JSON plan shows [" + hidden + "]", json, not(containsString(hidden)));
+        }
+    }
+
+    /**
+     * The JSON is copied into the profile of every compute of a query, so what a property holds is bounded, like the ASCII plan.
+     * A list is cut with a marker that says how many elements were left out.
+     */
+    public void testLongListsAreCut() throws IOException {
+        List<NamedExpression> projections = new ArrayList<>();
+        for (int i = 0; i < PlanToXContent.MAX_ELEMENTS + 50; i++) {
+            projections.add(new ReferenceAttribute(Source.EMPTY, "f" + i, DataType.INTEGER));
+        }
+        Project project = new Project(Source.EMPTY, relation(Source.EMPTY, "idx"), projections);
+
+        List<?> written = (List<?>) map(parse(project.toJsonString()).get("properties")).get("projections");
+        assertThat(written.size(), equalTo(PlanToXContent.MAX_ELEMENTS + 1));
+        assertThat(
+            map(written.get(PlanToXContent.MAX_ELEMENTS - 1)).get("repr"),
+            equalTo(projections.get(PlanToXContent.MAX_ELEMENTS - 1).toString())
+        );
+        assertThat(written.get(PlanToXContent.MAX_ELEMENTS), equalTo(Map.of("truncated", 50)));
+    }
+
+    public void testListsThatFitAreNotMarked() throws IOException {
+        List<NamedExpression> projections = new ArrayList<>();
+        for (int i = 0; i < PlanToXContent.MAX_ELEMENTS; i++) {
+            projections.add(new ReferenceAttribute(Source.EMPTY, "f" + i, DataType.INTEGER));
+        }
+        Project project = new Project(Source.EMPTY, relation(Source.EMPTY, "idx"), projections);
+
+        List<?> written = (List<?>) map(parse(project.toJsonString()).get("properties")).get("projections");
+        assertThat(written.size(), equalTo(PlanToXContent.MAX_ELEMENTS));
+        assertThat(project.toJsonString(), not(containsString("truncated")));
+    }
+
+    /** A long literal in an expression is cut, in the {@code repr} of the expression that holds it. */
+    public void testLongStringsAreCut() throws IOException {
+        String literal = "x".repeat(PlanToXContent.MAX_STRING_CHARS * 10);
+        Filter filter = new Filter(
+            Source.EMPTY,
+            relation(Source.EMPTY, "idx"),
+            new Equals(Source.EMPTY, new ReferenceAttribute(Source.EMPTY, "f", DataType.KEYWORD), Literal.keyword(Source.EMPTY, literal))
+        );
+
+        String json = filter.toJsonString();
+        // The literal is in the condition and in its argument, each cut, so the document is shorter than one whole copy of it
+        assertThat("the plan JSON is bounded", json.length() < literal.length(), equalTo(true));
+        assertThat(json, containsString("more characters]"));
+        assertThat(json, not(containsString(literal)));
+    }
+
+    /**
+     * The names of properties are taken from the accessors of the node that return them, so two properties with the same value, like
+     * the two booleans of a {@code Limit}, can only be told apart by the order the accessors are tried in. It must be the same
+     * every time, and each property must keep its own name whatever the values are.
+     */
+    public void testEqualValuedPropertiesKeepTheirNames() throws IOException {
+        for (boolean duplicated : new boolean[] { false, true }) {
+            for (boolean local : new boolean[] { false, true }) {
+                Limit limit = new Limit(
+                    Source.EMPTY,
+                    new Literal(Source.EMPTY, 10, DataType.INTEGER),
+                    relation(Source.EMPTY, "idx"),
+                    duplicated,
+                    local
+                );
+                Map<String, Object> properties = map(parse(limit.toJsonString()).get("properties"));
+                assertThat("duplicated=" + duplicated + ", local=" + local, properties.get("duplicated"), equalTo(duplicated));
+                assertThat("duplicated=" + duplicated + ", local=" + local, properties.get("local"), equalTo(local));
+            }
         }
     }
 
@@ -252,7 +326,7 @@ public class PlanToXContentTests extends ESTestCase {
         assertThat(map(json.get("plan_json")).get("type"), equalTo("LimitExec"));
         assertThat(json.get("logical_plan_json"), instanceOf(Map.class));
 
-        OperatorStatus tagged = new OperatorStatus("LimitOperator[limit = 0/10]", null, "17");
+        OperatorStatus tagged = new OperatorStatus("LimitOperator[limit = 0/10]", null, "17", null);
         Map<String, Object> operator = parse(Strings.toString(tagged));
         assertThat(operator.get("operator"), equalTo("LimitOperator[limit = 0/10]"));
         assertThat(operator.get("plan_node_id"), equalTo("17"));

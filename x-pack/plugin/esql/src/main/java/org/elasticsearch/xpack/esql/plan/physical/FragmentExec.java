@@ -139,41 +139,27 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
 
     /** Returns a copy of this fragment marked as originating from a view branch (see {@link #fromViewBranch}). */
     public FragmentExec asFromViewBranch() {
-        if (fromViewBranch) {
-            return this;
-        }
-        FragmentExec copy = new FragmentExec(source(), fragment, esFilter, estimatedRowSize, true);
-        copy.copyIdentityFrom(this);
-        return copy;
+        return fromViewBranch ? this : passIdentityTo(new FragmentExec(source(), fragment, esFilter, estimatedRowSize, true));
     }
 
     @Override
     public PhysicalPlan estimateRowSize(State state) {
         int estimatedRowSize = state.consumeAllFields(false);
-        if (Objects.equals(estimatedRowSize, this.estimatedRowSize)) {
-            return this;
-        }
-        FragmentExec copy = new FragmentExec(source(), fragment, esFilter, estimatedRowSize, fromViewBranch);
-        copy.copyIdentityFrom(this);
-        return copy;
+        return Objects.equals(estimatedRowSize, this.estimatedRowSize)
+            ? this
+            : passIdentityTo(new FragmentExec(source(), fragment, esFilter, estimatedRowSize, fromViewBranch));
     }
 
     public FragmentExec withFragment(LogicalPlan fragment) {
-        if (Objects.equals(fragment, this.fragment)) {
-            return this;
-        }
-        FragmentExec copy = new FragmentExec(source(), fragment, esFilter, estimatedRowSize, fromViewBranch);
-        copy.copyIdentityFrom(this);
-        return copy;
+        return Objects.equals(fragment, this.fragment)
+            ? this
+            : passIdentityTo(new FragmentExec(source(), fragment, esFilter, estimatedRowSize, fromViewBranch));
     }
 
     public FragmentExec withFilter(QueryBuilder filter) {
-        if (Objects.equals(filter, this.esFilter)) {
-            return this;
-        }
-        FragmentExec copy = new FragmentExec(source(), fragment, filter, estimatedRowSize, fromViewBranch);
-        copy.copyIdentityFrom(this);
-        return copy;
+        return Objects.equals(filter, this.esFilter)
+            ? this
+            : passIdentityTo(new FragmentExec(source(), fragment, filter, estimatedRowSize, fromViewBranch));
     }
 
     @Override

@@ -91,11 +91,11 @@ public class MapperUtils {
      * 1:1 translations call this once; a node that already has an origin is left alone so a second stamp
      * does not duplicate the id.
      */
-    static PhysicalPlan stampOrigin(PhysicalPlan physical, LogicalPlan logical) {
-        if (physical == null || logical == null || physical.planOrigin().isEmpty() == false) {
-            return physical;
+    static <P extends PhysicalPlan> P stampOrigin(P physical, LogicalPlan logical) {
+        if (physical != null && logical != null && physical.planOrigin().isEmpty()) {
+            physical.withOrigin(logical.planId());
         }
-        return physical.withOrigin(logical.planId());
+        return physical;
     }
 
     static PhysicalPlan mapLeaf(LeafPlan p) {
@@ -378,8 +378,7 @@ public class MapperUtils {
                 null
             );
         };
-        stampOrigin(exec, aggregate);
-        return exec;
+        return stampOrigin(exec, aggregate);
     }
 
     static PhysicalPlan unsupported(LogicalPlan p) {

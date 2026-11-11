@@ -67,6 +67,24 @@ public final class PlanJsonLog {
     }
 
     /**
+     * The JSON of {@code plan} for a PROFILE or EXPLAIN response, or {@code null} when it cannot be rendered. The JSON is a
+     * diagnostic, so failing to render it, such as a node property of a type the writer does not know, must not fail the query it
+     * describes. It is logged as a warning, because it is a bug in how the plan is written.
+     */
+    @Nullable
+    public static String toJsonOrNull(@Nullable QueryPlan<?> plan) {
+        if (plan == null) {
+            return null;
+        }
+        try {
+            return plan.toJsonString();
+        } catch (Exception e) {
+            logger.warn("failed to render a plan as JSON, leaving it out of the response", e);
+            return null;
+        }
+    }
+
+    /**
      * Logs a JSON document that is not a {@link QueryPlan}, rendered only when this logger is {@code DEBUG} or finer.
      * Failures to render are logged and swallowed so execution itself is unaffected.
      */

@@ -43,7 +43,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     private AttributeSet lazyReferences;
 
     /**
-     * Assigned in the constructor. Same-node rewrites copy it via {@link #copyIdentityFrom}; it is not
+     * Assigned in the constructor. Same-node rewrites copy it via {@link #passIdentityTo}; it is not
      * part of {@code equals} or {@code hashCode}. See {@link PlanId}.
      */
     private PlanId planId;
@@ -95,18 +95,19 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     }
 
     /**
-     * Copies {@link #planId}, {@link #origin} and {@link #exchange} from {@code original} onto this node.
+     * Copies {@link #planId}, {@link #origin} and {@link #exchange} from this node onto {@code replacement}, and returns it.
      * {@code replaceChildren} does this so a rewrite of the same node keeps its identity.
      * The fields are mutable on purpose, the same way {@code LogicalPlan} stage is set after construction.
      */
-    @SuppressWarnings("unchecked")
-    public final PlanType copyIdentityFrom(QueryPlan<?> original) {
-        if (original != null && original != this) {
-            this.planId = original.planId;
-            this.origin = original.origin;
-            this.exchange = original.exchange;
+    public final <P extends QueryPlan<?>> P passIdentityTo(P replacement) {
+        // Private fields are not reachable through the type variable
+        QueryPlan<?> target = replacement;
+        if (target != this) {
+            target.planId = planId;
+            target.origin = origin;
+            target.exchange = exchange;
         }
-        return (PlanType) this;
+        return replacement;
     }
 
     /**
@@ -149,30 +150,34 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
 
     /**
      * When a transform builds a fresh node of this same class, keep this node's id and origin.
-     * A node that already sits in {@code original}'s tree (a rewrite that collapses onto a descendant)
-     * keeps its own id.
+     * A node that is {@code original} or one of its children (a rewrite that collapses onto its child) already sits in
+     * {@code original}'s tree, and keeps its own id.
      */
     @Override
     protected void adoptIdentityFrom(Node<?> original) {
-        if (original instanceof QueryPlan<?> plan && plan.getClass() == getClass() && sharesInstance(plan, this) == false) {
-            copyIdentityFrom(plan);
+        if (original instanceof QueryPlan<?> plan && plan.getClass() == getClass() && isOrIsChildOf(plan, this) == false) {
+            plan.passIdentityTo(this);
         }
     }
 
-    private static boolean sharesInstance(QueryPlan<?> root, QueryPlan<?> target) {
-        if (root == target) {
+    /**
+     * Only the children are looked at, not the whole subtree. This runs for every node a transform rewrites, on the planning path of
+     * every query, and walking the subtree made a rewrite of a large plan quadratic. A rule that collapses a node onto a deeper
+     * descendant gives that descendant the identity of the node it replaced, which is still a unique id in the new tree.
+     */
+    private static boolean isOrIsChildOf(QueryPlan<?> root, QueryPlan<?> node) {
+        if (root == node) {
             return true;
         }
-        List<? extends QueryPlan<?>> children = root.children();
-        for (int i = 0; i < children.size(); i++) {
-            if (sharesInstance(children.get(i), target)) {
+        for (QueryPlan<?> child : root.children()) {
+            if (child == node) {
                 return true;
             }
         }
         return false;
     }
 
-    /** JSON object for this plan. The skeleton is never truncated. */
+    /** JSON object for this plan. Every node is written, but long property values are cut, see {@link PlanToXContent}. */
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         PlanToXContent.writePlan(builder, this);
         return builder;

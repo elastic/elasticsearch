@@ -146,11 +146,15 @@ public class Driver implements Releasable, Describable {
     }
 
     private OperatorStatus operatorStatus(Operator op) {
-        String planNodeId = planNodeIds.get(op);
-        String exchangeId = exchangeIds.get(op);
-        return planNodeId == null && exchangeId == null
-            ? new OperatorStatus(op.toString(), op.status())
-            : new OperatorStatus(op.toString(), op.status(), planNodeId, exchangeId);
+        return new OperatorStatus(op.toString(), op.status(), planNodeIds.get(op), exchangeIds.get(op));
+    }
+
+    /** Gives {@code promoted} the label {@code original} has in {@code labels}, if any, so its status still reports it. */
+    private static void carryLabel(Map<Operator, String> labels, Operator original, Operator promoted) {
+        String label = labels.get(original);
+        if (label != null) {
+            labels.put(promoted, label);
+        }
     }
 
     /**
@@ -417,14 +421,8 @@ public class Driver implements Releasable, Describable {
                     movedPage = true;
                     Operator promoted = nextOp.tryPromote(driverContext);
                     if (promoted != nextOp) {
-                        String planNodeId = planNodeIds.get(nextOp);
-                        if (planNodeId != null) {
-                            planNodeIds.put(promoted, planNodeId);
-                        }
-                        String exchangeId = exchangeIds.get(nextOp);
-                        if (exchangeId != null) {
-                            exchangeIds.put(promoted, exchangeId);
-                        }
+                        carryLabel(planNodeIds, nextOp, promoted);
+                        carryLabel(exchangeIds, nextOp, promoted);
                         activeOperators.set(iterator.nextIndex(), promoted);
                     }
                 }

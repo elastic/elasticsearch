@@ -20,6 +20,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -31,8 +32,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * {@code org.elasticsearch.xpack.esql.plan.json} logger.
  * <p>
  * Walks query-plan nodes only. Expressions are nested under {@code properties}, not given plan ids.
- * Nothing is truncated or bounded, so the document grows with the plan, and with the index lists and Lucene queries it carries.
- * {@link EsQueryExec} Lucene DSL is parked under {@code properties.detail.query} so consumers can ignore it. A node reports its
+ * The nodes of the tree are all written, but what a property holds is bounded like the ASCII plan: a string is cut at
+ * {@link #MAX_STRING_CHARS} characters, and a list or a map at {@link #MAX_ELEMENTS} elements, with a {@code truncated} marker that says
+ * how many were left out. The JSON is copied into the profile of every compute of a query, so a Lucene query or an index list that is
+ * huge must not make it huge. {@link EsQueryExec} Lucene DSL is parked under {@code properties.detail.query} so consumers can
+ * ignore it. A node reports its
  * properties through {@link QueryPlan#jsonPropertyValue}, so the JSON shows no more than the ASCII plan does.
  * {@link org.elasticsearch.xpack.esql.plan.physical.FragmentExec} exposes its inner logical plan as the sole JSON child.
  */
@@ -74,6 +78,14 @@ public final class PlanToXContent {
         "rightReferences"
     );
 
+    /**
+     * The longest string a property is written with, in characters. The ASCII plan is bounded the same way, and the JSON is copied
+     * into the profile of every compute of a query, so one raw Lucene query or a long literal must not make it huge.
+     */
+    static final int MAX_STRING_CHARS = 4096;
+    /** The most elements of a list or entries of a map a property is written with. */
+    static final int MAX_ELEMENTS = 100;
+
     private PlanToXContent() {}
 
     public static void writePlan(XContentBuilder builder, QueryPlan<?> plan) throws IOException {
@@ -105,19 +117,12 @@ public final class PlanToXContent {
     private static void writeSource(XContentBuilder builder, String field, Source source) throws IOException {
         builder.startObject(field);
         if (source == null || source == Source.EMPTY) {
-            builder.nullField("line");
-            builder.nullField("column");
-            builder.nullField("text");
-            builder.nullField("view");
+            builder.nullField("line").nullField("column").nullField("text").nullField("view");
         } else {
             builder.field("line", source.lineNumber());
             builder.field("column", source.columnNumber());
             builder.field("text", source.text());
-            if (source.viewName() == null) {
-                builder.nullField("view");
-            } else {
-                builder.field("view", source.viewName());
-            }
+            builder.field("view", source.viewName());
         }
         builder.endObject();
     }
@@ -147,9 +152,7 @@ public final class PlanToXContent {
             writeValue(builder, plan.jsonPropertyValue(prop));
         }
         if (detailQuery != null) {
-            builder.startObject("detail");
-            builder.field("query", detailQuery);
-            builder.endObject();
+            builder.startObject("detail").field("query", truncateIf(detailQuery)).endObject();
         }
         builder.endObject();
     }
@@ -171,8 +174,8 @@ public final class PlanToXContent {
         if (structural == prop || (structural.isEmpty() == false && structural.equals(prop))) {
             return true;
         }
-        for (int i = 0; i < structural.size(); i++) {
-            if (structural.get(i) == prop) {
+        for (Object child : structural) {
+            if (child == prop) {
                 return true;
             }
         }
@@ -195,37 +198,55 @@ public final class PlanToXContent {
             writeMap(builder, map);
         } else if (value instanceof Iterable<?> iterable) {
             builder.startArray();
+            int count = 0;
             for (Object element : iterable) {
-                writeValue(builder, element);
+                if (count++ < MAX_ELEMENTS) {
+                    writeValue(builder, element);
+                }
             }
+            writeTruncated(builder, count - MAX_ELEMENTS);
             builder.endArray();
-        } else if (value instanceof QueryBuilder query) {
-            builder.value(query.toString());
         } else if (value instanceof Enum<?> enumeration) {
             builder.value(enumeration.name());
-        } else if (value instanceof Boolean || value instanceof Number || value instanceof String) {
+        } else if (value instanceof Boolean || value instanceof Number) {
             builder.value(value);
         } else {
-            builder.value(String.valueOf(value));
+            // Strings, QueryBuilders and anything else the writer has no structure for
+            builder.value(truncateIf(String.valueOf(value)));
+        }
+    }
+
+    /** {@code string} itself, or when it is longer than {@link #MAX_STRING_CHARS}, its start and how many characters were left out. */
+    private static String truncateIf(String string) {
+        if (string.length() <= MAX_STRING_CHARS) {
+            return string;
+        }
+        return string.substring(0, MAX_STRING_CHARS) + "... [" + (string.length() - MAX_STRING_CHARS) + " more characters]";
+    }
+
+    /**
+     * Ends a list that was cut with an object that says how many elements were left out, which no element of a plan looks like.
+     * Nothing is written when none were.
+     */
+    private static void writeTruncated(XContentBuilder builder, int omitted) throws IOException {
+        if (omitted > 0) {
+            builder.startObject().field("truncated", omitted).endObject();
         }
     }
 
     private static void writeMap(XContentBuilder builder, Map<?, ?> map) throws IOException {
-        boolean stringKeys = true;
-        for (Object key : map.keySet()) {
-            if (key != null && key instanceof String == false) {
-                stringKeys = false;
-                break;
-            }
-        }
-        if (stringKeys == false) {
-            builder.value(String.valueOf(map));
+        if (map.keySet().stream().anyMatch(key -> key != null && key instanceof String == false)) {
+            builder.value(truncateIf(String.valueOf(map)));
             return;
         }
         builder.startObject();
+        int count = 0;
         for (Map.Entry<?, ?> entry : map.entrySet()) {
-            String key = entry.getKey() == null ? "null" : (String) entry.getKey();
-            builder.field(key);
+            if (count++ == MAX_ELEMENTS) {
+                builder.field("truncated", map.size() - MAX_ELEMENTS);
+                break;
+            }
+            builder.field(String.valueOf(entry.getKey()));
             writeValue(builder, entry.getValue());
         }
         builder.endObject();
@@ -235,13 +256,14 @@ public final class PlanToXContent {
         builder.startObject();
         builder.field("type", expression.nodeName());
         writeSource(builder, "source", expression.source());
-        builder.field("repr", fullRepr(expression));
+        builder.field("repr", truncateIf(fullRepr(expression)));
         List<Expression> args = expression.children();
         if (args.isEmpty() == false) {
             builder.startArray("args");
-            for (Expression arg : args) {
-                writeExpression(builder, arg);
+            for (int i = 0; i < Math.min(args.size(), MAX_ELEMENTS); i++) {
+                writeExpression(builder, args.get(i));
             }
+            writeTruncated(builder, args.size() - MAX_ELEMENTS);
             builder.endArray();
         }
         builder.endObject();
@@ -301,13 +323,12 @@ public final class PlanToXContent {
         if (used.add(name)) {
             return name;
         }
-        int n = 2;
-        String candidate = name + "_" + n;
-        while (used.add(candidate) == false) {
-            n++;
-            candidate = name + "_" + n;
+        for (int n = 2;; n++) {
+            String candidate = name + "_" + n;
+            if (used.add(candidate)) {
+                return candidate;
+            }
         }
-        return candidate;
     }
 
     private static List<Method> accessors(Class<?> type) {
@@ -337,6 +358,9 @@ public final class PlanToXContent {
                 methods.add(method);
             }
         }
+        // Class#getMethods has no defined order. Properties with equal values, such as two booleans, are named by the first unused
+        // accessor that returns them, so the order decides which name each gets, and it must not change from one JVM to the next.
+        methods.sort(Comparator.comparing(Method::getName));
         return List.copyOf(methods);
     }
 

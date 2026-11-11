@@ -340,6 +340,11 @@ public class EsqlSession {
         return Arrays.asList(cluster, node, role, type, plan, planJson);
     }
 
+    /** A row for a plan of this node, which is in the local cluster. */
+    private List<Object> localExplainRow(String role, String type, String plan, String planJson) {
+        return explainRow("", localNodeName, role, type, plan, planJson);
+    }
+
     /**
      * Snapshot of the planning stages this session has completed so far. Read once by the failure-
      * path anonymized log to surface whichever stages succeeded before the failure. The pipeline is
@@ -499,7 +504,7 @@ public class EsqlSession {
         planSnapshot = planSnapshot.withParsed(parsedPlan);
         if (parsedPlan instanceof Explain explain) {
             parsedPlan = explain.query();
-            explainContext = new ExplainContext(parsedPlan.toString(), parsedPlan.toJsonString());
+            explainContext = new ExplainContext(parsedPlan.toString(), PlanJsonLog.toJsonOrNull(parsedPlan));
             // The traversal-based command telemetry only sees the unwrapped query, so count the
             // EXPLAIN command itself here.
             planTelemetry.command(explain);
@@ -976,8 +981,8 @@ public class EsqlSession {
             new ExplainSubPlan(
                 subPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY),
                 physicalSubPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY),
-                subPlan.toJsonString(),
-                physicalSubPlan.toJsonString()
+                PlanJsonLog.toJsonOrNull(subPlan),
+                PlanJsonLog.toJsonOrNull(physicalSubPlan)
             )
         );
     }
@@ -995,7 +1000,7 @@ public class EsqlSession {
      */
     private void recordExplainCoordinatorPlan(PhysicalPlan physicalPlan) {
         explainContext.coordinatorPhysicalPlanString = physicalPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY);
-        explainContext.coordinatorPhysicalPlanJson = physicalPlan.toJsonString();
+        explainContext.coordinatorPhysicalPlanJson = PlanJsonLog.toJsonOrNull(physicalPlan);
     }
 
     /**
@@ -1014,42 +1019,21 @@ public class EsqlSession {
         // subPlans) are read via this inside the callback, which fires only after all writes
         // complete (sequential callback chain).
         String optimizedLogicalPlanString = optimizedPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY);
-        String optimizedLogicalPlanJson = optimizedPlan.toJsonString();
+        String optimizedLogicalPlanJson = PlanJsonLog.toJsonOrNull(optimizedPlan);
 
         return delegate.delegateFailureAndWrap((next, result) -> {
             List<List<Object>> values = new ArrayList<>();
-            String localCluster = "";
 
             // Add coordinator plans (captured before/during execution)
-            values.add(
-                explainRow(
-                    localCluster,
-                    localNodeName,
-                    "coordinator",
-                    "parsedPlan",
-                    explainContext.parsedPlanString,
-                    explainContext.parsedPlanJson
-                )
-            );
-            values.add(
-                explainRow(
-                    localCluster,
-                    localNodeName,
-                    "coordinator",
-                    "optimizedLogicalPlan",
-                    optimizedLogicalPlanString,
-                    optimizedLogicalPlanJson
-                )
-            );
+            values.add(localExplainRow("coordinator", "parsedPlan", explainContext.parsedPlanString, explainContext.parsedPlanJson));
+            values.add(localExplainRow("coordinator", "optimizedLogicalPlan", optimizedLogicalPlanString, optimizedLogicalPlanJson));
             // All success paths call recordExplainCoordinatorPlan before this callback fires.
             // The assert catches any new path that forgets to do so (fails loudly in tests).
             assert explainContext.coordinatorPhysicalPlanString != null
                 : "EXPLAIN: coordinatorPhysicalPlanString must be set by recordExplainCoordinatorPlan on all success paths";
             if (explainContext.coordinatorPhysicalPlanString != null) {
                 values.add(
-                    explainRow(
-                        localCluster,
-                        localNodeName,
+                    localExplainRow(
                         "coordinator",
                         "optimizedPhysicalPlan",
                         explainContext.coordinatorPhysicalPlanString,
@@ -1064,26 +1048,8 @@ public class EsqlSession {
             // by executeSubPlan as execution progresses)
             int subPlanIndex = 0;
             for (ExplainSubPlan subPlan : explainContext.subPlans) {
-                values.add(
-                    explainRow(
-                        localCluster,
-                        localNodeName,
-                        "subplan-" + subPlanIndex,
-                        "logicalPlan",
-                        subPlan.logicalPlan(),
-                        subPlan.logicalPlanJson()
-                    )
-                );
-                values.add(
-                    explainRow(
-                        localCluster,
-                        localNodeName,
-                        "subplan-" + subPlanIndex,
-                        "physicalPlan",
-                        subPlan.physicalPlan(),
-                        subPlan.physicalPlanJson()
-                    )
-                );
+                values.add(localExplainRow("subplan-" + subPlanIndex, "logicalPlan", subPlan.logicalPlan(), subPlan.logicalPlanJson()));
+                values.add(localExplainRow("subplan-" + subPlanIndex, "physicalPlan", subPlan.physicalPlan(), subPlan.physicalPlanJson()));
                 subPlanIndex++;
             }
 

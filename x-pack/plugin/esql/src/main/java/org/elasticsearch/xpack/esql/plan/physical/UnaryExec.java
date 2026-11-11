@@ -27,9 +27,7 @@ public abstract class UnaryExec extends PhysicalPlan {
 
     @Override
     public final PhysicalPlan replaceChildren(List<PhysicalPlan> newChildren) {
-        UnaryExec replaced = replaceChild(newChildren.get(0));
-        replaced.copyIdentityFrom(this);
-        return replaced;
+        return passIdentityTo(replaceChild(newChildren.get(0)));
     }
 
     public abstract UnaryExec replaceChild(PhysicalPlan newChild);

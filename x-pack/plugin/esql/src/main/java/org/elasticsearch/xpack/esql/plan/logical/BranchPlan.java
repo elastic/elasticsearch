@@ -82,9 +82,7 @@ public class BranchPlan extends UnionAll {
 
     @Override
     public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
-        BranchPlan replaced = new BranchPlan(source(), asSubqueryMap(newChildren), branchIdentities, output());
-        replaced.copyIdentityFrom(this);
-        return replaced;
+        return passIdentityTo(new BranchPlan(source(), asSubqueryMap(newChildren), branchIdentities, output()));
     }
 
     @Override
@@ -100,16 +98,12 @@ public class BranchPlan extends UnionAll {
 
     @Override
     public BranchPlan replaceSubPlans(List<LogicalPlan> subPlans) {
-        BranchPlan replaced = new BranchPlan(source(), asSubqueryMap(subPlans), branchIdentities, output());
-        replaced.copyIdentityFrom(this);
-        return replaced;
+        return passIdentityTo(new BranchPlan(source(), asSubqueryMap(subPlans), branchIdentities, output()));
     }
 
     @Override
     public BranchPlan replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
-        BranchPlan replaced = new BranchPlan(source(), asSubqueryMap(subPlans), branchIdentities, output);
-        replaced.copyIdentityFrom(this);
-        return replaced;
+        return passIdentityTo(new BranchPlan(source(), asSubqueryMap(subPlans), branchIdentities, output));
     }
 
     // Currently for testing only, could also be useful for EXPLAIN and PROFILE

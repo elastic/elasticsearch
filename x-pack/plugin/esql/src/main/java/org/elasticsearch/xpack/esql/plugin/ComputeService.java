@@ -2225,7 +2225,7 @@ public class ComputeService {
         boolean needPlanString = LOGGER.isDebugEnabled() || profile;
         String planString = needPlanString ? localPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY) : null;
         // JSON only when a consumer will read it. EXPLAIN turns profile on, so it takes this path too.
-        String planJson = profile ? localPlan.toJsonString() : null;
+        String planJson = profile ? PlanJsonLog.toJsonOrNull(localPlan) : null;
         return listener.map(ignored -> {
             if (LOGGER.isDebugEnabled() || context.configuration().profile()) {
                 DriverCompletionInfo driverCompletionInfo = DriverCompletionInfo.includingProfiles(

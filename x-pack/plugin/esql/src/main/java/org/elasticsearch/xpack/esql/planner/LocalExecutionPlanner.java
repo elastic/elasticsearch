@@ -254,6 +254,7 @@ import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -436,7 +437,7 @@ public class LocalExecutionPlanner {
             AggregateExec.class,
             a -> a.getMode().isOutputPartial()
                 ? a
-                : new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())).copyIdentityFrom(a)
+                : a.passIdentityTo(new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())))
         );
         PhysicalOperation physicalOperation = plan(localPhysicalPlan, context);
         // The exchanges of this plan, by the id of the plan node that is one side of them, so PROFILE can name the exchange of the
@@ -2999,9 +3000,7 @@ public class LocalExecutionPlanner {
             this.intermediateOperatorFactories.addAll(physicalOperation.intermediateOperatorFactories);
             this.intermediateOperatorFactories.addAll(intermediateOperatorFactories);
             this.intermediatePlanNodeIds = new ArrayList<>(physicalOperation.intermediatePlanNodeIds);
-            for (int i = 0; i < intermediateOperatorFactories.size(); i++) {
-                this.intermediatePlanNodeIds.add(null);
-            }
+            this.intermediatePlanNodeIds.addAll(Collections.nCopies(intermediateOperatorFactories.size(), null));
             this.sinkOperatorFactory = sinkOperatorFactory.isPresent() ? sinkOperatorFactory.get() : null;
             // with() clears the sink; withSink installs a new one that has not been tagged yet.
             this.sinkPlanNodeId = null;
@@ -3028,13 +3027,12 @@ public class LocalExecutionPlanner {
          * are kept. Called once per physical plan node after that node's operators have been appended.
          */
         PhysicalOperation tagPlanNode(String planNodeId) {
-            String sourceId = sourcePlanNodeId != null ? sourcePlanNodeId : planNodeId;
-            List<String> intermediateIds = new ArrayList<>(intermediatePlanNodeIds.size());
-            for (String id : intermediatePlanNodeIds) {
-                intermediateIds.add(id != null ? id : planNodeId);
-            }
-            String sinkId = sinkOperatorFactory == null ? null : (sinkPlanNodeId != null ? sinkPlanNodeId : planNodeId);
-            return new PhysicalOperation(this, sourceId, intermediateIds, sinkId);
+            return new PhysicalOperation(
+                this,
+                Objects.requireNonNullElse(sourcePlanNodeId, planNodeId),
+                intermediatePlanNodeIds.stream().map(id -> Objects.requireNonNullElse(id, planNodeId)).toList(),
+                sinkOperatorFactory == null ? null : Objects.requireNonNullElse(sinkPlanNodeId, planNodeId)
+            );
         }
 
         /**
@@ -3248,6 +3246,10 @@ public class LocalExecutionPlanner {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);
                 sink = physicalOperation.sink(driverContext);
+                // The ids are worked out before success is set. This throws if the operators do not match the plan nodes they came from,
+                // and the operators and the breaker must be released if it does.
+                Map<Operator, String> planNodeIds = physicalOperation.planNodeIds(source, operators, sink);
+                Map<Operator, String> exchangeIds = exchangeIdsOf(planNodeIds, source, sink);
                 success = true;
                 Driver driver = new Driver(
                     sessionId,
@@ -3264,9 +3266,8 @@ public class LocalExecutionPlanner {
                     statusInterval,
                     localBreaker
                 );
-                Map<Operator, String> planNodeIds = physicalOperation.planNodeIds(source, operators, sink);
                 driver.setPlanNodeIds(planNodeIds);
-                driver.setExchangeIds(exchangeIdsOf(planNodeIds, source, sink));
+                driver.setExchangeIds(exchangeIds);
                 return driver;
             } finally {
                 if (false == success) {
@@ -3281,13 +3282,10 @@ public class LocalExecutionPlanner {
          */
         private Map<Operator, String> exchangeIdsOf(Map<Operator, String> planNodeIds, SourceOperator source, SinkOperator sink) {
             Map<Operator, String> exchangeIds = new IdentityHashMap<>();
-            for (Map.Entry<Operator, String> entry : planNodeIds.entrySet()) {
-                if (entry.getKey() != source && entry.getKey() != sink) {
-                    continue;
-                }
-                String exchangeId = exchangeIdsByPlanNode.get(entry.getValue());
+            for (Operator operator : new Operator[] { source, sink }) {
+                String exchangeId = exchangeIdsByPlanNode.get(planNodeIds.get(operator));
                 if (exchangeId != null) {
-                    exchangeIds.put(entry.getKey(), exchangeId);
+                    exchangeIds.put(operator, exchangeId);
                 }
             }
             return exchangeIds;

@@ -28,9 +28,7 @@ public abstract class BinaryExec extends PhysicalPlan {
 
     @Override
     public final BinaryExec replaceChildren(List<PhysicalPlan> newChildren) {
-        BinaryExec replaced = replaceChildren(newChildren.get(0), newChildren.get(1));
-        replaced.copyIdentityFrom(this);
-        return replaced;
+        return passIdentityTo(replaceChildren(newChildren.get(0), newChildren.get(1)));
     }
 
     protected abstract BinaryExec replaceChildren(PhysicalPlan newLeft, PhysicalPlan newRight);

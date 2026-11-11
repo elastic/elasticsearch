@@ -241,21 +241,17 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourc
             state.add(false, Integer.BYTES * 2);
             size = state.consumeAllFields(true);
         }
-        if (Objects.equals(this.estimatedRowSize, size)) {
-            return this;
-        }
-        EsQueryExec copy = new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, size, queryBuilderAndTags);
-        copy.copyIdentityFrom(this);
-        return copy;
+        return Objects.equals(this.estimatedRowSize, size)
+            ? this
+            : passIdentityTo(new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, size, queryBuilderAndTags));
     }
 
     public EsQueryExec withLimit(Expression limit) {
-        if (Objects.equals(this.limit, limit)) {
-            return this;
-        }
-        EsQueryExec copy = new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags);
-        copy.copyIdentityFrom(this);
-        return copy;
+        return Objects.equals(this.limit, limit)
+            ? this
+            : passIdentityTo(
+                new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags)
+            );
     }
 
     public boolean canPushSorts() {
@@ -267,12 +263,11 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourc
             assert false : "time-series index mode doesn't support sorts";
             throw new UnsupportedOperationException("time-series index mode doesn't support sorts");
         }
-        if (Objects.equals(this.sorts, sorts)) {
-            return this;
-        }
-        EsQueryExec copy = new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags);
-        copy.copyIdentityFrom(this);
-        return copy;
+        return Objects.equals(this.sorts, sorts)
+            ? this
+            : passIdentityTo(
+                new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags)
+            );
     }
 
     /**
@@ -282,21 +277,20 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourc
      */
     public EsQueryExec withQuery(QueryBuilder query) {
         QueryBuilder thisQuery = queryWithoutTag();
-        if (Objects.equals(thisQuery, query)) {
-            return this;
-        }
-        EsQueryExec copy = new EsQueryExec(
-            source(),
-            indexPattern,
-            indexMode,
-            attrs,
-            limit,
-            sorts,
-            estimatedRowSize,
-            List.of(new QueryBuilderAndTags(query, List.of()))
-        );
-        copy.copyIdentityFrom(this);
-        return copy;
+        return Objects.equals(thisQuery, query)
+            ? this
+            : passIdentityTo(
+                new EsQueryExec(
+                    source(),
+                    indexPattern,
+                    indexMode,
+                    attrs,
+                    limit,
+                    sorts,
+                    estimatedRowSize,
+                    List.of(new QueryBuilderAndTags(query, List.of()))
+                )
+            );
     }
 
     public List<QueryBuilderAndTags> queryBuilderAndTags() {

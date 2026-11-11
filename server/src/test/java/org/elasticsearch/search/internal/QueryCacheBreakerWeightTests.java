@@ -22,18 +22,15 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesQueryCache;
-import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
-import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.lucene.search.cost.QueryCacheEntryCostEstimator;
 import org.elasticsearch.search.internal.BreakerWeightTestUtils.CountingCollectorManager;
 import org.elasticsearch.search.internal.BreakerWeightTestUtils.TrackingCircuitBreaker;
@@ -42,7 +39,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -107,7 +103,7 @@ public class QueryCacheBreakerWeightTests extends ESTestCase {
         ShardId shard = new ShardId("index", "_na_", 0);
         IndicesQueryCache cache = newIndicesQueryCache();
         try (DirectoryReader shardReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), shard)) {
-            CircuitBreaker breaker = newRequestBreaker(denseEntryBytes(shardReader) - 1);
+            LimitedBreaker breaker = new LimitedBreaker("request", ByteSizeValue.ofBytes(denseEntryBytes(shardReader) - 1));
             ContextIndexSearcher searcher = newSearcher(shardReader, cache);
             searcher.setCircuitBreaker(breaker);
             Query query = new TermQuery(new Term(FIELD, TERM));
@@ -164,19 +160,5 @@ public class QueryCacheBreakerWeightTests extends ESTestCase {
     private static long denseEntryBytes(DirectoryReader reader) {
         int maxDoc = reader.leaves().get(0).reader().maxDoc();
         return new QueryCacheEntryCostEstimator(NUM_DOCS, maxDoc).estimate();
-    }
-
-    /** A real request breaker, so that a refused reservation is counted as a trip like in production. */
-    private static CircuitBreaker newRequestBreaker(long limitBytes) {
-        Settings settings = Settings.builder()
-            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), ByteSizeValue.ofBytes(limitBytes))
-            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
-            .build();
-        return new HierarchyCircuitBreakerService(
-            CircuitBreakerMetrics.NOOP,
-            settings,
-            List.of(),
-            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-        ).getBreaker(CircuitBreaker.REQUEST);
     }
 }

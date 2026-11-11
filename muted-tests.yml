@@ -230,9 +230,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormatTests
   method: testRandomWithUpdatesAndGraph
   issue: https://github.com/elastic/elasticsearch/issues/160422
-- class: org.elasticsearch.xpack.encryption.KeyRotationIT
-  method: testRotationContinuesAfterMasterFailover
-  issue: https://github.com/elastic/elasticsearch/issues/160824
 - class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
   method: testRevertModelSnapshot_DeleteInterveningResults
   issue: https://github.com/elastic/elasticsearch/issues/161086
@@ -470,21 +467,6 @@ tests:
   tasks:
   - :qa:smoke-test-multinode:yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/164771
-- class: org.elasticsearch.compute.lucene.read.FieldPresenceOperatorTests
-  tasks:
-  - :x-pack:plugin:esql:compute:test
-  method: testSimpleCircuitBreaking
-  issue: https://github.com/elastic/elasticsearch/issues/164801
-- class: org.elasticsearch.compute.lucene.read.ValueSourceReaderTypeConversionForceDocSequenceTests
-  tasks:
-  - :x-pack:plugin:esql:compute:test
-  method: testLoadAll
-  issue: https://github.com/elastic/elasticsearch/issues/164825
-- class: org.elasticsearch.compute.lucene.read.ValueSourceReaderTypeConversionTests
-  tasks:
-  - :x-pack:plugin:esql:compute:test
-  method: testLoadAll
-  issue: https://github.com/elastic/elasticsearch/issues/164827
 - class: org.elasticsearch.index.codec.vectors.ash.AsymmetricHashingQuantizerTests
   tasks:
   - :server:test
@@ -500,16 +482,6 @@ tests:
   - :test:framework:integTest
   method: testLeakingRecyclerBackedByteArrayIsDetected
   issue: https://github.com/elastic/elasticsearch/issues/164889
-- class: org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests
-  tasks:
-  - :x-pack:plugin:esql:compute:test
-  method: testSimpleCircuitBreaking
-  issue: https://github.com/elastic/elasticsearch/issues/164936
-- class: org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorForceDocSequenceTests
-  tasks:
-  - :x-pack:plugin:esql:compute:test
-  method: testSimpleCircuitBreaking
-  issue: https://github.com/elastic/elasticsearch/issues/164938
 - class: org.elasticsearch.xpack.ml.qa.MlYamlRestIT
   tasks:
   - :x-pack:plugin:ml:qa:single-node-tests:yamlRestTest
@@ -586,18 +558,13 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.3.8#javaRestTest
   method: testMergeKeywordAndFlattenedKey {NONE}
   issue: https://github.com/elastic/elasticsearch/issues/165491
-- class: org.elasticsearch.search.vectors.KnnNestedFilterLevelTests
+- class: org.elasticsearch.xpack.stateless.StatelessComponentsOrderIT
   tasks:
-  - :server:test
-  method: testCompoundFilters
-  issue: https://github.com/elastic/elasticsearch/issues/165502
-- class: org.elasticsearch.search.vectors.KnnNestedFilterLevelTests
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testClosingNodeShouldWaitForOngoingMerge
+  issue: https://github.com/elastic/elasticsearch/issues/165534
+- class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
   tasks:
-  - :server:test
-  method: testQueryTypesOnFieldsOfEachLevel
-  issue: https://github.com/elastic/elasticsearch/issues/165515
-- class: org.elasticsearch.xpack.searchablesnapshots.store.input.FrozenIndexInputTests
-  tasks:
-  - :x-pack:plugin:searchable-snapshots:test
-  method: testRandomReads
-  issue: https://github.com/elastic/elasticsearch/issues/165519
+  - :x-pack:plugin:esql:compute:test
+  method: testSourcesFinishedUnregistersSink
+  issue: https://github.com/elastic/elasticsearch/issues/165591

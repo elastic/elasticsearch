@@ -2718,6 +2718,79 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
+     * With {@code multi_value=false} and {@code on_failure=ignore}, the diverted second value is still in {@code _source}, but block
+     * loaders must not return it. {@link MappedFieldType#isStaticallySingleValued()} relies on that.
+     */
+    public void testMultiValueFalseOnFailureIgnoreBlockLoaderSeesOneValue() throws IOException {
+        assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
+        assertDivertedValueIsNotLoaded(getSampleValueForDocument());
+    }
+
+    /**
+     * Indexes {@code sample} twice into a field with {@code multi_value=false} and {@code on_failure=ignore}, and checks that block
+     * loaders return the same single value as for a document that holds it once. It runs for every source mode that allows
+     * {@code multi_value=false} and every field extract preference. Mapper tests that do not run
+     * {@link #testMultiValueFalseOnFailureIgnoreBlockLoaderSeesOneValue} can call it directly.
+     */
+    protected final void assertDivertedValueIsNotLoaded(Object sample) throws IOException {
+        for (SourceFieldMapper.Mode sourceMode : IndexMode.COLUMNAR.supportedSourceModes()) {
+            for (MappedFieldType.FieldExtractPreference preference : BlockLoaderTestCase.PREFERENCES) {
+                var params = new BlockLoaderTestCase.Params(IndexMode.COLUMNAR, sourceMode, preference);
+                MapperService mapperService = createMapperService(
+                    BlockLoaderTestCase.getSettingsForParams(params).build(),
+                    fieldMapping(b -> {
+                        minimalMapping(b);
+                        b.field("multi_value", false);
+                        b.field("on_failure", "ignore");
+                    })
+                );
+                // The second value is diverted: it is accepted, and it is not in the doc values or the stored fields.
+                Object diverted = loadSingleDocument(mapperService, params, b -> b.array("field", sample, sample));
+                Object once = loadSingleDocument(mapperService, params, b -> b.field("field", sample));
+                String message = "source mode " + sourceMode + ", preference " + preference;
+                assertNotNull(message + ": a value that is held once must load", once);
+                assertThat(message + ": a value that is held once is not a list", once instanceof List, equalTo(false));
+                assertThat(message + ": a diverted value must not load", diverted, equalTo(once));
+            }
+        }
+    }
+
+    /**
+     * An index-time script can emit multiple values, even if the {@code multi_value} param is false, so a scripted field is not
+     * statically single-valued. Call it from a mapper test whose mapper accepts {@code script}, with the id of a script it compiles.
+     */
+    protected final void assertScriptedFieldIsNotStaticallySingleValued(String script) throws IOException {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService plain = createMapperService(columnar, fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("multi_value", false);
+        }));
+        assertTrue(plain.mappingLookup().getFieldType("field").isStaticallySingleValued());
+
+        MapperService scripted = createMapperService(columnar, fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("script", script);
+            b.field("multi_value", false);
+        }));
+        assertFalse(scripted.mappingLookup().getFieldType("field").isStaticallySingleValued());
+    }
+
+    private Object loadSingleDocument(
+        MapperService mapperService,
+        BlockLoaderTestCase.Params params,
+        CheckedConsumer<XContentBuilder, IOException> document
+    ) throws IOException {
+        Object[] loaded = new Object[1];
+        BlockLoaderTestRunner runner = new BlockLoaderTestRunner(params).mapperService(mapperService)
+            .breaker(newLimitedBreaker(BlockLoaderTestCase.TEST_BREAKER_SIZE))
+            .fieldName("field")
+            .matcher((expected, actual) -> loaded[0] = actual);
+        runner.document(mapperService.documentMapper().parse(source(document)));
+        runner.run(null);
+        return loaded[0];
+    }
+
+    /**
      * A {@code null} with no {@code null_value} configured is silently discarded and does not consume the single-value slot,
      * so {@code [null, value]} is treated identically to {@code [value]} — no multi-value violation. Asserts the
      * null-token exemption in {@link FieldMapper#shouldEnforceSingleValue(org.elasticsearch.xcontent.XContentParser.Token)}

@@ -211,12 +211,12 @@ public class EsqlQueryLogIT extends AbstractEsqlIntegTestCase {
                             ANALYSIS
                         )) {
                             long timingTook = Long.valueOf(
-                                msg.get(ELASTICSEARCH_QUERYLOG_PREFIX + timing + ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX)
+                                msg.get(ELASTICSEARCH_QUERYLOG_PREFIX + '.' + timing + ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX)
+                            );
+                            long timingTookMillis = Long.valueOf(
+                                msg.get(ELASTICSEARCH_QUERYLOG_PREFIX + '.' + timing + ELASTICSEARCH_QUERYLOG_TOOK_MILLIS_SUFFIX)
                             );
                             long timingTookMillisExpected = timingTook / 1_000_000;
-                            long timingTookMillis = Long.valueOf(
-                                msg.get(ELASTICSEARCH_QUERYLOG_PREFIX + timing + ELASTICSEARCH_QUERYLOG_TOOK_MILLIS_SUFFIX)
-                            );
                             assertThat(timingTook, greaterThanOrEqualTo(0L));
                             assertThat(timingTookMillis, is(timingTookMillisExpected));
                             assertThat(took, greaterThan(timingTook));

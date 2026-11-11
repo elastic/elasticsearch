@@ -266,10 +266,35 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
         assertThat(indexFilters, contains(TIME_FILTER, null));
     }
 
-    /** A missing {@code @timestamp} only reads as null, as the filter takes it, while unmapped fields fail the query. */
-    public void testTimeRangeNotUsedWhenUnmappedFieldsAreNotTheDefault() {
-        analyze("SET unmapped_fields=\"nullify\"; FROM logs-*" + TIME_RANGE, null);
+    /**
+     * An index that holds {@code @timestamp} in {@code _source} without mapping it never matches the filter, while its rows
+     * pass a condition on the value once it is loaded. The time range is not used then, for the query or for a view of it.
+     */
+    public void testTimeRangeNotUsedWhenUnmappedFieldsAreLoaded() {
+        for (String mode : new String[] { "load", "LOAD_ALL" }) {
+            indexFilters.clear();
+            analyze("SET unmapped_fields=\"" + mode + "\"; FROM logs-*" + TIME_RANGE, null);
+            assertThat(mode, indexFilters, contains(nullValue()));
+        }
+        addView("loading_view", "SET unmapped_fields=\"load\"; FROM logs-* | KEEP @timestamp, message");
+        indexFilters.clear();
+        analyze("FROM loading_view" + TIME_RANGE, null);
         assertThat(indexFilters, contains(nullValue()));
+    }
+
+    /** A nullified {@code @timestamp} is null, which no condition on it accepts, just like the filter. */
+    public void testTimeRangeUsedWhenUnmappedFieldsAreNullified() {
+        List<String> columns = columns(analyze("SET unmapped_fields=\"nullify\"; FROM logs-*" + TIME_RANGE, null));
+        assertThat(indexFilters, contains(TIME_FILTER));
+        assertThat(columns, not(hasItem("old_only")));
+    }
+
+    /** Nothing fails the analysis of nullified fields, the indices are resolved again all the same when none is left. */
+    public void testRetryWhenTimeRangeLeavesNoIndexWithNullifiedFields() {
+        matchingIndices = filter -> boundsTimestamp(filter) ? List.of() : List.of(RECENT, OLD);
+        List<String> columns = columns(analyze("SET unmapped_fields=\"nullify\"; FROM logs-*" + TIME_RANGE, null));
+        assertThat(indexFilters, contains(TIME_FILTER, null));
+        assertThat(columns, hasItem("old_only"));
     }
 
     /**

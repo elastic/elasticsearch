@@ -1964,11 +1964,14 @@ public class EsqlSession {
 
     /**
      * The filters on {@code @timestamp} that the query itself implies for its index patterns, see {@link QueryTimeRangeExtractor}.
-     * They are only used while an unmapped field fails the query, which is the default. An index that does not map
-     * {@code @timestamp} never matches the filter, which is right as long as the missing field reads as {@code null}, but not
-     * once it is loaded from {@code _source}. Exemplars resolve data streams of their own from the indices that the query
-     * resolved, and are left out as well. So is any query whose request filter already filters on {@code @timestamp}, see
-     * {@link #filtersOnTimestamp}.
+     * <p>
+     * They are not used while unmapped fields are loaded from {@code _source}, by the query or by one of its views. An index
+     * that holds {@code @timestamp} in {@code _source} without mapping it never matches the filter, while its rows do pass a
+     * condition on the loaded value. That is the one case in which leaving an index out changes the rows of the result: with
+     * any other setting the missing field reads as {@code null}, which no condition on {@code @timestamp} accepts.
+     * <p>
+     * Exemplars resolve data streams of their own from the indices that the query resolved, and are left out as well. So is
+     * any query whose request filter already filters on {@code @timestamp}, see {@link #filtersOnTimestamp}.
      * <p>
      * A filter that leaves a pattern without any index is given up on, see {@link #analyzeWithRetry}: the query then gets the
      * mapping, and with that the columns, of the indices that it would have read without the filter.
@@ -1992,11 +1995,11 @@ public class EsqlSession {
         Map<String, ViewQuerySettings> viewSettings,
         Configuration configuration
     ) {
-        if (unmappedResolution != UnmappedResolution.DEFAULT || QuerySettings.EXEMPLARS.get(configuration.resolvedSettings()).enabled()) {
+        if (unmappedResolution.loadsUnmappedFields() || QuerySettings.EXEMPLARS.get(configuration.resolvedSettings()).enabled()) {
             return Map.of();
         }
         for (ViewQuerySettings settings : viewSettings.values()) {
-            if (settings.unmappedFields() != UnmappedResolution.DEFAULT) {
+            if (settings.unmappedFields().loadsUnmappedFields()) {
                 return Map.of();
             }
         }

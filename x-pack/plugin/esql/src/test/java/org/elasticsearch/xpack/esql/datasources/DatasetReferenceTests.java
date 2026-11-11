@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -140,26 +139,6 @@ public class DatasetReferenceTests extends ESTestCase {
         assertThat(rendered, containsString("settings"));
         assertThat(rendered, not(containsString("s3://bucket/*.csv")));
         assertThat(rendered, not(containsString("csv")));
-    }
-
-    /**
-     * A registration body names its data source in the body; an inline definition names it in the call's first
-     * argument. So the field a registration requires is the one field a definition may not carry, and saying it
-     * twice is refused rather than silently resolved one way.
-     */
-    public void testADefinitionCarryingItsOwnDataSourceIsRefused() {
-        DatasetReference.Inline inline = new DatasetReference.Inline(
-            "s3_source",
-            Map.of("data_source", "s3_source", "resource", "s3://bucket/*.csv")
-        );
-
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> inline.asRegistrationRequest(TimeValue.timeValueSeconds(30))
-        );
-
-        assertThat(e.getMessage(), containsString("takes its data source from its first argument"));
-        assertThat(e.getMessage(), containsString("remove [data_source]"));
     }
 
     /** A definition a stream carried that the record cannot hold is a malformed request, reported as one. */

@@ -149,7 +149,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
 
         // ABORT is the symptom of a shard closing; master is told through other means (or already knows),
         // so this must only release the ticket, never notify master.
-        failRecoveryViaListener(ABORT);
+        indicesService.failRecoveryViaListener(ABORT);
 
         assertFalse(indicesClusterStateService.pendingAllocationStates.containsKey(allocationKey(shardRouting)));
         verify(shardStateAction, never()).localShardFailed(any(), anyString(), any(), any(), any());
@@ -190,7 +190,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
             instanceOf(IndicesClusterStateService.PendingAllocationState.InFlight.class)
         );
 
-        completeRecoveryViaListener();
+        indicesService.completeRecoveryViaListener();
         assertFalse(indicesClusterStateService.pendingAllocationStates.containsKey(allocationKey(shardRouting)));
         verify(shardStateAction).shardStarted(eq(shardRouting), anyLong(), anyString(), any(), any(), any());
     }
@@ -507,7 +507,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
             indicesClusterStateService.pendingAllocationStates.get(allocationKey(shardRouting)),
             instanceOf(IndicesClusterStateService.PendingAllocationState.InFlight.class)
         );
-        completeRecoveryViaListener();
+        indicesService.completeRecoveryViaListener();
         assertFalse(indicesClusterStateService.pendingAllocationStates.containsKey(allocationKey(shardRouting)));
     }
 
@@ -746,33 +746,6 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         ) instanceof IndicesClusterStateService.PendingAllocationState.FailureReported;
     }
 
-    /// Drives the production path via [RecoveryListener#onRecoveryFailure] rather than calling
-    /// [IndicesClusterStateService#handleRecoveryFailure] directly.
-    private void failRecoveryViaListener(FailureStrategy failureStrategy) {
-        RecoveryListener listener = indicesService.lastRecoveryListener;
-        assertNotNull("createShard must have captured a RecoveryListener", listener);
-        MockIndexShard shard = indicesService.getShardOrNull(indicesService.lastCreatedShardId);
-        assertNotNull(shard);
-        RecoveryState recoveryState = shard.recoveryState();
-        listener.onRecoveryFailure(
-            recoveryState,
-            new RecoveryFailedException(recoveryState, "simulated", new Exception("simulated")),
-            failureStrategy
-        );
-    }
-
-    /// Completes the currently-captured [RecoveryListener] successfully via
-    /// [RecoveryListener#onRecoveryDone], so tests can verify the InFlight ticket is released
-    /// once recovery actually finishes (it's deliberately held through recovery, not just construction
-    /// -- see [RecordingIndicesService#autoCompleteRecovery]).
-    private void completeRecoveryViaListener() {
-        RecoveryListener listener = indicesService.lastRecoveryListener;
-        assertNotNull("createShard must have captured a RecoveryListener", listener);
-        MockIndexShard shard = indicesService.getShardOrNull(indicesService.lastCreatedShardId);
-        assertNotNull(shard);
-        listener.onRecoveryDone(shard.recoveryState(), ShardLongFieldRange.UNKNOWN, ShardLongFieldRange.UNKNOWN);
-    }
-
     private long primaryTerm(ShardRouting shardRouting) {
         return state.metadata().getProject().index(shardRouting.index()).primaryTerm(shardRouting.id());
     }
@@ -925,6 +898,31 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
                 sourceNode,
                 clusterStateVersion
             );
+        }
+
+        /// Drives the production path via [RecoveryListener#onRecoveryFailure] rather than calling
+        /// [IndicesClusterStateService#handleRecoveryFailure] directly.
+        void failRecoveryViaListener(FailureStrategy failureStrategy) {
+            assertNotNull("createShard must have captured a RecoveryListener", lastRecoveryListener);
+            MockIndexShard shard = getShardOrNull(lastCreatedShardId);
+            assertNotNull(shard);
+            RecoveryState recoveryState = shard.recoveryState();
+            lastRecoveryListener.onRecoveryFailure(
+                recoveryState,
+                new RecoveryFailedException(recoveryState, "simulated", new Exception("simulated")),
+                failureStrategy
+            );
+        }
+
+        /// Completes the currently-captured [RecoveryListener] successfully via
+        /// [RecoveryListener#onRecoveryDone], so tests can verify the InFlight ticket is released
+        /// once recovery actually finishes (it's deliberately held through recovery, not just construction
+        /// -- see [#autoCompleteRecovery]).
+        void completeRecoveryViaListener() {
+            assertNotNull("createShard must have captured a RecoveryListener", lastRecoveryListener);
+            MockIndexShard shard = getShardOrNull(lastCreatedShardId);
+            assertNotNull(shard);
+            lastRecoveryListener.onRecoveryDone(shard.recoveryState(), ShardLongFieldRange.UNKNOWN, ShardLongFieldRange.UNKNOWN);
         }
     }
 }

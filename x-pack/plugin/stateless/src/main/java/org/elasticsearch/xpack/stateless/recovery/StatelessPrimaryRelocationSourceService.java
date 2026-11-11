@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
@@ -902,9 +903,9 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             }
             for (PendingRelocation relocation : relocationsToStart) {
                 schedulingListeners().onPeerRecoveryDequeuedAndStartedOnSource();
-                final ActionListener<StartRelocationResponse> wrappedListener = ActionListener.runAfter(
+                final ActionListener<StartRelocationResponse> wrappedListener = ActionListener.releaseAfter(
                     relocation.listener(),
-                    () -> onRelocationComplete(relocation)
+                    Releasables.releaseOnce(() -> onRelocationComplete(relocation))
                 );
                 // The generic executor has an unbounded queue and the threadpool shuts down after this service is
                 // stopped (and drains the queue), so the `execute` call cannot throw `EsRejectedExecutionException`.

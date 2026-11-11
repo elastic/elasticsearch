@@ -258,7 +258,8 @@ public class MappingParserContext {
     /**
      * Parses the source of a mapping that is already stored into builders.  If a
      * {@link FieldPathFilter} is defined in this context, only fields that match
-     * the filter are parsed. The root is the stored mapping decoded to a map, without its type name, which can be shared between calls: parsing
+     * the filter are parsed. The root is the stored mapping decoded to a map, without
+     * its type name, which can be shared between calls: parsing
      * consumes the map, so it is the copy that is parsed.
      */
     MappingBuilder parseStoredMapping(Map<String, Object> decodedRoot) {

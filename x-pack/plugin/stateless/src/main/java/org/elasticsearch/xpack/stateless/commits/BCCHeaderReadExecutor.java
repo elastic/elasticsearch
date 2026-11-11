@@ -19,8 +19,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.Executor;
 
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.PREWARM_THREAD_POOL;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.SHARD_READ_THREAD_POOL;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.PREWARM_THREAD_POOL;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.SHARD_READ_THREAD_POOL;
 
 /**
  * Executor that limits concurrent BCC header reads to avoid memory exhaustion when processing referenced BCCs during

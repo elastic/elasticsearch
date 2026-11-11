@@ -44,6 +44,16 @@ public interface ShardContext extends RefCounted {
     Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sorts) throws IOException;
 
     /**
+     * Build a "sort" configuration for a query that is known to match either every document of the shard or not.
+     * When {@code matchesAllDocs} is {@code true} the shard may enable sort optimizations that are only correct for
+     * a query that matches every document, such as reading only the end of a segment when the sort is the reverse of
+     * the index sort. The default ignores {@code matchesAllDocs}.
+     */
+    default Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sorts, boolean matchesAllDocs) throws IOException {
+        return buildSort(sorts);
+    }
+
+    /**
      * A "name" for the shard that you can look up against other APIs like
      * {@code _cat/shards}.
      */

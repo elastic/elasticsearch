@@ -17,6 +17,7 @@ import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
@@ -42,6 +43,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -119,6 +121,16 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                     if (searchSort.isPresent() && Lucene.canEarlyTerminate(searchSort.get().sort, indexSort)) {
                         return LuceneSliceQueue.PartitioningStrategy.SEGMENT;
                     }
+                }
+            }
+            // Match-all query sorted by the reverse of the index sort: only the end of each segment is read, so there is
+            // nothing to split.
+            if (LuceneSourceOperator.Factory.unwrapQuery(query) instanceof MatchAllDocsQuery) {
+                Optional<SortAndFormats> matchAllSort = ctx.buildSort(sorts, true);
+                if (matchAllSort.isPresent()
+                    && matchAllSort.get().sort.getSort()[0].getComparatorSource() instanceof LongValuesComparatorSource source
+                    && source.isMatchTailQuery()) {
+                    return LuceneSliceQueue.PartitioningStrategy.SEGMENT;
                 }
             }
             // Past the sort short-circuits, share the AUTO decision with the source and count operators: a field sort must
@@ -400,7 +412,10 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
             try {
                 if (perShardCollector == null || perShardCollector.shardContext.index() != scorer.shardContext().index()) {
-                    perShardCollector = perShardCollectorProvider.newPerShardCollector(scorer.shardContext());
+                    perShardCollector = perShardCollectorProvider.newPerShardCollector(
+                        scorer.shardContext(),
+                        LuceneSourceOperator.Factory.unwrapQuery(scorer.weight().getQuery()) instanceof MatchAllDocsQuery
+                    );
                     skipCurrentShard = cannotBeatBound(scorer.shardContext());
                 }
                 if (skipCurrentShard) {
@@ -734,7 +749,15 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
 
         PerShardCollector newPerShardCollector(ShardContext context) throws IOException {
-            Optional<SortAndFormats> sortAndFormats = context.buildSort(this.sorts);
+            return newPerShardCollector(context, false);
+        }
+
+        /**
+         * @param matchesAllDocs whether the query of the shard matches every document, which lets the sort read only the end
+         *                       of a segment that is sorted by the reverse of the sort
+         */
+        PerShardCollector newPerShardCollector(ShardContext context, boolean matchesAllDocs) throws IOException {
+            Optional<SortAndFormats> sortAndFormats = context.buildSort(this.sorts, matchesAllDocs);
             if (sortAndFormats.isEmpty()) {
                 throw new IllegalStateException("sorts must not be disabled in TopN");
             }

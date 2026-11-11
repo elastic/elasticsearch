@@ -9,9 +9,12 @@
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.BinarySortField;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -26,6 +29,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.fielddata.DenseLongValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -92,6 +96,38 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         this.alwaysMatchTailQuery = true;
     }
 
+    /**
+     * Whether {@link #setMatchTailQuery()} was called, so segments that are sorted by descending {@code @timestamp}
+     * only collect the last documents of the segment.
+     */
+    public boolean isMatchTailQuery() {
+        return alwaysMatchTailQuery;
+    }
+
+    /**
+     * Marks the primary key of {@code sort} for the "match tail" optimization if it is an ascending sort on {@code @timestamp}
+     * and the index is sorted by descending {@code @timestamp}. The optimization is only correct for a query that matches every
+     * document, and that has no {@code search_after}, so the caller must check that first.
+     *
+     * @param indexSortConfig the sort configuration of the index that is searched
+     * @param sort the sort of the search, or {@code null} if the search is not sorted
+     * @return whether the sort was marked
+     */
+    public static boolean maybeMarkAsMatchTail(IndexSortConfig indexSortConfig, @Nullable Sort sort) {
+        if (sort == null || sort.getSort().length == 0 || indexSortConfig.containsDescendingTimestampSort() == false) {
+            return false;
+        }
+        SortField primarySort = sort.getSort()[0];
+        if (primarySort.getReverse() || Objects.equals(primarySort.getField(), "@timestamp") == false) {
+            return false;
+        }
+        if (primarySort.getComparatorSource() instanceof LongValuesComparatorSource source) {
+            source.setMatchTailQuery();
+            return true;
+        }
+        return false;
+    }
+
     private SortedNumericLongValues loadDocValues(LeafReaderContext context) {
         final LeafNumericFieldData data = indexFieldData.load(context);
         SortedNumericLongValues values;
@@ -137,11 +173,15 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                     @Override
                     protected XNumericComparator<Long>.CompetitiveDISIBuilder buildCompetitiveDISIBuilder(LeafReaderContext context)
                         throws IOException {
-                        if (alwaysMatchTailQuery == false || segmentSortedByDescTimestamp(context) == false) {
+                        if (alwaysMatchTailQuery == false
+                            || segmentSortedByDescTimestamp(context) == false
+                            || everyDocumentHasValue(context.reader(), fieldname) == false) {
                             return super.buildCompetitiveDISIBuilder(context);
                         }
                         int maxDoc = context.reader().maxDoc();
-                        int start = context.reader().numDocs() - numHits - 1;
+                        // The range holds the deleted documents plus numHits + 1 more, so it has at least numHits + 1 live documents.
+                        // A segment with fewer live documents than that is read entirely.
+                        int start = Math.max(0, context.reader().numDocs() - numHits - 1);
                         return new CompetitiveDISIBuilder(this) {
                             @Override
                             protected int docCount() {
@@ -250,6 +290,34 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                 return maxDoc;
             }
         };
+    }
+
+    /**
+     * Whether every document of the segment has a value for {@code field}. Documents without a value sort last in a segment
+     * that is sorted by descending timestamp, so they fill the end of the segment. The last documents are then not the ones
+     * with the smallest timestamps. Deleted documents count too, so a segment with a deleted document without a value is
+     * not matched. That only costs speed.
+     */
+    private static boolean everyDocumentHasValue(LeafReader reader, String field) throws IOException {
+        int maxDoc = reader.maxDoc();
+        DocValuesSkipper skipper = reader.getDocValuesSkipper(field);
+        if (skipper != null) {
+            return skipper.docCount() == maxDoc;
+        }
+        PointValues points = reader.getPointValues(field);
+        if (points != null) {
+            return points.getDocCount() == maxDoc;
+        }
+        // No statistics: count the documents with a value
+        SortedNumericDocValues values = reader.getSortedNumericDocValues(field);
+        if (values == null) {
+            return false;
+        }
+        int withValue = 0;
+        while (values.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+            withValue++;
+        }
+        return withValue == maxDoc;
     }
 
     // Checks that the current segment is either directly sorted by descending timestamp,

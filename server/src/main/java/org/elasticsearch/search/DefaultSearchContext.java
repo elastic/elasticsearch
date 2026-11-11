@@ -20,7 +20,6 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.action.ActionListener;
@@ -90,7 +89,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.LongSupplier;
@@ -843,20 +841,11 @@ final class DefaultSearchContext extends SearchContext {
         if (rewriteQuery instanceof MatchAllDocsQuery == false || this.searchAfter() != null || this.size == 0) {
             return;
         }
-        if (indexService.getIndexSettings().getIndexSortConfig().containsDescendingTimestampSort() == false) {
-            return;
-        }
         SortAndFormats sort = sort();
         if (sort == null) {
             return;
         }
-        SortField primarySort = sort.sort.getSort()[0];
-        if (primarySort.getReverse() || Objects.equals(primarySort.getField(), "@timestamp") == false) {
-            return;
-        }
-        if (primarySort.getComparatorSource() instanceof LongValuesComparatorSource source) {
-            source.setMatchTailQuery();
-        }
+        LongValuesComparatorSource.maybeMarkAsMatchTail(indexService.getIndexSettings().getIndexSortConfig(), sort.sort);
     }
 
     @Override

@@ -393,6 +393,11 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
     public void testFlattenedFieldIgnoreAbove() throws IOException {
         assumeFlattenedDatatype();
+        var capsName = EsqlCapabilities.Cap.FLATTENED_ROOT_DROPS_IGNORED_VALUES.name().toLowerCase(Locale.ROOT);
+        assumeTrue(
+            "the flattened root drops ignored values",
+            clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false)
+        );
         // As for a keyword field, a value over ignore_above is not read
         Map<String, Object> input = new TreeMap<>();
         input.put("short", randomAlphaOfLength(5));

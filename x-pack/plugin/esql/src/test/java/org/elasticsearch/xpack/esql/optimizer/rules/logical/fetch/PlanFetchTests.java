@@ -415,7 +415,7 @@ public class PlanFetchTests extends ESTestCase {
         Attribute firstName = field("first_name", DataType.KEYWORD);
         Attribute lastName = field("last_name", DataType.KEYWORD);
         Attribute sort = field("sort", DataType.LONG);
-        EsRelation relation = relation(List.of(firstName, lastName, sort), Map.of("", List.of("idx")));
+        EsRelation relation = relation(List.of(firstName, lastName, sort), Map.of("", List.of("idx")), Map.of("", List.of("idx")));
         for (Enrich.Mode mode : Enrich.Mode.values()) {
             Enrich enrich = enrich(relation, mode, firstName);
             LogicalPlan plan = new Project(Source.EMPTY, topN(enrich, sort), List.of(lastName, enrich.output().getLast()));
@@ -433,7 +433,7 @@ public class PlanFetchTests extends ESTestCase {
         Attribute firstName = field("first_name", DataType.KEYWORD);
         Attribute lastName = field("last_name", DataType.KEYWORD);
         Attribute sort = field("sort", DataType.LONG);
-        EsRelation relation = relation(List.of(firstName, lastName, sort), Map.of("", List.of("idx")));
+        EsRelation relation = relation(List.of(firstName, lastName, sort), Map.of("", List.of("idx")), Map.of("", List.of("idx")));
         for (Enrich.Mode mode : Enrich.Mode.values()) {
             Enrich enrich = enrich(topN(relation, sort), mode, firstName);
             LogicalPlan plan = new Project(Source.EMPTY, enrich, List.of(lastName, enrich.output().getLast()));
@@ -481,10 +481,23 @@ public class PlanFetchTests extends ESTestCase {
         assertThat(names(fetch.child().output()), equalTo(List.of("_doc", "unmapped_kw", "sort")));
     }
 
-    /** Rows from a remote cluster cannot be fetched yet, the plan stays eager. */
-    public void testRemoteClusterStaysEager() {
-        LogicalPlan plan = topNPlan(List.of(field("first_name", DataType.KEYWORD)), Map.of("remote", List.of("idx")));
-        assertThat(applyTo(plan), sameInstance(plan));
+    /**
+     * The data nodes of a remote cluster keep the readers of the rows they send, and the fetch reaches them with the index
+     * expressions the query wrote for their cluster.
+     */
+    public void testRemoteClusterIsFetched() {
+        Map<String, List<String>> indices = Map.of("", List.of("idx"), "remote", List.of("idx", "other*"));
+        LogicalPlan rewritten = applyTo(topNPlan(List.of(field("first_name", DataType.KEYWORD)), indices, indices));
+        Fetch fetch = single(rewritten, Fetch.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+        assertThat(fetch.originalIndices(), equalTo(indices));
+    }
+
+    /** A relation that only reads a remote cluster fetches from the data nodes of that cluster. */
+    public void testOnlyARemoteClusterIsFetched() {
+        Map<String, List<String>> indices = Map.of("remote", List.of("idx"));
+        Fetch fetch = single(applyTo(topNPlan(List.of(field("first_name", DataType.KEYWORD)), indices, indices)), Fetch.class);
+        assertThat(fetch.originalIndices(), equalTo(indices));
     }
 
     /** A local TopN only cuts the rows of one node, so it doesn't pick the global winners the fetch loads. */
@@ -648,18 +661,34 @@ public class PlanFetchTests extends ESTestCase {
      * relations the analyzer cannot produce in a unit test.
      */
     private static LogicalPlan topNPlan(List<Attribute> returned, Map<String, List<String>> concreteIndices) {
+        return topNPlan(returned, Map.of("", List.of("idx")), concreteIndices);
+    }
+
+    /**
+     * @param originalIndices the index expressions the query wrote for each cluster
+     * @param concreteIndices the indices they resolved to on each cluster
+     */
+    private static LogicalPlan topNPlan(
+        List<Attribute> returned,
+        Map<String, List<String>> originalIndices,
+        Map<String, List<String>> concreteIndices
+    ) {
         Attribute sort = field("sort", DataType.LONG);
         List<Attribute> relationOutput = new ArrayList<>(returned);
         relationOutput.add(sort);
-        return new Project(Source.EMPTY, topN(relation(relationOutput, concreteIndices), sort), returned);
+        return new Project(Source.EMPTY, topN(relation(relationOutput, originalIndices, concreteIndices), sort), returned);
     }
 
-    private static EsRelation relation(List<Attribute> output, Map<String, List<String>> concreteIndices) {
+    private static EsRelation relation(
+        List<Attribute> output,
+        Map<String, List<String>> originalIndices,
+        Map<String, List<String>> concreteIndices
+    ) {
         return new EsRelation(
             Source.EMPTY,
             "idx",
             IndexMode.STANDARD,
-            Map.of("", List.of("idx")),
+            originalIndices,
             concreteIndices,
             Map.of("idx", new IndexProperties(IndexMode.STANDARD, 0)),
             output

@@ -39,14 +39,10 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags.FetchPhaseMode;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-
-import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-import static org.elasticsearch.transport.RemoteClusterAware.isRemoteIndexName;
 
 /**
  * Plans the fetch phase for a {@code LIMIT} or {@code TopN} that the data nodes and the coordinator both apply.
@@ -147,13 +143,16 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
      *     <li>the cut, the {@code TopN} or {@code LIMIT} closest to the relation that isn't local,</li>
      *     <li>commands between the cut and the relation that keep the document of each row and run on the data nodes,
      *     see {@link #isSupportedBeforeCut},</li>
-     *     <li>one {@code STANDARD} or {@code TIME_SERIES} relation, on the local cluster,</li>
+     *     <li>one {@code STANDARD} or {@code TIME_SERIES} relation,</li>
      *     <li>no column named {@code _doc}, the name of the document column the rule adds,</li>
      *     <li>at least one column the query only needs after the cut, and that can be fetched.</li>
      * </ol>
      * Nothing between the cut and the relation breaks the pipeline, so the mapper copies the cut to the data nodes and
      * puts the only exchange of the plan right below the coordinator's copy. A plan that already fetches is left as it
      * is. Any other plan keeps loading its columns eagerly, which is always correct.
+     * <p>
+     * The relation may read remote clusters. Their data nodes keep the readers of the rows they send for this coordinator
+     * too, and the fetch reaches them directly, with the index expressions the query wrote for their cluster.
      */
     private static Shape shape(LogicalPlan plan) {
         List<UnaryPlan> chain = new ArrayList<>();
@@ -192,9 +191,6 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
         }
         if (relation.indexMode() != IndexMode.STANDARD && relation.indexMode() != IndexMode.TIME_SERIES) {
             return ineligible("[" + relation.indexMode() + "] relation");
-        }
-        if (isLocal(relation) == false) {
-            return ineligible("the relation reads a remote cluster");
         }
         if (namesADocColumn(plan)) {
             return ineligible("the query names a column [_doc]");
@@ -371,19 +367,6 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
     private static boolean namesADocColumn(LogicalPlan plan) {
         String docName = EsQueryExec.DOC_ID_FIELD.getName();
         return plan.anyMatch(node -> node.output().stream().anyMatch(attribute -> attribute.name().equals(docName)));
-    }
-
-    private static boolean isLocal(EsRelation relation) {
-        if (relation.concreteIndices().isEmpty()) {
-            return Arrays.stream(relation.indexPattern().split(",")).map(String::trim).noneMatch(PlanFetch::isRemoteIndexExpression);
-        }
-        return relation.concreteIndices().size() == 1
-            && relation.concreteIndices().containsKey(LOCAL_CLUSTER_GROUP_KEY)
-            && relation.concreteIndices().get(LOCAL_CLUSTER_GROUP_KEY).isEmpty() == false;
-    }
-
-    private static boolean isRemoteIndexExpression(String indexExpression) {
-        return indexExpression.startsWith("-") ? isRemoteIndexName(indexExpression.substring(1)) : isRemoteIndexName(indexExpression);
     }
 
     private static LogicalPlan rewrite(LogicalPlan plan, Candidate candidate, FetchPhaseOutcomes outcomes) {

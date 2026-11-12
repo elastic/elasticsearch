@@ -12,9 +12,10 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.AbstractTimeSeriesMetadataFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
-import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -38,26 +39,24 @@ public class PromqlPlanAcrossSeriesAggregateV2Tests extends AbstractPromqlPlanOp
         super(versionMode);
     }
 
-    /** {@code by(...)} keys each group by the listed labels of its series; the command reads them from the container. */
+    /** {@code by(...)} keys each group by the listed labels of its series, read from their fields. */
     public void testByKeepsTheListedLabels() {
         LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h sum by (cluster) (network.bytes_in)", false);
 
         TimeSeriesAggregate collapse = plan.collect(TimeSeriesAggregate.class).getFirst();
-        TimeSeriesMetadataFilter group = expressions(collapse, TimeSeriesMetadataFilter.class).getFirst();
-        assertThat(group.exclude(), is(false));
-        assertThat(names(group.labels()), contains("cluster"));
+        assertThat(names(collapse.aggregates().stream().flatMap(a -> a.references().stream()).toList()), hasItem("cluster"));
+        assertThat(expressions(plan, AbstractTimeSeriesMetadataFunction.class), empty());
         assertThat(names(plan.output()), hasItem("cluster"));
         assertThat(names(plan.output()), not(hasItem("_timeseries")));
     }
 
-    /** {@code without(...)} keys each group by the labels of its series but the listed ones. */
+    /** {@code without(...)} keys each group by the labels of its series but the listed ones: the source leaves them out. */
     public void testWithoutLeavesTheListedLabelsOut() {
         LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h sum without (pod) (network.bytes_in)", false);
 
         TimeSeriesAggregate collapse = plan.collect(TimeSeriesAggregate.class).getFirst();
-        TimeSeriesMetadataFilter group = expressions(collapse, TimeSeriesMetadataFilter.class).getFirst();
-        assertThat(group.exclude(), is(true));
-        assertThat(names(group.labels()), contains("pod"));
+        TimeSeriesWithout source = expressions(collapse, TimeSeriesWithout.class).getFirst();
+        assertThat(names(source.children()), contains("pod"));
         assertThat(names(plan.output()), hasItem("_timeseries"));
     }
 
@@ -96,17 +95,37 @@ public class PromqlPlanAcrossSeriesAggregateV2Tests extends AbstractPromqlPlanOp
     }
 
     /**
-     * A label the source's container does not hold by its name - a passthrough alias of {@code attributes.cpu} - is read from
-     * its field: the source leaves the field out and the container writes its value under the label name.
+     * A label the source's container does not hold by its name - a passthrough alias of {@code attributes.cpu} - is read from its
+     * field, which the shard resolves.
      */
     public void testPassthroughLabelReadsItsField() {
         LogicalPlan plan = planPromqlV2("PROMQL index=otel-metrics step=1h sum by (cpu) (metrics.system.cpu.time)", false);
 
-        TimeSeriesMetadataSet set = expressions(plan, TimeSeriesMetadataSet.class).getFirst();
-        assertThat(BytesRefs.toString(as(set.label(), Literal.class).value()), equalTo("cpu"));
-        FieldAttribute field = as(set.value(), FieldAttribute.class);
-        TimeSeriesWithout source = expressions(plan, TimeSeriesWithout.class).getFirst();
-        assertThat(source.children(), hasItem(field));
+        TimeSeriesAggregate collapse = plan.collect(TimeSeriesAggregate.class).getFirst();
+        FieldAttribute field = collapse.aggregates()
+            .stream()
+            .flatMap(a -> a.references().stream())
+            .filter(a -> a.name().equals("cpu"))
+            .map(a -> as(a, FieldAttribute.class))
+            .findFirst()
+            .orElseThrow();
+        assertThat(field.fieldName().string(), equalTo("cpu"));
+        assertThat(expressions(plan, AbstractTimeSeriesMetadataFunction.class), empty());
+        assertThat(names(plan.output()), hasItem("cpu"));
+    }
+
+    /** A label that is not a dimension, which the source's container does not hold, is read from its field. */
+    public void testLabelOutsideTheContainerReadsItsField() {
+        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h sum by (event) (network.bytes_in)", false);
+
+        TimeSeriesAggregate collapse = plan.collect(TimeSeriesAggregate.class).getFirst();
+        Values values = expressions(collapse, Values.class).stream()
+            .filter(v -> v.field() instanceof FieldAttribute field && field.name().equals("event"))
+            .findFirst()
+            .orElseThrow();
+        assertThat(as(values.field(), FieldAttribute.class).isDimension(), is(false));
+        assertThat(expressions(plan, AbstractTimeSeriesMetadataFunction.class), empty());
+        assertThat(names(plan.output()), hasItem("event"));
     }
 
     private static List<String> names(List<? extends Expression> expressions) {

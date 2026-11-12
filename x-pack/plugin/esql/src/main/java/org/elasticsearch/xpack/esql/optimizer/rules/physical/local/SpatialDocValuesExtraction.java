@@ -40,14 +40,17 @@ import java.util.Set;
 
 /**
  * This rule is responsible for marking spatial fields to be extracted from doc-values instead of source values.
- * This is a very specific optimization that is only used in the context of spatial aggregations.
  * Normally spatial fields are extracted from source values because this maintains original precision but is very slow.
- * Simply loading from doc-values loses precision for points and loses the geometry topological information for shapes.
+ * Loading from doc-values loses precision, and older shape doc-values only store a triangle tree, which loses the original
+ * geometry. Shape doc-values in newer indices can reconstruct the geometry at index precision
+ * (see {@code supportsGeometryDocValueReconstruction}).
  * For this reason we only consider loading from doc values under very specific conditions:
  * <ul>
- *     <li>The spatial data is consumed by a spatial aggregation (eg. <code>ST_CENTROIDS_AGG</code>, negating the need for precision.</li>
- *     <li>This aggregation is planned to run on the data node, so the doc-values Blocks are never transmitted to the coordinator node.</li>
- *     <li>The data node index in question has doc-values stored for the field in question.</li>
+ *     <li>The spatial data is consumed by a spatial aggregation of points (eg. <code>ST_CENTROID_AGG</code>), or by spatial
+ *     functions in <code>EVAL</code> commands that tolerate the reduced precision.</li>
+ *     <li>These are planned to run on the data node, so the doc-values Blocks are never transmitted to the coordinator node.</li>
+ *     <li>The data node index in question has doc-values stored for the field in question, and for shapes, can reconstruct
+ *     the geometry from them.</li>
  * </ul>
  * While we do not support transmitting spatial doc-values to the coordinator node, it is still important on the data node to ensure
  * that all spatial functions that will receive these doc-values are aware of this fact. For this reason, if the above conditions are met,
@@ -56,7 +59,9 @@ import java.util.Set;
  *     <li>The spatial aggregation function itself is marked using <code>withDocValues()</code> to enable its
  *     <code>toEvaluator()</code> method to produce the correct doc-values aware <code>Evaluator</code> functions.</li>
  *     <li>Any spatial functions called within <code>EVAL</code> commands before the doc-values are consumed by the aggregation
- *     also need to be marked using <code>withDocValues()</code> so their evaluators are correct.</li>
+ *     also need to be marked using <code>withDocValues()</code> so their evaluators are correct. Only point fields change
+ *     their block type when loaded from doc-values, since reconstructed shapes are still loaded as WKB, so only functions on
+ *     points are marked.</li>
  *     <li>Any spatial functions used within filters, <code>WHERE</code> commands, are similarly marked for the same reason.</li>
  *     <li>The <code>FieldExtractExec</code> that will extract the field is marked with <code>withDocValuesAttributes(...)</code>
  *     so that it calls the <code>FieldType.blockReader()</code> method with the correct <code>FieldExtractPreference</code></li>
@@ -178,7 +183,7 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                 }
             }
         });
-        // Search in EVALs for functions that can take doc values, namely St_Simplify, St_Geotile, St_Geohex, St_Geohash.
+        // Search in EVALs for functions that can take doc values, such as ST_GEOHASH, ST_NPOINTS, ST_SIMPLIFY and ST_BUFFER.
         // Shapes are allowed here when the field supports geometry reconstruction from doc-values.
         exec.forEachDown(EvalExec.class, evalExec -> {
             for (Alias field : evalExec.fields()) {

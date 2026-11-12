@@ -73,6 +73,8 @@ PUT /example
 
 When `doc_values` is enabled, each geoshape is also stored on disk as a tree of the triangles in its triangular mesh, encoded at the same precision as the index. Aggregations such as [`geo_bounds`](/reference/aggregations/search-aggregations-metrics-geobounds-aggregation.md), [`geo_centroid`](/reference/aggregations/search-aggregations-metrics-geocentroid-aggregation.md), and the geo grid aggregations read these doc values instead of the `_source`.
 
+{applies_to}`stack: ga 9.7` {applies_to}`serverless: ga` Doc values also store the vertices of the original geometry and how they connect, so the geometry can be reconstructed at index precision without reading the `_source`. [{{esql}} spatial functions](/reference/query-languages/esql/functions-operators/spatial-functions.md) use this to read geoshapes from doc values when the original field is not returned by the query. Refer to [Spatial precision](/reference/query-languages/esql/limitations.md#esql-limitations-spatial-precision). Indices created before 9.7 keep the previous format, and {{esql}} reads their geoshapes from the `_source`. Reindex to use the new format.
+
 ### Input Structure [input-structure]
 
 Shapes can be represented using either the [GeoJSON](http://geojson.org) or [Well-Known Text](https://docs.opengeospatial.org/is/12-063r5/12-063r5.html) (WKT) format. The following table provides a mapping of GeoJSON and WKT to Elasticsearch types:
@@ -371,4 +373,4 @@ Neither GeoJSON nor WKT supports a point-radius circle type. Instead, use a [cir
 
 ### Sorting and Retrieving index Shapes [_sorting_and_retrieving_index_shapes]
 
-Due to the complex input structure and index representation of shapes, it is not currently possible to sort shapes or retrieve their fields directly. The `geo_shape` value is only retrievable through the `_source` field.
+Due to the complex input structure and index representation of shapes, it is not currently possible to sort shapes or retrieve their fields directly. The `geo_shape` value is only retrievable through the `_source` field. {{esql}} spatial functions can process a geoshape reconstructed from [doc values](#geoshape-doc-values) at index precision, but returning the original value still requires the `_source`.

@@ -698,6 +698,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                     .replace("\\r", "\r")
                     .replace("\\t", "\t")
             );
+            try {
+                dumpClusterStateOnFailure();
+            } catch (Exception ex) {
+                logger.info("Did not dump cluster state on failure due to an exception", ex);
+            }
             throw e;
         } finally {
             logger.debug("start teardown test [{}]", testCandidate.getTestPath());
@@ -730,6 +735,12 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             }
         });
     }
+
+    /**
+     * Called when a test fails, before the teardown section and the cluster wipe, so a suite can log state that the wipe
+     * would destroy. Does nothing by default.
+     */
+    protected void dumpClusterStateOnFailure() throws IOException {}
 
     protected boolean skipSetupSections() {
         return false;

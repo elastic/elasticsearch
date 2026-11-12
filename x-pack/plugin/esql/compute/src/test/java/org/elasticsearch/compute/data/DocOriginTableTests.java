@@ -31,6 +31,19 @@ public class DocOriginTableTests extends ESTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
+    public void testSizeCountsDistinctOrigins() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        try (DocOriginTable table = new DocOriginTable(breaker)) {
+            assertThat(table.size(), equalTo(0));
+            DocOrigin a = RandomBlock.randomDocOrigin();
+            DocOrigin b = randomValueOtherThan(a, RandomBlock::randomDocOrigin);
+            table.ordinal(a);
+            table.ordinal(b);
+            table.ordinal(a);
+            assertThat(table.size(), equalTo(2));
+        }
+    }
+
     public void testReturnsItsBytesWhenClosed() {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
         DocOriginTable table = new DocOriginTable(breaker);

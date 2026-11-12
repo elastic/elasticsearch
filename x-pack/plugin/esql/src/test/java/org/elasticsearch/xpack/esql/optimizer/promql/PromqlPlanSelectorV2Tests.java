@@ -65,7 +65,7 @@ public class PromqlPlanSelectorV2Tests extends AbstractPromqlPlanOptimizerTests 
     /** A node without a translation over the label container fails rather than mixing the two translations. */
     public void testNodeWithoutLabelTranslationFails() {
         var e = expectThrows(QlIllegalArgumentException.class, () -> planPromqlV2("PROMQL index=k8s step=1h sum(network.bytes_in)", false));
-        assertThat(e.getMessage(), containsString("does not translate over a label container yet"));
+        assertThat(e.getMessage(), containsString("does not translate in V2 yet"));
     }
 
     private static <E extends Expression> List<E> expressions(LogicalPlan plan, Class<E> type) {

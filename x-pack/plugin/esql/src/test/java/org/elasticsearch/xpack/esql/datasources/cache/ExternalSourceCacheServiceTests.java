@@ -3184,9 +3184,8 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         // external resolution keys a read by its resource AND its configuration, so two datasets over one file
         // that set a different delimiter or error policy are two reads whose resolved columns -- and so whose
         // read-config fingerprints -- can be identical.
-        // Measured: two such datasets in one query produce contributions agreeing on row count, mtime and read
-        // config, and differing only here. Asserting would fail an ordinary query on an assertions-enabled build.
-        // The merge refuses them instead, exactly as it refuses two different read configurations.
+        // Such a pair agrees on row count, mtime and read configuration, and differs only here. The merge refuses
+        // it, exactly as it refuses two different read configurations.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
@@ -4264,11 +4263,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
-    /** {@link #seedSchemaCache} plus a resolved read-configuration fingerprint on the entry's metadata. */
     /**
-     * Seeds an entry stamped with a read configuration, which a safe-miss test needs: an entry seeded without one
-     * refuses every stamped contribution before any merge gate is reached, so a "nothing was committed" assertion
-     * over it would pass whatever the gate under test does.
+     * {@link #seedSchemaCache} plus a resolved read-configuration fingerprint on the entry's metadata. A safe-miss test
+     * needs the stamp: an entry seeded without one refuses every stamped contribution before any merge gate is reached,
+     * so a "nothing was committed" assertion over it would pass whatever the gate under test does.
      */
     private static void seedSchemaCacheWithReadConfig(
         ExternalSourceCacheService service,

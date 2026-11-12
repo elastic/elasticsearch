@@ -29,8 +29,7 @@ import java.util.Set;
  * <p>This says only that no rows will be read; how much of the glob a schema needs is the dataset's business,
  * and the resolver decides it.
  * <p>Unlike {@link ExternalStatsRequirementExtractor}, which unions, this subtracts: a spec read for its rows in
- * <em>any</em> branch must resolve as a reading query. Keyed by {@link ExternalSourceSpec}, as resolution is, so
- * a resource read two ways is two entries and one of them reading rows does not bind the other.
+ * <em>any</em> branch must resolve as a reading query. Keyed by {@link ExternalSourceSpec}, as resolution is.
  * <p>{@code LIMIT 0 BY k} is a {@code LimitBy} and an unfolded zero is not a {@link Literal}; both are missed,
  * and both only leave work switched on.
  */
@@ -39,9 +38,8 @@ public final class SchemaDiscoveryPathExtractor {
     private SchemaDiscoveryPathExtractor() {}
 
     /**
-     * Every {@link UnresolvedExternalRelation} whose occurrences all sit below a {@link Limit} of literal zero,
-     * as the spec it denotes. Keyed by spec rather than by resource: two datasets over one resource are two reads,
-     * and one of them reading no rows says nothing about the other.
+     * Every {@link UnresolvedExternalRelation} whose occurrences all sit below a {@link Limit} of literal zero, as
+     * the spec it denotes.
      *
      * @param unresolvedPlan the root of the unresolved logical plan
      * @return the specs whose resolution needs no rows read

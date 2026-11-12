@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -21,7 +20,10 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.dataset.DatasetDefinitionValidator;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
+import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -59,8 +61,8 @@ public class TableFunctionFacilityIT extends AbstractEsqlIntegTestCase {
     /** Registers the test function in place of this node's set, so the facility stands alone in these tests. */
     public static final class EsqlWithTestTableFunction extends EsqlPluginWithEnterpriseOrTrialLicense {
         @Override
-        protected List<TableFunction> tableFunctions(Client client, DatasetDefinitionValidator datasetDefinitionValidator) {
-            return List.of(new Letters());
+        protected List<TableFunction> tableFunctions(DatasetDefinitionValidator datasetDefinitionValidator) {
+            return List.of(new Letters(), new Indexed());
         }
     }
 
@@ -101,6 +103,51 @@ public class TableFunctionFacilityIT extends AbstractEsqlIntegTestCase {
                     call.source(),
                     List.of(new ReferenceAttribute(Source.EMPTY, "letter", DataType.KEYWORD)),
                     LocalSupplier.of(new Page(letters.length, block))
+                )
+            );
+        }
+    }
+
+    /**
+     * Returns an <i>unresolved</i> leaf over the pattern it was handed, which the ordinary analyzer then resolves
+     * into an index read. This is the contract's second arm — a function whose columns are only knowable by
+     * looking returns an unresolved relation rather than one it built itself — and nothing else in the tree takes
+     * it, so without this the arm is documented and unreached.
+     * <p>
+     * It also pins where the facility sits in the pipeline, which no other test here does. Resolution runs before
+     * pre-analysis, and pre-analysis is where a source leaf's fields are collected; move the resolver after it and
+     * this leaf arrives at the analyzer still unresolved, while every function that builds its own relation goes
+     * on passing.
+     */
+    private static final class Indexed implements TableFunction {
+
+        @Override
+        public String name() {
+            return "indexed";
+        }
+
+        @Override
+        public TableFunctionSignature signature() {
+            return TableFunctionSignature.of(TableFunctionSignature.name("pattern"));
+        }
+
+        @Override
+        public void toRelation(
+            TableFunctionInvocation call,
+            List<NamedExpression> metadataFields,
+            ProjectMetadata projectMetadata,
+            ActionListener<LeafPlan> listener
+        ) {
+            // The METADATA names are threaded on rather than dropped, which is what lets this leaf bind _index
+            // where Letters leaves it to be null-filled.
+            listener.onResponse(
+                new UnresolvedRelation(
+                    call.source(),
+                    new IndexPattern(call.source(), call.name(0)),
+                    false,
+                    metadataFields,
+                    null,
+                    SourceCommand.FROM
                 )
             );
         }
@@ -169,10 +216,83 @@ public class TableFunctionFacilityIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * One call read by several consumers. FORK hands every branch the one plan above it, so a call written once
+     * ends up under each branch, and the relation the function returned is read once per branch.
+     * <p>
+     * A relation holding a page cannot survive that on its own: the page is handed downstream and released by the
+     * first reader, and the second finds it gone. The engine already meets this wherever a {@code LocalRelation}
+     * is read twice -- {@code InlineJoin} and {@code Approximation} both rewrite one to copy per read -- and this
+     * is the same situation reached by a different route.
+     */
+    public void testOneCallReadByEveryForkBranch() {
+        try (
+            EsqlQueryResponse response = run(
+                "FROM letters(\"abc\") | FORK (WHERE letter == \"a\") (WHERE letter == \"b\") | STATS c = COUNT(*)"
+            )
+        ) {
+            assertThat(getValuesList(response), hasSize(1));
+            assertThat(getValuesList(response).get(0).get(0), equalTo(2L));
+        }
+    }
+
     /** An unknown name is answered by the facility, at the call, rather than read as a missing index. */
     public void testAnUnknownFunctionNamesTheOnesThatExist() {
         var e = expectThrows(ParsingException.class, () -> run("FROM nosuchfunction(\"a\")").close());
         assertThat(e.getMessage(), containsString("unknown table function [nosuchfunction]"));
         assertThat(e.getMessage(), containsString("letters"));
+    }
+
+    /**
+     * The contract's unresolved arm, end to end: the function returns a leaf it has not resolved and the rows come
+     * back from the index, so the analyzer resolved it rather than the function answering with rows of its own.
+     * <p>
+     * The row count is randomized because a fixed one does not discriminate — a function returning a relation it
+     * built by hand satisfies an assertion on rows it could have hardcoded, which is exactly the arm this is here
+     * to tell apart. A count chosen per run cannot be answered without looking.
+     */
+    public void testAFunctionMayReturnAnUnresolvedLeaf() {
+        int docs = randomIntBetween(2, 8);
+        assertAcked(client().admin().indices().prepareCreate("unresolved_leaf_index").setMapping("letter", "type=keyword"));
+        for (int i = 0; i < docs; i++) {
+            client().prepareIndex("unresolved_leaf_index").setSource("letter", "y").setRefreshPolicy(IMMEDIATE).get();
+        }
+
+        try (EsqlQueryResponse response = run("FROM indexed(\"unresolved_leaf_index\")")) {
+            assertThat(response.columns().stream().map(c -> c.name()).toList(), contains("letter"));
+            assertThat(getValuesList(response), hasSize(docs));
+            assertThat(getValuesList(response).get(0).get(0), equalTo("y"));
+        }
+    }
+
+    /**
+     * The other half of what {@link #testMetadataOverAFunctionIsNullFilled} claims. The METADATA names reach every
+     * leaf in the source list; a leaf that carries them answers with the real value, so the null there is the
+     * analyzer filling a name that leaf does not bind rather than the names never arriving.
+     */
+    public void testMetadataOverAnUnresolvedLeafIsBoundNotNullFilled() {
+        assertAcked(client().admin().indices().prepareCreate("metadata_leaf_index").setMapping("letter", "type=keyword"));
+        client().prepareIndex("metadata_leaf_index").setSource("letter", "y").setRefreshPolicy(IMMEDIATE).get();
+
+        try (EsqlQueryResponse response = run("FROM indexed(\"metadata_leaf_index\") METADATA _index | KEEP letter, _index")) {
+            assertThat(getValuesList(response), hasSize(1));
+            assertThat(getValuesList(response).get(0).get(1), equalTo("metadata_leaf_index"));
+        }
+    }
+
+    /**
+     * Both arms in one source list. A function describes one leaf and never assumes it is alone, so a relation a
+     * function built and a relation the analyzer resolved have to survive beside each other — and the two calls
+     * bind concurrently, each into its own slot.
+     */
+    public void testBothArmsOfTheContractInOneSourceList() {
+        assertAcked(client().admin().indices().prepareCreate("both_arms_index").setMapping("letter", "type=keyword"));
+        client().prepareIndex("both_arms_index").setSource("letter", "y").setRefreshPolicy(IMMEDIATE).get();
+
+        try (EsqlQueryResponse response = run("FROM letters(\"ab\"), indexed(\"both_arms_index\") | SORT letter")) {
+            assertThat(getValuesList(response), hasSize(3));
+            assertThat(getValuesList(response).get(0).get(0), equalTo("a"));
+            assertThat(getValuesList(response).get(2).get(0), equalTo("y"));
+        }
     }
 }

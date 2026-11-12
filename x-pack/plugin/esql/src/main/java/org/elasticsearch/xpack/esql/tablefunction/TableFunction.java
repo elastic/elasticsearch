@@ -63,6 +63,11 @@ public interface TableFunction {
      * Asynchronous because some functions cannot answer without I/O; one needing none completes inline. Called
      * after the shape has been checked and {@link #validate} has passed for every call in the query, not just
      * this one.
+     * <p>
+     * Asked once for each call the user wrote, including where the plan reaches that call from several parents —
+     * one per {@code FORK} branch. The relation then stands in every one of those places, so it is read once per
+     * place; a function does not have to know that, because the facility makes a returned {@code LocalRelation}
+     * safe to read repeatedly before installing it. A function may hand over a page without counting consumers.
      *
      * @param metadataFields the names from the user's {@code METADATA} clause, threaded to every leaf in the source
      *                       list. A leaf that binds its own metadata consumes them; one that does not may ignore

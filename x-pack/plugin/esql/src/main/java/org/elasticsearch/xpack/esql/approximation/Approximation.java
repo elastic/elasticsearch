@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
-import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.session.Result;
 
@@ -130,12 +129,7 @@ public class Approximation implements ApproximationDriver {
 
         // The plan is executed multiple times. Use CopyingLocalSupplier to
         // make sure the page is not released between executions.
-        this.logicalPlan = logicalPlan.transformUp(LocalRelation.class, lr -> {
-            if (lr.supplier() instanceof CopyingLocalSupplier == false) {
-                return new LocalRelation(lr.source(), lr.output(), new CopyingLocalSupplier(lr.supplier().get()));
-            }
-            return lr;
-        });
+        this.logicalPlan = logicalPlan.transformUp(LocalRelation.class, LocalRelation::readableRepeatedly);
 
         if (settings.rows() != null) {
             sampleRowCount = settings.rows();

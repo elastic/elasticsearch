@@ -15,14 +15,13 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedTableFunctionRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Executor;
 
 /**
@@ -41,16 +40,20 @@ public class TableFunctionResolver {
     /**
      * The most calls one query may make, counted over the whole plan once views have been expanded.
      * <p>
-     * A fixed ceiling rather than a setting, in front of a check that already exists: the configurable branch
-     * count ({@code esql.query.max_branch_count}, 20 by default) is checked on the <i>optimized</i> plan, which
-     * is long after every call in this query has been made. Each call is an outbound request for a function that
-     * does I/O, and they go out together rather than in turn, so a source list is a way to spend one query string
-     * on as many concurrent requests as it has room for, with nothing refusing it until those requests are done.
+     * A fixed ceiling rather than a setting, and the first thing to refuse a wide source list rather than a
+     * backstop behind something else. The configurable branch count ({@code max_branch_count}, 20 by default) is
+     * checked on the <i>optimized</i> plan, which is long after every call in this query has been made. The
+     * parser's own width check is reached from one place, {@code LogicalPlanBuilder#visitForkCommand}, and is
+     * applied to the {@code Fork} node built there - so a {@code FROM} naming more calls than this is refused by
+     * no parser check at all. Each call is an outbound request for a function that does I/O, and they go out
+     * together rather than in turn, so a source list is a way to spend one query string on as many concurrent
+     * requests as it has room for, with nothing refusing it until those requests are done.
      * <p>
-     * Set to {@link QueryPragmas#MAX_PARSED_BRANCH_COUNT}, the ceiling the parser already puts on a parsed
-     * plan's leaf branches, so one number bounds how wide a query may get however it got wide.
+     * Set to {@link QueryPragmas#MAX_PARSED_BRANCH_COUNT} for its value and not for its reach: 128 is the number
+     * already chosen for how wide a parsed plan may get, and taking it keeps one number here rather than a
+     * second one that would drift from it.
      */
-    public static final int MAX_CALLS_PER_QUERY = QueryPragmas.MAX_PARSED_BRANCH_COUNT;
+    static final int MAX_CALLS_PER_QUERY = QueryPragmas.MAX_PARSED_BRANCH_COUNT;
 
     private final TableFunctionRegistry registry;
     private final Executor executor;
@@ -80,9 +83,13 @@ public class TableFunctionResolver {
         // occurrence, a call the user wrote once is asked once per branch: a function doing I/O pays a round trip
         // per branch, and every relation but the last is built and thrown away. Identity rather than equality for
         // the reason the map below is: two calls written separately must each bind, and they can compare equal.
-        Set<UnresolvedTableFunctionRelation> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        //
+        // Counted rather than merely de-duplicated. Asking once means the one relation is then installed in every
+        // place that leaf occupied, and a relation carrying a page cannot be read from more than one of them --
+        // see readableRepeatedly, which the count decides to apply.
+        Map<UnresolvedTableFunctionRelation, Integer> occurrences = new IdentityHashMap<>();
         parsed.forEachDown(node -> {
-            if (node instanceof UnresolvedTableFunctionRelation leaf && seen.add(leaf)) {
+            if (node instanceof UnresolvedTableFunctionRelation leaf && occurrences.merge(leaf, 1, Integer::sum) == 1) {
                 leaves.add(leaf);
             }
         });
@@ -121,13 +128,10 @@ public class TableFunctionResolver {
             return;
         }
 
-        // Keyed by identity rather than by equality. Two calls written in one query do differ today, because an
-        // invocation's first component is its Source and the parser gives each its own - so equality would work.
-        // It is identity because the alternative depends on that staying true: were a call's identity ever to stop
-        // including its position, an equality-keyed map would silently collapse two leaves onto one relation
-        // instance, installing the same attribute ids twice in one plan. Synchronized because the binds below run
-        // concurrently.
-        Map<UnresolvedTableFunctionRelation, LeafPlan> bound = Collections.synchronizedMap(new IdentityHashMap<>(leaves.size()));
+        // One slot per leaf, written by that leaf's bind and by nothing else. The binds below run concurrently, so
+        // the alternative is a shared structure and a lock around it; distinct slots of an array need neither,
+        // which is why the collection is positional and the lookup substitute needs is built from it afterwards.
+        LeafPlan[] relations = new LeafPlan[leaves.size()];
         // Forked here and not on the early return above: a query naming no function never leaves the caller's
         // thread, so it pays nothing for this.
         //
@@ -137,7 +141,7 @@ public class TableFunctionResolver {
         // planning work, so it belongs on the pool planning continues on, which is what the executor names.
         ActionListener<Void> onPlanningPool = new ThreadedActionListener<>(
             executor,
-            PlanningCpuTracker.inheritMeteredCpu(listener.map(ignored -> substitute(parsed, bound)))
+            PlanningCpuTracker.inheritMeteredCpu(listener.map(ignored -> substitute(parsed, leaves, relations, occurrences)))
         );
         try (var refs = new RefCountingListener(onPlanningPool)) {
             for (int i = 0; i < leaves.size(); i++) {
@@ -150,13 +154,30 @@ public class TableFunctionResolver {
                 // that throws instead of completing would leave the count above zero for good and this method would
                 // never answer its own listener. A function is not required to be no-throw, so the facility carries
                 // the cost of one that is not.
-                ActionListener<LeafPlan> bind = refs.acquire(relation -> bound.put(leaf, relation));
+                int slot = i;
+                ActionListener<LeafPlan> bind = refs.acquire(relation -> relations[slot] = relation);
                 ActionListener.run(bind, l -> function.toRelation(leaf.call(), leaf.metadataFields(), projectMetadata, l));
             }
         }
     }
 
-    private static LogicalPlan substitute(LogicalPlan parsed, Map<UnresolvedTableFunctionRelation, LeafPlan> bound) {
+    private static LogicalPlan substitute(
+        LogicalPlan parsed,
+        List<UnresolvedTableFunctionRelation> leaves,
+        LeafPlan[] relations,
+        Map<UnresolvedTableFunctionRelation, Integer> occurrences
+    ) {
+        // Keyed by identity rather than by equality. Two calls written in one query do differ today, because an
+        // invocation's first component is its Source and the parser gives each its own - so equality would work.
+        // It is identity because the alternative depends on that staying true: were a call's identity ever to stop
+        // including its position, an equality-keyed map would silently collapse two leaves onto one relation
+        // instance, installing the same attribute ids twice in one plan. Built here rather than filled by the
+        // binds: every write to it is on this thread, so it is a plain map.
+        Map<UnresolvedTableFunctionRelation, LeafPlan> bound = new IdentityHashMap<>(leaves.size());
+        for (int i = 0; i < leaves.size(); i++) {
+            UnresolvedTableFunctionRelation leaf = leaves.get(i);
+            bound.put(leaf, readableRepeatedly(relations[i], occurrences.get(leaf)));
+        }
         return parsed.transformDown(UnresolvedTableFunctionRelation.class, leaf -> {
             LeafPlan relation = bound.get(leaf);
             // Thrown rather than asserted, as TableFunctionSignature's own declaration checks are: assertions are
@@ -170,5 +191,22 @@ public class TableFunctionResolver {
             }
             return relation;
         });
+    }
+
+    /**
+     * Makes a relation that is about to be installed in several places safe to read from each of them.
+     * <p>
+     * Reached here by asking a call once and installing its relation under every FORK branch, which without
+     * {@link LocalRelation#readableRepeatedly()} crashes on the released block or hangs the request.
+     * <p>
+     * Only where a leaf really does occur more than once, so a call written once and read once pays no copy. And
+     * only for {@code LocalRelation}: a leaf a function left unresolved becomes its own relation per occurrence
+     * further down, the way a written-out index pattern does, so there is nothing to make safe.
+     */
+    private static LeafPlan readableRepeatedly(LeafPlan relation, int occurrences) {
+        if (occurrences > 1 && relation instanceof LocalRelation local) {
+            return local.readableRepeatedly();
+        }
+        return relation;
     }
 }

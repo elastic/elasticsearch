@@ -1251,8 +1251,8 @@ public class EsqlSessionTests extends ESTestCase {
      * resource, whichever spec the loop reached last would decide for both — listing the bound one's whole glob, or
      * pruning the unbound one's folders against a column it does not partition by.
      * <p>
-     * Both relation orders, because the defect this PR fixes was a last-write-wins map and an order-dependent gate
-     * passes in whichever order happens to be written.
+     * Both relation orders, because the map this replaces kept the last write and an order-dependent gate passes
+     * in whichever order happens to be written.
      */
     public void testTwoSpecsOverOnePathEachGetTheirOwnPruningInputs() {
         String path = "s3://bucket/logs/**";

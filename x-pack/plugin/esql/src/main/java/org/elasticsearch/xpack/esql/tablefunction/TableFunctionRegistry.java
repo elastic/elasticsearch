@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.regex.Pattern;
 
 /**
  * The table functions a source list may call, by name.
@@ -28,6 +29,15 @@ public final class TableFunctionRegistry {
 
     private final Map<String, TableFunction> byName;
 
+    /**
+     * The shape a call can be written in, which is {@code DEV_TABLE_FUNCTION_NAME} without its trailing {@code (}:
+     * {@code LETTER UNQUOTED_ID_BODY*}, where {@code LETTER} is {@code [a-z]} and {@code UNQUOTED_ID_BODY} is a
+     * letter, a digit or an underscore. Checked at registration because a name outside it is not refused anywhere
+     * else — it simply never lexes as a call, so {@code FROM _x(a)} reads as an index pattern and a stray {@code (},
+     * and the function sits in the registry permanently unreachable.
+     */
+    private static final Pattern LEXABLE_NAME = Pattern.compile("[a-z][a-z0-9_]*");
+
     public TableFunctionRegistry(List<TableFunction> functions) {
         // TreeMap with a case-insensitive comparator: a user may write a name in any case, as they may for every
         // other name in the language, and the sorted key order is what an unknown-name error lists.
@@ -36,6 +46,11 @@ public final class TableFunctionRegistry {
             String name = function.name();
             if (name.equals(name.toLowerCase(Locale.ROOT)) == false) {
                 throw new IllegalStateException("table function name [" + name + "] must be lowercase");
+            }
+            if (LEXABLE_NAME.matcher(name).matches() == false) {
+                throw new IllegalStateException(
+                    "table function name [" + name + "] must start with a letter and hold only letters, digits and underscores"
+                );
             }
             TableFunction previous = map.put(name, function);
             if (previous != null) {

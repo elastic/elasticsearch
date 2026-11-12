@@ -30,6 +30,8 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedTableFunctionRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.ImmediateLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -38,12 +40,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -228,6 +232,69 @@ public class TableFunctionResolverTests extends ESTestCase {
         LogicalPlan resolved = future.actionGet(10, TimeUnit.SECONDS);
         assertThat(resolved.children().get(0), instanceOf(LocalRelation.class));
         assertThat(resolved.children().get(1), instanceOf(LocalRelation.class));
+    }
+
+    /**
+     * Every call binds when the answers arrive together from as many threads as there are calls.
+     * <p>
+     * {@link #testFunctionsBindConcurrently} proves the binds are <i>outstanding</i> at the same time, but it
+     * releases them one after another on the test thread, so nothing else here has two answers landing at once.
+     * This covers that: the releases are held at a barrier and go through together, across the whole width.
+     * <p>
+     * What it is not is a gate on how the binds are collected, and it is worth saying so because it looks like
+     * one. Collecting into an {@code IdentityHashMap} shared by every bind and written without synchronization —
+     * the defect the resolver's positional slots exist to make unreachable — passes this test, measured at 16
+     * calls over 20 rounds and again at 64 over 60. The map is pre-sized from the leaf count, so it never
+     * resizes, and the window left is a probe collision of a few instructions. A race that narrow is not made
+     * deterministic by repeating it, which is why the resolver gives each bind a slot of its own instead.
+     */
+    public void testEveryCallBindsWhenTheAnswersArriveTogether() throws Exception {
+        int calls = 16;
+        for (int attempt = 0; attempt < 20; attempt++) {
+            List<Deferred> functions = new ArrayList<>(calls);
+            List<LogicalPlan> children = new ArrayList<>(calls);
+            for (int i = 0; i < calls; i++) {
+                functions.add(new Deferred("f" + i));
+                children.add(named("f" + i));
+            }
+            TableFunctionResolver resolver = new TableFunctionResolver(
+                new TableFunctionRegistry(new ArrayList<TableFunction>(functions)),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
+            PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
+
+            resolver.resolveTableFunctions(new UnionAll(Source.EMPTY, children, List.of()), null, future);
+
+            for (Deferred function : functions) {
+                assertThat(function.asked.await(10, TimeUnit.SECONDS), equalTo(true));
+            }
+
+            // One thread per call, all released from the barrier, so the answers overlap rather than queue.
+            CyclicBarrier start = new CyclicBarrier(calls);
+            List<Thread> threads = new ArrayList<>(calls);
+            for (Deferred function : functions) {
+                Thread thread = new Thread(() -> {
+                    try {
+                        start.await(10, TimeUnit.SECONDS);
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                    function.release();
+                });
+                threads.add(thread);
+                thread.start();
+            }
+            for (Thread thread : threads) {
+                thread.join();
+            }
+
+            LogicalPlan resolved = future.actionGet(10, TimeUnit.SECONDS);
+            // Every child bound, and bound to a relation rather than to whatever another call's bind left behind.
+            assertThat(resolved.children(), hasSize(calls));
+            for (LogicalPlan child : resolved.children()) {
+                assertThat(child, instanceOf(LocalRelation.class));
+            }
+        }
     }
 
     /** A function that fails its listener fails the query, rather than the resolver answering with a partial plan. */
@@ -536,8 +603,43 @@ public class TableFunctionResolverTests extends ESTestCase {
         LogicalPlan left = resolved.children().get(0).children().get(0);
         LogicalPlan right = resolved.children().get(1).children().get(0);
         assertThat(left, instanceOf(LocalRelation.class));
-        // The one relation stands under both, as the one EsRelation a resolved index pattern becomes does.
+        // The one relation stands under both. Not what an index pattern does, though it reads like it: an
+        // UnresolvedRelation under two branches is visited once per branch by Analyzer.ResolveTable, which
+        // returns a new EsRelation each time, so a pattern yields two. One shared instance is this facility's
+        // own shape, and what makes it safe to read twice is the supplier the next test pins.
         assertSame(left, right);
+    }
+
+    /**
+     * A relation installed under several parents is read once per parent, so it is given a supplier that copies
+     * per read. Without it the first reader releases the page and the second crashes on it — reproduced end to
+     * end as {@code TableFunctionFacilityIT.testOneCallReadByEveryForkBranch}. This pins it at the unit layer,
+     * where no seed decides it.
+     */
+    public void testARelationReadBySeveralParentsCopiesPerRead() {
+        UnresolvedTableFunctionRelation shared = call("2");
+        LogicalPlan plan = new UnionAll(
+            Source.EMPTY,
+            List.of(new Filter(Source.EMPTY, shared, Literal.TRUE), new Filter(Source.EMPTY, shared, Literal.TRUE)),
+            List.of()
+        );
+
+        LogicalPlan resolved = resolve(new Numbers(), plan);
+
+        LocalRelation installed = (LocalRelation) resolved.children().get(0).children().get(0);
+        assertThat(installed.supplier(), instanceOf(CopyingLocalSupplier.class));
+        // Two reads, each its own page, which is the property the supplier is there for.
+        Page first = installed.supplier().get();
+        Page second = installed.supplier().get();
+        assertNotSame(first, second);
+        assertNotSame(first.getBlock(0), second.getBlock(0));
+    }
+
+    /** And a call read once is not made to pay for it: the relation the function returned is installed as it is. */
+    public void testARelationReadOnceIsNotCopied() {
+        LogicalPlan resolved = resolve(new Numbers(), call("2"));
+
+        assertThat(((LocalRelation) resolved).supplier(), instanceOf(ImmediateLocalSupplier.class));
     }
 
     /**

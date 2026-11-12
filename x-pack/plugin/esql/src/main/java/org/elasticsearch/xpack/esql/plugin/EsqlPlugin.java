@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
@@ -652,7 +651,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Here rather than beside the function registry above, because DATASET needs the one definition validator
         // and that is built from the plugins' validators, which are not collected until crudValidators above.
         TableFunctionResolver tableFunctionResolver = new TableFunctionResolver(
-            new TableFunctionRegistry(tableFunctions(services.client(), datasetService.definitionValidator())),
+            new TableFunctionRegistry(tableFunctions(datasetService.definitionValidator())),
             services.threadPool().executor(ThreadPool.Names.SEARCH)
         );
 
@@ -1001,13 +1000,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
      * adding to it, which is why the method is not named for extras. The precedent for a protected hook on this
      * plugin is {@link #loadMetricsCollectors} and {@code getLicenseState}, both overridden by test subclasses.
      * <p>
-     * A function needing collaborators is constructed with them here; that is why the registry takes
-     * already-constructed functions rather than names, and why the client and the dataset validator are parameters
-     * here rather than something a function reaches for: a function that has to ask the cluster something, or to
-     * hold a definition to what a registration is held to, is given the handles it needs, and the facility itself
-     * never acquires one. {@link DatasetTableFunction} takes the validator and not the client.
+     * A function needing collaborators is constructed with them here, which is why the registry takes
+     * already-constructed functions rather than names: a function is handed what it needs at registration, and the
+     * facility itself never acquires anything. {@link DatasetTableFunction} needs the one definition validator, so
+     * that a read written in the query is held to what a registration is held to.
      */
-    protected List<TableFunction> tableFunctions(Client client, DatasetDefinitionValidator datasetDefinitionValidator) {
+    protected List<TableFunction> tableFunctions(DatasetDefinitionValidator datasetDefinitionValidator) {
         return List.of(new DatasetTableFunction(datasetDefinitionValidator));
     }
 

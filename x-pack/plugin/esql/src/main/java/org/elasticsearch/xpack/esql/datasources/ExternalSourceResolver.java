@@ -731,7 +731,7 @@ public class ExternalSourceResolver {
      * into specs and delegates to the widest path-keyed form, which delegates to the spec-keyed resolve. Production
      * has one caller and it is spec-keyed: {@code EsqlSession}.
      */
-    public final void resolve(
+    final void resolve(
         List<String> paths,
         Map<String, Map<String, Object>> pathConfigs,
         ActionListener<ExternalSourceResolution> listener
@@ -740,7 +740,7 @@ public class ExternalSourceResolver {
     }
 
     /** As {@link #resolve(List, Map, ActionListener)}, with declared mappings and the eager-stats set. */
-    public final void resolve(
+    final void resolve(
         List<String> paths,
         Map<String, Map<String, Object>> pathConfigs,
         @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
@@ -752,7 +752,7 @@ public class ExternalSourceResolver {
     }
 
     /** As {@link #resolve(List, Map, ActionListener)}, also naming the paths whose rows the query discards. */
-    public final void resolve(
+    final void resolve(
         List<String> paths,
         Map<String, Map<String, Object>> pathConfigs,
         @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
@@ -762,6 +762,9 @@ public class ExternalSourceResolver {
         ActionListener<ExternalSourceResolution> listener
     ) {
         if (paths == null) {
+            // Kept, and pinned by ExternalSourceResolverTests#testNullPathListReturnsEmptyResolution: a null path
+            // list is an empty resolution rather than a failure, which is what a caller with nothing to resolve
+            // passes.
             resolve((List<ExternalSourceSpec>) null, null, declaredMappings, null, null, null, listener);
             return;
         }
@@ -796,15 +799,15 @@ public class ExternalSourceResolver {
      * @param declaredMappings    per-path declared mapping — strict skips inference, non-strict overlays it, and its
      *        derived read-instructions (renames, date formats) ride a typed {@code DeclaredReadSpec} to
      *        the reader boundary; {@code null} when no path declares a mapping.
-     * @param specsRequiringStats paths whose multi-file FFW resolution must eagerly aggregate global
+     * @param specsRequiringStats specs whose multi-file FFW resolution must eagerly aggregate global
      *        statistics across all files (the ungrouped-aggregate metadata fast path). A {@code null}
-     *        value selects legacy behavior — every path resolves eagerly — preserving existing call
-     *        sites and tests. When non-null, a path absent from the set defers the per-file footer
+     *        value selects legacy behavior — every spec resolves eagerly — preserving existing call
+     *        sites and tests. When non-null, a spec absent from the set defers the per-file footer
      *        reads (keeping {@code STATS_FILE_COUNT}, marking stats partial). See
      *        {@link ExternalStatsRequirementExtractor#specsRequiringEagerStats}.
-     * @param specsReadingNoRows paths whose rows the query all discards, so resolution owes them a schema and
+     * @param specsReadingNoRows specs whose rows the query all discards, so resolution owes them a schema and
      *        nothing else. Membership no longer decides how far a listing runs - the dataset's mode does, for a
-     *        reading query too. {@code null} leaves every path resolving as a reading query. See
+     *        reading query too. {@code null} leaves every spec resolving as a reading query. See
      *        {@link SchemaDiscoveryPathExtractor#specsReadingNoRows}.
      */
     public final void resolve(
@@ -997,7 +1000,8 @@ public class ExternalSourceResolver {
                 effectiveReadSpec = declaredReadSpec;
             }
             resolved.put(spec, finalSource.withDeclaredReadSpec(effectiveReadSpec));
-            // The spec, not the raw path: an https resource can be a pre-signed URL, and the spec redacts it.
+            // The spec is logged rather than the raw path because an https resource can be a pre-signed URL, which
+            // the spec's toString redacts and the path does not.
             LOGGER.debug("Successfully resolved external source: {}", spec);
             // Dispatch to the executor rather than calling directly: on a cache-hit the callback fires
             // synchronously, so a direct recursive call would stack one frame per path and overflow the

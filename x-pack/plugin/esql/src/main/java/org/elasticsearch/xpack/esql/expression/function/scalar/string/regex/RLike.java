@@ -120,7 +120,7 @@ public class RLike extends RegexMatch<RLikePattern> implements AnyNullIsNull {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            new RLikePattern(in.readString()),
+            new RLikePattern(in),
             deserializeCaseInsensitivity(in)
         );
     }
@@ -129,7 +129,7 @@ public class RLike extends RegexMatch<RLikePattern> implements AnyNullIsNull {
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(field());
-        out.writeString(pattern().asJavaRegex());
+        pattern().writeTo(out);
         serializeCaseInsensitivity(out);
     }
 
@@ -169,7 +169,13 @@ public class RLike extends RegexMatch<RLikePattern> implements AnyNullIsNull {
         }
         var fa = LucenePushdownPredicates.checkIsFieldAttribute(field());
         // TODO: see whether escaping is needed
-        return new RegexQuery(source(), handler.nameOf(fa.exactAttribute()), pattern().asJavaRegex(), caseInsensitive());
+        return new RegexQuery(
+            source(),
+            handler.nameOf(fa.exactAttribute()),
+            pattern().asJavaRegex(),
+            pattern().syntaxFlags(),
+            caseInsensitive()
+        );
     }
 
     /**
@@ -184,7 +190,8 @@ public class RLike extends RegexMatch<RLikePattern> implements AnyNullIsNull {
         return FieldValueQueries.textFamily(fieldType)
             .regexpLikeQuery(
                 pattern().asJavaRegex(),
-                RegExp.ALL,
+                // this path has never parsed the complement, so the default flags stay at RegExp.ALL here
+                pattern().syntaxFlags() & RegExp.ALL,
                 caseInsensitive() ? RegExp.CASE_INSENSITIVE : 0,
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
                 constantScoreRewrite,

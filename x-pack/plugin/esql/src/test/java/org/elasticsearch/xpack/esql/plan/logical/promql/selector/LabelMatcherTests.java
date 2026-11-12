@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher.Matcher;
 
 import java.util.List;
@@ -196,14 +198,13 @@ public class LabelMatcherTests extends ESTestCase {
         assertFalse(Operations.run(matcher.automaton(), "]&"));
     }
 
-    /** The {@code RLIKE} filter must match exactly what the matcher's automaton matches. */
-    public void testConvertRegExpToRE2AgreesWithAutomaton() {
-        for (String regex : List.of("(a<1-3>|b)", "(a&b)", "(#)", "(@)", "(~a)", "(\"q\"x)", "[#-@]&.*", "a\\<1-3>|\\\\#")) {
-            Automaton expected = new LabelMatcher("label", regex, Matcher.REG).automaton();
-            Automaton actual = LabelMatcher.convertRegExpToRE2(regex).createAutomaton(false);
-            assertTrue(regex, AutomatonTestUtil.sameLanguage(expected, actual));
-        }
-        assertThat(LabelMatcher.convertRegExpToRE2("[#&]#&<@~\"\\#").pattern(), equalTo("[#&]\\#\\&\\<\\@\\~\"\\#"));
+    /** The {@code RLIKE} filter gets the regex as written, parsed without Lucene's own operators like the automaton. */
+    public void testRegexPattern() {
+        RLikePattern pattern = LabelMatcher.regex("(a<1-3>|~b&c)");
+        assertThat(pattern.pattern(), equalTo("(a<1-3>|~b&c)"));
+        assertThat(pattern.syntaxFlags(), equalTo(RegExp.NONE));
+        Automaton expected = new LabelMatcher("label", "(a<1-3>|~b&c)", Matcher.REG).automaton();
+        assertTrue(AutomatonTestUtil.sameLanguage(expected, pattern.createAutomaton(false)));
     }
 
     public void testInvalidRegex() {

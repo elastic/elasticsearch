@@ -150,47 +150,18 @@ public class LabelMatcher implements NodeStringRenderable {
     }
 
     /**
-     * Lowers a PromQL regex to an {@link RLikePattern}, so that the matcher's automaton and the {@code RLIKE} filter
-     * agree on what it matches. PromQL regexes use RE2 syntax, where {@code # & < @ ~} are literals, but
-     * {@link RLikePattern} parses Lucene {@link RegExp} syntax, where they are operators (empty language, intersection,
-     * interval, any string, complement). They are escaped everywhere except inside a character class, the
-     * bracket expression {@code [...]} that matches one character from a set ({@code [a-z#]}): there Lucene reads them
-     * literally already, and an escaped character cannot start a range ({@code [#-@]}).
+     * A PromQL regex as an {@link RLikePattern}, used for both the matcher's automaton and the {@code RLIKE} filter so
+     * the two agree on what it matches. PromQL regexes use RE2 syntax, where {@code # & < @ ~} are literals; parsing
+     * with {@link RegExp#NONE} turns off the Lucene operators they would otherwise be (empty language, intersection,
+     * interval, any string, complement). That is as close to RE2 as Lucene gets today.
      */
-    public static RLikePattern convertRegExpToRE2(String regex) {
-        StringBuilder sb = new StringBuilder(regex.length());
-        // between an unescaped '[' and its closing ']'
-        boolean inCharClass = false;
-        for (int i = 0, n = regex.length(); i < n; i++) {
-            char c = regex.charAt(i);
-            if (c == '\\' && i + 1 < n) {
-                sb.append(c).append(regex.charAt(++i));
-            } else if (inCharClass) {
-                inCharClass = c != ']';
-                sb.append(c);
-            } else if (c == '[') {
-                inCharClass = true;
-                sb.append(c);
-                // a ']' right after '[' or '[^' is a literal, not the end of the character class
-                if (i + 1 < n && regex.charAt(i + 1) == '^') {
-                    sb.append(regex.charAt(++i));
-                }
-                if (i + 1 < n && regex.charAt(i + 1) == ']') {
-                    sb.append(regex.charAt(++i));
-                }
-            } else {
-                if (c == '#' || c == '&' || c == '<' || c == '@' || c == '~') {
-                    sb.append('\\');
-                }
-                sb.append(c);
-            }
-        }
-        return new RLikePattern(sb.toString());
+    public static RLikePattern regex(String regex) {
+        return new RLikePattern(regex, RegExp.NONE);
     }
 
     private static Automaton regexAutomaton(String regex) {
         try {
-            return convertRegExpToRE2(regex).createAutomaton(false);
+            return regex(regex).createAutomaton(false);
         } catch (IllegalArgumentException e) {
             throw new InvalidArgumentException(e, "Invalid regular expression [{}]: {}", regex, e.getMessage());
         }

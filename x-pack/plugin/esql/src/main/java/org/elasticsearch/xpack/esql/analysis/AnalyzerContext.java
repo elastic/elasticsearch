@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.regex.Regex;
@@ -41,6 +42,9 @@ public class AnalyzerContext {
     private final PromqlFunctionRegistry promqlFunctionRegistry;
     private final AnalysisRegistry analysisRegistry;
     private final Map<IndexPattern, IndexResolution> indexResolution;
+    // Merged field-caps retained for EQL source patterns (empty otherwise), so ResolveEqlRelation can hand them to the
+    // EQL delegate for reuse instead of a second _field_caps round trip.
+    private final Map<IndexPattern, FieldCapabilitiesResponse> eqlFieldCaps;
     private final Map<String, IndexResolution> lookupResolution;
     private final Map<LinkedIndexPattern, IndexResolution> linkedResolution; // CPS-specific resolution for remote indexes matching local
                                                                              // views
@@ -79,7 +83,8 @@ public class AnalyzerContext {
         IpLocationResolution ipLocationResolution,
         boolean preserveViewBoundaries,
         Map<String, ViewQuerySettings> viewSettings,
-        EsqlFlags flags
+        EsqlFlags flags,
+        Map<IndexPattern, FieldCapabilitiesResponse> eqlFieldCaps
     ) {
         this(
             configuration,
@@ -100,6 +105,7 @@ public class AnalyzerContext {
             preserveViewBoundaries,
             viewSettings,
             flags,
+            eqlFieldCaps,
             IndexResolver.ALL_FIELDS
         );
     }
@@ -127,6 +133,7 @@ public class AnalyzerContext {
         boolean preserveViewBoundaries,
         Map<String, ViewQuerySettings> viewSettings,
         EsqlFlags flags,
+        Map<IndexPattern, FieldCapabilitiesResponse> eqlFieldCaps,
         Set<String> fieldNames
     ) {
         this.fieldNames = fieldNames;
@@ -136,6 +143,7 @@ public class AnalyzerContext {
         this.analysisRegistry = analysisRegistry;
         this.projectMetadata = projectMetadata;
         this.indexResolution = indexResolution;
+        this.eqlFieldCaps = eqlFieldCaps;
         this.lookupResolution = lookupResolution;
         this.linkedResolution = linkedResolution;
         this.enrichResolution = enrichResolution;
@@ -172,6 +180,7 @@ public class AnalyzerContext {
         this.promqlFunctionRegistry = other.promqlFunctionRegistry;
         this.analysisRegistry = other.analysisRegistry;
         this.indexResolution = other.indexResolution;
+        this.eqlFieldCaps = other.eqlFieldCaps;
         this.lookupResolution = other.lookupResolution;
         this.linkedResolution = other.linkedResolution;
         this.enrichResolution = other.enrichResolution;
@@ -222,7 +231,8 @@ public class AnalyzerContext {
             IpLocationResolution.SERVICE_UNAVAILABLE,
             false,
             Map.of(),
-            EsqlFlags.DEFAULTS
+            EsqlFlags.DEFAULTS,
+            Map.of()
         );
     }
 
@@ -247,6 +257,11 @@ public class AnalyzerContext {
 
     public Map<IndexPattern, IndexResolution> indexResolution() {
         return indexResolution;
+    }
+
+    /** Merged field-caps retained for EQL source patterns (empty for non-EQL queries). */
+    Map<IndexPattern, FieldCapabilitiesResponse> eqlFieldCaps() {
+        return eqlFieldCaps;
     }
 
     public Map<String, IndexResolution> lookupResolution() {
@@ -455,6 +470,7 @@ public class AnalyzerContext {
             preserveViewBoundaries,
             viewSettings,
             flags,
+            result.eqlFieldCaps(),
             result.fieldNames()
         );
     }

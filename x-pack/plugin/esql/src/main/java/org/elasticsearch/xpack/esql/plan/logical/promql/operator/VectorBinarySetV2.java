@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
-
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2.IntermediateResult;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2.IntermediateResult.Kind;
@@ -37,12 +36,12 @@ import java.util.List;
  * operators; {@code or} adds series, so its branches translate independently and a union keeps, for each step, the series of
  * the first branch whose labels, the metric name left out, no earlier branch has.
  */
-public final class SetOperatorLabelTranslation {
+public final class VectorBinarySetV2 {
 
     /** The labels two {@code or} branches compare: the series' labels without the metric name. */
     private static final String OR_MATCH_KEY = "$_or_match";
 
-    private SetOperatorLabelTranslation() {}
+    private VectorBinarySetV2() {}
 
     public static IntermediateResult translate(VectorBinarySet set, TranslationContextV2 context) {
         if (set.op() != VectorBinarySet.SetOp.UNION) {

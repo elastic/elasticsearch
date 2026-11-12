@@ -8,7 +8,7 @@ parser grammar Join;
 
 joinCommand
     : type=(JOIN_LOOKUP | DEV_JOIN_LEFT | DEV_JOIN_RIGHT) JOIN lookupJoinTarget joinCondition
-    | type=DEV_JOIN_LEFT outer=UNQUOTED_SOURCE JOIN subqueryJoinTarget joinCondition
+    | type=DEV_JOIN_LEFT DEV_JOIN_OUTER JOIN subqueryJoinTarget joinCondition
     | type=DEV_JOIN_INNER JOIN subqueryJoinTarget joinCondition
     ;
 

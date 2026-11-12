@@ -18,6 +18,7 @@ DEV_JOIN_RIGHT :  'right' {this.isDevVersion()}?         -> pushMode(JOIN_MODE);
 mode JOIN_MODE;
 JOIN_PIPE : PIPE -> type(PIPE), popMode;
 JOIN : 'join';
+DEV_JOIN_OUTER : 'outer' {this.isDevVersion()}?;
 JOIN_AS : AS -> type(AS);
 JOIN_ON : ON -> type(ON), popMode, pushMode(EXPRESSION_MODE);
 USING : 'USING' -> popMode, pushMode(EXPRESSION_MODE);

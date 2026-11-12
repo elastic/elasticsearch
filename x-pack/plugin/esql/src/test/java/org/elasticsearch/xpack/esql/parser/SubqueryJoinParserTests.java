@@ -36,6 +36,23 @@ public class SubqueryJoinParserTests extends AbstractStatementParserTests {
         }
     }
 
+    /**
+     * {@code ON} accepts any boolean expression, so these reach the same rejection as {@link #testSubqueryJoinTargets}.
+     */
+    public void testExpressionJoinConditions() {
+        assumeTrue("requires snapshot builds", new EsqlConfig(TEST_FUNCTION_REGISTRY).isDevVersion());
+        for (String condition : List.of("a1 == a2", "a1 == a2 AND b1 == b2 AND c1 > c2", "a1 == a2 OR b1 == b2")) {
+            expectError("FROM left | LEFT OUTER JOIN (FROM right) ON " + condition, "only LOOKUP JOIN available, LEFT JOIN unsupported");
+            expectError("FROM left | INNER JOIN (FROM right) ON " + condition, "only LOOKUP JOIN available, INNER JOIN unsupported");
+        }
+    }
+
+    public void testOuterKeyword() {
+        assumeTrue("requires snapshot builds", new EsqlConfig(TEST_FUNCTION_REGISTRY).isDevVersion());
+        expectError("FROM left | LEFT fake JOIN (FROM right) ON key", "no viable alternative at input 'LEFT fake'");
+        expectError("FROM left | INNER OUTER JOIN (FROM right) ON key", "extraneous input 'OUTER' expecting 'join'");
+    }
+
     public void testLookupJoinRejectsSubqueryTarget() {
         expectError("FROM main | LOOKUP JOIN (FROM sub) ON key", "mismatched input '('");
     }

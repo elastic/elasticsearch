@@ -850,7 +850,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             EsqlDatafeedQueryValidator.warnForConflictingOuterClauses(
                 "datafeed-1",
                 "FROM logs | WHERE ts >= 0 | SORT ts DESC | LIMIT 20",
-                TIME_FIELD
+                TIME_FIELD,
+                false
             );
 
             assertWarnings(
@@ -875,6 +876,26 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         }
     }
 
+    public void testOuterLimitShouldWarnAboutDelayedDataOnlyWhenTheCheckIsEnabled() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        HeaderWarning.setThreadContext(threadContext);
+        try {
+            EsqlDatafeedQueryValidator.warnForConflictingOuterClauses("datafeed-1", "FROM logs | LIMIT 20", TIME_FIELD, true);
+
+            assertWarnings(
+                false,
+                List.of(
+                    allOf(
+                        containsString("ES|QL datafeed [datafeed-1] query contains an outer LIMIT clause"),
+                        containsString("The delayed data check applies the LIMIT to the whole check window")
+                    )
+                )
+            );
+        } finally {
+            HeaderWarning.removeThreadContext(threadContext);
+        }
+    }
+
     public void testRawKeepAndLexicalFalsePositivesShouldNotWarn() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         HeaderWarning.setThreadContext(threadContext);
@@ -885,7 +906,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
                     + "| EVAL triple_note = \"\"\"WHERE ts | SORT ts | LIMIT 20\"\"\" "
                     + "| KEEP `WHERE ts`, value /* WHERE ts | SORT ts | LIMIT 20 /* WHERE ts */ */ "
                     + "// WHERE ts | SORT ts | LIMIT 20\n | FORK (WHERE ts > 0 | SORT ts | LIMIT 20)",
-                TIME_FIELD
+                TIME_FIELD,
+                true
             );
 
             assertWarnings();

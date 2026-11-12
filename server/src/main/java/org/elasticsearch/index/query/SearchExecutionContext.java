@@ -558,10 +558,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         throw new IllegalArgumentException("Mapper for type [" + type + "] must be a leaf field");
     }
 
-    /**
-     * The index-time analyzer of one field, or null where the field has none. It is the analyzer that relates a
-     * field's values to the tokens they hold, so it is the one to ask what those tokens can be.
-     */
+    /** The index-time analyzer of {@code field}, or null if it has none. */
     @Nullable
     public NamedAnalyzer getIndexAnalyzer(String field) {
         return mappingLookup.indexAnalyzer(field, f -> null);

@@ -20,32 +20,31 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 /**
- * Whether a stretch of a value is a whole token of it, read from the bytes on either side. Some analyzers cut
- * their input into runs of word characters and lowercase them, so a run that spells a term <em>is</em> that term's
- * token, and a value holding one answers a query for that term without being analyzed.
+ * Decides whether a substring of a value is a whole token, by looking at the bytes on either side. The supported
+ * analyzers split their input into runs of word characters and lowercase them, so a run that spells a term is that
+ * term's token, and the value matches a query for the term without being analyzed.
  *
- * <p>The answer is one of three: the stretch is a token, it is part of a longer one, or the bytes around it do not
- * say. Only ASCII is read, so a neighbour outside ASCII leaves the question open and the value is analyzed as it
- * was. A byte that joins two runs into one token leaves it open as well, which keeps this narrower than the
- * analyzer rather than wider.
+ * <p>There are three outcomes: the substring is a token, it is part of a longer token, or the neighboring bytes are
+ * not conclusive. Only ASCII neighbors are classified; anything else is inconclusive and the value is analyzed. So
+ * are punctuation characters that the tokenizer may or may not split on, which keeps the check conservative.
  */
 final class TokenBoundaries {
 
-    /** What the bytes around a stretch of a value say about it. */
+    /** The outcome of checking a substring. */
     enum Verdict {
-        /** The stretch is a token of the value, so an analyzer would leave it whole. */
+        /** The substring is a whole token. */
         TOKEN,
-        /** The stretch runs on into a longer token, so no analyzer leaves it as it stands. */
+        /** The substring is part of a longer token. */
         PART_OF_ONE,
-        /** The bytes around it do not say, so only analyzing the value answers. */
+        /** The neighboring bytes are not conclusive. */
         UNKNOWN
     }
 
-    /** What a tokenizer takes to be part of a word, which is the one rule these analyzers differ by. */
+    /** Which ASCII characters a tokenizer treats as word characters. */
     private enum WordBytes {
-        /** Letters and digits, which is the run a {@link StandardAnalyzer} leaves whole. */
+        /** Letters and digits, as in {@link StandardAnalyzer}. */
         LETTERS_AND_DIGITS,
-        /** Letters alone, which is all a {@link SimpleAnalyzer} or a {@link StopAnalyzer} keeps. */
+        /** Letters only, as in {@link SimpleAnalyzer} and {@link StopAnalyzer}. */
         LETTERS
     }
 
@@ -60,9 +59,9 @@ final class TokenBoundaries {
     }
 
     /**
-     * How {@code analyzer} delimits its tokens, or {@code null} where its tokens are not runs of the value that it
-     * lowercases. An analyzer that keeps the case of what it reads is left out: a stretch spelling a term in
-     * another case is not that term's token, which these read without telling the two apart.
+     * The token boundaries of {@code analyzer}, or {@code null} if it is not a lowercasing analyzer whose tokens are
+     * runs of word characters. Analyzers that preserve case are excluded, since the needle search ignores case and
+     * cannot tell {@code Cat} from {@code cat}.
      */
     @Nullable
     static TokenBoundaries of(@Nullable Analyzer analyzer) {
@@ -83,19 +82,18 @@ final class TokenBoundaries {
     }
 
     /**
-     * Whether a stretch of a value spelling {@code term} can be read as its token: the term has to be spelled by
-     * the bytes this reads, be a token the analyzer keeps rather than one it drops, and be short enough that the
-     * analyzer would not cut it in two.
+     * Whether an occurrence of {@code term} can be recognized as a token: the term must consist of lowercase ASCII
+     * word characters, must not be a stop word, and must be shorter than the maximum token length.
      */
     boolean canReadTokensOf(BytesRef term) {
-        // A term as long as the longest token is left out as well: the analyzer cuts a longer run at that length,
-        // which leaves a token the bytes after it say runs on.
+        // The analyzer splits longer runs at the maximum token length, so a term of that length can be a token
+        // followed by a word character, which the end boundary check would wrongly reject.
         if (term.length == 0 || term.length >= longestToken) {
             return false;
         }
         for (int i = term.offset, to = term.offset + term.length; i < to; i++) {
             final byte b = term.bytes[i];
-            // A term spelled with a capital is no token of an analyzer that lowercases what it reads.
+            // A lowercasing analyzer never produces a token with an uppercase letter.
             if (isWordByte(b) == false || (b >= 'A' && b <= 'Z')) {
                 return false;
             }
@@ -104,8 +102,8 @@ final class TokenBoundaries {
     }
 
     /**
-     * What the bytes around the {@code length} bytes of {@code value} at {@code at} say about them, which is read
-     * from the two bytes after the stretch and, before it, from the run the stretch continues.
+     * Checks whether the {@code length} bytes of {@code value} at {@code at} are a whole token. Looks at up to two
+     * bytes after the substring and, before it, at the run of word characters it may continue.
      */
     Verdict verdictAt(BytesRef value, int at, int length) {
         final Verdict before = beforeStretch(value, at);
@@ -120,13 +118,13 @@ final class TokenBoundaries {
     }
 
     /**
-     * What the bytes before the stretch starting at {@code at} say. A run the stretch continues makes it part of a
-     * longer token only where the run is shorter than the longest token: the analyzer cuts a longer run at that
-     * length, and a cut can fall where the stretch starts.
+     * Checks the start boundary of the substring at {@code at}. A preceding word character means the substring is
+     * part of a longer token only if the run before it is shorter than the maximum token length; otherwise the
+     * analyzer may have split the run exactly where the substring starts.
      */
     private Verdict beforeStretch(BytesRef value, int at) {
         if (at == value.offset) {
-            // Each value is analyzed on its own, so where one starts a token starts.
+            // Each value is analyzed separately, so a token starts at the start of a value.
             return Verdict.TOKEN;
         }
         final Verdict verdict = neighbour(value, at - 1, at - 2);
@@ -143,12 +141,11 @@ final class TokenBoundaries {
                 return Verdict.PART_OF_ONE;
             }
         }
-        // The token holding the byte before the stretch starts no nearer than this, so it is shorter than the
-        // longest token.
+        // The run reaches the start of the value within the maximum token length, so it is not split.
         return stop == value.offset ? Verdict.PART_OF_ONE : Verdict.UNKNOWN;
     }
 
-    /** What the bytes after the stretch ending at {@code to} say. */
+    /** Checks the end boundary of the substring ending at {@code to}. */
     private Verdict afterStretch(BytesRef value, int to) {
         if (to == value.offset + value.length) {
             return Verdict.TOKEN;
@@ -157,14 +154,14 @@ final class TokenBoundaries {
     }
 
     /**
-     * What the byte next to a stretch says, where {@code beyond} holds the one after it on the same side. A byte
-     * that is part of a word runs the token on; one that can join two words into one is read as saying nothing,
-     * unless what lies beyond it is no word either, since then there is nothing for it to join.
+     * Classifies the byte at {@code next}, adjacent to the substring; {@code beyond} is the following byte on the
+     * same side. A word character continues the token. A character that can join two words (see {@link #joinsWords})
+     * is inconclusive, unless the byte beyond it is not a word character, in which case there is nothing to join.
      */
     private Verdict neighbour(BytesRef value, int next, int beyond) {
         final byte b = value.bytes[next];
         if (b < 0) {
-            // Outside ASCII, where what a character is takes more than a byte to say.
+            // Part of a multi-byte character, which is not classified.
             return Verdict.UNKNOWN;
         }
         if (isWordByte(b) || holdsRunsTogether(b)) {
@@ -182,9 +179,8 @@ final class TokenBoundaries {
     }
 
     /**
-     * Whether a byte holds the runs on either side of it together into one token, which an underscore does for a
-     * tokenizer that keeps more than letters. A tokenizer keeping letters alone cuts its tokens there instead, so
-     * for it an underscore ends a token like any other byte that is no letter.
+     * Whether the byte always joins the runs on either side into one token: an underscore under
+     * {@link StandardAnalyzer}. Letter tokenizers split on it like on any other non-letter.
      */
     private boolean holdsRunsTogether(byte b) {
         return b == '_' && wordBytes == WordBytes.LETTERS_AND_DIGITS;
@@ -199,8 +195,8 @@ final class TokenBoundaries {
     }
 
     /**
-     * Whether a byte can hold the words on either side of it together, which the rules a {@link StandardAnalyzer}
-     * follows let these do between two words. A tokenizer that keeps only letters joins nothing.
+     * Whether the byte may join the words on either side into one token under the Unicode word break rules that
+     * {@link StandardAnalyzer} follows (for example {@code 3.14} or {@code can't}). Letter tokenizers join nothing.
      */
     private boolean joinsWords(byte b) {
         if (wordBytes == WordBytes.LETTERS) {
@@ -213,9 +209,9 @@ final class TokenBoundaries {
     }
 
     /**
-     * Whether the {@code term.length} bytes of {@code value} at {@code at} spell {@code term} once lowercased,
-     * which is the comparison the analyzer's own lowercasing comes to for a term of ASCII. Only a letter has another
-     * case: the byte a digit differs from by the same bit is a control character.
+     * Whether the {@code term.length} bytes of {@code value} at {@code at} equal {@code term} once their ASCII
+     * letters are lowercased. Only letters are compared ignoring case: flipping the case bit of a digit gives a
+     * control character.
      */
     static boolean spellsTerm(BytesRef value, int at, BytesRef term) {
         for (int i = 0; i < term.length; i++) {

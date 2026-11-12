@@ -23,27 +23,26 @@ import java.util.Set;
 import java.util.TreeMap;
 
 /**
- * The ways a value can spell a term whose characters it lowers onto. An analyzer that lowers a token leaves it
- * spelled by whichever characters lower onto its own, so a value holding that token holds one of those spellings
- * and no others — which is what lets a reader of the value's bytes look for the term without analyzing it.
+ * Lists the byte sequences that lowercase to a given term. A lowercasing analyzer produces the term from any
+ * character that lowercases to one of its characters, so a value holding the token contains one of these spellings.
  *
- * <p>Spelling a character is not one byte: lowering a character can spell it shorter ({@code U+212A} becomes
- * {@code k}, three bytes becoming one), and the bytes of its upper and lower case differ by no single rule. So a
- * term is not folded into one pattern but spelled out into the patterns a value could hold, each a search of its
- * own, and the comparison of the ASCII letters without their case takes care of the rest.
+ * <p>Case mapping does not preserve the UTF-8 length ({@code U+212A KELVIN SIGN} is three bytes and lowercases to the
+ * one-byte {@code k}), and upper- and lowercase bytes are not related by a single rule outside ASCII. So instead of a
+ * single folded pattern, a term expands to every spelling, each searched for separately. Spellings that differ only
+ * in ASCII case are merged, since the search already ignores ASCII case.
  */
 final class CaseSpellings {
 
     private CaseSpellings() {}
 
     /**
-     * The other ways to spell a character, by the characters that lower onto it, held only for the characters
-     * spelled some way their own bytes do not cover under the comparison of ASCII case. Built once, by asking of
-     * every character what it lowers onto, so that a change in what Unicode says cannot leave this behind.
+     * For each lowercase code point, the UTF-8 encodings of the other code points that lowercase to it, excluding
+     * those that only differ in ASCII case. Built from {@link Character#toLowerCase(int)} over every code point, so it
+     * follows the JDK's Unicode version.
      */
     private static final Map<Integer, byte[][]> OTHER_SPELLINGS;
 
-    /** {@link #OTHER_SPELLINGS} for the ASCII characters, which most terms are made of. */
+    /** {@link #OTHER_SPELLINGS} for ASCII, as an array lookup. */
     private static final byte[][][] OTHER_ASCII_SPELLINGS = new byte[128][][];
 
     static {
@@ -85,11 +84,10 @@ final class CaseSpellings {
     }
 
     /**
-     * Every way a value could spell {@code term}, as patterns to look for, or null where there are more of them
-     * than {@code most}, or where {@code term} is not UTF-8. Spellings of one character that the comparison of
-     * ASCII case takes for the same are one, so a term of ASCII comes to one pattern. A character spelled one way
-     * is appended to the spellings in place, and only one spelled more ways copies them, which can happen no more
-     * than {@code most} times over, so the work stays linear in the length of the term.
+     * Every spelling of {@code term}, or null if there are more than {@code most} or if {@code term} is not valid
+     * UTF-8. An ASCII term has a single spelling. Characters with a single spelling are appended in place; only those
+     * with several copy the spellings built so far, which the {@code most} limit bounds, so the cost is linear in the
+     * length of the term.
      */
     static List<BytesRef> of(BytesRef term, int most) {
         final byte[] bytes = term.bytes;
@@ -147,7 +145,7 @@ final class CaseSpellings {
         return patterns;
     }
 
-    /** A pattern as the comparison of ASCII case reads it, which is how two spellings are told apart. */
+    /** Folds a spelling the way the needle search does, to merge spellings it does not tell apart. */
     private static BytesRef fold(BytesRef bytes) {
         final byte[] folded = new byte[bytes.length];
         for (int i = 0; i < bytes.length; i++) {

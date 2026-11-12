@@ -49,9 +49,9 @@ public final class FieldValueFetchers {
     }
 
     /**
-     * The same, where {@code keepBytes} hands each value over as the bytes the column holds rather than spelling it
-     * out as a string. A caller that reads a value's bytes before analyzing it leaves the string unbuilt for the
-     * values it rules out, and {@link TokenStreamMatching#textOf} spells out the ones it keeps.
+     * The same, but with {@code keepBytes} the values are returned as {@link BytesRef}s instead of strings. A caller
+     * that scans the bytes before analyzing them then skips the string conversion for the values it rejects;
+     * {@link TokenStreamMatching#textOf} converts the others.
      */
     public static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> fromBinaryDocValues(
         String fieldName,
@@ -177,8 +177,8 @@ public final class FieldValueFetchers {
     }
 
     /**
-     * A document's values, each spelled out as a string or kept as its own bytes. The bytes a column hands over are
-     * reused between values, so each is copied where they are kept.
+     * A document's values, as strings or, with {@code keepBytes}, as {@link BytesRef}s. The column reuses its buffer
+     * between values, so kept bytes are copied.
      */
     public static List<Object> valuesOf(SortableBinaryDocValues docValues, int docId, boolean keepBytes) throws IOException {
         if (docValues.advanceExact(docId) == false) {

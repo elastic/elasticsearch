@@ -46,9 +46,8 @@ public final class TokenStreamMatching {
         boolean matches(TokenStream stream) throws IOException;
 
         /**
-         * What a value must spell for this matcher to match it, which a caller reads a value's bytes by before
-         * analyzing it. A matcher that leaves its terms unsaid answers {@link CandidateValues#ANY} and its values
-         * are analyzed as they were.
+         * The prefilter to apply to a value's bytes before analyzing it. Defaults to {@link CandidateValues#ANY},
+         * which analyzes every value.
          */
         default CandidateValues candidates() {
             return CandidateValues.ANY;
@@ -79,7 +78,7 @@ public final class TokenStreamMatching {
 
         @Override
         public CandidateValues candidates() {
-            // A phrase sits inside one value, so every term of it is spelled by the value holding the phrase.
+            // A phrase cannot span values, so the value holding it contains all of its terms.
             return CandidateValues.allOf(queryTerms);
         }
     }
@@ -153,34 +152,33 @@ public final class TokenStreamMatching {
     }
 
     /**
-     * How many of a query's clauses a value's tokens answer, where every clause is answered by any one of the terms
-     * it names. A clause answered counts once however often a value holds one of them, which is what a field
-     * indexing no terms scores, so the walk stops as soon as every clause has been answered. Positions are not
-     * read: no clause of this shape asks about them.
+     * Counts how many clauses of a query a document's tokens match, where each clause matches on any of its terms.
+     * A clause counts once however many times it matches, which is how a field without terms scores, so the walk
+     * stops once every clause has matched. Positions are ignored.
      */
     public static class ClauseWalker {
 
-        /** The clauses a term answers, held by the query rather than built per document. */
+        /** The clauses each term matches, built once per query. */
         private final Map<BytesRef, int[]> clausesOfTerm;
         private final boolean[] answered;
         private int answeredCount;
 
         /**
-         * @param clausesOfTerm which clauses each term answers, as {@link #clausesOfTerms} builds it
-         * @param clauses how many clauses there are, which is what every one of them answered means
+         * @param clausesOfTerm the clauses each term matches, as built by {@link #clausesOfTerms}
+         * @param clauses the number of clauses
          */
         public ClauseWalker(Map<BytesRef, int[]> clausesOfTerm, int clauses) {
             this.clausesOfTerm = clausesOfTerm;
             this.answered = new boolean[clauses];
         }
 
-        /** Which clauses each term answers, where {@code termsOfClause} holds the terms of every clause in order. */
+        /** Inverts {@code termsOfClause}, the terms of each clause in order, into the clauses of each term. */
         public static Map<BytesRef, int[]> clausesOfTerms(List<List<BytesRef>> termsOfClause) {
             final Map<BytesRef, List<Integer>> clausesByTerm = new HashMap<>();
             for (int clause = 0; clause < termsOfClause.size(); clause++) {
                 for (BytesRef term : termsOfClause.get(clause)) {
                     final List<Integer> clauses = clausesByTerm.computeIfAbsent(term, t -> new ArrayList<>());
-                    // A term naming the same clause twice answers it once, and the clause is already there.
+                    // A term listed twice in the same clause maps to it once.
                     if (clauses.isEmpty() || clauses.get(clauses.size() - 1) != clause) {
                         clauses.add(clause);
                     }
@@ -198,8 +196,8 @@ public final class TokenStreamMatching {
         }
 
         /**
-         * Feeds one value's tokens. The stream is consumed, to its end or to the token that answers the last clause
-         * outstanding; the caller resets and closes it.
+         * Consumes one value's tokens, up to the end of the stream or until every clause has matched. The caller
+         * resets, ends and closes the stream.
          */
         public void accept(TokenStream stream) throws IOException {
             final TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
@@ -220,12 +218,12 @@ public final class TokenStreamMatching {
             }
         }
 
-        /** Whether the {@code clause}th clause was answered by any value fed so far. */
+        /** Whether the clause at index {@code clause} matched any value so far. */
         public boolean answered(int clause) {
             return answered[clause];
         }
 
-        /** Whether every clause has been answered, which is where a walk has nothing left to look for. */
+        /** Whether every clause has matched. */
         public boolean answeredEvery() {
             return answeredCount == answered.length;
         }

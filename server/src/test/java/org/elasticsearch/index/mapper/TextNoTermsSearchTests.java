@@ -19,6 +19,7 @@ import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -31,12 +32,15 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -694,6 +698,10 @@ public class TextNoTermsSearchTests extends MapperServiceTestCase {
     }
 
     private float scoreOf(QueryBuilder query) throws IOException {
+        return scoreOf(query::toQuery);
+    }
+
+    private float scoreOf(CheckedFunction<SearchExecutionContext, Query, IOException> query) throws IOException {
         final float[] score = new float[1];
         final MapperService mapperService = mapper(false);
         withLuceneIndex(mapperService, iw -> {
@@ -702,7 +710,7 @@ public class TextNoTermsSearchTests extends MapperServiceTestCase {
             }
         }, reader -> {
             final SearchExecutionContext context = createSearchExecutionContext(mapperService);
-            final ScoreDoc[] hits = newSearcher(reader).search(query.toQuery(context), 1).scoreDocs;
+            final ScoreDoc[] hits = newSearcher(reader).search(query.apply(context), 1).scoreDocs;
             score[0] = hits.length == 0 ? 0 : hits[0].score;
         });
         return score[0];
@@ -735,7 +743,38 @@ public class TextNoTermsSearchTests extends MapperServiceTestCase {
         }
     }
 
+    /**
+     * A boosted constant-score clause scores its boost, so the number of clauses no longer bounds the score, and a
+     * document holding the term as a token is still scored by analysis rather than counted as one point.
+     */
+    public void testABoostedClauseIsNotBoundedByTheClauseCount() throws IOException {
+        final Term quick = new Term("body", "quick");
+        for (float boost : new float[] { 0.5f, 2f }) {
+            for (Query constant : List.of(
+                new ConstantScoreQuery(new TermQuery(quick)),
+                new TermInSetQuery("body", List.of(quick.bytes(), new BytesRef("absent")))
+            )) {
+                final Query inner = new BooleanQuery.Builder().add(new BoostQuery(constant, boost), Occur.MUST).build();
+                final CheckedFunction<SearchExecutionContext, Query, IOException> query = context -> readingValuesOf(inner, context);
+                assertEquals(inner.toString(), boost, scoreOf(query), 0.0001f);
+                assertThat(inner.toString(), scoreOf(query), lessThanOrEqualTo(maxScoreOf(query)));
+            }
+        }
+    }
+
+    /** {@code inner} answered from the values of {@code body}, as a query built for that field would be. */
+    private static Query readingValuesOf(Query inner, SearchExecutionContext context) throws IOException {
+        final List<ReanalyzingTextQuery> found = new ArrayList<>();
+        collectValueQueries(new MatchQueryBuilder("body", "quick").toQuery(context), found);
+        assertEquals(1, found.size());
+        return found.get(0).withQuery(inner);
+    }
+
     private float maxScoreOf(QueryBuilder builder) throws IOException {
+        return maxScoreOf(builder::toQuery);
+    }
+
+    private float maxScoreOf(CheckedFunction<SearchExecutionContext, Query, IOException> query) throws IOException {
         final float[] max = new float[1];
         final MapperService mapperService = mapper(false);
         withLuceneIndex(mapperService, iw -> {
@@ -745,7 +784,7 @@ public class TextNoTermsSearchTests extends MapperServiceTestCase {
         }, reader -> {
             final SearchExecutionContext context = createSearchExecutionContext(mapperService);
             final IndexSearcher searcher = newSearcher(reader);
-            final Weight weight = searcher.createWeight(searcher.rewrite(builder.toQuery(context)), ScoreMode.COMPLETE, 1f);
+            final Weight weight = searcher.createWeight(searcher.rewrite(query.apply(context)), ScoreMode.COMPLETE, 1f);
             for (LeafReaderContext leaf : reader.leaves()) {
                 final ScorerSupplier supplier = weight.scorerSupplier(leaf);
                 if (supplier != null) {

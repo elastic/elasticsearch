@@ -261,7 +261,7 @@ public class CandidateValuesTests extends ESTestCase {
     /** A value is read once per term, so a query naming many of them is left unread rather than paid for. */
     public void testAQueryOfManyTermsIsNotReadFor() {
         final List<BytesRef> few = new ArrayList<>();
-        for (int i = 0; i < CandidateValues.MOST_TERMS_READ_FOR; i++) {
+        for (int i = 0; i < CandidateValues.MAX_NEEDLES; i++) {
             few.add(new BytesRef("term" + i));
         }
         assertTrue(CandidateValues.of(new TermInSetQuery(FIELD, few), FIELD).reads());

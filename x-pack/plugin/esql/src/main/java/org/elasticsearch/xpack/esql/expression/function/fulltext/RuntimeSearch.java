@@ -53,8 +53,8 @@ import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
  * The block-level walking (multivalue any-value semantics, null handling, per-thread scratch) is shared here through
  * a single {@code Text} evaluator. How one value's tokens are matched is Elasticsearch's to say, and comes from
  * {@link TokenStreamMatching}: {@link TokenStreamMatching.AnyTerm} for {@code match},
- * {@link TokenStreamMatching.Phrase} for {@code match_phrase}. Each value's bytes are read for those terms before
- * it is analyzed, which {@link CandidateValues} answers for.
+ * {@link TokenStreamMatching.Phrase} for {@code match_phrase}. Each value's bytes are first scanned for the query's
+ * terms with {@link CandidateValues}, which can skip the analysis.
  */
 public final class RuntimeSearch {
 
@@ -84,10 +84,10 @@ public final class RuntimeSearch {
     }
 
     /**
-     * One row's values matched by analyzing them, with {@code candidates} read from each value's bytes first: a
-     * value spelling none of the query's terms is never analyzed, and one holding a term where the bytes around it
-     * say it stands as a token answers without being analyzed either. The bytes are whatever the block holds, so
-     * this reads a runtime column, a {@code TO_TEXT} expression and an external dataset alike.
+     * Matches one row's values by analyzing them, after scanning each value's bytes with {@code candidates}: a value
+     * that contains none of the query's terms is skipped, and a value that contains one as a whole token matches,
+     * both without analysis. Works on any block of bytes: a runtime column, a {@code TO_TEXT} expression or an
+     * external dataset.
      */
     @Evaluator(extraName = "Text", warnExceptions = { IOException.class }, allNullsIsNull = false)
     static boolean processText(
@@ -113,7 +113,7 @@ public final class RuntimeSearch {
                 continue;
             }
             if (held == CandidateValues.Answer.YES) {
-                // The value holds a term this matcher matches on, as a token, which is what analyzing it would say.
+                // The value holds a matching term as a whole token.
                 return true;
             }
             // The analyzed token stream is matched directly; queries with options (or phrase queries under a
@@ -154,8 +154,8 @@ public final class RuntimeSearch {
             return ConstantEvaluators.CONSTANT_FALSE_FACTORY;
         }
         final NamedAnalyzer values = valuesAnalyzer == null ? Lucene.STANDARD_ANALYZER : valuesAnalyzer;
-        // The gap the values are analyzed with sits between them and leaves each one's tokens spelled as they are,
-        // so what the values can be read for is decided before it is applied.
+        // The position increment gap does not change the tokens, so the prefilter is built from the unwrapped
+        // analyzer.
         return new RuntimeSearchTextWithLuceneQueryEvaluator.Factory(
             source,
             fieldEvaluator,
@@ -266,15 +266,14 @@ public final class RuntimeSearch {
         if (valueCount == 0) {
             return false;
         }
-        // The values are read for the query's terms before any of them is indexed, over the row as a whole, since
-        // that is the document the query is run against.
+        // Scan the row's values as one document, before indexing them.
         final BytesRef read = scratch;
         switch (candidates.held(valueCount, index -> fieldBlock.getBytesRef(startIndex + index, read))) {
             case NO -> {
                 return false;
             }
             case YES -> {
-                // The values hold what the query asks, as tokens, so indexing them would answer the same.
+                // The values hold the matching tokens, so indexing them would match too.
                 return true;
             }
             case MAYBE -> {

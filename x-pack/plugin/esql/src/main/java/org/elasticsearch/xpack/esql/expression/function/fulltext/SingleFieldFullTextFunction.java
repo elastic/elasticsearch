@@ -212,7 +212,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
         }
 
         final TokenStreamMatching.Matcher matcher = matcherBuilder.apply(queryTerms);
-        // Only an analyzer whose tokens its values spell can be read for, and only it decides whether they are.
+        // The prefilter only applies to analyzers whose tokens are substrings of their input.
         final CandidateValues candidates = CandidateValues.valuesSpellTheirTokens(analyzer)
             ? matcher.candidates().readingTokensOf(analyzer)
             : CandidateValues.ANY;

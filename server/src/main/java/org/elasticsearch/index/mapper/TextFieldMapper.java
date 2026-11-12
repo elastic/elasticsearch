@@ -1377,9 +1377,8 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         /**
-         * This field's own analyzer, where its values can be read for the terms a query asks about before they are
-         * analyzed, and null where they cannot. It is the field's analyzer and not the index-wide one a query is
-         * built with, which wraps every field's and is none of them.
+         * This field's analyzer if {@link CandidateValues} supports it, otherwise null. This is the field's own
+         * analyzer, not the index-wide per-field wrapper that queries are built with.
          */
         @Nullable
         private NamedAnalyzer valuesAnalyzer(SearchExecutionContext context) {
@@ -1403,9 +1402,8 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         /**
-         * Reads this field's values back, for the queries that analyze them again. {@code keepBytes} where a value's
-         * own bytes are read for the query's terms, since keeping them copies each value out of the column's buffer
-         * and only a reader of those bytes has any use for the copy.
+         * Reads this field's values back, for the queries that analyze them again. With {@code keepBytes}, values are
+         * returned as copied {@link BytesRef}s rather than strings, for queries that scan the bytes first.
          */
         private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider(
             SearchExecutionContext context,
@@ -1418,7 +1416,7 @@ public final class TextFieldMapper extends FieldMapper {
             return FieldValueFetchers.fromParent(context, name());
         }
 
-        /** Whether {@code query} is answered by reading the values' own bytes before any of them is analyzed. */
+        /** Whether {@code query} scans the values' bytes with {@link CandidateValues} before analyzing them. */
         private boolean readsValueBytes(Query query, SearchExecutionContext context) {
             return scansEveryDocument() && valuesAnalyzer(context) != null && CandidateValues.of(query, name()).reads();
         }
@@ -1452,7 +1450,7 @@ public final class TextFieldMapper extends FieldMapper {
             return new ReanalyzingIntervalsSource(
                 source,
                 scansEveryDocument() ? Queries.ALL_DOCS_INSTANCE : approximation,
-                // An interval analyzes every value it reads, so there is nothing a value's own bytes are read for.
+                // Intervals do not use the prefilter, so strings are enough.
                 valueFetcherProvider(context, false),
                 context.getIndexAnalyzer(f -> null)
             );

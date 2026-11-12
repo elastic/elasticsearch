@@ -39,74 +39,68 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Which values are worth analyzing, read from the values' own bytes. A token an analyzer leaves is a stretch of the
- * value spelled as the value spelled it, so a value spelling none of a query's terms cannot analyze into any of
- * them.
+ * A prefilter that scans a text value's raw bytes for the query's terms before the value is analyzed.
  *
- * <p>It names a superset, where the postings of a field that holds terms stand: a value it keeps is analyzed
- * exactly as it would have been and answered by that, so only the values it rules out are answered here, and only
- * with no. A wider answer costs time; a narrower one would be wrong.
+ * <p>For the analyzers accepted by {@link #valuesSpellTheirTokens}, every token is a substring of the value, possibly
+ * lowercased. So a value that contains none of the query's terms, ignoring case, cannot produce any of them as a
+ * token and can be rejected without analysis. The filter is conservative: a value that contains a term's bytes may
+ * still not hold it as a token ({@code cat} appears in {@code catalog}), so such values are still analyzed. A value
+ * is only rejected when analysis would reject it too.
  *
- * <p>What it reads is that the term's bytes appear, not that they appear as a token: {@code cat} is spelled by
- * {@code catalog}, which holds no such token. So every value it keeps is analyzed.
+ * <p>With {@link #readingTokensOf}, the filter can also accept a value: when the bytes around an occurrence show it
+ * is a whole token (see {@link TokenBoundaries}) and the query is answered by that term alone, the value matches
+ * without analysis.
  *
- * <p>A value spells a term it holds in one of a few ways, since an analyzer that lowers a token leaves it spelled
- * by whichever characters lower onto its own. {@link CaseSpellings} says which those are, so each is looked for;
- * a term of ASCII, and one of Latin letters with their accents, come to a single pattern, since comparing the
- * ASCII letters without their case already takes those spellings for the same.
+ * <p>Lowercasing can map several characters onto the same one, so a term can appear in a value under more than one
+ * spelling. {@link CaseSpellings} lists them and each spelling is searched for. For ASCII terms, the case-insensitive
+ * byte comparison already covers every spelling, so there is a single one.
  *
- * <p>It reads bytes and nothing else, so it serves every source that hands its values over as bytes: a column of a
- * field that indexes no terms, a runtime column, an external dataset. Three seams carry it further: an analyzer is
- * recognised by {@link #valuesSpellTheirTokens}, a query's own shape by {@link #of(Query, String)}, and a matcher's
- * terms by {@link #anyOf} and {@link #allOf}.
+ * <p>The filter only reads bytes, so any source of byte values can use it: a binary doc-values column, an ES|QL
+ * block, an external dataset. Build it from a Lucene query with {@link #of(Query, String)}, or from a list of terms
+ * with {@link #anyOf} and {@link #allOf}.
  */
 public final class CandidateValues {
 
-    /** Reads nothing, so every value is a candidate: what a query or an analyzer leaves nothing to go by. */
+    /** Accepts every value. Used when the query or the analyzer gives nothing to filter on. */
     public static final CandidateValues ANY = new CandidateValues(List.of());
 
     /**
-     * The most terms a read looks for. A value is read once per term, so the read of a query naming many of them is
-     * what a document answering it pays on top of the analysis the read did not save. This bounds that: a query
-     * naming more terms is left unread.
+     * The maximum number of byte patterns (terms and their case spellings) a value is scanned for. Each pattern is a
+     * separate scan of the value, and a value that is not rejected pays for these scans on top of its analysis.
+     * Queries that need more patterns are not filtered.
      */
-    static final int MOST_TERMS_READ_FOR = 16;
+    static final int MAX_NEEDLES = 16;
 
-    /**
-     * What a value must spell, as clauses of alternatives: one of every clause, so a value spelling none of a
-     * clause's is ruled out.
-     */
+    /** The conjunction of clauses a value must satisfy: a value that matches none of the needles of a clause is rejected. */
     private final List<Clause> clauses;
 
     /**
-     * One clause: a value spelling any of {@code needles}, compared without ASCII case, holds what it asks. The
-     * needles are every way a value could spell one of the clause's terms, so a value spelling none of them holds
-     * none of those terms. The {@code terms} are the clause's own, which a stretch of a value spelling one of them
-     * as a whole token holds for certain.
+     * A disjunction of terms. {@code needles} are the byte patterns to search for, compared ignoring ASCII case: every
+     * case spelling of every term. {@code terms} are the terms whose occurrences can be confirmed as tokens: all of
+     * the clause's terms until {@link #readingTokensOf} keeps only those {@link TokenBoundaries#canReadTokensOf}.
      */
     private record Clause(BytesRef[] needles, BytesRef[] terms) {}
 
-    /**
-     * Where the tokens of the values are runs of the values themselves, which lets a stretch of one be read as a
-     * token rather than only as bytes that may spell one. Null where the analyzer is not one of those, and then
-     * nothing is answered yes.
-     */
+    /** Detects whole tokens from the surrounding bytes, or null when the filter can only reject values. */
     @Nullable
     private final TokenBoundaries boundaries;
 
-    /** Whether spelling what the clauses ask answers the query, rather than only being required by it. */
+    /** Whether satisfying the clauses is enough to match the query, rather than only necessary. */
     private final boolean spellingAnswers;
 
-    /** The most occurrences of one needle a value is read for before the read gives up and the value is analyzed. */
-    static final int MOST_OCCURRENCES_READ = 32;
+    /**
+     * The maximum number of occurrences of one needle checked for token boundaries. A value with more occurrences
+     * than this, none of them a whole token, is analyzed instead.
+     */
+    static final int MAX_OCCURRENCES_PER_NEEDLE = 32;
 
-    /** What a value's bytes say about the query that asked for it. */
+    /** The outcome of scanning a value's bytes. */
     public enum Answer {
-        /** The value holds what the query asks, so it is answered without being analyzed. */
+        /** The value matches the query; no need to analyze it. */
         YES,
-        /** The value spells none of the terms the query cannot be answered without. */
+        /** The value cannot match the query; no need to analyze it. */
         NO,
-        /** The bytes do not say, so the value is analyzed as it would have been. */
+        /** The bytes are not conclusive; the value must be analyzed. */
         MAYBE
     }
 
@@ -121,26 +115,39 @@ public final class CandidateValues {
     }
 
     /**
-     * The same read, able to answer yes where {@code analyzer} leaves its tokens spelled as the value spells them
-     * and where spelling the terms answers the query rather than only being required by it. A term the analyzer
-     * would not leave whole, or would leave out, is read as it was.
+     * Returns a copy that can also answer {@link Answer#YES}, using the token boundaries of {@code analyzer}. Returns
+     * this filter unchanged when the analyzer's boundaries are not known or when matching the clauses is not
+     * sufficient to match the query.
      */
     public CandidateValues readingTokensOf(@Nullable Analyzer analyzer) {
         if (reads() == false || spellingAnswers == false) {
             return this;
         }
         final TokenBoundaries reading = TokenBoundaries.of(analyzer);
-        return reading == null ? this : new CandidateValues(clauses, reading, true);
+        if (reading == null) {
+            return this;
+        }
+        final List<Clause> withTokens = new ArrayList<>(clauses.size());
+        for (Clause clause : clauses) {
+            final List<BytesRef> readable = new ArrayList<>(clause.terms().length);
+            for (BytesRef term : clause.terms()) {
+                if (reading.canReadTokensOf(term)) {
+                    readable.add(term);
+                }
+            }
+            withTokens.add(new Clause(clause.needles(), readable.toArray(BytesRef[]::new)));
+        }
+        return new CandidateValues(withTokens, reading, true);
     }
 
-    /** Values spelling any one of {@code terms}, which is what a match asks of them and all that it asks. */
+    /** Values containing any of {@code terms}. Containing one of them as a token matches. */
     public static CandidateValues anyOf(Collection<BytesRef> terms) {
         return terms.isEmpty() ? ANY : readingFor(List.<BytesRef[]>of(terms.toArray(BytesRef[]::new)), true);
     }
 
     /**
-     * Values spelling every one of {@code terms}, which is what a phrase asks of a value. Holding them is not
-     * answering it: a phrase asks for them in an order, which their bytes alone do not give.
+     * Values containing all of {@code terms}, as required by a phrase. This never answers {@link Answer#YES}, since
+     * the bytes do not tell whether the terms are in the right order.
      */
     public static CandidateValues allOf(Collection<BytesRef> terms) {
         final List<BytesRef[]> clauses = new ArrayList<>(terms.size());
@@ -151,9 +158,9 @@ public final class CandidateValues {
     }
 
     /**
-     * The read these terms ask for, or {@link #ANY} where they ask for more of a value than one is worth. A clause
-     * whose terms can be spelled more ways than that is not read for in part: a part of a clause would rule out a
-     * value that spells one of the ways left out.
+     * Builds the filter for these clauses, or returns {@link #ANY} when they need more than {@link #MAX_NEEDLES}
+     * needles in total. A clause is never searched for a subset of its spellings, since that would reject values
+     * holding one of the others.
      */
     private static CandidateValues readingFor(List<BytesRef[]> terms, boolean spellingAnswers) {
         final List<Clause> clauses = new ArrayList<>(terms.size());
@@ -161,7 +168,7 @@ public final class CandidateValues {
         for (BytesRef[] alternatives : terms) {
             final Set<BytesRef> ofClause = new LinkedHashSet<>();
             for (BytesRef term : alternatives) {
-                final List<BytesRef> spellings = CaseSpellings.of(term, MOST_TERMS_READ_FOR);
+                final List<BytesRef> spellings = CaseSpellings.of(term, MAX_NEEDLES);
                 if (spellings == null) {
                     return ANY;
                 }
@@ -170,24 +177,23 @@ public final class CandidateValues {
             needles += ofClause.size();
             clauses.add(new Clause(ofClause.toArray(BytesRef[]::new), alternatives));
         }
-        return needles == 0 || needles > MOST_TERMS_READ_FOR ? ANY : new CandidateValues(clauses, null, spellingAnswers);
+        return needles == 0 || needles > MAX_NEEDLES ? ANY : new CandidateValues(clauses, null, spellingAnswers);
     }
 
-    /** Whether this reads anything at all, which a caller skipping the read for a whole document goes by. */
+    /** Whether this filter checks anything. When false, every value is accepted and callers can skip it. */
     public boolean reads() {
         return clauses.isEmpty() == false;
     }
 
     /**
-     * Whether the tokens of a field analyzed by {@code analyzer} are spelled by the values they come from, which is
-     * what reading a value's bytes for a term goes by.
+     * Whether every token produced by {@code analyzer} is a substring of its input, possibly lowercased, which is what
+     * the filter relies on.
      *
-     * <p>This is an <b>allowlist of analyzers</b>, by what they are rather than by what they carry: each cuts its
-     * input into stretches of itself and at most lowercases them or leaves some out, and none rewrites a token into
-     * something its value does not spell. Each of these classes is final, so what one does cannot be changed under
-     * the check. That holds however one is configured, since what they take — stop words
-     * to drop, the longest token to leave whole — only drops tokens or cuts them shorter. An analyzer assembled
-     * from an index's own settings is not recognised, and its fields' values are analyzed as they were.
+     * <p>This is an <b>allowlist of analyzers</b>, checked by class: each splits its input into substrings and at most
+     * lowercases them or drops some, and none rewrites a token into text the input does not contain. These classes
+     * are final, so a subclass cannot change that. Their options (stop words, maximum token length) only drop tokens
+     * or split them shorter, so the property holds whatever the configuration. Custom analyzers built from index
+     * settings are not recognized and are not filtered.
      */
     public static boolean valuesSpellTheirTokens(@Nullable Analyzer analyzer) {
         Analyzer unwrapped = analyzer;
@@ -202,9 +208,9 @@ public final class CandidateValues {
     }
 
     /**
-     * What {@code query} requires of the values of {@code field}, or {@link #ANY} where it requires nothing that can
-     * be read from them: a query naming its terms by a range of them, as a prefix or a fuzziness does, names none of
-     * them here, and nor does one answered by a term of another field, whose values these are not.
+     * The filter for {@code query} over the values of {@code field}, or {@link #ANY} when the query has no required
+     * terms to scan for: for instance a prefix or fuzzy query, which does not list its terms, or a query that can
+     * match through another field.
      */
     public static CandidateValues of(Query query, String field) {
         final List<BytesRef[]> clauses = new ArrayList<>();
@@ -212,7 +218,7 @@ public final class CandidateValues {
         return required(query, field, clauses, spellingAnswers) ? readingFor(clauses, spellingAnswers[0]) : ANY;
     }
 
-    /** Whether one value's bytes could hold what is required, which is the only answer read from them. */
+    /** Whether one value may match, that is whether it is not rejected. */
     public boolean mayHold(BytesRef value) {
         for (Clause clause : clauses) {
             if (clauseAnswer(value, clause) == Answer.NO) {
@@ -222,7 +228,7 @@ public final class CandidateValues {
         return true;
     }
 
-    /** What one value's bytes say: they hold what the query asks, they hold none of its terms, or they do not say. */
+    /** Scans one value. */
     public Answer held(BytesRef value) {
         Answer answer = Answer.YES;
         for (Clause clause : clauses) {
@@ -238,8 +244,8 @@ public final class CandidateValues {
     }
 
     /**
-     * What the values of one document say, where a term spelled by any of them is spelled by the document. A
-     * document holding every clause between its values holds what the query asks of it.
+     * Scans the values of one document. Like a multi-valued field, a clause is satisfied if any of the values
+     * satisfies it.
      */
     public Answer held(List<Object> values) {
         Answer answer = Answer.YES;
@@ -270,24 +276,22 @@ public final class CandidateValues {
                     answer = Answer.MAYBE;
                 }
             } else {
-                // A value that did not arrive as bytes would have to be spelled out again to be read, which is the
-                // work this is here to leave out, so it is left undecided.
+                // Encoding a non-bytes value to UTF-8 would cost about as much as analyzing it, so it is not scanned.
                 return Answer.MAYBE;
             }
         }
         return answer;
     }
 
-    /** Reads one of a document's values, for a caller holding them in a shape of its own. */
+    /** Gives access to the values of one document by index. */
     @FunctionalInterface
     public interface ValueReader {
         BytesRef value(int index) throws IOException;
     }
 
     /**
-     * Whether the {@code count} values of one document could spell what is required, where a term spelled by any of
-     * them is spelled by the document. That is what a multivalued field answers, so a conjunction is kept by values
-     * that spell its terms between them.
+     * Whether the {@code count} values of one document may match. A clause is satisfied if any of the values
+     * satisfies it, so the terms of a conjunction may be spread across values.
      */
     public boolean mayHold(int count, ValueReader values) throws IOException {
         for (Clause clause : clauses) {
@@ -302,9 +306,7 @@ public final class CandidateValues {
         return true;
     }
 
-    /**
-     * What the {@code count} values of one document say, for a caller holding them in a shape of its own.
-     */
+    /** Scans the {@code count} values of one document. */
     public Answer held(int count, ValueReader values) throws IOException {
         Answer answer = Answer.YES;
         for (Clause clause : clauses) {
@@ -325,7 +327,7 @@ public final class CandidateValues {
         return spellingAnswers ? answer : (answer == Answer.NO ? Answer.NO : Answer.MAYBE);
     }
 
-    /** The same over values already spelled out, where one not read as bytes is left undecided. */
+    /** Whether the values of one document may match. Values that are not {@link BytesRef} are not scanned. */
     public boolean mayHold(List<Object> values) {
         for (Clause clause : clauses) {
             if (valuesAnswer(values, clause) == Answer.NO) {
@@ -336,22 +338,21 @@ public final class CandidateValues {
     }
 
     /**
-     * What one value says about one clause. Every occurrence of every way the clause's terms could be spelled is
-     * read: an occurrence standing as a whole token holds the term, one running on into a longer token holds
-     * nothing, and one the bytes around do not settle leaves the value to be analyzed.
-     *
-     * <p>Without the boundaries to read, every occurrence is unsettled, which is the answer this gave before them.
+     * Scans one value for one clause. Each occurrence of each needle is checked: a whole token answers
+     * {@link Answer#YES}, an occurrence inside a longer token is skipped, and an occurrence whose boundaries are
+     * unclear makes the answer {@link Answer#MAYBE}. Without {@link #boundaries}, any occurrence gives
+     * {@link Answer#MAYBE}.
      */
     private Answer clauseAnswer(BytesRef value, Clause clause) {
         if (boundaries == null) {
-            // Nothing here can answer yes, so the first occurrence of any needle is as much as there is to find.
+            // Only rejection is possible, so finding any occurrence is enough.
             return someNeedleMayBeHeld(value, clause) ? Answer.MAYBE : Answer.NO;
         }
         boolean unsettled = false;
         for (BytesRef needle : clause.needles()) {
             int from = value.offset;
             int remaining = value.length;
-            for (int occurrences = 0; occurrences < MOST_OCCURRENCES_READ; occurrences++) {
+            for (int occurrences = 0; occurrences < MAX_OCCURRENCES_PER_NEEDLE; occurrences++) {
                 final int at = ESVectorUtil.indexOfCandidateIgnoringAsciiCase(
                     value.bytes,
                     from,
@@ -376,9 +377,8 @@ public final class CandidateValues {
                 if (remaining < needle.length) {
                     break;
                 }
-                if (occurrences + 1 == MOST_OCCURRENCES_READ) {
-                    // A value spelling one needle this often is read no further: it is cheaper to analyze than to
-                    // keep looking for an occurrence that stands on its own.
+                if (occurrences + 1 == MAX_OCCURRENCES_PER_NEEDLE) {
+                    // Too many occurrences that are not whole tokens: stop scanning and let analysis decide.
                     unsettled = true;
                 }
             }
@@ -386,7 +386,7 @@ public final class CandidateValues {
         return unsettled ? Answer.MAYBE : Answer.NO;
     }
 
-    /** Whether any way the clause's terms could be spelled appears in the value at all. */
+    /** Whether any needle of the clause occurs in the value. */
     private static boolean someNeedleMayBeHeld(BytesRef value, Clause clause) {
         for (BytesRef needle : clause.needles()) {
             if (ESVectorUtil.mayContainIgnoringAsciiCase(
@@ -404,28 +404,26 @@ public final class CandidateValues {
     }
 
     /**
-     * What an occurrence of {@code needle} at {@code at} says. The bytes around a needle are only read where it
-     * spells one of the clause's terms as that term stands and the term is one whose tokens they can be read for:
-     * the search for it compares a little more than the term does, and a term as long as the longest token is cut
-     * wherever its run is, so neither the bytes around it nor its own length say where its tokens end.
+     * Checks whether the occurrence of {@code needle} at {@code at} is a whole token. Boundaries are only checked when
+     * the bytes lowercase exactly to one of the clause's terms (the needle search is looser than that) and the term
+     * can be recognized as a token at all (see {@link TokenBoundaries#canReadTokensOf}).
      */
     private TokenBoundaries.Verdict verdictOf(BytesRef value, int at, BytesRef needle, Clause clause) {
         if (boundaries == null) {
             return TokenBoundaries.Verdict.UNKNOWN;
         }
         for (BytesRef term : clause.terms()) {
-            if (term.length == needle.length && boundaries.canReadTokensOf(term) && TokenBoundaries.spellsTerm(value, at, term)) {
+            if (term.length == needle.length && TokenBoundaries.spellsTerm(value, at, term)) {
                 return boundaries.verdictAt(value, at, needle.length);
             }
         }
-        // Spelled by a character this reads as another, or a term whose tokens are not read, so what it holds is left
-        // to the analyzer.
+        // A looser match of the needle, or a term whose tokens cannot be recognized: let analysis decide.
         return TokenBoundaries.Verdict.UNKNOWN;
     }
 
     /**
-     * Collects into {@code clauses} the terms {@code query} cannot be answered without, and answers whether it
-     * requires any at all.
+     * Adds the clauses that any match of {@code query} must satisfy to {@code clauses}, and returns whether there are
+     * any. Clears {@code spellingAnswers[0]} when satisfying them is not sufficient to match the query.
      */
     private static boolean required(Query query, String field, List<BytesRef[]> clauses, boolean[] spellingAnswers) {
         if (query instanceof BoostQuery boost) {
@@ -442,9 +440,9 @@ public final class CandidateValues {
             return true;
         }
         if (query instanceof TermInSetQuery terms) {
-            // One of the terms is spelled, as one clause of alternatives, which is what a disjunction of them is.
-            // The count is checked before the terms are copied, since a terms query can name a great many of them.
-            if (terms.getField().equals(field) == false || terms.getTermsCount() > MOST_TERMS_READ_FOR) {
+            // One clause with the terms as alternatives. The count is checked before copying the terms, since a
+            // terms query can hold a great many of them.
+            if (terms.getField().equals(field) == false || terms.getTermsCount() > MAX_NEEDLES) {
                 return false;
             }
             final List<BytesRef> alternatives = new ArrayList<>((int) terms.getTermsCount());
@@ -464,8 +462,8 @@ public final class CandidateValues {
             if (phrase.getTerms().length == 0 || phrase.getField().equals(field) == false) {
                 return false;
             }
-            // Wherever the slop lets the terms sit, a document answering the phrase holds every one of them.
-            // Holding them is not answering it, since the order they sit in is not read from their bytes.
+            // Whatever the slop, a match contains every term of the phrase. Positions are not checked, so
+            // containing them is not sufficient.
             spellingAnswers[0] = false;
             for (Term term : phrase.getTerms()) {
                 clauses.add(new BytesRef[] { term.bytes() });
@@ -485,18 +483,17 @@ public final class CandidateValues {
             switch (clause.occur()) {
                 case MUST, FILTER -> answeredByEvery.add(clause.query());
                 case SHOULD -> answeredByOne.add(clause.query());
-                // A clause a document must not answer only takes documents away, so it requires nothing of them;
-                // what it takes away is not read from the bytes, so holding the rest does not answer the query.
+                // An exclusion requires nothing, but it is not checked, so the other clauses are no longer sufficient.
                 case MUST_NOT -> spellingAnswers[0] = false;
             }
         }
         if (query.getMinimumNumberShouldMatch() > Math.min(1, answeredByOne.size())) {
-            // Holding one of the alternatives answers one clause, and this asks for more than one of them, or for
-            // more of them than there are, which nothing answers.
+            // The filter checks that one optional clause matches. Requiring more (or more than there are) makes that
+            // insufficient.
             spellingAnswers[0] = false;
         }
         if (answeredByEvery.isEmpty() == false) {
-            // Every one of these is answered, so whatever any of them requires is required.
+            // Every required clause must match, so the terms each of them requires are required.
             boolean anyRequires = false;
             for (Query clause : answeredByEvery) {
                 final List<BytesRef[]> ofOne = new ArrayList<>();
@@ -504,12 +501,12 @@ public final class CandidateValues {
                     clauses.addAll(ofOne);
                     anyRequires = true;
                 } else {
-                    // A clause nothing is read for is answered by documents the rest of the read says nothing about.
+                    // This clause is not checked, so the others are no longer sufficient.
                     spellingAnswers[0] = false;
                 }
             }
             if (answeredByOne.isEmpty() == false) {
-                // The clauses that must be answered are read for; what one more of them would add is not.
+                // Optional clauses may add minimum_should_match constraints that are not checked.
                 spellingAnswers[0] = false;
             }
             return anyRequires;
@@ -517,20 +514,19 @@ public final class CandidateValues {
         if (answeredByOne.isEmpty()) {
             return false;
         }
-        // One of these is answered, and whichever it is requires a term of its own first clause, so a document
-        // holds one of those terms. Which of them is not known, so they become the alternatives of one clause.
+        // At least one optional clause must match, so a match contains one of the terms that each optional clause
+        // requires first. Those terms form the alternatives of a single clause.
         final List<BytesRef> alternatives = new ArrayList<>();
         for (Query clause : answeredByOne) {
             final List<BytesRef[]> ofOne = new ArrayList<>();
             if (required(clause, field, ofOne, spellingAnswers) == false) {
-                // This clause can be answered by a document holding none of the terms named anywhere here.
+                // This clause can match without any listed term, so nothing can be required.
                 return false;
             }
-            // Answering a clause spells every term of its first requirement, so one of those is spelled here.
+            // Only the first required clause of each optional clause is used as an alternative.
             assert ofOne.isEmpty() == false : "a clause requiring terms named none: " + clause;
             if (ofOne.size() > 1) {
-                // This clause asks for more than the one requirement read for it, so spelling that one answers
-                // the clause only as far as the read goes.
+                // The other requirements of this clause are not checked, so the filter is no longer sufficient.
                 spellingAnswers[0] = false;
             }
             alternatives.addAll(List.of(ofOne.get(0)));

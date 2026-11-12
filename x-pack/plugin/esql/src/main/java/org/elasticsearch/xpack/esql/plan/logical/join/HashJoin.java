@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -67,6 +68,14 @@ public class HashJoin extends Join implements SortPreserving {
         }
         this.addedFields = addedFields;
         this.unique = unique;
+    }
+
+    /**
+     * A label container keys the join as a whole: it is canonical - labels sorted by name - so equal bytes are equal label sets.
+     */
+    @Override
+    protected boolean supportedKey(DataType type) {
+        return type == DataType.TIME_SERIES_METADATA_DATA_TYPE || super.supportedKey(type);
     }
 
     @Override

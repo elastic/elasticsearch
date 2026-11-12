@@ -11,6 +11,13 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.SelectorV2;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.BinaryOperatorLabelTranslation;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -56,10 +63,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2.IntermediateResult.Kind;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.SelectorV2;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -74,6 +77,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
 
 /**
  * Shared state and assembly helpers for one PromQL translation. Every result carries its series' labels as one label
@@ -119,6 +123,8 @@ public record TranslationContextV2(
             case MetadataManipulationFunction relabel -> MetadataManipulationFunctionV2.translate(relabel, this);
             case SortFunction sort -> SortFunctionV2.translate(sort, this);
             case SortByLabelFunction sort -> SortFunctionV2.translate(sort, this);
+            case VectorBinaryOperator operator when operator instanceof VectorBinarySet == false -> BinaryOperatorLabelTranslation
+                .translate(operator, this);
             default -> throw new QlIllegalArgumentException("PromQL plan node [{}] does not translate in V2 yet", node.nodeName());
         };
     }
@@ -558,6 +564,14 @@ public record TranslationContextV2(
      * off the result's label container.
      */
     public LogicalPlan translateFinal() {
+        // Arithmetic and comparison operators with `on`, `ignoring` or `group_*` join their operands as independent pipelines.
+        if (cmd.promqlPlan() instanceof VectorBinaryOperator op && (op instanceof VectorBinarySet) == false) {
+            VectorMatch match = op.match();
+            if (match.filter() != VectorMatch.Filter.NONE || match.grouping() != VectorMatch.Joining.NONE) {
+                IntermediateResult joined = BinaryOperatorLabelTranslation.translateAsLeftJoin(op, this);
+                return finish(emitFinalProjection(joined.plan(), joined.labels(), false), false);
+            }
+        }
         IntermediateResult result = translateIntermediate(cmd.promqlPlan(), cmd.stepId(), cmd.valueId());
         boolean constant = result.kind().constant;
         return finish(emitFinalProjection(result.plan(), result.labels(), constant), constant);
@@ -639,8 +653,7 @@ public record TranslationContextV2(
                             labels,
                             Literal.keyword(labels.source(), PromqlLabels.labelName(label))
                         ),
-                        attr.dataType()
-                    );
+                        attr.dataType());
                 Alias alias = new Alias(source, attr.name(), value, attr.id());
                 evals.add(alias);
                 projected.set(i, alias.toAttribute());

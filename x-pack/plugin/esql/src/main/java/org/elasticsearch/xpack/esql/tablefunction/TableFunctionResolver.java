@@ -40,18 +40,13 @@ public class TableFunctionResolver {
     /**
      * The most calls one query may make, counted over the whole plan once views have been expanded.
      * <p>
-     * A fixed ceiling rather than a setting, and the first thing to refuse a wide source list rather than a
-     * backstop behind something else. The configurable branch count ({@code max_branch_count}, 20 by default) is
-     * checked on the <i>optimized</i> plan, which is long after every call in this query has been made. The
-     * parser's own width check is reached from one place, {@code LogicalPlanBuilder#visitForkCommand}, and is
-     * applied to the {@code Fork} node built there - so a {@code FROM} naming more calls than this is refused by
-     * no parser check at all. Each call is an outbound request for a function that does I/O, and they go out
-     * together rather than in turn, so a source list is a way to spend one query string on as many concurrent
-     * requests as it has room for, with nothing refusing it until those requests are done.
+     * Checked here because nothing later checks it in time: the configurable {@code max_branch_count} is applied
+     * to the <i>optimized</i> plan, long after every call in this query has been made, and the parser's own width
+     * check only covers the {@code Fork} node. Calls go out together rather than in turn, so a wide source list
+     * spends one query string on that many concurrent requests.
      * <p>
-     * Set to {@link QueryPragmas#MAX_PARSED_BRANCH_COUNT} for its value and not for its reach: 128 is the number
-     * already chosen for how wide a parsed plan may get, and taking it keeps one number here rather than a
-     * second one that would drift from it.
+     * Set to {@link QueryPragmas#MAX_PARSED_BRANCH_COUNT} for its value and not for its reach: it is the number
+     * already chosen for how wide a parsed plan may get, so there is one here rather than a second to drift from it.
      */
     static final int MAX_CALLS_PER_QUERY = QueryPragmas.MAX_PARSED_BRANCH_COUNT;
 
@@ -180,9 +175,8 @@ public class TableFunctionResolver {
         }
         return parsed.transformDown(UnresolvedTableFunctionRelation.class, leaf -> {
             LeafPlan relation = bound.get(leaf);
-            // Thrown rather than asserted, as TableFunctionSignature's own declaration checks are: assertions are
-            // off in production, where a null would fail later as an NPE naming no function, and another unresolved
-            // call would be reported to the user as their own syntax being unresolved.
+            // Thrown rather than asserted: assertions are off in production, where a null would surface later as
+            // an NPE naming no function, or as the user's own syntax being reported unresolved.
             if (relation == null) {
                 throw new IllegalStateException("[" + leaf.call().name() + "] bound no relation for a call in this query");
             }

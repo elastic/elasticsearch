@@ -112,7 +112,7 @@ public class TableFunctionFacilityIT extends AbstractEsqlIntegTestCase {
      * Returns an <i>unresolved</i> leaf over the pattern it was handed, which the ordinary analyzer then resolves
      * into an index read. This is the contract's second arm — a function whose columns are only knowable by
      * looking returns an unresolved relation rather than one it built itself — and nothing else in the tree takes
-     * it, so without this the arm is documented and unreached.
+     * it.
      * <p>
      * It also pins where the facility sits in the pipeline, which no other test here does. Resolution runs before
      * pre-analysis, and pre-analysis is where a source leaf's fields are collected; move the resolver after it and
@@ -293,6 +293,78 @@ public class TableFunctionFacilityIT extends AbstractEsqlIntegTestCase {
             assertThat(getValuesList(response), hasSize(3));
             assertThat(getValuesList(response).get(0).get(0), equalTo("a"));
             assertThat(getValuesList(response).get(2).get(0), equalTo("y"));
+        }
+    }
+
+    /**
+     * A call inside a subquery, and a call beside one in the same source list in both orders. The lexer leaves and
+     * re-enters {@code FROM_MODE} around a subquery's closing parenthesis and a call's name, so either transition can
+     * regress on its own: no other test here writes a subquery, and none writes one beside a call.
+     */
+    public void testACallInsideAndBesideASubquery() {
+        assertAcked(client().admin().indices().prepareCreate("subquery_index").setMapping("letter", "type=keyword"));
+        client().prepareIndex("subquery_index").setSource("letter", "z").setRefreshPolicy(IMMEDIATE).get();
+
+        try (EsqlQueryResponse response = run("FROM (FROM letters(\"ab\")) | STATS c = COUNT(*)")) {
+            assertThat(getValuesList(response).get(0).get(0), equalTo(2L));
+        }
+        try (EsqlQueryResponse response = run("FROM (FROM subquery_index), letters(\"ab\") | STATS c = COUNT(*)")) {
+            assertThat(getValuesList(response).get(0).get(0), equalTo(3L));
+        }
+        try (EsqlQueryResponse response = run("FROM letters(\"ab\"), (FROM subquery_index) | STATS c = COUNT(*)")) {
+            assertThat(getValuesList(response).get(0).get(0), equalTo(3L));
+        }
+    }
+
+    /**
+     * A call whose plan hangs off an {@code IN (subquery)} expression rather than off a plan's children. The walk
+     * that finds calls descends plan children only, so this leaf is reachable solely because view resolution
+     * rewrites the subquery into a join first. Move this pass ahead of that one and the leaf is never seen, with
+     * every other test here still green.
+     */
+    public void testACallInsideAnInSubquery() {
+        assertAcked(client().admin().indices().prepareCreate("in_subquery_index").setMapping("letter", "type=keyword"));
+        client().prepareIndex("in_subquery_index").setSource("letter", "z").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("in_subquery_index").setSource("letter", "q").setRefreshPolicy(IMMEDIATE).get();
+
+        try (EsqlQueryResponse response = run("FROM in_subquery_index | WHERE letter IN (FROM letters(\"z\") | KEEP letter)")) {
+            assertThat(getValuesList(response), hasSize(1));
+            assertThat(getValuesList(response).get(0).get(0), equalTo("z"));
+        }
+    }
+
+    /**
+     * FORK over a source list holding both a call and an index pattern, so one shared relation the function built
+     * and one relation the analyzer resolved per visit are read by every branch together.
+     */
+    public void testAForkOverACallBesideAnIndexPattern() {
+        assertAcked(client().admin().indices().prepareCreate("fork_hetero_index").setMapping("letter", "type=keyword"));
+        client().prepareIndex("fork_hetero_index").setSource("letter", "z").setRefreshPolicy(IMMEDIATE).get();
+
+        try (
+            EsqlQueryResponse response = run(
+                "FROM fork_hetero_index, letters(\"ab\") | FORK (WHERE letter == \"a\") (WHERE letter == \"z\") | STATS c = COUNT(*)"
+            )
+        ) {
+            assertThat(getValuesList(response).get(0).get(0), equalTo(2L));
+        }
+    }
+
+    /**
+     * FORK over the contract's unresolved arm. The leaf is resolved per visit rather than shared, so it needs none
+     * of the copying the built-relation arm does -- and that difference is only reached by a multi-branch query.
+     */
+    public void testAForkOverAnUnresolvedLeaf() {
+        assertAcked(client().admin().indices().prepareCreate("fork_unresolved_index").setMapping("letter", "type=keyword"));
+        client().prepareIndex("fork_unresolved_index").setSource("letter", "a").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("fork_unresolved_index").setSource("letter", "b").setRefreshPolicy(IMMEDIATE).get();
+
+        try (
+            EsqlQueryResponse response = run(
+                "FROM indexed(\"fork_unresolved_index\") | FORK (WHERE letter == \"a\") (WHERE letter == \"b\") | STATS c = COUNT(*)"
+            )
+        ) {
+            assertThat(getValuesList(response).get(0).get(0), equalTo(2L));
         }
     }
 }

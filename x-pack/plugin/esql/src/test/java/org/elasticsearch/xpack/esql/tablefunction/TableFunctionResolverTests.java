@@ -241,12 +241,10 @@ public class TableFunctionResolverTests extends ESTestCase {
      * releases them one after another on the test thread, so nothing else here has two answers landing at once.
      * This covers that: the releases are held at a barrier and go through together, across the whole width.
      * <p>
-     * What it is not is a gate on how the binds are collected, and it is worth saying so because it looks like
-     * one. Collecting into an {@code IdentityHashMap} shared by every bind and written without synchronization —
-     * the defect the resolver's positional slots exist to make unreachable — passes this test, measured at 16
-     * calls over 20 rounds and again at 64 over 60. The map is pre-sized from the leaf count, so it never
-     * resizes, and the window left is a probe collision of a few instructions. A race that narrow is not made
-     * deterministic by repeating it, which is why the resolver gives each bind a slot of its own instead.
+     * What it is not is a gate on how the binds are collected, though it looks like one: a shared unsynchronized
+     * map would pass it, because such a map is pre-sized from the leaf count and the window left is a probe
+     * collision of a few instructions. A race that narrow is not made deterministic by repeating it, which is why
+     * the resolver gives each bind a slot of its own instead.
      */
     public void testEveryCallBindsWhenTheAnswersArriveTogether() throws Exception {
         int calls = 16;

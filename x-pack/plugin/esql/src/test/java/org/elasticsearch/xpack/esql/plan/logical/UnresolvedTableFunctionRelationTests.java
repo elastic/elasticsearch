@@ -108,8 +108,7 @@ public class UnresolvedTableFunctionRelationTests extends ESTestCase {
     /**
      * The leaf refuses to serialize, and that refusal is load-bearing elsewhere: it is the argument
      * {@code TableFunctionArgument} gives for not being {@code Writeable} at all. The path is unreachable today —
-     * the resolver substitutes the relation during analysis, so no plan carrying one is ever sent — which is why
-     * nothing noticed that neither method had a test.
+     * the resolver substitutes the relation during analysis, so no plan carrying one is ever sent.
      */
     public void testItRefusesToSerialize() {
         UnresolvedTableFunctionRelation relation = leafCarryingASecret();

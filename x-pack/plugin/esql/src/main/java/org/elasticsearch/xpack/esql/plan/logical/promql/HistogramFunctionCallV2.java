@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.HistogramFunction
  * Translates the classic histogram functions ({@code histogram_quantile}, {@code histogram_fraction}) over a label
  * container: the buckets of each histogram group by their labels but {@code le}, reading each bucket's bound off it.
  */
-final class HistogramLabelTranslation {
+final class HistogramFunctionCallV2 {
 
     /**
      * Labels a classic histogram function leaves out of its input's label container: {@code le}, which it collapses, and the
@@ -41,7 +41,7 @@ final class HistogramLabelTranslation {
      */
     private static final Set<String> COLLAPSED_LABELS = Set.of(LE_LABEL, LabelMatcher.NAME);
 
-    private HistogramLabelTranslation() {}
+    private HistogramFunctionCallV2() {}
 
     static IntermediateResult translate(HistogramFunctionCall histogram, TranslationContextV2 context) {
         IntermediateResult result = context.translate(histogram.child());

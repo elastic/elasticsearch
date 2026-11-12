@@ -29,9 +29,9 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 /** PromQL histogram functions translated over a label container. */
-public class PromqlPlanHistogramLabelTests extends AbstractPromqlPlanOptimizerTests {
+public class PromqlPlanHistogramFunctionCallV2Tests extends AbstractPromqlPlanOptimizerTests {
 
-    public PromqlPlanHistogramLabelTests(VersionMode versionMode) {
+    public PromqlPlanHistogramFunctionCallV2Tests(VersionMode versionMode) {
         super(versionMode);
     }
 
@@ -69,7 +69,7 @@ public class PromqlPlanHistogramLabelTests extends AbstractPromqlPlanOptimizerTe
 
     /** A native histogram is a value transformation over each series. */
     public void testNativeHistogramIsAValueTransformation() {
-        LogicalPlan plan = overLabels(
+        LogicalPlan plan = withPromqlTranslationV2(
             analyzerWithEnrichPolicies().addIndex("exp_histo", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
         ).query("PROMQL index=exp_histo step=1m histogram_quantile(0.9, responseTime)");
 
@@ -91,7 +91,7 @@ public class PromqlPlanHistogramLabelTests extends AbstractPromqlPlanOptimizerTe
     }
 
     private LogicalPlan planClassic(String query, boolean optimize) {
-        LogicalPlan analyzed = overLabels(
+        LogicalPlan analyzed = withPromqlTranslationV2(
             analyzerWithEnrichPolicies().addIndex("prom_hist", "mapping-promql-classic-histogram.json", IndexMode.TIME_SERIES)
         ).query("PROMQL index=prom_hist step=1m " + query);
         return optimize ? logicalOptimizer.optimize(analyzed) : analyzed;

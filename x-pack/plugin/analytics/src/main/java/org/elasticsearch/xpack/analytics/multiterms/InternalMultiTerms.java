@@ -524,6 +524,12 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
                     boolean hasNonNumber = false;
                     for (InternalAggregation aggregation : aggregations) {
                         InternalMultiTerms agg = (InternalMultiTerms) aggregation;
+                        if (agg.getBuckets().isEmpty()) {
+                            // An aggregation without buckets contributes no keys, so the converter it
+                            // declares (for example the default picked for an unmapped field) carries no
+                            // type information and must not take part in the type consistency check.
+                            continue;
+                        }
                         KeyConverter keyConverter = agg.keyConverters.get(i);
                         switch (keyConverter) {
                             case DOUBLE -> hasDouble = true;
@@ -552,12 +558,19 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
                 if (needsPromotionToDouble != null) {
                     aggregations.replaceAll(agg -> promoteToDouble(agg, needsPromotionToDouble));
                 }
-                try (
-                    AggregatorReducer processor = ((AbstractInternalTerms<?, ?>) aggregations.get(0)).termsAggregationReducer(
-                        reduceContext,
-                        size
-                    )
-                ) {
+                // The merged result inherits its key converters and formats from the aggregation whose
+                // reducer leads the merge, so lead with an aggregation that actually has buckets. Leading
+                // with an empty one could stamp the wrong converter (for example the string default of an
+                // unmapped field) onto buckets keyed by another type.
+                InternalMultiTerms leader = (InternalMultiTerms) aggregations.get(0);
+                for (InternalAggregation aggregation : aggregations) {
+                    InternalMultiTerms agg = (InternalMultiTerms) aggregation;
+                    if (agg.getBuckets().isEmpty() == false) {
+                        leader = agg;
+                        break;
+                    }
+                }
+                try (AggregatorReducer processor = leader.termsAggregationReducer(reduceContext, size)) {
                     aggregations.forEach(processor::accept);
                     aggregations = null; // release memory
                     return processor.get();

@@ -1541,6 +1541,29 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         }
     }
 
+    public void testColumnarPlainParamDocValuesFalseInDynamicTemplate() throws Exception {
+        // geo_point is used because it can be mapped from a scalar (string) value, which is what a name-only template matches.
+        MapperService mapperService = createMapperService(columnarSettings(IndexMode.COLUMNAR), topMapping(b -> {
+            b.startArray("dynamic_templates");
+            b.startObject().startObject("no_dv");
+            b.field("match", "tmpl_*");
+            b.startObject("mapping").field("type", "geo_point").field("doc_values", false).endObject();
+            b.endObject().endObject();
+            b.endArray();
+        }));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("tmpl_a", "41.12,-71.34")));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
+        assertWarnings(docValuesIgnoredWarning("__dynamic__no_dv"), docValuesIgnoredWarning("tmpl_a"));
+        assertTrue(mapperService.fieldType("tmpl_a").hasDocValues());
+        ObjectPath mapping = ObjectPath.createFromXContent(
+            JsonXContent.jsonXContent,
+            new BytesArray(mapperService.documentMapper().mappingSource().string())
+        );
+        Map<String, Object> tmplA = mapping.evaluate("_doc.properties.tmpl_a");
+        assertThat(tmplA.keySet(), not(hasItem("doc_values")));
+    }
+
     public void testNonColumnarPlainParamDocValuesFalseStillHonoured() throws Exception {
         for (IndexMode mode : List.of(IndexMode.STANDARD, IndexMode.LOGSDB)) {
             for (String type : PLAIN_DOC_VALUES_TYPES) {

@@ -147,6 +147,16 @@ public abstract class FieldMapper extends Mapper {
 
     protected static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
 
+    /**
+     * Whether {@code doc_values} is a no-op for an index: it is strict-columnar and was created on or after {@code since}.
+     * A {@code null} {@code indexSettings} (parsing without an index) is treated as non-columnar.
+     */
+    static boolean ignoresDocValuesAttribute(IndexSettings indexSettings, IndexVersion since) {
+        return indexSettings != null
+            && indexSettings.getMode().isStrictColumnar()
+            && indexSettings.getIndexVersionCreated().onOrAfter(since);
+    }
+
     static void warnDocValuesIgnoredInColumnar(String field) {
         // Fixed key so the logger deduplicates: dynamic templates re-parse their mapping for every new field.
         deprecationLogger.warn(
@@ -1732,12 +1742,9 @@ public abstract class FieldMapper extends Mapper {
          */
         public static Parameter<Boolean> docValuesParam(boolean defaultValue) {
             return new Parameter<>("doc_values", false, defaultValue ? () -> true : () -> false, (n, c, o) -> {
-                boolean enabled = XContentMapValues.nodeBooleanValue(o, n);
-                IndexSettings indexSettings = c.getIndexSettings();
+                boolean enabled = XContentMapValues.nodeBooleanValue(o, "doc_values");
                 if (defaultValue
-                    && indexSettings != null
-                    && indexSettings.getMode().isStrictColumnar()
-                    && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS)) {
+                    && ignoresDocValuesAttribute(c.getIndexSettings(), IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS)) {
                     if (enabled == false) {
                         warnDocValuesIgnoredInColumnar(n);
                     }
@@ -1912,8 +1919,7 @@ public abstract class FieldMapper extends Mapper {
             this.supportsExtendedDocValues = indexSettings != null && indexSettings.getMode().isStrictColumnar();
             this.supportsTopLevelAttributes = supportsExtendedDocValues
                 && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES);
-            this.ignoresDocValuesAttribute = supportsExtendedDocValues
-                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR);
+            this.ignoresDocValuesAttribute = ignoresDocValuesAttribute(indexSettings, IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR);
 
             multiValueParameter = new Parameter<>(
                 "multi_value",

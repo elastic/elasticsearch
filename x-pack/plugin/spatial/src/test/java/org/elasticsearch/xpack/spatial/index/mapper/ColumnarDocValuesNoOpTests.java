@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 
 import java.io.IOException;
@@ -76,6 +79,25 @@ public class ColumnarDocValuesNoOpTests extends MapperServiceTestCase {
                 fieldMapping(b -> b.field("type", type).field("doc_values", false))
             );
             assertFalse(type, mapperService.fieldType("field").hasDocValues());
+        }
+    }
+
+    public void testDocValuesFalseBeforeAllMappersGateIsNotIgnored() {
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS)
+        );
+        for (String type : SPATIAL_TYPES) {
+            // Older columnar indices keep their original behavior: doc_values: false is honored, which columnar validation rejects.
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> createMapperService(
+                    version,
+                    settings(IndexMode.COLUMNAR),
+                    fieldMapping(b -> b.field("type", type).field("doc_values", false))
+                )
+            );
+            assertThat(type, e.getMessage(), containsString("cannot reconstruct _source from doc values"));
         }
     }
 }

@@ -394,11 +394,6 @@ tests:
   - :x-pack:plugin:security:qa:security-trial:javaRestTest
   method: testGrantTargetCanUpdateApiKey
   issue: https://github.com/elastic/elasticsearch/issues/159567
-- class: org.elasticsearch.xpack.esql.CsvIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/159710
 - class: org.elasticsearch.xpack.prometheus.PrometheusInstantQueryRestIT
   tasks:
   - :x-pack:plugin:prometheus:javaRestTest
@@ -581,20 +576,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/139398
 - class: org.elasticsearch.painless.heappressure.PainlessFieldAllocationIT
   issue: https://github.com/elastic/elasticsearch/issues/162575
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecPrometheusK8sDeltaIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:multi-node:csvSpecTests
-  method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/162319
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sDeltaIT
-  method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/162369
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sDeltaIT
-  method: test {csv-spec:prometheus-k8s-delta.delta_with_filtering_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/162371
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sDeltaIT
-  method: test {csv-spec:prometheus-k8s-delta.eval_on_delta_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/162373
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityTransformIT
   tasks:
   - :x-pack:plugin:security:qa:multi-cluster:bcUpgradeTest

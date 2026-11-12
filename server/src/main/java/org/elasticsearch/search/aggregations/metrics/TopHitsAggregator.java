@@ -134,14 +134,17 @@ class TopHitsAggregator extends MetricsAggregator {
     private final BucketedTopHits bucketedTopHits;
     private final LongObjectPagedHashMap<Collectors> topDocsCollectors;
     private final List<ProfileResult> fetchProfiles;
-    // this must be mutable so it can be closed/replaced on each call to getLeafCollector
+    // this must be mutable so it can be closed/replaced on each call to getLeafCollector, and closed when collection is done
     private LongObjectPagedHashMap<LeafCollector> leafCollectors;
     private final boolean isNested;
     private final SearchExecutionContext forkedSearchExecutionContext;
     private final InnerHitsContext forkedInnerHitsContext;
     /** The estimated bytes of a bucket's {@link Collectors}, charged when it is created and held until the aggregator closes. */
     private final long collectorBytes;
-    /** The estimated bytes of a bucket's leaf collector, charged when it is created and released when its segment is done. */
+    /**
+     * The estimated bytes of a bucket's leaf collector, charged when it is created and released when the next segment starts or
+     * collection is done.
+     */
     private final long leafCollectorBytes;
     /** Estimated bytes not yet sent to the request breaker. */
     private long pendingBytes;
@@ -270,17 +273,11 @@ class TopHitsAggregator extends MetricsAggregator {
         if (usesBucketedSort()) {
             return bucketedTopHits.getLeafCollector(aggCtx, sub);
         }
-        // Create leaf collectors here instead of at the aggregator level. Otherwise in case this collector get invoked
-        // when post collecting then we have already replaced the leaf readers on the aggregator level have already been
-        // replaced with the next leaf readers and then post collection pushes docids of the previous segment, which
-        // then causes assertions to trip or incorrect top docs to be computed.
-        if (leafCollectors != null) {
-            leafCollectors.close();
-            leafCollectors = null; // set to null, just in case the new allocation below fails
-        }
-        // The leaf collectors of the previous segment are gone.
-        charge(-leafCollectorsBytes);
-        leafCollectorsBytes = 0;
+        // Releases the leaf collectors of the previous segment. Those of the last segment are released when collection is done.
+        releaseLeafCollectors();
+        // Leaf collectors are created per leaf and not on the aggregator. A replay during post-collection pushes the doc ids of an
+        // earlier segment, when an aggregator-level reader would already point at the next one, which trips assertions or gives
+        // wrong top docs.
         leafCollectors = new LongObjectPagedHashMap<>(1, bigArrays);
         return new LeafBucketCollectorBase(sub, null) {
 
@@ -323,6 +320,25 @@ class TopHitsAggregator extends MetricsAggregator {
                 leafCollector.collect(docId);
             }
         };
+    }
+
+    /**
+     * Releases the leaf collectors of the last segment before the hits of every bucket are fetched. A parent that replays the
+     * documents of its buckets, like a breadth first {@code terms}, post-collects this aggregator after the replay.
+     */
+    @Override
+    protected void doPostCollection() {
+        releaseLeafCollectors();
+    }
+
+    /** Closes the leaf collectors of the segment collected last, and releases their charge. */
+    private void releaseLeafCollectors() {
+        if (leafCollectors != null) {
+            leafCollectors.close();
+            leafCollectors = null; // set to null, so doClose does not close it again
+        }
+        charge(-leafCollectorsBytes);
+        leafCollectorsBytes = 0;
     }
 
     private TopDocsAndMaxScore luceneTopDocs(long owningBucketOrdinal) throws IOException {

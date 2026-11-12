@@ -1056,9 +1056,9 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
     }
 
     /**
-     * A {@code top_hits} that a {@code BucketedSort} cannot collect, with the estimates of what its Lucene collectors hold per bucket.
+     * A {@code top_hits} that a {@code BucketedSort} cannot collect, with the estimate of what its Lucene collector holds per bucket.
      */
-    private record LuceneTopHits(String description, TopHitsAggregationBuilder topHits, long collectorBytes, long leafCollectorBytes) {
+    private record LuceneTopHits(String description, TopHitsAggregationBuilder topHits, long collectorBytes) {
         TermsAggregationBuilder inTerms(int buckets) {
             return termsOver(buckets, topHits);
         }
@@ -1069,8 +1069,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         return new LuceneTopHits(
             "by score",
             topHits("top").size(1),
-            TopHitsAggregator.SCORE_COLLECTOR_BYTES + TopHitsAggregator.SCORE_SLOT_BYTES,
-            TopHitsAggregator.LEAF_COLLECTOR_BYTES
+            TopHitsAggregator.SCORE_COLLECTOR_BYTES + TopHitsAggregator.SCORE_SLOT_BYTES
         );
     }
 
@@ -1080,8 +1079,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
             "by keyword",
             keywordTopHits(),
             TopHitsAggregator.FIELD_COLLECTOR_BYTES + TopHitsAggregator.FIELD_COMPARATOR_BYTES + TopHitsAggregator.FIELD_QUEUE_SLOT_BYTES
-                + TopHitsAggregator.FIELD_COMPARATOR_SLOT_BYTES,
-            TopHitsAggregator.LEAF_COLLECTOR_BYTES + TopHitsAggregator.LEAF_DOC_VALUES_BYTES
+                + TopHitsAggregator.FIELD_COMPARATOR_SLOT_BYTES
         );
     }
 
@@ -1093,9 +1091,10 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
     /**
      * The Lucene collectors charge an estimate for every bucket's collector, and for the leaf collectors of the segment being
      * collected, and release all of it when the aggregation is released. Once collection is done, every bucket still holds its
-     * collector, and the leaf collectors of the last segment are not released yet. The {@code max} sub-aggregation of the control is
-     * taken off the lower bound ({@link #MAX_BYTES_PER_BUCKET}), and the hash maps that hold the collectors are allowed for in the upper
-     * bound. Up to a batch can still be pending. It runs in both collect modes.
+     * collector, and the leaf collectors are released. The {@code max} sub-aggregation of the control is taken off the lower bound
+     * ({@link #MAX_BYTES_PER_BUCKET}), and the hash maps that hold the collectors are allowed for in the upper bound. Up to a batch can
+     * still be pending. It runs in both collect modes. Only the keyword sort can tell whether the leaf collectors are released, since
+     * a score order leaf collector is within the slack of the maps.
      */
     public void testLuceneCollectorsChargeEveryBucketAndReleaseIt() throws Exception {
         int buckets = 2_000;
@@ -1117,7 +1116,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
                         luceneTopHits.description() + " " + mode,
                         withTopHits - withMax,
                         buckets * (luceneTopHits.collectorBytes() - MAX_BYTES_PER_BUCKET) - TopHitsAggregator.CHARGE_BATCH_BYTES,
-                        buckets * (luceneTopHits.collectorBytes() + luceneTopHits.leafCollectorBytes() + MAPS_BYTES_PER_BUCKET)
+                        buckets * (luceneTopHits.collectorBytes() + MAPS_BYTES_PER_BUCKET)
                     );
                 }
             }
@@ -1151,8 +1150,8 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
     }
 
     /**
-     * With {@code track_scores}, every bucket's collector also holds a {@code MaxScoreCollector}. The leaf collectors of the last
-     * segment add a little more, and each run can leave up to a batch pending.
+     * With {@code track_scores}, every bucket's collector also holds a {@code MaxScoreCollector}. Each run can leave up to a batch
+     * pending.
      */
     public void testLuceneCollectorsChargeTrackScores() throws Exception {
         int buckets = 2_000;
@@ -1165,15 +1164,18 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
                 "track_scores",
                 with - without,
                 expected - TopHitsAggregator.CHARGE_BATCH_BYTES,
-                expected + buckets * TopHitsAggregator.TRACK_SCORES_LEAF_COLLECTOR_BYTES + TopHitsAggregator.CHARGE_BATCH_BYTES
+                expected + TopHitsAggregator.CHARGE_BATCH_BYTES
             );
         });
     }
 
     /**
      * The leaf collectors of a segment are released when the next segment starts, so collecting a bucket in several segments does
-     * not add up their charges. Every bucket has a document in each segment, and only the leaf collectors of the last one are still
-     * charged once collection is done.
+     * not add up their charges, and those of the last segment are released when collection is done, before the hits are fetched.
+     * Every bucket has a document in each segment, and only the collectors are still charged once collection is done. The bytes left
+     * at the end cannot show what the leaf collectors charged during collection, so two breakers pin it. One with room for the
+     * collectors and one segment of leaf collectors, but not two, does not trip, so their charges do not add up. One with room for the
+     * collectors only trips, so the leaf collectors are charged.
      */
     public void testLuceneCollectorsReleaseTheLeafCollectorsOfEachSegment() throws Exception {
         // Enough terms that the terms collects normally instead of rewriting to filters, which would ask for a segment's leaf
@@ -1200,13 +1202,24 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
             HierarchyCircuitBreakerService breakers = requestBreakers("1gb");
             long withMax = breakerBytesAfterCollecting(reader, termsWithMax(buckets), breakers, false);
             long withTopHits = breakerBytesAfterCollecting(reader, byKeyword().inTerms(buckets), breakers, false);
-            long oneSegment = buckets * (byKeyword().collectorBytes() + byKeyword().leafCollectorBytes());
             assertChargedBetween(
-                "collectors and one segment of leaf collectors",
+                "collectors and no leaf collectors",
                 withTopHits - withMax,
-                oneSegment - buckets * MAX_BYTES_PER_BUCKET - TopHitsAggregator.CHARGE_BATCH_BYTES,
-                oneSegment + buckets * MAPS_BYTES_PER_BUCKET
+                buckets * (byKeyword().collectorBytes() - MAX_BYTES_PER_BUCKET) - TopHitsAggregator.CHARGE_BATCH_BYTES,
+                buckets * (byKeyword().collectorBytes() + MAPS_BYTES_PER_BUCKET)
             );
+            long collectorsLimit = withMax + buckets * (byKeyword().collectorBytes() + MAPS_BYTES_PER_BUCKET);
+            long leafCollectorBytes = TopHitsAggregator.LEAF_COLLECTOR_BYTES + TopHitsAggregator.LEAF_DOC_VALUES_BYTES;
+            // Room for one segment of leaf collectors, so it trips if the leaf collectors of each segment add up.
+            HierarchyCircuitBreakerService roomForOneSegment = requestBreakers((collectorsLimit + buckets * leafCollectorBytes) + "b");
+            breakerBytesAfterCollecting(reader, byKeyword().inTerms(buckets), roomForOneSegment, false);
+            // Room for the collectors but not for one segment of leaf collectors, so the leaf charge trips it.
+            HierarchyCircuitBreakerService noRoomForLeaves = requestBreakers(collectorsLimit + "b");
+            expectThrows(
+                CircuitBreakingException.class,
+                () -> breakerBytesAfterCollecting(reader, byKeyword().inTerms(buckets), noRoomForLeaves, false)
+            );
+            assertEquals("the breaker is back to its baseline", 0L, noRoomForLeaves.getBreaker(CircuitBreaker.REQUEST).getUsed());
         });
     }
 

@@ -4299,40 +4299,6 @@ public class EsqlCapabilities {
         FIX_PROMQL_LABEL_JOIN_EMPTY_REMOVES_LABEL(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
-         * PromQL value transforms, range functions other than {@code first_over_time}/{@code last_over_time}, and arithmetic
-         * drop a {@code __name__} stored as a label, as Prometheus does.
-         */
-        FIX_PROMQL_DROP_STORED_METRIC_NAME(PROMQL_COMMAND_V0.isEnabled()),
-
-        /**
-         * PromQL groups by a non-dimension label under {@code by(...)} also when an inner {@code without(...)} carries it, as it
-         * does directly over the source.
-         */
-        FIX_PROMQL_CARRIED_FIELD_LABELS(PROMQL_COMMAND_V0.isEnabled()),
-
-        /**
-         * PromQL filter comparisons against a scalar keep the vector's value whichever side the scalar is on, and a scalar
-         * computed from the source, such as {@code scalar(sum(x))}, may be the right-hand side.
-         */
-        FIX_PROMQL_SCALAR_COMPARISON(PROMQL_COMMAND_V0.isEnabled()),
-
-        /**
-         * PromQL arithmetic/comparison binaries join independent operand pipelines when they cannot share one aggregation:
-         * different {@code offset}s, nested across-series next to another operand, aggregated x raw, and {@code scalar()} x
-         * labeled (step-broadcast). Opaque {@code topk}/{@code bottomk}/{@code limitk}/{@code limit_ratio} join over a typed
-         * label container; a keyword one still rejects them. Gates csv-spec coverage of those shapes.
-         */
-        PROMQL_BINARY_INDEPENDENT_JOIN(PROMQL_COMMAND_V0.isEnabled()),
-
-        /**
-         * PromQL vector matching no longer needs both operands to name their labels: {@code on(...)} and {@code ignoring(...)}
-         * read the listed labels out of an opaque operand's label container, and default matching keys an opaque side by its
-         * label container without {@code __name__} and a side without one by the empty signature, as Prometheus signatures do.
-         * Gates csv-spec coverage of those shapes.
-         */
-        PROMQL_BINARY_OPAQUE_SIGNATURE_MATCH(PROMQL_COMMAND_V0.isEnabled()),
-
-        /**
          * Support for the PromQL {@code sort} and {@code sort_desc} functions, which order an instant vector by sample value.
          */
         PROMQL_SORT(PROMQL_COMMAND_V0.isEnabled()),

@@ -51,14 +51,14 @@ public class FieldPathTests extends ESTestCase {
         FieldPath fieldPathTemplate = FieldPath.of(template);
         FieldPath first = fieldPathTemplate.resolve(documentNamed("one"));
         FieldPath second = fieldPathTemplate.resolve(documentNamed("two"));
-        assertThat(first.toString(), equalTo("foo.bar"));
+        assertThat(first, hasToString("foo.bar"));
         assertThat(second, sameInstance(first));
     }
 
     public void testConstantPathIsParsedOnlyOnce() {
         FieldPath fieldPathTemplate = FieldPath.of("foo.bar");
         FieldPath first = fieldPathTemplate.resolve(documentNamed("one"));
-        assertThat(first.toString(), equalTo("foo.bar"));
+        assertThat(first, hasToString("foo.bar"));
         assertThat(fieldPathTemplate.resolve(documentNamed("two")), sameInstance(first));
     }
 
@@ -66,18 +66,18 @@ public class FieldPathTests extends ESTestCase {
         FieldPath fieldPathTemplate = FieldPath.of(NAME_TEMPLATE);
         FieldPath first = fieldPathTemplate.resolve(documentNamed("foo.bar"));
         FieldPath second = fieldPathTemplate.resolve(documentNamed("baz"));
-        assertThat(first.toString(), equalTo("foo.bar"));
-        assertThat(second.toString(), equalTo("baz"));
+        assertThat(first, hasToString("foo.bar"));
+        assertThat(second, hasToString("baz"));
         assertThat(second, not(sameInstance(first)));
     }
 
     public void testRealTemplateWithMalformedResult() {
         FieldPath fieldPathTemplate = FieldPath.of(NAME_TEMPLATE);
-        assertThat(fieldPathTemplate.resolve(documentNamed("fine")).toString(), equalTo("fine"));
+        assertThat(fieldPathTemplate.resolve(documentNamed("fine")), hasToString("fine"));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fieldPathTemplate.resolve(documentNamed("a..b")));
         assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
         // a bad document does not poison later ones
-        assertThat(fieldPathTemplate.resolve(documentNamed("fine")).toString(), equalTo("fine"));
+        assertThat(fieldPathTemplate.resolve(documentNamed("fine")), hasToString("fine"));
     }
 
     /**
@@ -128,7 +128,7 @@ public class FieldPathTests extends ESTestCase {
      */
     public void testNullOptionalPathIsNull() {
         assertNull(FieldPath.ofNullable(null));
-        assertThat(FieldPath.ofNullable("foo.bar").toString(), equalTo("foo.bar"));
+        assertThat(FieldPath.ofNullable("foo.bar"), hasToString("foo.bar"));
     }
 
     /**
@@ -197,10 +197,10 @@ public class FieldPathTests extends ESTestCase {
     }
 
     public void testToString() {
-        assertThat(FieldPath.of("foo.bar").toString(), equalTo("foo.bar"));
+        assertThat(FieldPath.of("foo.bar"), hasToString("foo.bar"));
         // malformed and empty paths are still shown the way that they were configured
-        assertThat(FieldPath.of("a..b").toString(), equalTo("a..b"));
-        assertThat(FieldPath.of("").toString(), equalTo(""));
+        assertThat(FieldPath.of("a..b"), hasToString("a..b"));
+        assertThat(FieldPath.of(""), hasToString(""));
         TemplateScript.Factory constantTemplate = ConfigurationUtils.compileTemplate(
             "test",
             "tag",
@@ -208,8 +208,8 @@ public class FieldPathTests extends ESTestCase {
             "foo.bar",
             TestTemplateService.instance()
         );
-        assertThat(FieldPath.of(constantTemplate).toString(), equalTo("foo.bar"));
-        assertThat(FieldPath.of(NAME_TEMPLATE).toString(), equalTo("[templated path]"));
+        assertThat(FieldPath.of(constantTemplate), hasToString("foo.bar"));
+        assertThat(FieldPath.of(NAME_TEMPLATE), hasToString("[templated path]"));
     }
 
     /**
@@ -217,6 +217,6 @@ public class FieldPathTests extends ESTestCase {
      */
     public void testPathThatIsOnlyInvalidForSomeAccessPatternsCanBeCreated() {
         FieldPath fieldPathTemplate = FieldPath.of("a[0]");
-        assertThat(fieldPathTemplate.resolve(documentNamed("irrelevant")).toString(), equalTo("a[0]"));
+        assertThat(fieldPathTemplate.resolve(documentNamed("irrelevant")), hasToString("a[0]"));
     }
 }

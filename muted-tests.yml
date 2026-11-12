@@ -404,11 +404,11 @@ tests:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
   method: testGiantTextFieldInSubqueryIntermediateResultsWithSort
   issue: https://github.com/elastic/elasticsearch/issues/164383
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecK8sTimeseriesIncreaseIT
+- class: org.elasticsearch.cluster.SimpleClusterStateIT
   tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
-  method: test {csv-spec:k8s-timeseries-increase.increase_of_expression_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/164423
+  - :server:internalClusterTest
+  method: testMetadataVersion
+  issue: https://github.com/elastic/elasticsearch/issues/164246
 - class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
   tasks:
   - :x-pack:plugin:esql:test

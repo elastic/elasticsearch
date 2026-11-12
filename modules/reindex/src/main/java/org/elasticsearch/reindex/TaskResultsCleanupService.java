@@ -37,6 +37,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.OptionalLong;
 
 import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
 import static org.elasticsearch.tasks.TaskResultsService.TASK_START_TIME_IN_MILLIS_PATH;
@@ -102,6 +103,11 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
     private volatile TimeValue cleanupInterval;
 
     private boolean isCleanupRunning;
+    /**
+     * Cleanups can be dynamically toggled and each completed one schedules the next one itself.
+     * This generation counter avoids multiple chains, by only rescheduling on the latest chain.
+     */
+    private long cleanupGeneration;
     private Collection<ProjectId> projectsToCleanup;
     private Scheduler.Cancellable cancellable;
 
@@ -157,10 +163,9 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
             }
             return localNodeId.equals(indexRouting.shard(0).primaryShard().currentNodeId());
         }).toList();
-
-        if (updateProjectsAndMarkRunning(projectsOnLocalNode)) {
-            logger.debug("attempt starting task results cleanup for projects {}", projectsToCleanup);
-            threadPool.generic().execute(this::executeNextCleanup);
+        final OptionalLong startedGeneration = updateProjectsAndMarkRunning(projectsOnLocalNode);
+        if (startedGeneration.isPresent()) {
+            threadPool.generic().execute(() -> executeNextCleanupForGeneration(startedGeneration.getAsLong()));
         }
     }
 
@@ -168,23 +173,28 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
      * Records which projects this node should clean up and, if there are any and the cleanup is enabled, marks the cleanup as running.
      * Dynamic settings changes are applied before cluster state listeners are notified, so this also picks up the cleanup being enabled
      * or disabled: the same cluster state update that changes the interval reaches {@link #clusterChanged}.
+     * Starting the actual cleanup is left to the caller so that it happens outside the lock.
      *
-     * @return whether the caller must now start the first cleanup, which is the case only when this call is what turned the cleanup from
-     *         stopped to running. Starting it is left to the caller so that it happens outside the lock.
+     * @return the generation of the new chain of cleanups if the caller must now start it, which is the case only when this call is what
+     *         turned the cleanup from stopped to running, and empty otherwise.
      */
-    private synchronized boolean updateProjectsAndMarkRunning(List<ProjectId> projectsOnLocalNode) {
+    private synchronized OptionalLong updateProjectsAndMarkRunning(List<ProjectId> projectsOnLocalNode) {
         if (lifecycle.stoppedOrClosed()) {
-            return false;
+            return OptionalLong.empty();
         }
         if (projectsOnLocalNode.isEmpty() || isCleanupEnabled() == false) {
             this.projectsToCleanup = List.of();
             stopCleanup();
-            return false;
+            return OptionalLong.empty();
         }
         this.projectsToCleanup = projectsOnLocalNode;
-        final boolean wasRunning = isCleanupRunning;
+        if (isCleanupRunning) {
+            // task cleanup is already toggled
+            return OptionalLong.empty();
+        }
         isCleanupRunning = true;
-        return wasRunning == false;
+        logger.debug("attempt starting task results cleanup for projects {}", projectsToCleanup);
+        return OptionalLong.of(++cleanupGeneration);
     }
 
     /**
@@ -199,10 +209,15 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
         return isCleanupRunning;
     }
 
-    void executeNextCleanup() {
+    /**
+     * Runs one cleanup of the chain identified by {@code generation}, which then schedules the next one.
+     * Does nothing if the generation has since been increased, i.e. cleanup has been stopped or started again, terminating this
+     * generation's chain. This is necessary because it's not possible to cancel an in-flight delete-by-query.
+     */
+    void executeNextCleanupForGeneration(long generation) {
         final Collection<ProjectId> projects;
         synchronized (this) {
-            if (isCleanupRunning == false) {
+            if (isCleanupRunning == false || generation != cleanupGeneration) {
                 return;
             }
             projects = projectsToCleanup;
@@ -211,9 +226,9 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
         try (
             var refs = new RefCountingListener(
                 // #cleanupTaskResultsForProject invokes its listener in a project context,
-                // but #scheduleNextCleanup should not do that because nested ProjectResolver#executeOnProject are forbidden
+                // but #scheduleNextCleanupForGeneration should not do that because nested ProjectResolver#executeOnProject are forbidden
                 ContextPreservingActionListener.wrapPreservingContext(
-                    ActionListener.running(this::scheduleNextCleanup),
+                    ActionListener.running(() -> scheduleNextCleanupForGeneration(generation)),
                     threadPool.getThreadContext()
                 )
             )
@@ -225,27 +240,32 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
     }
 
     private void cleanupTaskResultsForProject(ProjectId projectId, ActionListener<Void> listener) {
-        // read once, so the logged value is the one the request was built from if the setting changes concurrently
-        final TimeValue retention = retentionPeriod;
-        final DeleteByQueryRequest toDelete = buildDeleteRequest(System.currentTimeMillis(), retention);
-        logger.trace("deleting task results older than [{}] from [{}] in project [{}]", retention, TASK_INDEX, projectId);
-        projectResolver.executeOnProject(
-            projectId,
-            () -> clientWithOrigin.execute(DeleteByQueryAction.INSTANCE, toDelete, ActionListener.wrap(response -> {
-                logger.debug(
-                    "deleted [{}] expired task results from [{}] in project [{}] in [{}], skipped [{}] version conflicts",
-                    response.getDeleted(),
-                    TASK_INDEX,
-                    projectId,
-                    response.getTook(),
-                    response.getVersionConflicts()
-                );
-                listener.onResponse(null);
-            }, e -> {
-                logger.warn(() -> "failed to delete expired task results from [" + TASK_INDEX + "] in project [" + projectId + "]", e);
-                listener.onFailure(e);
-            }))
-        );
+        try {
+            // read once, so the logged value is the one the request was built from if the setting changes concurrently
+            final TimeValue retention = retentionPeriod;
+            final DeleteByQueryRequest toDelete = buildDeleteRequest(System.currentTimeMillis(), retention);
+            logger.trace("deleting task results older than [{}] from [{}] in project [{}]", retention, TASK_INDEX, projectId);
+            projectResolver.executeOnProject(
+                projectId,
+                () -> clientWithOrigin.execute(DeleteByQueryAction.INSTANCE, toDelete, ActionListener.wrap(response -> {
+                    logger.debug(
+                        "deleted [{}] expired task results from [{}] in project [{}] in [{}], skipped [{}] version conflicts",
+                        response.getDeleted(),
+                        TASK_INDEX,
+                        projectId,
+                        response.getTook(),
+                        response.getVersionConflicts()
+                    );
+                    listener.onResponse(null);
+                }, e -> {
+                    logger.warn(() -> "failed to delete expired task results from [" + TASK_INDEX + "] in project [" + projectId + "]", e);
+                    listener.onFailure(e);
+                }))
+            );
+        } catch (Exception e) {
+            logger.warn(() -> "failed to start deleting expired task results from [" + TASK_INDEX + "] in project [" + projectId + "]", e);
+            listener.onFailure(e);
+        }
     }
 
     static DeleteByQueryRequest buildDeleteRequest(long nowInMillis, TimeValue retentionPeriod) {
@@ -258,12 +278,16 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
         return request;
     }
 
-    synchronized void scheduleNextCleanup() {
-        if (isCleanupRunning) {
+    /**
+     * Called when a cleanup of the chain identified by {@code generation} has completed, successfully or not. Schedules the next one,
+     * unless the cleanup has been stopped or started again since, in which case this chain is stale and ends here.
+     */
+    private synchronized void scheduleNextCleanupForGeneration(long generation) {
+        if (isCleanupRunning && generation == cleanupGeneration) {
             try {
                 final TimeValue interval = cleanupInterval;
                 logger.trace("scheduling the next task results cleanup in [{}]", interval);
-                cancellable = threadPool.schedule(this::executeNextCleanup, interval, threadPool.generic());
+                cancellable = threadPool.schedule(() -> executeNextCleanupForGeneration(generation), interval, threadPool.generic());
                 logger.debug("scheduled the next task results cleanup in [{}]", interval);
             } catch (EsRejectedExecutionException e) {
                 if (e.isExecutorShutdown()) {

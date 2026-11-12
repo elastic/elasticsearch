@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.NavigableSet;
+import java.util.Set;
 import java.util.TreeSet;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
@@ -119,12 +120,13 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         for (int round = 0; round < 4; round++) {
             final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(3, 40));
             final Shape shape = randomFrom(Shape.values());
-            final BytesRef[][] docSlots = column(shape, between(INTERVAL + 1, 4 * INTERVAL), pool);
+            final int count = between(INTERVAL + 1, 4 * INTERVAL);
+            final BytesRef[][] docSlots = randomBoolean() ? column(shape, count, pool) : singleValued(shape, count, pool);
             final StringColumnOptions.Sizes sizes = sizes(randomValidBlockSize(), randomFrom(4096, 65536, 512 * 1024));
             withColumn(docSlots, plain(true, sizes), (metadata, reader) -> {
                 assertThat(metadata, instanceOf(StringColumnMetadata.Plain.class));
                 final StringColumnMetadata.Plain column = (StringColumnMetadata.Plain) metadata;
-                assertEquals(shape.ordered, column.skipper() != null);
+                assertEquals(inOrderEitherWay(docSlots), column.skipper() != null);
                 StringMatchOracle.checkRandomQueries(reader, docSlots, pool, 30);
             });
             withColumn(docSlots, plain(false, sizes), (metadata, reader) -> {
@@ -457,6 +459,99 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         });
     }
 
+    public void testQueryKindsAgreeWhereTheyDescribeTheSameSet() throws IOException {
+        for (int round = 0; round < 12; round++) {
+            final Shape shape = randomFrom(Shape.values());
+            final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(1, 120));
+            final int count = between(1, 4 * INTERVAL);
+            final BytesRef[][] docSlots = randomBoolean() ? column(shape, count, pool) : singleValued(shape, count, pool);
+            final StringColumnOptions.Sizes sizes = sizes(randomValidBlockSize(), randomFrom(64, 256, 1024, 4096));
+            withColumn(docSlots, plain(true, sizes), (metadata, reader) -> {
+                for (int i = 0; i < 25; i++) {
+                    final BytesRef term = StringMatchOracle.boundFrom(pool, false);
+                    assertEquals(
+                        shape + " term is the range of one value",
+                        ids(reader.matchTerm(term)),
+                        ids(reader.matchRange(term, true, term, true))
+                    );
+
+                    final BytesRef prefix = new BytesRef(term.bytes, term.offset, between(0, term.length));
+                    assertEquals(
+                        shape + " prefix is the range up to its successor",
+                        ids(reader.matchPrefix(prefix)),
+                        ids(prefixAsRange(reader, prefix))
+                    );
+
+                    final NavigableSet<BytesRef> terms = new TreeSet<>();
+                    for (int t = between(1, 5); t > 0; t--) {
+                        terms.add(StringMatchOracle.boundFrom(pool, false));
+                    }
+                    final Set<Integer> union = new TreeSet<>();
+                    for (BytesRef each : terms) {
+                        union.addAll(ids(reader.matchTerm(each)));
+                    }
+                    assertEquals(shape + " any-of is the union of its terms", new ArrayList<>(union), ids(reader.matchAnyOf(terms, terms)));
+
+                    final BytesRef a = StringMatchOracle.boundFrom(pool, false);
+                    final BytesRef b = StringMatchOracle.boundFrom(pool, false);
+                    final BytesRef lower = a.compareTo(b) <= 0 ? a : b;
+                    final BytesRef upper = a.compareTo(b) <= 0 ? b : a;
+                    final Set<Integer> halfOpen = new TreeSet<>(ids(reader.matchRange(lower, false, upper, true)));
+                    halfOpen.addAll(ids(reader.matchTerm(lower)));
+                    final List<Integer> closed = ids(reader.matchRange(lower, true, upper, true));
+                    assertEquals(shape + " a closed range is the half-open range plus its lower bound", new ArrayList<>(halfOpen), closed);
+                    assertTrue(
+                        shape + " widening a range never loses a document",
+                        closed.containsAll(ids(reader.matchRange(lower, false, upper, false)))
+                    );
+                    assertTrue(
+                        shape + " an open range holds every range",
+                        ids(reader.matchRange(null, true, null, true)).containsAll(closed)
+                    );
+                }
+            });
+        }
+    }
+
+    /** The values starting with {@code prefix} as a range: from the prefix up to the prefix with its last byte incremented. */
+    private static DocIdSetIterator prefixAsRange(StringColumnReader reader, BytesRef prefix) throws IOException {
+        if (prefix.length == 0) {
+            return reader.matchRange(null, true, null, true);
+        }
+        int length = prefix.length;
+        while (length > 0 && prefix.bytes[prefix.offset + length - 1] == (byte) 0xFF) {
+            length--;
+        }
+        if (length == 0) {
+            return reader.matchRange(prefix, true, null, true);
+        }
+        final byte[] successor = Arrays.copyOfRange(prefix.bytes, prefix.offset, prefix.offset + length);
+        successor[length - 1]++;
+        return reader.matchRange(prefix, true, new BytesRef(successor), false);
+    }
+
+    private static List<Integer> ids(DocIdSetIterator iterator) throws IOException {
+        return StringMatchOracle.matched(iterator);
+    }
+
+    /** Whether the values of the slots, nulls left out, never fall or never rise, which is what earns a column a region. */
+    private static boolean inOrderEitherWay(BytesRef[][] docSlots) {
+        final List<BytesRef> values = new ArrayList<>();
+        for (BytesRef[] slots : docSlots) {
+            if (slots != null) {
+                Arrays.stream(slots).filter(value -> value != null).forEach(values::add);
+            }
+        }
+        boolean ascending = true;
+        boolean descending = true;
+        for (int i = 1; i < values.size(); i++) {
+            final int comparison = values.get(i - 1).compareTo(values.get(i));
+            ascending &= comparison <= 0;
+            descending &= comparison >= 0;
+        }
+        return ascending || descending;
+    }
+
     private interface Query {
         DocIdSetIterator of(StringColumnReader reader) throws IOException;
     }
@@ -465,6 +560,30 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         final long[] length = new long[1];
         withColumnAndSkipIndex(docSlots, options, (metadata, reader, skip) -> length[0] = skip.length());
         return length[0];
+    }
+
+    /** One value a document, none missing or null: the shape under which an ascending column is bisected. */
+    private static BytesRef[][] singleValued(Shape shape, int count, BytesRef[] pool) {
+        final BytesRef[][] docSlots = new BytesRef[count][];
+        int run = 0;
+        int runValue = 0;
+        for (int doc = 0; doc < count; doc++) {
+            final int index = switch (shape) {
+                case DESCENDING -> pool.length - 1 - (int) ((long) doc * pool.length / count);
+                case ASCENDING -> (int) ((long) doc * pool.length / count);
+                case CLUSTERED -> {
+                    if (run == 0) {
+                        run = between(300, 3000);
+                        runValue = between(0, pool.length - 1);
+                    }
+                    run--;
+                    yield runValue;
+                }
+                case SHUFFLED -> between(0, pool.length - 1);
+            };
+            docSlots[doc] = new BytesRef[] { pool[index] };
+        }
+        return docSlots;
     }
 
     private static BytesRef[][] column(Shape shape, int count, BytesRef[] pool) {

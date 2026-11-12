@@ -1806,7 +1806,8 @@ public class StatelessPlugin extends Plugin
 
     @Override
     public void registerDirectoryMetrics(BiConsumer<String, PluggableDirectoryMetricsHolder<?>> registrator) {
-        registrator.accept(StatelessPlugin.NAME, metricHolder);
+        // the same name the metric is deserialized under on the coordinator, so that local and remote shards merge into one entry
+        registrator.accept(BlobStoreCacheDirectoryMetrics.NAME, metricHolder);
     }
 
     protected CodecProvider getCodecProvider(EngineConfig engineConfig) {
@@ -2129,7 +2130,12 @@ public class StatelessPlugin extends Plugin
         @Override
         public boolean test(ShardId shardId) {
             IndexShard indexShard = indicesService.getShardOrNull(shardId);
-            return indexShard == null || indexShard.routingEntry().relocating() || splitSourceService.isPreparingForHandoff(shardId);
+            assert indexShard == null || indexShard.routingEntry().primary()
+                : "merges only run on stateless indexing shards, which are always primaries: " + indexShard.routingEntry();
+            return indexShard == null
+                || indexShard.isActivelyRelocatingPrimary()
+                || indexShard.isRelocatedPrimary()
+                || splitSourceService.isPreparingForHandoff(shardId);
         }
     }
 

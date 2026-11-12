@@ -431,7 +431,7 @@ public abstract class LuceneOperator extends SourceOperator {
         return blocked;
     }
 
-    static class ScorersMap {
+    static final class ScorersMap {
         record Key(LeafReaderContext leafContext, Weight weight) {
             @Override
             public boolean equals(Object o) {
@@ -450,7 +450,7 @@ public abstract class LuceneOperator extends SourceOperator {
         int lastShard = -1;
         final Map<Key, LuceneScorer> scorers;
 
-        public ScorersMap(boolean reuseScorers) {
+        ScorersMap(boolean reuseScorers) {
             this.reuseScorers = reuseScorers;
             this.scorers = new HashMap<>();
         }

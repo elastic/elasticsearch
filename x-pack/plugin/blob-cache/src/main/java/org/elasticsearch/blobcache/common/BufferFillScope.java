@@ -16,6 +16,7 @@ import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.concurrent.Semaphore;
 
@@ -65,6 +66,7 @@ public abstract class BufferFillScope {
             // The segment is created here, on the owner thread, and only its address is kept: the address is plain data that other
             // threads can use, while the segment's scope would reject them
             final MemorySegment segment = MemorySegment.ofBuffer(buffer);
+            assert checkOwner(segment);
             if (segment.isAccessibleBy(ANOTHER_THREAD) == false) {
                 return new Unscoped(buffer, segment.scope(), segment.address(), buffer.remaining());
             }
@@ -78,15 +80,14 @@ public abstract class BufferFillScope {
      *
      * @param position start of the slice, relative to the buffer's position when this scope was created
      * @param length slice length
-     * @param valueIfComplete returned, without running the filler, if {@link #complete} was already called; the read has been abandoned
-     *                        by then, so for a filler that returns a byte count this should make callers treat it as done
-     * @return the filler's result, or {@code valueIfComplete}
+     * @param filler writes to the slice, and returns a non-null result
+     * @return the filler's result, or empty, without running the filler, if {@link #complete} was already called: the read has been
+     *         abandoned by then, so the caller should treat it as done
      * @throws IndexOutOfBoundsException if the slice does not lie within the buffer
      */
-    public <R, E extends Exception> R fillSlice(int position, int length, R valueIfComplete, CheckedFunction<ByteBuffer, R, E> filler)
-        throws E {
+    public <R, E extends Exception> Optional<R> fillSlice(int position, int length, CheckedFunction<ByteBuffer, R, E> filler) throws E {
         if (permits.tryAcquire() == false) {
-            return valueIfComplete;
+            return Optional.empty();
         }
         try {
             assert checkMemoryValid(true);
@@ -94,7 +95,7 @@ public abstract class BufferFillScope {
             assert claim(position, length);
             final R result = filler.apply(slice);
             assert checkMemoryValid(false);
-            return result;
+            return Optional.of(result);
         } finally {
             permits.release();
         }
@@ -102,6 +103,14 @@ public abstract class BufferFillScope {
 
     /** Returns a slice of the buffer that the caller holding a permit may write to. */
     abstract ByteBuffer newSlice(int position, int length);
+
+    private static boolean checkOwner(MemorySegment segment) {
+        assert segment.isAccessibleBy(Thread.currentThread())
+            : "the scope must be created on the thread that owns the buffer, but the memory is not accessible by ["
+            + Thread.currentThread()
+            + "]";
+        return true;
+    }
 
     /**
      * Debug-only check, called by a filler holding a permit, that the memory it is about to write to, or has just written to, is still
@@ -119,6 +128,11 @@ public abstract class BufferFillScope {
      * Ends the scope: waits, uninterruptibly, for fillers in progress, then advances the buffer's position. Later calls have no effect.
      * Must be called on the thread that created the scope, so that the owner cannot free or reuse the buffer before this returns.
      *
+     * <p>The wait is deliberately neither interruptible nor timed: returning while a filler is still running would let the owner reuse or
+     * free the buffer under it, which for the memory of a confined arena is silent corruption, so there is no safe way to give up early.
+     * It lasts only as long as the fillers, which hold a permit just for the IO that copies into their slice and must never wait on the
+     * owner.
+     *
      * @param bytesFilled bytes to advance the position by, at most the total length of the claimed regions. Zero if nothing was filled or
      *                    the caller accounts for it itself.
      */
@@ -127,6 +141,7 @@ public abstract class BufferFillScope {
         if (buffer != null) {
             assert bytesFilled == 0 || permits.availablePermits() == Integer.MAX_VALUE
                 : "Try to complete with [" + bytesFilled + "] bytes but only had [" + permits.availablePermits() + "] permits available.";
+            // Neither interruptible nor timed, on purpose: see the Javadoc. Taking every permit also stops any later filler.
             permits.acquireUninterruptibly(Integer.MAX_VALUE);
             assert bytesFilled <= claimedLength()
                 : "completing with [" + bytesFilled + "] bytes filled but only [" + claimedLength() + "] claimed";

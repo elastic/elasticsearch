@@ -303,13 +303,13 @@ public class SharedBytes extends AbstractRefCounted {
             return 0;
         }
         // if the scope is already complete the reader has given up on this read, so return a fake response
-        return fillScope.fillSlice(relativePos, length, length, dup -> {
+        return fillScope.fillSlice(relativePos, length, dup -> {
             final int bytesRead = fc.read(dup, channelPos);
             if (bytesRead == -1) {
                 BlobCacheUtils.throwEOF(channelPos, dup.remaining());
             }
             return bytesRead;
-        });
+        }).orElse(length);
     }
 
     @Override

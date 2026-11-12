@@ -610,13 +610,13 @@ public class CacheFileReader {
                                 // The listener may run on another thread, and may still be running if the wait below fails, so it writes
                                 // through a slice of the bypassScope rather than to b directly. If the scope is already complete
                                 // the wait below has failed and the read has been abandoned, so nobody is waiting for the bytes.
-                                return bypassScope.fillSlice(0, len, 0, dst -> {
+                                return bypassScope.fillSlice(0, len, dst -> {
                                     final int read = Streams.read(in, dst, len);
                                     if (read == -1) {
                                         BlobCacheUtils.throwEOF(position, len);
                                     }
                                     return read;
-                                });
+                                }).orElse(0);
                             }
                         }));
                         bytesRead += cacheFile.recordWait(len, readFuture);

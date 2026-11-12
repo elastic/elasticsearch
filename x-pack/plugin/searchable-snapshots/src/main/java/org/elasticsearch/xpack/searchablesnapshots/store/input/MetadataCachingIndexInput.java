@@ -484,14 +484,14 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
     private int readCacheFile(final FileChannel fc, final long position, final int length, final BufferFillScope fillScope)
         throws IOException {
         assert assertFileChannelOpen(fc);
-        return fillScope.fillSlice(0, length, length, dst -> {
+        return fillScope.fillSlice(0, length, dst -> {
             final int bytesRead = Channels.readFromFileChannel(fc, position, dst);
             if (bytesRead == -1) {
                 throwEOF(position, dst.remaining());
             }
             stats.addCachedBytesRead(bytesRead);
             return bytesRead;
-        });
+        }).orElse(length);
     }
 
     private void fillIndexCache(CacheFile cacheFile, ByteRange indexCacheMiss) {

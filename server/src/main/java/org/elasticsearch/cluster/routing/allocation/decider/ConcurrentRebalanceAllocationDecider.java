@@ -144,8 +144,10 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
         int relocatingFrozenShards = allocation.routingNodes().getRelocatingFrozenShardCount();
         int relocatingShards = allocation.routingNodes().getRelocatingShardCount();
         assert allocation.isSimulating() == false || relocatingShards < 2
-            : "simulation reached canRebalance with [" + relocatingShards + "] relocating shards. " +
-            "Desired balance should have returned after one relocation";
+            : "simulation reached canRebalance with ["
+                + relocatingShards
+                + "] relocating shards. "
+                + "Desired balance should have returned after one relocation";
 
         // separate into frozen/non-frozen counts
         relocatingShards = relocatingShards - relocatingFrozenShards;

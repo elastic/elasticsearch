@@ -566,6 +566,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
         throw new IllegalArgumentException("Mapper for type [" + type + "] must be a leaf field");
     }
 
+    /** The index-time analyzer of {@code field}, or null if it has none. */
+    @Nullable
+    public NamedAnalyzer getIndexAnalyzer(String field) {
+        return mappingLookup.indexAnalyzer(field, f -> null);
+    }
+
     /**
      * Return the index-time analyzer for the current index
      * @param unindexedFieldAnalyzer    a function that builds an analyzer for unindexed fields

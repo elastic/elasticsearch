@@ -262,30 +262,42 @@ public class PlainSortedChunkSearchTests extends ColumnarStringTestCase {
         }
     }
 
-    public void testTheBisectionReadsFewerChunksThanWithoutTheRegion() throws IOException {
+    public void testChunksInsideARunOfOneValueAreAcceptedWithoutReadingTheirValues() throws IOException {
         final int docs = 20_000;
+        final int hosts = 4;
         final BytesRef[][] docSlots = new BytesRef[docs][];
         for (int doc = 0; doc < docs; doc++) {
-            docSlots[doc] = new BytesRef[] { new BytesRef(String.format(Locale.ROOT, "value-%08d", doc)) };
+            final int host = hosts - 1 - doc * hosts / docs;
+            docSlots[doc] = new BytesRef[] { new BytesRef(String.format(Locale.ROOT, "host-%d.eu-west-1.compute.internal", host)) };
         }
-        final BytesRef lower = new BytesRef(String.format(Locale.ROOT, "value-%08d", docs / 2));
-        final BytesRef upper = new BytesRef(String.format(Locale.ROOT, "value-%08d", docs / 2 + 300));
-        final long[] seeks = new long[2];
-        for (int arm = 0; arm < 2; arm++) {
-            final Counter counter = new Counter();
-            final int index = arm;
-            withColumnAndSkipIndex(
-                docSlots,
-                PlainStringColumnSkipperTests.plain(arm == 0, PlainStringColumnSkipperTests.sizes(128, 1024)),
-                directory -> new SeekCountingDirectory(directory, counter),
-                (metadata, reader, skip) -> {
-                    final long before = counter.get();
-                    StringMatchOracle.assertRange(reader, docSlots, lower, true, upper, false);
-                    seeks[index] = counter.get() - before;
-                }
-            );
+        final BytesRef term = new BytesRef(String.format(Locale.ROOT, "host-%d.eu-west-1.compute.internal", 1));
+        final BytesRef prefix = new BytesRef("host-1.");
+        for (boolean byTerm : new boolean[] { true, false }) {
+            final long[] seeks = new long[2];
+            for (int arm = 0; arm < 2; arm++) {
+                final Counter counter = new Counter();
+                final int index = arm;
+                withColumnAndSkipIndex(
+                    docSlots,
+                    PlainStringColumnSkipperTests.plain(arm == 0, PlainStringColumnSkipperTests.sizes(128, 1024)),
+                    directory -> new SeekCountingDirectory(directory, counter),
+                    (metadata, reader, skip) -> {
+                        final long before = counter.get();
+                        if (byTerm) {
+                            StringMatchOracle.assertMatches(docSlots, term::equals, () -> reader.matchTerm(term));
+                        } else {
+                            StringMatchOracle.assertMatches(
+                                docSlots,
+                                value -> StringMatchOracle.startsWith(value, prefix),
+                                () -> reader.matchPrefix(prefix)
+                            );
+                        }
+                        seeks[index] = counter.get() - before;
+                    }
+                );
+            }
+            assertThat("seeks with the region " + seeks[0] + ", without " + seeks[1], seeks[0] * 10, lessThan(seeks[1]));
         }
-        assertThat("seeks with the region " + seeks[0] + ", without " + seeks[1], seeks[0], lessThan(seeks[1]));
     }
 
     public void testNullsAndSeveralValuesNeverAcceptWhatTheValuesDoNotMatch() throws IOException {

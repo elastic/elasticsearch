@@ -209,15 +209,17 @@ public final class PlainStringColumnReader extends StringColumnReader {
     protected DocIdSetIterator unorderedMatches(BytesRef prefix, BytesRef exact) throws IOException {
         final BytesRef target = exact != null ? exact : prefix;
         final SlotWindow window = lengthWindow(target.length, exact != null ? target.length : Integer.MAX_VALUE);
-        final Slots candidates = exact != null
-            ? slotsHeld(window, presenceWithin(PlainSkipQuery.range(exact, true, exact, true)))
-            : slotsHeld(window, presenceWithin(PlainSkipQuery.prefix(prefix)));
+        final ColumnIterator presence = exact != null
+            ? presenceWithin(PlainSkipQuery.range(exact, true, exact, true))
+            : presenceWithin(PlainSkipQuery.prefix(prefix));
+        final PlainRangePresence region = presence instanceof PlainRangePresence kept ? kept : null;
+        final Slots candidates = slotsHeld(window, presence);
         final boolean settled = target.length == 0;
         final LastSeen lastSeen = new LastSeen();
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(candidates) {
             @Override
             public boolean matches() throws IOException {
-                if (settled) {
+                if (settled || (region != null && region.accepted())) {
                     return true;
                 }
                 final long first = candidates.firstSlot();

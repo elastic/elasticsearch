@@ -24,6 +24,9 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.search.QueryTokenCacheAccountingFilter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,17 +42,32 @@ public abstract class IntervalBuilder {
 
     private final String field;
     private final Analyzer analyzer;
+    @Nullable
+    private final CircuitBreaker breaker;
 
     public IntervalBuilder(String field, Analyzer analyzer) {
+        this(field, analyzer, null);
+    }
+
+    /**
+     * Like {@link #IntervalBuilder(String, Analyzer)}, but charges {@code breaker} for the analyzed text while it is buffered.
+     *
+     * @param breaker the breaker to charge, or {@code null} for none
+     */
+    public IntervalBuilder(String field, Analyzer analyzer, @Nullable CircuitBreaker breaker) {
         this.field = field;
         this.analyzer = analyzer;
+        this.breaker = breaker;
     }
 
     /** Create term intervals for the provided term. */
     protected abstract IntervalsSource termIntervals(BytesRef term);
 
     public IntervalsSource analyzeText(String query, int maxGaps, boolean ordered) throws IOException {
-        try (TokenStream ts = analyzer.tokenStream(field, query); CachingTokenFilter stream = new CachingTokenFilter(ts)) {
+        try (
+            TokenStream ts = analyzer.tokenStream(field, query);
+            CachingTokenFilter stream = new CachingTokenFilter(new QueryTokenCacheAccountingFilter(ts, breaker, field))
+        ) {
             return analyzeText(stream, maxGaps, ordered);
         }
     }

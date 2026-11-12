@@ -176,7 +176,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             NamedAnalyzer analyzer,
             SearchExecutionContext context
         ) throws IOException {
-            IntervalBuilder builder = new IntervalBuilder(fieldType.name(), analyzer) {
+            IntervalBuilder builder = new IntervalBuilder(fieldType.name(), analyzer, context.getCircuitBreaker()) {
                 @Override
                 protected IntervalsSource termIntervals(BytesRef term) {
                     return fieldType.termIntervals(term, context);

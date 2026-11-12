@@ -103,17 +103,16 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        final List<Object> components = new ArrayList<>(
-            List.of(
-                new ReindexSslConfig(services.environment().settings(), services.environment(), services.resourceWatcherService()),
-                new ReindexMetrics(services.telemetryProvider().getMeterRegistry()),
-                new BulkByPaginatedSearchSearchContextMetrics(services.telemetryProvider().getMeterRegistry()),
-                new UpdateByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
-                new DeleteByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
-                new PluginComponentBinding<>(ReindexRelocationNodePicker.class, getReindexRelocationNodePicker(services.environment())),
-                new ReindexSettings(services.clusterService().getClusterSettings())
-            )
+        final List<Object> components = new ArrayList<>();
+        components.add(new ReindexSslConfig(services.environment().settings(), services.environment(), services.resourceWatcherService()));
+        components.add(new ReindexMetrics(services.telemetryProvider().getMeterRegistry()));
+        components.add(new BulkByPaginatedSearchSearchContextMetrics(services.telemetryProvider().getMeterRegistry()));
+        components.add(new UpdateByQueryMetrics(services.telemetryProvider().getMeterRegistry()));
+        components.add(new DeleteByQueryMetrics(services.telemetryProvider().getMeterRegistry()));
+        components.add(
+            new PluginComponentBinding<>(ReindexRelocationNodePicker.class, getReindexRelocationNodePicker(services.environment()))
         );
+        components.add(new ReindexSettings(services.clusterService().getClusterSettings()));
         if (DiscoveryNode.canContainData(services.environment().settings())) {
             // the .tasks cleanup service only needs to run on data nodes (which are the nodes hosting the primary)
             components.add(

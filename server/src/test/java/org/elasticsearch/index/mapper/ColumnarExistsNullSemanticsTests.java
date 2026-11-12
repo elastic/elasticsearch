@@ -101,6 +101,42 @@ public class ColumnarExistsNullSemanticsTests extends MapperServiceTestCase {
         assertSyntheticSourceKeepsEveryNullSlot("boolean", () -> randomBoolean());
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165521")
+    public void testKeywordExistsCountAgreesWithHits() throws IOException {
+        assertExistsCountAgreesWithHits("keyword", () -> randomAlphaOfLengthBetween(1, 8));
+    }
+
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165521")
+    public void testTextExistsCountAgreesWithHits() throws IOException {
+        assertExistsCountAgreesWithHits("text", () -> randomAlphaOfLengthBetween(1, 8));
+    }
+
+    public void testLongExistsCountAgreesWithHits() throws IOException {
+        assertExistsCountAgreesWithHits("long", () -> randomLong());
+    }
+
+    private void assertExistsCountAgreesWithHits(String type, Supplier<Object> valueSupplier) throws IOException {
+        final List<TestDocument> documents = randomDocuments(valueSupplier);
+        documents.add(new TestDocument(Shape.ALL_NULL_ARRAY, new ArrayList<>(Collections.singletonList(null))));
+        documents.add(new TestDocument(Shape.SCALAR, new ArrayList<>(List.of(valueSupplier.get()))));
+        for (final boolean withCodec : new boolean[] { true, false }) {
+            final MapperService mapperService = createColumnarMapperService(type, true, withCodec);
+            withLuceneIndex(mapperService, iw -> {
+                for (final TestDocument document : documents) {
+                    iw.addDocument(mapperService.documentMapper().parse(source(b -> write(b, document))).rootDoc());
+                }
+            }, reader -> {
+                final Query exists = mapperService.fieldType(FIELD).existsQuery(createSearchExecutionContext(mapperService));
+                final IndexSearcher searcher = new IndexSearcher(reader);
+                assertEquals(
+                    "codec=" + withCodec + " documents=" + documents,
+                    searcher.search(exists, documents.size()).scoreDocs.length,
+                    searcher.count(exists)
+                );
+            });
+        }
+    }
+
     private void assertSyntheticSourceKeepsEveryNullSlot(String type, Supplier<Object> valueSupplier) throws IOException {
         final List<TestDocument> documents = randomDocuments(valueSupplier);
         final boolean indexed = randomBoolean();

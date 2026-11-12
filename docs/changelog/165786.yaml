@@ -10,4 +10,4 @@ issues:
  - 163725
 pr: 165786
 summary: "Fix(security): make @timestamp visible under field level security"
-type: breaking
+type: bug

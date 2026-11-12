@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.ToTimeSeriesMetadata;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -18,9 +17,11 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -37,10 +38,7 @@ public class PromqlPlanSelectorV2Tests extends AbstractPromqlPlanOptimizerTests 
         LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h network.bytes_in{cluster=\"prod\"}", false);
 
         TimeSeriesAggregate collapse = plan.collect(TimeSeriesAggregate.class).getFirst();
-        List<ToTimeSeriesMetadata> containers = expressions(collapse, ToTimeSeriesMetadata.class);
-        assertThat(containers, hasSize(1));
-        TimeSeriesWithout source = as(containers.getFirst().field(), TimeSeriesWithout.class);
-        assertThat(source.children(), empty());
+        assertThat(sourceViews(collapse), equalTo(Set.of(List.of())));
 
         Filter matchers = as(collapse.child(), Filter.class);
         assertThat(matchers.condition(), instanceOf(Equals.class));

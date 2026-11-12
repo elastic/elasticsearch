@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
-import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.AbstractTimeSeriesMetadataFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -22,9 +21,9 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -55,8 +54,7 @@ public class PromqlPlanAcrossSeriesAggregateV2Tests extends AbstractPromqlPlanOp
         LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h sum without (pod) (network.bytes_in)", false);
 
         TimeSeriesAggregate collapse = plan.collect(TimeSeriesAggregate.class).getFirst();
-        TimeSeriesWithout source = expressions(collapse, TimeSeriesWithout.class).getFirst();
-        assertThat(names(source.children()), contains("pod"));
+        assertThat(sourceViews(collapse), equalTo(Set.of(List.of("pod"))));
         assertThat(names(plan.output()), hasItem("_timeseries"));
     }
 

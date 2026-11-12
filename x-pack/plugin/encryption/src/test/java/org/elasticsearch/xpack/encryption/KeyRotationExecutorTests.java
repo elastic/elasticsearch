@@ -103,13 +103,15 @@ public class KeyRotationExecutorTests extends ESTestCase {
         }
     }
 
-    public void testBeginRotationIsNoopOnDegradedInstance() {
+    public void testLifecycleTasksAreNoopsOnDegradedInstance() {
         ClusterState state = stateWith(degraded("k1"));
-        Tuple<ClusterState, Void> result = executor.executeTask(
+        for (KeyRotationCoordinator.KeyRotationTask task : List.of(
             new KeyRotationCoordinator.BeginRotationTask("k2", randomKey(), 20L, new AtomicBoolean(true)),
-            state
-        );
-        assertSame(state, result.v1());
+            new KeyRotationCoordinator.UpdatePasswordIdTask("v2", PASSWORD_ID),
+            new KeyRotationCoordinator.ReEncryptApplyTask("handler", null, null, "k1", ActionListener.noop())
+        )) {
+            assertSame(task.toString(), state, executor.executeTask(task, state).v1());
+        }
     }
 
     public void testInstallInitialKeyOnEmptyState() {

@@ -141,8 +141,8 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
     private final AtomicBoolean beginRotationInFlight = new AtomicBoolean(false);
     private final AtomicBoolean passwordIdRotateInFlight = new AtomicBoolean(false);
     private final AtomicBoolean restoreInFlight = new AtomicBoolean(false);
-    // a failed restore is only retried after a reload or a change to the degraded metadata
-    private final AtomicReference<FailedRestore> failedRestore = new AtomicReference<>();
+    // a failed restore is retried only after a reload or after this node becomes master again
+    private final AtomicReference<Settings> failedRestoreSettings = new AtomicReference<>();
     private final AtomicReference<String> installSkippedForPasswordId = new AtomicReference<>();
 
     static KeyRotationCoordinator create(
@@ -229,7 +229,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         }
         reEncrypting.set(false);
         installSkippedForPasswordId.set(null);
-        failedRestore.set(null);
+        failedRestoreSettings.set(null);
         stopSchedule();
     }
 
@@ -482,8 +482,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
 
     private void scheduleRestore(ProjectEncryptionKeyMetadata degraded) {
         Settings settings = settingsSupplier.get();
-        FailedRestore failed = failedRestore.get();
-        if (failed != null && failed.settings() == settings && failed.degraded() == degraded) {
+        if (failedRestoreSettings.get() == settings) {
             return;
         }
         if (restoreInFlight.compareAndSet(false, true) == false) {
@@ -504,13 +503,13 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             ProjectEncryptionKeyMetadata onDisk = degraded.unwrapOnDiskKeys();
             if (onDisk == null) {
                 logger.debug("project encryption key: cluster state is degraded and this node's disk holds no copy of the active key");
-                failedRestore.set(new FailedRestore(settings, degraded));
+                failedRestoreSettings.set(settings);
             } else {
-                failedRestore.set(null);
+                failedRestoreSettings.set(null);
                 submitted = submitTaskIfOpen("restore-project-encryption-keys", new RestoreKeysTask(onDisk, restoreInFlight));
             }
         } catch (Exception e) {
-            failedRestore.set(new FailedRestore(settings, degraded));
+            failedRestoreSettings.set(settings);
             logger.warn(
                 () -> Strings.format(
                     "the elected master cannot restore project encryption key [%s] from its own disk. Configure the encryption password"
@@ -523,6 +522,10 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         } finally {
             if (submitted == false) {
                 restoreInFlight.set(false);
+                // a reload during this attempt skipped its own restore while this one was in flight
+                if (settingsSupplier.get() != settings) {
+                    reload();
+                }
             }
         }
     }
@@ -654,8 +657,6 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             return "project encryption key password id update [" + expectedOldPasswordId + " -> " + newPasswordId + "]";
         }
     }
-
-    private record FailedRestore(Settings settings, ProjectEncryptionKeyMetadata degraded) {}
 
     record RestoreKeysTask(ProjectEncryptionKeyMetadata keys, AtomicBoolean inFlight) implements KeyRotationTask {
         @Override

@@ -272,24 +272,10 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         TestPekEncryption.persist(new ProjectEncryptionKeyMetadata(keys, activeKeyId, PASSWORD_ID, Map.of(), pekEncryption));
     }
 
-    public void testRestoreSubmittedWhenDegradedAndNodePersistedSameActiveKey() {
-        onNodeThatPersisted(Map.of("k1", entry(0L)), "k1", NO_OP_ENCRYPTION);
-        ClusterState state = clusterStateWith(degraded("k1"), true);
-        setup(state, 0L, TimeValue.timeValueDays(30));
-
-        coordinator.onClusterStateChanged(new ClusterChangedEvent("test", state, clusterStateWith(null, true)));
-        coordinator.onClusterStateChanged(new ClusterChangedEvent("test", state, clusterStateWith(null, true)));
-
-        ArgumentCaptor<KeyRotationCoordinator.KeyRotationTask> task = ArgumentCaptor.forClass(KeyRotationCoordinator.KeyRotationTask.class);
-        verify(taskQueue).submitTask(eq("restore-project-encryption-keys"), task.capture(), any());
-        ProjectEncryptionKeyMetadata restored = ((KeyRotationCoordinator.RestoreKeysTask) task.getValue()).keys();
-        assertFalse(restored.isUnwrapFailed());
-        assertEquals("k1", restored.getActiveKeyId());
-    }
-
-    public void testFailedRestoreWarnsAndRetriesOnlyAfterReload() {
+    public void testRestoreRetriesFailedUnwrapOnlyAfterReload() {
         AtomicInteger unwraps = new AtomicInteger();
         AtomicReference<RuntimeException> unwrapFailure = new AtomicReference<>(new IllegalStateException("wrong password"));
+        AtomicReference<Runnable> duringUnwrap = new AtomicReference<>(() -> {});
         onNodeThatPersisted(Map.of("k1", entry(0L)), "k1", new ProjectEncryptionKeyMetadata.PekEncryption() {
             @Override
             public String activePasswordId() {
@@ -304,8 +290,10 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
             @Override
             public byte[] unwrap(byte[] wrappedPek, String passwordId) {
                 unwraps.incrementAndGet();
-                if (unwrapFailure.get() != null) {
-                    throw unwrapFailure.get();
+                duringUnwrap.get().run();
+                RuntimeException failure = unwrapFailure.getAndSet(null);
+                if (failure != null) {
+                    throw failure;
                 }
                 return NO_OP_ENCRYPTION.unwrap(wrappedPek, passwordId);
             }
@@ -329,11 +317,24 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         assertEquals("no retry with the same settings", 1, unwraps.get());
         verify(taskQueue, never()).submitTask(anyString(), any(), any());
 
-        unwrapFailure.set(null);
-        settingsRef.set(Settings.builder().put(settingsRef.get(), false).setSecureSettings(passwordSettings()).build());
+        // the reload retries, and a second reload while that retry is in flight is retried as soon as it fails
+        unwrapFailure.set(new IllegalStateException("still the wrong password"));
+        duringUnwrap.set(() -> {
+            duringUnwrap.set(() -> {});
+            settingsRef.set(Settings.builder().put(settingsRef.get(), false).setSecureSettings(passwordSettings()).build());
+            coordinator.reload();
+        });
+        settingsRef.set(Settings.builder().put(settingsRef.get(), false).build());
         coordinator.reload();
 
-        verify(taskQueue).submitTask(eq("restore-project-encryption-keys"), isA(KeyRotationCoordinator.RestoreKeysTask.class), any());
+        assertEquals(3, unwraps.get());
+
+        coordinator.onClusterStateChanged(event);
+        ArgumentCaptor<KeyRotationCoordinator.KeyRotationTask> task = ArgumentCaptor.forClass(KeyRotationCoordinator.KeyRotationTask.class);
+        verify(taskQueue).submitTask(eq("restore-project-encryption-keys"), task.capture(), any());
+        ProjectEncryptionKeyMetadata restored = ((KeyRotationCoordinator.RestoreKeysTask) task.getValue()).keys();
+        assertFalse(restored.isUnwrapFailed());
+        assertEquals("k1", restored.getActiveKeyId());
     }
 
     public void testNothingSubmittedOnDegradedStateWithoutOwnCopyOfActiveKey() {

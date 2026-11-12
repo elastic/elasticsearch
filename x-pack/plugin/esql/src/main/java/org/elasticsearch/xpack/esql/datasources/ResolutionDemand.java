@@ -43,8 +43,7 @@ public enum ResolutionDemand {
     EAGER_STATS;
 
     /**
-     * Keyed by spec, not by resource: two datasets over one resource are two reads, and what one of them demands
-     * says nothing about the other.
+     * Keyed by the {@link ExternalSourceSpec}, as resolution is.
      *
      * @param requiringStats specs under an ungrouped aggregate, or {@code null} to resolve every spec eagerly
      * @param readingNoRows  specs whose rows are all discarded, or {@code null} if the shape was not examined

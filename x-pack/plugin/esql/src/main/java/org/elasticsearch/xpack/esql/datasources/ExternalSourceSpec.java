@@ -25,7 +25,8 @@ import java.util.Objects;
  * matter: one prefix read as CSV and as TSV yields different columns, so the schema a resolution carries depends
  * on the configuration and not on the resource alone.
  * <p>
- * Derived, never stored. A field on a plan node would travel to data nodes and need a transport version; resolution
+ * This is derived wherever it is needed and never held on a plan node. A field on a plan node would travel to data
+ * nodes and need a transport version; resolution
  * finishes before a plan is serialized.
  *
  * @param path   the resource, as the relation's {@code tablePath} literal spells it
@@ -95,7 +96,7 @@ public record ExternalSourceSpec(String path, Map<String, Object> config) {
      * pre-analysis can still see. A caller that must not throw there gets the same derivation and no exception, and
      * the relation is simply absent from the set it was being collected into.
      */
-    public static ExternalSourceSpec ofOrNull(UnresolvedExternalRelation relation) {
+    static ExternalSourceSpec ofOrNull(UnresolvedExternalRelation relation) {
         Expression tablePath = relation.tablePath();
         return tablePath instanceof Literal literal && literal.value() != null
             ? new ExternalSourceSpec(BytesRefs.toString(literal.value()), relation.config())

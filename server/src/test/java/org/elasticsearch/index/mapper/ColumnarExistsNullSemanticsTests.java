@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -33,6 +34,7 @@ import java.util.function.Supplier;
 public class ColumnarExistsNullSemanticsTests extends MapperServiceTestCase {
 
     private static final String FIELD = "field";
+    private static final String SEQUENCE = "sequence";
 
     private enum Shape {
         ABSENT,
@@ -97,8 +99,11 @@ public class ColumnarExistsNullSemanticsTests extends MapperServiceTestCase {
             );
             final String message = "codec=" + withCodec + " index=" + indexed + " documents=" + documents;
             withLuceneIndex(mapperService, iw -> {
-                for (final TestDocument document : documents) {
-                    iw.addDocument(mapperService.documentMapper().parse(source(b -> write(b, document))).rootDoc());
+                for (int i = 0; i < documents.size(); i++) {
+                    final TestDocument document = documents.get(i);
+                    final LuceneDocument luceneDocument = mapperService.documentMapper().parse(source(b -> write(b, document))).rootDoc();
+                    luceneDocument.add(new StoredField(SEQUENCE, i));
+                    iw.addDocument(luceneDocument);
                     if (rarely()) {
                         iw.commit();
                     }
@@ -108,7 +113,7 @@ public class ColumnarExistsNullSemanticsTests extends MapperServiceTestCase {
                 final IndexSearcher searcher = new IndexSearcher(reader);
                 final List<Integer> matched = new ArrayList<>();
                 for (final ScoreDoc hit : searcher.search(exists, documents.size()).scoreDocs) {
-                    matched.add(hit.doc);
+                    matched.add(searcher.storedFields().document(hit.doc).getField(SEQUENCE).numericValue().intValue());
                 }
                 Collections.sort(matched);
                 assertEquals(message, expected, matched);

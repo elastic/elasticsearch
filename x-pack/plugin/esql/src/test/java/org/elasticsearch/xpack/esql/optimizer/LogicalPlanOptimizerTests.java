@@ -8023,6 +8023,37 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(lastOverTime.filter(), instanceOf(Equals.class));
     }
 
+    /**
+     * The inline filter of an expression combining several aggregates is pushed onto each nested aggregate. It must end up on the
+     * per-time-series aggregates only, since the dimensions it references are not available after the first pass.
+     */
+    public void testTranslateWithInlineFilterOnExpressionOfAggregates() {
+        var query = """
+            TS k8s
+            | STATS max(last_over_time(network.bytes_in)) - min(last_over_time(network.bytes_in))
+                WHERE starts_with(cluster, "p") OR cluster IN ("qa", "staging")
+                BY bucket(@timestamp, 1 minute)
+            | LIMIT 10
+            """;
+        var plan = planMetrics(query);
+
+        List<AggregateFunction> secondPassAggs = new ArrayList<>();
+        List<LastOverTime> firstPassAggs = new ArrayList<>();
+        plan.forEachDown(Aggregate.class, agg -> {
+            if (agg instanceof TimeSeriesAggregate tsAgg) {
+                tsAgg.forEachExpression(LastOverTime.class, firstPassAggs::add);
+            } else {
+                agg.forEachExpression(AggregateFunction.class, secondPassAggs::add);
+            }
+        });
+        assertThat(secondPassAggs, hasSize(2));
+        for (AggregateFunction secondPassAgg : secondPassAggs) {
+            assertFalse("second pass aggregate must not keep the filter: " + secondPassAgg, secondPassAgg.hasFilter());
+        }
+        assertThat(firstPassAggs, hasSize(1));
+        assertThat(firstPassAggs.get(0).filter(), instanceOf(Or.class));
+    }
+
     public void testTranslateWithDateTrunc() {
         var query = randomFrom("""
             TS k8s

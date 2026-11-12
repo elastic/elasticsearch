@@ -200,30 +200,21 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         TemporaryNameGenerator internalNames = new TemporaryNameGenerator.Monotonic();
         for (NamedExpression agg : aggregate.aggregates()) {
             if (agg instanceof Alias alias && alias.child() instanceof Function function) {
-                final Expression inlineFilter;
-                if (function instanceof AggregateFunction af && af.hasFilter()) {
-                    inlineFilter = af.filter();
-                    function = af.withFilter(Literal.TRUE);
-                } else {
-                    inlineFilter = null;
-                }
                 // due to InsertDefaultInnerTimeSeriesAggregate, we'll always have a TimeSeriesAggregateFunction here
-                Expression outerAgg = function.transformDown(TimeSeriesAggregateFunction.class, tsAgg -> {
-                    if (inlineFilter != null) {
-                        if (tsAgg.hasFilter() == false) {
-                            throw new IllegalStateException("inline filter isn't propagated to time-series aggregation");
+                Expression outerAgg = function.transformDown(AggregateFunction.class, af -> {
+                    if (af instanceof TimeSeriesAggregateFunction tsAgg) {
+                        if (tsAgg.requiredTimeSeriesSource()) {
+                            requiredTimeSeriesSource.set(Boolean.TRUE);
                         }
+                        AggregateFunction firstStageFn = tsAgg.perTimeSeriesAggregation();
+                        Alias newAgg = timeSeriesAggs.computeIfAbsent(firstStageFn, k -> {
+                            Alias firstStageAlias = new Alias(tsAgg.source(), internalNames.next(tsAgg.functionName()), firstStageFn);
+                            firstPassAggs.add(firstStageAlias);
+                            return firstStageAlias;
+                        });
+                        return newAgg.toAttribute();
                     }
-                    if (tsAgg.requiredTimeSeriesSource()) {
-                        requiredTimeSeriesSource.set(Boolean.TRUE);
-                    }
-                    AggregateFunction firstStageFn = tsAgg.perTimeSeriesAggregation();
-                    Alias newAgg = timeSeriesAggs.computeIfAbsent(firstStageFn, k -> {
-                        Alias firstStageAlias = new Alias(tsAgg.source(), internalNames.next(tsAgg.functionName()), firstStageFn);
-                        firstPassAggs.add(firstStageAlias);
-                        return firstStageAlias;
-                    });
-                    return newAgg.toAttribute();
+                    return withoutInlineFilter(af);
                 });
                 secondPassAggs.add(new Alias(alias.source(), alias.name(), outerAgg, agg.id()));
             } else if (agg instanceof Alias alias && alias.child() instanceof Literal) {
@@ -396,6 +387,24 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             }
             return new Project(newChild.source(), unpackDims, projects);
         }
+    }
+
+    /**
+     * An inline filter is pushed onto every aggregate function of the expression it applies to, including those nested in
+     * expressions such as {@code max(...) - min(...)}. It can only be evaluated per time-series, because the fields it references
+     * are not available after the first pass. So drop it from the second-pass aggregate once the nested time-series aggregates
+     * carry it.
+     */
+    private static AggregateFunction withoutInlineFilter(AggregateFunction secondPassAgg) {
+        if (secondPassAgg.hasFilter() == false) {
+            return secondPassAgg;
+        }
+        secondPassAgg.forEachDown(TimeSeriesAggregateFunction.class, tsAgg -> {
+            if (tsAgg.hasFilter() == false) {
+                throw new IllegalStateException("inline filter isn't propagated to time-series aggregation");
+            }
+        });
+        return secondPassAgg.withFilter(Literal.TRUE);
     }
 
     private static Bucket histogramBucketForSecondPass(Bucket bucket, List<NamedExpression> firstPassAggs) {

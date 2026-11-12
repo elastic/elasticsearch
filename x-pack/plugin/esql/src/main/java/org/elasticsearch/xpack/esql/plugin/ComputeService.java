@@ -887,7 +887,8 @@ public class ComputeService {
                         // No reservation reaches the synchronous path, which only tests take.
                         PlanningMemory.NONE,
                         0,
-                        minTransportVersion
+                        minTransportVersion,
+                        guarded.filteredLimit()
                     );
                 }
                 if (result.plan() instanceof ExternalSourceExec withSplits) {
@@ -989,6 +990,7 @@ public class ComputeService {
                 discoveryMemory(run),
                 taskConcurrency,
                 minTransportVersion(),
+                work.guarded().filteredLimit(),
                 ioExecutor,
                 ActionListener.wrap(result -> {
                     try {
@@ -1643,7 +1645,11 @@ public class ComputeService {
                     }
                 }
                 // starts computes on remote clusters
-                final var remoteClusters = clusterComputeHandler.getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices);
+                final var remoteClusters = clusterComputeHandler.getRemoteClusters(
+                    clusterToConcreteIndices,
+                    clusterToOriginalIndices,
+                    execInfo
+                );
                 for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
                     String clusterAlias = cluster.clusterAlias();
                     // Check the initial cluster status set by planning phase before executing the data node plan on remote clusters,

@@ -91,25 +91,23 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
         "IP_LOCATION",
         "REGISTERED_DOMAIN",
         "URI_PARTS",
-        "USER_AGENT"
+        "USER_AGENT",
+        "FILLNULL",
+        "SAMPLE",
+        "DEDUP",
+        "LOOKUP",
+        "ENRICH",
+        "COMPLETION",
+        "DENSE_VECTOR",
+        "RERANK",
+        "FUSE",
+        "HIGHLIGHT",
+        "MMR"
     );
     private static final Pattern PIPE_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*(\\w+)");
     private static final Pattern BRANCH_COMMAND_PATTERN = Pattern.compile("(?i)\\(\\s*(\\w+)\\s+([\\w.*-]+)");
     private static final Pattern PROJECTING_COMMAND_PATTERN = Pattern.compile("(?i)[|(]\\s*(?:KEEP|STATS|INLINE)\\b");
-    private static final Set<String> UNSUPPORTED_BRANCH_COMMANDS = Set.of(
-        "ROW",
-        "TS",
-        "SHOW",
-        "PROMQL",
-        "DEDUP",
-        "FILLNULL",
-        "SAMPLE",
-        "LOOKUP",
-        "ENRICH",
-        "RERANK",
-        "COMPLETION",
-        "FUSE"
-    );
+    private static final Set<String> UNSUPPORTED_BRANCH_COMMANDS = Set.of("ROW", "TS", "SHOW", "PROMQL");
     private static final Pattern FULL_TEXT_FUNCTION_PATTERN = Pattern.compile(
         "(?i)\\b(KQL|QSTR|MATCH_PHRASE|MATCH)\\s*\\(|\\bMATCH\\b|\\w+\\s*:\\s*\""
     );

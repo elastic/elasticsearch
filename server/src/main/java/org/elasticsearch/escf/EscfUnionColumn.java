@@ -99,7 +99,10 @@ final class EscfUnionColumn extends EscfColumn {
         return value(row);
     }
 
-    /** A union row is multi-valued when it holds more than one leaf value, counting through nested arrays; nulls count only if {@code countNulls}. */
+    /**
+     * A union row is multi-valued when it holds more than one leaf value, counting through nested arrays;
+     * nulls count only if {@code countNulls}.
+     */
     @Override
     public boolean hasMultiValueDoc(boolean countNulls) {
         for (int row = 0; row < docCount; row++) {

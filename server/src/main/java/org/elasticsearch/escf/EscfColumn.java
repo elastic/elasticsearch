@@ -128,8 +128,9 @@ public abstract class EscfColumn implements SliceableColumn {
 
     /**
      * Returns {@code true} if any document in this column carries more than one value. Always
-     * {@code false} for scalar columns; {@link EscfArrayColumn} and {@link EscfUnionColumn} override this. Used by {@link org.elasticsearch.index.mapper.FieldMapper#mapColumnBatch}
-     * to enforce {@code multi_value=false} before delegating to the field-specific implementation.
+     * {@code false} for scalar columns; {@link EscfArrayColumn} and {@link EscfUnionColumn} override this. Used by
+     * {@link org.elasticsearch.index.mapper.FieldMapper#mapColumnBatch} to enforce
+     * {@code multi_value=false} before delegating to the field-specific implementation.
      */
     public final boolean hasMultiValueDoc() {
         return hasMultiValueDoc(true);

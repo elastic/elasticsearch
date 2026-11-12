@@ -2031,8 +2031,11 @@ public class ComputeService {
             directoryBytesRead,
             singleValueQueryWarnings
         );
-        // the time its sources do not attribute to a shard goes to all the shards of the compute
-        TaskLoadAttribution.Target computeLoad = context.description().equals(DATA_DESCRIPTION) ? shardsLoad(shardContexts) : null;
+        // the time its sources do not attribute to a shard goes to the shards of the compute, or to its load
+        TaskLoadAttribution.Target computeLoad = context.description().equals(DATA_DESCRIPTION)
+            ? shardsLoad(shardContexts)
+            : context.load();
+        assert context.description().equals(REDUCE_DESCRIPTION) == false || computeLoad != null : "node reduce without a load target";
         Executor parallelWorkers = searchService.queryScheduler().executor(context.queryId(), computeExecutor, List.of());
 
         try {

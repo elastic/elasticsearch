@@ -4539,9 +4539,9 @@ public class EsqlCapabilities {
         EXTERNAL_PARQUET_LIKE_MISSING_COLUMN_REJECTS_ROWS,
 
         /**
-         * Streaming execution on {@code POST /_query}: the {@code streaming} and
-         * {@code batch_size} URL parameters are accepted, and with {@code format=ndjson} the
-         * response streams header / pages / footer as NDJSON as rows are produced.
+         * Streaming execution on {@code POST /_query}: the {@code streaming} URL parameter is
+         * accepted, and with {@code format=ndjson} the response streams header / pages / footer
+         * as NDJSON as rows are produced.
          * Snapshot-only while the streaming protocol is still changing.
          */
         STREAMING(Build.current().isSnapshot()),

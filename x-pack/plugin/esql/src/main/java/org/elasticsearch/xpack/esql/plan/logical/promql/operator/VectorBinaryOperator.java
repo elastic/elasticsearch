@@ -73,10 +73,6 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         return match;
     }
 
-    public boolean dropMetricName() {
-        return dropMetricName;
-    }
-
     public BinaryOp binaryOp() {
         return binaryOp;
     }

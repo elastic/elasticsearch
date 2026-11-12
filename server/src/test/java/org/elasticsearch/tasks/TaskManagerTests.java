@@ -358,7 +358,11 @@ public class TaskManagerTests extends ESTestCase {
         final Task parent = taskManager.register("testType", "parentAction", taskRequestWithParent(TaskId.EMPTY_TASK_ID));
         when(mockTracer.storeSpanInThreadContext(parent)).thenReturn(storedParentSpan);
 
-        final Task child = taskManager.register("testType", "childAction", taskRequestWithParent(new TaskId("node", parent.getId())));
+        final Task child = taskManager.register(
+            "testType",
+            "childAction",
+            taskRequestWithParent(new TaskId(taskManager.getNodeId(), parent.getId()))
+        );
 
         final var inOrder = inOrder(mockTracer, storedParentSpan);
         inOrder.verify(mockTracer).storeSpanInThreadContext(parent);
@@ -376,12 +380,35 @@ public class TaskManagerTests extends ESTestCase {
         final Tracer mockTracer = mock(Tracer.class);
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
 
-        final Task child = taskManager.register("testType", "childAction", taskRequestWithParent(new TaskId("node", 12345)));
+        final Task child = taskManager.register(
+            "testType",
+            "childAction",
+            taskRequestWithParent(new TaskId(taskManager.getNodeId(), 12345))
+        );
 
         verify(mockTracer).startTrace(eq(child), eq("childAction"), anyMap());
         verify(mockTracer, never()).storeSpanInThreadContext(any());
 
         taskManager.unregister(child);
+    }
+
+    public void testRegisterTaskDoesNotUseTheSpanOfATaskOfAnotherNodeWithTheSameNumericIdAsItsParent() {
+        final Tracer mockTracer = mock(Tracer.class);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
+        final Task unrelated = taskManager.register("testType", "unrelatedAction", taskRequestWithParent(TaskId.EMPTY_TASK_ID));
+        final String otherNodeId = randomValueOtherThan(taskManager.getNodeId(), () -> randomAlphaOfLength(10));
+
+        final Task child = taskManager.register(
+            "testType",
+            "childAction",
+            taskRequestWithParent(new TaskId(otherNodeId, unrelated.getId()))
+        );
+
+        verify(mockTracer).startTrace(eq(child), eq("childAction"), anyMap());
+        verify(mockTracer, never()).storeSpanInThreadContext(any());
+
+        taskManager.unregister(child);
+        taskManager.unregister(unrelated);
     }
 
     private static TaskAwareRequest taskRequestWithParent(TaskId parentTaskId) {

@@ -598,8 +598,6 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
         IndexVersion indexVersion,
         CheckedSupplier<BytesRef, IOException> fallbackSource
     ) throws IOException {
-        // Read straight from the byte array: this runs once per candidate match on every percolate request, and wrapping a
-        // ByteArrayInputStream in an InputStreamStreamInput pays for a synchronized read() call on every single byte.
         try (
             StreamInput input = new NamedWriteableAwareStreamInput(
                 StreamInput.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length),

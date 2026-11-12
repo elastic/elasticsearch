@@ -3256,6 +3256,53 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService:DEBUG",
+        reason = "the refusal is a debug line, and this asserts the resource it names carries no signature"
+    )
+    public void testTheRefusalDoesNotLogAPreSignedUrlsSignature() throws Exception {
+        // The contribution is recorded under the storage location verbatim, query string included, so for an https
+        // dataset the key the refusal names IS the credential. The gate the test above asserts passes either way,
+        // because its path has no query string to lose.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String signature = "X-Amz-Signature=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+            String path = "https://bucket.s3.example.com/data/employees.csv?" + signature;
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
+            seedSchemaCacheWithReadConfig(service, key, path, "fp1", "config-own");
+
+            Map<String, Object> first = wholeFileWithShape(mtime, "fp1", "config-own", 100L);
+            Map<String, Object> second = wholeFileWithShape(mtime, "fp1", "config-own", 101L);
+
+            try (MockLog mockLog = MockLog.capture(ExternalSourceCacheService.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "the refusal, naming the resource without its query string",
+                        ExternalSourceCacheService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "*whole-file contributions for [https://bucket.s3.example.com/data/employees.csv] disagree*"
+                    )
+                );
+                // Paired with the expectation above, so this cannot pass by the line never being logged at all.
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "no signature on any line",
+                        ExternalSourceCacheService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "*" + signature + "*"
+                    )
+                );
+                service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second)));
+                mockLog.assertAllExpectationsMatched();
+            }
+        }
+    }
+
     public void testReconcileWholeFileContributionsWithDisagreeingColumnStatIsASafeMiss() throws Exception {
         // Equal row count and equal mtime do not establish one file: a replica copied with its timestamp preserved
         // measures the same rows under the same name and can still disagree on a column. So the last gate is

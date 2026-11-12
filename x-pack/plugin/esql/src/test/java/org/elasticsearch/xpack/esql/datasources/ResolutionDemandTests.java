@@ -100,6 +100,34 @@ public class ResolutionDemandTests extends ESTestCase {
         }
     }
 
+    /**
+     * Two specs over one resource, the shape this whole change exists for. {@code of} reads the sets by spec, so a
+     * sibling's membership must not answer for this one -- and every other case in this file uses a single spec,
+     * where deciding membership by path and by spec agree. Without this, re-spelling {@code contains(spec)} as
+     * "any spec over this path is in the set" leaves the suite green while the strict path skips its coercibility
+     * check for the spec that reads rows.
+     */
+    public void testASiblingSpecsDemandIsNotThisSpecs() {
+        ExternalSourceSpec other = new ExternalSourceSpec(PATH, Map.of("format", "tsv"));
+        assertNotEquals("same path, different configuration, or the cases below assert nothing", SPEC, other);
+
+        assertEquals(
+            "a sibling under an ungrouped aggregate does not make this spec eagerly aggregated",
+            ResolutionDemand.ROWS,
+            ResolutionDemand.of(SPEC, Set.of(other), Set.of())
+        );
+        assertEquals(
+            "a sibling that discards every row does not bound this spec's read",
+            ResolutionDemand.ROWS,
+            ResolutionDemand.of(SPEC, Set.of(), Set.of(other))
+        );
+
+        // Positive controls over the same sets: without them the two cases above would also hold if of() had
+        // stopped reading the sets at all.
+        assertEquals(ResolutionDemand.EAGER_STATS, ResolutionDemand.of(other, Set.of(other), Set.of()));
+        assertEquals(ResolutionDemand.SCHEMA_DISCOVERY, ResolutionDemand.of(other, Set.of(), Set.of(other)));
+    }
+
     /** {@code STATS COUNT(*) | LIMIT 0} consumes every row to produce the one the limit discards. */
     public void testAggregateUnderZeroLimitNeedsMoreThanSchemaDiscovery() {
         UnresolvedExternalRelation relation = new UnresolvedExternalRelation(SRC, Literal.keyword(SRC, PATH), Map.of());
@@ -110,7 +138,7 @@ public class ResolutionDemandTests extends ESTestCase {
         // claimed the path, which would make the demand assertion alone unable to fail.
         assertFalse(
             "an aggregate below the zero limit consumes every row, so the relation is read",
-            SchemaDiscoveryPathExtractor.specsReadingNoRows(plan).contains(PATH)
+            SchemaDiscoveryPathExtractor.specsReadingNoRows(plan).contains(SPEC)
         );
         ResolutionDemand demand = ResolutionDemand.of(
             SPEC,

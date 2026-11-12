@@ -135,9 +135,9 @@ public class RowInTableLookupRandomizedTests extends ESTestCase {
                 ByteSizeValue target = ByteSizeValue.ofKb(between(1, 100));
                 try (
                     ToLookup toLookup = toLookup(blockFactory, table);
-                    ReleasableIterator<IntBlock> actual = offsetInTable.lookup(toLookup.rows, target);
+                    ReleasableIterator<IntBlock> actual = offsetInTable.lookup(toLookup.rows, blockFactory, target);
                 ) {
-                    assertLookup(actual, toLookup, target);
+                    assertLookup(actual, blockFactory, toLookup, target);
                 }
             }
         }
@@ -170,8 +170,9 @@ public class RowInTableLookupRandomizedTests extends ESTestCase {
                     for (int i = 0; i < triesPerThread; i++) {
                         ToLookup toLookup = inputs.get(t).get(i);
                         ByteSizeValue target = targets.get(t).get(i);
-                        try (ReleasableIterator<IntBlock> actual = offsetInTable.lookup(toLookup.rows, target)) {
-                            assertLookup(actual, toLookup, target);
+                        MockBlockFactory probeFactory = probeFactories.get(t);
+                        try (ReleasableIterator<IntBlock> actual = offsetInTable.lookup(toLookup.rows, probeFactory, target)) {
+                            assertLookup(actual, probeFactory, toLookup, target);
                             assertThat(tableFactory.breaker().getUsed(), equalTo(tableBytes));
                         }
                     }
@@ -199,8 +200,8 @@ public class RowInTableLookupRandomizedTests extends ESTestCase {
                     continue;
                 }
                 ByteSizeValue target = ByteSizeValue.ofKb(between(1, 100));
-                try (toLookup; ReleasableIterator<IntBlock> actual = offsetInTable.lookup(toLookup.rows, target)) {
-                    assertLookup(actual, toLookup, target);
+                try (toLookup; ReleasableIterator<IntBlock> actual = offsetInTable.lookup(toLookup.rows, probeFactory, target)) {
+                    assertLookup(actual, probeFactory, toLookup, target);
                 } catch (CircuitBreakingException e) {
                     assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
                 }
@@ -215,11 +216,11 @@ public class RowInTableLookupRandomizedTests extends ESTestCase {
         return new MockBlockFactory(BlockFactory.builder(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService)));
     }
 
-    private void assertLookup(ReleasableIterator<IntBlock> actual, ToLookup toLookup, ByteSizeValue target) {
+    private void assertLookup(ReleasableIterator<IntBlock> actual, BlockFactory blockFactory, ToLookup toLookup, ByteSizeValue target) {
         int expectedIdx = 0;
         while (actual.hasNext()) {
             try (IntBlock lookedup = actual.next()) {
-                assertThat(lookedup.blockFactory(), sameInstance(toLookup.rows.getBlock(0).blockFactory()));
+                assertThat(lookedup.blockFactory(), sameInstance(blockFactory));
                 assertThat(lookedup.ramBytesUsed(), lessThan(target.getBytes() * 2));
                 if (keysPerPosition == 1) {
                     assertThat(lookedup.asVector(), not(nullValue()));

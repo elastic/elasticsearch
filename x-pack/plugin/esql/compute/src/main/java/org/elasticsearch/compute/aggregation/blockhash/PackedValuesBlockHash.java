@@ -74,7 +74,7 @@ import java.util.List;
  *     and the last column being the inner-most loop. See {@link Group} for more.
  * </p>
  */
-final class PackedValuesBlockHash extends PartitionedBlockHash {
+public final class PackedValuesBlockHash extends PartitionedBlockHash {
     static final int DEFAULT_BATCH_SIZE = Math.toIntExact(ByteSizeValue.ofKb(10).getBytes());
 
     private final int emitBatchSize;
@@ -280,15 +280,18 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         }
     }
 
+    @Override
+    public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
+        return lookup(page, blockFactory, targetBlockSize);
+    }
+
     /**
      * Encodes the probed keys into a scratch buffer of its own rather than {@link #bytes} and probes with
      * {@link BytesRefHashTable#concurrentSafeFind}, so it doesn't modify the hash and a hash that is no longer
-     * added to can be probed from several threads at once. The scratch buffer and the results are made with the
-     * probed blocks' factory, so each caller charges its own breaker rather than the one the hash was built on.
+     * added to can be probed from several threads at once. The scratch buffer and the results are made with
+     * {@code resultFactory}, so each caller charges its own breaker rather than the one the hash was built on.
      */
-    @Override
-    public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
-        BlockFactory resultFactory = page.getBlock(specs.get(0).channel()).blockFactory();
+    public ReleasableIterator<IntBlock> lookup(Page page, BlockFactory resultFactory, ByteSizeValue targetBlockSize) {
         int fixedKeyLength = batchWork == null ? -1 : batchWork.fixedKeyLength();
         // One byte more than a fixed-width key, because BreakingBytesRefBuilder#grow also grows when the capacity equals the request
         int initialCapacity = fixedKeyLength >= 0 ? fixedKeyLength + 1 : nullTrackingBytes;

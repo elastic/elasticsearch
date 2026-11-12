@@ -31,12 +31,12 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
      *     inside the {@link Page}. Close it to release those references.
      * </p>
      * <p>
-     *     Lookups don't modify the table and build their results with the factory of the probed
-     *     blocks rather than the table's, so several threads may probe one table at once, each
-     *     charging its own breaker.
+     *     Lookups don't modify the table and build their results with {@code blockFactory} rather
+     *     than the table's factory, so several threads may probe one table at once, each charging
+     *     its own breaker.
      * </p>
      */
-    public abstract ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize);
+    public abstract ReleasableIterator<IntBlock> lookup(Page page, BlockFactory blockFactory, ByteSizeValue targetBlockSize);
 
     @Override
     public abstract String toString();

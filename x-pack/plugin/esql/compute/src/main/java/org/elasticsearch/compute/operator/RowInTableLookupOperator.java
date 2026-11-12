@@ -119,6 +119,7 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
         }
     }
 
+    private final BlockFactory blockFactory;
     private final List<String> keys;
     private final RowInTableLookup lookup;
     private final int[] blockMapping;
@@ -127,6 +128,7 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
         if (keys.length < 1) {
             throw new IllegalArgumentException("expected [keys] to be non-empty");
         }
+        this.blockFactory = blockFactory;
         this.blockMapping = blockMapping;
         this.keys = new ArrayList<>(keys.length);
         // Each driver needs its own copy of the blocks because we return parts of them.
@@ -147,7 +149,7 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
         Page mapped = page.projectBlocks(blockMapping);
         try {
             // lookup increments any references we need to keep for the iterator
-            return appendBlocks(page, lookup.lookup(mapped, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE));
+            return appendBlocks(page, lookup.lookup(mapped, blockFactory, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE));
         } finally {
             mapped.releaseBlocks();
         }

@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation.table;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -26,29 +27,29 @@ public final class AscendingSequenceRowInTableLookup extends RowInTableLookup {
     }
 
     @Override
-    public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
+    public ReleasableIterator<IntBlock> lookup(Page page, BlockFactory blockFactory, ByteSizeValue targetBlockSize) {
         IntBlock block = page.getBlock(0);
         IntVector vector = block.asVector();
         int target = Math.toIntExact(targetBlockSize.getBytes());
         if (vector != null && vector.getPositionCount() * Integer.BYTES < target) {
-            return ReleasableIterator.single(lookupVector(vector));
+            return ReleasableIterator.single(lookupVector(blockFactory, vector));
         }
-        return new Lookup(block, target);
+        return new Lookup(blockFactory, block, target);
     }
 
-    private IntBlock lookupVector(IntVector vector) {
+    private IntBlock lookupVector(BlockFactory blockFactory, IntVector vector) {
         if (vector.min() >= min && vector.max() < max) {
             if (min == 0) {
                 vector.incRef();
                 return vector.asBlock();
             }
-            return lookupVectorInRange(vector).asBlock();
+            return lookupVectorInRange(blockFactory, vector).asBlock();
         }
-        return lookupVectorMaybeInRange(vector);
+        return lookupVectorMaybeInRange(blockFactory, vector);
     }
 
-    private IntVector lookupVectorInRange(IntVector vector) {
-        try (IntVector.FixedBuilder builder = vector.blockFactory().newIntVectorFixedBuilder(vector.getPositionCount())) {
+    private IntVector lookupVectorInRange(BlockFactory blockFactory, IntVector vector) {
+        try (IntVector.FixedBuilder builder = blockFactory.newIntVectorFixedBuilder(vector.getPositionCount())) {
             for (int i = 0; i < vector.getPositionCount(); i++) {
                 builder.appendInt(i, vector.getInt(i) - min);
             }
@@ -56,8 +57,8 @@ public final class AscendingSequenceRowInTableLookup extends RowInTableLookup {
         }
     }
 
-    private IntBlock lookupVectorMaybeInRange(IntVector vector) {
-        try (IntBlock.Builder builder = vector.blockFactory().newIntBlockBuilder(vector.getPositionCount())) {
+    private IntBlock lookupVectorMaybeInRange(BlockFactory blockFactory, IntVector vector) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(vector.getPositionCount())) {
             for (int i = 0; i < vector.getPositionCount(); i++) {
                 int v = vector.getInt(i);
                 if (v < min || v >= max) {
@@ -76,12 +77,14 @@ public final class AscendingSequenceRowInTableLookup extends RowInTableLookup {
     }
 
     private class Lookup implements ReleasableIterator<IntBlock> {
+        private final BlockFactory blockFactory;
         private final IntBlock block;
         private final int target;
 
         int p;
 
-        private Lookup(IntBlock block, int target) {
+        private Lookup(BlockFactory blockFactory, IntBlock block, int target) {
+            this.blockFactory = blockFactory;
             this.block = block;
             this.target = target;
             block.incRef();
@@ -95,7 +98,7 @@ public final class AscendingSequenceRowInTableLookup extends RowInTableLookup {
         @Override
         public IntBlock next() {
             int initialEntries = Math.min(target / Integer.BYTES / 2, block.getPositionCount() - p);
-            try (IntBlock.Builder builder = block.blockFactory().newIntBlockBuilder(initialEntries)) {
+            try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(initialEntries)) {
                 if (builder.estimatedBytes() > target) {
                     throw new IllegalStateException(
                         "initial builder overshot target [" + builder.estimatedBytes() + "] vs [" + target + "]"

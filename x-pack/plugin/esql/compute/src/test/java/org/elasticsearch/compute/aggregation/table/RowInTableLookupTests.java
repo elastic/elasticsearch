@@ -94,7 +94,7 @@ public class RowInTableLookupTests extends ESTestCase {
                 assertThat(lookup, instanceOf(EmptyRowInTableLookup.class));
                 int positions = between(1, 100);
                 Page page = new Page(probeFactory.newConstantIntBlockWith(randomInt(), positions));
-                try (ReleasableIterator<IntBlock> rows = lookup.lookup(page, ByteSizeValue.ofKb(1))) {
+                try (ReleasableIterator<IntBlock> rows = lookup.lookup(page, probeFactory, ByteSizeValue.ofKb(1))) {
                     try (IntBlock r = rows.next()) {
                         assertThat(r.getPositionCount(), equalTo(positions));
                         assertThat(r.areAllValuesNull(), is(true));

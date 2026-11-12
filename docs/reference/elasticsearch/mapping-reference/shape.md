@@ -65,6 +65,8 @@ How a value is stored depends on the version the index was created in:
 * {applies_to}`stack: ga 9.7` {applies_to}`serverless: ga` Each value stores its vertices once, in a table that is shared by a tree of the triangles in its triangular mesh and by a description of how the vertices connect into the original points, lines, and polygons. The original geometry can therefore be rebuilt from the doc values, at the precision of the index. Values made only of points store just the table of points.
 * In indices created in earlier versions, each value is stored as a tree of the triangles in its triangular mesh, with the coordinates inline. These indices keep this layout until they are reindexed.
 
+{applies_to}`stack: ga 9.7` {applies_to}`serverless: ga` Doc values also store the vertices of the original geometry and how they connect, so the geometry can be reconstructed at index precision without reading the `_source`. [{{esql}} spatial functions](/reference/query-languages/esql/functions-operators/spatial-functions.md) use this to read shapes from doc values when the original field is not returned by the query. Refer to [Spatial precision](/reference/query-languages/esql/limitations.md#esql-limitations-spatial-precision). Indices created before 9.7 keep the previous format, and {{esql}} reads their shapes from the `_source`. Reindex to use the new format.
+
 
 ## Input Structure [shape-input-structure]
 
@@ -350,5 +352,5 @@ POST /example/_doc
 
 ## Sorting and Retrieving index Shapes [_sorting_and_retrieving_index_shapes_2]
 
-Due to the complex input structure and index representation of shapes, it is not currently possible to sort shapes or retrieve their fields directly. The `shape` value is only retrievable through the `_source` field.
+Due to the complex input structure and index representation of shapes, it is not currently possible to sort shapes or retrieve their fields directly. The `shape` value is only retrievable through the `_source` field. {{esql}} spatial functions can process a shape reconstructed from [doc values](#shape-doc-values) at index precision, but returning the original value still requires the `_source`.
 

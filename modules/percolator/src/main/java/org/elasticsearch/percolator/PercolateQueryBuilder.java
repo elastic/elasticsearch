@@ -499,7 +499,7 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
         String queryName = this.name != null ? this.name : pft.name();
         PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, pft.mapUnmappedFieldsAsText, context);
 
-        return pft.percolateQuery(queryName, queryStore, documents, docSearcher, excludeNestedDocuments, context.indexVersionCreated());
+        return pft.percolateQuery(queryName, queryStore, documents, docSearcher, excludeNestedDocuments, context);
     }
 
     public String getField() {

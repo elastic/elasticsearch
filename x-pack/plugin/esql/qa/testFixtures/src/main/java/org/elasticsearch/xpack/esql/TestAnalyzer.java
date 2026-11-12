@@ -1127,7 +1127,8 @@ public class TestAnalyzer {
             // preserveViewBoundaries, as EsqlSession derives it: view branches must survive compaction for ResolveUnmapped.
             ViewBoundaryPreservation.analysisRequiresViewBranches(unmappedResolution, viewSettings),
             Map.copyOf(viewSettings),
-            flags
+            flags,
+            Map.of()
         );
     }
 

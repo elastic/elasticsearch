@@ -1522,7 +1522,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
 
         logger.info("--> relocating {} hollowable shards from {} to {}", numberOfShards, indexNodeA, indexNodeB);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        internalCluster().awaitNodeVacated(indexName, indexNodeA);
+        // Closing the old shards on node A is what decrements its hollow shards counter, so wait for that, not just the routing table.
+        internalCluster().awaitNodeVacatedAndShardsClosed(indexName, indexNodeA);
         ensureGreen(indexName);
         logger.info("--> relocated");
 

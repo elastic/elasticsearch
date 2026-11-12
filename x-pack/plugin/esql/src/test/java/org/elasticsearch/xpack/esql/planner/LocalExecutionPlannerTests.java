@@ -1056,7 +1056,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             estimatedRowSize,
             List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
         );
-        PageStreamPublisher pageStream = new PageStreamPublisher(randomIntBetween(1, 1000));
+        PageStreamPublisher pageStream = new PageStreamPublisher();
         StreamingOutputExec streamingOutput = new StreamingOutputExec(Source.EMPTY, esQueryExec, pageStream);
 
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
@@ -1909,7 +1909,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null, // parallelWorkerExecutor - not needed for these tests
             0,    // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop(),
-            TransportVersion.current()
+            TransportVersion.current(),
+            null  // client - not needed for these tests
         );
     }
 

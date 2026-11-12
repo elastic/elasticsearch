@@ -76,8 +76,8 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
@@ -424,7 +424,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return JoinTypes.ANTI;
         } else if (toBuildClass == MarkJoin.class) {
             return JoinTypes.MARK;
-        } else if (toBuildClass == InnerJoin.class) {
+        } else if (toBuildClass == HashJoin.class) {
             return JoinTypes.INNER;
         } else if (toBuildClass == Join.class || toBuildClass == LookupJoin.class || toBuildClass == InlineJoin.class) {
             return JoinTypes.LEFT;

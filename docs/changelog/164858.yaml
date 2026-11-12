@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 164858
+summary: Emit blob cache miss wait as APM histogram
+type: enhancement

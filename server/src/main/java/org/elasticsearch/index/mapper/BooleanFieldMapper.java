@@ -218,7 +218,8 @@ public class BooleanFieldMapper extends FieldMapper {
                 meta.getValue(),
                 dimension.getValue(),
                 context.isSourceSynthetic(),
-                readInArrayOrder
+                readInArrayOrder,
+                script.get() == null && docValuesParameters.getValue().multiValue() == false
             );
             hasScript = script.get() != null;
             onScriptError = onScriptErrorParam.getValue();
@@ -258,6 +259,7 @@ public class BooleanFieldMapper extends FieldMapper {
         private final boolean isDimension;
         private final boolean isSyntheticSource;
         private final boolean readInArrayOrder;
+        private final boolean staticallySingleValued;
 
         public BooleanFieldType(
             String name,
@@ -269,7 +271,7 @@ public class BooleanFieldMapper extends FieldMapper {
             boolean isDimension,
             boolean isSyntheticSource
         ) {
-            this(name, indexType, isStored, nullValue, scriptValues, meta, isDimension, isSyntheticSource, false);
+            this(name, indexType, isStored, nullValue, scriptValues, meta, isDimension, isSyntheticSource, false, false);
         }
 
         public BooleanFieldType(
@@ -281,7 +283,8 @@ public class BooleanFieldMapper extends FieldMapper {
             Map<String, String> meta,
             boolean isDimension,
             boolean isSyntheticSource,
-            boolean readInArrayOrder
+            boolean readInArrayOrder,
+            boolean staticallySingleValued
         ) {
             super(name, indexType, isStored, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.nullValue = nullValue;
@@ -289,6 +292,12 @@ public class BooleanFieldMapper extends FieldMapper {
             this.isDimension = isDimension;
             this.isSyntheticSource = isSyntheticSource;
             this.readInArrayOrder = readInArrayOrder;
+            this.staticallySingleValued = staticallySingleValued;
+        }
+
+        @Override
+        public boolean isStaticallySingleValued() {
+            return staticallySingleValued;
         }
 
         public BooleanFieldType(String name) {
@@ -661,7 +670,7 @@ public class BooleanFieldMapper extends FieldMapper {
             if (value != null) {
                 context.getOffSetContext().recordOffset(offsetsFieldName, value, OFFSETS_FALLBACK);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
+                context.getOffSetContext().recordNull(context, offsetsFieldName, OFFSETS_FALLBACK);
             }
         }
     }

@@ -44,6 +44,14 @@ public final class TokenStreamMatching {
     /** Decides whether one value's tokens answer a query. The stream is reset; implementations consume it. */
     public interface Matcher {
         boolean matches(TokenStream stream) throws IOException;
+
+        /**
+         * The prefilter to apply to a value's bytes before analyzing it. Defaults to {@link CandidateValues#ANY},
+         * which analyzes every value.
+         */
+        default CandidateValues candidates() {
+            return CandidateValues.ANY;
+        }
     }
 
     /** Matches a value holding any of its terms, the semantics of a match query. */
@@ -51,6 +59,11 @@ public final class TokenStreamMatching {
         @Override
         public boolean matches(TokenStream stream) throws IOException {
             return containsAnyTerm(stream, queryTerms);
+        }
+
+        @Override
+        public CandidateValues candidates() {
+            return CandidateValues.anyOf(queryTerms);
         }
     }
 
@@ -61,6 +74,12 @@ public final class TokenStreamMatching {
             final PhraseWalker walker = new PhraseWalker(queryTerms.toArray(BytesRef[]::new), false);
             walker.accept(stream);
             return walker.freq() > 0;
+        }
+
+        @Override
+        public CandidateValues candidates() {
+            // A phrase cannot span values, so the value holding it contains all of its terms.
+            return CandidateValues.allOf(queryTerms);
         }
     }
 
@@ -130,6 +149,84 @@ public final class TokenStreamMatching {
             }
         }
         return false;
+    }
+
+    /**
+     * Counts how many clauses of a query a document's tokens match, where each clause matches on any of its terms.
+     * A clause counts once however many times it matches, which is how a field without terms scores, so the walk
+     * stops once every clause has matched. Positions are ignored.
+     */
+    public static class ClauseWalker {
+
+        /** The clauses each term matches, built once per query. */
+        private final Map<BytesRef, int[]> clausesOfTerm;
+        private final boolean[] answered;
+        private int answeredCount;
+
+        /**
+         * @param clausesOfTerm the clauses each term matches, as built by {@link #clausesOfTerms}
+         * @param clauses the number of clauses
+         */
+        public ClauseWalker(Map<BytesRef, int[]> clausesOfTerm, int clauses) {
+            this.clausesOfTerm = clausesOfTerm;
+            this.answered = new boolean[clauses];
+        }
+
+        /** Inverts {@code termsOfClause}, the terms of each clause in order, into the clauses of each term. */
+        public static Map<BytesRef, int[]> clausesOfTerms(List<List<BytesRef>> termsOfClause) {
+            final Map<BytesRef, List<Integer>> clausesByTerm = new HashMap<>();
+            for (int clause = 0; clause < termsOfClause.size(); clause++) {
+                for (BytesRef term : termsOfClause.get(clause)) {
+                    final List<Integer> clauses = clausesByTerm.computeIfAbsent(term, t -> new ArrayList<>());
+                    // A term listed twice in the same clause maps to it once.
+                    if (clauses.isEmpty() || clauses.get(clauses.size() - 1) != clause) {
+                        clauses.add(clause);
+                    }
+                }
+            }
+            final Map<BytesRef, int[]> clausesOfTerm = new HashMap<>(clausesByTerm.size());
+            clausesByTerm.forEach((term, clauses) -> {
+                final int[] of = new int[clauses.size()];
+                for (int i = 0; i < of.length; i++) {
+                    of[i] = clauses.get(i);
+                }
+                clausesOfTerm.put(term, of);
+            });
+            return clausesOfTerm;
+        }
+
+        /**
+         * Consumes one value's tokens, up to the end of the stream or until every clause has matched. The caller
+         * resets, ends and closes the stream.
+         */
+        public void accept(TokenStream stream) throws IOException {
+            final TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
+            while (stream.incrementToken()) {
+                final int[] clauses = clausesOfTerm.get(term.getBytesRef());
+                if (clauses == null) {
+                    continue;
+                }
+                for (int clause : clauses) {
+                    if (answered[clause] == false) {
+                        answered[clause] = true;
+                        answeredCount++;
+                    }
+                }
+                if (answeredCount == answered.length) {
+                    return;
+                }
+            }
+        }
+
+        /** Whether the clause at index {@code clause} matched any value so far. */
+        public boolean answered(int clause) {
+            return answered[clause];
+        }
+
+        /** Whether every clause has matched. */
+        public boolean answeredEvery() {
+            return answeredCount == answered.length;
+        }
     }
 
     /**

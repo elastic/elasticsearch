@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
 import java.io.IOException;
 import java.util.BitSet;
@@ -242,15 +243,34 @@ public abstract class BlockArrowFormatter {
                     int start = block.getFirstValueIndex(position);
                     int end = start + block.getValueCount(position);
                     for (int valueIndex = start; valueIndex < end; valueIndex++) {
-                        out.writeLongLE(block.getLong(valueIndex));
+                        out.writeLongLE(arrowValue(block.getLong(valueIndex)));
                     }
                 }
                 return (long) count * Long.BYTES;
             });
         }
 
+        protected long arrowValue(long blockValue) {
+            return blockValue;
+        }
+
         private static int vectorByteSize(LongBlock b, boolean multivalued) {
             return Long.BYTES * arrowValueCount(b, multivalued);
+        }
+    }
+
+    /**
+     * Conversion of {@code unsigned_long} blocks, which store values with the sign bit flipped so that they sort as signed
+     * longs. Arrow's {@code UInt64} expects the plain unsigned bits.
+     */
+    public static class AsUnsignedLong extends AsInt64 {
+        public AsUnsignedLong(DataType esqlType) {
+            super(esqlType, Types.MinorType.UINT8);
+        }
+
+        @Override
+        protected long arrowValue(long blockValue) {
+            return blockValue ^ NumericUtils.TWOS_COMPLEMENT_BITMASK;
         }
     }
 

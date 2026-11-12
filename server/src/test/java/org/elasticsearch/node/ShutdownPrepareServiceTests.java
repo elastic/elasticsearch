@@ -11,6 +11,7 @@ package org.elasticsearch.node;
 
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.ResumeInfo;
+import org.elasticsearch.node.ShutdownPrepareService.TaskScope;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -22,9 +23,13 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ShutdownPrepareServiceTests extends ESTestCase {
@@ -49,7 +54,8 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
         boolean completed = ShutdownPrepareService.awaitTasksCompleteInternal(
             timeValueMillis(ShutdownPrepareService.AWAIT_TASKS_POLL_INTERVAL.millis() * 3),
             mock(),
-            actionName,
+            Set.of(actionName),
+            randomFrom(TaskScope.values()),
             "finish",
             taskManager,
             null,
@@ -84,7 +90,8 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
         boolean completed = ShutdownPrepareService.awaitTasksCompleteInternal(
             timeValueMillis(ShutdownPrepareService.AWAIT_TASKS_POLL_INTERVAL.millis() * 3),
             mock(),
-            actionName,
+            Set.of(actionName),
+            randomFrom(TaskScope.values()),
             "finish",
             taskManager,
             null,
@@ -142,13 +149,132 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
         ShutdownPrepareService.awaitTasksCompleteInternal(
             timeValueMillis(ShutdownPrepareService.AWAIT_TASKS_POLL_INTERVAL.millis() * 3),
             mock(),
-            actionName,
+            Set.of(actionName),
+            TaskScope.ALL,
             "finish",
             taskManager,
             notified::add,
             null
         );
         assertThat(notified, containsInAnyOrder(task1, task2, task3)); // should notify each task exactly once
+    }
+
+    /**
+     * Waits for the tasks of every listed action and for those only: the task of an unlisted action neither delays the completion nor
+     * gets notified.
+     */
+    public void testAwaitTasksCompleteInternal_mixedActions() {
+        String action1 = "test:action/one";
+        String action2 = "test:action/two";
+        TaskManager taskManager = mock();
+        long taskId1 = randomNonNegativeLong();
+        long taskId2 = randomValueOtherThan(taskId1, ESTestCase::randomNonNegativeLong);
+        long taskId3 = randomValueOtherThanMany(Set.of(taskId1, taskId2)::contains, ESTestCase::randomNonNegativeLong);
+        Task task1 = newTask(taskId1, action1);
+        Task task2 = newTask(taskId2, action2);
+        Task unlistedTask = newTask(taskId3, "test:action/unlisted");
+        when(taskManager.getTasks())
+            // First call: tasks of both actions, plus the unlisted one
+            .thenReturn(Map.of(taskId1, task1, taskId2, task2, taskId3, unlistedTask))
+            // Second call: only the second action's task, plus the unlisted one
+            .thenReturn(Map.of(taskId2, task2, taskId3, unlistedTask))
+            // Third call: the unlisted one only
+            .thenReturn(Map.of(taskId3, unlistedTask));
+
+        List<Task> notified = new ArrayList<>();
+        boolean completed = ShutdownPrepareService.awaitTasksCompleteInternal(
+            timeValueMillis(ShutdownPrepareService.AWAIT_TASKS_POLL_INTERVAL.millis() * 3),
+            mock(),
+            Set.of(action1, action2),
+            randomFrom(TaskScope.values()),
+            "finish",
+            taskManager,
+            notified::add,
+            null
+        );
+        assertThat(completed, is(true));
+        assertThat(notified, containsInAnyOrder(task1, task2));
+        verify(taskManager, times(3)).getTasks();
+    }
+
+    /**
+     * On timeout, the tasks still running are reported, but only those of the listed actions.
+     */
+    public void testAwaitTasksCompleteInternal_timesOutWithMixedActions() {
+        String action1 = "test:action/one";
+        String action2 = "test:action/two";
+        TaskManager taskManager = mock();
+        long taskId1 = randomNonNegativeLong();
+        long taskId2 = randomValueOtherThan(taskId1, ESTestCase::randomNonNegativeLong);
+        long taskId3 = randomValueOtherThanMany(Set.of(taskId1, taskId2)::contains, ESTestCase::randomNonNegativeLong);
+        Task task1 = newTask(taskId1, action1);
+        Task task2 = newTask(taskId2, action2);
+        Task unlistedTask = newTask(taskId3, "test:action/unlisted");
+        when(taskManager.getTasks()).thenReturn(Map.of(taskId1, task1, taskId2, task2, taskId3, unlistedTask));
+
+        List<Task> timedOut = new ArrayList<>();
+        boolean completed = ShutdownPrepareService.awaitTasksCompleteInternal(
+            timeValueMillis(ShutdownPrepareService.AWAIT_TASKS_POLL_INTERVAL.millis() * 3),
+            mock(),
+            Set.of(action1, action2),
+            randomFrom(TaskScope.values()),
+            "finish",
+            taskManager,
+            null,
+            timedOut::addAll
+        );
+        assertThat(completed, is(false));
+        assertThat(timedOut, containsInAnyOrder(task1, task2));
+    }
+
+    /**
+     * A task that starts after the first poll is waited for (and notified) with the {@link TaskScope#ALL} scope, but ignored with the
+     * {@link TaskScope#INITIAL} one.
+     */
+    public void testAwaitTasksCompleteInternal_scopeOfTasksStartedWhileWaiting() {
+        String actionName = "test:action/name";
+        TaskManager taskManager = mock();
+        long taskId1 = randomNonNegativeLong();
+        long taskId2 = randomValueOtherThan(taskId1, ESTestCase::randomNonNegativeLong);
+        Task task1 = newTask(taskId1, actionName);
+        Task task2 = newTask(taskId2, actionName);
+        when(taskManager.getTasks())
+            // First call: task 1
+            .thenReturn(Map.of(taskId1, task1))
+            // Second call: tasks 1 and 2
+            .thenReturn(Map.of(taskId1, task1, taskId2, task2))
+            // Later calls: task 2 only
+            .thenReturn(Map.of(taskId2, task2));
+
+        TaskScope scope = randomFrom(TaskScope.values());
+        List<Task> notified = new ArrayList<>();
+        List<Task> timedOut = new ArrayList<>();
+        boolean completed = ShutdownPrepareService.awaitTasksCompleteInternal(
+            timeValueMillis(ShutdownPrepareService.AWAIT_TASKS_POLL_INTERVAL.millis() * 3),
+            mock(),
+            Set.of(actionName),
+            scope,
+            "finish",
+            taskManager,
+            notified::add,
+            timedOut::addAll
+        );
+        switch (scope) {
+            case ALL -> {
+                assertThat(completed, is(false));
+                assertThat(notified, containsInAnyOrder(task1, task2));
+                assertThat(timedOut, contains(task2));
+            }
+            case INITIAL -> {
+                assertThat(completed, is(true));
+                assertThat(notified, contains(task1));
+                assertThat(timedOut, empty());
+            }
+        }
+    }
+
+    private static Task newTask(long id, String action) {
+        return new Task(id, "transport", action, "description", TaskId.EMPTY_TASK_ID, Map.of());
     }
 
     public void testMaybeRequestRelocationForBulkByPaginatedSearch_nonRelocatableLeader() {

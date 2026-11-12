@@ -14,6 +14,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.CrossProjectModeOptions;
 import org.elasticsearch.client.internal.Client;
@@ -180,6 +181,7 @@ public class IndexResolver {
             null,
             null,
             DO_NOT_GROUP,
+            null, /* lookup indices never feed the EQL delegate */
             listener.map(Versioned::inner)
         );
     }
@@ -219,6 +221,7 @@ public class IndexResolver {
         boolean trackUnmappedFieldIndices,
         @Nullable Set<String> namedFields,
         IndicesExpressionGrouper indicesExpressionGrouper,
+        @Nullable Consumer<FieldCapabilitiesResponse> mergedCapsSink,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
@@ -238,6 +241,7 @@ public class IndexResolver {
                 indicesExpressionGrouper.groupIndices(IndicesOptions.DEFAULT, Strings.splitStringByCommaToArray(indexPattern1), false),
                 v -> List.of(v.indices())
             ),
+            mergedCapsSink,
             listener
         );
     }
@@ -273,6 +277,7 @@ public class IndexResolver {
             null,
             null,
             RESOLVED_EXPRESSIONS,
+            null, /* exemplar data streams never feed the EQL delegate */
             listener
         );
     }
@@ -343,6 +348,7 @@ public class IndexResolver {
                 EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
                 v -> List.copyOf(v.expression())
             ),
+            null, /* no field-caps retention for CPS/flat resolution */
             listener.delegateResponse((l, e) -> {
                 if (e instanceof IllegalArgumentException
                     && e.getMessage().startsWith(RemoteClusterAware.ALL_INDICES_EXCLUDED_MESSAGE_PREFIX)) {
@@ -373,6 +379,7 @@ public class IndexResolver {
         @Nullable Set<String> namedFields,
         @Nullable Consumer<TargetProjects> routingInfoCapture,
         OriginalIndexExtractor originalIndexExtractor,
+        @Nullable Consumer<FieldCapabilitiesResponse> mergedCapsSink,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         ActionListener<EsqlResolveFieldsResponse> responseHandler = listener.delegateFailureAndWrap((l, response) -> {
@@ -383,6 +390,21 @@ public class IndexResolver {
                 }
             }
             TransportVersion responseMinimumVersion = response.caps().minTransportVersion();
+            if (mergedCapsSink != null) {
+                // Retain the merged field-caps for reuse (the EQL source command), so the EQL engine skips its own
+                // resolution. ES|QL's own fetch is unmerged (setMergeResults(false)); merge here, once, on this pool.
+                assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive on a transport worker
+                mergedCapsSink.accept(
+                    TransportFieldCapabilitiesAction.mergeToFieldCapsResponse(
+                        response.caps().getIndexResponses(),
+                        response.caps().getFailures(),
+                        responseMinimumVersion,
+                        request.fieldCapsRequest().includeUnmapped(),
+                        request.fieldCapsRequest().includeIndices(),
+                        () -> {}
+                    )
+                );
+            }
             // Note: Once {@link EsqlResolveFieldsResponse}'s CREATED version is live everywhere
             // we can remove this and make sure responseMinimumVersion is non-null. That'll be 10.0-ish.
             TransportVersion overallMinimumVersion = responseMinimumVersion == null
@@ -776,6 +798,7 @@ public class IndexResolver {
         }
         boolean aggregatable = first.isAggregatable();
         boolean isPassthrough = Boolean.TRUE.equals(first.isPassthrough());
+        boolean isStaticallySingleValued = first.isStaticallySingleValued();
         EsField.TimeSeriesFieldType timeSeriesFieldType = fieldsInfo.hasTimeSeriesAggregation()
             ? EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(first)
             : EsField.TimeSeriesFieldType.NONE;
@@ -801,6 +824,8 @@ public class IndexResolver {
             for (IndexFieldCapabilities fc : rest) {
                 aggregatable &= fc.isAggregatable();
                 isPassthrough &= Boolean.TRUE.equals(fc.isPassthrough());
+                // A field missing from an index has no value there, so only the indices that have it count.
+                isStaticallySingleValued &= fc.isStaticallySingleValued();
             }
         }
 
@@ -813,16 +838,34 @@ public class IndexResolver {
             int length = Short.MAX_VALUE;
             // TODO: to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
             boolean normalized = false;
-            return new KeywordEsField(name, new HashMap<>(), aggregatable, length, normalized, isAlias, timeSeriesFieldType);
+            return new KeywordEsField(
+                name,
+                new HashMap<>(),
+                aggregatable,
+                length,
+                normalized,
+                isAlias,
+                timeSeriesFieldType,
+                isStaticallySingleValued
+            );
         }
         if (type == DATETIME) {
-            return DateEsField.dateEsField(name, new HashMap<>(), aggregatable, timeSeriesFieldType);
+            return DateEsField.dateEsField(name, new HashMap<>(), aggregatable, timeSeriesFieldType, isStaticallySingleValued);
         }
         if (type == UNSUPPORTED) {
             return unsupported(name, first);
         }
 
-        return new EsField(name, type, new HashMap<>(), aggregatable, isAlias, timeSeriesFieldType, isPassthrough);
+        return new EsField(
+            name,
+            type,
+            new HashMap<>(),
+            aggregatable,
+            isAlias,
+            timeSeriesFieldType,
+            isPassthrough,
+            isStaticallySingleValued
+        );
     }
 
     /**
@@ -1005,6 +1048,8 @@ public class IndexResolver {
             Map.of(),
             null,
             TextFieldMapper.Defaults.POSITION_INCREMENT_GAP,
+            false,
+            // A flattened key can hold many values, so there is no single-value guarantee.
             false
         );
     }

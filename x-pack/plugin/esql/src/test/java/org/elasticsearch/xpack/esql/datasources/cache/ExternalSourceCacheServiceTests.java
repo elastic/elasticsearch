@@ -3153,8 +3153,8 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         // a query may now read both, because a read is keyed by its resource AND its configuration. A contribution
         // is addressed by its path string alone, so the two arrive as one list agreeing on both fingerprints and
         // differing on mtime. The fold cannot tell that from one file measured twice, so it refuses rather than
-        // calling an ordinary query an invariant violation: the assertion this replaces escaped the reconcile as an
-        // Error, which the query's listener does not catch, and the query hung until the client timed out.
+        // calling an ordinary query an invariant violation: an assertion here escapes the reconcile as an
+        // Error, which the query's listener does not catch, so the query never completes.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
@@ -3164,9 +3164,6 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
                 false
             );
-            // Stamped with the read configuration the contributions carry, so a merge that DID happen would be
-            // committed and this assertion can see it. An entry seeded without one refuses every stamped
-            // contribution, which would make the assertion below pass whatever the gate does.
             seedSchemaCacheWithReadConfig(service, key, path, "fp1", "config-own");
 
             Map<String, Object> first = wholeFileWithShape(mtime, "fp1", "config-own", 100L);
@@ -3199,9 +3196,6 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
                 false
             );
-            // Stamped with the read configuration the contributions carry, so the commit is not refused for an
-            // unknown read configuration before the merge gate is reached: an entry seeded without one refuses
-            // every stamped contribution, which makes this assertion pass whatever the gate below does.
             seedSchemaCacheWithReadConfig(service, key, path, "fp1", "config-own");
 
             // Same mtime, same row count, same resolved read configuration; only the reader's own configuration differs.
@@ -3231,9 +3225,6 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
                 false
             );
-            // Stamped with the read configuration the contributions carry, so a merge that DID happen would be
-            // committed and this assertion can see it. An entry seeded without one refuses every stamped
-            // contribution, which would make the assertion below pass whatever the gate does.
             seedSchemaCacheWithReadConfig(service, key, path, "fp1", "config-own");
 
             Map<String, Object> first = wholeFileWithShape(mtime, "fp1", "config-own", 100L);
@@ -3263,9 +3254,6 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
                 false
             );
-            // Stamped with the read configuration the contributions carry, so a merge that DID happen would be
-            // committed and this assertion can see it. An entry seeded without one refuses every stamped
-            // contribution, which would make the assertion below pass whatever the gate does.
             seedSchemaCacheWithReadConfig(service, key, path, "fp1", "config-own");
 
             Map<String, Object> first = wholeFileWithShape(mtime, "fp1", "config-own", 100L);
@@ -4277,6 +4265,11 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /** {@link #seedSchemaCache} plus a resolved read-configuration fingerprint on the entry's metadata. */
+    /**
+     * Seeds an entry stamped with a read configuration, which a safe-miss test needs: an entry seeded without one
+     * refuses every stamped contribution before any merge gate is reached, so a "nothing was committed" assertion
+     * over it would pass whatever the gate under test does.
+     */
     private static void seedSchemaCacheWithReadConfig(
         ExternalSourceCacheService service,
         SchemaCacheKey key,

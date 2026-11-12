@@ -1629,9 +1629,10 @@ public class ExternalSourceCacheService implements Closeable {
      * not available here. A contribution is addressed by its path string, and external reads are keyed by a
      * resource <i>and</i> the configuration it is read under, so two data sources holding different files under
      * one object name are one list by the time they arrive. What separates them — the dataset identity that is a
-     * key component on the cache side — never travels with a contribution, so this fold cannot tell one file
+     * key component on the cache side — never travels with a contribution, so this method cannot tell one file
      * measured twice from two files sharing a name, and must not call either shape a bug. The chunked sibling
-     * {@link #foldStripeFragments} already answers the same input the same way.
+     * {@link #foldStripeFragments} refuses an mtime or fingerprint disagreement for the same reason, though it
+     * carries no row-count or column-stat gate of its own.
      */
     private static Map<String, Object> mergeWholeFileContributions(List<SourceStatsContribution.WholeFile> wholeFile) {
         // The whole-file column-union below keys off the flat _stats.* layout, so re-serialize the
@@ -1648,26 +1649,21 @@ public class ExternalSourceCacheService implements Closeable {
         for (int i = 1; i < maps.size(); i++) {
             Map<String, Object> next = maps.get(i);
             if (sameRead(base, next) == false) {
-                // Two reads of one file that were configured differently -- legitimate, and not something to merge:
-                // the merge keeps the FIRST contribution's identity and folds the others' columns into it, which
-                // would relabel one read's measurements as the other's. Safe-miss, no assertion; the stripe fold
-                // refuses the same disagreement.
+                // Differently configured reads: merging would relabel one read's measurements as the other's,
+                // because the merge keeps the first contribution's identity. Refused, per this method's javadoc.
                 return null;
             }
             if (agreesWithBase(base, next) == false) {
-                // Two contributions under one object name, configured identically, disagree on row count or mtime.
-                // That is no longer evidence of a non-deterministic read: a contribution is addressed by its path
-                // string alone, so two data sources holding different files under one object key arrive here as one
-                // list, and the identity that tells them apart never travels with a contribution. Refuse the merge.
+                // Identically configured and still disagreeing on row count or mtime: not one file measured
+                // twice. Refused, per this method's javadoc.
                 return null;
             }
             for (Map.Entry<String, Object> e : next.entrySet()) {
                 if (e.getKey().startsWith(SourceStatisticsSerializer.STATS_COL_PREFIX)) {
                     Object prev = merged.putIfAbsent(e.getKey(), e.getValue());
                     if (prev != null && Objects.equals(prev, e.getValue()) == false) {
-                        // Reached only behind equal row count and mtime, which two different files can still meet --
-                        // a replica copied with its timestamp preserved measures the same rows and different columns.
-                        // Refused for the reason above rather than asserted on.
+                        // Equal row count and mtime still do not establish one file: a replica copied with its
+                        // timestamp preserved measures the same rows and different columns. Refused, same reason.
                         return null;
                     }
                 }
@@ -1690,10 +1686,8 @@ public class ExternalSourceCacheService implements Closeable {
 
     /**
      * Whether two whole-file contributions for one path, already known to be configured the same way, agree on the
-     * row count and the mtime. Disagreement means they do not describe one file version: either the file changed
-     * between sibling scans, or the two contributions are from different files that share an object name.
-     * <p>
-     * Neither fingerprint is here: both belong to {@link #sameRead}, which refuses on either before this is reached.
+     * row count and the mtime. Neither fingerprint is here: both belong to {@link #sameRead}, which refuses on
+     * either before this is reached.
      */
     private static boolean agreesWithBase(Map<String, Object> a, Map<String, Object> b) {
         return sameNumericOrEqual(a.get(SourceStatisticsSerializer.STATS_ROW_COUNT), b.get(SourceStatisticsSerializer.STATS_ROW_COUNT))

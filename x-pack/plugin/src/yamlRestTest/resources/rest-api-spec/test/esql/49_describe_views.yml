@@ -122,11 +122,11 @@ setup:
   - match: { values.0: [ "latency", "latency", "mapped", "ms", "Request latency" ] }
 
 ---
-"column_metadata through a view":
+"column_metadata through a view next to an index":
   - do:
       esql.query:
         body:
-          query: 'SET column_metadata=true; FROM latencies | LIMIT 0'
+          query: 'SET column_metadata=true; FROM latencies, test_semantics | KEEP host, lat, lat_s, latency | LIMIT 0'
 
   - match: { columns.0.name: host }
   - match: { columns.0._meta.field.name: host }
@@ -134,5 +134,8 @@ setup:
   - match: { columns.1._meta.field.name: latency }
   - match: { columns.1._meta.field.description: Request latency }
   - match: { columns.1._meta.unit: ms }
-  - match: { columns.3.name: lat_s }
-  - match: { columns.3._meta.unit: s }
+  - match: { columns.2.name: lat_s }
+  - match: { columns.2._meta.unit: s }
+  - match: { columns.3.name: latency }
+  - match: { columns.3._meta.field.name: latency }
+  - match: { columns.3._meta.unit: ms }

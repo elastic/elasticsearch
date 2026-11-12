@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -148,10 +149,18 @@ public final class ColumnSemantics {
      * the same-named column of its branches when every branch that has the column knows it and they agree.
      */
     static <T> void mergeBranches(MergePlan merge, Map<NameId, T> known) {
+        List<Map<String, Attribute>> branches = new ArrayList<>(merge.children().size());
+        for (LogicalPlan branch : merge.children()) {
+            Map<String, Attribute> byName = new HashMap<>();
+            for (Attribute a : branch.output()) {
+                byName.putIfAbsent(a.name(), a);
+            }
+            branches.add(byName);
+        }
         for (Attribute column : merge.output()) {
             T agreed = null;
-            for (LogicalPlan branch : merge.children()) {
-                Attribute source = branch.output().stream().filter(a -> a.name().equals(column.name())).findFirst().orElse(null);
+            for (Map<String, Attribute> branch : branches) {
+                Attribute source = branch.get(column.name());
                 if (source == null) {
                     continue;
                 }

@@ -20,9 +20,9 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
  * Translates the PromQL functions over a label container: a function over each series changes its value and keeps its
  * labels; a function returning a scalar drops them.
  */
-final class FunctionLabelTranslation {
+final class PromqlFunctionCallV2 {
 
-    private FunctionLabelTranslation() {}
+    private PromqlFunctionCallV2() {}
 
     /**
      * A generic PromQL function call (rate, ceil, abs, etc.): an expression over the child's value, over the same series.

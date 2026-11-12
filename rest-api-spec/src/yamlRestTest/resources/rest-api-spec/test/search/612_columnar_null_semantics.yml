@@ -1,0 +1,527 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar.bare_null_is_absence" ]
+      reason: "columnar index mode and bare null handling required"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+                index: false
+              kwd_indexed:
+                type: keyword
+                index: true
+              txt:
+                type: text
+              lng:
+                type: long
+              dt:
+                type: date
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{ "kwd": "a", "kwd_indexed": "a", "txt": "a", "lng": 1, "dt": "2026-01-01T00:00:00.000Z" }'
+          - '{ "index": { "_id": "null_in_array" } }'
+          - '{ "kwd": [ null ], "kwd_indexed": [ null ], "txt": [ null ], "lng": [ null ], "dt": [ null ] }'
+          - '{ "index": { "_id": "only_nulls" } }'
+          - '{ "kwd": [ null, null ], "kwd_indexed": [ null, null ], "txt": [ null, null ], "lng": [ null, null ], "dt": [ null, null ] }'
+          - '{ "index": { "_id": "mixed" } }'
+          - '{ "kwd": [ "a", null, "b" ], "kwd_indexed": [ "a", null, "b" ], "txt": [ "a", null, "b" ], "lng": [ 1, null, 2 ], "dt": [ "2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z" ] }'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{ "kwd": null, "kwd_indexed": null, "txt": null, "lng": null, "dt": null }'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{ "kwd": [], "kwd_indexed": [], "txt": [], "lng": [], "dt": [] }'
+          - '{ "index": { "_id": "missing" } }'
+          - '{ "other": "c" }'
+
+---
+exists in the default index mode matches only documents with a non-null value:
+  - do:
+      indices.create:
+        index: control
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+              lng:
+                type: long
+
+  - do:
+      bulk:
+        index: control
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{ "kwd": "a", "lng": 1 }'
+          - '{ "index": { "_id": "null_in_array" } }'
+          - '{ "kwd": [ null ], "lng": [ null ] }'
+          - '{ "index": { "_id": "only_nulls" } }'
+          - '{ "kwd": [ null, null ], "lng": [ null, null ] }'
+          - '{ "index": { "_id": "mixed" } }'
+          - '{ "kwd": [ "a", null, "b" ], "lng": [ 1, null, 2 ] }'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{ "kwd": null, "lng": null }'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{ "kwd": [], "lng": [] }'
+          - '{ "index": { "_id": "missing" } }'
+          - '{ "other": "c" }'
+
+  - do:
+      search:
+        index: control
+        body:
+          query: { exists: { field: kwd } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+
+  - do:
+      search:
+        index: control
+        body:
+          query: { exists: { field: lng } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+
+  - do:
+      count:
+        index: control
+        body:
+          query: { exists: { field: kwd } }
+
+  - match: { count: 2 }
+
+  - do:
+      count:
+        index: control
+        body:
+          query: { exists: { field: lng } }
+
+  - match: { count: 2 }
+
+---
+exists matches only documents with a non-null value on a keyword field without an index:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "exists matches documents that hold only nulls"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: kwd } }
+
+  - match: { count: 2 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { bool: { must_not: { exists: { field: kwd } } } }
+
+  - match: { count: 5 }
+
+---
+exists matches only documents with a non-null value on an indexed keyword field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "exists matches documents that hold only nulls"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+
+  - match: { count: 2 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { bool: { must_not: { exists: { field: kwd_indexed } } } }
+
+  - match: { count: 5 }
+
+---
+exists matches only documents with a non-null value on a text field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "exists matches documents that hold only nulls"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+
+  - match: { count: 2 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { bool: { must_not: { exists: { field: txt } } } }
+
+  - match: { count: 5 }
+
+---
+exists matches only documents with a non-null value on a long field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: lng } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: lng } }
+
+  - match: { count: 2 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { bool: { must_not: { exists: { field: lng } } } }
+
+  - match: { count: 5 }
+
+---
+exists matches only documents with a non-null value on a date field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: dt } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: dt } }
+
+  - match: { count: 2 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { bool: { must_not: { exists: { field: dt } } } }
+
+  - match: { count: 5 }
+
+---
+exists count stays the same after a deletion and a merge on string fields:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "exists matches documents that hold only nulls"
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+
+  - match: { count: 2 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+
+  - match: { count: 2 }
+
+  - do:
+      delete:
+        index: test
+        id: missing
+        refresh: true
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+
+  - match: { count: 2 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+
+  - match: { count: 2 }
+
+  - do:
+      indices.forcemerge:
+        index: test
+        max_num_segments: 1
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+
+  - match: { count: 2 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+
+  - match: { count: 2 }
+
+---
+sort puts documents with only nulls among the documents with no keyword value:
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ { kwd: { missing: _first } }, _doc ]
+          _source: false
+
+  - match: { hits.hits.0._id: null_in_array }
+  - match: { hits.hits.1._id: only_nulls }
+  - match: { hits.hits.2._id: bare_null }
+  - match: { hits.hits.3._id: empty_array }
+  - match: { hits.hits.4._id: missing }
+  - match: { hits.hits.5._id: value }
+  - match: { hits.hits.6._id: mixed }
+
+---
+sort puts documents with only nulls among the documents with no long value:
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ { lng: { missing: _first } }, _doc ]
+          _source: false
+
+  - match: { hits.hits.0._id: null_in_array }
+  - match: { hits.hits.1._id: only_nulls }
+  - match: { hits.hits.2._id: bare_null }
+  - match: { hits.hits.3._id: empty_array }
+  - match: { hits.hits.4._id: missing }
+  - match: { hits.hits.5._id: value }
+  - match: { hits.hits.6._id: mixed }
+
+---
+value_count and missing aggregations treat documents with only nulls as having no keyword value:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            values: { value_count: { field: kwd } }
+            without: { missing: { field: kwd } }
+
+  - match: { aggregations.values.value: 3 }
+  - match: { aggregations.without.doc_count: 5 }
+
+---
+value_count and missing aggregations treat documents with only nulls as having no long value:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            values: { value_count: { field: lng } }
+            without: { missing: { field: lng } }
+
+  - match: { aggregations.values.value: 3 }
+  - match: { aggregations.without.doc_count: 5 }
+
+---
+synthetic source keeps every null slot of a keyword field without an index:
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+          _source: kwd
+
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0._source.kwd: a }
+  - match: { hits.hits.1._source.kwd: [ null ] }
+  - match: { hits.hits.2._source.kwd: [ null, null ] }
+  - match: { hits.hits.3._source.kwd: [ a, null, b ] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+
+---
+synthetic source keeps every null slot of an indexed keyword field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+          _source: kwd_indexed
+
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0._source.kwd_indexed: a }
+  - match: { hits.hits.1._source.kwd_indexed: [ null ] }
+  - match: { hits.hits.2._source.kwd_indexed: [ null, null ] }
+  - match: { hits.hits.3._source.kwd_indexed: [ a, null, b ] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+
+---
+synthetic source keeps every null slot of a text field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+          _source: txt
+
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0._source.txt: a }
+  - match: { hits.hits.1._source.txt: [ null ] }
+  - match: { hits.hits.2._source.txt: [ null, null ] }
+  - match: { hits.hits.3._source.txt: [ a, null, b ] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+
+---
+synthetic source keeps every null slot of a long field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+          _source: lng
+
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0._source.lng: 1 }
+  - match: { hits.hits.1._source.lng: [ null ] }
+  - match: { hits.hits.2._source.lng: [ null, null ] }
+  - match: { hits.hits.3._source.lng: [ 1, null, 2 ] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+
+---
+synthetic source keeps every null slot of a date field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+          _source: dt
+
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0._source.dt: "2026-01-01T00:00:00.000Z" }
+  - match: { hits.hits.1._source.dt: [ null ] }
+  - match: { hits.hits.2._source.dt: [ null, null ] }
+  - match: { hits.hits.3._source.dt: [ "2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z" ] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }

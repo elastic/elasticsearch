@@ -475,6 +475,70 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testGroupMergesOnlyRemainingTasksOnFirstTasksPreflightService() throws Exception {
+        final Index index = createIndexWithExistingField("test");
+        final ClusterState initial = getInstanceFromNode(ClusterService.class).state();
+        final IndexMetadata metadata = initial.metadata().indexMetadata(index);
+        final List<PutMappingClusterStateUpdateRequest> requests = List.of(
+            request(true, field("field0", "long"), index),
+            request(true, field("field1", "long"), index),
+            request(true, field("field2", "long"), index)
+        );
+        final PreflightCacheEntry entry = buildCacheEntry(
+            getInstanceFromNode(IndicesService.class),
+            metadata,
+            requests.getFirst().source().string()
+        );
+        final List<PutMappingClusterStateUpdateTask> tasks = new ArrayList<>();
+        for (int i = 0; i < requests.size(); i++) {
+            final Map<Index, PreflightCacheEntry> cache = i == 0 ? new HashMap<>(Map.of(index, entry)) : new HashMap<>();
+            tasks.add(new PutMappingClusterStateUpdateTask(requests.get(i), ActionListener.noop(), cache));
+        }
+
+        final ClusterState result = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            initial,
+            newExecutor(IndexSettingProviders.EMPTY, true),
+            tasks
+        );
+
+        for (int i = 0; i < requests.size(); i++) {
+            assertThat(fieldTypeName(result, index, "field" + i), equalTo("long"));
+        }
+        assertThat(result.metadata().indexMetadata(index).getMappingVersion(), equalTo(metadata.getMappingVersion() + 1));
+        Mockito.verify(entry.mergedService()).mergeDynamicMappingUpdates(List.of(requests.get(1).source(), requests.get(2).source()));
+        Mockito.verify(entry.mergedService()).close();
+    }
+
+    public void testFailedGroupSeededFromPreflightServiceFallsBackFromFreshService() throws Exception {
+        final Index index = createIndexWithExistingField("test");
+        final ClusterState initial = getInstanceFromNode(ClusterService.class).state();
+        final IndexMetadata metadata = initial.metadata().indexMetadata(index);
+        final PutMappingClusterStateUpdateRequest cached = request(true, field("cached", "long"), index);
+        final PutMappingClusterStateUpdateRequest conflicting = request(
+            true,
+            "\"existing\":{\"type\":\"object\",\"properties\":{\"sub\":{\"type\":\"long\"}}}",
+            index
+        );
+        final PreflightCacheEntry entry = buildCacheEntry(getInstanceFromNode(IndicesService.class), metadata, cached.source().string());
+        final List<PutMappingClusterStateUpdateTask> tasks = List.of(
+            new PutMappingClusterStateUpdateTask(cached, ActionListener.noop(), new HashMap<>(Map.of(index, entry))),
+            new PutMappingClusterStateUpdateTask(conflicting, ActionListener.noop(), new HashMap<>())
+        );
+
+        final ClusterState result = ClusterStateTaskExecutorUtils.executeHandlingResults(
+            initial,
+            newExecutor(IndexSettingProviders.EMPTY, true),
+            tasks,
+            task -> assertSame(tasks.getFirst(), task),
+            (task, failure) -> assertSame(tasks.getLast(), task)
+        );
+
+        assertThat(fieldTypeName(result, index, "cached"), equalTo("long"));
+        assertThat(fieldTypeName(result, index, "existing"), equalTo("keyword"));
+        assertThat(result.metadata().indexMetadata(index).getMappingVersion(), equalTo(metadata.getMappingVersion() + 1));
+        Mockito.verify(entry.mergedService()).close();
+    }
+
     /** Shared body: builds a stale cache entry (versions offset by deltas) and asserts fall-back. */
     private void runCacheMissTest(long mappingVersionDelta, long settingsVersionDelta) throws Exception {
         final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));

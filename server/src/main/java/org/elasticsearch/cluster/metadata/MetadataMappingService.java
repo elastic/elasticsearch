@@ -269,23 +269,27 @@ public class MetadataMappingService {
             }
             final Index index = group.get(0).getTask().request.indices()[0];
             ClusterState newState = null;
-            boolean merged = false;
+            boolean discardService = false;
+            // Only the first task captures response headers, so warnings from the other tasks' sources are dropped.
             try (var ignored = group.get(0).captureResponseHeaders()) {
                 final IndexMetadata indexMetadata = requireIndexMetadata(currentState, index);
+                final Map<Index, CompressedXContent> activeEntries = new HashMap<>();
                 MapperService mapperService = indexMapperServices.get(index);
                 if (mapperService == null) {
-                    mapperService = createService(indexMetadata);
+                    mapperService = loadService(group.get(0).getTask(), index, indexMetadata, activeEntries);
                     indexMapperServices.put(index, mapperService);
                 }
-                final CompressedXContent existingSource = mapperService.documentMapper() != null
-                    ? mapperService.documentMapper().mappingSource()
+                final boolean cacheHit = activeEntries.containsKey(index);
+                discardService = cacheHit;
+                final CompressedXContent existingSource = cacheHit ? activeEntries.get(index)
+                    : mapperService.documentMapper() != null ? mapperService.documentMapper().mappingSource()
                     : null;
                 final List<CompressedXContent> sources = new ArrayList<>(group.size());
-                for (var taskContext : group) {
+                for (var taskContext : group.subList(cacheHit ? 1 : 0, group.size())) {
                     sources.add(taskContext.getTask().request.source());
                 }
                 final DocumentMapper mergedMapper = mapperService.mergeDynamicMappingUpdates(sources);
-                merged = true;
+                discardService = true;
                 final Metadata.Builder builder = Metadata.builder(currentState.metadata());
                 final ProjectMetadata projectMetadata = currentState.metadata().projectFor(index);
                 if (updateIndexMetadata(builder, projectMetadata, projectMetadata.index(index), existingSource, mergedMapper)) {
@@ -298,8 +302,9 @@ public class MetadataMappingService {
                     () -> Strings.format("batched put-mapping of [%d] tasks for %s failed, applying them one by one", group.size(), index),
                     e
                 );
-                // A failed merge leaves the service unchanged; a successful merge followed by a metadata failure needs discarding.
-                if (merged) {
+                // A failed merge leaves the service unchanged, but a cached service already holds the first task, and after a
+                // successful merge the service no longer matches the cluster state. Either way the fallback must start from a new one.
+                if (discardService) {
                     IOUtils.closeWhileHandlingException(indexMapperServices.remove(index));
                 }
             }

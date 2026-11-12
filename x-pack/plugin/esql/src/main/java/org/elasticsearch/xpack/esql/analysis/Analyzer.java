@@ -164,6 +164,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateE
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesWithout;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AddPromqlResultOrder;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.ResolvePromqlSourceLabels;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.ScalarizeTimeSeriesMetadataPaths;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslateTimeSeriesCollapse;
@@ -345,7 +346,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // It should run before TranslateTimeSeriesAggregate and implicit casting
                 new TranslatePromqlToEsqlPlan(),
                 // Replaces arbitrary path access on {@link DataType#TIME_SERIES_METADATA_DATA_TYPE} to column access.
-                new ScalarizeTimeSeriesMetadataPaths()
+                new ScalarizeTimeSeriesMetadataPaths(),
+                // Reads the labels the plan names that the source's container does not hold by name from their fields.
+                new ResolvePromqlSourceLabels()
             ),
             new Batch<>(
                 "Resolution",

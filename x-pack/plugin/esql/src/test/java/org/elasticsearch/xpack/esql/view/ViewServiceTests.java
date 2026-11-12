@@ -41,9 +41,10 @@ import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.hamcrest.Matchers.containsString;
@@ -66,7 +67,10 @@ public class ViewServiceTests extends ESTestCase {
             threadPool,
             ProjectId.DEFAULT,
             Settings.EMPTY,
-            Set.of(ViewService.MAX_VIEWS_COUNT_SETTING, ViewService.MAX_VIEW_LENGTH_SETTING, EsqlFlags.ESQL_MAX_COMMAND_COUNT)
+            Stream.concat(
+                Stream.of(ViewService.MAX_VIEWS_COUNT_SETTING, ViewService.MAX_VIEW_LENGTH_SETTING),
+                EsqlFlags.ALL_ESQL_FLAGS_SETTINGS.stream()
+            ).collect(Collectors.toSet())
         );
         // The default test publisher never acknowledges, so acked tasks would not complete their listeners.
         var publisher = ClusterServiceUtils.createClusterStatePublisher(clusterService.getClusterApplierService());
@@ -241,6 +245,19 @@ public class ViewServiceTests extends ESTestCase {
         assertThat(viewService.get(ProjectId.DEFAULT, "reserved-view").query(), equalTo("FROM other-index"));
     }
 
+    public void testPutViewRejectsSecondForkOnOnePipeline() {
+        var view = new View("fork-view", "FROM a | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0)", null, false);
+        var future = new PlainActionFuture<AcknowledgedResponse>();
+        viewService.putView(ProjectId.DEFAULT, new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, view), future);
+
+        expectThrows(
+            VerificationException.class,
+            containsString("Only a single FORK command is supported, but found multiple"),
+            () -> future.actionGet(10, TimeUnit.SECONDS)
+        );
+        assertThat(viewService.get(ProjectId.DEFAULT, "fork-view"), nullValue());
+    }
+
     public void testAcceptsTsWithStats() {
         validatePutView("ts-view", "TS metrics | STATS max(rate(requests)) BY host");
         validatePutView("ts-view", "TS metrics | WHERE cpu > 1 | STATS max(cpu) | KEEP `max(cpu)`");
@@ -296,12 +313,37 @@ public class ViewServiceTests extends ESTestCase {
         viewService.validatePutView(project, view);
     }
 
+    /**
+     * A PUT request carries no pragmas, and the parser applies only its fixed branch ceiling to the FORKs of the definition; the
+     * configured {@code max_branch_count} is enforced when the view is used in a query.
+     */
+    public void testPutViewValidatesAgainstFixedParserBranchLimit() {
+        View within = new View("forky-view", nestedForkBody(3), null);
+        View beyond = new View("forky-view", nestedForkBody(6), null);
+        var project = clusterService.state().metadata().getProject(ProjectId.DEFAULT);
+
+        viewService.validatePutView(project, within);
+        expectThrows(
+            VerificationException.class,
+            containsString("exceeding the limit of 128"),
+            () -> viewService.validatePutView(project, beyond)
+        );
+    }
+
+    private static String nestedForkBody(int depth) {
+        String body = "FROM some-index | FORK (WHERE a > 0) (WHERE a < 0)";
+        for (int i = 0; i < depth; i++) {
+            body = "FROM (" + body + "), some-index | FORK (WHERE a > 0) (WHERE a < 0)";
+        }
+        return body;
+    }
+
     public void testValidateViewWarnsWhenQueryIsNotValid() {
         var service = viewServiceFailingAnalysisWith(new VerificationException("Found 1 problem\nline 1:6: Unknown index [missing]"));
 
-        validateView(service, new View("v", "FROM missing", null, false));
+        var warning = validateView(service, new View("v", "FROM missing", null, false));
 
-        assertWarnings("view [v] query is not valid: Found 1 problem line 1:6: Unknown index [missing]");
+        assertThat(warning, equalTo("view [v] query is not valid: Found 1 problem line 1:6: Unknown index [missing]"));
         assertThat(service.get(ProjectId.DEFAULT, "v"), nullValue());
     }
 
@@ -316,14 +358,12 @@ public class ViewServiceTests extends ESTestCase {
             new ElasticsearchSecurityException("not allowed", RestStatus.FORBIDDEN),
             new ElasticsearchStatusException("something broke", RestStatus.INTERNAL_SERVER_ERROR)
         )) {
-            validateView(viewServiceFailingAnalysisWith(failure), new View("v", "FROM missing", null, false));
-            ensureNoWarnings();
+            assertThat(validateView(viewServiceFailingAnalysisWith(failure), new View("v", "FROM missing", null, false)), nullValue());
         }
     }
 
     public void testValidateViewDoesNotWarnWhenQueryIsValid() {
-        validateView(viewService, new View("v", "FROM some-index", null, false));
-        ensureNoWarnings();
+        assertThat(validateView(viewService, new View("v", "FROM some-index", null, false)), nullValue());
     }
 
     public void testPutViewDoesNotAnalyze() {
@@ -338,10 +378,10 @@ public class ViewServiceTests extends ESTestCase {
         return new ViewService(clusterService, TEST_PARSER, (statement, viewName, listener) -> listener.onFailure(failure));
     }
 
-    private void validateView(ViewService service, View view) {
-        var future = new PlainActionFuture<Void>();
+    private String validateView(ViewService service, View view) {
+        var future = new PlainActionFuture<String>();
         service.validateView(ProjectId.DEFAULT, view, future);
-        future.actionGet(10, TimeUnit.SECONDS);
+        return future.actionGet(10, TimeUnit.SECONDS);
     }
 
     private PlainActionFuture<AcknowledgedResponse> ensureReservedViewExists(String name, String query, String description) {

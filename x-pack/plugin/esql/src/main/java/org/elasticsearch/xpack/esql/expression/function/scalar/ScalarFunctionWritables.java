@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.promql.function.HashOffset;
+import org.elasticsearch.xpack.esql.expression.promql.function.NaturalSortKey;
 import org.elasticsearch.xpack.esql.expression.promql.function.RegexExpand;
 
 import java.util.ArrayList;
@@ -150,6 +151,7 @@ public class ScalarFunctionWritables {
         entries.add(HashOffset.ENTRY);
         entries.add(HistogramPercentile.ENTRY);
         entries.add(ExtractHistogramComponent.ENTRY);
+        entries.add(NaturalSortKey.ENTRY);
         entries.add(RegexExpand.ENTRY);
         entries.add(WindowFilter.ENTRY);
 

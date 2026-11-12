@@ -89,10 +89,13 @@ aggregate multi_terms:
 ---
 "multi_terms aggregation with time_series aggregation":
   - requires:
+      test_runner_features: [allowed_warnings]
       cluster_features: ["gte_v8.13.0"]
       reason: "multi_terms for time series aggregation fixed in 8.13.0"
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       search:
         index: test
         body:
@@ -114,6 +117,9 @@ aggregate multi_terms:
 
 ---
 "Auto date histogram on counter":
+  - requires:
+      test_runner_features: [allowed_warnings]
+      reason: "time_series aggregation deprecation warning"
   - do:
       indices.create:
         index: test2
@@ -147,6 +153,8 @@ aggregate multi_terms:
           - '{ "@timestamp":"2023-02-01T13:03:10.138Z","data":"30", "dim": "B"}'
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       catch: /Wrapping a time-series rate aggregation within a DeferableBucketAggregator is not supported/
       search:
         size: 0

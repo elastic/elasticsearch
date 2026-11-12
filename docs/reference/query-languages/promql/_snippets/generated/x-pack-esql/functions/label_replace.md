@@ -7,6 +7,10 @@
 :::{include} brief-summary/label_replace.md
 :::
 
+The destination can be a new label or an existing stored label (a dimension or `__name__`). Regular expressions use the RE2 engine (RE2 syntax including `(?P<name>)`, `$1`/`$name`/`${name}` replacement expansion, no backreferences, fully anchored as `^(?s:regex)$`), matching Prometheus.
+
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over a `by(...)` aggregation, directly or under `topk`, `bottomk`, `limitk`, or `limit_ratio`, is supported when the destination is a new label, such as `label_replace(sum by (job) (x), "dst", "$1", "job", "(.*)")`.
+
 **Return type**
 
 `instant_vector`
@@ -34,6 +38,14 @@
 sum by (job2) (label_replace(http_requests_total, "job2", "$1", "job", "(.*)-server"))
 ```
 
-**Differences from Prometheus**
+:::{note}
+**Differences from {{prom}}**
 
-Supported in this version only when the derived destination label is consumed by an enclosing `by(...)` aggregation. The destination may be a new label or may overwrite a stored label (a dimension or `__name__`). A `without` grouping or a bare (non-aggregated) call are rejected. Regular expressions use the RE2 engine (RE2 syntax including `(?P<name>)`, `$1`/`$name`/`${name}` replacement expansion, no backreferences, fully anchored as `^(?s:regex)$`), matching Prometheus. Reading or overwriting `__name__` behaves like Prometheus only for Prometheus-style data that stores `__name__` as a label; for OpenTelemetry-style metrics the metric name is not exposed as a readable or writable label here.
+A call that isn't aggregated or is under `without(...)`, and a destination label named `step`, which is an output column of the `PROMQL` command, aren't supported yet.
+
+{applies_to}`stack: ga =9.6` A call over an aggregation, such as `label_replace(sum by (job) (x), ...)`, isn't supported yet.
+
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over anything other than a `by(...)` aggregation, such as `sum(x)`, a `without(...)` aggregation, `topk`, or a binary operator, and a call that overwrites a grouping label, such as `label_replace(sum by (job) (x), "job", "$1", "job", "(.*)")`, aren't supported yet. Write a new label instead.
+
+Reading or overwriting `__name__` behaves like {{prom}} only for {{prom}}-style data that stores `__name__` as a label; for OpenTelemetry-style metrics the metric name is not exposed as a readable or writable label here.
+:::

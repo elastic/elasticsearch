@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 165406
+summary: "[Stateless] Stop failed cache read callbacks before the bypass read"
+type: bug

@@ -72,7 +72,10 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertFalse(testGet.getFields().containsKey(RoutingFieldMapper.NAME));
         assertEquals(testGet.sourceRef().utf8ToString(), "{\"foo\" : \"bar\"}");
         assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
-        try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (
+            Engine.Searcher searcher = primary.getEngine()
+                .acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)
+        ) {
             assertEquals(searcher.getIndexReader().maxDoc(), 1); // we refreshed
         }
 
@@ -83,11 +86,17 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertTrue(testGet1.getFields().containsKey(RoutingFieldMapper.NAME));
         assertEquals("foobar", testGet1.getFields().get(RoutingFieldMapper.NAME).getValue());
         assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
-        try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (
+            Engine.Searcher searcher = primary.getEngine()
+                .acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)
+        ) {
             assertEquals(searcher.getIndexReader().maxDoc(), 1); // we read from the translog
         }
         primary.getEngine().refresh("test");
-        try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (
+            Engine.Searcher searcher = primary.getEngine()
+                .acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)
+        ) {
             assertEquals(searcher.getIndexReader().maxDoc(), 2);
         }
 
@@ -360,7 +369,10 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         } else {
             asserter.assertSameIndexOperation(toIndexOp(testGet.sourceRef().utf8ToString()), toIndexOp(expectedResult));
         }
-        try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (
+            Engine.Searcher searcher = primary.getEngine()
+                .acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)
+        ) {
             assertEquals(searcher.getIndexReader().maxDoc(), 1); // we refreshed
         }
 
@@ -380,11 +392,17 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             translogInMemorySegmentCountExpected++;
         }
         assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
-        try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (
+            Engine.Searcher searcher = primary.getEngine()
+                .acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)
+        ) {
             assertEquals(searcher.getIndexReader().maxDoc(), 1); // we read from the translog
         }
         primary.getEngine().refresh("test");
-        try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (
+            Engine.Searcher searcher = primary.getEngine()
+                .acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)
+        ) {
             assertEquals(searcher.getIndexReader().maxDoc(), 2);
         }
 
@@ -412,11 +430,17 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertTrue(testGet2.getFields().containsKey("foo"));
         assertEquals(expectedFooVal, testGet2.getFields().get("foo").getValue());
         assertEquals(++translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
-        try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (
+            Engine.Searcher searcher = primary.getEngine()
+                .acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)
+        ) {
             assertEquals(searcher.getIndexReader().maxDoc(), 2); // we read from the translog
         }
         primary.getEngine().refresh("test");
-        try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (
+            Engine.Searcher searcher = primary.getEngine()
+                .acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)
+        ) {
             assertEquals(searcher.getIndexReader().maxDoc(), 3);
         }
 

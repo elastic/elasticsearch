@@ -23,14 +23,17 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
-import org.elasticsearch.common.logging.activity.ActivityLogger;
+import org.elasticsearch.common.logging.activity.QueryInterceptor;
 import org.elasticsearch.common.logging.activity.QueryLogger;
+import org.elasticsearch.common.logging.activity.QuerySinkRegistry;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
+import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.injection.guice.Inject;
@@ -41,6 +44,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -78,8 +82,8 @@ import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
-import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
-import org.elasticsearch.xpack.esql.querylog.EsqlLogContextBuilder;
+import org.elasticsearch.xpack.esql.querylog.EsqlCaptureContext;
+import org.elasticsearch.xpack.esql.querylog.EsqlCaptureContextBuilder;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogProducer;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -118,7 +122,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final RemoteClusterService remoteClusterService;
     private final UsageService usageService;
     private final TransportActionServices services;
-    private final ActivityLogger<EsqlLogContext> activityLogger;
+    private final QueryInterceptor<EsqlCaptureContext> queryInterceptor;
     private final QueryMetricsListener metricsCollector;
     private volatile boolean defaultAllowPartialResults;
     private volatile int resultTruncationMaxSize;
@@ -134,6 +138,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         PlanExecutor planExecutor,
         SearchService searchService,
         ExchangeService exchangeService,
+        ComputeExecutor computeExecutor,
         ClusterService clusterService,
         ViewResolver viewResolver,
         ProjectResolver projectResolver,
@@ -146,11 +151,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         UsageService usageService,
         UserAgentParserRegistry userAgentParserRegistry,
         IpLocationService ipLocationService,
+        QuerySinkRegistry querySinkRegistry,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
         CrossProjectModeDecider crossProjectModeDecider,
         QueryMetricsListener metricsCollector,
-        FederationLicense federationLicense
+        FederationLicense federationLicense,
+        ExternalWorkerReadiness externalWorkerReadiness
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -218,6 +225,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.usageService = usageService;
 
         this.services = new TransportActionServices(
+            client,
             transportService,
             searchService,
             exchangeService,
@@ -242,7 +250,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         // deadlocks multi-file text reads — a full I/O pool of blocked parsers with no free thread to run the drain
         // that must consume them (see AsyncExternalSourceOperatorFactory + StreamingParallelParsingCoordinator).
         OperatorFactoryRegistry operatorFactoryRegistry = dataSourceModule.createOperatorFactoryRegistry(
-            threadPool.executor(EsqlPlugin.computePool()),
+            computeExecutor,
             externalBlobStoreExecutor()
         );
         this.computeService = new ComputeService(
@@ -250,20 +258,23 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             enrichLookupService,
             lookupFromIndexService,
             threadPool,
+            computeExecutor,
             bigArrays,
             blockFactoryProvider.blockFactory(),
             operatorFactoryRegistry,
             dataSourceModule.formatReaderRegistry(),
-            client
+            client,
+            externalWorkerReadiness
         );
 
-        this.activityLogger = new QueryLogger<>(
+        var queryLogger = new QueryLogger<>(
             clusterService.getClusterSettings(),
             new EsqlLogProducer(),
             logWriterProvider,
             fieldProvider,
             indexNameExpressionResolver.getSystemNamePredicate()
         );
+        this.queryInterceptor = querySinkRegistry.createInterceptor(queryLogger);
 
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
         clusterService.getClusterSettings()
@@ -378,9 +389,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private void innerExecuteWithLogging(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
-        activityLogger.wrapAndRun(
+        if (request.analyzeOnly()) {
+            ActionListener.run(EsqlFailureBounds.wrap(listener, request.query()), bounded -> innerExecute(task, request, bounded));
+            return;
+        }
+        queryInterceptor.wrapAndRun(
             listener,
-            new EsqlLogContextBuilder(task, request),
+            new EsqlCaptureContextBuilder(task, request),
             (l) -> ActionListener.run(EsqlFailureBounds.wrap(l, request.query()), bounded -> innerExecute(task, request, bounded))
         );
     }
@@ -427,9 +442,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(result -> {
-                recordCCSTelemetry(task, executionInfo, request, null);
-                planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
-                collectMetrics(result.inner());
+                failIfCancelled(task, result.inner());
+                if (request.analyzeOnly() == false) {
+                    recordCCSTelemetry(task, executionInfo, request, null);
+                    planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
+                    collectMetrics(result.inner());
+                }
                 var response = toResponse(task, request, request.profile(), result);
                 assert response.isAsync() == request.async() : "The response must be async if the request was async";
 
@@ -445,7 +463,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
                 listener.onResponse(response);
             }, ex -> {
-                recordCCSTelemetry(task, executionInfo, request, ex);
+                if (request.analyzeOnly() == false) {
+                    recordCCSTelemetry(task, executionInfo, request, ex);
+                }
                 listener.onFailure(ex);
             })
         );
@@ -594,6 +614,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             clusterAlias -> remoteClusterService.shouldSkipOnFailure(clusterAlias, allowPartialResults),
             includeExecutionMetadata
         );
+    }
+
+    /** Releases the pages here because the caller's {@link ActionListener#wrap} swallows the throw before any release path sees it. */
+    static void failIfCancelled(Task task, Result result) {
+        if (task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) {
+            Releasables.closeExpectNoException(result.pages());
+            throw new TaskCancelledException(cancellableTask.getReasonCancelled());
+        }
     }
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> versionedResult) {
@@ -808,7 +836,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         return datasetResolver;
     }
 
-    public ActivityLogger<EsqlLogContext> activityLogger() {
-        return activityLogger;
+    public QueryInterceptor<EsqlCaptureContext> activityInterceptor() {
+        return queryInterceptor;
     }
 }

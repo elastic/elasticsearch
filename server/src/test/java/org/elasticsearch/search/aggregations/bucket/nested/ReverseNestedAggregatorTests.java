@@ -15,6 +15,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -40,6 +42,7 @@ import java.util.List;
 import java.util.stream.LongStream;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.nested;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.reverseNested;
@@ -142,6 +145,52 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 Max max = (Max) ((InternalAggregation) reverseNested).getProperty(MAX_AGG_NAME);
                 assertEquals(MAX_AGG_NAME, max.getName());
                 assertEquals(expectedMaxValue, max.value(), Double.MIN_VALUE);
+            }
+        }
+    }
+
+    /**
+     * A reverse_nested to the root makes the root the current level, so a nested query under it joins to the root.
+     */
+    public void testNestedQueryUnderReverseNestedToRoot() throws IOException {
+        int numParentDocs = randomIntBetween(1, 20);
+        int expectedParentDocs = 0;
+        var seqNoIndexOptions = randomFrom(SeqNoFieldMapper.SeqNoIndexOptions.values());
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
+                for (int i = 0; i < numParentDocs; i++) {
+                    List<Iterable<IndexableField>> documents = new ArrayList<>();
+                    int numNestedDocs = randomIntBetween(0, 5);
+                    if (numNestedDocs > 0) {
+                        expectedParentDocs++;
+                    }
+                    for (int nested = 0; nested < numNestedDocs; nested++) {
+                        Document document = new Document();
+                        document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), Field.Store.NO));
+                        document.add(new StringField(NestedPathFieldMapper.NAME, NESTED_OBJECT, Field.Store.NO));
+                        documents.add(document);
+                    }
+                    LuceneDocument document = new LuceneDocument();
+                    document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), Field.Store.YES));
+                    document.add(new StringField(NestedPathFieldMapper.NAME, "test", Field.Store.NO));
+                    SeqNoFieldMapper.SequenceIDFields.emptySeqID(seqNoIndexOptions).addFields(document);
+                    documents.add(document);
+                    iw.addDocuments(documents);
+                }
+                iw.commit();
+            }
+            try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                NestedAggregationBuilder nestedBuilder = nested(NESTED_AGG, NESTED_OBJECT).subAggregation(
+                    reverseNested(REVERSE_AGG_NAME).subAggregation(
+                        filter("filter", QueryBuilders.nestedQuery(NESTED_OBJECT, QueryBuilders.matchAllQuery(), ScoreMode.None))
+                    )
+                );
+
+                SingleBucketAggregation nested = searchAndReduce(indexReader, new AggTestConfig(nestedBuilder));
+                SingleBucketAggregation reverseNested = nested.getAggregations().get(REVERSE_AGG_NAME);
+                assertEquals(expectedParentDocs, reverseNested.getDocCount());
+                SingleBucketAggregation filter = reverseNested.getAggregations().get("filter");
+                assertEquals(expectedParentDocs, filter.getDocCount());
             }
         }
     }

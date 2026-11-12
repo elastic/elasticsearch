@@ -19,6 +19,7 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.TaskProvider;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.module.ModuleFinder;
@@ -90,17 +91,15 @@ public class InternalDistributionModuleCheckTaskProvider {
     private InternalDistributionModuleCheckTaskProvider() {}
 
     /** Registers the checkModules tasks, which contains all checks relevant to ES Java Modules. */
-    static TaskProvider<Task> registerCheckModulesTask(Project project, TaskProvider<Copy> checkExtraction) {
+    static TaskProvider<Task> registerCheckModulesTask(Project project, TaskProvider<Copy> checkExtraction, File archiveExtractionDir) {
+        // the action captures only the extraction directory, not the Copy task, so the configuration cache can store it
+        final String distributionDir = "elasticsearch-" + VersionProperties.getElasticsearch();
         return project.getTasks().register("checkModules", task -> {
             task.dependsOn(checkExtraction);
             task.doLast(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
-                    final Path libPath = checkExtraction.get()
-                        .getDestinationDir()
-                        .toPath()
-                        .resolve("elasticsearch-" + VersionProperties.getElasticsearch())
-                        .resolve("lib");
+                    final Path libPath = archiveExtractionDir.toPath().resolve(distributionDir).resolve("lib");
                     try {
                         assertAllESJarsAreModular(libPath);
                         assertAllModulesPresent(libPath);

@@ -29,8 +29,10 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
@@ -53,7 +55,7 @@ public class PromqlPlanSortByLabelTests extends AbstractPromqlPlanOptimizerTests
 
         List<String> dimensions = aggregatedDimensions(plan);
         assertThat(dimensions, hasItem("pod"));
-        assertThat(dimensions, hasItem(MetadataAttribute.TIMESERIES));
+        assertThat(sourceViews(plan), equalTo(Set.of(List.of())));
         assertWarnings("sort_by_label: ordering is discarded for range queries");
     }
 

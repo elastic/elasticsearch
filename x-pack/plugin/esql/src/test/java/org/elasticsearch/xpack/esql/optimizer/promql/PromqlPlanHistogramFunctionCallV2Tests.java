@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
@@ -40,8 +39,8 @@ public class PromqlPlanHistogramFunctionCallV2Tests extends AbstractPromqlPlanOp
         LogicalPlan plan = planClassic("histogram_quantile(0.9, sum by (job, le) (request_duration_seconds_bucket))", false);
 
         PromqlHistogramQuantile quantile = expressions(plan, PromqlHistogramQuantile.class).getFirst();
-        TimeSeriesMetadataPath le = as(quantile.upperBound(), TimeSeriesMetadataPath.class);
-        assertThat(BytesRefs.toString(as(le.labels().getFirst(), Literal.class).value()), equalTo("le"));
+        assertThat(as(quantile.upperBound(), Attribute.class).name(), equalTo("le"));
+        assertThat(expressions(plan, TimeSeriesMetadataPath.class), empty());
         assertThat(names(plan.output()), hasItem("job"));
         assertThat(names(plan.output()), not(hasItem("le")));
     }
@@ -50,13 +49,12 @@ public class PromqlPlanHistogramFunctionCallV2Tests extends AbstractPromqlPlanOp
     public void testClassicHistogramOverSeriesLeavesLeAndTheNameOut() {
         LogicalPlan plan = planClassic("histogram_quantile(0.9, rate(request_duration_seconds_bucket[5m]))", false);
 
-        assertThat(expressions(plan, PromqlHistogramQuantile.class), hasSize(1));
-        List<List<String>> excluded = expressions(plan, TimeSeriesMetadataFilter.class).stream()
-            .filter(TimeSeriesMetadataFilter::exclude)
-            .map(filter -> filter.labels().stream().map(l -> BytesRefs.toString(((Literal) l).value())).toList())
-            .toList();
-        assertThat(excluded, hasItem(List.of("le")));
-        assertThat(excluded.stream().anyMatch(labels -> labels.containsAll(List.of("le", "__name__"))), equalTo(true));
+        PromqlHistogramQuantile quantile = expressions(plan, PromqlHistogramQuantile.class).getFirst();
+        assertThat(as(quantile.upperBound(), Attribute.class).name(), equalTo("le"));
+        // the index has no __name__ field: the source's view only leaves le out
+        TimeSeriesWithout source = expressions(plan, TimeSeriesWithout.class).getFirst();
+        assertThat(names(source.children().stream().map(Attribute.class::cast).toList()), equalTo(List.of("le")));
+        assertThat(expressions(plan, TimeSeriesMetadataFilter.class), empty());
         assertThat(names(plan.output()), hasItem("_timeseries"));
     }
 

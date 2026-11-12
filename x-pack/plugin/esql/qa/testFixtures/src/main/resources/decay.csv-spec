@@ -68,6 +68,28 @@ decay_result:double
 0.8408964
 ;
 
+intGaussUpperCaseType
+required_capability: fn_decay_ga_fixes
+
+ROW value = 5
+| EVAL decay_result = round(decay(value, 10, 10, {"type": "GAUSS"}), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.8408964
+;
+
+intExpMixedCaseType
+required_capability: fn_decay_ga_fixes
+
+ROW value = 5
+| EVAL decay_result = round(decay(value, 10, 10, {"type": "Exp"}), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.7071068
+;
+
 intLinearWithOffset
 required_capability: decay_function
 
@@ -178,14 +200,47 @@ decay_result:double
 ;
 
 intOffsetAsDouble
-required_capability: decay_function_parameter_conversion
+required_capability: fn_decay_ga_fixes
 
 ROW value = 5
-| EVAL decay_result = decay(value, 10, 10, {"offset": 0.1, "decay": 0.5, "type": "linear"})
+| EVAL decay_result = round(decay(value, 10, 10, {"offset": 0.1, "decay": 0.5, "type": "linear"}), 7)
 | KEEP decay_result;
 
 decay_result:double
-0.75
+0.755
+;
+
+intFractionalScale
+required_capability: fn_decay_ga_fixes
+
+ROW value = 1
+| EVAL decay_result = round(decay(value, 0, 1.6), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.6875
+;
+
+intFractionalScaleBelowOne
+required_capability: fn_decay_ga_fixes
+
+ROW value = 0
+| EVAL decay_result = decay(value, 0, 0.4)
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+intScaleAboveIntegerRange
+required_capability: fn_decay_ga_fixes
+
+ROW value = 5
+| EVAL decay_result = round(decay(value, 0, 5000000000), 7)
+| KEEP decay_result;
+
+decay_result:double
+1.0
 ;
 
 doubleLinear
@@ -288,14 +343,14 @@ decay_result:double
 ;
 
 longOffsetAsDouble
-required_capability: decay_function_parameter_conversion
+required_capability: fn_decay_ga_fixes
 
 ROW value = 15::long
-| EVAL decay_result = decay(value, 10::long, 10::long, {"offset": 0.2, "decay": 0.5, "type": "linear"})
+| EVAL decay_result = round(decay(value, 10::long, 10::long, {"offset": 0.2, "decay": 0.5, "type": "linear"}), 7)
 | KEEP decay_result;
 
 decay_result:double
-0.75
+0.76
 ;
 
 unsignedLongLinear
@@ -318,6 +373,18 @@ ROW value = 15::unsigned_long
 
 decay_result:double
 0.75
+;
+
+unsignedLongNegativeOrigin
+required_capability: fn_decay_ga_fixes
+
+// distance 15 - (-5) = 20 with scale 20: (40 - 20) / 40
+ROW value = 15::unsigned_long
+| EVAL decay_result = decay(value, -5, 20)
+| KEEP decay_result;
+
+decay_result:double
+0.5
 ;
 
 unsignedLongLinearMaxOffset
@@ -395,6 +462,28 @@ ROW value = TO_CARTESIANPOINT("POINT(10 0)")
 
 decay_result:double
 0.625
+;
+
+cartesianPointIntegerScale
+required_capability: fn_decay_ga_fixes
+
+ROW value = TO_CARTESIANPOINT("POINT(1 1)")
+| EVAL decay_result = round(decay(value, TO_CARTESIANPOINT("POINT(0 0)"), 10), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.9292893
+;
+
+cartesianPointIntegerOffset
+required_capability: fn_decay_ga_fixes
+
+ROW value = TO_CARTESIANPOINT("POINT(1 1)")
+| EVAL decay_result = round(decay(value, TO_CARTESIANPOINT("POINT(0 0)"), 10, {"offset": 1}), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.9792893
 ;
 
 
@@ -484,4 +573,71 @@ ROW value = TO_DATE_NANOS("2023-01-01T12:00:00Z")
 
 decay_result:double
 0.75
+;
+
+dateNanosValueDatetimeOrigin
+required_capability: fn_decay_ga_fixes
+
+ROW value = TO_DATE_NANOS("2023-01-01T12:00:00Z")
+| EVAL decay_result = decay(value, TO_DATETIME("2023-01-01T00:00:00Z"), 24 hours)
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+datetimeValueDateNanosOrigin
+required_capability: fn_decay_ga_fixes
+
+ROW value = TO_DATETIME("2023-01-01T12:00:00Z")
+| EVAL decay_result = decay(value, TO_DATE_NANOS("2023-01-01T00:00:00Z"), 24 hours)
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+datetimeDistanceAboveLongRange
+required_capability: fn_decay_ga_fixes
+
+ROW value = TO_DATETIME(9223372036854775807)
+| EVAL decay_result = decay(value, TO_DATETIME(-9223372036854775807), 24 hours)
+| KEEP decay_result;
+
+decay_result:double
+0.0
+;
+
+datetimeDistanceAboveLongRangeWithLargeOffset
+required_capability: fn_decay_ga_fixes
+
+ROW value = TO_DATETIME(9223372036854775807)
+| EVAL decay_result = decay(value, TO_DATETIME(-9223372036854775807), 24 hours, {"offset": 9223372036854775807 milliseconds})
+| KEEP decay_result;
+
+decay_result:double
+0.0
+;
+
+datetimeDistanceAboveLongRangeWithLargeScale
+required_capability: fn_decay_ga_fixes
+
+ROW value = TO_DATETIME(9223372036854775807)
+| EVAL decay_result = decay(value, TO_DATETIME(-9223372036854775807), 9223372036854775807 milliseconds)
+| KEEP decay_result;
+
+decay_result:double
+0.0
+;
+
+datetimeDistanceAboveLongRangeOneMillisecondBeyondOffset
+required_capability: fn_decay_ga_fixes
+
+// the distance is 2^63 ms and the offset 2^63 - 1 ms, so 1 ms remains: (2 - 1) / 2 with a 1 ms scale
+ROW value = TO_DATETIME(9223372036854775807)
+| EVAL decay_result = decay(value, TO_DATETIME(-1), 1 millisecond, {"offset": 9223372036854775807 milliseconds})
+| KEEP decay_result;
+
+decay_result:double
+0.5
 ;

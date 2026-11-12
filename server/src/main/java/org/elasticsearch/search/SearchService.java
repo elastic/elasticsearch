@@ -3253,11 +3253,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Charges the time of tasks to those of {@code shardIds} still on this node when a task completes, in proportion to
-     * their {@code weight} at that time, or equally when they are all 0.
+     * Charges the time of tasks equally to those of {@code shardIds} on this node.
      */
-    public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds, ToLongFunction<ShardId> weight) {
-        return indicesService.searchLoad(shardIds, weight);
+    public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds) {
+        return indicesService.searchLoad(shardIds);
+    }
+
+    /**
+     * Charges the time of tasks to those of {@code shardIds} on this node by how much their {@code total} grew since the previous
+     * task, see {@link IndicesService#searchLoad(List, ToLongFunction)}.
+     */
+    public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds, ToLongFunction<ShardId> total) {
+        return indicesService.searchLoad(shardIds, total);
     }
 
     /**

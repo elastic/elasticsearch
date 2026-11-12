@@ -1041,7 +1041,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
      * Charges the time of tasks equally to {@code shards}.
      */
     private TaskLoadAttribution.Target shardsLoad(List<DataNodeRequest.Shard> shards) {
-        return searchService.getIndicesService().searchLoad(shards.stream().map(DataNodeRequest.Shard::shardId).toList());
+        return searchService.searchLoad(shards.stream().map(DataNodeRequest.Shard::shardId).toList());
     }
 
     /**
@@ -1057,7 +1057,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
      */
     private TaskLoadAttribution.Target reduceLoad(List<DataNodeRequest.Shard> shards, AcquiredSearchContexts searchContexts) {
         List<ShardId> shardIds = shards.stream().map(DataNodeRequest.Shard::shardId).toList();
-        return searchService.getIndicesService().searchLoad(shardIds, searchContexts::rowsEmitted);
+        return searchService.searchLoad(shardIds, searchContexts::rowsEmitted);
     }
 
     /**

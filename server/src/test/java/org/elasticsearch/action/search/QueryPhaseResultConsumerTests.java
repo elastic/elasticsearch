@@ -397,7 +397,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
 
     /**
      * The docs each shard matched weigh the merge, until a shard runs with hit counting disabled, as later shards of a sorted
-     * search do once enough hits are counted: from then on the merge is charged equally.
+     * search do once enough hits are counted: from then on every consumed shard counts as one result.
      */
     public void testDocsMatchedAreUnknownOnceAShardDoesNotCountHits() {
         SearchRequest searchRequest = new SearchRequest("index");
@@ -433,8 +433,9 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             consumer.consumeResult(uncounted, () -> {});
             uncounted.decRef();
             for (int i = 0; i <= shards; i++) {
-                assertThat(consumer.docsMatched(new ShardId("index", "uuid", i)), equalTo(0L));
+                assertThat(consumer.docsMatched(new ShardId("index", "uuid", i)), equalTo(1L));
             }
+            assertThat("not consumed yet", consumer.docsMatched(new ShardId("index", "uuid", shards + 1)), equalTo(0L));
         }
     }
 

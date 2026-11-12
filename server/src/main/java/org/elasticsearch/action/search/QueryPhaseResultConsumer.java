@@ -76,7 +76,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private volatile TaskLoadAttribution.Target mergeLoad;
     /** The docs each shard matched, recorded only while {@link #mergeLoad} is set. */
     private final Map<ShardId, Long> docsMatched = new ConcurrentHashMap<>();
-    /** Whether a shard did not count the docs it matched, so the counts no longer weigh the merge. */
+    /** Whether a shard did not count the docs it matched, so that every shard counts as one result instead. */
     private volatile boolean docsMatchedUnknown;
     private final CircuitBreaker circuitBreaker;
     private final SearchProgressListener progressListener;
@@ -155,11 +155,15 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     }
 
     /**
-     * The total hits of the result of {@code shardId}, or {@code 0} before it is consumed, and for every shard once one of them
-     * did not count its hits, so that the merge is charged equally.
+     * The total hits of the result of {@code shardId}, or {@code 0} before it is consumed. Once a shard did not count its hits,
+     * every consumed shard counts as {@code 1}.
      */
     public long docsMatched(ShardId shardId) {
-        return docsMatchedUnknown ? 0L : docsMatched.getOrDefault(shardId, 0L);
+        Long docs = docsMatched.get(shardId);
+        if (docs == null) {
+            return 0L;
+        }
+        return docsMatchedUnknown ? 1L : docs;
     }
 
     /**
@@ -221,9 +225,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             if (totalHits.value() == 0 && totalHits.relation() == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
                 // the shard ran with hit counting disabled
                 docsMatchedUnknown = true;
-            } else {
-                docsMatched.put(querySearchResult.getSearchShardTarget().getShardId(), totalHits.value());
             }
+            docsMatched.put(querySearchResult.getSearchShardTarget().getShardId(), totalHits.value());
         }
         consume(querySearchResult, next);
     }

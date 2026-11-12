@@ -27,9 +27,9 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 /** PromQL functions translated over a label container. */
-public class PromqlPlanFunctionLabelTests extends AbstractPromqlPlanOptimizerTests {
+public class PromqlPlanFunctionCallV2Tests extends AbstractPromqlPlanOptimizerTests {
 
-    public PromqlPlanFunctionLabelTests(VersionMode versionMode) {
+    public PromqlPlanFunctionCallV2Tests(VersionMode versionMode) {
         super(versionMode);
     }
 

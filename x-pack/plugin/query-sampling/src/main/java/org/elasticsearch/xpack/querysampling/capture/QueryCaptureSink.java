@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.querysampling.capture;
 
-import org.elasticsearch.action.search.SearchLogContext;
+import org.elasticsearch.action.search.SearchCaptureContext;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.logging.activity.ActivityLogListener;
+import org.elasticsearch.common.logging.activity.QueryCaptureContext;
+import org.elasticsearch.common.logging.activity.QuerySink;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchHit;
@@ -22,7 +22,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.VectorData;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 
 import java.util.ArrayList;
@@ -37,9 +36,10 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
- * Captures a copy of eligible kNN searches on the coordinating node; the search itself proceeds unchanged. It follows
- * searches through the query log, at the point where the log sees them, whether or not the log is enabled: the decision
- * to capture is made when the search starts, so a search that is not captured is not followed.
+ * Captures a copy of eligible kNN searches on the coordinating node; the search itself proceeds unchanged. It is a sink of
+ * the query interceptor, next to the query log, and has a switch of its own, so it works whether or not the log is enabled.
+ * While it is enabled the interceptor hands it every completed search; it decides at once whether the search is eligible, and
+ * only a search that is also chosen by the coin flip is copied.
  * Eligible: a single top-level {@code knn} with a literal float vector, and nothing that changes which documents are
  * searched (routing, any preference, PIT, scroll) or which hits come back or how they are ranked (an offset, no hits,
  * {@code search_after}, {@code terminate_after}, a minimum score, a post filter, collapsing, rescoring, boosts of indices,
@@ -47,13 +47,13 @@ import java.util.function.Supplier;
  * (cross-cluster or internal) are skipped, and so are answers that are partial: a timeout, a search that stopped early or
  * shards that failed would count as a low recall.
  * <p>
- * The query log sees the request before the search rewrites it, so a vector that is only known after the rewrite (a query
- * vector builder such as a {@code semantic_text} field, or a {@code knn} query inside {@code query}) is not captured.
- * Capturing those would need a hook after the rewrite.
+ * The interceptor sees the request as it was received, before the search rewrites it, so a vector that is only known after the
+ * rewrite (a query vector builder such as a {@code semantic_text} field, or a {@code knn} query inside {@code query}) is not
+ * captured. Capturing those would need a hook after the rewrite.
  */
-public final class QueryCaptureListener implements ActivityLogListener<SearchLogContext, SearchRequest> {
+public final class QueryCaptureSink extends QuerySink<QueryCaptureContext> {
 
-    private static final Logger logger = LogManager.getLogger(QueryCaptureListener.class);
+    private static final Logger logger = LogManager.getLogger(QueryCaptureSink.class);
 
     private static final int DEFAULT_SIZE = SearchService.DEFAULT_SIZE;
 
@@ -79,20 +79,21 @@ public final class QueryCaptureListener implements ActivityLogListener<SearchLog
 
     /**
      * @param millis a clock in milliseconds that is cheap to read: it is read by every kNN search, and a call to the system
-     *               clock costs far more than the rest of the listener when many threads make it at once, so the cached time
+     *               clock costs far more than the rest of the sink when many threads make it at once, so the cached time
      *               of the thread pool is the one to give
      */
-    public QueryCaptureListener(ClusterSettings clusterSettings, Consumer<CapturedSearch> consumer, LongSupplier millis) {
+    public QueryCaptureSink(ClusterSettings clusterSettings, Consumer<CapturedSearch> consumer, LongSupplier millis) {
         this(clusterSettings, consumer, millis, Randomness::get);
     }
 
     /** {@code random} is for the benchmark: {@link Randomness#get()} does not work in a JVM that has the test framework but no test. */
-    public QueryCaptureListener(
+    public QueryCaptureSink(
         ClusterSettings clusterSettings,
         Consumer<CapturedSearch> consumer,
         LongSupplier millis,
         Supplier<Random> random
     ) {
+        super(() -> "query sampling capture");
         this.consumer = consumer;
         this.random = random;
         this.millis = millis;
@@ -126,48 +127,50 @@ public final class QueryCaptureListener implements ActivityLogListener<SearchLog
         return captureRate.effective();
     }
 
+    @Override
+    public boolean isEnabled() {
+        return enabled;
+    }
+
     /**
-     * Decides when the search starts whether it is captured, so a search that is not is not followed.
+     * Called for every completed query of every type (search, ES|QL, EQL, SQL) while the sink is enabled, so what is not a
+     * kNN search that can be captured is dismissed first, before anything is counted or copied. Runs on the thread that
+     * completes the query, before the response is passed on; the interceptor logs and swallows an exception, but this one
+     * warns at most once a minute.
      */
     @Override
-    @Nullable
-    public Consumer<SearchLogContext> start(Task task, SearchRequest request) {
-        if (enabled == false || task.getParentTaskId().isSet()) {
-            return null;
+    public void accept(QueryCaptureContext context) {
+        if (context instanceof SearchCaptureContext search) {
+            acceptSearch(search);
         }
+    }
+
+    private void acceptSearch(SearchCaptureContext context) {
+        if (context.getParentTaskId().isPresent()) {
+            return;
+        }
+        SearchRequest request = context.getRequest();
         KnnSearchBuilder knn = eligibleKnn(request);
         if (knn == null) {
-            return null;
+            return;
         }
         knnSearches.increment();
         updateRateIfDue();
         // read once: the draw and the rate recorded with the search must be the same value
         double rate = captureRate.effective();
         if (random.get().nextDouble() >= rate) {
-            return null;
+            return;
         }
         captured.increment();
-        CapturedQuery query;
-        try {
-            query = capture(task, request, knn);
-        } catch (Exception e) {
-            // capturing must never fail the search
-            warn("failed to capture kNN search", e);
-            return null;
-        }
-        return context -> completed(context, query, rate);
-    }
-
-    private void completed(SearchLogContext context, CapturedQuery query, double rate) {
         // a failure or a partial answer (shards that failed, a timeout, a search that stopped early) would count as a low recall
         SearchResponse response = context.getResponse();
         if (response == null || isComplete(response) == false) {
             return;
         }
         try {
-            consumer.accept(captureResults(query, response, rate));
+            consumer.accept(captureResults(capture(context, request, knn), response, rate));
         } catch (Exception e) {
-            warn("failed to capture kNN search results", e);
+            warn("failed to capture kNN search", e);
         }
     }
 
@@ -261,7 +264,7 @@ public final class QueryCaptureListener implements ActivityLogListener<SearchLog
         return Math.min(knn.k(), size);
     }
 
-    private static CapturedQuery capture(Task task, SearchRequest request, KnnSearchBuilder knn) {
+    private static CapturedQuery capture(SearchCaptureContext context, SearchRequest request, KnnSearchBuilder knn) {
         return new CapturedQuery(
             request.indices().clone(),
             knn.getField(),
@@ -271,7 +274,7 @@ public final class QueryCaptureListener implements ActivityLogListener<SearchLog
             knn.getVisitPercentage(),
             knn.getRescoreVectorBuilder() == null ? null : knn.getRescoreVectorBuilder().oversample(),
             List.copyOf(knn.getFilterQueries()),
-            task.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER)
+            context.getOpaqueId()
         );
     }
 }

@@ -2605,7 +2605,6 @@ public class TransportSearchActionTests extends ESTestCase {
                 new QuerySinkRegistry(List.of()),
                 new TestActionActionLoggingFieldsProvider(),
                 ActivityLogWriterProvider.NOOP,
-                SearchLogListeners.NONE,
                 CrossProjectModeDecider.NOOP
             );
 

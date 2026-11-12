@@ -9,28 +9,26 @@ package org.elasticsearch.xpack.querysampling;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchLogContext;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.logging.activity.ActivityLogListener;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.xpack.querysampling.capture.CaptureHandoff;
-import org.elasticsearch.xpack.querysampling.capture.QueryCaptureListener;
+import org.elasticsearch.xpack.querysampling.capture.QueryCaptureSink;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.groundtruth.CostBudget;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruthWorker;
@@ -60,7 +58,7 @@ import java.util.function.BiConsumer;
 import static org.elasticsearch.xpack.core.ClientHelper.QUERY_SAMPLING_ORIGIN;
 
 /** Samples live kNN queries to estimate production recall; runs on the coordinating node, off the search path. */
-public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemIndexPlugin {
+public class QuerySamplingPlugin extends Plugin implements SystemIndexPlugin {
 
     public static final FeatureFlag QUERY_SAMPLING_FEATURE_FLAG = new FeatureFlag("query_sampling");
 
@@ -73,7 +71,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
     private static final int MAX_PENDING_WRITES = 1000;
     private static final TimeValue WRITE_INTERVAL = TimeValue.timeValueSeconds(1);
 
-    private final SetOnce<QueryCaptureListener> captureListener = new SetOnce<>();
+    private final SetOnce<QueryCaptureSink> captureSink = new SetOnce<>();
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -191,7 +189,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         );
         groundTruthWorker.start(services.threadPool(), generic, clusterSettings);
         CaptureHandoff handoff = new CaptureHandoff(services.threadPool().executor(THREAD_POOL_NAME), pipeline);
-        captureListener.set(new QueryCaptureListener(clusterSettings, handoff, services.threadPool()::relativeTimeInMillis));
+        captureSink.set(new QueryCaptureSink(clusterSettings, handoff, services.threadPool()::relativeTimeInMillis));
         return List.of();
     }
 
@@ -213,12 +211,12 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         return "Stores the sampled kNN queries used to estimate the quality of search";
     }
 
-    @Override
-    public Collection<ActivityLogListener<SearchLogContext, SearchRequest>> getSearchLogListeners() {
-        // settings stay registered, but without the flag nothing may act on them
-        if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled() == false) {
-            return List.of();
-        }
-        return List.of(captureListener.get());
+    /**
+     * The sink that the query interceptor hands completed queries to, see {@link QuerySamplingSinkProvider}. Without the
+     * feature flag there is none: the settings stay registered, but nothing may act on them.
+     */
+    @Nullable
+    QueryCaptureSink captureSink() {
+        return captureSink.get();
     }
 }

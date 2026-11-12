@@ -36,7 +36,6 @@ import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
-import org.elasticsearch.action.search.SearchLogListeners;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -1076,7 +1075,6 @@ public class SnapshotResiliencyTestHelper {
                         new QuerySinkRegistry(List.of()),
                         new IndicesServiceTests.TestActionActionLoggingFieldsProvider(),
                         ActivityLogWriterProvider.NOOP,
-                        SearchLogListeners.NONE,
                         CrossProjectModeDecider.NOOP
                     )
                 );

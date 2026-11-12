@@ -70,8 +70,8 @@ public class SearchCaptureContext extends QueryCaptureContext {
     }
 
     /**
-     * The response, or {@code null} if the search failed. It is ref-counted and may be released once the context has been
-     * handled, so whatever is needed of it is copied while handling it.
+     * The response, or {@code null} if the search failed. It is ref-counted and may be released once the sinks have handled
+     * the context, so whatever a sink needs of it is copied while handling it.
      */
     @Nullable
     public SearchResponse getResponse() {

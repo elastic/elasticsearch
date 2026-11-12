@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.querysampling.capture;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.search.SearchLogContext;
-import org.elasticsearch.action.search.SearchLogContextBuilder;
+import org.elasticsearch.action.search.SearchCaptureContext;
+import org.elasticsearch.action.search.SearchCaptureContextBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -43,16 +43,16 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class QueryCaptureListenerTests extends ESTestCase {
+public class QueryCaptureSinkTests extends ESTestCase {
 
     private final List<CapturedSearch> captured = new ArrayList<>();
 
     public void testCapturesKnnSearch() {
-        QueryCaptureListener listener = listener(true, 1.0, captured::add);
+        QueryCaptureSink sink = sink(true, 1.0, captured::add);
         float[] vector = randomVector(8);
         SearchRequest request = knnSearch(vector);
 
-        search(listener, request, TaskId.EMPTY_TASK_ID);
+        search(sink, request, TaskId.EMPTY_TASK_ID);
 
         assertThat(captured.size(), equalTo(1));
         CapturedQuery query = captured.get(0).query();
@@ -68,7 +68,7 @@ public class QueryCaptureListenerTests extends ESTestCase {
     }
 
     public void testIgnoresSearchesThatAreNotOverAllTheDocumentsOfTheirIndicesOrDoNotReturnTheNearestK() {
-        QueryCaptureListener listener = listener(true, 1.0, captured::add);
+        QueryCaptureSink sink = sink(true, 1.0, captured::add);
         List<SearchRequest> notComparable = new ArrayList<>();
         notComparable.add(knnSearch(randomVector(8)).routing("a"));
         notComparable.add(knnSearch(randomVector(8)).preference("_shards:0"));
@@ -85,46 +85,46 @@ public class QueryCaptureListenerTests extends ESTestCase {
         notComparable.add(knnSearch(randomVector(8)).source(knnSource().indexBoost("idx", 2f)));
         notComparable.add(knnSearch(randomVector(8)).source(knnSource().size(0)));
         for (SearchRequest request : notComparable) {
-            search(listener, request, TaskId.EMPTY_TASK_ID);
+            search(sink, request, TaskId.EMPTY_TASK_ID);
         }
 
         assertTrue(captured.isEmpty());
-        assertThat(listener.knnSearches(), equalTo(0L));
+        assertThat(sink.knnSearches(), equalTo(0L));
     }
 
     public void testASearchSortedByItsScoreIsTheDefaultOrderAndIsCaptured() {
-        QueryCaptureListener listener = listener(true, 1.0, captured::add);
+        QueryCaptureSink sink = sink(true, 1.0, captured::add);
 
-        search(listener, knnSearch(randomVector(8)).source(knnSource().sort(SortBuilders.scoreSort())), TaskId.EMPTY_TASK_ID);
+        search(sink, knnSearch(randomVector(8)).source(knnSource().sort(SortBuilders.scoreSort())), TaskId.EMPTY_TASK_ID);
 
         assertThat(captured.size(), equalTo(1));
     }
 
     public void testTheCaptureRateFollowsTheTrafficWhenSearchesComeInWithoutAScheduledTask() {
         AtomicLong millis = new AtomicLong();
-        QueryCaptureListener listener = new QueryCaptureListener(clusterSettings(true, 0.0, 3600), captured::add, millis::get);
-        assertThat("no traffic known yet, and none configured", listener.effectiveCaptureRate(), equalTo(0.0));
+        QueryCaptureSink sink = new QueryCaptureSink(clusterSettings(true, 0.0, 3600), captured::add, millis::get);
+        assertThat("no traffic known yet, and none configured", sink.effectiveCaptureRate(), equalTo(0.0));
 
         for (int i = 0; i < 20; i++) {
-            search(listener, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID);
+            search(sink, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID);
         }
-        assertThat("an interval has not passed", listener.effectiveCaptureRate(), equalTo(0.0));
+        assertThat("an interval has not passed", sink.effectiveCaptureRate(), equalTo(0.0));
 
         millis.addAndGet(TimeUnit.SECONDS.toMillis(10));
-        search(listener, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID);
-        assertThat("21 searches in 10 s, and 3600 captures an hour are wanted", listener.effectiveCaptureRate(), closeTo(1 / 2.1, 1e-9));
+        search(sink, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID);
+        assertThat("21 searches in 10 s, and 3600 captures an hour are wanted", sink.effectiveCaptureRate(), closeTo(1 / 2.1, 1e-9));
 
         millis.addAndGet(TimeUnit.SECONDS.toMillis(60));
-        search(listener, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID);
+        search(sink, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID);
         assertThat(
             "after a quiet spell what came before is forgotten, and whatever arrives is wanted",
-            listener.effectiveCaptureRate(),
+            sink.effectiveCaptureRate(),
             equalTo(1.0)
         );
     }
 
-    private static QueryCaptureListener listener(boolean enabled, double rate, Consumer<CapturedSearch> consumer) {
-        return new QueryCaptureListener(clusterSettings(enabled, rate), consumer, () -> 0L);
+    private static QueryCaptureSink sink(boolean enabled, double rate, Consumer<CapturedSearch> consumer) {
+        return new QueryCaptureSink(clusterSettings(enabled, rate), consumer, () -> 0L);
     }
 
     private static ClusterSettings clusterSettings(boolean enabled, double rate) {
@@ -164,16 +164,17 @@ public class QueryCaptureListenerTests extends ESTestCase {
         }
     }
 
-    /** What the query log does with a listener: start it when the search starts, and hand it the context when it completes. */
-    private static void search(QueryCaptureListener listener, SearchRequest request, TaskId parent) {
+    /** What the query interceptor does with a sink: hand it the context of the completed search if it is enabled. */
+    private static void search(QueryCaptureSink sink, SearchRequest request, TaskId parent) {
         Task task = new Task(1, "transport", TransportSearchAction.NAME, "", parent, Map.of(Task.X_OPAQUE_ID_HTTP_HEADER, "q7"));
-        Consumer<SearchLogContext> follower = listener.start(task, request);
-        if (follower == null) {
-            return;
-        }
         SearchResponse response = response(1);
         try {
-            follower.accept(new SearchLogContextBuilder(task, new NamedWriteableRegistry(List.of()), request).build(response));
+            SearchCaptureContext context = new SearchCaptureContextBuilder(task, new NamedWriteableRegistry(List.of()), request).build(
+                response
+            );
+            if (sink.isEnabled()) {
+                sink.accept(context);
+            }
         } finally {
             response.decRef();
         }

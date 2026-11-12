@@ -1,0 +1,91 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar.bare_null_is_absence" ]
+      reason: "columnar index mode and bare null handling required"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+              lng:
+                type: long
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{ "kwd": "a", "lng": 1 }'
+          - '{ "index": { "_id": "null_in_array" } }'
+          - '{ "kwd": [ null ], "lng": [ null ] }'
+          - '{ "index": { "_id": "only_nulls" } }'
+          - '{ "kwd": [ null, null ], "lng": [ null, null ] }'
+          - '{ "index": { "_id": "mixed" } }'
+          - '{ "kwd": [ "a", null, "b" ], "lng": [ 1, null, 2 ] }'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{ "kwd": null, "lng": null }'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{ "kwd": [], "lng": [] }'
+          - '{ "index": { "_id": "missing" } }'
+          - '{ "other": "c" }'
+          - '{ "index": { "_id": "leading_null" } }'
+          - '{ "kwd": [ null, "a" ], "lng": [ null, 1 ] }'
+          - '{ "index": { "_id": "trailing_null" } }'
+          - '{ "kwd": [ "a", null ], "lng": [ 1, null ] }'
+          - '{ "index": { "_id": "both_ends_null" } }'
+          - '{ "kwd": [ null, "a", null ], "lng": [ null, 1, null ] }'
+
+---
+IS NOT NULL keeps only documents with a non-null keyword value:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "IS NOT NULL on a keyword matches documents that hold only nulls"
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _id | WHERE kwd IS NOT NULL | SORT _id | KEEP _id | LIMIT 100'
+
+  - match: { values: [ [ both_ends_null ], [ leading_null ], [ mixed ], [ trailing_null ], [ value ] ] }
+
+---
+IS NOT NULL keeps only documents with a non-null long value:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _id | WHERE lng IS NOT NULL | SORT _id | KEEP _id | LIMIT 100'
+
+  - match: { values: [ [ both_ends_null ], [ leading_null ], [ mixed ], [ trailing_null ], [ value ] ] }
+
+---
+a keyword value read after a function is null for documents with only nulls:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _id | EVAL upper = TO_UPPER(kwd) | WHERE upper IS NOT NULL | SORT _id | KEEP _id | LIMIT 100'
+
+  - match: { values: [ [ both_ends_null ], [ leading_null ], [ mixed ], [ trailing_null ], [ value ] ] }
+
+---
+a long value read after a function is null for documents with only nulls:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _id | EVAL largest = MV_MAX(lng) | WHERE largest IS NOT NULL | SORT _id | KEEP _id | LIMIT 100'
+
+  - match: { values: [ [ both_ends_null ], [ leading_null ], [ mixed ], [ trailing_null ], [ value ] ] }

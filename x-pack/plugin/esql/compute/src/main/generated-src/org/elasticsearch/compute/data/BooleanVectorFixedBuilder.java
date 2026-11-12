@@ -67,7 +67,7 @@ public final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuild
         closed = true;
         BooleanVector vector;
         if (values.length == 1) {
-            vector = blockFactory.newConstantBooleanBlockWith(values[0], 1, preAdjustedBytes).asVector();
+            vector = blockFactory.newConstantBooleanVector(values[0], 1, preAdjustedBytes);
         } else {
             vector = blockFactory.newBooleanArrayVector(values, values.length, preAdjustedBytes);
         }
@@ -84,6 +84,7 @@ public final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuild
         }
     }
 
+    @Override
     public boolean isReleased() {
         return closed;
     }

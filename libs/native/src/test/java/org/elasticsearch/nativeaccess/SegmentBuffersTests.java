@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.nio.file.StandardOpenOption.READ;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SegmentBuffersTests extends ESTestCase {
@@ -74,7 +75,7 @@ public class SegmentBuffersTests extends ESTestCase {
                 int read = 0;
                 while (read < sliceLength) {
                     int n = channel.read(dst, sliceOffset + read);
-                    assertThat("unexpected EOF", n, greaterThanOrEqualTo(0))
+                    assertThat("unexpected EOF", n, greaterThanOrEqualTo(0));
                     read += n;
                 }
             });

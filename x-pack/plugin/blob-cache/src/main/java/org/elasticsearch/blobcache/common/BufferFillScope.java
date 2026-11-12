@@ -107,8 +107,8 @@ public abstract class BufferFillScope {
     private static boolean checkOwner(MemorySegment segment) {
         assert segment.isAccessibleBy(Thread.currentThread())
             : "the scope must be created on the thread that owns the buffer, but the memory is not accessible by ["
-            + Thread.currentThread()
-            + "]";
+                + Thread.currentThread()
+                + "]";
         return true;
     }
 

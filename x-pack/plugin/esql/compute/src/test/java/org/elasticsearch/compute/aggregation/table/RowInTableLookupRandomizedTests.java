@@ -152,7 +152,7 @@ public class RowInTableLookupRandomizedTests extends ESTestCase {
         try (Table table = randomTable(tableFactory); RowInTableLookup offsetInTable = RowInTableLookup.build(tableFactory, table.blocks)) {
             assertThat(offsetInTable, expectedImplementation);
             long tableBytes = tableFactory.breaker().getUsed();
-            // Randomness is only available on the test thread, so every input is built up front.
+            // Every input is built before the threads start, so they only run lookups concurrently.
             List<List<ToLookup>> inputs = new ArrayList<>(threads);
             List<List<ByteSizeValue>> targets = new ArrayList<>(threads);
             for (int t = 0; t < threads; t++) {

@@ -630,9 +630,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // A no-limit scan (e.g. STATS) visits every matching doc, so it shares the cost-threshold rule with count and
             // TopN: cheap -> SEGMENT, scan-heavy -> DOC (implicit-limit stays SHARD; time-series keeps its own strategy).
             long minCostForDoc = context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE);
+            boolean wideRows = rowEstimatedSize >= LuceneSourceOperator.Factory.WIDE_ROW_ESTIMATED_BYTES;
             var autoStrategy = context.timeSeries()
                 ? context.autoPartitioningStrategy()
-                : LuceneSourceOperator.Factory.autoStrategy(minCostForDoc);
+                : LuceneSourceOperator.Factory.autoStrategy(minCostForDoc, taskConcurrency, wideRows);
             luceneFactory = new LuceneSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.queryBuilderAndTags()),

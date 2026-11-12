@@ -1477,6 +1477,85 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
     }
 
+    /**
+     * A point range that matches a lot of one shard is partitioned by {@code DOC}, so more than one driver can read the
+     * matches of a big segment. {@code SEGMENT} never cuts a segment. A range that matches too few docs to give every
+     * driver a minimum slice stays on {@code SEGMENT}.
+     */
+    public void testAutoPartitioningPointRange() throws IOException {
+        indexTimestampData(1);
+        assumeTrue("require pragmas", Build.current().isSnapshot());
+        String query = fromIndex() + " | WHERE value >= 100 AND value < 900 | STATS AVG(value)";
+        // The range matches 800 docs. With min_docs_per_slice=10 and task_concurrency=4 it needs about 40 to take DOC.
+        Map<String, Object> result = runWithLuceneSourceProfile(query, 4);
+        assertResultMap(
+            result,
+            getResultMatcher(result).entry("profile", getProfileMatcher()),
+            matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double")),
+            equalTo(List.of(List.of(499.5d)))
+        );
+        assertLuceneSourceStrategy(result, "DOC");
+        // With task_concurrency=1000 it needs about 10_000 docs, which is more than the index has.
+        assertLuceneSourceStrategy(runWithLuceneSourceProfile(query, 1000), "SEGMENT");
+    }
+
+    /**
+     * Rows that are wide, many fields loaded and many {@code EVAL}s before the aggregation, make a scan with a pushed down
+     * range {@code DOC} however few docs match, because each match is a lot of work for the driver that gets it. A narrow
+     * row keeps {@code SEGMENT}.
+     */
+    public void testAutoPartitioningWideRows() throws IOException {
+        indexTimestampData(1);
+        assumeTrue("require pragmas", Build.current().isSnapshot());
+        int fields = 30; // about 50 estimated bytes each, so the rows are wider than LuceneSourceOperator.Factory.WIDE_ROW_ESTIMATED_BYTES
+        StringBuilder evals = new StringBuilder();
+        StringBuilder aggs = new StringBuilder();
+        for (int i = 0; i < fields; i++) {
+            evals.append(i == 0 ? "" : ", ").append("k").append(i).append(" = TO_STRING(value + ").append(i).append(")");
+            aggs.append(i == 0 ? "" : ", ").append("m").append(i).append(" = MIN(k").append(i).append(")");
+        }
+        String range = fromIndex() + " | WHERE value >= 100 AND value < 900";
+        // task_concurrency=1000 puts the match threshold of the range above the index, so only the wide rows can take DOC.
+        assertLuceneSourceStrategy(runWithLuceneSourceProfile(range + " | EVAL " + evals + " | STATS " + aggs, 1000), "DOC");
+        assertLuceneSourceStrategy(runWithLuceneSourceProfile(range + " | STATS m = MIN(value)", 1000), "SEGMENT");
+    }
+
+    private Map<String, Object> runWithLuceneSourceProfile(String query, int taskConcurrency) throws IOException {
+        RequestObjectBuilder builder = requestObjectBuilder().query(query);
+        builder.profile(true);
+        builder.pragmas(
+            Settings.builder()
+                .put("data_partitioning", "auto")
+                .put("esql.docs_threshold_auto_partitioning", 20)
+                .put("min_docs_per_slice", 10)
+                .put("task_concurrency", taskConcurrency)
+                .build()
+        );
+        return runEsql(builder);
+    }
+
+    private static void assertLuceneSourceStrategy(Map<String, Object> result, String expectedStrategy) {
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+        int sources = 0;
+        for (Map<String, Object> p : profiles) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+            for (Map<String, Object> o : operators) {
+                String name = signature(o);
+                if (name.equals("LuceneSourceOperator")) {
+                    sources++;
+                    MapMatcher status = matchesMap().entry(
+                        "partitioning_strategies",
+                        matchesMap().entry("rest-esql-test:0", expectedStrategy)
+                    ).extraOk();
+                    assertMap(o, matchesMap().entry("operator", startsWith(name)).entry("status", status));
+                }
+            }
+        }
+        assertThat("query should read with a LuceneSourceOperator", sources, greaterThan(0));
+    }
+
     private Map<String, Object> findSingleReaderProfile(String driverDescription, Map<String, Object> result) {
         Map<String, Object> reader = null;
         @SuppressWarnings("unchecked")

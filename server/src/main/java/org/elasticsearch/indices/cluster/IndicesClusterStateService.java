@@ -1646,8 +1646,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     l
                 )
             );
+        } catch (Exception e) {
+            // should not be possible
+            final var wrappedException = new IllegalStateException("unexpected failure in handleRecoveryFailure on " + shardRouting, e);
+            logger.error(wrappedException.getMessage(), e);
+            assert false : e;
+        } finally {
             // A no-op if sendFailShard already overwrote this entry with FailureReported (its put always wins);
-            // otherwise there's no further attempt coming for this ticket, so clear it here.
+            // otherwise there's no further attempt coming for this ticket, so clear it here. Unconditional (not
+            // just on the try's success path) so an unexpected exception above still releases the ticket, rather
+            // than leaving it owned forever by an attempt that's already done failing.
             final boolean cleared = pendingAllocationStates.remove(key, inFlightTicket);
             logger.debug(
                 "{} recovery failure handled [{}]: {}",
@@ -1655,11 +1663,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 finalStrategy,
                 cleared ? "cleared InFlight ticket" : "ticket already superseded"
             );
-        } catch (Exception e) {
-            // should not be possible
-            final var wrappedException = new IllegalStateException("unexpected failure in handleRecoveryFailure on " + shardRouting, e);
-            logger.error(wrappedException.getMessage(), e);
-            assert false : e;
         }
     }
 

@@ -99,14 +99,7 @@ final class EscfUnionColumn extends EscfColumn {
         return value(row);
     }
 
-    /**
-     * A union row is multi-valued when it is an array holding more than one leaf value, counting through nested arrays the way the
-     * mappers flatten them. An explicit {@code null} element counts only when {@code countNulls}: a mapper that substitutes
-     * {@code null_value} for it writes a value, so {@code [x, null]} is two values on a single-valued field, but a mapper that drops
-     * it writes one.
-     *
-     * <p>Costs one {@link ArrayReader} per array row, and stops reading a row at its second value.
-     */
+    /** A union row is multi-valued when it holds more than one leaf value, counting through nested arrays; nulls count only if {@code countNulls}. */
     @Override
     public boolean hasMultiValueDoc(boolean countNulls) {
         for (int row = 0; row < docCount; row++) {

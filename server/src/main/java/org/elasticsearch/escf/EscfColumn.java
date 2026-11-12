@@ -128,8 +128,7 @@ public abstract class EscfColumn implements SliceableColumn {
 
     /**
      * Returns {@code true} if any document in this column carries more than one value. Always
-     * {@code false} for scalar columns; {@link EscfArrayColumn} overrides this to scan its
-     * per-row element-range offsets. Used by {@link org.elasticsearch.index.mapper.FieldMapper#mapColumnBatch}
+     * {@code false} for scalar columns; {@link EscfArrayColumn} and {@link EscfUnionColumn} override this. Used by {@link org.elasticsearch.index.mapper.FieldMapper#mapColumnBatch}
      * to enforce {@code multi_value=false} before delegating to the field-specific implementation.
      */
     public final boolean hasMultiValueDoc() {
@@ -137,10 +136,8 @@ public abstract class EscfColumn implements SliceableColumn {
     }
 
     /**
-     * As {@link #hasMultiValueDoc()}, but an explicit {@code null} array element is a value only when {@code countNulls} is
-     * {@code true}. A mapper that drops a {@code null} (it has no {@code null_value} to substitute) passes {@code false}, so that
-     * {@code [x, null]} is not reported as two values. An implementation may ignore {@code countNulls} and answer {@code true} for a
-     * document the mapper would accept, because the caller then falls back to the row path, which is always correct.
+     * As {@link #hasMultiValueDoc()}, but a {@code null} array element counts as a value only when {@code countNulls} is {@code true}.
+     * An implementation may over-report, since the caller then just falls back to the row path.
      */
     public boolean hasMultiValueDoc(boolean countNulls) {
         return false;

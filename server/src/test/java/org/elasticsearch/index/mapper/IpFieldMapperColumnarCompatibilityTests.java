@@ -679,7 +679,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         return b.startObject(FIELD).field("type", "ip").field("ignore_malformed", true).field("multi_value", multiValue).endObject();
     }
 
-    /** Malformed elements, including numbers and booleans, take no array-order slot, wherever they are and however many a document has. */
+    /** Malformed elements, including numbers and booleans, take no array-order slot. */
     public void testIgnoreMalformedInArrays() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> ignoreMalformedMapping(b, true)),
@@ -718,7 +718,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         );
     }
 
-    /** In TSDB, malformed values (strings, numbers, booleans, duplicates) go to the ._ignore_malformed column, which sorts a document's values. */
+    /** In TSDB, malformed values go to the sorted ._ignore_malformed column. */
     public void testTsdbIgnoreMalformed() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject("@timestamp").field("type", "date").endObject();
@@ -760,11 +760,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         );
     }
 
-    /**
-     * A number or boolean in an ip field is a malformed address, which the row path keeps as the number or boolean it was written as
-     * (an int when it fits one, a long otherwise, a double otherwise), so the batch path must too, rather than fall the batch back.
-     * The edges of what an int, a long and a double hold are included to check the values are kept exactly as written.
-     */
+    /** A number or boolean in an ip field is malformed and must be kept as the type it was written as, including int/long/double edges. */
     public void testIgnoreMalformedNonStringTokens() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> ignoreMalformedMapping(b, false)),
@@ -791,7 +787,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         );
     }
 
-    /** The row path keeps duplicate malformed values, so the batch path must too, in both the sorted and the ordered column. */
+    /** Duplicate malformed values are kept, in both the sorted and the ordered column. */
     public void testIgnoreMalformedDuplicateValues() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> ignoreMalformedMapping(b, true)),
@@ -805,10 +801,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         );
     }
 
-    /**
-     * An explicit null with no null_value is dropped by the row path, so {@code [ip, null]} is one value on a multi_value=false field
-     * and must stay on the batch path; with a null_value it is a second value.
-     */
+    /** Without a null_value, {@code [ip, null]} is one value on a multi_value=false field and stays on the batch path. */
     public void testMultiValueFalseNullWithoutNullValueIsNotASecondValue() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "ip").field("multi_value", false).endObject()),
@@ -831,10 +824,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         );
     }
 
-    /**
-     * A null element makes the source a union column rather than an array column; the external multi_value=false check must still
-     * count its leaves, for arrays with or without a null_value.
-     */
+    /** An array with a null element is a union column; the multi_value=false check must still count its values. */
     public void testMultiValueFalseUnionArrayRejectsTwoValues() throws IOException {
         final MapperService mapperService = createMapperService(columnarSettings(), mapping(b -> {
             b.startObject(FIELD).field("type", "ip").field("multi_value", false).field("null_value", "0.0.0.0").endObject();

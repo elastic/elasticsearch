@@ -119,29 +119,19 @@ public final class EscfColumnTransforms {
         return typedUtf8Cursor(column, retainValues);
     }
 
-    /**
-     * An {@link #utf8Cursor} that also says what each stringified value was in the source. A caller that must tell the string
-     * {@code "123"} from the number {@code 123}, such as one that stores a rejected value as it was written, reads
-     * {@link #valueType()} next to {@link #value()}.
-     */
+    /** A {@link #utf8Cursor} that also reports each value's source type, to tell the string {@code "123"} from the number {@code 123}. */
     public abstract static class TypedUtf8Cursor extends ObjectTupleCursor<BytesRef> {
-        /** The {@link SourceValueType} byte of the value {@link #value()} currently holds; {@code NULL} when that is {@code null}. */
+        /** The {@link SourceValueType} of the current value. */
         public abstract byte valueType();
 
-        /** The current value as it was in the source, when {@link #valueType()} is {@code INT} or {@code LONG}. */
+        /** The current value, when {@link #valueType()} is {@code INT} or {@code LONG}. */
         public abstract long longValue();
 
-        /**
-         * The current value as it was in the source, when {@link #valueType()} is {@code FLOAT} or {@code DOUBLE}. A {@code FLOAT} is
-         * widened exactly, so casting back to {@code float} recovers it.
-         */
+        /** The current value, when {@link #valueType()} is {@code FLOAT} or {@code DOUBLE}. */
         public abstract double doubleValue();
     }
 
-    /**
-     * Like {@link #utf8Cursor}, with {@link TypedUtf8Cursor#valueType()}. A STRING column reports {@link SourceValueType#STRING}
-     * throughout.
-     */
+    /** Like {@link #utf8Cursor}, but also exposes {@link TypedUtf8Cursor#valueType()}. */
     public static TypedUtf8Cursor typedUtf8Cursor(EscfColumn column, boolean retainValues) {
         if (column.kind() == EscfColumnKind.STRING) {
             final ObjectTupleCursor<BytesRef> strings = column.bytesRefCursor(retainValues);
@@ -184,9 +174,9 @@ public final class EscfColumnTransforms {
         // Stack of active array readers; grows on nested arrays, shrinks on exhaustion.
         private ArrayReader[] arStack = null;
         private int arDepth = 0;
-        // The SourceValueType of the value last returned, which the stringified bytes alone do not say.
+        // The source type of the value last returned.
         private byte valueType = SourceValueType.NULL;
-        // The raw number last returned, valid for the matching valueType; saves a caller re-parsing the stringified form.
+        // The number last returned, for longValue() and doubleValue().
         private long currentLong;
         private double currentDouble;
 

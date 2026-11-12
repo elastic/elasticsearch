@@ -75,10 +75,7 @@ public final class XContentDataHelper {
         return new BytesRef(bytes);
     }
 
-    /**
-     * The encoded form {@link #encodeToken(XContentParser)} produces for an integral number token: an int when the value fits one,
-     * as the parser reports its {@code numberType()}, and a long otherwise.
-     */
+    /** The encoding {@link #encodeToken(XContentParser)} produces for an integral number: an int when it fits, a long otherwise. */
     static BytesRef encodeIntegral(long value) {
         if (value >= Integer.MIN_VALUE && value <= Integer.MAX_VALUE) {
             byte[] bytes = new byte[5];
@@ -92,7 +89,7 @@ public final class XContentDataHelper {
         return new BytesRef(bytes);
     }
 
-    /** The encoded form {@link #encodeToken(XContentParser)} produces for a floating point number token. */
+    /** The encoding {@link #encodeToken(XContentParser)} produces for a floating point number. */
     static BytesRef encodeDouble(double value) {
         byte[] bytes = new byte[9];
         bytes[0] = (byte) DOUBLE_ENCODING;
@@ -100,7 +97,7 @@ public final class XContentDataHelper {
         return new BytesRef(bytes);
     }
 
-    /** The encoded form {@link #encodeToken(XContentParser)} produces for a boolean token. */
+    /** The encoding {@link #encodeToken(XContentParser)} produces for a boolean. */
     static BytesRef encodeBoolean(boolean value) {
         return new BytesRef(new byte[] { value ? (byte) TRUE_ENCODING : (byte) FALSE_ENCODING });
     }

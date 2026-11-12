@@ -586,11 +586,7 @@ public abstract class FieldMapper extends Mapper {
         return false;
     }
 
-    /**
-     * Whether an explicit {@code null} array element counts as a value when {@link #shouldEnforceSingleValueBatch} is checked: true
-     * when this mapper writes something for it (a {@code null_value}), false when it drops it. Defaults to {@code true}, which can
-     * only send a valid batch to the row path, never accept an invalid one.
-     */
+    /** Whether a {@code null} array element counts as a value in the {@code multi_value=false} check; true unless the mapper drops it. */
     protected boolean nullCountsAsValueBatch() {
         return true;
     }

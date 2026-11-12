@@ -158,11 +158,7 @@ public final class FallbackPostMapper {
             && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.MALFORMED_VALUES_IN_ON_FAILURE_COLUMN);
     }
 
-    /**
-     * Whether a value routed to {@link Destination#ON_FAILURE} is written at all: only when the source is reconstructed from the
-     * index (synthetic, or stored in columns), since otherwise the original source already holds it. The columnar batch path must
-     * apply the same gate as the row path, so both call this.
-     */
+    /** Whether a value routed to {@link Destination#ON_FAILURE} is written at all: only when the source is reconstructed from the index. */
     static boolean storesOnFailureValues(MappingLookup mappingLookup) {
         return mappingLookup.isSourceSynthetic() || mappingLookup.isSourceColumnarStored();
     }

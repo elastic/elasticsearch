@@ -844,7 +844,7 @@ public class IpFieldMapper extends FieldMapper {
         return docValuesParameters.multiValue() == false && (token != XContentParser.Token.VALUE_NULL || nullValue != null);
     }
 
-    /** A {@code null} element is a value only when it is replaced by {@code null_value}, as in {@link #shouldEnforceSingleValue}. */
+    /** A {@code null} element is a value only when {@code null_value} replaces it. */
     @Override
     protected boolean nullCountsAsValueBatch() {
         return nullValue != null;
@@ -884,12 +884,7 @@ public class IpFieldMapper extends FieldMapper {
             && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
     }
 
-    /**
-     * Whether the batch path can write what the row path keeps for a malformed value of this field. The batch path writes the
-     * {@code SeparateCount} layout, and {@code ._ignore_malformed} is binary doc values only on newer indices, a stored field
-     * before. It is not part of {@link #doSupportsColumnarParse}: a field on such an index stays on the batch path, and only a batch
-     * that holds a malformed value is sent back to the row path (see {@code MalformedCapture#record}).
-     */
+    /** Whether the index layout lets the batch path store a malformed value; if not, a batch containing one falls back to the row path. */
     private boolean batchCanStoreMalformed(IndexSettings indexSettings) {
         if (ignoreMalformed == false || storeIgnored == false) {
             return true;
@@ -939,11 +934,7 @@ public class IpFieldMapper extends FieldMapper {
         return b;
     }
 
-    /**
-     * Encodes a single IP address from its UTF-8 bytesref form to the 16-byte InetAddressPoint sortable format, or returns
-     * {@code null} when it is not a valid IP address. The caller hands a malformed value to {@link MalformedCapture}, which applies
-     * {@code ignore_malformed} the way the row path does, or refuses the batch so that it falls back to the row path.
-     */
+    /** Encodes an IP address to the 16-byte InetAddressPoint sortable format, or returns {@code null} if it is not valid. */
     private static BytesRef tryEncodeIp(BytesRef utf8) {
         try {
             return new BytesRef(InetAddresses.encodeAsIpv6(utf8.bytes, utf8.offset, utf8.length));
@@ -1033,7 +1024,7 @@ public class IpFieldMapper extends FieldMapper {
                     continue;
                 }
 
-                // A malformed value takes no slot, as on the row path, which returns before indexing it.
+                // A malformed value takes no array-order slot.
                 final BytesRef encoded = tryEncodeIp(utf8Value);
                 if (encoded == null) {
                     malformed.record(currentDoc, cursor);
@@ -1088,8 +1079,7 @@ public class IpFieldMapper extends FieldMapper {
                 }
                 currentDoc = nextDoc;
 
-                // multi_value=false violations (including [ip, null] with a null_value) are rejected before this runs,
-                // see FieldMapper#mapColumnBatch and shouldEnforceSingleValueBatch.
+                // multi_value=false is enforced earlier, in FieldMapper#mapColumnBatch.
                 BytesRef utf8Value = cursor.value();
                 if (utf8Value == null) {
                     if (nullValueEncoded != null) {
@@ -1123,28 +1113,20 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     /**
-     * Applies {@code ignore_malformed} to the values of one batch the way {@link #parseCreateField} does for one document: the field
-     * is reported in {@code _ignored} once per document, and, when the field has synthetic source, each malformed value is kept in the
-     * {@code ._on_failure} column (or {@code ._ignore_malformed}, see {@link FallbackPostMapper#malformedUsesOnFailureColumn}) so that
-     * it can be put back. A batch the row path would treat differently is refused with {@link UnsupportedOperationException}, which
-     * makes {@code ShardBatchMapper} fall back to the row path.
-     *
-     * <p>Documents must be recorded in ascending order, which the column cursors guarantee.
+     * Applies {@code ignore_malformed} to a batch as {@link #parseCreateField} does per document: reports the field in {@code _ignored}
+     * and, for synthetic source, stores each malformed value so it can be restored. Throws {@link UnsupportedOperationException}
+     * (falling back to the row path) when the batch cannot be handled.
      */
     private final class MalformedCapture implements Releasable {
         private final BatchMappingContext ctx;
-        /**
-         * Whether the field's settings and the index layout let a malformed value be handled in the batch; otherwise {@link #record}
-         * refuses the batch. Decided per value and not up front so that a field on an older index stays on the batch path until a
-         * malformed value actually turns up, see {@link #batchCanStoreMalformed}.
-         */
+        /** Whether a malformed value can be handled in the batch; checked per value so the batch only falls back if one appears. */
         private final boolean handled;
-        /** Whether malformed values are written to a column; when false only {@code _ignored} is reported. */
+        /** Whether malformed values are written to a column, or only reported in {@code _ignored}. */
         private final boolean store;
         private final boolean onFailureColumn;
         private EscfColumnBuilder values;
         private EscfColumnBuilder counts;
-        /** The current document's malformed values, created on the first stored value. */
+        /** The current document's malformed values. */
         private List<BytesRef> pending;
         private final BytesRefBuilder scratch = new BytesRefBuilder();
         private int pendingDoc = -1;
@@ -1154,14 +1136,13 @@ public class IpFieldMapper extends FieldMapper {
             final IndexSettings indexSettings = ctx.indexSettings();
             this.handled = ignoreMalformed && batchCanStoreMalformed(indexSettings);
             this.onFailureColumn = FallbackPostMapper.malformedUsesOnFailureColumn(indexSettings);
-            // The same gate the row path applies in FallbackPostMapper, so the two cannot drift apart.
+            // Same gate as the row path.
             this.store = storeIgnored && (onFailureColumn == false || FallbackPostMapper.storesOnFailureValues(ctx.mappingLookup()));
-            // A field that records offsets is not eligible for the batch path (see doSupportsColumnarParse), so the row path's extra
-            // recording of a malformed array element in the offsets never applies here.
+            // Fields with offsets are not eligible for the batch path (see doSupportsColumnarParse).
             assert offsetsFieldName == null;
         }
 
-        /** Records the malformed value the cursor is positioned on, as found in document {@code doc}. */
+        /** Records the malformed value under the cursor, found in document {@code doc}. */
         void record(int doc, EscfColumnTransforms.TypedUtf8Cursor cursor) {
             if (handled == false) {
                 throw new UnsupportedOperationException(
@@ -1171,7 +1152,7 @@ public class IpFieldMapper extends FieldMapper {
             if (doc != pendingDoc) {
                 flush();
                 pendingDoc = doc;
-                // Once per document: the accumulator asserts uniqueness, the row path de-duplicates.
+                // Report the field in _ignored once per document.
                 ctx.addIgnoredFieldColumnar(doc, fieldType().name());
             }
             if (store) {
@@ -1182,22 +1163,17 @@ public class IpFieldMapper extends FieldMapper {
             }
         }
 
-        /**
-         * The value as the row path stores it, which is encoded by the token's type: a number or boolean in an ip field is always a
-         * malformed address, and is kept as the number or boolean it was written as. Numbers are encoded from the value the cursor
-         * read, not re-parsed from its stringified form.
-         */
+        /** Encodes the value as the row path stores it: numbers and booleans keep the type they were written as. */
         private BytesRef encodeMalformed(EscfColumnTransforms.TypedUtf8Cursor cursor) {
             final byte type = cursor.valueType();
             return switch (type) {
                 case SourceValueType.STRING -> XContentDataHelper.encodeString(cursor.value());
                 case SourceValueType.INT, SourceValueType.LONG -> XContentDataHelper.encodeIntegral(cursor.longValue());
-                // A FLOAT here is the batch's lossless compaction of a decimal the source parser reports as a double, so both are
-                // kept as the double the row path stores.
+                // A FLOAT is a lossless compaction of a double, so store it as the double.
                 case SourceValueType.FLOAT, SourceValueType.DOUBLE -> XContentDataHelper.encodeDouble(cursor.doubleValue());
                 case SourceValueType.TRUE -> XContentDataHelper.encodeBoolean(true);
                 case SourceValueType.FALSE -> XContentDataHelper.encodeBoolean(false);
-                // NULL never reaches here (the callers handle null_value first); the rest cannot be a keyword conversion.
+                // NULL is handled by the callers; the other types cannot be converted to a string.
                 case SourceValueType.NULL, SourceValueType.BINARY, SourceValueType.KEY_VALUE, SourceValueType.FIXED_ARRAY,
                     SourceValueType.UNION_ARRAY -> throw new UnsupportedOperationException(
                         "mapColumnBatch: malformed IP value of unsupported type ["
@@ -1248,7 +1224,7 @@ public class IpFieldMapper extends FieldMapper {
             out.append((byte) v);
         }
 
-        /** Attaches the capture column and its {@code .counts} sidecar, if any malformed value was stored. */
+        /** Attaches the columns holding the stored malformed values, if any. */
         void emit(int docCount) {
             flush();
             if (values != null) {

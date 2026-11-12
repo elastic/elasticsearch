@@ -216,11 +216,13 @@ public abstract class CoreTestTranslater {
                         }
                         break;
                     case "bulk":
+                        allowIgnoredDocValuesWarnings(doSection);
                         if (false == handleBulk(doSection.getApiCallSection())) {
                             return false;
                         }
                         break;
                     case "index":
+                        allowIgnoredDocValuesWarnings(doSection);
                         if (false == handleIndex(doSection.getApiCallSection())) {
                             return false;
                         }
@@ -234,7 +236,8 @@ public abstract class CoreTestTranslater {
 
         /**
          * Allow the warning columnar indices emit for the {@code doc_values: false} that the registered dynamic templates carry.
-         * Creating an index or updating its mapping validates those templates, so either call can emit it.
+         * Creating an index, updating its mapping, or indexing a document that adds a dynamic field validates those templates,
+         * so any of those calls can emit it.
          */
         private static void allowIgnoredDocValuesWarnings(DoSection doSection) {
             List<Pattern> allowed = new ArrayList<>(doSection.getAllowedWarningHeadersRegex());

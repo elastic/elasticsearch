@@ -291,7 +291,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         }
 
         if (queryVector != null) {
-            builder.field(QUERY_VECTOR_FIELD.getPreferredName(), queryVector.get());
+            builder.field(QUERY_VECTOR_FIELD.getPreferredName(), queryVector.get(), params);
         }
 
         if (queryVectorBuilder != null) {

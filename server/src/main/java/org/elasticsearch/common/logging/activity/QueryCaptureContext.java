@@ -12,6 +12,7 @@ package org.elasticsearch.common.logging.activity;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -21,7 +22,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
@@ -33,7 +33,10 @@ import java.util.stream.Collectors;
  * extended by specific contexts for each search action.
  */
 public abstract class QueryCaptureContext {
-    public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
+    // Base64 encode float vectors
+    protected static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(
+        Map.of("pretty", "false", VectorData.TOXCONTENT_WRITE_FLOAT_VECTOR_AS_BASE64, "true")
+    );
 
     private final long tookInNanos;
     private final String type;

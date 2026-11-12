@@ -10,6 +10,7 @@
 package org.elasticsearch.search.vectors;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
@@ -17,9 +18,11 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVector
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -27,12 +30,43 @@ import java.nio.ByteOrder;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HexFormat;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class VectorDataTests extends ESTestCase {
+    private static final ToXContent.Params BASE64_PARAMS = new ToXContent.MapParams(
+        Map.of(VectorData.TOXCONTENT_WRITE_FLOAT_VECTOR_AS_BASE64, "true")
+    );
 
     private static final float DELTA = 1e-5f;
+
+    public void testBase64XContentRoundTrip() throws IOException {
+        float[] values = new float[] { 0f, -0f, 1f, -1.5f, Float.MIN_VALUE, Float.MAX_VALUE, randomFloat() };
+        VectorData vector = VectorData.fromFloats(values);
+        String json = vectorAsString(vector, BASE64_PARAMS);
+        assertEquals("\"" + encodeToBase64(values) + "\"", json);
+        VectorData decoded = VectorData.decodeQueryVector(json.substring(1, json.length() - 1), ElementType.FLOAT, values.length);
+
+        var decodedFloats = decoded.asFloatVector();
+        for (int i = 0; i < values.length; i++) {
+            assertEquals(Float.floatToRawIntBits(values[i]), Float.floatToRawIntBits(decodedFloats[i]));
+        }
+        assertEquals("[1.0,-1.5]", vectorAsString(VectorData.fromFloats(new float[] { 1f, -1.5f }), ToXContent.EMPTY_PARAMS));
+    }
+
+    public void testBase64LeavesOtherVectorRepresentationsUnchanged() throws IOException {
+        assertEquals("\"01ff\"", vectorAsString(VectorData.fromBytes(new byte[] { 1, -1 }), BASE64_PARAMS));
+        assertEquals("\"P4AAAA==\"", vectorAsString(VectorData.fromStringVector("P4AAAA=="), BASE64_PARAMS));
+        assertEquals("\"\"", vectorAsString(VectorData.fromFloats(new float[0]), BASE64_PARAMS));
+    }
+
+    private static String vectorAsString(VectorData vector, ToXContent.Params params) throws IOException {
+        try (var builder = JsonXContent.contentBuilder()) {
+            vector.toXContent(builder, params);
+            return Strings.toString(builder);
+        }
+    }
 
     public void testThrowsIfBothVectorsAreNull() {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new VectorData(null, null, null));

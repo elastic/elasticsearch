@@ -245,7 +245,7 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
         builder.startObject(NAME);
         builder.field(FIELD_FIELD.getPreferredName(), fieldName);
         if (queryVector != null) {
-            builder.field(QUERY_VECTOR_FIELD.getPreferredName(), queryVector);
+            builder.field(QUERY_VECTOR_FIELD.getPreferredName(), queryVector, params);
         }
         if (queryVectorBuilder != null) {
             builder.startObject(QUERY_VECTOR_BUILDER_FIELD.getPreferredName());

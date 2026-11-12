@@ -102,6 +102,11 @@ public final class PlainStringColumnReader extends StringColumnReader {
                 public boolean oneSlotADocument() {
                     return hasValueAddresses() == false;
                 }
+
+                @Override
+                public boolean everySlotHoldsAValue() {
+                    return hasNullSlots == false;
+                }
             }
         );
     }
@@ -295,10 +300,14 @@ public final class PlainStringColumnReader extends StringColumnReader {
     protected DocIdSetIterator unorderedRangeMatches(BytesRef lower, boolean includeLower, BytesRef upper, boolean includeUpper)
         throws IOException {
         final ColumnIterator presence = presenceWithin(PlainSkipQuery.range(lower, includeLower, upper, includeUpper));
+        final PlainRangePresence region = presence instanceof PlainRangePresence kept ? kept : null;
         final LastSeen lastSeen = new LastSeen();
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {
             @Override
             public boolean matches() throws IOException {
+                if (region != null && region.accepted()) {
+                    return true;
+                }
                 return matchesRangeRank(presence.rank(), lower, includeLower, upper, includeUpper, lastSeen);
             }
 

@@ -79,6 +79,9 @@ interface PlainSkipKind {
         /** Whether the region proves that no slot {@code entry} owns can match {@code query}. */
         boolean excludes(int entry, PlainSkipQuery query) throws IOException;
 
+        /** Whether the region proves that every value of every slot {@code entry} owns matches {@code query}. */
+        boolean includes(int entry, PlainSkipQuery query) throws IOException;
+
         /** The first entry at or after {@code fromEntry} that {@code query} does not rule out, or {@link #entryCount()}. */
         int nextCandidate(int fromEntry, PlainSkipQuery query) throws IOException;
 

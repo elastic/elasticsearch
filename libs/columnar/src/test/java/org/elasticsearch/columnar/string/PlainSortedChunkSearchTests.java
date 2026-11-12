@@ -29,11 +29,12 @@ public class PlainSortedChunkSearchTests extends ColumnarStringTestCase {
         return PlainStringColumnSkipperTests.sizes(VALUES_PER_BLOCK, randomFrom(256, 512, 1024), randomFrom(128, 256, 1024));
     }
 
-    /** One value for each document in term order, each value repeated {@code repeat} times. */
-    private static BytesRef[][] ascending(BytesRef[] pool, int repeat) {
+    /** One value for each document in term order, or in reverse term order, each value repeated {@code repeat} times. */
+    private static BytesRef[][] ordered(BytesRef[] pool, int repeat, boolean descending) {
         final BytesRef[][] docSlots = new BytesRef[pool.length * repeat][];
         for (int doc = 0; doc < docSlots.length; doc++) {
-            docSlots[doc] = new BytesRef[] { pool[doc / repeat] };
+            final int index = doc / repeat;
+            docSlots[doc] = new BytesRef[] { pool[descending ? pool.length - 1 - index : index] };
         }
         return docSlots;
     }
@@ -84,9 +85,9 @@ public class PlainSortedChunkSearchTests extends ColumnarStringTestCase {
     }
 
     public void testBoundsAtTheEdgesOfChunksAreExact() throws IOException {
-        for (int round = 0; round < 5; round++) {
+        for (int round = 0; round < 10; round++) {
             final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(40, 400));
-            final BytesRef[][] docSlots = ascending(pool, between(1, 4));
+            final BytesRef[][] docSlots = ordered(pool, between(1, 4), round % 2 == 1);
             final StringColumnOptions.Sizes sizes = smallChunks();
             final int[] starts = entryStarts(docSlots, sizes);
             final List<BytesRef> bounds = boundsAround(docSlots, starts);
@@ -119,7 +120,7 @@ public class PlainSortedChunkSearchTests extends ColumnarStringTestCase {
     public void testRunsOfOneValueSpanningManyChunksAreExact() throws IOException {
         for (int round = 0; round < 5; round++) {
             final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(1, 5));
-            final BytesRef[][] docSlots = ascending(pool, between(300, 1500));
+            final BytesRef[][] docSlots = ordered(pool, between(300, 1500), randomBoolean());
             final StringColumnOptions.Sizes sizes = smallChunks();
             final List<BytesRef> bounds = new ArrayList<>(Arrays.asList(pool));
             bounds.add(null);
@@ -142,7 +143,7 @@ public class PlainSortedChunkSearchTests extends ColumnarStringTestCase {
 
     public void testQueriesOutsideTheColumnMatchNothing() throws IOException {
         final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(30, 100));
-        final BytesRef[][] docSlots = ascending(pool, 3);
+        final BytesRef[][] docSlots = ordered(pool, 3, randomBoolean());
         final BytesRef below = new BytesRef();
         final BytesRef above = new BytesRef(new byte[] { (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 1 });
         withColumn(docSlots, PlainStringColumnSkipperTests.plain(true, smallChunks()), (metadata, reader) -> {
@@ -159,7 +160,7 @@ public class PlainSortedChunkSearchTests extends ColumnarStringTestCase {
 
     public void testOneChunkAndOneValueAreExact() throws IOException {
         for (BytesRef[] pool : new BytesRef[][] { PlainSkipTestValues.sortedPool(1), PlainSkipTestValues.sortedPool(2) }) {
-            final BytesRef[][] docSlots = ascending(pool, 1);
+            final BytesRef[][] docSlots = ordered(pool, 1, randomBoolean());
             withColumn(docSlots, PlainStringColumnSkipperTests.plain(true, smallChunks()), (metadata, reader) -> {
                 StringMatchOracle.checkRandomQueries(reader, docSlots, pool, 40);
                 for (BytesRef value : pool) {
@@ -174,7 +175,7 @@ public class PlainSortedChunkSearchTests extends ColumnarStringTestCase {
     public void testDocumentsWithoutAValueMoveRanksAwayFromDocumentIds() throws IOException {
         for (int round = 0; round < 5; round++) {
             final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(20, 200));
-            final BytesRef[][] dense = ascending(pool, between(1, 5));
+            final BytesRef[][] dense = ordered(pool, between(1, 5), randomBoolean());
             final BytesRef[][] docSlots = new BytesRef[dense.length * 2][];
             for (int doc = 0; doc < dense.length; doc++) {
                 docSlots[doc * 2 + (randomBoolean() ? 1 : 0)] = dense[doc];
@@ -188,7 +189,7 @@ public class PlainSortedChunkSearchTests extends ColumnarStringTestCase {
     public void testRandomColumnsAndQueriesAgreeWithTheValues() throws IOException {
         for (int round = 0; round < 10; round++) {
             final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(1, 600));
-            final BytesRef[][] docSlots = ascending(pool, between(1, 6));
+            final BytesRef[][] docSlots = ordered(pool, between(1, 6), randomBoolean());
             final StringColumnOptions.Sizes sizes = PlainStringColumnSkipperTests.sizes(
                 randomFrom(128, 256, 512),
                 randomFrom(64, 256, 1024, 4096),
@@ -206,7 +207,7 @@ public class PlainSortedChunkSearchTests extends ColumnarStringTestCase {
     public void testTheWindowsOfAQueryAreOneChunkAtEachEnd() throws IOException {
         for (int round = 0; round < 5; round++) {
             final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(100, 500));
-            final BytesRef[][] docSlots = ascending(pool, between(1, 3));
+            final BytesRef[][] docSlots = ordered(pool, between(1, 3), false);
             final StringColumnOptions.Sizes sizes = smallChunks();
             final int[] starts = entryStarts(docSlots, sizes);
             final List<BytesRef> bounds = boundsAround(docSlots, starts);
@@ -285,6 +286,51 @@ public class PlainSortedChunkSearchTests extends ColumnarStringTestCase {
             );
         }
         assertThat("seeks with the region " + seeks[0] + ", without " + seeks[1], seeks[0], lessThan(seeks[1]));
+    }
+
+    public void testNullsAndSeveralValuesNeverAcceptWhatTheValuesDoNotMatch() throws IOException {
+        for (int round = 0; round < 10; round++) {
+            final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(2, 60));
+            final BytesRef[][] docSlots = PlainSkipTestValues.orderedDocSlots(between(200, 3000), pool, randomBoolean());
+            final StringColumnOptions.Sizes sizes = smallChunks();
+            final List<BytesRef> bounds = new ArrayList<>(Arrays.asList(pool));
+            bounds.add(null);
+            withColumn(docSlots, PlainStringColumnSkipperTests.plain(true, sizes), (metadata, reader) -> {
+                for (BytesRef lower : bounds) {
+                    for (BytesRef upper : bounds) {
+                        StringMatchOracle.assertRange(reader, docSlots, lower, true, upper, true);
+                        StringMatchOracle.assertRange(reader, docSlots, lower, false, upper, false);
+                    }
+                }
+                StringMatchOracle.checkRandomQueries(reader, docSlots, pool, 60);
+            });
+        }
+    }
+
+    public void testChunksInsideADescendingRangeAreAcceptedWithoutReadingTheirValues() throws IOException {
+        final int docs = 20_000;
+        final BytesRef[][] docSlots = new BytesRef[docs][];
+        for (int doc = 0; doc < docs; doc++) {
+            docSlots[doc] = new BytesRef[] { new BytesRef(String.format(Locale.ROOT, "value-%08d", docs - 1 - doc)) };
+        }
+        final BytesRef lower = new BytesRef(String.format(Locale.ROOT, "value-%08d", docs / 10));
+        final BytesRef upper = new BytesRef(String.format(Locale.ROOT, "value-%08d", docs - docs / 10));
+        final long[] seeks = new long[2];
+        for (int arm = 0; arm < 2; arm++) {
+            final Counter counter = new Counter();
+            final int index = arm;
+            withColumnAndSkipIndex(
+                docSlots,
+                PlainStringColumnSkipperTests.plain(arm == 0, PlainStringColumnSkipperTests.sizes(128, 1024)),
+                directory -> new SeekCountingDirectory(directory, counter),
+                (metadata, reader, skip) -> {
+                    final long before = counter.get();
+                    StringMatchOracle.assertRange(reader, docSlots, lower, true, upper, false);
+                    seeks[index] = counter.get() - before;
+                }
+            );
+        }
+        assertThat("seeks with the region " + seeks[0] + ", without " + seeks[1], seeks[0] * 5, lessThan(seeks[1]));
     }
 
     private static boolean inside(int rank, int low, int high) {

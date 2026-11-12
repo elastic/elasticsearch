@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 final class PlainSkipFixture implements Closeable {
 
@@ -268,6 +269,11 @@ final class PlainSkipFixture implements Closeable {
             @Override
             public boolean oneSlotADocument() {
                 return Arrays.stream(slotCounts).allMatch(count -> count == 1);
+            }
+
+            @Override
+            public boolean everySlotHoldsAValue() {
+                return Arrays.stream(slotValues).allMatch(Objects::nonNull);
             }
         };
     }

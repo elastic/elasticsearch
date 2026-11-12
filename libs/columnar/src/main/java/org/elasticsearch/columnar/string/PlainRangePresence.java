@@ -31,6 +31,9 @@ final class PlainRangePresence extends ColumnIterator {
         long count(int rank) throws IOException;
 
         boolean oneSlotADocument();
+
+        /** Whether no slot is null, so that a slot an entry owns holds a value the entry's bounds describe. */
+        boolean everySlotHoldsAValue();
     }
 
     private final ColumnIterator presence;
@@ -38,8 +41,10 @@ final class PlainRangePresence extends ColumnIterator {
     private final PlainSkipQuery query;
     private final Slots slots;
     private final boolean oneSlotADocument;
+    private final boolean mayAccept;
 
     private int keptEntry = -1;
+    private boolean keptAccepted;
     private long keptEndSlot;
     private int runLimit;
     private int currentEntry = -1;
@@ -52,6 +57,15 @@ final class PlainRangePresence extends ColumnIterator {
         this.query = query;
         this.slots = slots;
         this.oneSlotADocument = slots.oneSlotADocument();
+        this.mayAccept = oneSlotADocument && slots.everySlotHoldsAValue();
+    }
+
+    /**
+     * Whether the document the iterator is on matches the query without a look at its value, because the region
+     * proves the whole entry that owns it does. Only a column with one slot a document and no null can say so.
+     */
+    boolean accepted() {
+        return mayAccept && keptEntry >= 0 && keptAccepted;
     }
 
     @Override
@@ -181,6 +195,7 @@ final class PlainRangePresence extends ColumnIterator {
             return;
         }
         keptEntry = lastEntry;
+        keptAccepted = mayAccept && bounds.includes(lastEntry, query);
         keptEndSlot = lastEntry == currentEntry ? currentEndSlot : bounds.endSlot(lastEntry);
         runLimit = runLimit(doc, first);
     }

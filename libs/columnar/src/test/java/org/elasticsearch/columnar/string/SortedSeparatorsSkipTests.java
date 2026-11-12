@@ -19,7 +19,10 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+
+import static org.hamcrest.Matchers.greaterThan;
 
 public class SortedSeparatorsSkipTests extends ESTestCase {
 
@@ -70,6 +73,61 @@ public class SortedSeparatorsSkipTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testAnIncludedEntryOwnsOnlyMatchesAndIsNeverRuledOut() throws IOException {
+        int included = 0;
+        for (int round = 0; round < 40; round++) {
+            final BytesRef[] pool = PlainSkipTestValues.randomPool(between(1, 25));
+            final BytesRef[][] docSlots = PlainSkipTestValues.orderedDocSlots(between(1, 600), pool, randomBoolean());
+            try (
+                Directory dir = newDirectory();
+                PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, PlainSkipFixture.randomValuesPerBlock())
+            ) {
+                final PlainSkipKind.Reader reader = fixture.reader();
+                for (int i = 0; i < 40; i++) {
+                    final PlainSkipQuery query = PlainBlockOracle.randomQuery(pool);
+                    for (int entry = 0; entry < fixture.entryCount(); entry++) {
+                        if (reader.includes(entry, query)) {
+                            included++;
+                            assertEverySlotMatches(fixture, entry, query);
+                            assertFalse(reader.excludes(entry, query) && entryHasAValue(fixture, entry));
+                        }
+                    }
+                }
+            }
+        }
+        assertThat("some entry is included, so the test checks something", included, greaterThan(0));
+    }
+
+    public void testAConstantColumnIsIncludedByItsOwnValue() throws IOException {
+        final BytesRef value = new BytesRef("same");
+        final BytesRef[][] docSlots = new BytesRef[500][];
+        Arrays.fill(docSlots, new BytesRef[] { value });
+        try (
+            Directory dir = newDirectory();
+            PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, PlainSkipFixture.randomValuesPerBlock())
+        ) {
+            final PlainSkipKind.Reader reader = fixture.reader();
+            for (int entry = 0; entry < fixture.entryCount(); entry++) {
+                assertTrue(reader.includes(entry, term("same")));
+                assertTrue(reader.includes(entry, PlainSkipQuery.prefix(new BytesRef("sa"))));
+                assertTrue(reader.includes(entry, PlainSkipQuery.range(new BytesRef("a"), true, new BytesRef("z"), false)));
+                assertFalse(reader.includes(entry, PlainSkipQuery.range(value, false, null, true)));
+                assertFalse(reader.includes(entry, PlainSkipQuery.range(null, true, value, false)));
+                assertFalse(reader.includes(entry, term("other")));
+            }
+        }
+    }
+
+    private static boolean entryHasAValue(PlainSkipFixture fixture, int entry) {
+        final long end = entry + 1 < fixture.entryCount() ? fixture.entryFirstSlot[entry + 1] : fixture.numValues;
+        for (long slot = fixture.entryFirstSlot[entry]; slot < end; slot++) {
+            if (fixture.slotValues[(int) slot] != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public void testTheCandidatesEndAtTheFirstEntryAfterTheRunNotRuledOut() throws IOException {
@@ -300,6 +358,14 @@ public class SortedSeparatorsSkipTests extends ESTestCase {
         final PlainSkipKind.Reader reader = fixture.reader();
         for (int entry = 0; entry < expected.length; entry++) {
             assertEquals("entry " + entry, expected[entry], reader.excludes(entry, query));
+        }
+    }
+
+    private static void assertEverySlotMatches(PlainSkipFixture fixture, int entry, PlainSkipQuery query) {
+        final long end = entry + 1 < fixture.entryCount() ? fixture.entryFirstSlot[entry + 1] : fixture.numValues;
+        for (long slot = fixture.entryFirstSlot[entry]; slot < end; slot++) {
+            final BytesRef value = fixture.slotValues[(int) slot];
+            assertTrue("an included entry owns a value that does not match", value == null || PlainBlockOracle.matches(value, query));
         }
     }
 

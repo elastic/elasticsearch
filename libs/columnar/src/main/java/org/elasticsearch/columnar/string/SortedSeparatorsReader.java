@@ -126,6 +126,33 @@ final class SortedSeparatorsReader implements PlainSkipKind.Reader {
     }
 
     @Override
+    public boolean includes(int entry, PlainSkipQuery query) throws IOException {
+        checkEntry(entry);
+        if (separatorMatches(entry, query) && separatorMatches(entry + 1, query)) {
+            requireOrdered(entry);
+            return true;
+        }
+        return false;
+    }
+
+    private boolean separatorMatches(int index, PlainSkipQuery query) throws IOException {
+        if (query.prefix() != null) {
+            return startsWith(index, query.prefix());
+        }
+        if (query.lower() != null) {
+            final int comparison = compare(index, query.lower());
+            if (comparison < 0 || (comparison == 0 && query.includeLower() == false)) {
+                return false;
+            }
+        }
+        if (query.upper() != null) {
+            final int comparison = compare(index, query.upper());
+            return comparison < 0 || (comparison == 0 && query.includeUpper());
+        }
+        return true;
+    }
+
+    @Override
     public int nextCandidate(int fromEntry, PlainSkipQuery query) throws IOException {
         int low = Math.max(fromEntry, 0);
         int high = entryCount;

@@ -120,6 +120,11 @@ public class PlainRangePresenceColumnTests extends ColumnarStringTestCase {
                 public boolean oneSlotADocument() {
                     return reader.hasValueAddresses() == false;
                 }
+
+                @Override
+                public boolean everySlotHoldsAValue() {
+                    return reader.numNullSlots() == 0;
+                }
             }
         );
     }

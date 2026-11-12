@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 164548
+summary: Return `_unmapped_fields` as the last column
+type: enhancement

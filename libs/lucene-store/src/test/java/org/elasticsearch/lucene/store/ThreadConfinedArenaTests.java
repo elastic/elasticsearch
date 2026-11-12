@@ -46,7 +46,6 @@ public class ThreadConfinedArenaTests extends ESTestCase {
             Arena outer = ThreadConfinedArena.CURRENT.get();
             ThreadConfinedArena.withConfinedArena(() -> {
                 assertThat(ThreadConfinedArena.CURRENT.get(), not(sameInstance(outer)));
-                assertNotSame(outer, ThreadConfinedArena.CURRENT.get());
                 inner.set(ThreadConfinedArena.allocate(8, 8));
                 return null;
             });

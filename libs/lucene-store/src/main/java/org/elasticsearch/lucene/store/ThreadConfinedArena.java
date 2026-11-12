@@ -18,7 +18,7 @@ import java.util.Objects;
 /**
  * Binds a confined {@link Arena} to the current thread for the duration of an action,
  * accessible through the {@link #allocate} method. Such allocated segments must
- * only be accessed from the current thread
+ * only be accessed from the current thread, and only from within the {@link #withConfinedArena call}.
  */
 public final class ThreadConfinedArena {
 

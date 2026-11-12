@@ -29,9 +29,9 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 /** PromQL reductions across series translated over a label container. */
-public class PromqlPlanReductionLabelTests extends AbstractPromqlPlanOptimizerTests {
+public class PromqlPlanAcrossSeriesReductionV2Tests extends AbstractPromqlPlanOptimizerTests {
 
-    public PromqlPlanReductionLabelTests(VersionMode versionMode) {
+    public PromqlPlanAcrossSeriesReductionV2Tests(VersionMode versionMode) {
         super(versionMode);
     }
 

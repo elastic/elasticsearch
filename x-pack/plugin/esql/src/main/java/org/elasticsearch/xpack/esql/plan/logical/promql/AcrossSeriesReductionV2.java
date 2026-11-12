@@ -40,9 +40,9 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggre
  * Translates the PromQL reductions across series ({@code topk}, {@code bottomk}, {@code limitk}, {@code limit_ratio}) over a
  * label container: they select series and keep their labels, partitioning by the listed labels of each series.
  */
-final class ReductionLabelTranslation {
+final class AcrossSeriesReductionV2 {
 
-    private ReductionLabelTranslation() {}
+    private AcrossSeriesReductionV2() {}
 
     static IntermediateResult translate(AcrossSeriesReduction reduction, TranslationContextV2 context) {
         if (reduction.grouping() == WITHOUT) {

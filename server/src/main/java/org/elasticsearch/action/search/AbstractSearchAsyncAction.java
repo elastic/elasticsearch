@@ -391,7 +391,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
             if (allowPartialResults == false && successfulOps.get() != getNumShards()) {
                 // check if there are actual failures in the atomic array since
                 // successful retries can reset the failures to null
-                if (!shardSearchFailures.isEmpty()) {
+                if (shardSearchFailures.isEmpty() == false) {
                     if (logger.isDebugEnabled()) {
                         int numShardFailures = shardSearchFailures.size();
                         shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
@@ -734,7 +734,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
         List<ShardSearchFailure> failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
-        if (allowPartialResults == false && !failures.isEmpty()) {
+        if (allowPartialResults == false && failures.isEmpty() == false) {
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         } else {
             SearchResponse searchResponse = buildSearchResponse(

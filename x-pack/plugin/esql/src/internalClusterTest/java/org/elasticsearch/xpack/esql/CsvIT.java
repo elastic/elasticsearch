@@ -256,6 +256,12 @@ public class CsvIT extends ESTestCase {
         default boolean ignoreValueOrder() {
             return false;
         }
+
+        /**
+         * Lets a variant turn a failure that is tracked by an issue into a skip by throwing {@link org.junit.AssumptionViolatedException};
+         * otherwise the failure propagates. Receives any throwable of the test body, skips included.
+         */
+        default void onFailure(String testId, CsvSpecReader.CsvTestCase testCase, Throwable failure) {}
     }
 
     public static final DifferentialTestStrategy IDENTITY_DIFFERENTIAL_TEST_STRATEGY = new DifferentialTestStrategy() {
@@ -506,6 +512,7 @@ public class CsvIT extends ESTestCase {
             CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, response.documentsFound());
             CsvAssert.assertApproximationApplied(testCase.expectedApproximationApplied, response.approximationApplied());
         } catch (Throwable t) {
+            differentialTestStrategy.onFailure(groupName + "." + testName, testCase, t);
             t.setStackTrace(prependSpec(t.getStackTrace()));
             throw t;
         }

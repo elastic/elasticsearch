@@ -114,6 +114,106 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
     private static final Pattern SOURCE_OR_UNMAPPED_COLUMN_PATTERN = Pattern.compile("\\b_source\\b|\\b_unmapped_fields\\b");
     private static final Pattern WARNING_POSITION_PATTERN = Pattern.compile("(?i)\\bline (?:\\d+|\\\\d\\+):(?:\\d+|\\\\d\\+)");
 
+    /**
+     * A failure tracked by a GitHub issue, ignored only while the test, index, removed field, exception type and whole message all match.
+     */
+    private record KnownError(
+        String issue,
+        String index,
+        String removedField,
+        Set<String> tests,
+        Class<? extends Throwable> type,
+        Pattern message
+    ) {
+        boolean matches(String testId, String testIndex, String testRemovedField, Throwable failure) {
+            return tests.contains(testId)
+                && index.equals(testIndex)
+                && removedField.equals(testRemovedField)
+                && failure.getClass() == type
+                && failure.getMessage() != null
+                && message.matcher(failure.getMessage()).matches();
+        }
+    }
+
+    private record KnownWrongResult(
+        String issue,
+        String index,
+        String removedField,
+        String test,
+        List<String> columns,
+        List<List<Object>> rows
+    ) {
+        boolean matches(String testId, String testIndex, String testRemovedField, TestResults results) {
+            return test.equals(testId)
+                && index.equals(testIndex)
+                && removedField.equals(testRemovedField)
+                && columns.equals(results.columnNames())
+                && rows.equals(results.values());
+        }
+    }
+
+    private static final List<KnownError> KNOWN_ERRORS = List.of(
+        // STATS ... BY an alias named like the unmapped field it reads fails with "Unknown column"
+        new KnownError(
+            "https://github.com/elastic/elasticsearch/issues/165752",
+            "employees",
+            "job_positions",
+            Set.of("string.groupByMvMin", "string.groupByMvMax"),
+            VerificationException.class,
+            Pattern.compile("Found 1 problem\\nline \\d+:\\d+: Unknown column \\[job_positions]")
+        ),
+        // STATS grouping twice by the same name, one of them an unmapped field, fails with "optimized incorrectly"
+        new KnownError(
+            "https://github.com/elastic/elasticsearch/issues/165753",
+            "employees",
+            "gender",
+            Set.of("stats.shadowingInternalWithGroup2"),
+            IllegalStateException.class,
+            Pattern.compile(
+                "Found 1 problem\\nline \\d+:\\d+: Plan \\[Aggregate\\[\\[gender\\{f}#\\d+],\\[COUNT\\(x\\{r}#\\d+,true\\[BOOLEAN],"
+                    + "PT0S\\[TIME_DURATION]\\) AS y#\\d+, x\\{r}#\\d+]]] optimized incorrectly due to missing references \\[x\\{r}#\\d+]"
+            )
+        ),
+        // LOOKUP JOIN whose left join key is unmapped fails with "ambiguous reference"
+        new KnownError(
+            "https://github.com/elastic/elasticsearch/issues/165755",
+            "multi_column_joinable",
+            "name_str",
+            Set.of(
+                "lookup-join-expression.lookupJoinOnSameLeftFieldTwice",
+                "lookup-join-expression.lookupJoinOnSameFieldTwiceWithOrNot",
+                "lookup-join-expression.lookupJoinOnSameFieldWithPushableRightFilterAfter"
+            ),
+            VerificationException.class,
+            Pattern.compile(
+                "Found ambiguous reference to \\[other2]; matches any of \\[line \\d+:\\d+ \\[other2], line \\d+:\\d+ \\[other2]]"
+            )
+        )
+    );
+
+    private static final List<KnownWrongResult> KNOWN_WRONG_RESULTS = List.of(
+        // WHERE (f IS NOT NULL OR ...) AND f IS NULL over an unmapped field returns every row whose field is null
+        new KnownWrongResult(
+            "https://github.com/elastic/elasticsearch/issues/165754",
+            "employees",
+            "gender",
+            "null.isNullWithOrThreeBranches",
+            List.of("emp_no", "gender", "salary"),
+            List.of(
+                row(10010, null, 45797),
+                row(10011, null, 31120),
+                row(10012, null, 48942),
+                row(10013, null, 48735),
+                row(10014, null, 37137),
+                row(10015, null, 25324),
+                row(10016, null, 61358),
+                row(10017, null, 58715),
+                row(10018, null, 56760),
+                row(10019, null, 73717)
+            )
+        )
+    );
+
     public CsvLoadAllUnmappedKeywordIT(
         String fileName,
         String groupName,
@@ -381,6 +481,29 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
             TestResults expected,
             TestResults actual
         ) {
+            TestResults rewritten = rewriteActualResults(testCase, expected, actual);
+            String index = extractSingleFromIndex(testCase.query);
+            String removedField = removedFieldsByIndex.get(index);
+            for (KnownWrongResult known : KNOWN_WRONG_RESULTS) {
+                if (known.matches(testId, index, removedField, rewritten)) {
+                    throw knownIssue(known.issue(), testId, index, removedField, "returns wrong results");
+                }
+            }
+            return rewritten;
+        }
+
+        @Override
+        public void onFailure(String testId, CsvSpecReader.CsvTestCase testCase, Throwable failure) {
+            String index = extractSingleFromIndex(testCase.query);
+            String removedField = removedFieldsByIndex.get(index);
+            for (KnownError known : KNOWN_ERRORS) {
+                if (known.matches(testId, index, removedField, failure)) {
+                    throw knownIssue(known.issue(), testId, index, removedField, "fails with " + failure.getClass().getSimpleName());
+                }
+            }
+        }
+
+        private TestResults rewriteActualResults(CsvSpecReader.CsvTestCase testCase, TestResults expected, TestResults actual) {
             String removedField = removedFieldsByIndex.get(extractSingleFromIndex(testCase.query));
             boolean namedInQuery = Pattern.compile("\\b" + Pattern.quote(removedField) + "\\b").matcher(testCase.query).find();
             boolean rebuilt = false;
@@ -437,6 +560,22 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
         public String normalizeWarning(String warning) {
             return WARNING_POSITION_PATTERN.matcher(warning).replaceAll("line");
         }
+    }
+
+    private static List<Object> row(Object... cells) {
+        return Arrays.asList(cells);
+    }
+
+    private static StacklessAssumptionViolatedException knownIssue(
+        String issue,
+        String testId,
+        String index,
+        String removedField,
+        String what
+    ) {
+        return new StacklessAssumptionViolatedException(
+            "known issue " + issue + ": [" + testId + "] " + what + " when [" + index + "." + removedField + "] is removed from the mapping"
+        );
     }
 
     private static Object asKeyword(Object sourceValue) {

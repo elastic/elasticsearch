@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.inference.rerank;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
@@ -207,9 +208,11 @@ class RerankOutputBuilder implements OutputBuilder {
             return rankedDocsResults;
         }
 
+        // Strings.format, not LoggerMessageFormat.format: with a String as the first argument, the latter resolves to its
+        // (prefix, messagePattern, args) overload and treats the class name as the pattern.
         throw new IllegalStateException(
-            format(
-                "Inference result has wrong type. Got [{}] while expecting [{}]",
+            Strings.format(
+                "Inference result has wrong type. Got [%s] while expecting [%s]",
                 responseItem.inferenceResponse().getResults().getClass().getName(),
                 RankedDocsResults.class.getName()
             )

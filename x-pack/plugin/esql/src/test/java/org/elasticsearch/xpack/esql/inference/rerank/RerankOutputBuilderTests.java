@@ -15,6 +15,7 @@ import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceResponseItem;
 
@@ -343,6 +344,33 @@ public class RerankOutputBuilderTests extends ComputeTestCase {
             assertThat(
                 exception.getMessage(),
                 equalTo("Mismatch between score count and position value counts: expected 2 scores but got 3")
+            );
+        }
+
+        allBreakersEmpty();
+    }
+
+    public void testWrongResultTypeThrows() throws Exception {
+        try (Page inputPage = randomInputPage(1, 1)) {
+            RerankOutputBuilder outputBuilder = new RerankOutputBuilder(blockFactory(), 0);
+            InferenceAction.Response response = new InferenceAction.Response(
+                new CompletionResults(List.of(new CompletionResults.Result("not a score")))
+            );
+            List<BulkInferenceResponseItem> responses = List.of(new BulkInferenceResponseItem(response, new int[] { 1 }, 0));
+
+            IllegalStateException exception = expectThrows(
+                IllegalStateException.class,
+                () -> outputBuilder.buildOutputPage(inputPage, responses)
+            );
+            assertThat(
+                exception.getMessage(),
+                equalTo(
+                    "Inference result has wrong type. Got ["
+                        + CompletionResults.class.getName()
+                        + "] while expecting ["
+                        + RankedDocsResults.class.getName()
+                        + "]"
+                )
             );
         }
 

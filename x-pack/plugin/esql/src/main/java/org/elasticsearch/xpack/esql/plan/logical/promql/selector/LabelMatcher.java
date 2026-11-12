@@ -151,9 +151,9 @@ public class LabelMatcher implements NodeStringRenderable {
 
     /**
      * Lowers a PromQL regex to an {@link RLikePattern}, so that the matcher's automaton and the {@code RLIKE} filter
-     * agree on what it matches. PromQL regexes use RE2 syntax, where {@code " # & < @ ~} are literals, but
-     * {@link RLikePattern} parses Lucene {@link RegExp} syntax, where they are operators (quoted string, empty language,
-     * intersection, interval, any string, complement). They are escaped everywhere except inside a character class, the
+     * agree on what it matches. PromQL regexes use RE2 syntax, where {@code # & < @ ~} are literals, but
+     * {@link RLikePattern} parses Lucene {@link RegExp} syntax, where they are operators (empty language, intersection,
+     * interval, any string, complement). They are escaped everywhere except inside a character class, the
      * bracket expression {@code [...]} that matches one character from a set ({@code [a-z#]}): there Lucene reads them
      * literally already, and an escaped character cannot start a range ({@code [#-@]}).
      */
@@ -179,7 +179,7 @@ public class LabelMatcher implements NodeStringRenderable {
                     sb.append(regex.charAt(++i));
                 }
             } else {
-                if (c == '"' || c == '#' || c == '&' || c == '<' || c == '@' || c == '~') {
+                if (c == '#' || c == '&' || c == '<' || c == '@' || c == '~') {
                     sb.append('\\');
                 }
                 sb.append(c);

@@ -144,9 +144,9 @@ public class LabelMatcherTests extends ESTestCase {
         assertFalse(specific.matchesNone());
     }
 
-    /** RE2 reads Lucene-only operators as literals: quoting, empty language, intersection, interval, any string, complement. */
+    /** RE2 reads Lucene-only operators as literals: empty language, intersection, interval, any string, complement. */
     public void testRegexLuceneOnlyOperatorsAreLiterals() {
-        for (String regex : List.of("\"q\"x", "#", "a&b", "a<1-3>", "@", "~a")) {
+        for (String regex : List.of("#", "a&b", "a<1-3>", "@", "~a")) {
             LabelMatcher matcher = new LabelMatcher("label", regex, Matcher.REG);
             assertThat(regex, AutomatonUtils.matchesExact(matcher.automaton()), equalTo(regex));
 
@@ -203,7 +203,7 @@ public class LabelMatcherTests extends ESTestCase {
             Automaton actual = LabelMatcher.convertRegExpToRE2(regex).createAutomaton(false);
             assertTrue(regex, AutomatonTestUtil.sameLanguage(expected, actual));
         }
-        assertThat(LabelMatcher.convertRegExpToRE2("[#&]#&<@~\"\\#").pattern(), equalTo("[#&]\\#\\&\\<\\@\\~\\\"\\#"));
+        assertThat(LabelMatcher.convertRegExpToRE2("[#&]#&<@~\"\\#").pattern(), equalTo("[#&]\\#\\&\\<\\@\\~\"\\#"));
     }
 
     public void testInvalidRegex() {

@@ -17,7 +17,7 @@
 # configured by that YAML (or PROMCHECK_RESULTS_API_KEY in place of the Vault secret).
 # Optional environment:
 #   GITHUB_PR_COMMENT_VAR_WORKLOAD   Fixture from "buildkite run promcheck <workload>"; overrides PROMCHECK_WORKLOAD.
-#   PROMCHECK_GROUP_BY               JSONPath selector for result aggregation (set by nightly YAML).
+#   PROMCHECK_GROUP_BY               JSONPath for per-dashboard summaries (nightly: $.labels.dashboard[*]).
 #   PROMCHECK_CONCURRENCY            Cases and seeding writes promcheck keeps in flight (default: the CPU count).
 #   PROMETHEUS_COMPLIANCE_TMPDIR     Scratch/artifact parent directory (default /tmp).
 #   BUILDKITE_BUILD_URL              Build link included in the report.
@@ -554,6 +554,8 @@ run_nightly() (
   promcheck_run "$PWD" "$work_dir/promcheck" "$work_dir/$PROMCHECK_WORKLOAD.tar.gz" "$OUTPUT_DIR/promcheck.log" \
     || { echo "promcheck failed to complete; see run artifacts" >&2; exit 1; }
   promcheck_summary "$OUTPUT_DIR/promcheck.log" > "$OUTPUT_DIR/counts.json"
+  # One document schema: classic compliance fields plus dashboard="" (global) or a dashboard name.
+  # Per-dashboard rows come from promcheck group_summary for PROMCHECK_GROUP_BY; coverage is queried in ES.
   jq -n --slurpfile counts "$OUTPUT_DIR/counts.json" \
     --arg timestamp "$started_at" --arg commit "$revision" --arg branch "${BUILDKITE_BRANCH:-}" \
     --arg version "$PROMCHECK_VER" --arg corpus "$PROMCHECK_WORKLOAD" --arg namespace "$PROMCHECK_RESULTS_NAMESPACE" \
@@ -561,7 +563,7 @@ run_nightly() (
     --arg pipeline "${BUILDKITE_PIPELINE_SLUG:-elasticsearch-pull-request-validate-prometheus-compliance}" \
     --argjson build_number "${BUILDKITE_BUILD_NUMBER:-0}" \
     '$counts[0] as $c | {
-      "@timestamp": $timestamp, status: "ok", dataset: $corpus, metric: "query_compliance",
+      "@timestamp": $timestamp, status: "ok", dataset: $corpus, dashboard: "",
       data_stream: {type: "synthetics", dataset: "promql.support", namespace: $namespace},
       git: {commit: $commit, branch: $branch}, promcheck: {version: $version},
       buildkite: {build_id: $build_id, build_number: $build_number, build_url: $build_url, pipeline: $pipeline},
@@ -571,28 +573,36 @@ run_nightly() (
         executed_skip: ($c.response_filtered + $c.flaky), success_pct: ((1000 * $c.match / $c.total | round) / 10)
       }}' > "$OUTPUT_DIR/result.json"
 
-  # Promcheck owns label grouping and threshold calculation; CI only exports its records.
-  jq -sc '[.[] | select(.type == "group_summary")]' "$OUTPUT_DIR/promcheck.log" > "$OUTPUT_DIR/groups.json"
-  jq -esc '[.[] | select(.type == "group_distribution")] |
-    if all(.[]; (.label | type == "string" and length > 0)
-      and (.threshold_pct | type == "number" and . >= 0 and . <= 100 and . == floor)
-      and (.group_total | type == "number" and . > 0 and . == floor)
-      and (.group_count | type == "number" and . >= 0 and . == floor)
-      and .group_count <= .group_total
-      and (.group_pct | type == "number" and . >= 0 and . <= 100))
-    then . else error("Invalid promcheck group distribution") end' \
-    "$OUTPUT_DIR/promcheck.log" > "$OUTPUT_DIR/group-coverage.json"
-  jq --slurpfile coverage "$OUTPUT_DIR/group-coverage.json" \
-    '. as $result | [$result] + [$coverage[0][] | . as $group |
-      $result | del(.compliance) | .metric = "label_coverage" | .label_coverage = ($group | .parent_path = ((.path // []) | tojson) | del(.type, .path))]' \
-    "$OUTPUT_DIR/result.json" > "$OUTPUT_DIR/documents.json"
+  jq -esc --arg selector "${PROMCHECK_GROUP_BY:-}" --slurpfile result "$OUTPUT_DIR/result.json" '
+    [.[] | select(.type == "group_summary"
+      and ($selector | length > 0) and .label == $selector
+      and (.value | type == "string" and length > 0))] as $groups
+    | if all($groups[];
+        (.query_total | type == "number" and . > 0 and . == floor)
+        and (.query_match | type == "number" and . >= 0 and . == floor)
+        and .query_match <= .query_total)
+      then [$result[0]] + [
+        $groups[] | . as $g | $result[0]
+          | .dashboard = $g.value
+          | .compliance = {
+              input_total: $g.query_total,
+              executed_total: $g.query_total,
+              executed_success: $g.query_match,
+              executed_failure: ($g.query_total - $g.query_match),
+              executed_error: 0,
+              executed_skip: 0,
+              success_pct: ((1000 * $g.query_match / $g.query_total | round) / 10)
+            }
+      ]
+      else error("Invalid promcheck dashboard group summary") end' \
+    "$OUTPUT_DIR/promcheck.log" > "$OUTPUT_DIR/documents.json"
 
   echo "--- Indexing promcheck results"
   # Overview stores compliance history in a data stream, which requires create operations.
-  # Stable build/workload/bucket IDs allow a partially uploaded run to resume on retry.
+  # Stable build/workload/dashboard IDs allow a partially uploaded run to resume on retry.
   while IFS= read -r document; do
     document_id=$(jq -r --arg base "$BUILDKITE_BUILD_ID-$PROMCHECK_WORKLOAD" \
-      '($base + (if .metric == "label_coverage" then "-groups-" + ([.label_coverage.parent_path, .label_coverage.label, .label_coverage.threshold_pct] | tojson) else "" end)) | @uri' \
+      '($base + (if .dashboard != "" then "-dashboard-" + .dashboard else "" end)) | @uri' \
       <<< "$document")
     document_file="$work_dir/document.json"
     printf '%s\n' "$document" > "$document_file"

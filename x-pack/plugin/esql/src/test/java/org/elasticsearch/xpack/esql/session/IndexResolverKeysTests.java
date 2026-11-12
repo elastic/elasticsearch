@@ -69,6 +69,16 @@ public class IndexResolverKeysTests extends ESTestCase {
         assertThat(mapping.get("f").getProperties().get("raw").getDataType(), equalTo(DataType.KEYWORD));
     }
 
+    /** An object returned only as a parent path still holds the names below it, so it stays, as a passthrough object does. */
+    public void testAParentPathThatIsAnObjectStays() {
+        Map<String, EsField> mapping = resolve(
+            new IndexResolver.NamedFields(Set.of("metrics.cpu"), Set.of("metrics")),
+            index("tsdb", field("metrics", "object"), field("metrics.cpu", "double"))
+        );
+        assertThat(mapping.get("metrics").getDataType(), equalTo(DataType.OBJECT));
+        assertThat(mapping.get("metrics").getProperties().get("cpu").getDataType(), equalTo(DataType.DOUBLE));
+    }
+
     public void testAParentPathThatHoldsKeysIsAField() {
         Map<String, EsField> mapping = resolve(
             new IndexResolver.NamedFields(Set.of("attrs.bar"), Set.of("attrs")),

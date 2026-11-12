@@ -539,11 +539,13 @@ public class IndexResolver {
         }
 
         /**
-         * Whether field caps returns {@code name} only because it is the parent path of a name the query uses, and the field in no
-         * index holds keys: it is then not one of the query's fields.
+         * Whether field caps returns {@code name} only because it is the parent path of a name the query uses, and in every index it
+         * is a field with values of its own rather than one that holds the names below it: it is then not one of the query's fields.
          */
         boolean isOnlyAParentPath(String name, List<IndexFieldCapabilities> fcs) {
-            return namedFields != null && namedFields.parentPaths().contains(name) && fcs.stream().noneMatch(IndexResolver::holdsKeys);
+            return namedFields != null
+                && namedFields.parentPaths().contains(name)
+                && fcs.stream().noneMatch(IndexResolver::holdsNamesBelow);
         }
 
         private boolean isLeaf(String name) {
@@ -1025,6 +1027,11 @@ public class IndexResolver {
             }
         }
         return null;
+    }
+
+    /** Whether the field holds the names below it: an object, a passthrough object included, or a field that holds them as keys. */
+    private static boolean holdsNamesBelow(IndexFieldCapabilities fc) {
+        return isObject(fc) || holdsKeys(fc);
     }
 
     /** Whether the field holds the names below it as keys, as a {@code flattened} field does. */

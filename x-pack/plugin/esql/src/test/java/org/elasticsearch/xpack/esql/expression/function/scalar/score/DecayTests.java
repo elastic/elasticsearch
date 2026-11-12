@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.score.Decay.DecayFunction;
 import org.hamcrest.Matcher;
 
 import java.math.BigDecimal;
@@ -1313,7 +1312,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 double randomDecay = randomDecayOpenUnitInterval();
                 String randomType = randomFrom("linear", "gauss", "exp");
 
-                double scoreScriptNumericResult = expectedDateNanosTemporalDecay(
+                double scoreScriptNumericResult = longDecayWithScoreScript(
                     randomValue,
                     randomOrigin,
                     randomScale.toNanos(),
@@ -1362,26 +1361,6 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 )
             )
         );
-    }
-
-    private static double expectedDateNanosTemporalDecay(
-        long valueNanos,
-        long originNanos,
-        long scaleNanos,
-        long offsetNanos,
-        double decay,
-        String type
-    ) {
-        return decayFunctionForType(type).temporalDecay(valueNanos, originNanos, scaleNanos, offsetNanos, decay);
-    }
-
-    private static DecayFunction decayFunctionForType(String type) {
-        return switch (type) {
-            case "linear" -> DecayFunction.LINEAR;
-            case "gauss" -> DecayFunction.GAUSSIAN;
-            case "exp" -> DecayFunction.EXPONENTIAL;
-            default -> throw new IllegalArgumentException("Unknown decay function type [" + type + "]");
-        };
     }
 
     private static double randomDecayOpenUnitInterval() {

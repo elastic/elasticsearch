@@ -10,6 +10,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -17,7 +18,6 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -31,29 +31,17 @@ public final class DecayDatetimeEvaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator value;
 
-  private final long origin;
-
-  private final long scale;
-
-  private final long offset;
-
-  private final double decay;
-
-  private final Decay.DecayFunction decayFunction;
+  private final DecayScorers.TemporalScorer scorer;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public DecayDatetimeEvaluator(Source source, ExpressionEvaluator value, long origin, long scale,
-      long offset, double decay, Decay.DecayFunction decayFunction, DriverContext driverContext) {
+  public DecayDatetimeEvaluator(Source source, ExpressionEvaluator value,
+      DecayScorers.TemporalScorer scorer, DriverContext driverContext) {
     this.source = source;
     this.value = value;
-    this.origin = origin;
-    this.scale = scale;
-    this.offset = offset;
-    this.decay = decay;
-    this.decayFunction = decayFunction;
+    this.scorer = scorer;
     this.driverContext = driverContext;
   }
 
@@ -64,7 +52,7 @@ public final class DecayDatetimeEvaluator implements ExpressionEvaluator {
       if (valueVector == null) {
         return eval(page.getPositionCount(), valueBlock);
       }
-      return eval(page.getPositionCount(), valueVector);
+      return eval(page.getPositionCount(), valueVector).asBlock();
     }
   }
 
@@ -91,27 +79,17 @@ public final class DecayDatetimeEvaluator implements ExpressionEvaluator {
               continue position;
         }
         long value = valueBlock.getLong(valueBlock.getFirstValueIndex(p));
-        try {
-          result.appendDouble(Decay.processDatetime(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
-        } catch (InvalidArgumentException | IllegalArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
-        }
+        result.appendDouble(Decay.processDatetime(value, this.scorer));
       }
       return result.build();
     }
   }
 
-  public DoubleBlock eval(int positionCount, LongVector valueVector) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+  public DoubleVector eval(int positionCount, LongVector valueVector) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         long value = valueVector.getLong(p);
-        try {
-          result.appendDouble(Decay.processDatetime(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
-        } catch (InvalidArgumentException | IllegalArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
-        }
+        result.appendDouble(p, Decay.processDatetime(value, this.scorer));
       }
       return result.build();
     }
@@ -119,7 +97,7 @@ public final class DecayDatetimeEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "DecayDatetimeEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", decayFunction=" + decayFunction + "]";
+    return "DecayDatetimeEvaluator[" + "value=" + value + ", scorer=" + scorer + "]";
   }
 
   @Override
@@ -139,35 +117,23 @@ public final class DecayDatetimeEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory value;
 
-    private final long origin;
+    private final DecayScorers.TemporalScorer scorer;
 
-    private final long scale;
-
-    private final long offset;
-
-    private final double decay;
-
-    private final Decay.DecayFunction decayFunction;
-
-    public Factory(Source source, ExpressionEvaluator.Factory value, long origin, long scale,
-        long offset, double decay, Decay.DecayFunction decayFunction) {
+    public Factory(Source source, ExpressionEvaluator.Factory value,
+        DecayScorers.TemporalScorer scorer) {
       this.source = source;
       this.value = value;
-      this.origin = origin;
-      this.scale = scale;
-      this.offset = offset;
-      this.decay = decay;
-      this.decayFunction = decayFunction;
+      this.scorer = scorer;
     }
 
     @Override
     public DecayDatetimeEvaluator get(DriverContext context) {
-      return new DecayDatetimeEvaluator(source, value.get(context), origin, scale, offset, decay, decayFunction, context);
+      return new DecayDatetimeEvaluator(source, value.get(context), scorer, context);
     }
 
     @Override
     public String toString() {
-      return "DecayDatetimeEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", decayFunction=" + decayFunction + "]";
+      return "DecayDatetimeEvaluator[" + "value=" + value + ", scorer=" + scorer + "]";
     }
   }
 }

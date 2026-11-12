@@ -192,6 +192,19 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Whether the mapping guarantees at most one value per document for this field ({@code multi_value=false}). Readers such as
+     * field caps, and through it ES|QL, may rely on it. {@code false} means "no guarantee", not "multi-valued".
+     * <p>
+     * The guarantee applies to what block loaders read: doc values, stored fields and the index. With {@code on_failure=ignore} a second
+     * value is kept in {@code _source} only, so a reader of {@code _source} can still see more than one value.
+     * <p>
+     * {@code multi_value} and {@code on_failure} cannot be updated, so the guarantee cannot be removed later.
+     */
+    public boolean isStaticallySingleValued() {
+        return false;
+    }
+
+    /**
      * @return true if field has been marked as a dimension field
      */
     public boolean isDimension() {

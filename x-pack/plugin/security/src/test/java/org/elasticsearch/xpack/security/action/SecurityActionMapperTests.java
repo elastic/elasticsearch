@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.emptyArray;
 
 public class SecurityActionMapperTests extends ESTestCase {
 
@@ -93,6 +94,21 @@ public class SecurityActionMapperTests extends ESTestCase {
         AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(null).text("text");
         assertThat(
             SecurityActionMapper.action(AnalyzeAction.NAME, analyzeRequest),
+            equalTo(SecurityActionMapper.CLUSTER_PERMISSION_ANALYZE)
+        );
+    }
+
+    public void testClusterAnalyzeWithoutIndexHasNoIndices() {
+        AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(null).text("text");
+
+        // A request without an index has no indices, which is how it is recognised as a cluster action, also at the shard level
+        assertThat(analyzeRequest.indices(), emptyArray());
+        assertThat(
+            SecurityActionMapper.action(AnalyzeAction.NAME, analyzeRequest),
+            equalTo(SecurityActionMapper.CLUSTER_PERMISSION_ANALYZE)
+        );
+        assertThat(
+            SecurityActionMapper.action(AnalyzeAction.NAME + "[s]", analyzeRequest),
             equalTo(SecurityActionMapper.CLUSTER_PERMISSION_ANALYZE)
         );
     }

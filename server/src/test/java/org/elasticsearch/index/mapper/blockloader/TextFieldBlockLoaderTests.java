@@ -124,6 +124,10 @@ public class TextFieldBlockLoaderTests extends BinaryDVBlockLoaderTestCase {
             }
         }
 
+        if (indexKeepsArray(params) && testContext.isMultifield() && params.syntheticSource()) {
+            return valuesInSourceOrder(value);
+        }
+
         // Loading from binary doc values
         if ((params.syntheticSource() || params.isColumnarStored()) && useBinaryDocValues) {
             return valuesInSortedOrder(value);

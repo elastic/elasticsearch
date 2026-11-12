@@ -16,6 +16,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -31,7 +32,7 @@ import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUti
 /**
  * Span query that matches the union of its clauses. Maps to {@link SpanOrQuery}.
  */
-public class SpanOrQueryBuilder extends LeafQueryBuilder<SpanOrQueryBuilder> implements SpanQueryBuilder {
+public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_or";
 
     private static final ParseField CLAUSES_FIELD = new ParseField("clauses");
@@ -140,10 +141,10 @@ public class SpanOrQueryBuilder extends LeafQueryBuilder<SpanOrQueryBuilder> imp
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) throws IOException {
         SpanQuery[] spanQueries = new SpanQuery[clauses.size()];
         for (int i = 0; i < clauses.size(); i++) {
-            Query query = clauses.get(i).toQuery(context);
+            Query query = clauses.get(i).toQuery(context, queryVisitor);
             assert query instanceof SpanQuery;
             spanQueries[i] = (SpanQuery) query;
         }

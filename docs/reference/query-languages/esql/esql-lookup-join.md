@@ -266,6 +266,7 @@ any `LOOKUP JOIN`s.
 The following are the current limitations with `LOOKUP JOIN`:
 
 * Indices in [`lookup` mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) are always single-sharded.
+* {applies_to}`{"stack": "preview 9.6+, experimental =9.5", "serverless": "unavailable"}` The lookup target can't be an [{{esql}} Data Federation dataset](/reference/query-languages/esql/esql-data-federation-datasets.md). A dataset can be the source of the query that runs `LOOKUP JOIN`.
 * Cross cluster search is unsupported in versions prior to `9.2.0`. Both source and lookup indices must be local for these versions.
 * Currently, only matching on equality is supported.
 * In Stack versions `9.0-9.1`,`LOOKUP JOIN` can only use a single match field and a single index. Wildcards are not supported.

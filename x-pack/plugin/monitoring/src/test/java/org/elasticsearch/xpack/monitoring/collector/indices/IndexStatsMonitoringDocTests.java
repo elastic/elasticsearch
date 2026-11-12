@@ -401,6 +401,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
             no,
             no,
             no,
+            no,
             false,
             ++iota,
             no,
@@ -426,6 +427,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
             no,
             no,
             no,
+            Double.valueOf(no),
             Double.valueOf(no)
         );
         commonStats.getSearch().add(new SearchStats(searchStats, no, null));

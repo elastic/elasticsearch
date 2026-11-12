@@ -49,15 +49,10 @@ class IsolatedProjectsArchUnitSpec extends AbstractArchUnitSpec {
     private static final Set<String> KNOWN_GET_ROOT_DIR = [] as Set
 
     private static final Set<String> KNOWN_GET_ROOT_PROJECT = [
-        "org.elasticsearch.gradle.internal.InternalAvailableTcpPortProviderPlugin",
         "org.elasticsearch.gradle.internal.InternalBwcGitPlugin",
         "org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin",
-        "org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin",
-        "org.elasticsearch.gradle.internal.InternalTestClustersPlugin",
-        "org.elasticsearch.gradle.internal.docker.DockerSupportPlugin",
         "org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin",
         "org.elasticsearch.gradle.internal.precommit.SplitPackagesAuditPrecommitPlugin",
-        "org.elasticsearch.gradle.internal.test.DistroTestPlugin",
         "org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin",
     ] as Set
 

@@ -19,6 +19,7 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
+import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -30,7 +31,6 @@ import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
@@ -110,13 +110,7 @@ public class DatafeedJobBuilder {
         if (context.restartTimeInfo().getLatestRecordTimeMs() == null) {
             latestRecordTimeMs = -1;
         } else {
-            long recordMs = context.restartTimeInfo().getLatestRecordTimeMs();
-            if (datafeedConfig.getEsqlQuery() != null && EsqlDataExtractor.hasAggregation(datafeedConfig.getEsqlQuery())) {
-                // Aggregating ES|QL emits bucket-floor timestamps; {@link ChunkedDataExtractorFactory} floors the window start on
-                // restart, so advance past the last fully emitted grouping bucket. Raw {@code FROM} rows keep source timestamps.
-                recordMs += datafeedConfig.getGroupingInterval().millis() - 1;
-            }
-            latestRecordTimeMs = recordMs;
+            latestRecordTimeMs = context.restartTimeInfo().getLatestRecordTimeMs();
         }
         final DatafeedTimingStatsReporter timingStatsReporter = new DatafeedTimingStatsReporter(
             context.timingStats(),
@@ -201,11 +195,7 @@ public class DatafeedJobBuilder {
         if (context.restartTimeInfo().getLatestRecordTimeMs() == null) {
             latestRecordTimeMs = -1;
         } else {
-            long recordMs = context.restartTimeInfo().getLatestRecordTimeMs();
-            if (datafeedConfig.getEsqlQuery() != null && EsqlDataExtractor.hasAggregation(datafeedConfig.getEsqlQuery())) {
-                recordMs += datafeedConfig.getGroupingInterval().millis() - 1;
-            }
-            latestRecordTimeMs = recordMs;
+            latestRecordTimeMs = context.restartTimeInfo().getLatestRecordTimeMs();
         }
         final DatafeedTimingStatsReporter timingStatsReporter = new DatafeedTimingStatsReporter(
             context.timingStats(),
@@ -267,6 +257,16 @@ public class DatafeedJobBuilder {
             ccsStabilizationCycles,
             java.time.Duration.ofMillis(ccsStabilizationFloorMs)
         );
+        boolean isEsqlDatafeed = datafeedConfig.getEsqlQuery() != null;
+        String emittedTimeField = job.getDataDescription() == null ? null : job.getDataDescription().getTimeField();
+        // Cross-project wrapping does not change query, time fields, or grouping interval, so this matches the provider fingerprint.
+        String esqlCheckpointFingerprint = isEsqlDatafeed
+            ? EsqlDatafeedSourceCheckpoint.computeFingerprint(effectiveDatafeedConfig, emittedTimeField)
+            : null;
+        Long esqlSourceEndMs = null;
+        if (isEsqlDatafeed && context.esqlSourceCheckpoint() != null) {
+            esqlSourceEndMs = context.esqlSourceCheckpoint().getSourceEndMs();
+        }
         DatafeedJob datafeedJob = new DatafeedJob(
             datafeedConfig.getId(),
             effectiveDatafeedConfig.getProjectRouting(),
@@ -288,7 +288,12 @@ public class DatafeedJobBuilder {
             latestRecordTimeMs,
             context.restartTimeInfo().haveSeenDataPreviously(),
             delayedDataCheckFreq,
-            crossClusterSearchStats
+            crossClusterSearchStats,
+            isEsqlDatafeed,
+            isEsqlDatafeed ? effectiveDatafeedConfig.getGroupingInterval().millis() : 0L,
+            esqlCheckpointFingerprint,
+            esqlSourceEndMs,
+            isEsqlDatafeed ? jobResultsPersister::persistEsqlDatafeedSourceCheckpoint : null
         );
         listener.onResponse(datafeedJob);
     }

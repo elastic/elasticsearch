@@ -7,8 +7,13 @@
 
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
@@ -16,6 +21,8 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import java.util.Objects;
 
 public class DatafeedContextProvider {
+
+    private static final Logger LOGGER = LogManager.getLogger(DatafeedContextProvider.class);
 
     private final JobConfigProvider jobConfigProvider;
     private final DatafeedConfigProvider datafeedConfigProvider;
@@ -37,10 +44,51 @@ public class DatafeedContextProvider {
             jobConfigProvider.getJob(datafeedConfig.getJobId(), null, delegate1.delegateFailureAndWrap((delegate2, jobBuilder) -> {
                 resultsProvider.getRestartTimeInfo(jobBuilder.getId(), delegate2.delegateFailureAndWrap((delegate3, restartTimeInfo) -> {
                     resultsProvider.datafeedTimingStats(jobBuilder.getId(), timingStats -> {
-                        delegate3.onResponse(new DatafeedContext(datafeedConfig, jobBuilder.build(), restartTimeInfo, timingStats));
+                        Job job = jobBuilder.build();
+                        if (datafeedConfig.getEsqlQuery() == null) {
+                            delegate3.onResponse(new DatafeedContext(datafeedConfig, job, restartTimeInfo, timingStats));
+                            return;
+                        }
+                        resultsProvider.esqlDatafeedSourceCheckpoint(
+                            job.getId(),
+                            checkpoint -> delegate3.onResponse(
+                                new DatafeedContext(
+                                    datafeedConfig,
+                                    job,
+                                    restartTimeInfo,
+                                    timingStats,
+                                    validateLoadedCheckpoint(datafeedConfig, job, checkpoint)
+                                )
+                            ),
+                            delegate3::onFailure
+                        );
                     }, delegate3::onFailure);
                 }));
             }));
         }));
+    }
+
+    @Nullable
+    public static EsqlDatafeedSourceCheckpoint validateLoadedCheckpoint(
+        DatafeedConfig datafeedConfig,
+        Job job,
+        @Nullable EsqlDatafeedSourceCheckpoint checkpoint
+    ) {
+        if (checkpoint == null) {
+            return null;
+        }
+        String emittedTimeField = job.getDataDescription() == null ? null : job.getDataDescription().getTimeField();
+        String expectedFingerprint = EsqlDatafeedSourceCheckpoint.computeFingerprint(datafeedConfig, emittedTimeField);
+        EsqlDatafeedSourceCheckpoint validated = EsqlDatafeedSourceCheckpoint.validateFingerprint(checkpoint, expectedFingerprint);
+        if (validated == null) {
+            LOGGER.warn(
+                "[{}] ES|QL source checkpoint fingerprint does not match datafeed [{}]. "
+                    + "The persisted checkpoint is discarded. "
+                    + "Reset the job when you change the ES|QL query or time fields.",
+                job.getId(),
+                datafeedConfig.getId()
+            );
+        }
+        return validated;
     }
 }

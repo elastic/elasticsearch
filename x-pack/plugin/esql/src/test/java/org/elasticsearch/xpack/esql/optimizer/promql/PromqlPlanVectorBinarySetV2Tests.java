@@ -19,9 +19,9 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 
 /** PromQL set operators translated over a label container. */
-public class PromqlPlanSetOperatorLabelTests extends AbstractPromqlPlanOptimizerTests {
+public class PromqlPlanVectorBinarySetV2Tests extends AbstractPromqlPlanOptimizerTests {
 
-    public PromqlPlanSetOperatorLabelTests(VersionMode versionMode) {
+    public PromqlPlanVectorBinarySetV2Tests(VersionMode versionMode) {
         super(versionMode);
     }
 
@@ -38,10 +38,7 @@ public class PromqlPlanSetOperatorLabelTests extends AbstractPromqlPlanOptimizer
 
     /** A chain of {@code or} unions all its branches at once. */
     public void testOrChainUnionsEveryBranch() {
-        LogicalPlan plan = planPromqlV2(
-            "PROMQL index=k8s step=1h network.bytes_in or network.cost or network.total_bytes_in",
-            false
-        );
+        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h network.bytes_in or network.cost or network.total_bytes_in", false);
         assertThat(plan.collect(UnionAll.class).getFirst().children(), hasSize(3));
     }
 

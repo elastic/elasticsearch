@@ -11,14 +11,6 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.SelectorV2;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
-import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
-import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
-import org.elasticsearch.xpack.esql.plan.logical.promql.operator.SetOperatorLabelTranslation;
-import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperatorV2;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -64,6 +56,15 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2.IntermediateResult.Kind;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperatorV2;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySetV2;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.SelectorV2;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -78,7 +79,6 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
-import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
 
 /**
  * Shared state and assembly helpers for one PromQL translation. Every result carries its series' labels as one label
@@ -124,7 +124,7 @@ public record TranslationContextV2(
             case MetadataManipulationFunction relabel -> MetadataManipulationFunctionV2.translate(relabel, this);
             case SortFunction sort -> SortFunctionV2.translate(sort, this);
             case SortByLabelFunction sort -> SortFunctionV2.translate(sort, this);
-            case VectorBinarySet set -> SetOperatorLabelTranslation.translate(set, this);
+            case VectorBinarySet set -> VectorBinarySetV2.translate(set, this);
             case VectorBinaryOperator operator -> VectorBinaryOperatorV2.translate(operator, this);
             default -> throw new QlIllegalArgumentException("PromQL plan node [{}] does not translate in V2 yet", node.nodeName());
         };
@@ -575,14 +575,14 @@ public record TranslationContextV2(
         }
         // `or` is the only set operator that adds rows (more series), requiring a top-level multi-branch `UnionAll` that
         // cannot compose as a single-value sub-expression.
-        List<LogicalPlan> branches = SetOperatorLabelTranslation.flattenUnion(cmd.promqlPlan());
+        List<LogicalPlan> branches = VectorBinarySetV2.flattenUnion(cmd.promqlPlan());
         if (branches.size() == 1) {
             IntermediateResult result = translateIntermediate(cmd.promqlPlan(), cmd.stepId(), cmd.valueId());
             boolean constant = result.kind().constant;
             return finish(emitFinalProjection(result.plan(), result.labels(), constant), constant);
         }
         // Compile every branch as its own module (own step/value ids, own shifted evaluation timestamp), then link.
-        LogicalPlan union = SetOperatorLabelTranslation.translateUnion(
+        LogicalPlan union = VectorBinarySetV2.translateUnion(
             this,
             branches.stream().map(b -> translateIntermediate(b, new NameId(), new NameId())).toList()
         );
@@ -666,7 +666,8 @@ public record TranslationContextV2(
                             labels,
                             Literal.keyword(labels.source(), PromqlLabels.labelName(label))
                         ),
-                        attr.dataType());
+                        attr.dataType()
+                    );
                 Alias alias = new Alias(source, attr.name(), value, attr.id());
                 evals.add(alias);
                 projected.set(i, alias.toAttribute());

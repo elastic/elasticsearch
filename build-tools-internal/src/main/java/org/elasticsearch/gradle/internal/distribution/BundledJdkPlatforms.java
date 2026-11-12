@@ -72,19 +72,4 @@ public final class BundledJdkPlatforms {
     public static String jdkName(String platform, String architecture) {
         return "bundled_" + platform + "_" + architecture;
     }
-
-    /**
-     * The directory holding the security configuration, such as {@code cacerts} and {@code blocked.certs}, relative to
-     * the root of the bundled JDK for the given platform. The macOS JDK is an application bundle with its home in
-     * {@code Contents/Home}.
-     *
-     * @param platform one of {@code linux}, {@code darwin} or {@code windows}
-     */
-    public static String securityDir(String platform) {
-        return switch (platform) {
-            case "linux", "windows" -> "lib/security";
-            case "darwin" -> "Contents/Home/lib/security";
-            default -> throw new IllegalArgumentException("Unknown platform [" + platform + "]");
-        };
-    }
 }

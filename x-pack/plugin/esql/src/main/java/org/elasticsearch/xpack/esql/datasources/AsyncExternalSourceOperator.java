@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.ValueBytes;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -69,7 +70,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     /**
      * Factory hold released from {@link #close()} so a producer that finishes during pipeline
      * construction cannot drop the last {@code operatorRefCount} before later {@code get()} calls.
-     * No-op when this operator was not created by {@link AsyncExternalSourceOperatorFactory}.
+     * No-op when this operator was not created by {@link AsyncExternalSourceOperatorFactory} or
+     * {@link AsyncConnectorSourceOperatorFactory}.
      */
     private final Releasable onOperatorClose;
     /**
@@ -94,6 +96,11 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
         this(buffer, driverContext, ExternalSourceMetrics.NOOP, null, null, null, null);
+    }
+
+    /** Connector-factory path: {@code onOperatorClose} is the factory's operator hold. */
+    public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer, DriverContext driverContext, Releasable onOperatorClose) {
+        this(buffer, driverContext, ExternalSourceMetrics.NOOP, null, null, onOperatorClose, null);
     }
 
     public AsyncExternalSourceOperator(
@@ -306,6 +313,27 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             "async_external_source",
             Status::new
         );
+
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(Status.class, Status::toXContent)
+            .required("pages_waiting", ProfileSchema.integer())
+            .required("pages_emitted", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .required("bytes_decoded", ProfileSchema.integer())
+            .required("bytes_buffered", ProfileSchema.integer())
+            .required("process_nanos", ProfileSchema.integer())
+            .required("splits_processed", ProfileSchema.integer())
+            .required("splits_total", ProfileSchema.integer())
+            .required("current_split", ProfileSchema.integer())
+            .required("bytes_read", ProfileSchema.integer())
+            .required("request_count", ProfileSchema.integer())
+            .required("retry_count", ProfileSchema.integer())
+            .required("read_nanos", ProfileSchema.integer())
+            .required("read_cpu_nanos", ProfileSchema.integer())
+            .required("stripes_committed", ProfileSchema.integer())
+            .required("partial", ProfileSchema.bool())
+            .required("format_reader", ProfileSchema.dynamicObject(Map.of()))
+            .optional("failure", ProfileSchema.string())
+            .build();
 
         private static final TransportVersion ESQL_ASYNC_SOURCE_BYTES_BUFFERED = TransportVersion.fromName(
             "esql_async_source_bytes_buffered"
@@ -650,30 +678,34 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
+        }
+
+        private static XContentBuilder toXContent(XContentBuilder builder, Status status, Params params) throws IOException {
             builder.startObject();
-            builder.field("pages_waiting", pagesWaiting);
-            builder.field("pages_emitted", pagesEmitted);
-            builder.field("rows_emitted", rowsEmitted);
-            builder.field("bytes_decoded", bytesDecoded);
-            builder.field("bytes_buffered", bytesBuffered);
-            builder.field("process_nanos", processNanos);
-            builder.field("splits_processed", splitsProcessed);
-            builder.field("splits_total", splitsTotal);
-            builder.field("current_split", currentSplit);
-            builder.field("bytes_read", bytesRead);
-            builder.field("request_count", requestCount);
-            builder.field("retry_count", retryCount);
-            builder.field("read_nanos", readCounters.readNanos());
-            builder.field("read_cpu_nanos", readCounters.readCpuNanos());
-            builder.field("stripes_committed", stripesCommitted());
-            builder.field("partial", partial);
+            builder.field("pages_waiting", status.pagesWaiting);
+            builder.field("pages_emitted", status.pagesEmitted);
+            builder.field("rows_emitted", status.rowsEmitted);
+            builder.field("bytes_decoded", status.bytesDecoded);
+            builder.field("bytes_buffered", status.bytesBuffered);
+            builder.field("process_nanos", status.processNanos);
+            builder.field("splits_processed", status.splitsProcessed);
+            builder.field("splits_total", status.splitsTotal);
+            builder.field("current_split", status.currentSplit);
+            builder.field("bytes_read", status.bytesRead);
+            builder.field("request_count", status.requestCount);
+            builder.field("retry_count", status.retryCount);
+            builder.field("read_nanos", status.readCounters.readNanos());
+            builder.field("read_cpu_nanos", status.readCounters.readCpuNanos());
+            builder.field("stripes_committed", status.stripesCommitted());
+            builder.field("partial", status.partial);
             builder.startObject("format_reader");
-            if (formatReader != null) {
-                formatReader.toXContent(builder, params);
+            if (status.formatReader != null) {
+                status.formatReader.toXContent(builder, params);
             }
             builder.endObject();
-            if (failure != null) {
-                builder.field("failure", failure.getMessage());
+            if (status.failure != null) {
+                builder.field("failure", status.failure.getMessage());
             }
             return builder.endObject();
         }

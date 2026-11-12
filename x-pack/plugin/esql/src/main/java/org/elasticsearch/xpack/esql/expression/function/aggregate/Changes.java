@@ -57,9 +57,9 @@ public class Changes extends TimeSeriesAggregateFunction implements OptionalArgu
         .description("Returns the number of times the value changed in each time series in a range vector.")
         .example("changes(process_start_time_seconds[1h])")
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
-        .differenceFromPrometheus(
+        .stdDivergence(
             PromqlFunctionDefinition.COUNT_NOTE
-                + " A single Elasticsearch field has a fixed type, so transitions between float and native histogram samples "
+                + " A single {{es}} field has a fixed type, so transitions between float and native histogram samples "
                 + "cannot be represented."
         )
         .name("changes");

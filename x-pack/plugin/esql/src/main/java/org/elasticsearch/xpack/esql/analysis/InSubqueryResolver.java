@@ -49,10 +49,13 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.expression.Attribute.SYNTHETIC_ATTRIBUTE_NAME_PREFIX;
+import static org.elasticsearch.xpack.esql.core.expression.Attribute.SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR;
 
 /**
  * Resolves {@link InSubquery} expressions in {@link Filter} conditions, {@link Eval} field definitions, and
@@ -102,6 +105,34 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  */
 public class InSubqueryResolver {
 
+    private static final String MARK_BASE_NAME = "in_subquery_mark";
+
+    private static final String CONST_BASE_NAME = "in_subquery_const";
+
+    /**
+     * Exactly the names built by {@link #syntheticMarkName} / {@link #syntheticConstName}: {@code $$} plus one of the two base names
+     * above, followed by two or three {@code $}-separated decimal integers (hash codes may be negative).
+     */
+    private static final Pattern SYNTHETIC_NAME = Pattern.compile(
+        Pattern.quote(SYNTHETIC_ATTRIBUTE_NAME_PREFIX)
+            + "(?:"
+            + MARK_BASE_NAME
+            + "|"
+            + CONST_BASE_NAME
+            + ")(?:"
+            + Pattern.quote(SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR)
+            + "-?\\d+){2,3}"
+    );
+
+    /**
+     * {@code true} for MarkJoin marks and foldable IN-subquery const aliases. Other synthetics (union-type
+     * {@code $$<field>$converted_to$<type>} casts) are not included: those must stay in {@code FORK} / {@code UnionAll} output so a
+     * conversion above the merge can reference them.
+     */
+    public static boolean isInSubquerySynthetic(Attribute attr) {
+        return attr.synthetic() && SYNTHETIC_NAME.matcher(attr.name()).matches();
+    }
+
     // for testing only
     /**
      *
@@ -124,7 +155,7 @@ public class InSubqueryResolver {
      * traversals.
      */
     public static LogicalPlan resolve(LogicalPlan plan) {
-        PlanSize planSize = new PlanSize(0, Integer.MAX_VALUE);
+        PlanSize planSize = PlanSize.unlimited();
         LogicalPlan resolved = resolveInSubqueries(plan, planSize);
         verify(resolved);
         return resolved;
@@ -537,7 +568,7 @@ public class InSubqueryResolver {
         // resolveInSubqueries is reused here: nested subquery plans are not reachable by the
         // outer transformUp (they live inside InSubquery expressions, not as plan children), so
         // they need their own traversal — but the traversal strategy is identical to the outer one.
-        planSize.add(1 + PlanSize.countNodes(subqueryPlan));
+        planSize.add(1 + planSize.countNodes(subqueryPlan));
         LogicalPlan subquery = resolveInSubqueries(subqueryPlan, planSize);
         JoinConfig config = new JoinConfig(negated ? JoinTypes.ANTI : JoinTypes.SEMI, leftFields, emptyList(), null);
         semiOrAntiJoins.add(new SemiOrAntiJoinSpec(source, subquery, config, negated));
@@ -667,7 +698,7 @@ public class InSubqueryResolver {
         // resolveInSubqueries is reused here: nested subquery plans are not reachable by the
         // outer transformUp (they live inside InSubquery expressions, not as plan children), so
         // they need their own traversal — but the traversal strategy is identical to the outer one.
-        planSize.add(1 + PlanSize.countNodes(inSubquery.subquery()));
+        planSize.add(1 + planSize.countNodes(inSubquery.subquery()));
         LogicalPlan subquery = resolveInSubqueries(inSubquery.subquery(), planSize);
         Attribute markAttribute = new ReferenceAttribute(
             inSubquery.source(),
@@ -700,7 +731,7 @@ public class InSubqueryResolver {
             return mcs;
         }
         // resolveInSubqueries is reused here: see the single-column overload for the rationale.
-        planSize.add(1 + PlanSize.countNodes(mcs.subquery()));
+        planSize.add(1 + planSize.countNodes(mcs.subquery()));
         LogicalPlan subquery = resolveInSubqueries(mcs.subquery(), planSize);
         Attribute markAttribute = new ReferenceAttribute(
             mcs.source(),
@@ -771,7 +802,12 @@ public class InSubqueryResolver {
      *  produces only one join and one synthetic alias.
      */
     private static String syntheticConstName(Expression value, LogicalPlan subquery, int ordinal) {
-        return "$$in_subquery_const$" + value.hashCode() + "$" + subquery.hashCode() + "$" + ordinal;
+        return Attribute.rawTemporaryName(
+            CONST_BASE_NAME,
+            Integer.toString(value.hashCode()),
+            Integer.toString(subquery.hashCode()),
+            Integer.toString(ordinal)
+        );
     }
 
     /**
@@ -784,7 +820,12 @@ public class InSubqueryResolver {
      *  join and one mark attribute.
      */
     private static String syntheticMarkName(InSubquery inSubquery, int ordinal) {
-        return "$$in_subquery_mark$" + inSubquery.value().hashCode() + "$" + inSubquery.subquery().hashCode() + "$" + ordinal;
+        return Attribute.rawTemporaryName(
+            MARK_BASE_NAME,
+            Integer.toString(inSubquery.value().hashCode()),
+            Integer.toString(inSubquery.subquery().hashCode()),
+            Integer.toString(ordinal)
+        );
     }
 
     /**
@@ -797,7 +838,7 @@ public class InSubqueryResolver {
      *  only one join and one mark attribute.
      */
     private static String syntheticMarkName(MultiColumnInSubquery mcs, int ordinal) {
-        return "$$in_subquery_mark$" + mcs.hashCode() + "$" + ordinal;
+        return Attribute.rawTemporaryName(MARK_BASE_NAME, Integer.toString(mcs.hashCode()), Integer.toString(ordinal));
     }
 
     public static void verify(LogicalPlan plan) {

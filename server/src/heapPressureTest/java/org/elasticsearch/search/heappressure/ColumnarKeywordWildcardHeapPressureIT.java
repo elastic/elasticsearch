@@ -18,7 +18,6 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Future;
 
 import static org.hamcrest.Matchers.greaterThan;
@@ -104,33 +103,39 @@ public class ColumnarKeywordWildcardHeapPressureIT extends HeapPressureTestCase 
     }
 
     /**
-     * Heavy requests held in flight at the same time either complete or are rejected by the breaker, never anything else, and the node
-     * survives them. The pausable field blocks each request after its automaton is built, so the overlap is guaranteed rather than a
-     * matter of timing: every thread of the search pool ends up holding one.
+     * Heavy requests sent at the same time either complete or have shards rejected by the breaker, never anything else, and the node
+     * survives them. The pausable field is unblocked as soon as enough search threads are busy, which can be before any shard parks, so
+     * the overlap depends on timing.
+     *
+     * <p>The breaker rejects shards, not whole requests, and a request that keeps any of its shards returns partial results. Which
+     * shards get through depends on timing, so the test counts rejected shards.
      */
     private void runPausedHeavyWildcards(boolean caseInsensitive) throws Exception {
         /* A pattern that fits comfortably under the breaker is unaffected. */
         assertNull(errorBodyOrNull(wildcardSearch(SMALL_WILDCARD, caseInsensitive, false)));
 
-        List<Future<Map<String, Object>>> futures;
+        List<Future<Integer>> futures;
         blockPauseField();
         try {
-            futures = submit(THREAD_COUNT, () -> errorBodyOrNull(wildcardSearch(HEAVY_WILDCARD, caseInsensitive, true)));
+            futures = submit(
+                THREAD_COUNT,
+                () -> circuitBreakerRejectedShards(wildcardSearch(HEAVY_WILDCARD, caseInsensitive, true), SHARDS)
+            );
             waitForOverlappingRequests(8);
         } finally {
             unblockPauseField();
         }
-        int rejected = 0;
-        for (Future<Map<String, Object>> future : futures) {
-            Map<String, Object> body = future.get();
-            if (body != null) {
-                assertTrue("expected only circuit_breaking_exception failures, but got: " + body, containsCircuitBreakingException(body));
-                rejected++;
-            }
+        int rejectedShards = 0;
+        for (Future<Integer> future : futures) {
+            rejectedShards += future.get();
         }
-        assertThat("expected the request breaker to reject some of the overlapping requests", rejected, greaterThan(0));
-        // Otherwise no automaton is ever retained, and the test only covers the cost of building one.
-        assertThat("expected some of the requests to get past the breaker and hold their automaton", rejected, lessThan(THREAD_COUNT));
+        assertThat("expected the request breaker to reject some of the overlapping shard requests", rejectedShards, greaterThan(0));
+        // Otherwise no shard ever holds its automaton, and the test only covers the cost of building one.
+        assertThat(
+            "expected some of the shard requests to get past the breaker and hold their automaton",
+            rejectedShards,
+            lessThan(THREAD_COUNT * SHARDS)
+        );
         // Check that the node didn't OOM and is still alive.
         assertNodeAlive();
     }

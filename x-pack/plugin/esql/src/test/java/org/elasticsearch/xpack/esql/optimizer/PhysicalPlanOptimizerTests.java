@@ -47,6 +47,7 @@ import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplin
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats;
@@ -130,6 +131,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
@@ -160,14 +162,13 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
-import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
@@ -212,6 +213,7 @@ import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
@@ -2442,10 +2444,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES));
 
         var boolQuery = as(sv(source.query(), "emp_no"), BoolQueryBuilder.class);
-        assertThat(boolQuery.mustNot(), hasSize(1));
-        var termQuery = as(boolQuery.mustNot().get(0), TermQueryBuilder.class);
-        assertThat(termQuery.fieldName(), is("emp_no"));
-        assertThat(termQuery.value(), is(10010));  // TODO this will match multivalued fields and we don't want that
+        assertThat(boolQuery.should(), hasSize(2));
+        var lt = as(boolQuery.should().get(0), RangeQueryBuilder.class);
+        assertThat(lt.fieldName(), is("emp_no"));
+        assertThat(lt.to(), is(10010));
+        assertFalse(lt.includeUpper());
+        var gt = as(boolQuery.should().get(1), RangeQueryBuilder.class);
+        assertThat(gt.fieldName(), is("emp_no"));
+        assertThat(gt.from(), is(10010));
+        assertFalse(gt.includeLower());
     }
 
     /**
@@ -3639,7 +3646,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertNull(source.query());
     }
 
-    public void testNoNonIndexedFilterPushDown() {
+    /** A field with doc values and no index is searched through its doc values, so a filter on it is pushed. */
+    public void testNonIndexedFieldWithDocValuesFilterPushDown() {
         var plan = physicalPlan("""
             from test
             | where long_noidx == 1
@@ -3650,11 +3658,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(limit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
-        var limit2 = as(extract.child(), LimitExec.class);
-        var filter = as(limit2.child(), FilterExec.class);
-        var extract2 = as(filter.child(), FieldExtractExec.class);
-        var source = source(extract2.child());
-        assertNull(source.query());
+        var source = as(extract.child(), EsQueryExec.class);
+        var qb = as(source.query(), SingleValueQuery.Builder.class);
+        assertThat(qb.field(), equalTo("long_noidx"));
     }
 
     public void testTextWithRawFilterPushDown() {
@@ -3690,7 +3696,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertNull(source.sorts());
     }
 
-    public void testNoNonIndexedSortPushDown() {
+    /** A field with doc values and no index sorts on its doc values, so a sort on it is pushed. */
+    public void testNonIndexedFieldWithDocValuesSortPushDown() {
         var plan = physicalPlan("""
             from test
             | sort long_noidx
@@ -3701,10 +3708,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = as(topN.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
-        var topN2 = as(extract.child(), TopNExec.class);
-        var extract2 = as(topN2.child(), FieldExtractExec.class);
-        var source = source(extract2.child());
-        assertNull(source.sorts());
+        var source = as(extract.child(), EsQueryExec.class);
+        assertThat(source.sorts().size(), equalTo(1));
+        assertThat(source.sorts().get(0).field().name(), equalTo("long_noidx"));
     }
 
     public void testTextWithRawSortPushDown() {
@@ -10280,6 +10286,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             ProjectMetadata.builder(randomProjectIdOrDefault()).build(),
             new EsPhysicalOperationProviders(
                 FoldContext.small(),
+                TEST_CFG,
                 EmptyIndexedByShardId.instance(),
                 null,
                 PlannerSettings.DEFAULTS,
@@ -10291,7 +10298,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             null,  // parallelWorkerExecutor - not needed for these tests
             0,     // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop(),
-            TransportVersion.current()
+            TransportVersion.current(),
+            null   // client - not needed for these tests
         );
 
         return planner.plan("test", FoldContext.small(), plannerSettings, plan, EmptyIndexedByShardId.instance(), randomBoolean());
@@ -10515,7 +10523,52 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(randomSampling.hash(), equalTo(0));
     }
 
-    public void testReductionPlanForMetricsInfoReturnsIntermediateReduction() {
+    /**
+     * Before single-pass time-series aggregation, the data node ends with the partial {@link TimeSeriesAggregate}, grouped by
+     * {@code _tsid}, whose results are disjoint between shards, so node-reduce is disabled.
+     */
+    public void testDisableTimeSeriesAggsReduction() {
+        var dataPlan = timeSeriesAggsDataPlan(TransportVersionUtils.getPreviousVersion(TimeSeriesAggregate.TIME_SERIES_SINGLE_PASS));
+        var fragment = as(dataPlan.child(), FragmentExec.class);
+        var tsAggregate = as(fragment.fragment(), TimeSeriesAggregate.class);
+        assertFalse(tsAggregate.singlePass());
+
+        assertThat(PlannerUtils.reductionPlan(dataPlan), equalTo(PlannerUtils.SimplePlanReduction.NO_REDUCTION));
+    }
+
+    /**
+     * With single-pass time-series aggregation, the data node also runs the outer aggregation, grouped by bucket only, so
+     * node-reduce merges its partial results like any other aggregation.
+     */
+    public void testSinglePassTimeSeriesAggsReduction() {
+        var dataPlan = timeSeriesAggsDataPlan(TimeSeriesAggregate.TIME_SERIES_SINGLE_PASS);
+        var fragment = as(dataPlan.child(), FragmentExec.class);
+        var aggregate = as(fragment.fragment(), Aggregate.class);
+        var tsAggregate = as(aggregate.child(), TimeSeriesAggregate.class);
+        assertTrue(tsAggregate.singlePass());
+
+        var reduction = as(PlannerUtils.reductionPlan(dataPlan), PlannerUtils.ReducedPlan.class);
+        var aggregateExec = as(reduction.plan(), AggregateExec.class);
+        assertThat(aggregateExec.getMode(), equalTo(AggregatorMode.INTERMEDIATE));
+        assertThat(aggregateExec.groupings(), hasSize(1));
+        as(aggregateExec.child(), TimeSeriesAggregateExec.class);
+    }
+
+    private ExchangeSinkExec timeSeriesAggsDataPlan(TransportVersion minimumVersion) {
+        var mapping = loadMapping("k8s-mappings.json");
+        EsIndex index = EsIndexGenerator.esIndex("k8s", mapping, Map.of("k8s", IndexMode.TIME_SERIES));
+        Analyzer analyzer = analyzer().configuration(config).addIndex(index).minimumTransportVersion(minimumVersion).buildAnalyzer();
+        var timeSeriesData = new TestDataSource(mapping, index, analyzer, TEST_SEARCH_STATS);
+
+        var plan = physicalPlan("""
+            TS k8s
+            | STATS max(rate(network.total_bytes_in)) BY TBUCKET(1 hour)
+            """, timeSeriesData);
+        Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
+        return as(plans.v2(), ExchangeSinkExec.class);
+    }
+
+    public void testDisableMetricsInfoReduction() {
         EsRelation esRelation = new EsRelation(
             Source.EMPTY,
             "k8s",
@@ -10530,17 +10583,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         FragmentExec fragment = new FragmentExec(metricsInfo);
         ExchangeSinkExec dataPlan = new ExchangeSinkExec(Source.EMPTY, fragment.output(), false, fragment);
 
-        PlannerUtils.PlanReduction reduction = PlannerUtils.reductionPlan(dataPlan);
-        assertThat(reduction, instanceOf(PlannerUtils.ReducedPlan.class));
-        PlannerUtils.ReducedPlan reducedPlan = (PlannerUtils.ReducedPlan) reduction;
-        var metricsInfoExec = as(reducedPlan.plan(), MetricsInfoExec.class);
-        assertThat(metricsInfoExec.mode(), equalTo(MetricsInfoExec.Mode.INTERMEDIATE));
-
-        assertThat(metricsInfoExec.intermediateAttributes(), equalTo(dataPlan.output()));
-        assertThat(metricsInfoExec.output(), equalTo(dataPlan.output()));
+        assertThat(PlannerUtils.reductionPlan(dataPlan), equalTo(PlannerUtils.SimplePlanReduction.NO_REDUCTION));
     }
 
-    public void testReductionPlanForTsInfoReturnsIntermediateReduction() {
+    public void testDisableTsInfoReduction() {
         EsRelation esRelation = new EsRelation(
             Source.EMPTY,
             "k8s",
@@ -10555,14 +10601,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         FragmentExec fragment = new FragmentExec(tsInfo);
         ExchangeSinkExec dataPlan = new ExchangeSinkExec(Source.EMPTY, fragment.output(), false, fragment);
 
-        PlannerUtils.PlanReduction reduction = PlannerUtils.reductionPlan(dataPlan);
-        assertThat(reduction, instanceOf(PlannerUtils.ReducedPlan.class));
-        PlannerUtils.ReducedPlan reducedPlan = (PlannerUtils.ReducedPlan) reduction;
-        var tsInfoExec = as(reducedPlan.plan(), TsInfoExec.class);
-        assertThat(tsInfoExec.mode(), equalTo(TsInfoExec.Mode.INTERMEDIATE));
-
-        assertThat(tsInfoExec.intermediateAttributes(), equalTo(dataPlan.output()));
-        assertThat(tsInfoExec.output(), equalTo(dataPlan.output()));
+        assertThat(PlannerUtils.reductionPlan(dataPlan), equalTo(PlannerUtils.SimplePlanReduction.NO_REDUCTION));
     }
 
     @SuppressWarnings("SameParameterValue")

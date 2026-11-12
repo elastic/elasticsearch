@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165833
+summary: Read Parquet LZ4 pages that carry no Hadoop framing
+type: bug

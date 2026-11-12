@@ -629,7 +629,6 @@ COUNT():long | x:keyword
 ;
 
 categorize in aggs same as grouping inside function
-skip_flattened_rewrite: categorize_on_flattened_unsupported
 required_capability: categorize_v6
 
 FROM sample_data
@@ -645,7 +644,6 @@ COUNT():long | x:keyword
 ;
 
 categorize in aggs same as grouping inside function with explicit alias
-skip_flattened_rewrite: categorize_on_flattened_unsupported
 required_capability: categorize_v6
 
 FROM sample_data
@@ -658,6 +656,21 @@ COUNT():long | x:keyword
            3 | [.*?Connected.+?to.*?,.*?Connected.+?to.*?]
            3 | [.*?Connection.+?error.*?,.*?Connection.+?error.*?]
            1 | [.*?Disconnected.*?,.*?Disconnected.*?]
+;
+
+categorize on expression in aggs same as grouping inside function
+required_capability: fn_categorize_fix_expression_argument
+
+FROM sample_data
+  | STATS COUNT(), x = MV_APPEND(CATEGORIZE(TO_LOWER(message)), category) BY category = CATEGORIZE(TO_LOWER(message))
+  | SORT x
+  | KEEP `COUNT()`, x
+;
+
+COUNT():long | x:keyword
+           3 | [.*?connected.+?to.*?,.*?connected.+?to.*?]
+           3 | [.*?connection.+?error.*?,.*?connection.+?error.*?]
+           1 | [.*?disconnected.*?,.*?disconnected.*?]
 ;
 
 multiple groupings with categorize and ip
@@ -693,7 +706,6 @@ count:long | category:keyword         | timestamp:datetime
 
 
 multiple groupings with categorize and limit before stats
-skip_flattened_rewrite: categorize_on_flattened_unsupported
 required_capability: categorize_multiple_groupings
 
 FROM sample_data | SORT message | LIMIT 5
@@ -706,6 +718,21 @@ count:long | category:keyword         | client_ip:ip
          1 | .*?Connected.+?to.*?     | 172.21.2.162
          1 | .*?Connected.+?to.*?     | 172.21.3.15
          2 | .*?Connection.+?error.*? | 172.21.3.15
+;
+
+multiple groupings with categorize on expression and sort on expression before stats
+required_capability: fn_categorize_fix_expression_argument
+
+FROM sample_data | SORT TO_LOWER(message) | LIMIT 5
+  | STATS count=COUNT() BY category=CATEGORIZE(TO_LOWER(message)), client_ip
+  | SORT category, client_ip
+;
+
+count:long | category:keyword         | client_ip:ip
+         1 | .*?connected.+?to.*?     | 172.21.2.113
+         1 | .*?connected.+?to.*?     | 172.21.2.162
+         1 | .*?connected.+?to.*?     | 172.21.3.15
+         2 | .*?connection.+?error.*? | 172.21.3.15
 ;
 
 multiple groupings with categorize and nulls

@@ -76,7 +76,11 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
         "Categorize",
         Categorize::new
     );
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Categorize.class).binary(Categorize::new).name("categorize");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Categorize.class)
+        .binary(Categorize::new)
+        // Fix CATEGORIZE over an expression failing when reused in the aggregates or combined with other groupings.
+        .capabilities("fix_expression_argument")
+        .name("categorize");
     private static final TransportVersion ESQL_CATEGORIZE_OPTIONS = TransportVersion.fromName("esql_categorize_options");
 
     private static final String ANALYZER = "analyzer";

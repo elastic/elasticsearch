@@ -84,6 +84,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
@@ -4550,6 +4551,61 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(categorize.field(), is(evalFieldAlias.toAttribute()));
         assertThat(evalField.source().text(), is("CONCAT(first_name, \"abc\")"));
         assertThat(categorizeAlias.source(), is(categorize.source()));
+    }
+
+    /**
+     * A {@code CATEGORIZE} over an expression that is reused inside an aggregate expression must be replaced with a
+     * reference to the grouping, even though the grouping's argument was extracted into an eval.
+     */
+    public void testNestedExpressionsInGroupsWithCategorizeReusedInAggs() {
+        var plan = optimizedPlan("""
+            from test
+            | stats c = count(), x = MV_APPEND(CATEGORIZE(TO_LOWER(first_name)), cat) by cat = CATEGORIZE(TO_LOWER(first_name))
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("c", "x", "cat"));
+        var eval = as(project.child(), Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+
+        var categorizeAlias = as(agg.groupings().get(0), Alias.class);
+        assertThat(categorizeAlias.name(), is("cat"));
+        var categorize = as(categorizeAlias.child(), Categorize.class);
+        var preAggEval = as(agg.child(), Eval.class);
+        assertThat(preAggEval.fields(), hasSize(1));
+        assertThat(categorize.field(), is(preAggEval.fields().get(0).toAttribute()));
+        as(preAggEval.fields().get(0).child(), ToLower.class);
+
+        assertThat(eval.fields(), hasSize(1));
+        var x = as(eval.fields().get(0), Alias.class);
+        assertThat(x.name(), is("x"));
+        var mvAppend = as(x.child(), MvAppend.class);
+        assertThat(mvAppend.children(), contains(categorizeAlias.toAttribute(), categorizeAlias.toAttribute()));
+    }
+
+    /**
+     * {@code CATEGORIZE} over an expression with an additional grouping, sitting atop a {@link Project} (introduced by the
+     * {@code SORT} on an expression), must allow combining the projection into the aggregate.
+     */
+    public void testCategorizeWithAdditionalGroupingAboveProject() {
+        var plan = optimizedPlan("""
+            from test
+            | sort TO_LOWER(first_name)
+            | limit 5
+            | stats c = count() by cat = CATEGORIZE(TO_LOWER(first_name)), emp_no
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("cat", "emp_no"));
+        assertThat(Expressions.names(agg.aggregates()), contains("c", "cat", "emp_no"));
+        var categorizeAlias = as(agg.groupings().get(0), Alias.class);
+        var categorize = as(categorizeAlias.child(), Categorize.class);
+        var preAggEval = as(agg.child(), Eval.class);
+        assertThat(preAggEval.fields(), hasSize(1));
+        assertThat(categorize.field(), is(preAggEval.fields().get(0).toAttribute()));
+        as(preAggEval.fields().get(0).child(), ToLower.class);
     }
 
     /**

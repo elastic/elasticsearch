@@ -226,13 +226,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
     }
 
     private void doSyncBuiltInRoles(final QueryableBuiltInRoles roles) {
-        // The sync slot held by this invocation must be ended exactly once. The notifyOnce wrapper drops any
-        // second completion, e.g. a cluster state update task listener erroneously notified again after a
-        // master failover, which would otherwise release a slot it no longer owns and corrupt the RolesSync
-        // state machine. The success log also lives inside the guarded listener, so a dropped stale completion
-        // logs nothing. A plain ActionListener (not ActionListener#wrap) is used deliberately: wrap reroutes
-        // exceptions thrown by the onResponse consumer into the onFailure consumer, which would run the
-        // sync-ending logic twice for a single completion.
+        // the task listener can complete more than once (e.g. around master failover); end the slot exactly once
         final ActionListener<Void> syncEndListener = ActionListener.notifyOnce(new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
@@ -243,12 +237,8 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
 
             @Override
             public void onFailure(Exception e) {
-                try {
-                    handleException(e);
-                } finally {
-                    // the slot must be ended even if the exception handling itself fails, or it would leak
-                    endSyncAndRunPendingSync();
-                }
+                handleException(e);
+                endSyncAndRunPendingSync();
             }
         });
         final Map<String, String> indexedRolesDigests;
@@ -260,46 +250,30 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         }
         if (roles.rolesDigest().equals(indexedRolesDigests)) {
             logger.debug("Security index already contains the latest built-in roles indexed, skipping roles synchronization");
-            // completed inline rather than through syncEndListener so that the "Successfully synced" log only
-            // fires when changes were actually applied, and so that an exception from ending the slot (the
-            // endSync corruption tripwire) propagates to the caller instead of being fed back into the already
-            // consumed notifyOnce listener, which would silently swallow it
+            // no-op sync: don't log success
             resetFailedSyncAttempts();
             endSyncAndRunPendingSync();
         } else {
-            // ActionRunnable (rather than a bare lambda) guarantees the listener is completed even if the
-            // executor rejects the task or applyRoleChanges throws before using the listener; otherwise the
-            // sync slot would leak and built-in roles would never be synced again on this node.
-            try {
-                executor.execute(ActionRunnable.wrap(syncEndListener, listener -> applyRoleChanges(indexedRolesDigests, roles, listener)));
-            } catch (Exception e) {
-                // the executor threw instead of delivering the rejection to the runnable, so the listener has
-                // not been notified yet
-                syncEndListener.onFailure(e);
-            }
+            executor.execute(ActionRunnable.wrap(syncEndListener, listener -> applyRoleChanges(indexedRolesDigests, roles, listener)));
         }
     }
 
     /**
-     * Ends the sync slot held by the completed sync and, if a sync request arrived while that sync was running
-     * (coalesced into the {@code RUNNING_WITH_PENDING_REQUEST} state), runs the pending sync against fresh cluster state.
-     * This is not failure-retry logic: a failed sync is not re-attempted here, it only gets another chance on a
-     * future trigger (and only while under {@link #MAX_FAILED_SYNC_ATTEMPTS}).
+     * Ends the sync slot and, if a sync request arrived while the sync was running, runs the pending sync
+     * against fresh cluster state. Not failure-retry logic: a failed sync only gets another chance on a future
+     * trigger.
      */
     private void endSyncAndRunPendingSync() {
-        // Each loop iteration holds the sync slot (state RUNNING) after endSync() returned true. Nothing in the
-        // loop body may throw, as an exception escaping while the slot is held would either leak the slot or
-        // lead an enclosing listener to end it a second time.
+        // the loop body must not throw: an exception escaping while the slot is held would leak the slot
         while (sync.endSync()) {
             try {
                 if (shouldSyncBuiltInRoles(clusterService.state())) {
                     logger.debug("Running pending built-in roles synchronization");
                     doSyncBuiltInRoles(rolesProvider.getRoles());
-                    return; // doSyncBuiltInRoles took over the sync slot and ends it via its own listener
+                    return; // the new sync now owns the slot
                 }
             } catch (Exception e) {
-                // same expected/unexpected classification as handleException applies on the main failure path:
-                // transient conditions must not count toward MAX_FAILED_SYNC_ATTEMPTS
+                // same expected/unexpected classification as handleException
                 if (isExpectedFailure(e)) {
                     logger.info("Failed to run pending built-in roles synchronization", e);
                 } else {
@@ -307,8 +281,6 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
                     failedSyncAttempts.incrementAndGet();
                 }
             }
-            // pending sync not needed anymore (or it failed to start): loop to either serve another pending
-            // request or release the slot
         }
     }
 
@@ -333,26 +305,21 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         }
 
         /**
-         * Ends the sync slot acquired by a previous successful {@link #startSync()}. Must be called exactly once
-         * per acquired slot. Returns {@code true} if a sync request arrived while the slot was held (the slot
-         * stays held and the caller must run another sync), or {@code false} if the slot was released.
-         *
-         * @throws IllegalStateException if no sync is in progress. This indicates a double completion for a
-         *         single slot. Failing fast here is essential: the CAS loop below can never make progress from
-         *         IDLE and would otherwise spin forever on the calling thread, typically the master service
-         *         thread, hanging the entire cluster. Note the contrast with the notifyOnce listener in
-         *         doSyncBuiltInRoles, which silently drops duplicate completions: that wrapper can prove a
-         *         second notification is a stale duplicate of its own slot, whereas at this level a stale call
-         *         is indistinguishable from state corruption (if another sync is RUNNING it would silently
-         *         steal that sync's slot), so any call that reaches this state must be surfaced, not ignored.
+         * Ends the slot acquired by {@link #startSync()}; must be called exactly once per acquired slot.
+         * @return {@code true} if a sync was requested meanwhile, in which case the caller still holds the slot
+         *         and must sync again
          */
         boolean endSync() {
             while (true) {
                 int s = state.get();
                 if (s == IDLE) {
-                    // deliberately an exception rather than an assert so tests exercise the exact production
-                    // behavior; callers up the completion chain surface it loudly (see MasterService)
-                    throw new IllegalStateException("endSync called while no sync is in progress");
+                    // double completion of a sync slot: an ERROR log (an exception would be swallowed by the
+                    // completion chain) plus an assert for tests, without spinning (the CAS loop below can
+                    // never make progress from IDLE)
+                    final var e = new IllegalStateException("endSync called while no sync is in progress");
+                    logger.error("built-in roles sync slot ended twice", e);
+                    assert false : e;
+                    return false;
                 } else if (s == RUNNING_WITH_PENDING_REQUEST) {
                     if (state.compareAndSet(RUNNING_WITH_PENDING_REQUEST, RUNNING)) return true;
                 } else {

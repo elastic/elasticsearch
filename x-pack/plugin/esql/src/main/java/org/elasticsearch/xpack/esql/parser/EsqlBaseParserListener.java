@@ -163,6 +163,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitExternalCommand(EsqlBaseParser.ExternalCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#eqlCommand}.
+   * @param ctx the parse tree
+   */
+  void enterEqlCommand(EsqlBaseParser.EqlCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#eqlCommand}.
+   * @param ctx the parse tree
+   */
+  void exitEqlCommand(EsqlBaseParser.EqlCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#indexPatternAndMetadataFields}.
    * @param ctx the parse tree
    */
@@ -826,6 +836,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitTsCollapseCommand(EsqlBaseParser.TsCollapseCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#describeCommand}.
+   * @param ctx the parse tree
+   */
+  void enterDescribeCommand(EsqlBaseParser.DescribeCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#describeCommand}.
+   * @param ctx the parse tree
+   */
+  void exitDescribeCommand(EsqlBaseParser.DescribeCommandContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
    * @param ctx the parse tree

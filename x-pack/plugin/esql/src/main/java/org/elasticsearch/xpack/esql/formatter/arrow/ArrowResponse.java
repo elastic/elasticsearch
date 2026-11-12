@@ -417,6 +417,8 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
         TO_BE_IMPLEMENTED_FORMATTERS = EnumSet.noneOf(DataType.class);
         for (var type : DataType.values()) {
             var formatter = formatterForType(type);
+            assert (formatter != null) == DataType.isRepresentableInOutput(type)
+                : "Unexpected Arrow formatter registration for [" + type + "]";
             if (formatter == TO_BE_IMPLEMENTED_MARKER) {
                 TO_BE_IMPLEMENTED_FORMATTERS.add(type);
             } else if (formatter != null) {
@@ -426,7 +428,8 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
     }
 
     /**
-     * Converters for every ES|QL type. Returns null if the type is not supported in the output.
+     * Converters for every ES|QL response type. Returns null for types excluded by
+     * {@link DataType#isRepresentableInOutput(DataType)}, or {@link #TO_BE_IMPLEMENTED_MARKER} for pending formatters.
      */
     private static BlockArrowFormatter formatterForType(DataType type) {
         // Explicitly list every unsupported type so that compilation fails when we add a new type and must take care of it.
@@ -442,7 +445,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
             case INTEGER, COUNTER_INTEGER -> new BlockArrowFormatter.AsInt32(type);
             case LONG, COUNTER_LONG -> new BlockArrowFormatter.AsInt64(type);
-            case UNSIGNED_LONG -> new BlockArrowFormatter.AsInt64(type, MinorType.UINT8);
+            case UNSIGNED_LONG -> new BlockArrowFormatter.AsUnsignedLong(type);
 
             case DOUBLE, COUNTER_DOUBLE -> new BlockArrowFormatter.AsFloat64(type);
 
@@ -470,7 +473,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case DATE_RANGE -> new BlockArrowFormatter.AsDateRange(type);
             case DOUBLE_RANGE -> new BlockArrowFormatter.AsDoubleRange(type);
 
-            case TSID_DATA_TYPE -> TO_BE_IMPLEMENTED_MARKER;
+            case TSID_DATA_TYPE -> new BlockArrowFormatter.AsVarBinary(type);
             case DENSE_VECTOR -> TO_BE_IMPLEMENTED_MARKER;
 
             case AGGREGATE_METRIC_DOUBLE -> TO_BE_IMPLEMENTED_MARKER;
@@ -493,6 +496,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case TIME_DURATION -> null;
             case DOC_DATA_TYPE -> null;
             case PARTIAL_AGG -> null;
+            case TIME_SERIES_METADATA_DATA_TYPE -> null;
         };
     }
 }

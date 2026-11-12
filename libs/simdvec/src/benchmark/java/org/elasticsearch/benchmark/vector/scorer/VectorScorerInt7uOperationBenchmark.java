@@ -108,7 +108,7 @@ public class VectorScorerInt7uOperationBenchmark {
     public int nativeWithHeapQuery() {
         return switch (function) {
             case DOT_PRODUCT -> VEC_LIBRARY.dotProductI7u(nativeSegB, heapSegA, size);
-            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceI7u(nativeSegB, heapSegA, size);
+            case EUCLIDEAN -> throw new UnsupportedOperationException("squareDistanceI7u does not accept heap segments");
             default -> throw new IllegalArgumentException(function.toString());
         };
     }

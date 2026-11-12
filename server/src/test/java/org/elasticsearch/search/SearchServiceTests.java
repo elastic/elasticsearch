@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.component.Lifecycle;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
@@ -103,6 +105,7 @@ import static org.elasticsearch.search.SearchService.wrapListenerForErrorHandlin
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -110,6 +113,28 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SearchServiceTests extends IndexShardTestCase {
+
+    /**
+     * Verifies that the free-context executor concurrency is half the allocated processors, with a minimum of 1.
+     * A node with many processors must be able to drain free-context requests concurrently; with a single drainer
+     * the queue can grow unboundedly under burst traffic and exhaust the heap.
+     */
+    public void testFreeContextConcurrency() {
+        // single processor → minimum of 1
+        assertThat(SearchService.freeContextConcurrency(settings(1)), equalTo(1));
+        // two processors → 1
+        assertThat(SearchService.freeContextConcurrency(settings(2)), equalTo(1));
+        // four processors → 2
+        assertThat(SearchService.freeContextConcurrency(settings(4)), equalTo(2));
+        // eight processors → 4
+        assertThat(SearchService.freeContextConcurrency(settings(8)), equalTo(4));
+        // default settings use Runtime.availableProcessors() → at least 1
+        assertThat(SearchService.freeContextConcurrency(Settings.EMPTY), greaterThanOrEqualTo(1));
+    }
+
+    private static Settings settings(int processors) {
+        return Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), processors).build();
+    }
 
     public void testCanMatchMatchAll() throws IOException {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false)
@@ -575,7 +600,7 @@ public class SearchServiceTests extends IndexShardTestCase {
         IndexShard indexShard = newShard(true);
         try {
             recoverShardFromStore(indexShard);
-            try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
+            try (Engine.Searcher searcher = indexShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 CircuitBreaker cb = createQueryConstructionBreaker("100mb");
                 SearchExecutionContext context = new SearchExecutionContext(
                     createSearchExecutionContext((mappedFieldType, fieldDataContext) -> null, searcher),
@@ -608,7 +633,7 @@ public class SearchServiceTests extends IndexShardTestCase {
         IndexShard indexShard = newShard(true);
         try {
             recoverShardFromStore(indexShard);
-            try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
+            try (Engine.Searcher searcher = indexShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 CircuitBreaker cb = createQueryConstructionBreaker("1kb");
                 SearchExecutionContext context = new SearchExecutionContext(
                     createSearchExecutionContext((mappedFieldType, fieldDataContext) -> null, searcher),
@@ -635,7 +660,7 @@ public class SearchServiceTests extends IndexShardTestCase {
         IndexShard indexShard = newShard(true);
         try {
             recoverShardFromStore(indexShard);
-            try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
+            try (Engine.Searcher searcher = indexShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 CircuitBreaker cb = createQueryConstructionBreaker("100mb");
                 SearchExecutionContext context = new SearchExecutionContext(
                     createSearchExecutionContext((mappedFieldType, fieldDataContext) -> null, searcher),
@@ -695,7 +720,7 @@ public class SearchServiceTests extends IndexShardTestCase {
             recoverShardFromStore(indexShard);
             assertTrue(indexDoc(indexShard, "_doc", "id", "{\"field\":\"value\", \"@timestamp\":\"2025-12-09\"}").isCreated());
             assertTrue(indexShard.refresh("test").refreshed());
-            try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
+            try (Engine.Searcher searcher = indexShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
                     (mappedFieldType, fieldDataContext) -> indexFieldData,
                     searcher

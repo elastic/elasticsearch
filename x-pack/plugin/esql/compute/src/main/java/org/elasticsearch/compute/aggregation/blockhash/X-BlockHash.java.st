@@ -134,8 +134,10 @@ $if(BytesRef)$
             int groupId = Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v)));
             return blockFactory.newConstantIntVector(groupId, vector.getPositionCount());
         }
+        // Hashing the dictionary only pays off when it is small relative to the page. A Parquet
+        // page reuses the whole row-group dictionary, which can be far larger than the page.
         var ordinals = vector.asOrdinals();
-        if (ordinals != null) {
+        if (ordinals != null && ordinals.isDense()) {
             return addOrdinalsVector(ordinals);
         }
         if (hash instanceof BytesRefSwissHash swiss && swiss.shouldPrefetch()) {
@@ -223,8 +225,10 @@ $endif$
      */
     IntBlock add($Type$Block block) {
 $if(BytesRef)$
+        // Same density gate as add(vector): a row-group dictionary hashed once per page costs more
+        // than hashing the page's own values.
         var ordinals = block.asOrdinals();
-        if (ordinals != null) {
+        if (ordinals != null && ordinals.isDense()) {
             return addOrdinalsBlock(ordinals);
         }
 $endif$

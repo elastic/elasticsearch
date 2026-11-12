@@ -105,8 +105,10 @@ final class BytesRefBlockHash extends PartitionedBlockHash {
             int groupId = Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v)));
             return blockFactory.newConstantIntVector(groupId, vector.getPositionCount());
         }
+        // Hashing the dictionary only pays off when it is small relative to the page. A Parquet
+        // page reuses the whole row-group dictionary, which can be far larger than the page.
         var ordinals = vector.asOrdinals();
-        if (ordinals != null) {
+        if (ordinals != null && ordinals.isDense()) {
             return addOrdinalsVector(ordinals);
         }
         if (hash instanceof BytesRefSwissHash swiss && swiss.shouldPrefetch()) {
@@ -156,8 +158,10 @@ final class BytesRefBlockHash extends PartitionedBlockHash {
      * </p>
      */
     IntBlock add(BytesRefBlock block) {
+        // Same density gate as add(vector): a row-group dictionary hashed once per page costs more
+        // than hashing the page's own values.
         var ordinals = block.asOrdinals();
-        if (ordinals != null) {
+        if (ordinals != null && ordinals.isDense()) {
             return addOrdinalsBlock(ordinals);
         }
         MultivalueDedupe.HashResult result = new MultivalueDedupeBytesRef(block).hashAdd(blockFactory, hash);

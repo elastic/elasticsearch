@@ -479,6 +479,9 @@ public class BlockHashTests extends BlockHashTestCase {
     }
 
     public void testBasicOrdinals() {
+        // 8 positions and a 4-entry dictionary: not dense (needs >= 10 positions), so BytesRefBlockHash
+        // hashes values in encounter order rather than dictionary order.
+        assertFalse(OrdinalBytesRefBlock.isDense(8, 4));
         try (
             IntVector.Builder ords = blockFactory.newIntVectorFixedBuilder(8);
             BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(8)
@@ -506,11 +509,190 @@ public class BlockHashTests extends BlockHashTestCase {
                 } else {
                     assertThat(ordsAndKeys.description(), startsWith("BytesRefBlockHash{channel=0, entries=4, size="));
                     assertThat(ordsAndKeys.description(), endsWith("b, seenNull=false}"));
-                    assertOrds(ordsAndKeys.ords(), 2, 1, 4, 2, 4, 1, 3, 4);
+                    assertOrds(ordsAndKeys.ords(), 1, 2, 3, 1, 3, 2, 4, 3);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 5)));
+                    assertKeys(ordsAndKeys.keys(), "item-2", "item-1", "item-4", "item-3");
+                }
+            }, new OrdinalBytesRefVector(ords.build(), bytes.build()).asBlock());
+        }
+    }
+
+    /**
+     * A dense ordinal vector still hashes the dictionary once, in dictionary order, even when the
+     * first row-seen value is not the first dictionary entry. Every dictionary entry is referenced
+     * so an unreferenced entry cannot be mistaken for a real group.
+     */
+    public void testDenseOrdinalsHashDictionary() {
+        assertTrue(OrdinalBytesRefBlock.isDense(10, 4));
+        try (
+            IntVector.Builder ords = blockFactory.newIntVectorFixedBuilder(10);
+            BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(4)
+        ) {
+            // First-seen order is item-2, item-1, item-4, item-3 — not dictionary order.
+            ords.appendInt(1);
+            ords.appendInt(0);
+            ords.appendInt(3);
+            ords.appendInt(1);
+            ords.appendInt(3);
+            ords.appendInt(0);
+            ords.appendInt(2);
+            ords.appendInt(3);
+            ords.appendInt(0);
+            ords.appendInt(1);
+            bytes.appendBytesRef(new BytesRef("item-1"));
+            bytes.appendBytesRef(new BytesRef("item-2"));
+            bytes.appendBytesRef(new BytesRef("item-3"));
+            bytes.appendBytesRef(new BytesRef("item-4"));
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=4, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b}"));
+                    assertOrds(ordsAndKeys.ords(), 0, 1, 2, 0, 2, 1, 3, 2, 1, 0);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 4)));
+                    assertKeys(ordsAndKeys.keys(), "item-2", "item-1", "item-4", "item-3");
+                } else {
+                    assertThat(ordsAndKeys.description(), startsWith("BytesRefBlockHash{channel=0, entries=4, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b, seenNull=false}"));
+                    assertOrds(ordsAndKeys.ords(), 2, 1, 4, 2, 4, 1, 3, 4, 1, 2);
                     assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 5)));
                     assertKeys(ordsAndKeys.keys(), "item-1", "item-2", "item-3", "item-4");
                 }
             }, new OrdinalBytesRefVector(ords.build(), bytes.build()).asBlock());
+        }
+    }
+
+    /**
+     * A page whose dictionary is the whole row group (far larger than the page) must not insert
+     * dictionary entries the page never references.
+     */
+    public void testSparseOrdinalsDoNotHashUnreferencedDictionaryEntries() {
+        int positions = 10;
+        int dictionarySize = 20;
+        assertFalse(OrdinalBytesRefBlock.isDense(positions, dictionarySize));
+        try (
+            IntVector.Builder ords = blockFactory.newIntVectorFixedBuilder(positions);
+            BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(dictionarySize)
+        ) {
+            // Referenced ordinals, first-seen order d5, d1, d8. The other 17 entries are unused.
+            int[] used = { 5, 1, 5, 8, 1, 5, 8, 1, 5, 8 };
+            for (int ord : used) {
+                ords.appendInt(ord);
+            }
+            for (int i = 0; i < dictionarySize; i++) {
+                bytes.appendBytesRef(new BytesRef("d" + i));
+            }
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=3, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b}"));
+                    assertOrds(ordsAndKeys.ords(), 0, 1, 0, 2, 1, 0, 2, 1, 0, 2);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 3)));
+                } else {
+                    assertThat(ordsAndKeys.description(), startsWith("BytesRefBlockHash{channel=0, entries=3, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b, seenNull=false}"));
+                    assertOrds(ordsAndKeys.ords(), 1, 2, 1, 3, 2, 1, 3, 2, 1, 3);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 4)));
+                }
+                assertKeys(ordsAndKeys.keys(), "d5", "d1", "d8");
+            }, new OrdinalBytesRefVector(ords.build(), bytes.build()).asBlock());
+        }
+    }
+
+    /**
+     * A nullable page is an {@link OrdinalBytesRefBlock}, not a vector. When the row-group dictionary
+     * is larger than the page, only values the page actually contains become groups.
+     */
+    public void testSparseOrdinalBlockWithNullDoesNotHashUnreferencedDictionaryEntries() {
+        // Dictionary is ghost, b, a, then three more unused entries. First-seen order is a, b.
+        // 10 non-null values: isDense fails on the ratio, not on the >= 10 minimum.
+        try (
+            IntBlock.Builder ords = blockFactory.newIntBlockBuilder(11);
+            BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(6)
+        ) {
+            ords.appendInt(2);
+            ords.appendInt(1);
+            ords.appendInt(2);
+            ords.appendInt(1);
+            ords.appendInt(2);
+            ords.appendInt(1);
+            ords.appendInt(2);
+            ords.appendInt(1);
+            ords.appendInt(2);
+            ords.appendInt(1);
+            ords.appendNull();
+            bytes.appendBytesRef(new BytesRef("ghost"));
+            bytes.appendBytesRef(new BytesRef("b"));
+            bytes.appendBytesRef(new BytesRef("a"));
+            bytes.appendBytesRef(new BytesRef("unused-1"));
+            bytes.appendBytesRef(new BytesRef("unused-2"));
+            bytes.appendBytesRef(new BytesRef("unused-3"));
+            OrdinalBytesRefBlock block = new OrdinalBytesRefBlock(ords.build(), bytes.build());
+            assertNull(block.asVector());
+            assertFalse(block.isDense());
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=3, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b}"));
+                    assertOrds(ordsAndKeys.ords(), 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 2);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 3)));
+                    assertKeys(ordsAndKeys.keys(), "a", "b", null);
+                } else {
+                    assertThat(ordsAndKeys.description(), startsWith("BytesRefBlockHash{channel=0, entries=2, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b, seenNull=true}"));
+                    assertOrds(ordsAndKeys.ords(), 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 0);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 3)));
+                    assertKeys(ordsAndKeys.keys(), null, "a", "b");
+                }
+            }, block);
+        }
+    }
+
+    /**
+     * A dense nullable ordinal block still hashes the whole dictionary, including an entry no row
+     * references, and assigns group ids in dictionary order rather than first-seen order.
+     */
+    public void testDenseOrdinalBlockHashesWholeDictionary() {
+        // Dictionary order is ghost, a, b. First-seen order is b, a. One null keeps this a block.
+        try (
+            IntBlock.Builder ords = blockFactory.newIntBlockBuilder(11);
+            BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(3)
+        ) {
+            ords.appendInt(2);
+            ords.appendInt(1);
+            ords.appendInt(2);
+            ords.appendInt(1);
+            ords.appendInt(2);
+            ords.appendInt(1);
+            ords.appendInt(2);
+            ords.appendInt(1);
+            ords.appendInt(2);
+            ords.appendInt(1);
+            ords.appendNull();
+            bytes.appendBytesRef(new BytesRef("ghost"));
+            bytes.appendBytesRef(new BytesRef("a"));
+            bytes.appendBytesRef(new BytesRef("b"));
+            OrdinalBytesRefBlock block = new OrdinalBytesRefBlock(ords.build(), bytes.build());
+            assertNull(block.asVector());
+            assertTrue(block.isDense());
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=3, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b}"));
+                    assertOrds(ordsAndKeys.ords(), 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 2);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 3)));
+                    assertKeys(ordsAndKeys.keys(), "b", "a", null);
+                } else {
+                    assertThat(ordsAndKeys.description(), startsWith("BytesRefBlockHash{channel=0, entries=3, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b, seenNull=true}"));
+                    assertOrds(ordsAndKeys.ords(), 3, 2, 3, 2, 3, 2, 3, 2, 3, 2, 0);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 4)));
+                    assertKeys(ordsAndKeys.keys(), null, "ghost", "a", "b");
+                }
+            }, block);
         }
     }
 

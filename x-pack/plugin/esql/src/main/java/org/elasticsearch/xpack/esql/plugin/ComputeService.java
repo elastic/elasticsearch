@@ -890,7 +890,8 @@ public class ComputeService {
                         // No reservation reaches the synchronous path, which only tests take.
                         PlanningMemory.NONE,
                         0,
-                        minTransportVersion
+                        minTransportVersion,
+                        guarded.filteredLimit()
                     );
                 }
                 if (result.plan() instanceof ExternalSourceExec withSplits) {
@@ -992,6 +993,7 @@ public class ComputeService {
                 discoveryMemory(run),
                 taskConcurrency,
                 minTransportVersion(),
+                work.guarded().filteredLimit(),
                 ioExecutor,
                 ActionListener.wrap(result -> {
                     try {

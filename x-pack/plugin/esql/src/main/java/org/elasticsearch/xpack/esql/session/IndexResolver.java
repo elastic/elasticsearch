@@ -798,6 +798,7 @@ public class IndexResolver {
         }
         boolean aggregatable = first.isAggregatable();
         boolean isPassthrough = Boolean.TRUE.equals(first.isPassthrough());
+        boolean isStaticallySingleValued = first.isStaticallySingleValued();
         EsField.TimeSeriesFieldType timeSeriesFieldType = fieldsInfo.hasTimeSeriesAggregation()
             ? EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(first)
             : EsField.TimeSeriesFieldType.NONE;
@@ -823,6 +824,8 @@ public class IndexResolver {
             for (IndexFieldCapabilities fc : rest) {
                 aggregatable &= fc.isAggregatable();
                 isPassthrough &= Boolean.TRUE.equals(fc.isPassthrough());
+                // A field missing from an index has no value there, so only the indices that have it count.
+                isStaticallySingleValued &= fc.isStaticallySingleValued();
             }
         }
 
@@ -835,16 +838,34 @@ public class IndexResolver {
             int length = Short.MAX_VALUE;
             // TODO: to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
             boolean normalized = false;
-            return new KeywordEsField(name, new HashMap<>(), aggregatable, length, normalized, isAlias, timeSeriesFieldType);
+            return new KeywordEsField(
+                name,
+                new HashMap<>(),
+                aggregatable,
+                length,
+                normalized,
+                isAlias,
+                timeSeriesFieldType,
+                isStaticallySingleValued
+            );
         }
         if (type == DATETIME) {
-            return DateEsField.dateEsField(name, new HashMap<>(), aggregatable, timeSeriesFieldType);
+            return DateEsField.dateEsField(name, new HashMap<>(), aggregatable, timeSeriesFieldType, isStaticallySingleValued);
         }
         if (type == UNSUPPORTED) {
             return unsupported(name, first);
         }
 
-        return new EsField(name, type, new HashMap<>(), aggregatable, isAlias, timeSeriesFieldType, isPassthrough);
+        return new EsField(
+            name,
+            type,
+            new HashMap<>(),
+            aggregatable,
+            isAlias,
+            timeSeriesFieldType,
+            isPassthrough,
+            isStaticallySingleValued
+        );
     }
 
     /**
@@ -1027,6 +1048,8 @@ public class IndexResolver {
             Map.of(),
             null,
             TextFieldMapper.Defaults.POSITION_INCREMENT_GAP,
+            false,
+            // A flattened key can hold many values, so there is no single-value guarantee.
             false
         );
     }

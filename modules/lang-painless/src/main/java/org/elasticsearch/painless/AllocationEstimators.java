@@ -19,6 +19,7 @@ import org.elasticsearch.script.field.BinaryDocValuesField;
 import org.elasticsearch.script.field.HalfFloatDocValuesField;
 import org.elasticsearch.script.field.IPAddress;
 import org.elasticsearch.script.field.IpDocValuesField;
+import org.elasticsearch.script.field.SourceMapField;
 import org.elasticsearch.script.field.vectors.BinaryDenseVector;
 import org.elasticsearch.script.field.vectors.DenseVector;
 import org.elasticsearch.script.field.vectors.RankVectors;
@@ -53,6 +54,10 @@ import java.util.function.Predicate;
 import java.util.function.ToDoubleFunction;
 import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
+import java.util.stream.BaseStream;
+import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 
 /**
  * Built-in {@code @allocates} estimators: {@code public static long} methods matching the annotated target's full Java
@@ -128,6 +133,98 @@ public final class AllocationEstimators {
     /** Cost of {@code Collection.stream()}: the spliterator, sized as an iterator, plus every decode up front for doc values. */
     public static long streamBytes(Collection<?> receiver) {
         return AllocSizes.addSat(AllocSizes.ITERATOR_BYTES, decodeBytes(receiver));
+    }
+
+    /**
+     * Cost of {@code SourceMapField.iterator()}: one iterator over the field's values. {@code WriteField} inherits the method,
+     * so its allowlist entries resolve here too.
+     */
+    public static long iteratorBytes(SourceMapField receiver) {
+        return AllocSizes.ITERATOR_BYTES;
+    }
+
+    /** Cost of {@code BaseStream.iterator()}: the adapter over the stream's spliterator. */
+    public static long iteratorBytes(BaseStream<?, ?> receiver) {
+        return AllocSizes.ITERATOR_BYTES;
+    }
+
+    /** Cost of {@code IntStream.iterator()}: the adapter over the stream's spliterator. */
+    public static long iteratorBytes(IntStream receiver) {
+        return AllocSizes.ITERATOR_BYTES;
+    }
+
+    /** Cost of {@code LongStream.iterator()}: the adapter over the stream's spliterator. */
+    public static long iteratorBytes(LongStream receiver) {
+        return AllocSizes.ITERATOR_BYTES;
+    }
+
+    /** Cost of {@code DoubleStream.iterator()}: the adapter over the stream's spliterator. */
+    public static long iteratorBytes(DoubleStream receiver) {
+        return AllocSizes.ITERATOR_BYTES;
+    }
+
+    /** A map view object from {@code entrySet()}, {@code keySet()} or {@code values()}: one object holding the map. */
+    private static final long MAP_VIEW_BYTES = AllocSizes.pad8(AllocSizes.OBJECT_HEADER + AllocSizes.REFERENCE_SIZE);
+
+    /** Cost of a {@code Map} view. Most maps cache the view after the first call, but that cannot be known before it. */
+    public static long mapViewBytes(Map<?, ?> receiver) {
+        return MAP_VIEW_BYTES;
+    }
+
+    /** A sub-map or sub-set view of a sorted collection: the collection, two bounds, four flags and three cached views. */
+    private static final long SUB_VIEW_BYTES = AllocSizes.pad8(AllocSizes.OBJECT_HEADER + 6L * AllocSizes.REFERENCE_SIZE + 4L);
+
+    /**
+     * Cost of {@code descendingMap()}, {@code descendingKeySet()} or {@code navigableKeySet()}: a descending view plus a key set
+     * over it.
+     */
+    public static long mapViewBytes(NavigableMap<?, ?> receiver) {
+        return SUB_VIEW_BYTES + MAP_VIEW_BYTES;
+    }
+
+    /** Cost of {@code NavigableMap.headMap} or {@code tailMap} with a bound and a flag. */
+    public static long subMapBytes(NavigableMap<?, ?> receiver, Object key, boolean inclusive) {
+        return SUB_VIEW_BYTES;
+    }
+
+    /** Cost of {@code NavigableMap.subMap} with two bounds and two flags. */
+    public static long subMapBytes(NavigableMap<?, ?> receiver, Object from, boolean fromInclusive, Object to, boolean toInclusive) {
+        return SUB_VIEW_BYTES;
+    }
+
+    /** Cost of {@code SortedMap.headMap} or {@code tailMap}. */
+    public static long subMapBytes(SortedMap<?, ?> receiver, Object key) {
+        return SUB_VIEW_BYTES;
+    }
+
+    /** Cost of {@code SortedMap.subMap}. */
+    public static long subMapBytes(SortedMap<?, ?> receiver, Object from, Object to) {
+        return SUB_VIEW_BYTES;
+    }
+
+    /** Cost of {@code NavigableSet.descendingSet()}. */
+    public static long setViewBytes(NavigableSet<?> receiver) {
+        return SUB_VIEW_BYTES;
+    }
+
+    /** Cost of {@code NavigableSet.headSet} or {@code tailSet} with a bound and a flag. */
+    public static long subSetBytes(NavigableSet<?> receiver, Object element, boolean inclusive) {
+        return SUB_VIEW_BYTES;
+    }
+
+    /** Cost of {@code NavigableSet.subSet} with two bounds and two flags. */
+    public static long subSetBytes(NavigableSet<?> receiver, Object from, boolean fromInclusive, Object to, boolean toInclusive) {
+        return SUB_VIEW_BYTES;
+    }
+
+    /** Cost of {@code SortedSet.headSet} or {@code tailSet}. */
+    public static long subSetBytes(SortedSet<?> receiver, Object element) {
+        return SUB_VIEW_BYTES;
+    }
+
+    /** Cost of {@code SortedSet.subSet}. */
+    public static long subSetBytes(SortedSet<?> receiver, Object from, Object to) {
+        return SUB_VIEW_BYTES;
     }
 
     /**

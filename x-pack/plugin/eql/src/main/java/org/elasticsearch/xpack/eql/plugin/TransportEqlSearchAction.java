@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.QueryInterceptor;
 import org.elasticsearch.common.logging.activity.QueryLogger;
+import org.elasticsearch.common.logging.activity.QuerySinkRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
@@ -92,6 +93,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
         NamedWriteableRegistry registry,
         Client client,
         BigArrays bigArrays,
+        QuerySinkRegistry querySinkRegistry,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider
     ) {
@@ -118,7 +120,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             bigArrays
         );
         var queryLogger = new QueryLogger<>(clusterService.getClusterSettings(), new EqlLogProducer(), logWriterProvider, fieldProvider);
-        this.queryInterceptor = new QueryInterceptor<>(List.of(queryLogger));
+        this.queryInterceptor = querySinkRegistry.createInterceptor(queryLogger);
     }
 
     @Override

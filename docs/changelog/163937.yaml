@@ -1,5 +1,0 @@
-area: Machine Learning
-issues: []
-pr: 163937
-summary: Fix NPE when previewing aggregated datafeed
-type: bug

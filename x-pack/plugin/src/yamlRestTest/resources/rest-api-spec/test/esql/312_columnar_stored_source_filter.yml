@@ -1,7 +1,7 @@
 ---
 setup:
   - requires:
-      test_runner_features: [ capabilities ]
+      test_runner_features: [ capabilities, allowed_warnings ]
       capabilities:
         - method: PUT
           path: /{index}
@@ -13,7 +13,13 @@ setup:
   # A text field without doc values reads its value from _source, and ES|QL loads _source restricted to the field's source path.
   # In columnar_stored that restriction used to drop the whole-document _source blob: a field returned null, and a text sub-field
   # under a field with doc values failed with a NullPointerException.
+  # On current index versions doc_values is ignored in columnar index modes (doc values are always enabled), so doc_values: false only
+  # emits a warning here and these fields load from doc values. Indices created by an older node, as in mixed-cluster tests, still
+  # honor doc_values: false and emit no warning, so the warning is allowed rather than required.
   - do:
+      allowed_warnings:
+        - "The [doc_values] parameter of field [txt] is ignored in columnar index modes, because doc values are always enabled. Remove the parameter."
+        - "The [doc_values] parameter of field [t] is ignored in columnar index modes, because doc values are always enabled. Remove the parameter."
       indices.create:
         index: test
         body:

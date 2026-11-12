@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -100,7 +101,8 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         PostOptimizationVerificationAware,
         ThreeOptionalArguments,
         ConfigurationFunction,
-        AnyNullIsNull {
+        AnyNullIsNull,
+        UnitAware.PreservesUnit {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Bucket.class)
@@ -380,15 +382,18 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         signatures = {
             @Signature(params = { "date", "date_period|time_duration" }, returnType = "date"),
             @Signature(params = { "date", "integer|long", "date|STRING", "date|STRING" }, returnType = "date"),
-            @Signature(params = { "date", "integer|long", "date|STRING", "date|STRING", "object" }, returnType = "date"),
+            @Signature(params = { "date", "integer|long", "date|STRING", "date|STRING", "named_parameters" }, returnType = "date"),
             @Signature(params = { "date_nanos", "date_period|time_duration" }, returnType = "date_nanos"),
             @Signature(params = { "date_nanos", "integer|long", "date|STRING", "date|STRING" }, returnType = "date_nanos"),
-            @Signature(params = { "date_nanos", "integer|long", "date|STRING", "date|STRING", "object" }, returnType = "date_nanos"),
+            @Signature(
+                params = { "date_nanos", "integer|long", "date|STRING", "date|STRING", "named_parameters" },
+                returnType = "date_nanos"
+            ),
             // unsigned_long is in NUMERIC but not supported by BUCKET; list the accepted numerics explicitly.
             @Signature(params = { "integer|long|double", "double|integer|long" }, returnType = "double"),
             @Signature(params = { "integer|long|double", "integer", "integer|long|double", "integer|long|double" }, returnType = "double"),
             @Signature(
-                params = { "integer|long|double", "integer", "integer|long|double", "integer|long|double", "object" },
+                params = { "integer|long|double", "integer", "integer|long|double", "integer|long|double", "named_parameters" },
                 returnType = "double"
             ),
             // Histograms are bucketed like numbers, but return the non-empty double_range buckets.
@@ -1061,6 +1066,11 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     }
 
     public Expression field() {
+        return field;
+    }
+
+    @Override
+    public Expression unitSource() {
         return field;
     }
 

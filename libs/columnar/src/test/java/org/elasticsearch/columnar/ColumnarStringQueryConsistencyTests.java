@@ -244,7 +244,7 @@ public class ColumnarStringQueryConsistencyTests extends ESTestCase {
             cases.add(
                 new Case(
                     "not [" + probe + "]",
-                    new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.FILTER)
+                    new BooleanQuery.Builder().add(MatchAllDocsQuery.INSTANCE, Occur.FILTER)
                         .add(ColumnarStringTermQuery.term(FIELD, term, singleValued, s -> {}), Occur.MUST_NOT)
                         .build(),
                     v -> v != DELETED && any(v, x -> x.equals(probe)) == false

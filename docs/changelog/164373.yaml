@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 164373
+summary: Enable partial emit for rate aggregations
+type: enhancement

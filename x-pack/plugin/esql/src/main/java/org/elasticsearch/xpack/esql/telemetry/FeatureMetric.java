@@ -12,12 +12,15 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
+import org.elasticsearch.xpack.esql.plan.logical.Describe;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -46,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
@@ -59,7 +63,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
@@ -109,7 +113,8 @@ public enum FeatureMetric {
     ROW(Row.class::isInstance),
     FROM(x -> x instanceof EsRelation relation && relation.indexMode().isTsdb() == false),
     TS(x -> x instanceof EsRelation relation && relation.indexMode().isTsdb()),
-    EXTERNAL(plan -> plan instanceof org.elasticsearch.xpack.esql.plan.logical.ExternalRelation),
+    EXTERNAL(ExternalRelation.class::isInstance),
+    EQL(EqlRelation.class::isInstance),
     DROP(Drop.class::isInstance),
     KEEP(Keep.class::isInstance),
     RENAME(Rename.class::isInstance),
@@ -139,6 +144,7 @@ public enum FeatureMetric {
     // unmatched node would trip the "Command not mapped for telemetry" check. The shared bitset keeps the count at one per query.
     IP_LOCATION(plan -> plan instanceof IpLocation || plan instanceof UnresolvedIpLocation),
     DEDUP(Dedup.class::isInstance),
+    DESCRIBE(Describe.class::isInstance),
     HIGHLIGHT(Highlight.class::isInstance),
     // IN_SUBQUERY is collected by InSubqueryResolver on the pre-resolution plan (when the
     // InSubquery expression is still in place); by the time the Analyzer/Verifier walk runs,
@@ -154,6 +160,7 @@ public enum FeatureMetric {
     private static final List<Class<? extends LogicalPlan>> excluded = List.of(
         UnresolvedRelation.class,
         UnresolvedExternalRelation.class,
+        UnresolvedEqlRelation.class,
         Project.class,
         Limit.class, // LIMIT is managed in another way, see above
         FuseScoreEval.class,
@@ -169,7 +176,7 @@ public enum FeatureMetric {
         // MarkJoin's enclosing command (WHERE, EVAL, or the STATS whose per-aggregate WHERE produced it) already
         // records the telemetry; STATS itself is counted via the Aggregate exclusion above.
         MarkJoin.class,
-        InnerJoin.class, // produced by PROMQL vector-matching translation; rolled into the PROMQL counter via PromqlCommand
+        HashJoin.class, // produced by PROMQL vector-matching translation; rolled into the PROMQL counter via PromqlCommand
         UnionAll.class // synthesized FROM/subquery/view union; SUBQUERY and VIEW metrics cover the user-facing constructs
     );
 

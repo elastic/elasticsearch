@@ -11,7 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Unwrappable;
 import org.elasticsearch.blobcache.BlobCacheUtils;
-import org.elasticsearch.blobcache.common.ByteBufferReference;
+import org.elasticsearch.blobcache.common.BufferFillScope;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
@@ -287,37 +287,29 @@ public class SharedBytes extends AbstractRefCounted {
     }
 
     /**
-     * Read {@code length} bytes from given shared bytes at given {@code channelPos} into {@code byteBufferReference} at given
+     * Read {@code length} bytes from given shared bytes at given {@code channelPos} into {@code fillScope} at given
      * {@code relativePos}.
      * @param fc shared bytes channel to read from
      * @param channelPos position in {@code fc} to read from
-     * @param relativePos position in {@code byteBufferReference}
+     * @param relativePos position in {@code fillScope}
      * @param length number of bytes to read
-     * @param byteBufferReference buffer reference
+     * @param fillScope scope of the buffer to read into
      * @return number of bytes read
      * @throws IOException on failure
      */
-    public static int readCacheFile(final IO fc, int channelPos, int relativePos, int length, final ByteBufferReference byteBufferReference)
+    public static int readCacheFile(final IO fc, int channelPos, int relativePos, int length, final BufferFillScope fillScope)
         throws IOException {
         if (length == 0L) {
             return 0;
         }
-        final int bytesRead;
-        final ByteBuffer dup = byteBufferReference.tryAcquire(relativePos, length);
-        if (dup != null) {
-            try {
-                bytesRead = fc.read(dup, channelPos);
-                if (bytesRead == -1) {
-                    BlobCacheUtils.throwEOF(channelPos, dup.remaining());
-                }
-            } finally {
-                byteBufferReference.release();
+        // if the scope is already complete the reader has given up on this read, so return a fake response
+        return fillScope.fillSlice(relativePos, length, dup -> {
+            final int bytesRead = fc.read(dup, channelPos);
+            if (bytesRead == -1) {
+                BlobCacheUtils.throwEOF(channelPos, dup.remaining());
             }
-        } else {
-            // return fake response
-            return length;
-        }
-        return bytesRead;
+            return bytesRead;
+        }).orElse(length);
     }
 
     @Override

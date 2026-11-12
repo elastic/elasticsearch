@@ -67,7 +67,7 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
     }
 
     /** Plans {@code query} translated over a label container, see {@link QueryPragmas#ENABLE_PROMQL_TRANSLATION_V2}. */
-    protected LogicalPlan planPromqlOverLabels(String query, boolean optimize) {
+    protected LogicalPlan planPromqlV2(String query, boolean optimize) {
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.ENABLE_PROMQL_TRANSLATION_V2.getKey(), true).build());
         return planPromql(tsAnalyzer().configuration(EsqlTestUtils.configuration(pragmas)), query, false, optimize);
     }

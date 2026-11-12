@@ -27,9 +27,9 @@ import java.util.List;
  * Translates the selectors over a label container: a selector over the source starts its series from the source's label
  * container, and its label matchers become a source predicate.
  */
-public final class SelectorLabelTranslation {
+public final class SelectorV2 {
 
-    private SelectorLabelTranslation() {}
+    private SelectorV2() {}
 
     /** The last sample of each series in the lookback window. */
     public static IntermediateResult translate(InstantSelector selector, TranslationContextV2 context) {

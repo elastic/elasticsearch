@@ -28,15 +28,15 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 /** Selectors translated over a label container. */
-public class PromqlPlanSelectorLabelTests extends AbstractPromqlPlanOptimizerTests {
+public class PromqlPlanSelectorV2Tests extends AbstractPromqlPlanOptimizerTests {
 
-    public PromqlPlanSelectorLabelTests(VersionMode versionMode) {
+    public PromqlPlanSelectorV2Tests(VersionMode versionMode) {
         super(versionMode);
     }
 
     /** An instant selector starts each series from the source's whole label container; its matchers filter the source. */
     public void testInstantSelectorReadsTheSourceLabelContainer() {
-        LogicalPlan plan = planPromqlOverLabels("PROMQL index=k8s step=1h network.bytes_in{cluster=\"prod\"}", false);
+        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h network.bytes_in{cluster=\"prod\"}", false);
 
         TimeSeriesAggregate collapse = plan.collect(TimeSeriesAggregate.class).getFirst();
         List<ToTimeSeriesMetadata> containers = expressions(collapse, ToTimeSeriesMetadata.class);
@@ -52,22 +52,19 @@ public class PromqlPlanSelectorLabelTests extends AbstractPromqlPlanOptimizerTes
 
     /** The translated selector plans through the optimizer. */
     public void testInstantSelectorOptimizes() {
-        LogicalPlan plan = planPromqlOverLabels("PROMQL index=k8s step=1h network.bytes_in{cluster=\"prod\"}", true);
+        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h network.bytes_in{cluster=\"prod\"}", true);
         assertThat(plan.collect(TimeSeriesAggregate.class), hasSize(1));
     }
 
     /** A literal is a vector without labels. */
     public void testLiteralSelectorHasNoLabels() {
-        LogicalPlan plan = planPromqlOverLabels("PROMQL index=k8s step=1h 1", false);
+        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h 1", false);
         assertThat(expressions(plan, ToTimeSeriesMetadata.class), empty());
     }
 
     /** A node without a translation over the label container fails rather than mixing the two translations. */
     public void testNodeWithoutLabelTranslationFails() {
-        var e = expectThrows(
-            QlIllegalArgumentException.class,
-            () -> planPromqlOverLabels("PROMQL index=k8s step=1h sum(network.bytes_in)", false)
-        );
+        var e = expectThrows(QlIllegalArgumentException.class, () -> planPromqlV2("PROMQL index=k8s step=1h sum(network.bytes_in)", false));
         assertThat(e.getMessage(), containsString("does not translate over a label container yet"));
     }
 

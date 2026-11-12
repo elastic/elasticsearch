@@ -1310,6 +1310,53 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
     }
 
+    /**
+     * A mapping update that omits {@code inference_id} keeps the existing one.
+     */
+    public void testUpdateWithoutInferenceIdKeepsExistingInferenceId() throws IOException {
+        for (int randomizedRun = 0; randomizedRun < 3; randomizedRun++) {
+            final String fieldName = randomAlphaOfLengthBetween(5, 15);
+            final String inferenceId = randomAlphaOfLengthBetween(5, 15);
+
+            // Randomly back the inference id with a registered endpoint
+            TestModel model = null;
+            if (randomBoolean()) {
+                model = TestModel.createRandomInstance();
+                givenModelSettings(inferenceId, new MinimalServiceSettings(model));
+            }
+
+            final boolean indexDocument = randomBoolean();
+            final MapperService mapperService;
+            if (indexDocument) {
+                if (model == null) {
+                    model = TestModel.createRandomInstance();
+                }
+                mapperService = mapperServiceForFieldWithModelSettings(fieldName, inferenceId, new MinimalServiceSettings(model));
+            } else {
+                mapperService = createMapperService(
+                    mapping(
+                        b -> b.startObject(fieldName)
+                            .field("type", SemanticTextFieldMapper.CONTENT_TYPE)
+                            .field(INFERENCE_ID_FIELD, inferenceId)
+                            .endObject()
+                    ),
+                    useLegacyFormat
+                );
+            }
+
+            merge(mapperService, mapping(b -> b.startObject(fieldName).field("type", SemanticTextFieldMapper.CONTENT_TYPE).endObject()));
+
+            assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
+            assertThat(
+                getSemanticFieldMapper(mapperService, fieldName).fieldType().getModelSettings(),
+                equalTo(indexDocument ? new MinimalServiceSettings(model) : null)
+            );
+            if (model != null) {
+                assertEmbeddingsFieldMapperMatchesModel(mapperService, fieldName, model);
+            }
+        }
+    }
+
     private static void assertSemanticTextField(
         MapperService mapperService,
         String fieldName,

@@ -1463,4 +1463,93 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             assertFalse(mapperService.fieldType("field").hasDocValues());
         }
     }
+
+    /** Mappers that use the plain {@code Parameter.docValuesParam} rather than {@link FieldMapper.DocValuesParameter}. */
+    private static final List<String> PLAIN_DOC_VALUES_TYPES = List.of("geo_point", "long_range", "flattened");
+
+    private static Settings columnarSettings(IndexMode mode) {
+        return Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
+    }
+
+    public void testColumnarIgnoresDocValuesFalseOnPlainParamTypes() throws Exception {
+        for (IndexMode mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            for (String type : PLAIN_DOC_VALUES_TYPES) {
+                MapperService mapperService = createMapperService(
+                    columnarSettings(mode),
+                    fieldMapping(b -> b.field("type", type).field("doc_values", false))
+                );
+                assertWarnings(docValuesIgnoredWarning("field"));
+                assertTrue(type, mapperService.fieldType("field").hasDocValues());
+                assertThat(type, mapperService.documentMapper().mappingSource().string(), not(containsString("doc_values")));
+            }
+        }
+    }
+
+    public void testColumnarIgnoresDocValuesTrueOnPlainParamTypes() throws Exception {
+        for (String type : PLAIN_DOC_VALUES_TYPES) {
+            MapperService mapperService = createMapperService(
+                columnarSettings(IndexMode.COLUMNAR),
+                fieldMapping(b -> b.field("type", type).field("doc_values", true))
+            );
+            ensureNoWarnings();
+            assertTrue(type, mapperService.fieldType("field").hasDocValues());
+            assertThat(type, mapperService.documentMapper().mappingSource().string(), not(containsString("doc_values")));
+        }
+    }
+
+    public void testColumnarPlainParamDocValuesFalseMergesWithOmittedDocValues() throws Exception {
+        for (String type : PLAIN_DOC_VALUES_TYPES) {
+            MapperService mapperService = createMapperService(
+                columnarSettings(IndexMode.COLUMNAR),
+                fieldMapping(b -> b.field("type", type))
+            );
+            merge(mapperService, fieldMapping(b -> b.field("type", type).field("doc_values", false)));
+            assertWarnings(docValuesIgnoredWarning("field"));
+            assertTrue(type, mapperService.fieldType("field").hasDocValues());
+        }
+    }
+
+    public void testColumnarPlainParamDocValuesNonBooleanStillRejected() {
+        for (String type : PLAIN_DOC_VALUES_TYPES) {
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(
+                    columnarSettings(IndexMode.COLUMNAR),
+                    fieldMapping(b -> b.field("type", type).field("doc_values", "not-a-boolean"))
+                )
+            );
+            assertThat(e.getMessage(), containsString("Could not convert [doc_values] to boolean"));
+        }
+    }
+
+    public void testColumnarBeforeAllMappersGateStillRejectsPlainParamDocValuesFalse() {
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS)
+        );
+        for (String type : PLAIN_DOC_VALUES_TYPES) {
+            // Older columnar indices keep their original behavior: doc_values: false is honored, which columnar mapping validation rejects.
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> createMapperService(
+                    version,
+                    columnarSettings(IndexMode.COLUMNAR),
+                    fieldMapping(b -> b.field("type", type).field("doc_values", false))
+                )
+            );
+            assertThat(type, e.getMessage(), containsString("cannot reconstruct _source from doc values"));
+        }
+    }
+
+    public void testNonColumnarPlainParamDocValuesFalseStillHonoured() throws Exception {
+        for (IndexMode mode : List.of(IndexMode.STANDARD, IndexMode.LOGSDB)) {
+            for (String type : PLAIN_DOC_VALUES_TYPES) {
+                MapperService mapperService = createMapperService(
+                    columnarSettings(mode),
+                    fieldMapping(b -> b.field("type", type).field("doc_values", false))
+                );
+                assertFalse(type, mapperService.fieldType("field").hasDocValues());
+            }
+        }
+    }
 }

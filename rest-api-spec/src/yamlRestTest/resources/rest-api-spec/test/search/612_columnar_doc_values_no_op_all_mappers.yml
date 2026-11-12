@@ -1,0 +1,151 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities, warnings ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "columnar index mode required"
+  - requires:
+      cluster_features: ["mapper.columnar.doc_values_no_op_all_mappers"]
+      reason: "doc_values must be a no-op in strictly columnar mode for geo_point, range and flattened too"
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: test
+        ignore_unavailable: true
+
+---
+
+doc_values false is ignored for geo_point, range and flattened in columnar:
+  - do:
+      warnings:
+        - "The [doc_values] parameter of field [location] is ignored in columnar index modes, because doc values are always enabled. Remove the parameter."
+        - "The [doc_values] parameter of field [window] is ignored in columnar index modes, because doc values are always enabled. Remove the parameter."
+        - "The [doc_values] parameter of field [labels] is ignored in columnar index modes, because doc values are always enabled. Remove the parameter."
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              location:
+                type: geo_point
+                doc_values: false
+              window:
+                type: long_range
+                doc_values: false
+              labels:
+                type: flattened
+                doc_values: false
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          "@timestamp": "2026-10-30T00:00:00Z"
+          location: { lat: 41.12, lon: -71.34 }
+          window: { gte: 1, lte: 5 }
+          labels: { env: "prod" }
+
+  # The fields still have doc values, so they can be queried through them
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: location } }
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            bounds: { geo_bounds: { field: location } }
+  - is_true: aggregations.bounds.bounds.top_left
+
+  # doc_values is not stored in the mapping
+  - do:
+      indices.get_mapping:
+        index: test
+  - match: { test.mappings.properties.location.type: geo_point }
+  - match: { test.mappings.properties.window.type: long_range }
+  - match: { test.mappings.properties.labels.type: flattened }
+  - is_false: test.mappings.properties.location.doc_values
+  - is_false: test.mappings.properties.window.doc_values
+  - is_false: test.mappings.properties.labels.doc_values
+
+---
+
+doc_values true is trimmed silently for geo_point in columnar:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              location:
+                type: geo_point
+                doc_values: true
+
+  - do:
+      indices.get_mapping:
+        index: test
+  - match: { test.mappings.properties.location.type: geo_point }
+  - is_false: test.mappings.properties.location.doc_values
+
+---
+
+doc_values false does not conflict with an omitted doc_values on mapping update:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              location:
+                type: geo_point
+
+  - do:
+      warnings:
+        - "The [doc_values] parameter of field [location] is ignored in columnar index modes, because doc values are always enabled. Remove the parameter."
+      indices.put_mapping:
+        index: test
+        body:
+          properties:
+            location:
+              type: geo_point
+              doc_values: false
+
+  - do:
+      indices.get_mapping:
+        index: test
+  - is_false: test.mappings.properties.location.doc_values
+
+---
+
+doc_values false is still honoured for geo_point outside columnar modes:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_point
+                doc_values: false
+
+  - do:
+      indices.get_mapping:
+        index: test
+  - match: { test.mappings.properties.location.doc_values: false }

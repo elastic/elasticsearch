@@ -146,6 +146,16 @@ public abstract class FieldMapper extends Mapper {
     );
 
     protected static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
+
+    static void warnDocValuesIgnoredInColumnar(String field) {
+        deprecationLogger.warn(
+            DeprecationCategory.MAPPINGS,
+            "doc_values_ignored_in_columnar",
+            "The [doc_values] parameter of field [{}] is ignored in columnar index modes, because doc values are "
+                + "always enabled. Remove the parameter.",
+            field
+        );
+    }
     @SuppressWarnings("rawtypes")
     static final Parameter<?>[] EMPTY_PARAMETERS = new Parameter[0];
 
@@ -1714,8 +1724,29 @@ public abstract class FieldMapper extends Mapper {
             }, XContentBuilder::field, Objects::toString);
         }
 
+        /**
+         * Defines a plain boolean {@code doc_values} parameter.
+         * <p>
+         * In strict-columnar indices created on or after {@link IndexVersions#DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS} doc values are
+         * always enabled, so the value is parsed and then replaced by {@code true} (the default), which keeps it out of the persisted
+         * mapping and prevents merge conflicts. An explicit {@code false} logs a deprecation warning. Mappers that use this parameter
+         * must therefore default to {@code true}; {@link DocValuesParameter} handles the other mappers.
+         */
         public static Parameter<Boolean> docValuesParam(boolean defaultValue) {
-            return Parameter.boolParam("doc_values", false, defaultValue);
+            return new Parameter<>("doc_values", false, defaultValue ? () -> true : () -> false, (n, c, o) -> {
+                boolean enabled = XContentMapValues.nodeBooleanValue(o, n);
+                IndexSettings indexSettings = c.getIndexSettings();
+                if (defaultValue
+                    && indexSettings != null
+                    && indexSettings.getMode().isStrictColumnar()
+                    && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS)) {
+                    if (enabled == false) {
+                        warnDocValuesIgnoredInColumnar(n);
+                    }
+                    return true;
+                }
+                return enabled;
+            }, XContentBuilder::field, Objects::toString);
         }
 
         public static Parameter<Boolean> normsParam(boolean defaultValue) {
@@ -2059,13 +2090,7 @@ public abstract class FieldMapper extends Mapper {
                 if (ignoresDocValuesAttribute) {
                     if (enabled == false) {
                         // Fixed key so the logger deduplicates: dynamic templates re-parse their mapping for every new field.
-                        deprecationLogger.warn(
-                            DeprecationCategory.MAPPINGS,
-                            "doc_values_ignored_in_columnar",
-                            "The [doc_values] parameter of field [{}] is ignored in columnar index modes, because doc values are "
-                                + "always enabled. Remove the parameter.",
-                            field
-                        );
+                        warnDocValuesIgnoredInColumnar(field);
                     }
                     // Leaving the value unset keeps it out of the persisted mapping.
                     return;

@@ -2703,7 +2703,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         if (CollectionUtils.isEmpty(source.searchAfter()) == false) {
             String collapseField = source.collapse() != null ? source.collapse().getField() : null;
-            FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(context.sort(), source.searchAfter(), collapseField);
+            FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(
+                context.sort(),
+                source.searchAfter(),
+                collapseField,
+                field -> searchExecutionContext.isFieldMapped(field) == false
+            );
             context.searchAfter(fieldDoc);
         }
 

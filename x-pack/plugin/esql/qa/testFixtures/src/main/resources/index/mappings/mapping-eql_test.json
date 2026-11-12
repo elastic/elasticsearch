@@ -1,0 +1,19 @@
+{
+    "properties": {
+        "@timestamp": {
+            "type": "date"
+        },
+        "ingested": {
+            "type": "date"
+        },
+        "category": {
+            "type": "keyword"
+        },
+        "name": {
+            "type": "keyword"
+        },
+        "pid": {
+            "type": "long"
+        }
+    }
+}

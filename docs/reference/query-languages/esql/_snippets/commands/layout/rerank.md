@@ -25,6 +25,10 @@ PUT _cluster/settings
 }
 ```
 
+For endpoints other than the default `.rerank-v1-elasticsearch`, `RERANK` sends
+all of these rows in a single request, so a higher limit also means a larger
+request.
+
 You can also disable the command entirely if needed:
 ```
 PUT _cluster/settings
@@ -117,6 +121,22 @@ When using `RERANK` with a multivalue column, each value is ranked individually.
 The score column is then assigned the maximum score resulting from ranking the
 individual values.
 
+Each non-empty value of an `ON` field is sent to the inference endpoint as a
+separate document. How `RERANK` sends the documents depends on the endpoint:
+
+* The default `.rerank-v1-elasticsearch` endpoint scores each document
+  independently, so `RERANK` sends it small batches of documents in parallel to
+  reduce latency.
+* For every other endpoint, `RERANK` sends the documents for all of its input
+  rows in a single request. Listwise rerankers such as `.jina-reranker-v3`
+  score each document relative to the other documents in the same request, so
+  their scores are only comparable within one request.
+
+Documents are sent in the order in which rows reach `RERANK`, and a listwise
+reranker can score the same documents differently when they arrive in a
+different order. For reproducible results, sort the rows before you limit and
+rerank them, for example with `SORT _score DESC | LIMIT 100` before `RERANK`.
+
 :::{tip}
 Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
 :::
@@ -137,6 +157,33 @@ its ID in the `WITH` clause. Refer to
 [semantic reranking](docs-content://solutions/search/ranking/semantic-reranking.md)
 for a full list of supported reranking models.
 
+For endpoints other than the default `.rerank-v1-elasticsearch`, `RERANK` sends
+all of its documents in a single request. A large request can exceed the
+provider's request size limit or the model's context window and cause the query
+to fail. To keep the request small, use `LIMIT` before `RERANK`. For long text
+fields, rerank on snippets from
+[`TOP_SNIPPETS`](/reference/query-languages/esql/functions-operators/search-functions/top-snippets.md)
+instead of the whole field, as in the document snippets example below.
+
+If the endpoint is configured to return only the top results, for example with
+`top_n`, set that value to at least the number of documents `RERANK` sends, or
+the query fails.
+
+Each row contributes one document for each non-empty value of each `ON` field,
+so a request can contain more documents than rows. To control the number of
+documents:
+
+* With a single `ON` field that has at most one value per row, `LIMIT n` before
+  `RERANK` sends at most `n` documents.
+* With several `ON` fields, each row contributes up to one document per field.
+  For example, `LIMIT 50` with two single-valued `ON` fields sends up to 100
+  documents.
+* With multivalued fields, the number of documents per row varies, so `LIMIT`
+  alone can't cap it. Use
+  [`MV_SLICE`](/reference/query-languages/esql/functions-operators/mv-functions/mv_slice.md)
+  before `RERANK` to keep a fixed number of values per row, or rerank on a
+  single-valued field instead.
+
 In a [cross-cluster query](/reference/query-languages/esql/esql-cross-clusters.md#ccq-inference-endpoints), `RERANK` runs on
 the cluster that receives the query, so the inference endpoint must exist on that cluster even when
 the documents come from a remote.
@@ -145,6 +192,10 @@ the documents come from a remote.
 
 `RERANK` commands may time out when processing large datasets or complex
 queries. The default timeout is 30 seconds.
+
+For endpoints other than the default `.rerank-v1-elasticsearch`, the timeout
+applies to the single request that contains every document, so a higher
+`LIMIT` makes that request take longer.
 
 
 {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` You can set a per-call timeout using the `"timeout"` option in the `WITH` clause:

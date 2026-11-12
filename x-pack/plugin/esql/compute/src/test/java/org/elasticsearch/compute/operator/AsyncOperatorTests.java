@@ -188,6 +188,7 @@ public class AsyncOperatorTests extends ESTestCase {
 
     class TestOp extends AsyncOperator<Page> {
         Map<Page, ActionListener<Page>> handlers = new HashMap<>();
+        ActionListener<Page> pagelessHandler;
 
         TestOp(DriverContext driverContext, int maxOutstandingRequests) {
             super(driverContext, threadPool.getThreadContext(), maxOutstandingRequests);
@@ -196,6 +197,10 @@ public class AsyncOperatorTests extends ESTestCase {
         @Override
         protected void performAsync(Page inputPage, ActionListener<Page> listener) {
             handlers.put(inputPage, listener);
+        }
+
+        void startPageless(Releasable releaseOnFailure) {
+            startAsync(releaseOnFailure, listener -> pagelessHandler = listener);
         }
 
         @Override
@@ -251,6 +256,56 @@ public class AsyncOperatorTests extends ESTestCase {
         page4.releaseBlocks();
 
         operator.close();
+    }
+
+    public void testStartAsyncWithoutInputPage() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        TestOp operator = new TestOp(driverContext, between(1, 3));
+        AtomicBoolean released = new AtomicBoolean();
+        operator.startPageless(() -> released.set(true));
+        operator.finish();
+        assertFalse(operator.isBlocked().listener().isDone());
+        assertFalse(operator.isFinished());
+
+        Page result = new Page(driverContext.blockFactory().newConstantNullBlock(1));
+        operator.pagelessHandler.onResponse(result);
+        assertTrue(operator.isBlocked().listener().isDone());
+        assertThat(operator.getOutput(), equalTo(result));
+        result.releaseBlocks();
+        assertTrue(operator.isFinished());
+        assertFalse(released.get());
+        operator.close();
+    }
+
+    public void testStartAsyncWithoutInputPageFailure() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        TestOp operator = new TestOp(driverContext, between(1, 3));
+        AtomicBoolean released = new AtomicBoolean();
+        operator.startPageless(() -> released.set(true));
+        operator.finish();
+
+        operator.pagelessHandler.onFailure(new ElasticsearchException("simulated"));
+        assertTrue(released.get());
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, operator::getOutput);
+        assertThat(e.getMessage(), equalTo("simulated"));
+        operator.close();
+    }
+
+    public void testCloseDoesNotCallFinish() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        AtomicInteger finishCalls = new AtomicInteger();
+        TestOp operator = new TestOp(driverContext, between(1, 3)) {
+            @Override
+            public void finish() {
+                finishCalls.incrementAndGet();
+                super.finish();
+            }
+        };
+        operator.close();
+        assertThat(finishCalls.get(), equalTo(0));
     }
 
     /**

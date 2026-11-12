@@ -126,7 +126,7 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
      */
     private void fillBatchUpToBatchSize() {
         while (inputBuffer.size() < batchSize && currentPos < totalPositions) {
-            List<String> inputs = readInputText(currentPos);
+            List<String> inputs = readInputText(inputBlocks, currentPos, scratch);
             inputBuffer.addAll(inputs);
             positionValueCountsBuilder.addValue(inputs.size());
             currentPos++;
@@ -140,7 +140,7 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
      */
     private void consumeTrailingNullOrEmptyPositions() {
         while (currentPos < totalPositions) {
-            List<String> inputs = readInputText(currentPos);
+            List<String> inputs = readInputText(inputBlocks, currentPos, scratch);
             if (inputs.isEmpty()) {
                 positionValueCountsBuilder.addValue(0);
                 currentPos++;
@@ -156,12 +156,17 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
      * Supports multi-valued positions by reading all values at the given position.
      * Filters out empty or whitespace-only strings using {@link Strings#hasText}.
      * </p>
+     * <p>
+     * Shared with {@link SingleRequestRerankOperator}, so that both operators turn rows into documents the same way.
+     * </p>
      *
-     * @param position The position in the block to read from.
+     * @param inputBlocks The input blocks, one per {@code ON} field.
+     * @param position    The position in the blocks to read from.
+     * @param scratch     Reusable buffer for reading values.
      * @return A list of non-empty, non-whitespace text strings. Returns an empty list if the
      *         position is null or contains only empty/whitespace values.
      */
-    private List<String> readInputText(int position) {
+    static List<String> readInputText(BytesRefBlock[] inputBlocks, int position, BytesRef scratch) {
         if (Arrays.stream(inputBlocks).allMatch(b -> b.isNull(position))) {
             // All input blocks are null at this position, return empty list
             return List.of();
@@ -199,13 +204,20 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
         return inputs;
     }
 
+    private RerankAction.Request inferenceRequest(List<String> inputs) {
+        return inferenceRequest(inferenceId, queryText, timeout, inputs);
+    }
+
     /**
-     * Creates an inference request for reranking the given documents.
+     * Creates an inference request for reranking the given documents. Shared with {@link SingleRequestRerankOperator}.
      *
-     * @param inputs The list of document texts to rerank.
+     * @param inferenceId The ID of the inference endpoint to invoke.
+     * @param queryText   The query text to use for reranking.
+     * @param timeout     Timeout for the request.
+     * @param inputs      The list of document texts to rerank.
      * @return An inference request, or null if there are no inputs.
      */
-    private RerankAction.Request inferenceRequest(List<String> inputs) {
+    static RerankAction.Request inferenceRequest(String inferenceId, String queryText, TimeValue timeout, List<String> inputs) {
         if (inputs.isEmpty()) {
             return null;
         }

@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -27,6 +28,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.Consumer;
 
 /**
  * {@link AsyncOperator} performs an external computation specified in
@@ -96,8 +98,20 @@ public abstract class AsyncOperator<Fetched> implements Operator {
 
     @Override
     public void addInput(Page input) {
+        startAsync(() -> releasePageOnAnyThread(input), listener -> performAsync(input, listener));
+    }
+
+    /**
+     * Starts one async action whose result is emitted in order with the results of {@link #performAsync}. This lets a
+     * subclass start an action that isn't tied to a single input page, for example one that covers every page it has
+     * buffered, while keeping this operator's ordering, blocking, failure and response-header handling.
+     *
+     * @param releaseOnFailure released if the action fails, or right away if an earlier action already failed
+     * @param action           starts the action and completes the given listener with its result
+     */
+    protected final void startAsync(Releasable releaseOnFailure, Consumer<ActionListener<Fetched>> action) {
         if (failureCollector.hasFailure()) {
-            input.releaseBlocks();
+            releaseOnFailure.close();
             return;
         }
         final long seqNo = checkpoint.generateSeqNo();
@@ -105,11 +119,11 @@ public abstract class AsyncOperator<Fetched> implements Operator {
         boolean success = false;
         try {
             final ActionListener<Fetched> listener = ActionListener.wrap(output -> buffers.put(seqNo, output), e -> {
-                releasePageOnAnyThread(input);
+                releaseOnFailure.close();
                 failureCollector.unwrapAndCollect(e);
             });
             final long startNanos = System.nanoTime();
-            performAsync(input, ActionListener.runAfter(listener, () -> {
+            action.accept(ActionListener.runAfter(listener, () -> {
                 responseHeadersCollector.collect();
                 processNanos.add(System.nanoTime() - startNanos);
                 onSeqNoCompleted(seqNo);
@@ -185,7 +199,8 @@ public abstract class AsyncOperator<Fetched> implements Operator {
 
     @Override
     public final void close() {
-        finish();
+        // Not finish(): a subclass may override it to start more work, which must not happen while closing
+        finished = true;
         closed = true;
         discardResults();
         responseHeadersCollector.finish();

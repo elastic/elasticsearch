@@ -10,24 +10,33 @@ package org.elasticsearch.xpack.esql.inference.rerank;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperatorTestCase;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -35,12 +44,20 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsResults> {
     private static final String SIMPLE_INFERENCE_ID = "test_rerank";
+    private static final String DEFAULT_INFERENCE_ID = Rerank.DEFAULT_INFERENCE_ID;
     private static final String QUERY_TEXT = "test query";
     private static final int BATCH_SIZE = 20;
+    private static final Exception NEVER_THROWN = new IllegalStateException("never thrown");
 
     private int inputChannel;
     private List<Integer> inputChannels;
     private int scoreChannel;
+
+    /**
+     * The endpoint for the tests shared by both RERANK operators. The default endpoint gets the batched
+     * {@link RerankOperator} and any other endpoint gets the {@link SingleRequestRerankOperator}.
+     */
+    private String inferenceId;
 
     @Before
     public void initRerankChannels() {
@@ -48,13 +65,14 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
         inputChannels = List.of(inputChannel);
         // Score channel can be anywhere in the page
         scoreChannel = between(0, inputsCount);
+        inferenceId = randomFrom(SIMPLE_INFERENCE_ID, DEFAULT_INFERENCE_ID);
     }
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new RerankOperator.Factory(
             mockedInferenceService(),
-            SIMPLE_INFERENCE_ID,
+            inferenceId,
             QUERY_TEXT,
             inputChannels.stream().map(this::evaluatorFactory).toList(),
             scoreChannel,
@@ -195,7 +213,7 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
                 // Create a simple factory with multiple input evaluators
                 Operator.OperatorFactory factory = new RerankOperator.Factory(
                     mockedInferenceService(),
-                    SIMPLE_INFERENCE_ID,
+                    inferenceId,
                     QUERY_TEXT,
                     inputChannels.stream().map(this::evaluatorFactory).toList(),
                     2,
@@ -282,7 +300,7 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
             try {
                 Operator.OperatorFactory factory = new RerankOperator.Factory(
                     mockedInferenceService(),
-                    SIMPLE_INFERENCE_ID,
+                    inferenceId,
                     QUERY_TEXT,
                     inputChannels.stream().map(this::evaluatorFactory).toList(),
                     scoreChannel,
@@ -326,6 +344,237 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
         }
     }
 
+    public void testListwiseScoresComeFromOneRequestOnSinglePage() {
+        AtomicInteger requestCount = new AtomicInteger();
+        var runner = new TestDriverRunner().builder(driverContext());
+        runner.input(docsPage(runner.blockFactory(), docRange(1, 100)));
+
+        List<Page> results = runner.run(rerankFactory(listwiseInferenceService(requestCount)));
+        try {
+            assertThat(requestCount.get(), equalTo(1));
+            assertThat(results.stream().mapToInt(Page::getPositionCount).sum(), equalTo(100));
+            assertListwiseScores(results);
+        } finally {
+            Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks)));
+        }
+    }
+
+    public void testListwiseScoresComeFromOneRequestAcrossPages() {
+        AtomicInteger requestCount = new AtomicInteger();
+        var runner = new TestDriverRunner().builder(driverContext());
+        BlockFactory blockFactory = runner.blockFactory();
+        runner.input(
+            docsPage(blockFactory, docRange(1, 32)),
+            docsPage(blockFactory, docRange(33, 64)),
+            docsPage(blockFactory, docRange(65, 96)),
+            docsPage(blockFactory, docRange(97, 100))
+        );
+
+        List<Page> results = runner.run(rerankFactory(listwiseInferenceService(requestCount)));
+        try {
+            assertThat(requestCount.get(), equalTo(1));
+            assertThat(results.stream().map(Page::getPositionCount).toList(), equalTo(List.of(32, 32, 32, 4)));
+            assertListwiseScores(results);
+        } finally {
+            Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks)));
+        }
+    }
+
+    public void testOneRequestAcrossPagesWithMultiValuedAndEmptyRows() {
+        AtomicInteger requestCount = new AtomicInteger();
+        var runner = new TestDriverRunner().builder(driverContext());
+        BlockFactory blockFactory = runner.blockFactory();
+        runner.input(
+            docsPage(blockFactory, docWithRelevance(1), null, List.of(docWithRelevance(2), docWithRelevance(3))),
+            docsPage(blockFactory, docWithRelevance(4), "  ")
+        );
+
+        List<Page> results = runner.run(rerankFactory(listwiseInferenceService(requestCount)));
+        try {
+            assertThat(requestCount.get(), equalTo(1));
+            assertThat(results, hasSize(2));
+
+            double total = 1 + 2 + 3 + 4;
+            DoubleBlock firstPageScores = results.get(0).getBlock(1);
+            assertThat(firstPageScores.getDouble(firstPageScores.getFirstValueIndex(0)), closeTo(1 / total, 0.0001));
+            assertTrue(firstPageScores.isNull(1));
+            assertThat(firstPageScores.getDouble(firstPageScores.getFirstValueIndex(2)), closeTo(3 / total, 0.0001));
+
+            DoubleBlock secondPageScores = results.get(1).getBlock(1);
+            assertThat(secondPageScores.getDouble(secondPageScores.getFirstValueIndex(0)), closeTo(4 / total, 0.0001));
+            assertTrue(secondPageScores.isNull(1));
+        } finally {
+            Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks)));
+        }
+    }
+
+    public void testEndpointReturningFewerScoresThanDocuments() {
+        var runner = new TestDriverRunner().builder(driverContext());
+        runner.input(docsPage(runner.blockFactory(), docRange(1, 20)));
+        InferenceService topNService = mockedInferenceService(inputs -> false, NEVER_THROWN, null, keepTopN(5, this::mockInferenceResult));
+
+        Exception e = expectThrows(IllegalArgumentException.class, () -> runner.run(rerankFactory(topNService)));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Inference endpoint [test_rerank] returned scores for [5] of the [20] documents sent by RERANK. "
+                    + "If the endpoint is configured with [top_n], set it to at least the number of documents RERANK receives, "
+                    + "or reduce that number with LIMIT."
+            )
+        );
+    }
+
+    public void testDefaultEndpointKeepsBatchedRequests() {
+        AtomicInteger requestCount = new AtomicInteger();
+        var runner = new TestDriverRunner().builder(driverContext());
+        runner.input(docsPage(runner.blockFactory(), docRange(1, 100)));
+        InferenceService countingService = mockedInferenceService(inputs -> false, NEVER_THROWN, requestCount);
+
+        List<Page> results = runner.run(rerankFactory(DEFAULT_INFERENCE_ID, countingService));
+        try {
+            assertThat(requestCount.get(), equalTo(100 / BATCH_SIZE));
+        } finally {
+            Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks)));
+        }
+    }
+
+    public void testNoRequestWhenNoRowHasText() {
+        AtomicInteger requestCount = new AtomicInteger();
+        var runner = new TestDriverRunner().builder(driverContext());
+        BlockFactory blockFactory = runner.blockFactory();
+        runner.input(docsPage(blockFactory, null, "  "), docsPage(blockFactory, ""));
+
+        List<Page> results = runner.run(rerankFactory(listwiseInferenceService(requestCount)));
+        try {
+            assertThat(requestCount.get(), equalTo(0));
+            assertThat(results.stream().map(Page::getPositionCount).toList(), equalTo(List.of(2, 1)));
+            for (Page page : results) {
+                DoubleBlock scores = page.getBlock(1);
+                for (int pos = 0; pos < page.getPositionCount(); pos++) {
+                    assertTrue(scores.isNull(pos));
+                }
+            }
+        } finally {
+            Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks)));
+        }
+    }
+
+    public void testCloseBeforeFinishSendsNoRequest() {
+        AtomicInteger requestCount = new AtomicInteger();
+        DriverContext driverContext = driverContext();
+        try (Operator operator = rerankFactory(listwiseInferenceService(requestCount)).get(driverContext)) {
+            operator.addInput(docsPage(driverContext.blockFactory(), docRange(1, 10)));
+            assertTrue(operator.needsInput());
+        }
+        assertThat(requestCount.get(), equalTo(0));
+    }
+
+    private Operator.OperatorFactory rerankFactory(InferenceService inferenceService) {
+        return rerankFactory(SIMPLE_INFERENCE_ID, inferenceService);
+    }
+
+    private Operator.OperatorFactory rerankFactory(String inferenceId, InferenceService inferenceService) {
+        return new RerankOperator.Factory(inferenceService, inferenceId, QUERY_TEXT, List.of(evaluatorFactory(0)), 1, BATCH_SIZE, null);
+    }
+
+    private InferenceService listwiseInferenceService(AtomicInteger requestCount) {
+        return mockedInferenceService(inputs -> false, NEVER_THROWN, requestCount, RerankOperatorTests::listwiseScores);
+    }
+
+    /**
+     * Scores like a listwise reranker: a document's score is its relevance (see {@link #docWithRelevance}) divided by the
+     * total relevance of every document in the same request, so scores depend on which other documents share the request.
+     */
+    private static RankedDocsResults listwiseScores(InferenceAction.Request request) {
+        List<String> inputs = request.getInput();
+        double totalRelevance = inputs.stream().mapToInt(RerankOperatorTests::relevanceOf).sum();
+        List<RankedDocsResults.RankedDoc> rankedDocs = new ArrayList<>(inputs.size());
+        for (int i = 0; i < inputs.size(); i++) {
+            String input = inputs.get(i);
+            rankedDocs.add(new RankedDocsResults.RankedDoc(i, (float) (relevanceOf(input) / totalRelevance), input));
+        }
+        return new RankedDocsResults(rankedDocs);
+    }
+
+    /**
+     * Wraps {@code scorer} so that only its {@code n} best-scoring documents are returned, like an endpoint configured
+     * with {@code top_n}.
+     */
+    private static Function<InferenceAction.Request, RankedDocsResults> keepTopN(
+        int n,
+        Function<InferenceAction.Request, RankedDocsResults> scorer
+    ) {
+        return request -> new RankedDocsResults(
+            scorer.apply(request)
+                .getRankedDocs()
+                .stream()
+                .sorted(Comparator.comparingDouble(RankedDocsResults.RankedDoc::relevanceScore).reversed())
+                .limit(n)
+                .toList()
+        );
+    }
+
+    /**
+     * Asserts every row was scored against all rows in {@code results}, as {@link #listwiseScores} does when every
+     * document is in one request. Expects one document per row.
+     */
+    private void assertListwiseScores(List<Page> results) {
+        BytesRef scratch = new BytesRef();
+        int totalRelevance = 0;
+        for (Page page : results) {
+            BytesRefBlock docs = page.getBlock(0);
+            for (int pos = 0; pos < page.getPositionCount(); pos++) {
+                totalRelevance += relevanceOf(docs.getBytesRef(docs.getFirstValueIndex(pos), scratch).utf8ToString());
+            }
+        }
+        for (Page page : results) {
+            BytesRefBlock docs = page.getBlock(0);
+            DoubleBlock scores = page.getBlock(1);
+            for (int pos = 0; pos < page.getPositionCount(); pos++) {
+                String doc = docs.getBytesRef(docs.getFirstValueIndex(pos), scratch).utf8ToString();
+                double expected = (double) relevanceOf(doc) / totalRelevance;
+                assertThat(doc, scores.getDouble(scores.getFirstValueIndex(pos)), closeTo(expected, 0.0001));
+            }
+        }
+    }
+
+    private static Object[] docRange(int fromInclusive, int toInclusive) {
+        return IntStream.rangeClosed(fromInclusive, toInclusive).mapToObj(RerankOperatorTests::docWithRelevance).toArray();
+    }
+
+    private static String docWithRelevance(int relevance) {
+        return "doc_" + relevance;
+    }
+
+    // Only accepts texts built by docWithRelevance
+    private static int relevanceOf(String doc) {
+        return Integer.parseInt(doc.substring("doc_".length()));
+    }
+
+    /**
+     * Builds a single-column page where each value is a {@link String}, {@code null}, or a {@link List} of strings for a
+     * multi-valued position.
+     */
+    private static Page docsPage(BlockFactory blockFactory, Object... values) {
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(values.length)) {
+            for (Object value : values) {
+                switch (value) {
+                    case null -> builder.appendNull();
+                    case String text -> builder.appendBytesRef(new BytesRef(text));
+                    case List<?> texts -> {
+                        builder.beginPositionEntry();
+                        for (Object text : texts) {
+                            builder.appendBytesRef(new BytesRef((String) text));
+                        }
+                        builder.endPositionEntry();
+                    }
+                    default -> throw new IllegalArgumentException("unsupported value [" + value + "]");
+                }
+            }
+            return new Page(builder.build());
+        }
+    }
+
     @Override
     protected RankedDocsResults mockInferenceResult(InferenceAction.Request request) {
         List<RankedDocsResults.RankedDoc> rankedDocs = new ArrayList<>();
@@ -361,7 +610,7 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
         return equalTo(
-            "RerankOperator[inference_id=[" + SIMPLE_INFERENCE_ID + "], query=[" + QUERY_TEXT + "], score_channel=[" + scoreChannel + "]]"
+            "RerankOperator[inference_id=[" + inferenceId + "], query=[" + QUERY_TEXT + "], score_channel=[" + scoreChannel + "]]"
         );
     }
 
@@ -372,7 +621,7 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
 
         Operator.OperatorFactory factory = new RerankOperator.Factory(
             failingService,
-            SIMPLE_INFERENCE_ID,
+            inferenceId,
             QUERY_TEXT,
             List.of(evaluatorFactory(inputChannel)),
             scoreChannel,

@@ -51,6 +51,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -155,11 +156,27 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
      * @param failureException     the failure delivered for requests matching the predicate
      * @param invocationCounter    incremented once per dispatched (non-null) inference request; may be {@code null}
      */
-    @SuppressWarnings("unchecked")
     protected InferenceService mockedInferenceService(
         Predicate<List<String>> requestFailsOnInputs,
         Exception failureException,
         AtomicInteger invocationCounter
+    ) {
+        return mockedInferenceService(requestFailsOnInputs, failureException, invocationCounter, this::mockInferenceResult);
+    }
+
+    /**
+     * Like {@link #mockedInferenceService(Predicate, Exception, AtomicInteger)}, but successful requests are answered by
+     * {@code responder} instead of {@link #mockInferenceResult}. This lets a test model a specific endpoint behavior, such
+     * as scores that depend on the whole request, without changing the default results used by the rest of the suite.
+     *
+     * @param responder builds the results for a successful request from a synthetic request carrying its ordered inputs
+     */
+    @SuppressWarnings("unchecked")
+    protected InferenceService mockedInferenceService(
+        Predicate<List<String>> requestFailsOnInputs,
+        Exception failureException,
+        AtomicInteger invocationCounter,
+        Function<InferenceAction.Request, InferenceResultsType> responder
     ) {
         Client mockClient = new NoOpClient(threadPool) {
             @Override
@@ -196,7 +213,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
                             baseRequest.getInferenceEntityId(),
                             baseRequest.getTaskType()
                         ).setInput(inputs).build();
-                        listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(syntheticRequest)));
+                        listener.onResponse((Response) new InferenceAction.Response(responder.apply(syntheticRequest)));
                     });
                 } catch (EsRejectedExecutionException e) {
                     listener.onFailure(e);

@@ -18,6 +18,8 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
@@ -146,6 +148,29 @@ public class RerankIT extends InferenceCommandIntegTestCase {
 
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(lessThanOrEqualTo(5)));
+        }
+    }
+
+    public void testRerankSendsAllRowsInOneRequest() {
+        // More rows than fit in one batch of the batched operator
+        int rowCount = between(11, 100);
+        final String testIndex = "test_rerank_one_request";
+        createAndPopulateTestIndex(testIndex, rowCount);
+
+        var query = String.format(Locale.ROOT, """
+            FROM %s
+            | RERANK "search query" ON title WITH { "inference_id": "%s" }
+            | KEEP id, _score
+            """, testIndex, RERANK_MODEL_ID);
+
+        try (var resp = run(query)) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(rowCount));
+
+            // The test reranking service scores a document by its position in the request, so the scores are only all
+            // distinct when every row was sent in the same request.
+            Set<Object> scores = values.stream().map(row -> row.get(1)).collect(Collectors.toSet());
+            assertThat(scores, hasSize(rowCount));
         }
     }
 

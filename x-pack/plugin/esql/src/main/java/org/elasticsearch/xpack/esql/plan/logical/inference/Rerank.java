@@ -48,7 +48,10 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
     public static final String TIMEOUT_OPTION_NAME = "timeout";
 
     private static final Literal DEFAULT_ROW_LIMIT = Literal.integer(Source.EMPTY, RERANK_ROW_LIMIT_SETTING.getDefault(Settings.EMPTY));
-    private static final String DEFAULT_INFERENCE_ID = ".rerank-v1-elasticsearch";
+    /**
+     * The endpoint {@code RERANK} uses when the command doesn't name one.
+     */
+    public static final String DEFAULT_INFERENCE_ID = ".rerank-v1-elasticsearch";
 
     private final Attribute scoreAttribute;
     private final Expression queryText;

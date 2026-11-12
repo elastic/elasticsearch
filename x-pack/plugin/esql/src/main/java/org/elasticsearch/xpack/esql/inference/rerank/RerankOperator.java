@@ -18,8 +18,10 @@ import org.elasticsearch.xpack.core.inference.action.RerankAction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * {@link RerankOperator} is an {@link InferenceOperator} that computes relevance scores for rows using a reranking model.
@@ -28,6 +30,11 @@ import java.util.List;
  * <p>
  * Dispatch routes to {@link InferenceService#executeRerankInference} via an overridden
  * {@code dispatchInferenceRequest}.
+ * </p>
+ * <p>
+ * Batches are formed within each input page and sent concurrently, so scores from different batches are only comparable
+ * for pointwise rerankers. {@link Factory} therefore uses this operator only for endpoints known to be pointwise, and
+ * {@link SingleRequestRerankOperator} for every other endpoint.
  * </p>
  */
 public class RerankOperator extends InferenceOperator {
@@ -86,7 +93,25 @@ public class RerankOperator extends InferenceOperator {
     }
 
     /**
-     * Factory for creating {@link RerankOperator} instances.
+     * Inference endpoints known to use a pointwise reranker, which scores each document on its own. Scores from separate
+     * requests are comparable for these, so they keep the batched, concurrent {@link RerankOperator}. Every other endpoint
+     * may be listwise and uses {@link SingleRequestRerankOperator}.
+     * <p>
+     * Endpoints don't say whether their reranker is pointwise or listwise, so this lists them by ID until they do.
+     * {@link Rerank#DEFAULT_INFERENCE_ID}, the default {@code RERANK} endpoint, runs Elastic's reranker, a cross-encoder.
+     * </p>
+     */
+    private static final Set<String> KNOWN_POINTWISE_INFERENCE_IDS = Set.of(Rerank.DEFAULT_INFERENCE_ID);
+
+    static boolean isKnownPointwise(String inferenceId) {
+        return KNOWN_POINTWISE_INFERENCE_IDS.contains(inferenceId);
+    }
+
+    /**
+     * Factory for the {@code RERANK} operator. Creates a batched {@link RerankOperator} for endpoints known to be pointwise
+     * (see {@link #isKnownPointwise}), and a {@link SingleRequestRerankOperator} for every other endpoint.
+     *
+     * @param batchSize The number of documents per request for pointwise endpoints. Ignored for other endpoints.
      */
     public record Factory(
         InferenceService inferenceService,
@@ -105,6 +130,17 @@ public class RerankOperator extends InferenceOperator {
 
         @Override
         public Operator get(DriverContext driverContext) {
+            if (isKnownPointwise(inferenceId) == false) {
+                return new SingleRequestRerankOperator(
+                    driverContext,
+                    inferenceService,
+                    inferenceId,
+                    queryText,
+                    inputEvaluators(driverContext),
+                    scoreChannel,
+                    timeout
+                );
+            }
             return new RerankOperator(
                 driverContext,
                 inferenceService,

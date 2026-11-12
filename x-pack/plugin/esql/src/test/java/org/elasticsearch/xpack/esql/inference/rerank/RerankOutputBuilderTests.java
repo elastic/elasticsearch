@@ -413,6 +413,22 @@ public class RerankOutputBuilderTests extends ComputeTestCase {
         allBreakersEmpty();
     }
 
+    public void testBuildOutputFromScoresAtOffset() throws Exception {
+        final int scoreChannel = 1;
+        RerankOutputBuilder outputBuilder = new RerankOutputBuilder(blockFactory(), scoreChannel);
+        // The page's documents start at index 2: the scores before belong to an earlier page and the last one to a later page
+        double[] scores = { 0.1, 0.2, 0.9, 0.3, 0.4, 0.5 };
+
+        try (Page outputPage = outputBuilder.buildOutputPage(randomInputPage(3, 2), scores, 2, new int[] { 1, 0, 2 })) {
+            DoubleBlock scoreBlock = outputPage.getBlock(scoreChannel);
+            assertThat(scoreBlock.getDouble(scoreBlock.getFirstValueIndex(0)), equalTo(0.9));
+            assertTrue(scoreBlock.isNull(1));
+            assertThat(scoreBlock.getDouble(scoreBlock.getFirstValueIndex(2)), equalTo(0.4));
+        }
+
+        allBreakersEmpty();
+    }
+
     private void assertBuildOutput(int size, int blockCount, int scoreChannel) throws Exception {
         final Page inputPage = randomInputPage(size, blockCount);
 

@@ -1617,6 +1617,11 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planRerank(RerankExec rerank, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(rerank.child(), context);
+        // RERANK may send every row in one request (see RerankOperator.Factory), so a single operator instance must see every row.
+        // Throw rather than assert: with assertions off, a violation would silently give listwise rerankers wrong scores.
+        if (context.driverParallelism().get().instanceCount() != 1) {
+            throw new IllegalStateException("RERANK must run in a single driver instance but got " + context.driverParallelism().get());
+        }
 
         List<ExpressionEvaluator.Factory> rerankFieldsEvaluators = rerank.rerankFields()
             .stream()

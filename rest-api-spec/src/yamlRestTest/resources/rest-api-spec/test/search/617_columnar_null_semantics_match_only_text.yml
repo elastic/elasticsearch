@@ -1,0 +1,379 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar.bare_null_is_absence" ]
+      reason: "columnar index mode and bare null handling required"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              mot:
+                type: match_only_text
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{ "mot": "a" }'
+          - '{ "index": { "_id": "null_in_array" } }'
+          - '{ "mot": [ null ] }'
+          - '{ "index": { "_id": "only_nulls" } }'
+          - '{ "mot": [ null, null ] }'
+          - '{ "index": { "_id": "mixed" } }'
+          - '{ "mot": [ "a", null, "b" ] }'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{ "mot": null }'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{ "mot": [] }'
+          - '{ "index": { "_id": "missing" } }'
+          - '{ "other": "c" }'
+          - '{ "index": { "_id": "leading_null" } }'
+          - '{ "mot": [ null, "a" ] }'
+          - '{ "index": { "_id": "trailing_null" } }'
+          - '{ "mot": [ "a", null ] }'
+          - '{ "index": { "_id": "both_ends_null" } }'
+          - '{ "mot": [ null, "a", null ] }'
+
+---
+exists matches only documents with a non-null value on a match_only_text field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "string exists matches documents that hold only nulls (proposed contract)"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: mot } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: mot } }
+
+  - match: { count: 5 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { bool: { must_not: { exists: { field: mot } } } }
+
+  - match: { count: 5 }
+
+---
+exists hits, size 0 total and count agree on a match_only_text field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "the exists total takes the term count and is lower than the hits when documents hold only nulls"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: mot } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - set: { hits.total.value: total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: mot } }
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: $total }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: mot } }
+
+  - match: { count: $total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: mot } }
+          sort: [ _doc ]
+          from: $total
+          size: 1
+          _source: false
+
+  - length: { hits.hits: 0 }
+
+---
+exists count does not change when an unrelated document is deleted and the segment is merged on a match_only_text field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "the exists total takes the term count and is lower than the hits when documents hold only nulls"
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: mot } }
+
+  - set: { count: before }
+
+  - do:
+      delete:
+        index: test
+        id: missing
+        refresh: true
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: mot } }
+
+  - match: { count: $before }
+
+  - do:
+      indices.forcemerge:
+        index: test
+        max_num_segments: 1
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: mot } }
+
+  - match: { count: $before }
+
+---
+exists matches only documents with a non-null value on a match_only_text field after a deletion:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "string exists matches documents that hold only nulls (proposed contract)"
+
+  - do:
+      delete:
+        index: test
+        id: missing
+        refresh: true
+
+  - do:
+      indices.stats:
+        index: test
+        metric: docs,segments
+
+  - gt: { _all.primaries.docs.deleted: 0 }
+  - match: { _all.primaries.segments.count: 2 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: mot } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+---
+exists matches only documents with a non-null value on a match_only_text field after a merge:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "string exists matches documents that hold only nulls (proposed contract)"
+
+  - do:
+      delete:
+        index: test
+        id: missing
+        refresh: true
+
+  - do:
+      indices.forcemerge:
+        index: test
+        max_num_segments: 1
+
+  - do:
+      indices.stats:
+        index: test
+        metric: docs,segments
+
+  - match: { _all.primaries.segments.count: 1 }
+  - match: { _all.primaries.docs.count: 9 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: mot } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+---
+exists hits, size 0 total and count agree on a match_only_text field after a deletion:
+  - do:
+      delete:
+        index: test
+        id: missing
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: mot } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - set: { hits.total.value: total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: mot } }
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: $total }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: mot } }
+
+  - match: { count: $total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: mot } }
+          sort: [ _doc ]
+          from: $total
+          size: 1
+          _source: false
+
+  - length: { hits.hits: 0 }
+
+---
+exists hits, size 0 total and count agree on a match_only_text field after a merge:
+  - do:
+      delete:
+        index: test
+        id: missing
+        refresh: true
+
+  - do:
+      indices.forcemerge:
+        index: test
+        max_num_segments: 1
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: mot } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - set: { hits.total.value: total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: mot } }
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: $total }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: mot } }
+
+  - match: { count: $total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: mot } }
+          sort: [ _doc ]
+          from: $total
+          size: 1
+          _source: false
+
+  - length: { hits.hits: 0 }
+
+---
+synthetic source keeps every null slot of a match_only_text field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+          _source: mot
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.mot: a }
+  - match: { hits.hits.1._source.mot: [ null ] }
+  - match: { hits.hits.2._source.mot: [ null, null ] }
+  - match: { hits.hits.3._source.mot: [ a, null, b ] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.mot: [ null, a ] }
+  - match: { hits.hits.8._source.mot: [ a, null ] }
+  - match: { hits.hits.9._source.mot: [ null, a, null ] }

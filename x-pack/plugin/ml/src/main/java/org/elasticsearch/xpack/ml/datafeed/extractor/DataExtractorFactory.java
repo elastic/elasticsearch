@@ -42,14 +42,6 @@ public interface DataExtractorFactory {
      * <p>
      * Note: Callers should apply cross-project search (CPS) mode to the datafeed's IndicesOptions
      * before calling this method using {@link DatafeedConfig#withCrossProjectModeIfEnabled}.
-     * <p>
-     * When {@link DatafeedConfig#getEsqlQuery()} is set, routing uses {@link EsqlDataExtractorFactory}
-     * before rollup index-cap lookup. That path does not apply {@code extraFilters} (preview tier
-     * exclusion: https://github.com/elastic/elasticsearch/issues/161207), does not record
-     * {@link DatafeedSearchTelemetry} (https://github.com/elastic/esql-planning/issues/2206), and
-     * does not run the DSL rollup/scroll factory probes used at start. Put/update probes are in
-     * https://github.com/elastic/elasticsearch/pull/163849; required columns are checked on extraction
-     * in {@link org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor}.
      */
     static void create(
         Client client,

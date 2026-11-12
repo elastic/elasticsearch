@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
@@ -44,6 +45,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.Scheduler;
@@ -1538,7 +1540,12 @@ public class TranslogReplicatorTests extends ESTestCase {
             .put("node.name", TranslogReplicatorTests.class.getSimpleName())
             .put(TranslogReplicator.UPLOAD_HEDGE_DELAY_SETTING.getKey(), hedgeDelay)
             .build();
-        threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()) {
+        threadPool = new ThreadPool(
+            new ThreadContext(nodeSettings),
+            nodeSettings,
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders()
+        ) {
             @Override
             public Scheduler.ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 if (delay.millis() == hedgeDelay.millis()) {
@@ -1616,7 +1623,12 @@ public class TranslogReplicatorTests extends ESTestCase {
             .put("node.name", TranslogReplicatorTests.class.getSimpleName())
             .put(TranslogReplicator.UPLOAD_HEDGE_DELAY_SETTING.getKey(), hedgeDelay)
             .build();
-        threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()) {
+        threadPool = new ThreadPool(
+            new ThreadContext(nodeSettings),
+            nodeSettings,
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders()
+        ) {
             @Override
             public Scheduler.ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 if (delay.millis() == hedgeDelay.millis()) {
@@ -1704,7 +1716,12 @@ public class TranslogReplicatorTests extends ESTestCase {
             .put("node.name", TranslogReplicatorTests.class.getSimpleName())
             .put(TranslogReplicator.UPLOAD_HEDGE_DELAY_SETTING.getKey(), hedgeDelay)
             .build();
-        threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()) {
+        threadPool = new ThreadPool(
+            new ThreadContext(nodeSettings),
+            nodeSettings,
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders()
+        ) {
             @Override
             public Scheduler.ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 if (delay.millis() == hedgeDelay.millis()) {

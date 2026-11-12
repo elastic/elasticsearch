@@ -17,6 +17,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
@@ -41,6 +42,16 @@ public class StatelessComponentsOrderIT extends AbstractStatelessPluginIntegTest
         return plugins;
     }
 
+    @TestIssueLogging(
+        value = "org.elasticsearch.index.engine:TRACE,"
+            + "org.elasticsearch.index.shard:TRACE,"
+            + "org.elasticsearch.action.support.replication:TRACE,"
+            + "org.elasticsearch.cluster.action.shard:TRACE,"
+            + "org.elasticsearch.indices.cluster:TRACE,"
+            + "org.elasticsearch.xpack.stateless.engine:TRACE,"
+            + "org.elasticsearch.xpack.stateless.commits:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/165534"
+    )
     public void testClosingNodeShouldWaitForOngoingMerge() throws Exception {
         startMasterOnlyNode();
         var nodeSettings = Settings.builder()

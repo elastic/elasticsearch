@@ -16,13 +16,17 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.MockBlockFactory;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class RowInTableLookupTests extends ESTestCase {
     final CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofGb(1));
@@ -77,6 +81,32 @@ public class RowInTableLookupTests extends ESTestCase {
                 assertThat(e.getMessage(), equalTo("only single valued keys are supported"));
             }
         }
+    }
+
+    public void testEmptyTable() {
+        MockBlockFactory probeFactory = new MockBlockFactory(
+            BlockFactory.builder(
+                new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, newLimitedBreakerService(ByteSizeValue.ofGb(1)))
+            )
+        );
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(0)) {
+            try (Block keys = builder.build(); RowInTableLookup lookup = RowInTableLookup.build(blockFactory, new Block[] { keys })) {
+                assertThat(lookup, instanceOf(EmptyRowInTableLookup.class));
+                int positions = between(1, 100);
+                Page page = new Page(probeFactory.newConstantIntBlockWith(randomInt(), positions));
+                try (ReleasableIterator<IntBlock> rows = lookup.lookup(page, ByteSizeValue.ofKb(1))) {
+                    try (IntBlock r = rows.next()) {
+                        assertThat(r.getPositionCount(), equalTo(positions));
+                        assertThat(r.areAllValuesNull(), is(true));
+                        assertThat(r.blockFactory(), sameInstance(probeFactory));
+                    }
+                    assertThat(rows.hasNext(), is(false));
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        probeFactory.ensureAllBlocksAreReleased();
     }
 
     @After

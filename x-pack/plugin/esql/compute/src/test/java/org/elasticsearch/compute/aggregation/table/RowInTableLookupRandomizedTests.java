@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation.table;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -47,6 +48,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 //@TestLogging(value = "org.elasticsearch.compute:TRACE", reason = "debug")
 public class RowInTableLookupRandomizedTests extends ESTestCase {
@@ -142,14 +144,14 @@ public class RowInTableLookupRandomizedTests extends ESTestCase {
     }
 
     public void testConcurrentLookups() {
-        CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofGb(1));
-        MockBlockFactory blockFactory = new MockBlockFactory(
-            BlockFactory.builder(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService))
-        );
+        MockBlockFactory tableFactory = newLimitedBlockFactory();
         int threads = between(2, 8);
         int triesPerThread = TRIES / 10;
-        try (Table table = randomTable(blockFactory); RowInTableLookup offsetInTable = RowInTableLookup.build(blockFactory, table.blocks)) {
+        // Each thread probes with a factory of its own, as drivers do, so nothing a lookup allocates may land on the table's breaker.
+        List<MockBlockFactory> probeFactories = IntStream.range(0, threads).mapToObj(t -> newLimitedBlockFactory()).toList();
+        try (Table table = randomTable(tableFactory); RowInTableLookup offsetInTable = RowInTableLookup.build(tableFactory, table.blocks)) {
             assertThat(offsetInTable, expectedImplementation);
+            long tableBytes = tableFactory.breaker().getUsed();
             // Randomness is only available on the test thread, so every input is built up front.
             List<List<ToLookup>> inputs = new ArrayList<>(threads);
             List<List<ByteSizeValue>> targets = new ArrayList<>(threads);
@@ -157,7 +159,7 @@ public class RowInTableLookupRandomizedTests extends ESTestCase {
                 List<ToLookup> threadInputs = new ArrayList<>(triesPerThread);
                 List<ByteSizeValue> threadTargets = new ArrayList<>(triesPerThread);
                 for (int i = 0; i < triesPerThread; i++) {
-                    threadInputs.add(toLookup(blockFactory, table));
+                    threadInputs.add(toLookup(probeFactories.get(t), table));
                     threadTargets.add(ByteSizeValue.ofKb(between(1, 100)));
                 }
                 inputs.add(threadInputs);
@@ -170,6 +172,7 @@ public class RowInTableLookupRandomizedTests extends ESTestCase {
                         ByteSizeValue target = targets.get(t).get(i);
                         try (ReleasableIterator<IntBlock> actual = offsetInTable.lookup(toLookup.rows, target)) {
                             assertLookup(actual, toLookup, target);
+                            assertThat(tableFactory.breaker().getUsed(), equalTo(tableBytes));
                         }
                     }
                 });
@@ -177,13 +180,46 @@ public class RowInTableLookupRandomizedTests extends ESTestCase {
                 Releasables.close(inputs.stream().flatMap(List::stream).toList());
             }
         }
-        blockFactory.ensureAllBlocksAreReleased();
+        tableFactory.ensureAllBlocksAreReleased();
+        probeFactories.forEach(MockBlockFactory::ensureAllBlocksAreReleased);
+    }
+
+    public void testLookupWithCranky() {
+        MockBlockFactory tableFactory = newLimitedBlockFactory();
+        CrankyCircuitBreakerService cranky = new CrankyCircuitBreakerService();
+        MockBlockFactory probeFactory = new MockBlockFactory(
+            BlockFactory.builder(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, cranky))
+        );
+        try (Table table = randomTable(tableFactory); RowInTableLookup offsetInTable = RowInTableLookup.build(tableFactory, table.blocks)) {
+            for (int t = 0; t < TRIES; t++) {
+                ToLookup toLookup;
+                try {
+                    toLookup = toLookup(probeFactory, table);
+                } catch (CircuitBreakingException e) {
+                    continue;
+                }
+                ByteSizeValue target = ByteSizeValue.ofKb(between(1, 100));
+                try (toLookup; ReleasableIterator<IntBlock> actual = offsetInTable.lookup(toLookup.rows, target)) {
+                    assertLookup(actual, toLookup, target);
+                } catch (CircuitBreakingException e) {
+                    assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+                }
+            }
+        }
+        probeFactory.ensureAllBlocksAreReleased();
+        assertThat(cranky.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+    }
+
+    private static MockBlockFactory newLimitedBlockFactory() {
+        CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofGb(1));
+        return new MockBlockFactory(BlockFactory.builder(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService)));
     }
 
     private void assertLookup(ReleasableIterator<IntBlock> actual, ToLookup toLookup, ByteSizeValue target) {
         int expectedIdx = 0;
         while (actual.hasNext()) {
             try (IntBlock lookedup = actual.next()) {
+                assertThat(lookedup.blockFactory(), sameInstance(toLookup.rows.getBlock(0).blockFactory()));
                 assertThat(lookedup.ramBytesUsed(), lessThan(target.getBytes() * 2));
                 if (keysPerPosition == 1) {
                     assertThat(lookedup.asVector(), not(nullValue()));

@@ -253,14 +253,14 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         }
 
         private void addSingleEntry() {
-            seenNull |= fillBytesSv(groups, bytes);
+            fillBytesSv(groups, bytes);
             appendOrdSv(position, Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.bytesRefView()))));
         }
 
         private void addMultipleEntries() {
             int g = 0;
             do {
-                seenNull |= fillBytesMv(groups, g, bytes);
+                fillBytesMv(groups, g, bytes);
                 appendOrdInMv(position, Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.bytesRefView()))));
                 g = rewindKeys(groups, bytes);
             } while (g >= 0);
@@ -278,9 +278,10 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
 
     /**
      * Encodes the probed keys into a scratch buffer of its own rather than {@link #bytes} and probes with
-     * {@link BytesRefHashTable#concurrentSafeFind}, so it doesn't modify the hash and a hash that is no longer
-     * added to can be probed from several threads at once. The scratch buffer and the results are made with the
-     * probed blocks' factory, so each caller charges its own breaker rather than the one the hash was built on.
+     * {@link BytesRefHashTable#concurrentSafeFind}, so a hash that is no longer added to can be probed from
+     * several threads at once. A null probed key sets {@link #seenNull}, which lookups never read. The scratch
+     * buffer and the results are made with the probed blocks' factory, so each caller charges its own breaker
+     * rather than the one the hash was built on.
      */
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
@@ -433,39 +434,28 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         return singleEntry;
     }
 
-    /**
-     * Encodes the current single-valued position of every group into {@code bytes}.
-     * @return true if any of the encoded values was null
-     */
-    private boolean fillBytesSv(Group[] groups, BreakingBytesRefBuilder bytes) {
-        boolean sawNull = false;
+    private void fillBytesSv(Group[] groups, BreakingBytesRefBuilder bytes) {
         for (int g = 0; g < groups.length; g++) {
             Group group = groups[g];
             assert group.writtenValues == 0;
             assert group.valueCount == 1;
             if (group.encoder.read(group.valueOffset++, bytes) == 0) {
-                sawNull = true;
+                seenNull = true;
                 int nullByte = g / 8;
                 int nullShift = g % 8;
                 bytes.bytes()[nullByte] |= (byte) (1 << nullShift);
             }
         }
         padZerosForFixedLengthKey(bytes);
-        return sawNull;
     }
 
-    /**
-     * Encodes the next permutation of a multivalued position, starting at {@code startingGroup}, into {@code bytes}.
-     * @return true if any of the encoded values was null
-     */
-    private boolean fillBytesMv(Group[] groups, int startingGroup, BreakingBytesRefBuilder bytes) {
-        boolean sawNull = false;
+    private void fillBytesMv(Group[] groups, int startingGroup, BreakingBytesRefBuilder bytes) {
         for (int g = startingGroup; g < groups.length; g++) {
             Group group = groups[g];
             group.bytesStart = bytes.length();
             if (group.encoder.read(group.valueOffset + group.writtenValues, bytes) == 0) {
                 assert group.valueCount == 1 : "null value in non-singleton list";
-                sawNull = true;
+                seenNull = true;
                 int nullByte = g / 8;
                 int nullShift = g % 8;
                 bytes.bytes()[nullByte] |= (byte) (1 << nullShift);
@@ -473,7 +463,6 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
             ++group.writtenValues;
         }
         padZerosForFixedLengthKey(bytes);
-        return sawNull;
     }
 
     private void padZerosForFixedLengthKey(BreakingBytesRefBuilder bytes) {

@@ -78,10 +78,10 @@ public final class PromqlLabels {
     }
 
     /** The tags label among {@code labels}: the label container holding every label they do not declare, or null. */
-    public static @Nullable UnresolvedPromqlLabelAttribute getTagsLabel(List<Attribute> labels) {
+    public static @Nullable Attribute getTagsLabel(List<Attribute> labels) {
         for (Attribute label : labels) {
-            if (label instanceof UnresolvedPromqlLabelAttribute reference && reference.isTagsLabel()) {
-                return reference;
+            if (isTagsLabel(label)) {
+                return label;
             }
         }
         return null;

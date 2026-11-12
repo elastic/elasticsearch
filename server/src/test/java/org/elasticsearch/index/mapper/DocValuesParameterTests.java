@@ -1465,7 +1465,16 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     /** Mappers in {@code server} that use the plain {@code Parameter.docValuesParam} rather than {@link FieldMapper.DocValuesParameter}. */
-    private static final List<String> PLAIN_DOC_VALUES_TYPES = List.of("geo_point", "long_range", "flattened");
+    private static final List<String> PLAIN_DOC_VALUES_TYPES = List.of(
+        "geo_point",
+        "flattened",
+        "integer_range",
+        "float_range",
+        "long_range",
+        "double_range",
+        "date_range",
+        "ip_range"
+    );
 
     private static Settings columnarSettings(IndexMode mode) {
         return Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();

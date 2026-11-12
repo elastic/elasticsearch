@@ -88,7 +88,6 @@ public class ColumnarDocValuesNoOpTests extends MapperServiceTestCase {
             IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS)
         );
         for (String type : SPATIAL_TYPES) {
-            // Older columnar indices keep their original behavior: doc_values: false is honored, which columnar validation rejects.
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> createMapperService(

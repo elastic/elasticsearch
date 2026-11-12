@@ -7,15 +7,11 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.expression.promql.function.HashOffset;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 
@@ -26,7 +22,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 
 /** PromQL reductions across series translated over a label container. */
 public class PromqlPlanAcrossSeriesReductionV2Tests extends AbstractPromqlPlanOptimizerTests {
@@ -51,11 +46,8 @@ public class PromqlPlanAcrossSeriesReductionV2Tests extends AbstractPromqlPlanOp
 
         TopNBy topN = plan.collect(TopNBy.class).getFirst();
         assertThat(topN.groupings(), hasSize(2));
-        Eval partitions = as(topN.child(), Eval.class);
-        Alias partition = partitions.fields().getFirst();
-        TimeSeriesMetadataFilter labels = as(partition.child(), TimeSeriesMetadataFilter.class);
-        assertThat(labels.exclude(), is(false));
-        assertThat(labels.labels().stream().map(l -> BytesRefs.toString(((Literal) l).value())).toList(), contains("cluster"));
+        PackDims partitions = as(topN.child(), PackDims.class);
+        assertThat(names(partitions.dims()), contains("cluster"));
         assertThat(names(plan.output()), hasItem("_timeseries"));
     }
 

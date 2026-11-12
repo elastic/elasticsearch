@@ -67,27 +67,30 @@ public class ProjectEncryptionKeyPasswordSettingsTests extends ESTestCase {
         assertTrue(ProjectEncryptionKeyPasswordSettings.canWrapForDisk(settings("v1", "v1")));
     }
 
-    public void testValidateReloadRejectsLosingActivePassword() {
-        assertRejected(settings(null, "v1"), ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY);
-        assertRejected(settings("v1"), ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "v1");
-        assertRejected(settings("v2", "v1"), ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "v2");
+    public void testValidateReloadRejectsLosingNeededPassword() {
+        assertRejected(settings(null, "v1"), null, ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY);
+        assertRejected(settings("v1"), null, ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "v1");
+        assertRejected(settings("v2", "v1"), null, ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "v2");
+        assertRejected(settings("v2", "v2"), "v1", ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "v1");
     }
 
-    private static void assertRejected(Settings updated, String missingSetting) {
+    private static void assertRejected(Settings updated, String onDiskPasswordId, String missingSetting) {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ProjectEncryptionKeyPasswordSettings.validateReload(settings("v1", "v1"), updated)
+            () -> ProjectEncryptionKeyPasswordSettings.validateReload(settings("v1", "v1"), updated, onDiskPasswordId)
         );
         assertThat(e.getMessage(), containsString("[" + missingSetting + "]"));
     }
 
     public void testValidateReloadAllowsPasswordIdChange() {
-        ProjectEncryptionKeyPasswordSettings.validateReload(settings("v1", "v1"), settings("v2", "v2"));
+        ProjectEncryptionKeyPasswordSettings.validateReload(settings("v1", "v1"), settings("v2", "v2"), null);
+        ProjectEncryptionKeyPasswordSettings.validateReload(settings("v2", "v1", "v2"), settings("v2", "v2"), "v2");
     }
 
     public void testValidateReloadAllowsNodeThatCouldNotWrapBefore() {
-        ProjectEncryptionKeyPasswordSettings.validateReload(Settings.EMPTY, Settings.EMPTY);
-        ProjectEncryptionKeyPasswordSettings.validateReload(settings("v1"), settings("v1", "v1"));
+        ProjectEncryptionKeyPasswordSettings.validateReload(Settings.EMPTY, Settings.EMPTY, null);
+        ProjectEncryptionKeyPasswordSettings.validateReload(settings("v1"), settings("v1", "v1"), null);
+        ProjectEncryptionKeyPasswordSettings.validateReload(settings("v2", "v2"), settings("v2", "v2"), "v1");
     }
 
     private static Settings settings(String activePasswordId, String... passwordIds) {

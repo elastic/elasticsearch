@@ -128,11 +128,11 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
     }
 
     @Override
-    public void reload(Settings settings) {
+    public synchronized void reload(Settings settings) {
         Settings updated = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);
         ProjectEncryptionKeyService localPekService = this.pekService.get();
         if (localPekService != null && localPekService.hasInstalledKey()) {
-            ProjectEncryptionKeyPasswordSettings.validateReload(this.pekSettings, updated);
+            ProjectEncryptionKeyPasswordSettings.validateReload(this.pekSettings, updated, pekEncryption.onDiskKeys().passwordId());
         }
         this.pekSettings = updated;
         KeyRotationCoordinator localCoordinator = this.coordinator.get();

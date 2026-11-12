@@ -127,7 +127,7 @@ To fix this, add `cluster.state.encryption.active_password_id` and the matching 
 
 After reloading, check that the health indicator is green on every node. If a node still reports yellow, change a persistent cluster setting or restart that node to store the key right away.
 
-{{es}} rejects a secure settings reload that would remove the active password from a node that already holds the encryption key. The node keeps using the previous settings until it restarts, so add the password back to the keystore before restarting it.
+{{es}} rejects a secure settings reload that would remove the active password, or the password that protects the node's on-disk copy of the key, from a node that already holds the encryption key. The node keeps using the previous settings until it restarts, so add the password back to the keystore before restarting it.
 
 If a master-eligible node without a usable copy of the key restarts and is elected master, it can't provide the key to the rest of the cluster. Encrypt and decrypt operations then fail on every node, the key isn't rotated, and the health indicator reports that the elected master holds no encryption key. The other nodes keep the key on their own disks, but it's lost if all of them leave the cluster, so fix this promptly:
 

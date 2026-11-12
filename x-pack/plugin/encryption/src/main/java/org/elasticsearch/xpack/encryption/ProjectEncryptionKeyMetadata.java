@@ -162,6 +162,13 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
      */
     static final class OnDiskKeys {
         private volatile DiskCopy diskCopy;
+
+        /** Returns the id of the password that wraps this node's on-disk keys, or {@code null} if none are on disk. */
+        @Nullable
+        String passwordId() {
+            DiskCopy copy = diskCopy;
+            return copy == null || copy.wrappedKeys().isEmpty() ? null : copy.passwordId();
+        }
     }
 
     ProjectEncryptionKeyMetadata(

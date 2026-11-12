@@ -124,7 +124,7 @@ public class ProjectEncryptionKeyMissingPasswordIT extends ESIntegTestCase {
         assertEquals(master, internalCluster().getMasterName());
     }
 
-    public void testReloadThatRemovesActivePasswordIsRejected() throws Exception {
+    public void testReloadThatRemovesNeededPasswordIsRejected() throws Exception {
         internalCluster().startNodes(2);
         ensureStableCluster(2);
         for (String node : internalCluster().getNodeNames()) {
@@ -150,6 +150,20 @@ public class ProjectEncryptionKeyMissingPasswordIT extends ESIntegTestCase {
         ensureStableCluster(2);
         assertEquals(HealthStatus.GREEN, health(node).status());
         assertThat(pekOn(master), notNullValue());
+
+        // A non-master's own password change doesn't change metadata, so its disk copy keeps the old password until a restart
+        String nonMaster = randomValueOtherThan(master, () -> randomFrom(internalCluster().getNodeNames()));
+        reload(nonMaster, rotatedPasswordSettings(true));
+        e = expectThrows(IllegalArgumentException.class, () -> reload(nonMaster, rotatedPasswordSettings(false)));
+        assertThat(e.getMessage(), containsString("wrapped with [" + ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + PASSWORD_ID));
+        internalCluster().restartNode(nonMaster, new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                return rotatedPasswordSettings(true);
+            }
+        });
+        ensureStableCluster(2);
+        reload(nonMaster, rotatedPasswordSettings(false));
     }
 
     /**
@@ -263,6 +277,16 @@ public class ProjectEncryptionKeyMissingPasswordIT extends ESIntegTestCase {
         MockSecureSettings secure = new MockSecureSettings();
         secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, PASSWORD_ID);
         secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + PASSWORD_ID, PASSWORD);
+        return Settings.builder().setSecureSettings(secure).build();
+    }
+
+    private static Settings rotatedPasswordSettings(boolean keepOldPassword) {
+        MockSecureSettings secure = new MockSecureSettings();
+        secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, "rotated");
+        secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "rotated", "rotated-" + PASSWORD);
+        if (keepOldPassword) {
+            secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + PASSWORD_ID, PASSWORD);
+        }
         return Settings.builder().setSecureSettings(secure).build();
     }
 

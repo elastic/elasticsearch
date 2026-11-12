@@ -86,19 +86,31 @@ final class ProjectEncryptionKeyPasswordSettings {
         return hasPassword(settings, getActivePasswordId(settings));
     }
 
-    /** Rejects a reload that removes the active password from a node that could wrap the key before. */
-    static void validateReload(Settings current, Settings updated) {
-        if (canWrapForDisk(current) == false || canWrapForDisk(updated)) {
-            return;
+    /**
+     * Rejects a reload that removes a password this node still needs: the active one, which it wraps the key with, or the one its
+     * on-disk copy of the key is wrapped with, which it needs to read the key back after a restart.
+     */
+    static void validateReload(Settings current, Settings updated, @Nullable String onDiskPasswordId) {
+        if (canWrapForDisk(current) && canWrapForDisk(updated) == false) {
+            String activePasswordId = getActivePasswordId(updated);
+            String missing = activePasswordId == null ? ACTIVE_PASSWORD_ID_KEY : PASSWORD_PREFIX + activePasswordId;
+            throw new IllegalArgumentException(
+                "cannot reload cluster state encryption settings: a project encryption key is installed and ["
+                    + missing
+                    + "] is not configured in the reloaded secure settings, so this node could no longer persist the key to disk;"
+                    + " keeping the previous settings until this node restarts. Add the setting to the keystore before restarting this node"
+            );
         }
-        String activePasswordId = getActivePasswordId(updated);
-        String missing = activePasswordId == null ? ACTIVE_PASSWORD_ID_KEY : PASSWORD_PREFIX + activePasswordId;
-        throw new IllegalArgumentException(
-            "cannot reload cluster state encryption settings: a project encryption key is installed and ["
-                + missing
-                + "] is not configured in the reloaded secure settings, so this node could no longer persist the key to disk;"
-                + " keeping the previous settings until this node restarts. Add the setting to the keystore before restarting this node"
-        );
+        if (onDiskPasswordId != null && hasPassword(current, onDiskPasswordId) && hasPassword(updated, onDiskPasswordId) == false) {
+            String missing = PASSWORD_PREFIX + onDiskPasswordId;
+            throw new IllegalArgumentException(
+                "cannot reload cluster state encryption settings: this node's on-disk copy of the project encryption key is wrapped with ["
+                    + missing
+                    + "], which is missing from the reloaded secure settings; keeping the previous settings. Keep ["
+                    + missing
+                    + "] in the keystore until this node has restarted"
+            );
+        }
     }
 
     /**

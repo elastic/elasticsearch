@@ -86,6 +86,7 @@ processingCommand
     | dedupCommand
     | {this.isDevVersion()}? fillNullCommand
     | {this.isDevVersion()}? describeCommand
+    | {this.isDevVersion()}? intoCommand
     ;
 
 whereCommand
@@ -413,6 +414,10 @@ lookupCommand
 
 dedupCommand
     : DEDUP
+    ;
+
+intoCommand
+    : DEV_INTO indexPattern
     ;
 
 highlightCommand

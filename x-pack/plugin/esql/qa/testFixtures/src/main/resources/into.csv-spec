@@ -1,0 +1,11 @@
+rowIntoIndex
+required_capability: into_command
+
+ROW into_long = [1, 2, 3]
+| MV_EXPAND into_long
+| INTO into_destination
+;
+
+total:long | created:long
+3          | 3
+;

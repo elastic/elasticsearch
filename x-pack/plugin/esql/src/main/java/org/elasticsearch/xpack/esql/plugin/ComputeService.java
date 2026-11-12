@@ -107,6 +107,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.into.IntoPageWriter;
+import org.elasticsearch.xpack.esql.into.IntoStats;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
@@ -121,6 +123,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
@@ -1162,6 +1165,27 @@ public class ComputeService {
             // external blob-store pool after ExternalSourceResolver dispatches resolution there.
             EsqlPlugin.externalBlobStorePool()
         );
+        if (physicalPlan instanceof IntoExec into) {
+            IntoPageWriter.Factory sink = new IntoPageWriter.Factory(client, into.destination(), into.child().output());
+            physicalPlan = OutputExec.withFactory(into.source(), into.child(), sink);
+            listener = listener.delegateFailureAndWrap((l, result) -> {
+                Exception failure = sink.failure();
+                if (failure != null) {
+                    throw failure;
+                }
+                l.onResponse(
+                    new Result(
+                        IntoStats.ATTRIBUTES,
+                        List.of(sink.stats().toPage(blockFactory)),
+                        result.attributeMetadata(),
+                        result.configuration(),
+                        result.completionInfo(),
+                        result.executionInfo(),
+                        result.approximationApplied()
+                    )
+                );
+            });
+        }
         final SubPlan executionPlan;
         final Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses;
         final Runnable warnIndexCoordinatorOnce = newIndexCoordinatorWarningCallback(clusterService.localNode());
@@ -1454,7 +1478,9 @@ public class ComputeService {
         final PageStreamPublisher streamPublisher = coordinatorPlan instanceof StreamingOutputExec streaming
             ? streaming.pageStream()
             : null;
-        if (exchangeSinkSupplier == null && coordinatorPlan instanceof StreamingOutputExec == false) {
+        if (exchangeSinkSupplier == null
+            && coordinatorPlan instanceof StreamingOutputExec == false
+            && coordinatorPlan instanceof OutputExec == false) {
             coordinatorPlan = new OutputExec(coordinatorPlan, collectedPages::add);
         }
 

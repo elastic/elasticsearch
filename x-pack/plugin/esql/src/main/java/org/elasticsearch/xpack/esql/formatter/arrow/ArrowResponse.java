@@ -445,7 +445,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
             case INTEGER, COUNTER_INTEGER -> new BlockArrowFormatter.AsInt32(type);
             case LONG, COUNTER_LONG -> new BlockArrowFormatter.AsInt64(type);
-            case UNSIGNED_LONG -> new BlockArrowFormatter.AsInt64(type, MinorType.UINT8);
+            case UNSIGNED_LONG -> new BlockArrowFormatter.AsUnsignedLong(type);
 
             case DOUBLE, COUNTER_DOUBLE -> new BlockArrowFormatter.AsFloat64(type);
 
@@ -473,7 +473,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case DATE_RANGE -> new BlockArrowFormatter.AsDateRange(type);
             case DOUBLE_RANGE -> new BlockArrowFormatter.AsDoubleRange(type);
 
-            case TSID_DATA_TYPE -> TO_BE_IMPLEMENTED_MARKER;
+            case TSID_DATA_TYPE -> new BlockArrowFormatter.AsVarBinary(type);
             case DENSE_VECTOR -> TO_BE_IMPLEMENTED_MARKER;
 
             case AGGREGATE_METRIC_DOUBLE -> TO_BE_IMPLEMENTED_MARKER;
@@ -496,6 +496,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case TIME_DURATION -> null;
             case DOC_DATA_TYPE -> null;
             case PARTIAL_AGG -> null;
+            case TIME_SERIES_METADATA_DATA_TYPE -> null;
         };
     }
 }

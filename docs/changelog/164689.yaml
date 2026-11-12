@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 162945
+pr: 164689
+summary: Don't assume `ROUND_TO` pushdown queries filter nulls
+type: bug

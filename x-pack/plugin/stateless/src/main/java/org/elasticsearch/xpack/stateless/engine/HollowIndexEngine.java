@@ -21,6 +21,8 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.ElasticsearchIndexDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -32,6 +34,7 @@ import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexShard;
@@ -52,7 +55,9 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -71,7 +76,10 @@ public class HollowIndexEngine extends Engine {
     private final DocsStats docsStats;
     private final List<ReferenceManager.RefreshListener> externalRefreshListeners;
     private final List<ReferenceManager.RefreshListener> internalRefreshListeners;
-    private final SegmentInfos segmentInfos;
+    private final HollowCommitMetadata commit;
+    private final Object segmentInfosLock = new Object();
+    @Nullable
+    private volatile SegmentInfos segmentInfos;
     private final IndexCommit indexCommit;
     private final SafeCommitInfo safeCommitInfo;
     private final SeqNoStats seqNoStats;
@@ -86,9 +94,11 @@ public class HollowIndexEngine extends Engine {
         EngineConfig config,
         StatelessCommitService statelessCommitService,
         HollowShardsService hollowShardsService,
-        SegmentInfos segmentInfos
+        HollowCommitMetadata commit,
+        @Nullable SegmentInfos segmentInfos
     ) {
         super(config);
+        assert segmentInfos == null || segmentInfos.getGeneration() == commit.generation() : segmentInfos + " vs " + commit;
 
         this.statelessCommitService = statelessCommitService;
         this.hollowShardsService = hollowShardsService;
@@ -101,15 +111,21 @@ public class HollowIndexEngine extends Engine {
             boolean success = false;
             try {
                 assert Transports.assertNotTransportThread("opening directory reader of a read-only hollow engine");
+                this.commit = commit;
                 this.segmentInfos = segmentInfos;
-                this.seqNoStats = buildSeqNoStats(config, segmentInfos);
-                this.safeCommitInfo = new SafeCommitInfo(seqNoStats.getLocalCheckpoint(), segmentInfos.totalMaxDoc());
-                this.docsStats = buildDocsStats(segmentInfos);
-                this.shardFieldStats = buildShardFieldStats(segmentInfos);
+                final var seqNoInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(commit.userData().entrySet());
+                this.seqNoStats = new SeqNoStats(
+                    seqNoInfo.maxSeqNo(),
+                    seqNoInfo.localCheckpoint(),
+                    config.getGlobalCheckpointSupplier().getAsLong()
+                );
+                this.safeCommitInfo = new SafeCommitInfo(seqNoStats.getLocalCheckpoint(), commit.maxDoc());
+                this.docsStats = buildDocsStats(commit);
+                this.shardFieldStats = buildShardFieldStats(commit);
                 try {
                     var policy = config.getIndexDeletionPolicyWrapper().apply(null);
                     if (policy instanceof HollowIndexEngineDeletionPolicy hollowIndexEngineDeletionPolicy) {
-                        hollowIndexEngineDeletionPolicy.onInit(Lucene.getIndexCommit(segmentInfos, directory), safeCommitInfo);
+                        hollowIndexEngineDeletionPolicy.onInit(new HollowIndexCommit(commit, directory), safeCommitInfo);
                         // Acquires the latest commit for the life of the HollowIndexEngine, it will be released in #closeNoLock
                         this.indexCommit = hollowIndexEngineDeletionPolicy.acquireIndexCommit(true);
                         this.indexDeletionPolicy = hollowIndexEngineDeletionPolicy;
@@ -160,10 +176,10 @@ public class HollowIndexEngine extends Engine {
         return statelessCommitService;
     }
 
-    protected static ShardFieldStats buildShardFieldStats(SegmentInfos segmentInfos) throws IOException {
-        assert segmentInfos.userData.containsKey(IndexEngine.SHARD_FIELD_STATS)
-            : "missing shard field stats in user data of commit gen " + segmentInfos.getGeneration();
-        final var shardFieldStatsString = segmentInfos.userData.get(IndexEngine.SHARD_FIELD_STATS);
+    protected static ShardFieldStats buildShardFieldStats(HollowCommitMetadata commit) throws IOException {
+        assert commit.userData().containsKey(IndexEngine.SHARD_FIELD_STATS)
+            : "missing shard field stats in user data of commit gen " + commit.generation();
+        final var shardFieldStatsString = commit.userData().get(IndexEngine.SHARD_FIELD_STATS);
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, shardFieldStatsString)) {
             return ShardFieldStats.PARSER.parse(parser, null);
         }
@@ -180,14 +196,52 @@ public class HollowIndexEngine extends Engine {
         return FieldInfos.EMPTY;
     }
 
+    public HollowCommitMetadata getHollowCommitMetadata() {
+        return commit;
+    }
+
+    /**
+     * Returns the segment infos of the hollow commit, reading them from the store if the engine was opened without them.
+     */
     @Override
     public SegmentInfos getLastCommittedSegmentInfos() {
+        var infos = segmentInfos;
+        if (infos == null) {
+            synchronized (segmentInfosLock) {
+                infos = segmentInfos;
+                if (infos == null) {
+                    assert Transports.assertNotTransportThread("reading segment infos of a hollow engine");
+                    logger.debug("reading segment infos of hollow commit generation [{}] from the store", commit.generation());
+                    try {
+                        infos = Lucene.readSegmentInfos(indexCommit);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                    assert HollowCommitMetadata.of(infos).equals(commit)
+                        : "segment infos read from the store " + HollowCommitMetadata.of(infos) + " do not match " + commit;
+                    segmentInfos = infos;
+                }
+            }
+        }
+        return infos;
+    }
+
+    /**
+     * Returns the segment infos of the hollow commit if they have already been read, without reading them from the store.
+     */
+    @Nullable
+    public SegmentInfos getLastCommittedSegmentInfosIfLoaded() {
         return segmentInfos;
     }
 
     @Override
+    public CommitStats commitStats() {
+        return commit.commitStats();
+    }
+
+    @Override
     public String getHistoryUUID() {
-        return segmentInfos.userData.get(Engine.HISTORY_UUID_KEY);
+        return commit.userData().get(Engine.HISTORY_UUID_KEY);
     }
 
     @Override
@@ -200,10 +254,10 @@ public class HollowIndexEngine extends Engine {
         return new CompletionStats();
     }
 
-    protected static DocsStats buildDocsStats(SegmentInfos segmentInfos) throws IOException {
-        assert segmentInfos.userData.containsKey(IndexEngine.DOC_STATS)
-            : "missing docs stats in user data of commit gen " + segmentInfos.getGeneration();
-        final var shardFieldStatsString = segmentInfos.userData.get(IndexEngine.DOC_STATS);
+    protected static DocsStats buildDocsStats(HollowCommitMetadata commit) throws IOException {
+        assert commit.userData().containsKey(IndexEngine.DOC_STATS)
+            : "missing docs stats in user data of commit gen " + commit.generation();
+        final var shardFieldStatsString = commit.userData().get(IndexEngine.DOC_STATS);
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, shardFieldStatsString)) {
             return DocsStats.PARSER.parse(parser, null);
         }
@@ -333,7 +387,7 @@ public class HollowIndexEngine extends Engine {
                 engineWriteLock.unlock();
             }
         }
-        return new RefreshResult(false, config().getPrimaryTermSupplier().getAsLong(), getLastCommittedSegmentInfos().getGeneration());
+        return new RefreshResult(false, config().getPrimaryTermSupplier().getAsLong(), commit.generation());
     }
 
     @Override
@@ -354,7 +408,7 @@ public class HollowIndexEngine extends Engine {
         // This returns a flush result which is not skipped due to collision. Mostly to appease flushOnIdle so it does not retry
         // endlessly unnecessarily. Itself does not actually flush anything but does ensure flush of the current generation
         // (the hollow commit) is completed before invoking the listener.
-        final long generation = segmentInfos.getGeneration();
+        final long generation = commit.generation();
         statelessCommitService.addListenerForUploadedGeneration(shardId, generation, listener.map(v -> new FlushResult(false, generation)));
     }
 
@@ -374,20 +428,20 @@ public class HollowIndexEngine extends Engine {
         IOException {
         if (maxNumSegments == ForceMergeRequest.Defaults.MAX_NUM_SEGMENTS) {
             // noop
-        } else if (maxNumSegments < segmentInfos.size()) {
+        } else if (maxNumSegments < commit.segmentCount()) {
             throwShardNotAvailableException(
                 "force merge is not supported on a hollow engine, "
                     + "target max number of segments["
                     + maxNumSegments
                     + "], "
                     + "current number of segments["
-                    + segmentInfos.size()
+                    + commit.segmentCount()
                     + "]."
             );
         } else {
             logger.debug(
                 "current number of segments[{}] is not greater than target max number of segments[{}].",
-                segmentInfos.size(),
+                commit.segmentCount(),
                 maxNumSegments
             );
         }
@@ -621,7 +675,7 @@ public class HollowIndexEngine extends Engine {
 
     @Override
     public long getLastUnsafeSegmentGenerationForGets() {
-        return getLastCommittedSegmentInfos().getGeneration();
+        return commit.generation();
     }
 
     @Override
@@ -638,6 +692,62 @@ public class HollowIndexEngine extends Engine {
                     throw new UncheckedIOException(e);
                 }
             }
+        }
+    }
+
+    private static final class HollowIndexCommit extends IndexCommit {
+
+        private final HollowCommitMetadata commit;
+        private final Directory directory;
+
+        private HollowIndexCommit(HollowCommitMetadata commit, Directory directory) {
+            this.commit = commit;
+            this.directory = directory;
+        }
+
+        @Override
+        public String getSegmentsFileName() {
+            return commit.segmentsFileName();
+        }
+
+        @Override
+        public Collection<String> getFileNames() {
+            return commit.files();
+        }
+
+        @Override
+        public Directory getDirectory() {
+            return directory;
+        }
+
+        @Override
+        public void delete() {
+            throw new UnsupportedOperationException("This IndexCommit does not support deletions");
+        }
+
+        @Override
+        public boolean isDeleted() {
+            return false;
+        }
+
+        @Override
+        public int getSegmentCount() {
+            return commit.segmentCount();
+        }
+
+        @Override
+        public long getGeneration() {
+            return commit.generation();
+        }
+
+        @Override
+        public Map<String, String> getUserData() {
+            return commit.userData();
+        }
+
+        @Override
+        public String toString() {
+            return "HollowIndexCommit{segments=" + getSegmentsFileName() + '}';
         }
     }
 }

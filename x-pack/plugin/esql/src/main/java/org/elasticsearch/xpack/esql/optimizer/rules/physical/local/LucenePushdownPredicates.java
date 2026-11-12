@@ -315,6 +315,10 @@ public interface LucenePushdownPredicates {
 
             @Override
             public boolean isQueryable(FieldAttribute attr) {
+                if (stats.readsKey(attr.fieldName())) {
+                    // A key is a keyword, whatever the types other indices map: the shards decide
+                    return stats.isQueryable(attr.fieldName(), attr.dataType(), attr.isPotentiallyUnmapped());
+                }
                 // What field caps reports for every index that maps the field, or what the shards of this node resolve it to
                 if (attr.field().isAggregatable()) {
                     return true;

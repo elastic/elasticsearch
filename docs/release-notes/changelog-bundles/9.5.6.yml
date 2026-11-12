@@ -1,6 +1,6 @@
 version: 9.5.6
-released: false
-generated: 2026-10-30T00:09:14.756187887Z
+released: true
+generated: 2026-11-02T17:06:05.771553096Z
 changelogs:
   - pr: 2841
     summary: Better messaging regarding OOM process termination
@@ -714,6 +714,12 @@ changelogs:
     area: Infra/Core
     type: upgrade
     issues: []
+    highlight:
+      notable: true
+      title: Security advisory
+      body: |-
+        This release contains security fixes. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
+      pr: 163710
   - pr: 163732
     summary: Fix NPE in datafeed delayed data check
     area: Machine Learning

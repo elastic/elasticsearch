@@ -3,6 +3,7 @@
 #define VEC_COMMON_H
 
 #include <stdint.h>
+#include <algorithm>
 #include <type_traits>
 #include <utility>
 
@@ -88,6 +89,19 @@ static inline const T* masked_mapper(const T* data, const int32_t i, const int32
     return data + (int64_t)mask_select((uint32_t)offsets[0], i) * pitch;
 }
 
+// The bits of `mask` that select vectors inside a block of `count` vectors. Masked kernels
+// must score with this mask, so that whatever the mask, they never read vectors or write
+// scores past the end of the block.
+static inline int32_t clamp_mask(const int32_t mask, const int32_t count) {
+    if (count <= 0) {
+        return 0;
+    }
+    if (count >= 32) {
+        return mask;
+    }
+    return (int32_t)((uint32_t)mask & ((1u << count) - 1));
+}
+
 // --- Output mapper functions ---
 // Each output mapper resolves the result slot of the i-th scored vector.
 // All share the same signature so they can be passed as a template
@@ -161,6 +175,30 @@ static inline T tree_reduce(const T values[N]) {
             tree_reduce<N/2, T, reduce>(values),
             tree_reduce<N/2, T, reduce>(values + N/2));
     }
+}
+
+// Reads bytes (1, 2, 4 or 8) bytes at p into the low bytes of a uint64_t.
+template <int bytes>
+static inline uint64_t load_bytes(const int8_t* p) {
+    static_assert(bytes == 1 || bytes == 2 || bytes == 4 || bytes == 8, "bytes must be 1, 2, 4 or 8");
+    uint64_t value = 0;
+    std::copy_n(p, bytes, reinterpret_cast<int8_t*>(&value));
+    return value;
+}
+
+// Adds to sum the dot product of the given number of bytes at r of a striped doc and query: doc_bits and
+// query_bits contiguous bit planes of bit_length bytes each, each plane pair weighted by
+// 2^(doc bit + query bit). The kernels score the last 1-15 bytes of their planes with at most one such step
+// each of 8, 4, 2 and 1 bytes; bounded steps rather than a loop, which the compiler would otherwise
+// vectorize into far more code than these at most 15 bytes are worth.
+template <int doc_bits, int query_bits, int bytes>
+static inline void dot_striped_scalar(int64_t& sum, const int8_t* a, const int8_t* q, const int32_t bit_length, const int r) {
+    apply_indexed<doc_bits>([&](auto D) {
+        const uint64_t doc = load_bytes<bytes>(a + D * bit_length + r);
+        apply_indexed<query_bits>([&](auto Q) {
+            sum += (int64_t)__builtin_popcountll(load_bytes<bytes>(q + Q * bit_length + r) & doc) << (D + Q);
+        });
+    });
 }
 
 #endif // VEC_COMMON_H

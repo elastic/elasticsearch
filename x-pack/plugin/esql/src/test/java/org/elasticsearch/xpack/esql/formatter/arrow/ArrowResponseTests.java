@@ -63,6 +63,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -70,6 +71,7 @@ import org.junit.AfterClass;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -129,7 +131,8 @@ public class ArrowResponseTests extends ESTestCase {
         "ulong",
         factory -> factory.newLongBlockBuilder(0),
         block -> block.appendLong(randomLong()),
-        (block, i, scratch) -> block.getLong(i),
+        // Blocks store unsigned longs with the sign bit flipped
+        (block, i, scratch) -> block.getLong(i) ^ NumericUtils.TWOS_COMPLEMENT_BITMASK,
         UInt8Vector::get
     );
 
@@ -270,6 +273,7 @@ public class ArrowResponseTests extends ESTestCase {
         Map.entry(DataType.DATE_NANOS, DATE_NANOS_VALUES),
         Map.entry(DataType.IP, IP_VALUES),
         Map.entry(DataType.VERSION, VERSION_VALUES),
+        Map.entry(DataType.TSID_DATA_TYPE, BINARY_VALUES),
         Map.entry(DataType.SOURCE, SOURCE_VALUES),
         Map.entry(DataType.FLATTENED, FLATTENED_VALUES),
 
@@ -423,6 +427,58 @@ public class ArrowResponseTests extends ESTestCase {
             TestCase testCase = new TestCase(List.of(testColumn), pages);
 
             compareEsqlAndArrow(testCase);
+        }
+    }
+
+    public void testTsidBinaryOutput() throws IOException {
+        BytesRef tsid = (BytesRef) EsqlTestUtils.randomLiteral(DataType.TSID_DATA_TYPE).value();
+        int padding = randomIntBetween(1, 8);
+        byte[] padded = randomByteArrayOfLength(tsid.length + padding + 1);
+        System.arraycopy(tsid.bytes, tsid.offset, padded, padding, tsid.length);
+
+        BytesRefBlock block;
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(3)) {
+            block = builder.appendBytesRef(new BytesRef(padded, padding, tsid.length)).appendNull().appendBytesRef(tsid).build();
+        }
+        var column = TestColumn.create("_tsid", DataType.TSID_DATA_TYPE, false);
+        try (
+            TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            VarBinaryVector vector = (VarBinaryVector) root.getVector("_tsid");
+            assertEquals(Types.MinorType.VARBINARY.getType(), vector.getField().getType());
+            assertEquals("_tsid", vector.getField().getMetadata().get(BlockArrowFormatter.ESQL_TYPE_METADATA));
+            assertEquals(3, vector.getValueCount());
+            assertEquals(tsid, new BytesRef(vector.get(0)));
+            assertTrue(vector.isNull(1));
+            assertEquals(tsid, new BytesRef(vector.get(2)));
+        }
+    }
+
+    public void testUnsignedLongValues() throws IOException {
+        List<BigInteger> values = List.of(
+            BigInteger.ZERO,
+            BigInteger.ONE,
+            BigInteger.valueOf(Long.MAX_VALUE),
+            BigInteger.ONE.shiftLeft(63),
+            BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE)
+        );
+        LongBlock block;
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(values.size())) {
+            for (BigInteger value : values) {
+                builder.appendLong(NumericUtils.asLongUnsigned(value));
+            }
+            block = builder.build();
+        }
+        var column = TestColumn.create("ul", DataType.UNSIGNED_LONG, false);
+        try (
+            TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            UInt8Vector vector = (UInt8Vector) root.getVector("ul");
+            for (int i = 0; i < values.size(); i++) {
+                assertEquals(values.get(i), vector.getObjectNoOverflow(i));
+            }
         }
     }
 

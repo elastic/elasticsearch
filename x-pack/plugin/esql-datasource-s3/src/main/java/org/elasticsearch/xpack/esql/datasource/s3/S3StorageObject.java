@@ -353,7 +353,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 cause
             );
         }
-        if (cause instanceof NoSuchKeyException) {
+        if (cause instanceof NoSuchKeyException || (cause instanceof S3Exception missing && missing.statusCode() == 404)) {
             return new ExternalClientException(ExternalClientException.Condition.OBJECT_NOT_FOUND, path, "", "", cause);
         }
         if (isClosedClient(cause)) {

@@ -126,6 +126,42 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /**
+     * Split discovery does not always record the listing key resolution used, so a missing-object retry addresses the
+     * dataset by its location. Every hint variant of that prefix is dropped; another dataset and another store stay.
+     */
+    public void testInvalidateListingsAtDropsEveryHintVariantOfThatLocation() throws Exception {
+        Settings settings = Settings.builder().put("esql.external.cache.listing.ttl", "1h").build();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+            AtomicInteger loads = new AtomicInteger();
+            ListingCacheKey recorded = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
+            ListingCacheKey hinted = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "year=2024");
+            ListingCacheKey other = ListingCacheKey.build("s3", "other", "/data/*.parquet", "", "", Map.of(), "");
+            ListingCacheKey otherStore = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "other-endpoint", "", Map.of(), "");
+            for (ListingCacheKey key : List.of(recorded, hinted, other, otherStore)) {
+                service.getOrComputeListing(key, k -> {
+                    loads.incrementAndGet();
+                    return testCompactFileList();
+                });
+            }
+            assertEquals(4, loads.get());
+
+            service.invalidateListingsAt(StoragePath.of("s3://bucket/data/*.parquet"));
+
+            for (ListingCacheKey key : List.of(recorded, hinted, other, otherStore)) {
+                service.getOrComputeListing(key, k -> {
+                    loads.incrementAndGet();
+                    return testCompactFileList();
+                });
+            }
+            assertEquals(
+                "every listing of that prefix is read again, including another storage identity; the other dataset is not",
+                7,
+                loads.get()
+            );
+        }
+    }
+
+    /**
      * A failed query drops only the listings and file-metadata entries it read. Another dataset's listing, which was not part of the
      * failed query, stays cached, so one rewritten object does not cost every dataset a re-listing.
      */

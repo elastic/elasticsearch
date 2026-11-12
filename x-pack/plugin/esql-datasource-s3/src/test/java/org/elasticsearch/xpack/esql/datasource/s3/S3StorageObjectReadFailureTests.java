@@ -307,6 +307,23 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
     }
 
     /**
+     * A bodyless HTTP 404 is what some fixtures and gateways return for a missing key. The SDK then raises a generic
+     * {@link S3Exception} rather than {@link NoSuchKeyException}; that must still be the not-found condition, or a
+     * deleted object under a cached listing fails the query as an opaque range-read error.
+     */
+    public void testBodyless404IsObjectNotFound() {
+        S3Client mockS3 = mock(S3Client.class);
+        S3Exception missing = (S3Exception) S3Exception.builder().statusCode(404).message("Not Found").build();
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(missing);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException ex = expectThrows(ExternalClientException.class, obj::newStream);
+        assertEquals(Condition.OBJECT_NOT_FOUND, ex.condition());
+        assertThat(ex.getMessage(), containsString("not found"));
+        assertSame(missing, ex.getCause());
+    }
+
+    /**
      * An SSE-KMS object read by a principal denied {@code kms:Decrypt} on its key: S3 answers 403 {@code AccessDenied} and
      * names the refused action in its message. The remedy is that permission, not new credentials or anonymous access,
      * and the principal and key ARNs from S3's message are not repeated.

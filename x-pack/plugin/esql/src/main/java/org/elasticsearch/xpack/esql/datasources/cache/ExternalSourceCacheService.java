@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.ColumnStatTypeSupport;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.Closeable;
 import java.util.ArrayList;
@@ -1909,6 +1910,29 @@ public class ExternalSourceCacheService implements Closeable {
         List<ListingCacheKey> matches = new ArrayList<>();
         for (ListingCacheKey key : listingStore.cache().keys()) {
             if (datasets.contains(List.of(key.scheme(), key.bucketOrContainer(), key.prefixAndGlob(), key.storageIdentity()))) {
+                matches.add(key);
+            }
+        }
+        for (ListingCacheKey key : matches) {
+            listingStore.cache().invalidate(key);
+        }
+    }
+
+    /**
+     * Drops every cached listing of the dataset at {@code location}, so the next list of that prefix runs against the
+     * store. Hint variants and credential identities that share the scheme, bucket and prefix all go: a deleted object
+     * is gone for every filter over that prefix. Another dataset (different bucket or prefix) keeps its listings.
+     */
+    public void invalidateListingsAt(StoragePath location) {
+        if (location == null) {
+            return;
+        }
+        String scheme = Objects.toString(location.scheme(), "");
+        String bucket = Objects.toString(location.host(), "");
+        String prefix = Objects.toString(location.path(), "");
+        List<ListingCacheKey> matches = new ArrayList<>();
+        for (ListingCacheKey key : listingStore.cache().keys()) {
+            if (scheme.equals(key.scheme()) && bucket.equals(key.bucketOrContainer()) && prefix.equals(key.prefixAndGlob())) {
                 matches.add(key);
             }
         }

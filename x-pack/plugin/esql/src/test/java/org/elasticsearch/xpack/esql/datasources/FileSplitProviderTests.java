@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -7951,6 +7952,171 @@ public class FileSplitProviderTests extends ESTestCase {
             assertEquals("and reads the whole dataset", 2, cold.splits().size());
             assertEquals(cold.splits().size(), warm.splits().size());
         }
+    }
+
+    /**
+     * A file deleted after a cached listing was written must not fail the whole dataset. Discovery drops the listing
+     * and lists the store once more, so the query reads the files that are still there plus any that arrived since.
+     * Checked on both entry points and on both the prefix rail (which lists) and the complete-listing rail (which
+     * would otherwise keep planning the stale set).
+     */
+    public void testDeletedFileDuringDiscoveryRelistsOnceAndReadsTheStore() throws Exception {
+        for (boolean async : new boolean[] { false, true }) {
+            for (boolean completeListing : new boolean[] { false, true }) {
+                assertDeletedFileRelists(async, completeListing);
+            }
+        }
+    }
+
+    /**
+     * The retry runs once. A file that is still missing after the re-list fails discovery with the condition.
+     */
+    public void testDeletedFileDuringDiscoveryIsReturnedAfterOneRetry() throws Exception {
+        Map<String, byte[]> payloads = new HashMap<>();
+        List<StorageEntry> listing = new ArrayList<>(twoParquetFiles(payloads));
+        AtomicInteger listings = new AtomicInteger();
+        AtomicBoolean missing = new AtomicBoolean();
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
+            FileSplitProvider provider = rangeAwareProvider(
+                readerMissing("b.parquet", missing, Condition.OBJECT_NOT_FOUND),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                Settings.EMPTY,
+                createMultiFileStorageRegistry(payloads, null, listing, listings),
+                new DatasetListingService(Settings.EMPTY, cache, null, null, null)
+            );
+            assertEquals(2, provider.discoverSplits(overAPrefixOf(listing)).splits().size());
+            missing.set(true);
+            ExternalClientException e = expectThrows(ExternalClientException.class, () -> provider.discoverSplits(overAPrefixOf(listing)));
+            assertEquals(Condition.OBJECT_NOT_FOUND, e.condition());
+            assertEquals("listed to populate the cache, then once more on the retry", 2, listings.get());
+        }
+    }
+
+    /** Only a missing or rewritten object is retried. A refusal is the query's answer. */
+    public void testAccessDeniedDuringDiscoveryIsNotRetried() throws Exception {
+        Map<String, byte[]> payloads = new HashMap<>();
+        List<StorageEntry> listing = new ArrayList<>(twoParquetFiles(payloads));
+        AtomicInteger listings = new AtomicInteger();
+        AtomicBoolean denied = new AtomicBoolean();
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
+            FileSplitProvider provider = rangeAwareProvider(
+                readerMissing("b.parquet", denied, Condition.ACCESS_DENIED),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                Settings.EMPTY,
+                createMultiFileStorageRegistry(payloads, null, listing, listings),
+                new DatasetListingService(Settings.EMPTY, cache, null, null, null)
+            );
+            assertEquals(2, provider.discoverSplits(overAPrefixOf(listing)).splits().size());
+            denied.set(true);
+            ExternalClientException e = expectThrows(ExternalClientException.class, () -> provider.discoverSplits(overAPrefixOf(listing)));
+            assertEquals(Condition.ACCESS_DENIED, e.condition());
+            assertEquals("a refusal must not drop the listing", 1, listings.get());
+        }
+    }
+
+    private void assertDeletedFileRelists(boolean async, boolean completeListing) throws Exception {
+        Map<String, byte[]> payloads = new HashMap<>();
+        payloads.put("a.parquet", new byte[2000]);
+        payloads.put("b.parquet", new byte[2000]);
+        List<StorageEntry> listing = new ArrayList<>(
+            List.of(
+                new StorageEntry(StoragePath.of("s3://b/a.parquet"), 2000, Instant.EPOCH),
+                new StorageEntry(StoragePath.of("s3://b/b.parquet"), 2000, Instant.EPOCH)
+            )
+        );
+        AtomicInteger listings = new AtomicInteger();
+        AtomicBoolean missing = new AtomicBoolean();
+        String label = (async ? "async" : "sync") + (completeListing ? ", complete listing" : ", prefix listing");
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
+            FileSplitProvider provider = rangeAwareProvider(
+                readerMissing("b.parquet", missing, Condition.OBJECT_NOT_FOUND),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                Settings.EMPTY,
+                createMultiFileStorageRegistry(payloads, null, listing, listings),
+                new DatasetListingService(Settings.EMPTY, cache, null, null, null)
+            );
+            List<StorageEntry> original = List.copyOf(listing);
+            SplitDiscoveryContext warm = completeListing
+                ? overAPrefixOf(original).withScanFileSet(GlobExpander.fileListOf(original, "s3://b/*.parquet"))
+                : overAPrefixOf(original);
+            assertEquals(label, 2, discoverOn(async, provider, warm).splits().size());
+
+            missing.set(true);
+            payloads.put("c.parquet", new byte[2000]);
+            listing.clear();
+            listing.add(new StorageEntry(StoragePath.of("s3://b/a.parquet"), 2000, Instant.EPOCH));
+            listing.add(new StorageEntry(StoragePath.of("s3://b/c.parquet"), 2000, Instant.EPOCH));
+
+            SplitDiscoveryContext afterDelete = completeListing
+                ? overAPrefixOf(original).withScanFileSet(GlobExpander.fileListOf(original, "s3://b/*.parquet"))
+                : overAPrefixOf(listing);
+            SplitDiscoveryResult result = discoverOn(async, provider, afterDelete);
+            Set<String> names = new HashSet<>();
+            for (ExternalSplit split : result.splits()) {
+                names.add(((FileSplit) split).path().objectName());
+            }
+            assertEquals(label + ": surviving file plus the one added after the delete", Set.of("a.parquet", "c.parquet"), names);
+            assertThat(
+                label + ": the stale listing was dropped, so the store was listed again",
+                listings.get(),
+                greaterThan(completeListing ? 0 : 1)
+            );
+        }
+    }
+
+    private static RangeAwareFormatReader readerMissing(String objectName, AtomicBoolean missing, Condition condition) {
+        return new RangeAwareFormatReader() {
+            @Override
+            public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+                return Configured.empty(this);
+            }
+
+            @Override
+            public List<SplitRange> cachedSplitRanges(StorageObject object) {
+                return null;
+            }
+
+            @Override
+            public List<SplitRange> discoverSplitRanges(StorageObject object) {
+                if (missing.get() && objectName.equals(object.path().objectName())) {
+                    throw new ExternalClientException(condition, object.path(), "", "");
+                }
+                return List.of(new SplitRange(0, 2000));
+            }
+
+            @Override
+            public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) {
+                throw new UnsupportedOperationException("not called during split discovery");
+            }
+
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                return null;
+            }
+
+            @Override
+            public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+                return null;
+            }
+
+            @Override
+            public String formatName() {
+                return "parquet";
+            }
+
+            @Override
+            public List<String> fileExtensions() {
+                return List.of(".parquet", ".parq");
+            }
+
+            @Override
+            public RowPositionStrategy rowPositionStrategy() {
+                return PassThroughRowPositionStrategy.INSTANCE;
+            }
+
+            @Override
+            public void close() {}
+        };
     }
 
     /**

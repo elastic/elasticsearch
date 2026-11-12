@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 164149
+pr: 165688
+summary: Fix RERANK for listwise models
+type: bug

@@ -1963,25 +1963,7 @@ public class EsqlSession {
     }
 
     /**
-     * The filters on {@code @timestamp} that the query itself implies for its index patterns, see {@link QueryTimeRangeExtractor}.
-     * <p>
-     * They are not used while unmapped fields are loaded from {@code _source}, by the query or by one of its views. An index
-     * that holds {@code @timestamp} in {@code _source} without mapping it never matches the filter, while its rows do pass a
-     * condition on the loaded value. That is the one case in which leaving an index out changes the rows of the result: with
-     * any other setting the missing field reads as {@code null}, which no condition on {@code @timestamp} accepts.
-     * <p>
-     * Neither are they used when the request filter already filters on {@code @timestamp}, see {@link #filtersOnTimestamp}.
-     * <p>
-     * A query for exemplars reads the exemplar data streams of the metrics indices that its patterns resolve to. Like a
-     * request filter, the time range then also narrows those data streams to the ones whose metrics have data in the range.
-     * <p>
-     * A filter that leaves a pattern without any index is given up on, see {@link #analyzeWithRetry}: the query then gets the
-     * mapping, and with that the columns, of the indices that it would have read without the filter.
-     */
-    /**
-     * Whether the request filter filters on {@code @timestamp}, in any way and at any depth. The caller, typically a time
-     * picker, then says which time range to resolve the indices for, and the time range of the query is not looked for. A
-     * filter whose fields cannot be told counts as one that does.
+     * Whether the request filter references {@code @timestamp}. The time range of the query is then not extracted.
      */
     static boolean filtersOnTimestamp(@Nullable QueryBuilder requestFilter, Configuration configuration) {
         if (requestFilter == null) {
@@ -1991,6 +1973,11 @@ public class EsqlSession {
         return referenced.requiresAllFields() || referenced.fieldNames().contains(MetadataAttribute.TIMESTAMP_FIELD);
     }
 
+    /**
+     * The {@code @timestamp} filters that the query implies per index pattern, see {@link QueryTimeRangeExtractor}.
+     * Empty when unmapped fields are loaded from {@code _source}: an index with an unmapped {@code @timestamp} never
+     * matches the filter, but its rows can still match the query.
+     */
     private static Map<IndexPattern, QueryBuilder> queryTimeFilters(
         LogicalPlan parsed,
         UnmappedResolution unmappedResolution,
@@ -3276,14 +3263,12 @@ public class EsqlSession {
             // The analysis of a pattern without indices does not fail on its own when unmapped fields are nullified, as they are
             // for PromQL. It would succeed with the columns of no index at all.
             LOGGER.debug("The time range of the query matches no index of a pattern ({})", description);
-            retryWithLessFiltering(
+            retryWithoutFilter(
                 parsed,
                 unmappedResolution,
                 viewSettings,
                 configuration,
                 executionInfo,
-                requestFilter,
-                queryTimeFilters,
                 timestampBounds,
                 listingBounds,
                 preserveViewBoundaries,
@@ -3330,14 +3315,13 @@ public class EsqlSession {
                 // if the initial request didn't have a filter, then just pass the exception back to the user
                 listener.onFailure(ve);
             } else {
-                retryWithLessFiltering(
+                // retrying the index resolution without index filtering.
+                retryWithoutFilter(
                     parsed,
                     unmappedResolution,
                     viewSettings,
                     configuration,
                     executionInfo,
-                    requestFilter,
-                    queryTimeFilters,
                     timestampBounds,
                     listingBounds,
                     preserveViewBoundaries,
@@ -3352,9 +3336,8 @@ public class EsqlSession {
     }
 
     /**
-     * Whether the time range of the query left one of its index patterns without any index. Such a filter is not worth
-     * keeping: there is nothing to read either way, and without the filter the query sees the mapping that it would have seen
-     * had it not bounded the time. A query with a time range that no data falls into pays for a second index resolution.
+     * Whether the time range of the query left one of its index patterns without any index. The indices are then resolved
+     * again without filters, so that the query sees the mapping it would have seen without the time range.
      */
     private static boolean leftPatternWithoutIndices(Map<IndexPattern, QueryBuilder> queryTimeFilters, PreAnalysisResult result) {
         for (IndexPattern pattern : queryTimeFilters.keySet()) {
@@ -3367,19 +3350,14 @@ public class EsqlSession {
     }
 
     /**
-     * Resolves the indices again with less index filtering, and analyzes the plan with what they resolve to. The time range of
-     * the query goes first, on its own: it is at least as narrow as the request filter in the common case of a query that
-     * repeats the time picker, and keeping the request filter for that attempt resolves what a query without the time range
-     * would have. Without a time range to drop, the request filter goes.
+     * Resolves the indices again without any index filtering, and analyzes the plan with what they resolve to.
      */
-    private void retryWithLessFiltering(
+    private void retryWithoutFilter(
         LogicalPlan parsed,
         UnmappedResolution unmappedResolution,
         Map<String, ViewQuerySettings> viewSettings,
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
-        QueryBuilder requestFilter,
-        Map<IndexPattern, QueryBuilder> queryTimeFilters,
         TimestampBounds timestampBounds,
         TimestampBounds listingBounds,
         boolean preserveViewBoundaries,
@@ -3387,7 +3365,6 @@ public class EsqlSession {
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> listener
     ) {
-        boolean dropRequestFilter = queryTimeFilters.isEmpty();
         executionInfo.clusterInfo.clear();
         resolveIndicesAndAnalyze(
             parsed,
@@ -3395,10 +3372,8 @@ public class EsqlSession {
             viewSettings,
             configuration,
             executionInfo,
-            dropRequestFilter || requestFilter == null
-                ? "second attempt, without filter"
-                : "second attempt, without the time range of the query",
-            dropRequestFilter ? null : requestFilter,
+            "second attempt, without filter",
+            null,
             Map.of(),
             timestampBounds,
             listingBounds,

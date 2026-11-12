@@ -236,11 +236,11 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
         assertThat(columns, hasItem("old_only"));
     }
 
-    /** The request filter stays when the time range of the query is given up on. */
-    public void testRetryWhenTimeRangeLeavesNoIndexKeepsRequestFilter() {
+    /** The retry drops the request filter along with the time range of the query. */
+    public void testRetryWhenTimeRangeLeavesNoIndexDropsRequestFilter() {
         matchingIndices = filter -> boundsTimestamp(filter) ? List.of() : List.of(RECENT, OLD);
         analyze("FROM logs-*" + TIME_RANGE, REQUEST_FILTER);
-        assertThat(indexFilters, contains(new BoolQueryBuilder().filter(REQUEST_FILTER).filter(TIME_FILTER), REQUEST_FILTER));
+        assertThat(indexFilters, contains(new BoolQueryBuilder().filter(REQUEST_FILTER).filter(TIME_FILTER), null));
     }
 
     /** A field that only the pruned index maps fails the analysis, which is tried again without the time range. */
@@ -249,14 +249,11 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
         assertThat(indexFilters, contains(TIME_FILTER, null));
     }
 
-    /**
-     * With a request filter as well, the time range of the query goes first and the request filter second, as it did before
-     * queries had a time range to go by.
-     */
-    public void testRetryInStagesWhenAnalysisFails() {
+    /** With a request filter as well, there is still a single retry, without any filter. */
+    public void testSingleRetryWhenAnalysisFailsWithRequestFilter() {
         matchingIndices = filter -> filter == null ? List.of(RECENT, OLD) : List.of(RECENT);
         assertThat(columns(analyze("FROM logs-*" + TIME_RANGE + " | KEEP old_only", REQUEST_FILTER)), contains("old_only"));
-        assertThat(indexFilters, contains(new BoolQueryBuilder().filter(REQUEST_FILTER).filter(TIME_FILTER), REQUEST_FILTER, null));
+        assertThat(indexFilters, contains(new BoolQueryBuilder().filter(REQUEST_FILTER).filter(TIME_FILTER), null));
     }
 
     public void testInvalidQueryFailsAfterRetry() {

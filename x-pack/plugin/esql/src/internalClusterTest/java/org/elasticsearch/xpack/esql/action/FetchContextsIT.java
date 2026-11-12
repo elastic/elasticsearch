@@ -47,12 +47,14 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 /**
  * The reader contexts of the fetch phase, on a cluster with three data nodes. The data nodes of a query that gets the
@@ -224,10 +226,10 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * With two cuts the fetch runs after the second. The rows of the first cut come from several shards, and the contexts
-     * of the ones the second cut drops are freed before the fetch loads its winner.
+     * With two cuts the fetch runs after the first, the cut closest to the relation, and the second cut runs over the
+     * fetched rows. The contexts no row of the first cut reads are freed before the fetch, and the fetch reads the others.
      */
-    public void testTheLosersOfTheLastCutAreFreedBeforeTheFetch() throws Exception {
+    public void testTheLosersOfTheFirstOfTwoCutsAreFreedBeforeTheFetch() throws Exception {
         Set<ShardSearchContextId> fetched = ConcurrentHashMap.newKeySet();
         CountDownLatch fetchArrived = new CountDownLatch(1);
         CountDownLatch releaseFetches = new CountDownLatch(1);
@@ -242,21 +244,23 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
                 }
             );
         }
-        // the 20 newest rows, then the oldest of them: one winner
+        // the 20 newest rows, fetched, then the oldest of them: one winner
         ActionFuture<EsqlQueryResponse> query = client().execute(
             EsqlQueryAction.INSTANCE,
             request("FROM " + INDEX + " | SORT ts DESC | LIMIT 20 | SORT ts ASC | LIMIT 1 | KEEP a, b, ts", true)
         );
         try {
             safeAwait(fetchArrived);
-            assertBusy(() -> assertThat("only the winner stays open", Set.copyOf(registeredIds), equalTo(Set.copyOf(fetched))));
+            assertBusy(
+                () -> assertThat("only the contexts of the first cut stay open", Set.copyOf(registeredIds), equalTo(Set.copyOf(fetched)))
+            );
         } finally {
             releaseFetches.countDown();
         }
         try (EsqlQueryResponse response = query.actionGet(30, TimeUnit.SECONDS)) {
             assertThat(getValuesList(response), equalTo(List.of(List.of("a-40", 400L, 40L))));
         }
-        assertThat(fetched, hasSize(1));
+        assertThat(fetched, not(empty()));
         assertBusy(() -> assertThat(freed.get(), equalTo(registered.get())));
     }
 

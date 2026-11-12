@@ -240,10 +240,10 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * A second cut after the first is the final cut. The fetch loads the 5 rows it keeps, and the key of the second sort
-     * crosses the exchange.
+     * The fetch runs above the cut closest to the relation and loads its 20 rows, the key of the second sort with them.
+     * The second cut runs over the fetched rows.
      */
-    public void testFetchesTheRowsOfTheLastOfChainedCuts() {
+    public void testFetchesTheRowsOfTheFirstOfChainedCuts() {
         Run run = runBoth(
             "FROM " + indexName + " | SORT unique_sort DESC | LIMIT 20 | SORT metric ASC | LIMIT 5 | KEEP unique_sort, payload"
         );
@@ -259,17 +259,16 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
                 )
             )
         );
-        assertFetched(run, 5);
-        assertLoadedOnlyBeforeTheCut(run, "metric");
+        assertFetched(run, 20);
+        assertFetchedOnly(run, "metric");
         assertFetchedOnly(run, "payload");
     }
 
     /**
-     * {@code SORT ... | LIMIT n BY} repeats on the coordinator over the documents that left their node. The two rows of
-     * each category with the highest {@code unique_sort} are the 10 highest, and the fetch loads them after the sort that
-     * follows.
+     * {@code SORT ... | LIMIT n BY} breaks the pipeline below the {@code LIMIT} of the query, which is the cut, so the plan
+     * loads its columns eagerly and returns the same rows.
      */
-    public void testFetchesTheRowsOfATopNBy() {
+    public void testATopNByKeepsThePlanEager() {
         Run run = runBoth(
             "FROM "
                 + indexName
@@ -280,16 +279,14 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
             expected.add(List.of((long) i, "cat-" + (i % 5), "payload-" + i));
         }
         assertThat(run.rows(), equalTo(expected));
-        assertFetched(run, 10);
-        assertLoadedOnlyBeforeTheCut(run, "category");
-        assertFetchedOnly(run, "payload");
+        assertNotFetched(run);
     }
 
     /**
-     * {@code LIMIT n BY} repeats on the coordinator over the documents that left their node. Every row of a group has the
-     * same payload, so the rows are the same whichever two of each group the cut keeps.
+     * {@code LIMIT n BY} breaks the pipeline below the {@code LIMIT} of the query, so the plan loads its columns eagerly.
+     * Every row of a group has the same payload, so the rows are the same whichever two of each group the cut keeps.
      */
-    public void testFetchesTheRowsOfALimitBy() {
+    public void testALimitByKeepsThePlanEager() {
         String index = indexName + "_limit_by";
         assertAcked(
             indicesAdmin().prepareCreate(index)
@@ -311,9 +308,7 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
             expected.add(List.of("g-" + group, "payload-" + group));
         }
         assertThat(run.rows(), equalTo(expected));
-        assertFetched(run, 6);
-        assertLoadedOnlyBeforeTheCut(run, "group");
-        assertFetchedOnly(run, "payload");
+        assertNotFetched(run);
     }
 
     /**
@@ -452,23 +447,26 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * The cluster setting turns the fetch phase on for queries without the pragma.
+     * The cluster setting turns the fetch phase on for queries without the pragma, where it is likely faster: a
+     * {@code TopN} over more than one shard that defers {@code _source}. A query that defers no {@code _source} stays
+     * eager.
      */
     public void testTheClusterSettingTurnsTheFetchPhaseOn() {
-        String query = "FROM " + indexName + " | SORT unique_sort + 1 DESC | LIMIT 5 | KEEP unique_sort, payload, category";
+        String withSource = "FROM " + indexName + " METADATA _source | SORT unique_sort + 1 DESC | LIMIT 5 | KEEP unique_sort, _source";
+        String withoutSource = "FROM " + indexName + " | SORT unique_sort + 1 DESC | LIMIT 5 | KEEP unique_sort, payload, category";
         updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_FETCH_PHASE.getKey(), true));
         try {
-            Run run = runQuery(query, null);
-            assertFetched(run, 5);
+            assertFetched(runQuery(withSource, null), 5);
+            assertNotFetched(runQuery(withoutSource, null));
         } finally {
             updateClusterSettings(Settings.builder().putNull(EsqlFlags.ESQL_FETCH_PHASE.getKey()));
         }
-        assertNotFetched(runQuery(query, null));
+        assertNotFetched(runQuery(withSource, null));
     }
 
     /**
-     * Two cuts on computed keys. The second key is computed on the coordinator between the cuts, so its input crosses the
-     * exchange, and the fetch loads the 5 rows of the second cut.
+     * Two cuts on computed keys. The fetch runs above the first cut and loads its 20 rows, the input of the second key
+     * with them. The second key is computed on the coordinator over the fetched rows.
      */
     public void testFetchesTheRowsOfTwoCutsOnComputedKeys() {
         Run run = runBoth(
@@ -492,8 +490,8 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
                 )
             )
         );
-        assertFetched(run, 5);
-        assertLoadedOnlyBeforeTheCut(run, "tie_breaker");
+        assertFetched(run, 20);
+        assertFetchedOnly(run, "tie_breaker");
         assertFetchedOnly(run, "payload");
     }
 
@@ -1018,9 +1016,11 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Each index converts its own type of a union typed field, on the fetch side as on the data drivers.
+     * A union typed field stays eager: each index would convert its own type on the fetch side as on the data drivers,
+     * but the planner keeps union types eager until that conversion is covered. With nothing else to defer, the plan loads
+     * every column before the cut and returns the same rows.
      */
-    public void testFetchesAUnionTypedField() {
+    public void testAUnionTypedFieldStaysEager() {
         String dates = indexName + "_date";
         String nanos = indexName + "_date_nanos";
         assertAcked(
@@ -1042,9 +1042,7 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
 
         Run run = runBoth("FROM " + dates + "," + nanos + " | SORT unique_sort ASC | LIMIT 6 | KEEP unique_sort, union_value");
         assertThat(run.rows().stream().map(List::getFirst).toList(), equalTo(List.of(0L, 1L, 2L, 3L, 4L, 5L)));
-        assertFetched(run, 6);
-        assertLoadedOnlyBeforeTheCut(run, "unique_sort");
-        assertFetchedOnly(run, "union_value");
+        assertNotFetched(run);
     }
 
     /**

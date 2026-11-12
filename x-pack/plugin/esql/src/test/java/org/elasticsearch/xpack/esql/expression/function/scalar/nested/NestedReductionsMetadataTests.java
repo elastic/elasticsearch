@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -60,7 +59,6 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
         IndexSettings.MODE.get(Settings.EMPTY);
     }
 
-    @Test
     public void testOverwritingSourceAndIndexDoesNotChangeReduction() throws Exception {
         var rows = run(
             "FROM orders | EVAL _source = \"user source\", _index = \"user index\" "
@@ -69,7 +67,6 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
         assertEquals(List.of(row("a", "user source", "user index", 24L), row("b", "user source", "user index", null)), rows);
     }
 
-    @Test
     public void testBooleanCombinationsStayOnTheComputePath() throws Exception {
         // Existence is evaluated inside NestedReduce. Indexed nested-query pushdown is not used:
         // OR, NOT and multivalue children are not proven identical to a Lucene nested query.
@@ -77,13 +74,11 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
         assertEquals(List.of(row("b")), run("FROM orders | WHERE NOT NESTED(items.price > 5) | KEEP order_id | SORT order_id"));
     }
 
-    @Test
     public void testExistenceUsesOriginalSourceAfterPublicSourceIsReplaced() throws Exception {
         var rows = run("FROM orders | EVAL _source = \"user source\" | WHERE NESTED(items.price > 5) | KEEP order_id");
         assertEquals(List.of(row("a")), rows);
     }
 
-    @Test
     public void testReductionOutputCanReusePublicMetadataName() throws Exception {
         var rows = run(
             "FROM orders | EVAL _index = NESTED(SUM(items.price * items.quantity)) "
@@ -92,7 +87,6 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
         assertEquals(List.of(row("a", 24L, 12L), row("b", null, null)), rows);
     }
 
-    @Test
     public void testExpandedParentRowsKeepIndependentReductions() throws Exception {
         var rows = run(
             "FROM orders | EVAL copies = [10, 20] | MV_EXPAND copies "
@@ -101,7 +95,6 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
         assertEquals(List.of(row(4L, 48L)), rows);
     }
 
-    @Test
     public void testRenamingAndReplacingExplicitMetadataDoesNotChangeReduction() throws Exception {
         var rows = run(
             "FROM orders METADATA _index | RENAME _index AS origin | EVAL _index = \"replacement\" "
@@ -110,7 +103,6 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
         assertEquals(List.of(row("a", "orders", "replacement", 24L), row("b", "orders", "replacement", null)), rows);
     }
 
-    @Test
     public void testDroppingExplicitMetadataDoesNotRemovePrivateInput() throws Exception {
         var rows = run(
             "FROM orders METADATA _index | DROP _index | EVAL total = NESTED(SUM(items.price * items.quantity)) "
@@ -119,13 +111,11 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
         assertEquals(List.of(row("a", 24L), row("b", null)), rows);
     }
 
-    @Test
     public void testKeepBeforeReductionRetainsOnlyPrivateDependencies() throws Exception {
         var rows = run("FROM orders | KEEP order_id | EVAL total = NESTED(SUM(items.price * items.quantity)) | SORT order_id");
         assertEquals(List.of(row("a", 24L), row("b", null)), rows);
     }
 
-    @Test
     public void testForkCanChangePublicMetadataIndependently() throws Exception {
         var rows = run(
             "FROM orders | FORK (EVAL _index = \"left\") (EVAL _index = \"right\") "
@@ -134,7 +124,6 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
         assertEquals(List.of(row(4L, 48L)), rows);
     }
 
-    @Test
     public void testNestedLookupMappingCannotRedirectLeftReduction() throws Exception {
         var rows = run(
             "FROM orders | LOOKUP JOIN prices ON order_id "
@@ -144,7 +133,6 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
         assertEquals(List.of(row("a", 24L), row("b", null)), rows);
     }
 
-    @Test
     public void testLaterLookupMappingCannotChangeEarlierReduction() throws Exception {
         var rows = run(
             "FROM orders | EVAL total = NESTED(SUM(items.price * items.quantity)) "
@@ -154,7 +142,6 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
         assertEquals(List.of(row("a", 24L), row("b", null)), rows);
     }
 
-    @Test
     public void testDisjointNestedLookupMappingCannotRedirectLeftReduction() throws Exception {
         var rows = run(
             "FROM orders | LOOKUP JOIN prices ON order_id "
@@ -164,7 +151,6 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
         assertEquals(List.of(row("a", 24L), row("b", null)), rows);
     }
 
-    @Test
     public void testLookupSideNestedScopeIsRejectedExplicitly() {
         var error = assertThrows(
             VerificationException.class,
@@ -177,7 +163,6 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
         assertTrue(error.getMessage(), error.getMessage().contains("lookup-side nested scope"));
     }
 
-    @Test
     public void testLookupMappingTypeCannotChangeLeftArithmetic() throws Exception {
         var rows = run(
             "FROM orders | LOOKUP JOIN prices ON order_id "
@@ -187,7 +172,6 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
         assertEquals(List.of(row("a", 24L), row("b", null)), rows);
     }
 
-    @Test
     public void testLookupCannotProvideScopeWhenFromHasNoNestedMapping() {
         EsIndex original = schema();
         EsIndex plain = new EsIndex(
@@ -208,7 +192,6 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
         assertTrue(error.getMessage(), error.getMessage().contains("lookup-side nested scope"));
     }
 
-    @Test
     public void testAggregationDoesNotRecreateParentAssociation() {
         assertThrows(
             VerificationException.class,
@@ -220,7 +203,6 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
         );
     }
 
-    @Test
     public void testUserCannotForgePrivateMetadataAliases() {
         for (String role : List.of("_source", "_index")) {
             String name = "$$nested_reductions$metadata$" + role;

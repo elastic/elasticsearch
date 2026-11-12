@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -99,17 +98,14 @@ public class NestedReductionsContractTests extends LuceneTestCase {
         assumeTrue("NESTED is registered on snapshot builds", Build.current().isSnapshot());
     }
 
-    @Test
     public void testComputeContract() throws Exception {
         checkContract(false, true);
     }
 
-    @Test
     public void testTransportedComputeContract() throws Exception {
         checkContract(true, true);
     }
 
-    @Test
     public void testMinimallyLoweredComputeContract() throws Exception {
         checkContract(false, false);
     }

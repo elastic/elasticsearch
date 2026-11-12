@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -58,7 +57,6 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
         IndexSettings.MODE.get(Settings.EMPTY);
     }
 
-    @Test
     public void testCompatibleBranches() throws Exception {
         assertEquals(
             List.of(row("alpha", 26L), row("beta", 14L)),
@@ -69,7 +67,6 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
         );
     }
 
-    @Test
     public void testMissingLeafMappingIsNotReadFromRawSource() throws Exception {
         assertEquals(
             List.of(row("alpha", 26L, 8L, false), row("beta", null, 7L, true)),
@@ -82,7 +79,6 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
         );
     }
 
-    @Test
     public void testMissingScopeDoesNotDiscoverAnUnmappedArray() throws Exception {
         assertEquals(
             List.of(row("alpha", 26L, true), row("gamma", null, false)),
@@ -94,7 +90,6 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
         );
     }
 
-    @Test
     public void testRepeatedBranchIsCountedAgain() throws Exception {
         assertEquals(
             List.of(row(3L, 66L)),
@@ -106,7 +101,6 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
         );
     }
 
-    @Test
     public void testNestedUnionRetainsApplicability() throws Exception {
         assertEquals(
             List.of(row(3L, 40L)),
@@ -118,7 +112,6 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
         );
     }
 
-    @Test
     public void testMultiIndexFromAndUnionAgree() throws Exception {
         var fixtures = List.of(alpha(), beta(false, "long"), gamma());
         String suffix = " | EVAL total = NESTED(SUM(items.price * items.quantity)), missing = NESTED(items.quantity IS NULL) "
@@ -128,7 +121,6 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
         assertEquals(expected, run("FROM (FROM alpha), (FROM beta), (FROM gamma)" + suffix, fixtures));
     }
 
-    @Test
     public void testIncompatibleBranchesRequireConversionBeforeUnion() {
         for (String expression : List.of("items.price", "items.price::long")) {
             assertThrows(
@@ -142,7 +134,6 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
         }
     }
 
-    @Test
     public void testUnreferencedTypeConflictDoesNotRejectCompatibleKey() throws Exception {
         assertEquals(
             List.of(row("alpha", 6L), row("beta", 2L)),
@@ -153,7 +144,6 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
         );
     }
 
-    @Test
     public void testUserCannotReuseSchemaNamesDuringNestedQuery() {
         String name = "$$nested_reductions.items.price";
         for (String command : List.of(
@@ -173,7 +163,6 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
         }
     }
 
-    @Test
     public void testOrdinaryQueryCanUseSchemaLikeColumnName() throws Exception {
         assertEquals(
             List.of(row("ordinary")),
@@ -184,7 +173,6 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
         );
     }
 
-    @Test
     public void testNestedArraysPreserveObjectCorrelationForEveryReduction() throws Exception {
         var fixtures = List.of(
             fixture("nr_nested_arrays", true, true, "long", "[null,[{\"price\":5,\"quantity\":4},null],[{\"price\":3,\"quantity\":2}]]")
@@ -204,7 +192,6 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
         );
     }
 
-    @Test
     public void testDifferentNumericMappingsRemainUnsupported() {
         assertThrows(
             VerificationException.class,
@@ -216,7 +203,6 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
         );
     }
 
-    @Test
     public void testCompletedConvertedReductionsCanMerge() throws Exception {
         assertEquals(
             List.of(row(2L, 15L)),

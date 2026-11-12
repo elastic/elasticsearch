@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.nested.Nested;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedReductionsContractTests;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.session.Configuration;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Parameter;
@@ -270,8 +269,11 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
             if (def.clazz() == Nested.class) {
                 // This syntax marker requires analyzer context and never executes/serializes unlowered.
                 assertTrue(
-                    Arrays.stream(NestedReductionsContractTests.class.getDeclaredMethods())
-                        .anyMatch(method -> method.isAnnotationPresent(Test.class))
+                    Arrays.stream(NestedReductionsContractTests.class.getMethods())
+                        .anyMatch(
+                            method -> method.getDeclaringClass() == NestedReductionsContractTests.class
+                                && method.getName().startsWith("test")
+                        )
                 );
                 continue;
             }

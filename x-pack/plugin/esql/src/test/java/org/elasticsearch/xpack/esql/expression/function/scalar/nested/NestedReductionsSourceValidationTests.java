@@ -12,12 +12,20 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsRequest;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -28,20 +36,19 @@ public class NestedReductionsSourceValidationTests extends LuceneTestCase {
     @BeforeClass
     public static void logging() {
         LogConfigurator.configureESLogging();
+        // IndexMode and IndexSettings initialize each other. Touch the setting before IndexMode.
+        IndexSettings.MODE.get(Settings.EMPTY);
     }
 
-    @Test
     public void testCapabilityStaysUnadvertised() {
         assertFalse(EsqlCapabilities.Cap.NESTED_REDUCTIONS.isEnabled());
         assertFalse(EsqlCapabilities.capabilities(new EsqlFunctionRegistry(), false).capabilities().contains("nested_reductions"));
     }
 
-    @Test
     public void testPlainStoredSource() {
         validate(Settings.EMPTY, mapping(Map.of("type", "long")), VISIBLE);
     }
 
-    @Test
     public void testUnavailableOrReshapedSource() {
         for (var source : java.util.List.of(
             Map.of("enabled", false),
@@ -63,7 +70,6 @@ public class NestedReductionsSourceValidationTests extends LuceneTestCase {
         );
     }
 
-    @Test
     public void testMappedTransformations() {
         for (var field : java.util.List.of(
             Map.of("type", "long", "null_value", 7),
@@ -79,13 +85,11 @@ public class NestedReductionsSourceValidationTests extends LuceneTestCase {
         }
     }
 
-    @Test
     public void testExplicitDefaultsThatMatchTheMapper() {
         validate(Settings.EMPTY, mapping(Map.of("type", "long", "coerce", true)), VISIBLE);
         validate(Settings.EMPTY, mapping(Map.of("type", "long", "ignore_malformed", false)), VISIBLE);
     }
 
-    @Test
     public void testMultifieldHasNoIndependentSourceValue() {
         var mapping = mapping(Map.of("type", "text", "fields", Map.of("raw", Map.of("type", "keyword"))));
         assertThrows(
@@ -94,7 +98,6 @@ public class NestedReductionsSourceValidationTests extends LuceneTestCase {
         );
     }
 
-    @Test
     public void testIndexDefaultsCanTransformValues() {
         for (var settings : java.util.List.of(
             Settings.builder().put("index.mapping.ignore_malformed", true).build(),
@@ -105,14 +108,12 @@ public class NestedReductionsSourceValidationTests extends LuceneTestCase {
         }
     }
 
-    @Test
     public void testRoundedNumericMappings() {
         for (String type : java.util.List.of("float", "half_float", "scaled_float")) {
             assertThrows(IllegalArgumentException.class, () -> validate(Settings.EMPTY, mapping(Map.of("type", type)), VISIBLE));
         }
     }
 
-    @Test
     public void testHiddenCopySourceCannotChangeVisibleValues() {
         var mapping = Map.of(
             "properties",
@@ -130,7 +131,6 @@ public class NestedReductionsSourceValidationTests extends LuceneTestCase {
         assertFalse(error.getMessage(), error.getMessage().contains("secret"));
     }
 
-    @Test
     public void testValidationFlagSurvivesTransport() throws Exception {
         var request = new EsqlResolveFieldsRequest(new FieldCapabilitiesRequest().indices("orders").fields("*"), true);
         try (var out = new BytesStreamOutput()) {
@@ -146,7 +146,6 @@ public class NestedReductionsSourceValidationTests extends LuceneTestCase {
         }
     }
 
-    @Test
     public void testOlderPlanningNodeCannotSilentlySkipValidation() throws Exception {
         var caps = new FieldCapabilitiesRequest().indices("orders").fields("*");
         try (var out = new BytesStreamOutput()) {
@@ -162,15 +161,54 @@ public class NestedReductionsSourceValidationTests extends LuceneTestCase {
         }
     }
 
-    @Test
     public void testInvisibleFieldsDoNotLeakThroughValidation() {
         var mapping = mapping(Map.of("type", "keyword", "normalizer", "secret_normalizer"));
         validate(Settings.EMPTY, mapping, Set.of("order_id"));
     }
 
-    @Test
     public void testOrdinaryParentMappingsAreUnaffected() {
         validate(Settings.EMPTY, Map.of("properties", Map.of("parent", Map.of("type", "keyword", "null_value", "x"))), Set.of("parent"));
+    }
+
+    public void testDroppingTheOnlyColumnDoesNotReferenceNoFields() {
+        String query = "FROM test_limit_zero_cols | EVAL x = \"test\" | KEEP x | DROP x | LIMIT 5";
+        for (EsIndex index : List.of(
+            index("test_limit_zero_cols", Map.of()),
+            index("test_limit_zero_cols", Map.of("value", integerField()))
+        )) {
+            LogicalPlan plan = NestedReductionsTestSupport.optimize(query, NestedReductionsTestSupport.analyze(query, index, Map.of()));
+            assertEquals(query + " -> " + names(plan), List.of(), names(plan));
+        }
+        EsIndex docs = index("docs", Map.of("name", keyword("name")));
+        EsIndex languages = index("languages", Map.of());
+        String subquery = "FROM docs | WHERE name IN (FROM languages | EVAL idx = \"docs\" | KEEP idx) | KEEP name | LIMIT 1";
+        LogicalPlan plan = NestedReductionsTestSupport.optimize(
+            subquery,
+            NestedReductionsTestSupport.analyze(subquery, Map.of(docs.name(), docs, languages.name(), languages), Map.of())
+        );
+        assertEquals(subquery + " -> " + names(plan), List.of("name"), names(plan));
+    }
+
+    private static List<String> names(LogicalPlan plan) {
+        return plan.output().stream().map(Attribute::name).toList();
+    }
+
+    private static EsField integerField() {
+        return new EsField("value", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+    }
+
+    private static EsField keyword(String name) {
+        return new EsField(name, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+    }
+
+    private static EsIndex index(String name, Map<String, EsField> mapping) {
+        return new EsIndex(
+            name,
+            mapping,
+            Map.of(name, new IndexProperties(IndexMode.STANDARD, 1)),
+            Map.of("", List.of(name)),
+            Map.of("", List.of(name))
+        );
     }
 
     private static Map<String, Object> mapping(Map<String, ?> field) {

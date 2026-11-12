@@ -233,6 +233,12 @@ public final class NestedReductionsAnalysis {
     public static final class Resolve extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            // A query that never calls NESTED has nothing to bind. Carrying every synthetic attribute through its
+            // projections also pulls the empty-output marker into KEEP and DROP, so a later project still names it
+            // after the scan has stopped producing it.
+            if (plan.anyMatch(p -> p.expressions().stream().anyMatch(e -> e.anyMatch(Nested.class::isInstance))) == false) {
+                return plan;
+            }
             return plan.transformUp(p -> {
                 if (p.children().isEmpty() || p.childrenResolved() == false || p.expressionsResolved() == false) {
                     return p;
@@ -270,7 +276,7 @@ public final class NestedReductionsAnalysis {
                 if (lowered instanceof Project project) {
                     List<NamedExpression> projected = new ArrayList<>(project.projections());
                     for (Attribute a : project.child().output()) {
-                        if (a.synthetic() && project.outputSet().contains(a) == false) {
+                        if (carriedThroughProject(a) && project.outputSet().contains(a) == false) {
                             projected.add(a);
                         }
                     }
@@ -411,6 +417,11 @@ public final class NestedReductionsAnalysis {
                 return p;
             });
         }
+    }
+
+    /** Nested schema and the captured source aliases. The empty-output marker is synthetic and must stay where it is. */
+    private static boolean carriedThroughProject(Attribute attribute) {
+        return isSchema(attribute) || (attribute.synthetic() && isPrivateMetadataName(attribute.name()));
     }
 
     private static boolean isSchema(Expression a) {

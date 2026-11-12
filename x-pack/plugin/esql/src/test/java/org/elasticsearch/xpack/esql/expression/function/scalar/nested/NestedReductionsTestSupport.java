@@ -117,6 +117,16 @@ final class NestedReductionsTestSupport {
         );
     }
 
+    static LogicalPlan optimize(String query, LogicalPlan analyzed) {
+        var optimizerContext = new LogicalOptimizerContext(
+            configuration(query),
+            FoldContext.small(),
+            TransportVersion.current(),
+            EsqlFlags.DEFAULTS
+        );
+        return new LogicalPlanOptimizer(optimizerContext).optimize(analyzed);
+    }
+
     static LogicalPlan roundTrip(String query, LogicalPlan plan) throws IOException {
         var config = configuration(query);
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(ExpressionWritables.getNamedWriteables());

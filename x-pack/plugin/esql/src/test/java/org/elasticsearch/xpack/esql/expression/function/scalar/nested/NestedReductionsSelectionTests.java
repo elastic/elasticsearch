@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -114,7 +113,6 @@ public class NestedReductionsSelectionTests extends LuceneTestCase {
         IndexSettings.MODE.get(Settings.EMPTY);
     }
 
-    @Test
     public void testSelection() throws Exception {
         String query = test.get("query").toString();
         if ("analysis".equals(test.get("error"))) {

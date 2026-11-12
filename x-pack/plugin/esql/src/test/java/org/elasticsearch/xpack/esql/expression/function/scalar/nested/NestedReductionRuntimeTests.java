@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
@@ -14,6 +17,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -40,7 +44,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -56,7 +59,6 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
         LogConfigurator.configureESLogging();
     }
 
-    @Test
     public void testSameDocumentRowsAndLaterPagesHaveIndependentState() {
         var breaker = new TrackingBreaker();
         var factory = new BlockFactory(breaker, BigArrays.NON_RECYCLING_INSTANCE);
@@ -82,7 +84,6 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
-    @Test
     public void testFailureBuildingSecondChildChannelReleasesFirstAndReservation() {
         var breaker = new TrackingBreaker();
         var factory = new BlockFactory(breaker, BigArrays.NON_RECYCLING_INSTANCE);
@@ -101,7 +102,6 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
-    @Test
     public void testUnmappedIndexCannotUseSourceArrayAsMappedScope() {
         var factory = new BlockFactory(new NoopCircuitBreaker("nested-test"), BigArrays.NON_RECYCLING_INSTANCE);
         var context = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, factory, null);
@@ -117,7 +117,6 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
         }
     }
 
-    @Test
     public void testMissingSourceFailsInsteadOfLookingLikeAnEmptyCollection() {
         var breaker = new TrackingBreaker();
         var factory = new BlockFactory(breaker, BigArrays.NON_RECYCLING_INSTANCE);
@@ -136,7 +135,6 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
-    @Test
     public void testNumericStringsUseMapperCoercion() {
         var factory = new BlockFactory(new NoopCircuitBreaker("nested-test"), BigArrays.NON_RECYCLING_INSTANCE);
         var context = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, factory, null);
@@ -157,7 +155,6 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
         }
     }
 
-    @Test
     public void testOutOfRangeSourceNumberCannotWrapSilently() {
         var breaker = new TrackingBreaker();
         var factory = new BlockFactory(breaker, BigArrays.NON_RECYCLING_INSTANCE);
@@ -175,7 +172,6 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
-    @Test
     public void testCancellationInsideChildLoadingReleasesPartialFrame() {
         var breaker = new TrackingBreaker();
         var factory = new BlockFactory(breaker, BigArrays.NON_RECYCLING_INSTANCE);
@@ -199,24 +195,20 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
-    @Test
     public void testInvalidIndexMetadataCannotLookLikeAnUnmappedScope() {
         for (Object index : Arrays.asList(null, "", List.of("orders", "other"))) {
             assertMetadataFailure("{\"items\":[{\"price\":3,\"quantity\":2}]}", index, "_index metadata");
         }
     }
 
-    @Test
     public void testMultivaluedSourceCannotUseOnlyFirstValue() {
         assertMetadataFailure(List.of("{\"items\":[{\"price\":3,\"quantity\":2}]}", "{\"items\":[]}"), "orders", "_source metadata");
     }
 
-    @Test
     public void testNonObjectCollectionValuesCannotBeDroppedSilently() {
         assertMetadataFailure("{\"items\":[{\"price\":3,\"quantity\":2},42]}", "orders", "object");
     }
 
-    @Test
     public void testNestedSourceArraysRetainEveryObjectAndNullSlots() {
         var breaker = new TrackingBreaker();
         var factory = new BlockFactory(breaker, BigArrays.NON_RECYCLING_INSTANCE);
@@ -234,7 +226,6 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
-    @Test
     public void testUnmappedScopeSkipsUnavailableOrMalformedSource() {
         for (Object source : Arrays.asList(null, "invalid JSON", List.of("invalid", "JSON"))) {
             var breaker = new TrackingBreaker();
@@ -254,7 +245,6 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
         }
     }
 
-    @Test
     public void testCancellationDuringCollectionTraversalPrecedesChildAllocation() {
         var breaker = new TrackingBreaker();
         var factory = new BlockFactory(breaker, BigArrays.NON_RECYCLING_INSTANCE);
@@ -279,7 +269,6 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
-    @Test
     public void testAllocationFailureSweepReleasesAllState() {
         int allocations = exerciseAllocationFailure(0);
         assertTrue("exercise frame, child channels and result allocations", allocations > 4);
@@ -288,7 +277,6 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
         }
     }
 
-    @Test
     public void testCancellationDuringOneChildScalarArrayReleasesState() {
         var breaker = new TrackingBreaker();
         var factory = new BlockFactory(breaker, BigArrays.NON_RECYCLING_INSTANCE);
@@ -312,7 +300,6 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
-    @Test
     public void testCancellationDuringPredicateValidationReleasesState() {
         var breaker = new TrackingBreaker();
         var factory = new BlockFactory(breaker, BigArrays.NON_RECYCLING_INSTANCE);
@@ -355,7 +342,6 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
-    @Test
     public void testChildBuildersAreBoundedAcrossRepeatedParents() {
         var breaker = new TrackingBreaker();
         var childBuilders = new AtomicInteger();
@@ -385,7 +371,6 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
-    @Test
     public void testCancellationInFinalChildPageReleasesEarlierState() {
         var breaker = new TrackingBreaker();
         var factory = new BlockFactory(breaker, BigArrays.NON_RECYCLING_INSTANCE) {
@@ -411,7 +396,6 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
-    @Test
     public void testAllocationFailureAcrossChildPagesReleasesState() {
         int allocations = exerciseAllocationFailure(0, largeSource());
         for (int tripAt = 1; tripAt <= allocations; tripAt++) {
@@ -419,7 +403,6 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
         }
     }
 
-    @Test
     public void testSourceParsingCanCancelBeforeMalformedTail() {
         var fields = new StringBuilder("{\"padding\":{");
         for (int i = 0; i < 2048; i++) {
@@ -453,7 +436,6 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
         }
     }
 
-    @Test
     public void testMalformedApplicableSourceReleasesReservation() {
         var breaker = new TrackingBreaker();
         var factory = new BlockFactory(breaker, BigArrays.NON_RECYCLING_INSTANCE);
@@ -471,7 +453,6 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
-    @Test
     public void testSourceDecodingRetainsSupportedEncodings() throws IOException {
         for (var type : List.of(XContentType.JSON, XContentType.SMILE, XContentType.CBOR)) {
             var breaker = new TrackingBreaker();
@@ -496,7 +477,6 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
         }
     }
 
-    @Test
     public void testParsedSourceChargeSurvivesParserClose() {
         var breaker = new TrackingBreaker();
         var checkedChildren = new AtomicInteger();
@@ -530,8 +510,12 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
-    @Test
     public void testRealBreakerRejectsParsedSourceBeyondByteEstimate() {
+        // Each expected trip logs a warning. Repeated iterations in one JVM would exceed the output cap.
+        withoutBreakerWarnings(this::rejectParsedSourceBeyondByteEstimate);
+    }
+
+    private void rejectParsedSourceBeyondByteEstimate() {
         for (int tokens : List.of(2000, 100000)) {
             // Decoded source stays materialized. A large child multivalue is the same reservation as other source tokens.
             var shapes = tokens == 2000
@@ -540,7 +524,8 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
             for (String items : shapes) {
                 var settings = Settings.builder()
                     .put("indices.breaker.total.use_real_memory", false)
-                    .put("indices.breaker.total.limit", "64mb")
+                    // A byte size here is logged as a deprecation on every construction.
+                    .put("indices.breaker.total.limit", "95%")
                     .put("indices.breaker.request.limit", tokens == 2000 ? "160kb" : "6mb")
                     .put("indices.breaker.request.overhead", 1.0)
                     .build();
@@ -568,6 +553,25 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
                 }
                 assertEquals("no charge retained after parsing rejection", 0L, breaker.getUsed());
             }
+        }
+    }
+
+    /**
+     * Silence expected breaker warnings for one test, then put the previous levels back.
+     * {@code null} means the logger was inheriting its level.
+     */
+    private static void withoutBreakerWarnings(Runnable body) {
+        Logger common = LogManager.getLogger("org.elasticsearch.common.breaker");
+        Logger indices = LogManager.getLogger("org.elasticsearch.indices.breaker");
+        Level commonLevel = common.getLevel();
+        Level indicesLevel = indices.getLevel();
+        Loggers.setLevel(common, Level.ERROR);
+        Loggers.setLevel(indices, Level.ERROR);
+        try {
+            body.run();
+        } finally {
+            Loggers.setLevel(common, commonLevel);
+            Loggers.setLevel(indices, indicesLevel);
         }
     }
 

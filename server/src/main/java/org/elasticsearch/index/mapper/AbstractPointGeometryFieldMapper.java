@@ -19,19 +19,17 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 /** Base class for spatial fields that only support indexing points */
 public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeometryFieldMapper<T> {
 
     public static <T> Parameter<T> nullValueParam(
-        Function<FieldMapper, T> initializer,
         TriFunction<String, MappingParserContext, Object, T> parser,
         Supplier<T> def,
         Serializer<T> serializer
     ) {
-        return new Parameter<T>("null_value", false, def, parser, initializer, serializer, Objects::toString);
+        return new Parameter<T>("null_value", false, def, parser, serializer, Objects::toString);
     }
 
     protected final T nullValue;

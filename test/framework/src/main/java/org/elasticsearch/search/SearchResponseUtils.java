@@ -91,6 +91,7 @@ public enum SearchResponseUtils {
         return response(hits).build();
     }
 
+    @Deprecated // Use List<ShardSearchFailure> instead
     public static SearchResponse emptyWithTotalHits(
         String scrollId,
         int totalShards,
@@ -98,6 +99,18 @@ public enum SearchResponseUtils {
         int skippedShards,
         long tookInMillis,
         ShardSearchFailure[] shardFailures,
+        SearchResponse.Clusters clusters
+    ) {
+        return emptyWithTotalHits(scrollId, totalShards, successfulShards, skippedShards, tookInMillis, List.of(shardFailures), clusters);
+    }
+
+    public static SearchResponse emptyWithTotalHits(
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        List<ShardSearchFailure> shardFailures,
         SearchResponse.Clusters clusters
     ) {
         return new SearchResponse(
@@ -135,7 +148,7 @@ public enum SearchResponseUtils {
         private int successfulShards;
         private int skippedShards;
         private long tookInMillis;
-        private List<ShardSearchFailure> shardFailures;
+        private List<ShardSearchFailure> shardFailures = List.of();
         private List<SearchPhaseFailure> phaseFailures = List.of();
         private Clusters clusters = Clusters.EMPTY;
         private BytesReference pointInTimeId;
@@ -238,7 +251,7 @@ public enum SearchResponseUtils {
                 successfulShards,
                 skippedShards,
                 tookInMillis,
-                shardFailures == null ? ShardSearchFailure.EMPTY_ARRAY : shardFailures.toArray(ShardSearchFailure[]::new),
+                shardFailures,
                 phaseFailures,
                 clusters,
                 pointInTimeId,
@@ -356,7 +369,7 @@ public enum SearchResponseUtils {
         int skippedShards = 0; // 0 for BWC
         String scrollId = null;
         BytesReference searchContextId = null;
-        List<ShardSearchFailure> failures = new ArrayList<>();
+        List<ShardSearchFailure> shardFailures = new ArrayList<>();
         List<SearchPhaseFailure> phaseFailures = new ArrayList<>();
         SearchResponse.Clusters clusters = SearchResponse.Clusters.EMPTY;
         for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
@@ -406,7 +419,7 @@ public enum SearchResponseUtils {
                         } else if (token == XContentParser.Token.START_ARRAY) {
                             if (RestActions.FAILURES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                                    failures.add(parseShardSearchFailure(parser));
+                                    shardFailures.add(parseShardSearchFailure(parser));
                                 }
                             } else {
                                 parser.skipChildren();
@@ -446,7 +459,7 @@ public enum SearchResponseUtils {
                 successfulShards,
                 skippedShards,
                 tookInMillis,
-                failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
+                shardFailures,
                 phaseFailures,
                 clusters,
                 searchContextId,

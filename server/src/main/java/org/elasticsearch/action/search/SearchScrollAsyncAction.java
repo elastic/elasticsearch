@@ -271,7 +271,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
                     successfulOps.get(),
                     0,
                     buildTookInMillis(),
-                    buildShardFailures(),
+                    List.of(buildShardFailures()),
                     List.of(),
                     SearchResponse.Clusters.EMPTY,
                     null,

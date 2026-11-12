@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
@@ -60,9 +61,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
-import java.util.stream.Stream;
-
-import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
 
 /**
  * A response of a search request.
@@ -95,7 +93,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final int totalShards;
     private final int successfulShards;
     private final int skippedShards;
-    private final ShardSearchFailure[] shardFailures;
+    private final List<ShardSearchFailure> shardFailures;
     private List<SearchPhaseFailure> phaseFailures;
     private final Clusters clusters;
     private final long tookInMillis;
@@ -156,15 +154,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         this.numReducePhases = in.readVInt();
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
-        int size = in.readVInt();
-        if (size == 0) {
-            shardFailures = ShardSearchFailure.EMPTY_ARRAY;
-        } else {
-            shardFailures = new ShardSearchFailure[size];
-            for (int i = 0; i < shardFailures.length; i++) {
-                shardFailures[i] = readShardSearchFailure(in);
-            }
-        }
+        shardFailures = in.readCollectionAsImmutableList(ShardSearchFailure::readShardSearchFailure);
         if (in.getTransportVersion().supports(SEARCH_PHASE_FAILURES)) {
             phaseFailures = in.readCollectionAsImmutableList(SearchPhaseFailure::new);
         } else {
@@ -180,6 +170,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
     }
 
+    @Deprecated // use List<ShardSearchFailure> instead
     public SearchResponse(
         SearchHits hits,
         InternalAggregations aggregations,
@@ -209,12 +200,76 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             successfulShards,
             skippedShards,
             tookInMillis,
+            shardFailures != null ? List.of(shardFailures) : List.of(),
+            clusters
+        );
+    }
+
+    public SearchResponse(
+        SearchHits hits,
+        InternalAggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileResults profileResults,
+        int numReducePhases,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        List<ShardSearchFailure> shardFailures,
+        Clusters clusters
+    ) {
+        this(
+            hits,
+            aggregations,
+            suggest,
+            timedOut,
+            terminatedEarly,
+            profileResults,
+            numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
             shardFailures,
             List.of(),
             clusters,
             null,
             null,
             null
+        );
+    }
+
+    @Deprecated // use List<ShardSearchFailure> instead
+    public SearchResponse(
+        SearchResponseSections searchResponseSections,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        ShardSearchFailure[] shardFailures,
+        Clusters clusters,
+        BytesReference pointInTimeId,
+        SearchSourceBuilder source,
+        String[] indices
+    ) {
+        this(
+            searchResponseSections,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures != null ? List.of(shardFailures) : List.of(),
+            List.of(),
+            clusters,
+            pointInTimeId,
+            source,
+            indices
         );
     }
 
@@ -225,7 +280,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         int successfulShards,
         int skippedShards,
         long tookInMillis,
-        ShardSearchFailure[] shardFailures,
+        List<ShardSearchFailure> shardFailures,
         List<SearchPhaseFailure> phaseFailures,
         Clusters clusters,
         BytesReference pointInTimeId,
@@ -273,7 +328,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         int successfulShards,
         int skippedShards,
         long tookInMillis,
-        ShardSearchFailure[] shardFailures,
+        List<ShardSearchFailure> shardFailures,
         List<SearchPhaseFailure> phaseFailures,
         Clusters clusters,
         BytesReference pointInTimeId,
@@ -308,8 +363,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         this.successfulShards = successfulShards;
         this.skippedShards = skippedShards;
         this.tookInMillis = tookInMillis;
-        this.shardFailures = shardFailures;
-        this.phaseFailures = phaseFailures;
+        this.shardFailures = List.copyOf(shardFailures);
+        this.phaseFailures = List.copyOf(phaseFailures);
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
         assert scrollId == null || pointInTimeId == null
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
@@ -444,14 +499,22 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * The failed number of shards the search was executed on.
      */
     public int getFailedShards() {
-        return shardFailures.length;
+        return shardFailures.size();
+    }
+
+    /**
+     * The failures that occurred during the search.
+     */
+    // TODO: rename this method to replace getShardFailures
+    public List<ShardSearchFailure> shardFailuresList() {
+        return this.shardFailures;
     }
 
     /**
      * The failures that occurred during the search.
      */
     public ShardSearchFailure[] getShardFailures() {
-        return this.shardFailures;
+        return this.shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
     }
 
     /**
@@ -467,7 +530,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      */
     void addPhaseFailures(List<SearchPhaseFailure> additionalFailures) {
         if (!additionalFailures.isEmpty()) {
-            phaseFailures = Stream.concat(phaseFailures.stream(), additionalFailures.stream()).toList();
+            phaseFailures = CollectionUtils.concatLists(phaseFailures, additionalFailures);
         }
     }
 
@@ -636,11 +699,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         out.writeVInt(numReducePhases);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
-
-        out.writeVInt(shardFailures.length);
-        for (ShardSearchFailure shardSearchFailure : shardFailures) {
-            shardSearchFailure.writeTo(out);
-        }
+        out.writeCollection(shardFailures);
         if (out.getTransportVersion().supports(SEARCH_PHASE_FAILURES)) {
             out.writeCollection(phaseFailures);
         }
@@ -1458,7 +1517,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 0,
                 0,
                 tookInMillis,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 List.of(),
                 clusters,
                 null,

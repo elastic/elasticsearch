@@ -112,6 +112,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
+                        ShardResponseReservation reservation,
                         final ActionListener<RankFeatureResult> listener,
                         LongConsumer bytesConsumer,
                         LongConsumer requestBytesConsumer
@@ -221,6 +222,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
+                        ShardResponseReservation reservation,
                         final ActionListener<RankFeatureResult> listener,
                         LongConsumer bytesConsumer,
                         LongConsumer requestBytesConsumer
@@ -342,6 +344,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
+                        ShardResponseReservation reservation,
                         final ActionListener<RankFeatureResult> listener,
                         LongConsumer bytesConsumer,
                         LongConsumer requestBytesConsumer
@@ -437,6 +440,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
+                        ShardResponseReservation reservation,
                         final ActionListener<RankFeatureResult> listener,
                         LongConsumer bytesConsumer,
                         LongConsumer requestBytesConsumer
@@ -534,8 +538,9 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
+                        ShardResponseReservation reservation,
                         final ActionListener<RankFeatureResult> listener,
-                        LongConsumer bytesConsumer,
+                        LongConsumer resultBytesConsumer,
                         LongConsumer requestBytesConsumer
                     ) {
                         RankFeatureResult rankFeatureResult = new RankFeatureResult();
@@ -668,6 +673,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
+                        ShardResponseReservation reservation,
                         final ActionListener<RankFeatureResult> listener,
                         LongConsumer bytesConsumer,
                         LongConsumer requestBytesConsumer
@@ -812,6 +818,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
+                        ShardResponseReservation reservation,
                         final ActionListener<RankFeatureResult> listener,
                         LongConsumer bytesConsumer,
                         LongConsumer requestBytesConsumer

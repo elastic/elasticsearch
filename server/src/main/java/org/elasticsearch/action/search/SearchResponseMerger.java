@@ -44,7 +44,6 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.transport.LeakTracker;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -233,7 +232,7 @@ public final class SearchResponseMerger implements Releasable {
         int successfulShards = 0;
         // the current reduce phase counts as one
         int numReducePhases = 1;
-        List<ShardSearchFailure> failures = new ArrayList<>();
+        List<ShardSearchFailure> shardFailures = new ArrayList<>();
         List<SearchPhaseFailure> phaseFailures = new ArrayList<>();
         Map<String, SearchProfileShardResult> shardProfileResults = new HashMap<>();
         List<InternalAggregations> aggs = new ArrayList<>();
@@ -252,7 +251,7 @@ public final class SearchResponseMerger implements Releasable {
             numReducePhases += searchResponse.getNumReducePhases();
             mergedDirectoryMetrics = mergedDirectoryMetrics.merge(searchResponse.getDirectoryMetrics());
 
-            Collections.addAll(failures, searchResponse.getShardFailures());
+            Collections.addAll(shardFailures, searchResponse.getShardFailures());
             phaseFailures.addAll(searchResponse.getPhaseFailures());
 
             shardProfileResults.putAll(searchResponse.getSearchProfileShardResults());
@@ -323,7 +322,6 @@ public final class SearchResponseMerger implements Releasable {
             InternalAggregations reducedAggs = aggs.isEmpty()
                 ? InternalAggregations.EMPTY
                 : InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction(topHitsToRelease));
-            ShardSearchFailure[] shardFailures = failures.toArray(ShardSearchFailure.EMPTY_ARRAY);
             SearchProfileResults searchProfileResults = shardProfileResults.isEmpty()
                 ? null
                 : new SearchProfileResults(shardProfileResults);
@@ -333,7 +331,7 @@ public final class SearchResponseMerger implements Releasable {
             }
 
             // make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
-            Arrays.sort(shardFailures, FAILURES_COMPARATOR);
+            shardFailures.sort(FAILURES_COMPARATOR);
             long tookInMillis = searchTimeProvider.buildTookInMillis();
             SearchResponse mergedResponse = new SearchResponse(
                 mergedSearchHits,

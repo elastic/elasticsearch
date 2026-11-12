@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -126,9 +127,10 @@ public class SplitTargetService {
 
         long targetPrimaryTerm = indexShard.getOperationPrimaryTerm();
         final DiscoveryNode sourceNode = indexShard.recoveryState().getSourceNode();
-        long sourcePrimaryTerm = indexMetadata.primaryTerm(splitMetadata.sourceShard(shardId.id()));
+        ShardId sourceShardId = new ShardId(shardId.getIndex(), splitMetadata.sourceShard(shardId.id()));
+        long sourcePrimaryTerm = indexMetadata.primaryTerm(sourceShardId.id());
 
-        var split = new Split(shardId, sourceNode, clusterService.localNode(), sourcePrimaryTerm, targetPrimaryTerm);
+        var split = new Split(shardId, sourceShardId, sourceNode, clusterService.localNode(), sourcePrimaryTerm, targetPrimaryTerm);
 
         switch (splitMetadata.getTargetShardState(shardId.id())) {
             case CLONE -> {
@@ -242,7 +244,7 @@ public class SplitTargetService {
         return onGoingSplits.keySet().stream().map(IndexShard::shardId).collect(Collectors.toSet());
     }
 
-    record Split(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, long sourcePrimaryTerm, long targetPrimaryTerm) {}
+    record Split(ShardId shardId, ShardId sourceShardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, long sourcePrimaryTerm, long targetPrimaryTerm) {}
 
     private class StateMachine {
         private final Split split;
@@ -859,6 +861,7 @@ public class SplitTargetService {
     }
 
     private static class InitiateSplitWithSourceShardAction extends RetryableAction<Void> {
+        private final ClusterService clusterService;
         private final Client client;
 
         private final Split split;
@@ -883,6 +886,7 @@ public class SplitTargetService {
                 listener,
                 clusterService.threadPool().generic()
             );
+            this.clusterService = clusterService;
             this.client = client;
             this.split = split;
             this.cancelled = cancelled;
@@ -890,6 +894,62 @@ public class SplitTargetService {
 
         @Override
         public void tryAction(ActionListener<Void> listener) {
+            Index index = split.shardId.getIndex();
+
+
+            // Resolve nodeId where the source shard is assigned.
+            // It can change between retries due to failures or relocations.
+            Predicate<ClusterState> predicate = state -> {
+                if (isCancelled()) {
+                    return true;
+                }
+
+                // We don't look at CLOSED since it will trigger cancellation flow.
+                return shard.state() == IndexShardState.STARTED;
+            };
+
+            // We specifically use waitForState because it won't wait for the next cluster state version
+            // if predicate already matches (which is most of the time).
+            ClusterStateObserver.waitForState(
+                clusterService,
+                clusterService.threadPool().getThreadContext(),
+                new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+                        if (isCancelled()) {
+                            return;
+                        }
+                        final Index index = shardId.getIndex();
+                        final ProjectMetadata projectMetadata = state.metadata().lookupProject(index).orElse(null);
+                        if (projectMetadata != null) {
+                            if (newPrimaryTerm(index, projectMetadata, shardId, split.targetPrimaryTerm()) == false) {
+                                assert isShardGreen(state, projectMetadata, shardId);
+                                advance(new State.SearchShardsOnline());
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onClusterServiceClose() {
+                        // Nothing to do, shard will be closed when the node closes.
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        if (isCancelled()) {
+                            return;
+                        }
+                        // After the timeout we proceed to SPLIT anyway.
+                        // The timeout is just best effort to ensure search shards are running to prevent downtime.
+                        advance(new State.SearchShardsOnline());
+                    }
+                },
+                // A closed shard has nothing to wait for
+                state -> isCancelled() || searchShardsOnlineOrNewPrimaryTerm(state, shardId, split.targetPrimaryTerm()),
+                searchShardsOnlineTimeout,
+                logger
+            );
+
             client.execute(
                 TransportReshardSplitAction.TYPE,
                 new TransportReshardSplitAction.SplitRequest(split),
@@ -920,6 +980,11 @@ public class SplitTargetService {
                 || cause instanceof IndexNotFoundException
                 || cause instanceof ShardNotFoundException);
         }
+
+        private boolean isCancelled() {
+            return cancelled.get();
+        }
+
     }
 
     private static class ChangeState extends RetryableAction<ActionResponse> {

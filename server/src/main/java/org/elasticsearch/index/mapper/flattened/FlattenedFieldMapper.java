@@ -1707,9 +1707,11 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             if (hasDocValues() && preferLoadFromSource == false && mappedSubFields.isEmpty()) {
                 return new RootFlattenedDocValuesBlockLoader(
                     name(),
+                    ignoreAbove,
                     usesBinaryDocValues,
                     usesArrayOrderBinaryDocValues,
                     toSubFieldLoaders(mappedSubFields),
+                    storeIgnoredFieldsInBinaryDocValues,
                     preserveLeafArrays
                 );
             }

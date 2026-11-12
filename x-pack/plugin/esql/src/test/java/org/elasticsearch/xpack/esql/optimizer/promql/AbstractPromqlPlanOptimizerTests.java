@@ -87,6 +87,24 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
     }
 
     /** {@code analyzer} translating PromQL over a label container, see {@link QueryPragmas#ENABLE_PROMQL_TRANSLATION_V2}. */
+    /**
+     * The labels each view of the source's series in {@code collapse} leaves out, sorted: the typed label container's
+     * {@link TimeSeriesWithout}, or the keyword {@code _timeseries} it is lowered to where a node before 9.7 takes part.
+     */
+    protected static Set<List<String>> sourceViews(TimeSeriesAggregate collapse) {
+        var views = new LinkedHashSet<List<String>>();
+        collapse.forEachExpressionDown(Expression.class, e -> {
+            switch (e) {
+                case TimeSeriesWithout without -> views.add(without.children().stream().map(c -> ((Attribute) c).name()).sorted().toList());
+                case TimeSeriesMetadataAttribute keyword -> views.add(keyword.excludedFields().stream().sorted().toList());
+                case FieldAttribute field when field.name().equals(MetadataAttribute.TIMESERIES) -> views.add(List.of());
+                default -> {
+                }
+            }
+        });
+        return views;
+    }
+
     protected static TestAnalyzer withPromqlTranslationV2(TestAnalyzer analyzer) {
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.ENABLE_PROMQL_TRANSLATION_V2.getKey(), true).build());
         return analyzer.configuration(EsqlTestUtils.configuration(pragmas));

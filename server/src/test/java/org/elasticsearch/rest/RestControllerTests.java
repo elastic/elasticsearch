@@ -21,6 +21,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -52,10 +53,12 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation.InstrumentedHttpOperation;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
+import org.elasticsearch.test.rest.FakeHttpBodyStream;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -101,6 +104,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -151,11 +155,13 @@ public class RestControllerTests extends ESTestCase {
         threadPool = createThreadPool();
         client = new NoOpNodeClient(threadPool);
         instrumentation = mock(HttpServerInstrumentation.class);
-        // the thread context that the instrumentation sets up for a request is open from the start of the request until it is closed
+        // the thread context that the operation sets up for a request is open from when it is stored until the stored context is closed
         when(instrumentation.start(any(), any())).thenAnswer(invocation -> {
             startedInstrumentations.incrementAndGet();
-            openInstrumentationContexts.incrementAndGet();
-            return (ThreadContext.StoredContext) openInstrumentationContexts::decrementAndGet;
+            return (InstrumentedHttpOperation) () -> {
+                openInstrumentationContexts.incrementAndGet();
+                return openInstrumentationContexts::decrementAndGet;
+            };
         });
         requestsCounter = mock(LongCounter.class);
         telemetryProvider = mock(TelemetryProvider.class);
@@ -359,7 +365,8 @@ public class RestControllerTests extends ESTestCase {
 
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
 
-        assertThat(openWhileHandling.get(), equalTo(1));
+        // it may be stored more than once, as it is by whoever continues the dispatching, but never closed while the request is handled
+        assertThat(openWhileHandling.get(), greaterThanOrEqualTo(1));
         assertThat(startedInstrumentations.get(), equalTo(1));
         assertThat(openInstrumentationContexts.get(), equalTo(0));
         assertTrue(channel.getSendResponseCalled());
@@ -377,9 +384,58 @@ public class RestControllerTests extends ESTestCase {
 
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
 
-        assertThat(openWhenSending.get(), equalTo(1));
+        assertThat(openWhenSending.get(), greaterThanOrEqualTo(1));
         assertThat(startedInstrumentations.get(), equalTo(1));
         assertThat(openInstrumentationContexts.get(), equalTo(0));
+    }
+
+    public void testResponseIsSentInTheContextOfTheInstrumentationAfterTheRequestWasDispatched() {
+        final AtomicReference<RestChannel> channelOfTheHandler = new AtomicReference<>();
+        restController.registerHandler(new Route(GET, "/async"), (request, channel, client) -> channelOfTheHandler.set(channel));
+        final AtomicInteger openWhenSending = new AtomicInteger(-1);
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/async").build();
+        final RestChannel channel = new AbstractRestChannel(request, randomBoolean()) {
+            @Override
+            public void sendResponse(RestResponse response) {
+                openWhenSending.set(openInstrumentationContexts.get());
+            }
+        };
+
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        assertThat(openInstrumentationContexts.get(), equalTo(0));
+        assertNotNull(channelOfTheHandler.get());
+
+        channelOfTheHandler.get().sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+
+        assertThat(openWhenSending.get(), equalTo(1));
+        assertThat(openInstrumentationContexts.get(), equalTo(0));
+        assertThat(startedInstrumentations.get(), equalTo(1));
+    }
+
+    public void testRequestThatIsAggregatedIsDispatchedInTheContextOfTheInstrumentation() {
+        final AtomicInteger openWhileHandling = new AtomicInteger(-1);
+        restController.registerHandler(new Route(POST, "/aggregated"), (request, channel, client) -> {
+            openWhileHandling.set(openInstrumentationContexts.get());
+            channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+        });
+        final var stream = new FakeHttpBodyStream();
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(POST)
+            .withPath("/aggregated")
+            .withHeaders(Map.of("Content-Type", List.of("application/json")))
+            .withBody(stream)
+            .build();
+        final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.OK);
+
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        assertThat(openWhileHandling.get(), equalTo(-1));
+        assertThat(openInstrumentationContexts.get(), equalTo(0));
+
+        stream.sendNext(ReleasableBytesReference.wrap(new BytesArray("{}")), true);
+
+        assertThat(openWhileHandling.get(), greaterThanOrEqualTo(1));
+        assertThat(openInstrumentationContexts.get(), equalTo(0));
+        assertThat(startedInstrumentations.get(), equalTo(1));
+        assertTrue(channel.getSendResponseCalled());
     }
 
     public void testRequestWithoutAHandlerIsInstrumentedOnce() {

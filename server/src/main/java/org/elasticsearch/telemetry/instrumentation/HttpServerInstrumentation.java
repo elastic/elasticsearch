@@ -21,21 +21,39 @@ import org.elasticsearch.rest.RestResponse;
 public interface HttpServerInstrumentation {
 
     /**
-     * Marks the start of HTTP request processing, starts a span and puts it into the {@link ThreadContext}.
-     * Called once at the beginning of the request processing; the caller must dispatch the request before restoring the stored context.
+     * Marks the start of HTTP request processing: starts the span and whatever else is to be measured for the request.
+     * Called once at the beginning of the request processing.
+     *
+     * <p>This method does <b>not</b> change the {@link ThreadContext}: the returned operation does, once
+     * {@link InstrumentedHttpOperation#storeInThreadContext()} is called.
      *
      * @param request       the incoming REST request
      * @param matchedRoute  the path template matched by the router (e.g. {@code /{index}/_search}),
      *                      or {@code null} if no handler was found for this request
-     * @return the stored context that restores the thread context to what it was before this method was called
+     * @return the operation that was started
      */
-    ThreadContext.StoredContext start(RestRequest request, @Nullable String matchedRoute);
+    InstrumentedHttpOperation start(RestRequest request, @Nullable String matchedRoute);
+
+    /** An HTTP request instrumentation that was started by {@link #start}. */
+    interface InstrumentedHttpOperation {
+
+        /** A no-op implementation of {@link InstrumentedHttpOperation}. */
+        InstrumentedHttpOperation NOOP = () -> () -> {};
+
+        /**
+         * Makes this operation the current one in the {@link ThreadContext} (of the calling thread). May be called any number of times.
+         *
+         * @return the stored context that restores the thread context to what it was before this method was called
+         */
+        ThreadContext.StoredContext storeInThreadContext();
+    }
 
     /**
      * Records an exception that occurred during request dispatch. May be called multiple times before
      * {@link #prepareEnd(RestRequest, RestResponse)}, does not mark the HTTP request handling as finished on its own.
      *
-     * <p>This method <b>MUST</b> be called within the {@link ThreadContext} opened by the {@link #start} method.
+     * <p>This method <b>MUST</b> be called within the {@link ThreadContext} opened by
+     * {@link InstrumentedHttpOperation#storeInThreadContext()}.
      *
      * @param request the incoming REST request
      * @param t       the exception to record
@@ -46,7 +64,8 @@ public interface HttpServerInstrumentation {
      * Captures any thread-local state needed for finalizing the instrumented operation, and returns a {@link Releasable} that records
      * metrics and ends the span for this request after the response has been sent.
      *
-     * <p>This method <b>MUST</b> be called within the {@link ThreadContext} opened by the {@link #start} method.
+     * <p>This method <b>MUST</b> be called within the {@link ThreadContext} opened by
+     * {@link InstrumentedHttpOperation#storeInThreadContext()}.
      *
      * <p>The returned {@link Releasable} <b>MUST</b> be closed for the instrumented operation to end.
      *
@@ -58,8 +77,8 @@ public interface HttpServerInstrumentation {
     /** A no-op implementation of {@link HttpServerInstrumentation}. */
     HttpServerInstrumentation NOOP = new HttpServerInstrumentation() {
         @Override
-        public ThreadContext.StoredContext start(RestRequest request, @Nullable String matchedRoute) {
-            return () -> {};
+        public InstrumentedHttpOperation start(RestRequest request, @Nullable String matchedRoute) {
+            return InstrumentedHttpOperation.NOOP;
         }
 
         @Override

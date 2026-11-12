@@ -89,16 +89,12 @@ public interface Tracer {
     void setAttribute(Traceable traceable, String key, String value);
 
     /**
-     * Makes the span of the given activity the current one in the {@link ThreadContext} of the calling thread: it is what the spans that
-     * are started afterwards in this thread context are parented to, and what is propagated to other nodes in the trace context request
-     * headers. Starting a span with {@link #startTrace} does not do that on its own.
-     * <p>
+     * Makes the span of the given activity the current one in the {@link ThreadContext} of the calling thread.
      * The returned {@link ThreadContext.StoredContext} restores the thread context to what it was before, and must be closed (or restored)
-     * once the span is no longer meant to be the current one. If the activity is not traced, the thread context is left as it is; if
-     * tracing is disabled, the trace context is dropped from it, so that nothing is propagated.
+     * once the span is no longer meant to be the current one.
      *
      * @param traceable provides an identifier for the span
-     * @return the stored context that restores the thread context
+     * @return the stored context that restores the thread context to what it was before this method was called
      */
     ThreadContext.StoredContext storeSpanInThreadContext(Traceable traceable);
 

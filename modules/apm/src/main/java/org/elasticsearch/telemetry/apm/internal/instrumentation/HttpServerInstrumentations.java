@@ -28,17 +28,30 @@ public final class HttpServerInstrumentations implements HttpServerInstrumentati
     }
 
     @Override
-    public ThreadContext.StoredContext start(RestRequest request, String matchedRoute) {
-        final List<ThreadContext.StoredContext> storedContexts = new ArrayList<>(instrumentations.size());
+    public InstrumentedHttpOperation start(RestRequest request, String matchedRoute) {
+        final List<InstrumentedHttpOperation> operations = new ArrayList<>(instrumentations.size());
         for (HttpServerInstrumentation instrumentation : instrumentations) {
-            storedContexts.add(instrumentation.start(request, matchedRoute));
+            operations.add(instrumentation.start(request, matchedRoute));
         }
-        // each of them restores the state it found, which includes what the ones that started before it set up, so undo them backwards
         return () -> {
-            for (ThreadContext.StoredContext storedContext : storedContexts.reversed()) {
-                storedContext.close();
+            final List<ThreadContext.StoredContext> storedContexts = new ArrayList<>(operations.size());
+            try {
+                for (InstrumentedHttpOperation operation : operations) {
+                    storedContexts.add(operation.storeInThreadContext());
+                }
+            } catch (Exception e) {
+                closeBackwards(storedContexts);
+                throw e;
             }
+            return () -> closeBackwards(storedContexts);
         };
+    }
+
+    /** Each of the stored contexts restores the state it found, which includes what the ones before it set up, so undo them backwards. */
+    private static void closeBackwards(List<ThreadContext.StoredContext> storedContexts) {
+        for (ThreadContext.StoredContext storedContext : storedContexts.reversed()) {
+            storedContext.close();
+        }
     }
 
     @Override

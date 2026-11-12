@@ -20,7 +20,7 @@ public class ParentIdFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         // The parent join ID is an internal field type and we don't return any values for it.
-        MappedFieldType fieldType = new ParentIdFieldMapper.ParentIdFieldType("field#parent", true);
+        MappedFieldType fieldType = new ParentIdFieldMapper.ParentIdFieldType("field#parent", true, null);
 
         Map<String, String> parentValue = Map.of("relation", "parent");
         assertEquals(List.of(), fetchSourceValue(fieldType, parentValue));

@@ -11,6 +11,7 @@ import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.DiagnosticErrorListener;
+import org.antlr.v4.runtime.FailedPredicateException;
 import org.antlr.v4.runtime.Parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.RecognitionException;
@@ -272,6 +273,10 @@ public class PromqlParser {
             String message,
             RecognitionException e
         ) {
+            // a failed predicate's own message explains the error; ANTLR's message prefixes it with the grammar rule name
+            if (e instanceof FailedPredicateException fpe) {
+                message = fpe.getMessage();
+            }
             throw new ParsingException(message, e, line, charPositionInLine);
         }
     };

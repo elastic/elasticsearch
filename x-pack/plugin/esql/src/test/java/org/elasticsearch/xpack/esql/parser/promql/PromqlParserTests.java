@@ -998,6 +998,18 @@ public class PromqlParserTests extends ESTestCase {
         }
     }
 
+    /** An unclosed label list after a grouping modifier reports the modifier, not the grammar rule that rejected it. */
+    public void testUnclosedGroupLabelsReportModifier() {
+        PromqlParser parser = new PromqlParser();
+        for (String grouping : List.of("group_left", "group_right")) {
+            for (String labels : List.of("(", "(bar")) {
+                String query = "foo * on(instance) " + grouping + " " + labels;
+                ParsingException e = expectThrows(ParsingException.class, () -> parser.createStatement(query));
+                assertThat(e.getErrorMessage(), equalTo("Unclosed left parenthesis in the labels of [" + grouping + "]"));
+            }
+        }
+    }
+
     /** Folding must not erase the ON/GROUP overlap, including when the group list is a subset of the matching list. */
     public void testOnAndGroupLabelsMustBeDisjointBeforeFolding() {
         PromqlParser parser = new PromqlParser();

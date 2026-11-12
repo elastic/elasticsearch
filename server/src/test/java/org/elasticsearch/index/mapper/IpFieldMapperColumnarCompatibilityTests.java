@@ -349,7 +349,14 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "ip").field("ignore_malformed", true).endObject()),
             columnarSettings(),
-            batch("ignore_malformed", 1L, doc("d1", 1L, "{\"f\":\"not-an-ip\"}"), doc("d2", 2L, "{\"f\":\"10.0.0.1\"}"))
+            batch(
+                "ignore_malformed",
+                1L,
+                doc("d1", 1L, "{\"f\":\"not-an-ip\"}"),
+                doc("d2", 2L, "{\"f\":\"10.0.0.1\"}"),
+                doc("d3", 3L, "{}"),
+                doc("d4", 4L, "{\"f\":\"300.1.1.1\"}")
+            )
         );
     }
 
@@ -672,23 +679,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         return b.startObject(FIELD).field("type", "ip").field("ignore_malformed", true).field("multi_value", multiValue).endObject();
     }
 
-    /** Malformed values in single-valued documents are skipped per value, and kept for synthetic source. */
-    public void testIgnoreMalformedSingleValues() throws IOException {
-        assertColumnarMatchesXContent(
-            mapping(b -> ignoreMalformedMapping(b, false)),
-            columnarSettings(),
-            batch(
-                "ignore_malformed single values",
-                1L,
-                doc("d1", 1L, "{\"f\":\"not-an-ip\"}"),
-                doc("d2", 2L, "{\"f\":\"10.0.0.1\"}"),
-                doc("d3", 3L, "{}"),
-                doc("d4", 4L, "{\"f\":\"300.1.1.1\"}")
-            )
-        );
-    }
-
-    /** Malformed elements take no array-order slot, wherever they are in the array and however many a document has. */
+    /** Malformed elements, including numbers and booleans, take no array-order slot, wherever they are and however many a document has. */
     public void testIgnoreMalformedInArrays() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> ignoreMalformedMapping(b, true)),
@@ -702,7 +693,12 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
                 doc("d4", 4L, "{\"f\":[\"zzz\",\"aaa\",\"mmm\"]}"),
                 doc("d5", 5L, "{\"f\":[\"bad\"]}"),
                 doc("d6", 6L, "{\"f\":[\"10.0.0.9\",\"bad1\",\"10.0.0.8\",\"bad2\"]}"),
-                doc("d7", 7L, "{}")
+                doc("d7", 7L, "{}"),
+                doc("d8", 8L, "{\"f\":[1,2,3]}"),
+                doc("d9", 9L, "{\"f\":[1.5,2.5,\"10.0.0.1\"]}"),
+                doc("d10", 10L, "{\"f\":[\"bad\",true,12345,\"10.0.0.2\"]}"),
+                doc("d11", 11L, "{\"f\":[\"10.0.0.3\",null,5000000000]}"),
+                doc("d12", 12L, "{\"f\":[false,null]}")
             )
         );
     }
@@ -722,7 +718,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         );
     }
 
-    /** In TSDB, malformed values go to the ._ignore_malformed column, which sorts a document's values. */
+    /** In TSDB, malformed values (strings, numbers, booleans, duplicates) go to the ._ignore_malformed column, which sorts a document's values. */
     public void testTsdbIgnoreMalformed() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject("@timestamp").field("type", "date").endObject();
@@ -734,7 +730,21 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
                 1L,
                 doc(ipTsdbId(IP_TS_A), IP_ROUTING, IP_TSID, 1L, "{\"f\":[\"zzz\",\"aaa\",\"10.0.0.1\"],\"@timestamp\":" + IP_TS_A + "}"),
                 doc(ipTsdbId(IP_TS_A + 1000L), IP_ROUTING, IP_TSID, 2L, "{\"f\":\"bad\",\"@timestamp\":" + (IP_TS_A + 1000L) + "}"),
-                doc(ipTsdbId(IP_TS_A + 2000L), IP_ROUTING, IP_TSID, 3L, "{\"f\":\"10.0.0.1\",\"@timestamp\":" + (IP_TS_A + 2000L) + "}")
+                doc(ipTsdbId(IP_TS_A + 2000L), IP_ROUTING, IP_TSID, 3L, "{\"f\":\"10.0.0.1\",\"@timestamp\":" + (IP_TS_A + 2000L) + "}"),
+                doc(
+                    ipTsdbId(IP_TS_A + 3000L),
+                    IP_ROUTING,
+                    IP_TSID,
+                    4L,
+                    "{\"f\":[true,12345,\"bad\"],\"@timestamp\":" + (IP_TS_A + 3000L) + "}"
+                ),
+                doc(
+                    ipTsdbId(IP_TS_A + 4000L),
+                    IP_ROUTING,
+                    IP_TSID,
+                    5L,
+                    "{\"f\":[\"bad\",\"bad\",\"aaa\"],\"@timestamp\":" + (IP_TS_A + 4000L) + "}"
+                )
             )
         );
     }
@@ -752,7 +762,8 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
 
     /**
      * A number or boolean in an ip field is a malformed address, which the row path keeps as the number or boolean it was written as
-     * (an int when it fits one, a long otherwise), so the batch path must too, rather than fall the batch back.
+     * (an int when it fits one, a long otherwise, a double otherwise), so the batch path must too, rather than fall the batch back.
+     * The edges of what an int, a long and a double hold are included to check the values are kept exactly as written.
      */
     public void testIgnoreMalformedNonStringTokens() throws IOException {
         assertColumnarMatchesXContent(
@@ -767,38 +778,15 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
                 doc("d4", 4L, "{\"f\":-7}"),
                 doc("d5", 5L, "{\"f\":true}"),
                 doc("d6", 6L, "{\"f\":false}"),
-                doc("d7", 7L, "{\"f\":\"10.0.0.1\"}")
-            )
-        );
-    }
-
-    public void testIgnoreMalformedNonStringTokensInArrays() throws IOException {
-        assertColumnarMatchesXContent(
-            mapping(b -> ignoreMalformedMapping(b, true)),
-            columnarSettings(),
-            batch(
-                "ignore_malformed non-string arrays",
-                1L,
-                doc("d1", 1L, "{\"f\":[1,2,3]}"),
-                doc("d2", 2L, "{\"f\":[1.5,2.5,\"10.0.0.1\"]}"),
-                doc("d3", 3L, "{\"f\":[\"bad\",true,12345,\"10.0.0.2\"]}"),
-                doc("d4", 4L, "{\"f\":[\"10.0.0.3\",null,5000000000]}"),
-                doc("d5", 5L, "{\"f\":[false,null]}")
-            )
-        );
-    }
-
-    public void testTsdbIgnoreMalformedNonStringTokens() throws IOException {
-        assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject("@timestamp").field("type", "date").endObject();
-            b.startObject(FIELD).field("type", "ip").field("time_series_dimension", true).field("ignore_malformed", true).endObject();
-        }),
-            tsdbIpSettings(),
-            batch(
-                "TSDB ip ignore_malformed non-string",
-                1L,
-                doc(ipTsdbId(IP_TS_A), IP_ROUTING, IP_TSID, 1L, "{\"f\":[true,12345,\"bad\"],\"@timestamp\":" + IP_TS_A + "}"),
-                doc(ipTsdbId(IP_TS_A + 1000L), IP_ROUTING, IP_TSID, 2L, "{\"f\":7,\"@timestamp\":" + (IP_TS_A + 1000L) + "}")
+                doc("d7", 7L, "{\"f\":\"10.0.0.1\"}"),
+                doc("d8", 8L, "{\"f\":9223372036854775807}"),
+                doc("d9", 9L, "{\"f\":-9223372036854775808}"),
+                doc("d10", 10L, "{\"f\":2147483647}"),
+                doc("d11", 11L, "{\"f\":2147483648}"),
+                doc("d12", 12L, "{\"f\":-2147483649}"),
+                doc("d13", 13L, "{\"f\":1.0E300}"),
+                doc("d14", 14L, "{\"f\":-4.9E-324}"),
+                doc("d15", 15L, "{\"f\":0.30000000000000004}")
             )
         );
     }
@@ -812,38 +800,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
                 "ignore_malformed duplicates",
                 1L,
                 doc("d1", 1L, "{\"f\":[\"bad\",\"bad\",\"10.0.0.1\"]}"),
-                doc("d2", 2L, "{\"f\":[\"zzz\",\"aaa\",\"zzz\",\"mmm\"]}"),
-                doc("d3", 3L, "{\"f\":[true,true,1,1]}")
-            )
-        );
-    }
-
-    public void testTsdbIgnoreMalformedDuplicateValues() throws IOException {
-        assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject("@timestamp").field("type", "date").endObject();
-            b.startObject(FIELD).field("type", "ip").field("time_series_dimension", true).field("ignore_malformed", true).endObject();
-        }),
-            tsdbIpSettings(),
-            batch(
-                "TSDB ip ignore_malformed duplicates",
-                1L,
-                doc(ipTsdbId(IP_TS_A), IP_ROUTING, IP_TSID, 1L, "{\"f\":[\"bad\",\"bad\",\"aaa\"],\"@timestamp\":" + IP_TS_A + "}")
-            )
-        );
-    }
-
-    /** Numbers are kept exactly as written, at the edges of what an int, a long and a double hold. */
-    public void testIgnoreMalformedNumericFidelity() throws IOException {
-        assertColumnarMatchesXContent(
-            mapping(b -> ignoreMalformedMapping(b, true)),
-            columnarSettings(),
-            batch(
-                "ignore_malformed numeric fidelity",
-                1L,
-                doc("d1", 1L, "{\"f\":[0.1,1.0E300,-4.9E-324]}"),
-                doc("d2", 2L, "{\"f\":[9223372036854775807,-9223372036854775808]}"),
-                doc("d3", 3L, "{\"f\":[2147483647,2147483648,-2147483648,-2147483649]}"),
-                doc("d4", 4L, "{\"f\":[0.30000000000000004,123456789.123456789]}")
+                doc("d2", 2L, "{\"f\":[\"zzz\",\"aaa\",\"zzz\",\"mmm\"]}")
             )
         );
     }

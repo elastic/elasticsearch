@@ -26,12 +26,12 @@ import java.io.UncheckedIOException;
  * upgrade).
  * <p>
  * The set lives in {@code server} rather than {@code analysis-common} so that {@link Analysis} can resolve
- * {@code _thai_} for old indices without a cross-module hook. The backing resource ({@code lucene_10_5_thai_stopwords.txt}) is a
+ * {@code _thai_} for old indices without a cross-module hook. The backing resource ({@code thai_lucene_10_5_stopwords.txt}) is a
  * verbatim copy of Lucene's file and must never be edited.
  */
-public final class Lucene105ThaiStopWords {
+public final class ThaiLucene105StopWords {
 
-    private static final String RESOURCE = "lucene_10_5_thai_stopwords.txt";
+    private static final String RESOURCE = "thai_lucene_10_5_stopwords.txt";
 
     /**
      * Whether an index created at {@code indexCreatedVersion} keeps Lucene 10.5 Thai analysis. Every Thai entry point (the
@@ -61,7 +61,7 @@ public final class Lucene105ThaiStopWords {
         private static final CharArraySet DEFAULT_STOP_SET;
 
         static {
-            InputStream stream = Lucene105ThaiStopWords.class.getResourceAsStream(RESOURCE);
+            InputStream stream = ThaiLucene105StopWords.class.getResourceAsStream(RESOURCE);
             if (stream == null) {
                 throw new IllegalStateException("Missing Lucene 10.5 Thai stopword resource [" + RESOURCE + "]");
             }
@@ -74,5 +74,5 @@ public final class Lucene105ThaiStopWords {
         }
     }
 
-    private Lucene105ThaiStopWords() {}
+    private ThaiLucene105StopWords() {}
 }

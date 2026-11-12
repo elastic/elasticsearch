@@ -17,8 +17,10 @@ import org.elasticsearch.index.KnownIndexVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
+import java.util.List;
 import java.util.NavigableSet;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class IndexVersionUtils {
@@ -136,11 +138,21 @@ public class IndexVersionUtils {
      * not monotonic in the Lucene version across backports.
      */
     public static IndexVersion randomWriteVersionBeforeLucene(Version luceneVersion) {
-        return ESTestCase.randomFrom(ALL_WRITE_VERSIONS.stream().filter(v -> v.luceneVersion().onOrAfter(luceneVersion) == false).toList());
+        return randomWriteVersionMatchingLucene(v -> v.onOrAfter(luceneVersion) == false, "before", luceneVersion);
     }
 
     /** Returns a random {@code IndexVersion} that can be written to and whose Lucene version is on or after {@code luceneVersion}. */
     public static IndexVersion randomWriteVersionOnOrAfterLucene(Version luceneVersion) {
-        return ESTestCase.randomFrom(ALL_WRITE_VERSIONS.stream().filter(v -> v.luceneVersion().onOrAfter(luceneVersion)).toList());
+        return randomWriteVersionMatchingLucene(v -> v.onOrAfter(luceneVersion), "on or after", luceneVersion);
+    }
+
+    private static IndexVersion randomWriteVersionMatchingLucene(Predicate<Version> predicate, String relation, Version luceneVersion) {
+        List<IndexVersion> versions = ALL_WRITE_VERSIONS.stream().filter(v -> predicate.test(v.luceneVersion())).toList();
+        if (versions.isEmpty()) {
+            throw new IllegalArgumentException(
+                "couldn't find any write-compatible index versions with a Lucene version " + relation + " [" + luceneVersion + "]"
+            );
+        }
+        return ESTestCase.randomFrom(versions);
     }
 }

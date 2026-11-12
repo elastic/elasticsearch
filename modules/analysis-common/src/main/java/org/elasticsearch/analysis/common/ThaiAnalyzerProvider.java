@@ -22,7 +22,7 @@ import org.elasticsearch.index.analysis.Analysis;
 
 /**
  * Provider for the {@code thai} analyzer type. Indices whose creation version records a Lucene version before
- * {@link Version#LUCENE_10_6_0} get {@link Lucene105ThaiAnalyzer} (the Lucene 10.5 chain and default stopwords); newer indices get
+ * {@link Version#LUCENE_10_6_0} get {@link ThaiLucene105Analyzer} (the Lucene 10.5 chain and default stopwords); newer indices get
  * Lucene's {@link ThaiAnalyzer}.
  */
 public class ThaiAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer> {

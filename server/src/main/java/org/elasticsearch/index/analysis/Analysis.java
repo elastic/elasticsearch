@@ -148,7 +148,7 @@ public class Analysis {
 
         static {
             Map<String, Set<?>> map = new HashMap<>(NAMED_STOP_WORDS);
-            map.put("_thai_", Lucene105ThaiStopWords.defaultStopSet());
+            map.put("_thai_", ThaiLucene105StopWords.defaultStopSet());
             MAP = Map.copyOf(map);
         }
     }
@@ -159,7 +159,7 @@ public class Analysis {
      * terms at query time than were removed at index time.
      */
     private static Map<String, Set<?>> namedStopWords(IndexVersion indexCreatedVersion) {
-        return Lucene105ThaiStopWords.appliesTo(indexCreatedVersion) ? Lucene105NamedStopWords.MAP : NAMED_STOP_WORDS;
+        return ThaiLucene105StopWords.appliesTo(indexCreatedVersion) ? Lucene105NamedStopWords.MAP : NAMED_STOP_WORDS;
     }
 
     public static CharArraySet parseWords(

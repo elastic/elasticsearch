@@ -12,13 +12,13 @@ package org.elasticsearch.analysis.common;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
 /**
- * {@link Lucene105ThaiTokenizer} must cut the segmenting buffer only where Lucene 10.5's {@code SegmentingTokenizerBase} did (line
+ * {@link ThaiLucene105Tokenizer} must cut the segmenting buffer only where Lucene 10.5's {@code SegmentingTokenizerBase} did (line
  * terminators). {@link ThaiAnalyzerBwcTests} covers the resulting tokens.
  */
-public class Lucene105ThaiTokenizerTests extends ESTokenStreamTestCase {
+public class ThaiLucene105TokenizerTests extends ESTokenStreamTestCase {
 
     public void testSafeEndIsLineTerminatorsOnly() {
-        Lucene105ThaiTokenizer tokenizer = new Lucene105ThaiTokenizer();
+        ThaiLucene105Tokenizer tokenizer = new ThaiLucene105Tokenizer();
         for (char ch : new char[] { '\r', '\n', '\u0085', '\u2028', '\u2029' }) {
             assertTrue(Integer.toHexString(ch), tokenizer.isSafeEnd(ch));
         }

@@ -69,7 +69,7 @@ public class ThaiAnalyzerBwcTests extends ESTokenStreamTestCase {
     /** Mappings that only set {@code "analyzer": "thai"} use the prebuilt instance, so it must follow the same gate. */
     public void testPrebuiltThaiAnalyzer() throws IOException {
         NamedAnalyzer legacy = analysis(legacyVersion(), Settings.EMPTY).indexAnalyzers.get("thai");
-        assertThat(legacy.analyzer(), instanceOf(Lucene105ThaiAnalyzer.class));
+        assertThat(legacy.analyzer(), instanceOf(ThaiLucene105Analyzer.class));
         assertPreLucene106ThaiTokens(legacy);
 
         NamedAnalyzer current = analysis(gatedVersion(), Settings.EMPTY).indexAnalyzers.get("thai");
@@ -103,11 +103,11 @@ public class ThaiAnalyzerBwcTests extends ESTokenStreamTestCase {
             .put("index.analysis.analyzer.thai_only.tokenizer", "my_thai")
             .build();
         ESTestCase.TestAnalysis legacy = analysis(legacyVersion(), settings);
-        assertThat(legacy.tokenizer.get("my_thai").create(), instanceOf(Lucene105ThaiTokenizer.class));
+        assertThat(legacy.tokenizer.get("my_thai").create(), instanceOf(ThaiLucene105Tokenizer.class));
         assertPreLucene106ThaiTokenizer(legacy.indexAnalyzers.get("thai_only"));
 
         ESTestCase.TestAnalysis current = analysis(gatedVersion(), settings);
-        assertThat(current.tokenizer.get("my_thai").create(), not(instanceOf(Lucene105ThaiTokenizer.class)));
+        assertThat(current.tokenizer.get("my_thai").create(), not(instanceOf(ThaiLucene105Tokenizer.class)));
         assertLucene106ThaiTokenizer(current.indexAnalyzers.get("thai_only"));
     }
 

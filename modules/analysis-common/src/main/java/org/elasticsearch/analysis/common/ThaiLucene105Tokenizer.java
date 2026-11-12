@@ -10,7 +10,6 @@
 package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.th.ThaiTokenizer;
-import org.apache.lucene.util.AttributeFactory;
 import org.apache.lucene.util.Version;
 
 /**
@@ -19,14 +18,10 @@ import org.apache.lucene.util.Version;
  * the buffer without line breaks the two rules cut in different places and so can produce different tokens. Used for indices
  * created before {@link Version#LUCENE_10_6_0} so their analysis does not change under them.
  */
-final class Lucene105ThaiTokenizer extends ThaiTokenizer {
+final class ThaiLucene105Tokenizer extends ThaiTokenizer {
 
-    Lucene105ThaiTokenizer() {
+    ThaiLucene105Tokenizer() {
         super();
-    }
-
-    Lucene105ThaiTokenizer(AttributeFactory factory) {
-        super(factory);
     }
 
     @Override

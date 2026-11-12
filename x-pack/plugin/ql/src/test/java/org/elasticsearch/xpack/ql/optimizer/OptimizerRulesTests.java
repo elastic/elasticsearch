@@ -1457,6 +1457,14 @@ public class OptimizerRulesTests extends ESTestCase {
         assertEquals(fa, inn.field());
     }
 
+    /** A pattern the optimizer will not compile is left for the query to run, and to reject by its own limits. */
+    public void testRLikePastCompileBoundsIsLeftAlone() throws Exception {
+        for (String regex : asList("(".repeat(5000) + "a" + ")".repeat(5000), "[ab]{1000}{1000}{1000}", "(.*){100}{100}")) {
+            RLike l = new RLike(EMPTY, getFieldAttribute(), new RLikePattern(regex));
+            assertSame(l, new ReplaceRegexMatch().rule(l));
+        }
+    }
+
     public void testExactMatchLike() throws Exception {
         for (String s : asList("ab", "ab0%", "ab0_c")) {
             LikePattern pattern = new LikePattern(s, '0');

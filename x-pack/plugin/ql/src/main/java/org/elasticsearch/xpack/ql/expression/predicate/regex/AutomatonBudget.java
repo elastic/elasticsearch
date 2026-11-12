@@ -9,26 +9,36 @@ package org.elasticsearch.xpack.ql.expression.predicate.regex;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.MemorySizeValue;
-import org.elasticsearch.xpack.ql.InvalidArgumentException;
 
 /**
  * Bounds one pattern compilation to a fixed share of the heap. The optimizer has no request breaker to charge: it runs
  * before any search context exists, and this module cannot see the ES|QL fold context that plays this role there. So
- * each build gets its own budget, held only while the automaton is built, and a pattern that exceeds it is the user's
- * problem: a client error, not a breaker trip.
+ * each build gets its own budget, held only while the automaton is built.
  */
 final class AutomatonBudget implements CircuitBreaker {
 
-    /** Five percent of the heap, the share ES|QL grants a constant fold; many concurrent builds still cannot each exceed it. */
+    /** Five percent of the heap, the share ES|QL grants a constant fold. */
     static final long LIMIT = MemorySizeValue.parseBytesSizeValueOrHeapRatio("5%", "automaton_budget").getBytes();
 
+    private final long limit;
     private long used;
+
+    AutomatonBudget() {
+        this(LIMIT);
+    }
+
+    AutomatonBudget(long limit) {
+        this.limit = limit;
+    }
 
     @Override
     public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-        if (used + bytes > LIMIT) {
-            throw new InvalidArgumentException(
-                "Pattern is too large to compile: it needs [" + (used + bytes) + "] bytes, the limit is [" + LIMIT + "]"
+        if (used + bytes > limit) {
+            throw new CircuitBreakingException(
+                "[" + label + "] needs [" + (used + bytes) + "] bytes, the limit is [" + limit + "]",
+                used + bytes,
+                limit,
+                Durability.TRANSIENT
             );
         }
         used += bytes;
@@ -51,7 +61,7 @@ final class AutomatonBudget implements CircuitBreaker {
 
     @Override
     public long getLimit() {
-        return LIMIT;
+        return limit;
     }
 
     @Override

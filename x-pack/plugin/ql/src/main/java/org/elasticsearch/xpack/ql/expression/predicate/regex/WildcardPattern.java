@@ -6,10 +6,6 @@
  */
 package org.elasticsearch.xpack.ql.expression.predicate.regex;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.WildcardQuery;
-import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.Objects;
@@ -21,7 +17,7 @@ import java.util.Objects;
  * Allows escaping based on a regular char.
  *
  */
-public class WildcardPattern extends AbstractStringPattern {
+public class WildcardPattern implements StringPattern {
 
     private final String wildcard;
     private final String regex;
@@ -37,8 +33,13 @@ public class WildcardPattern extends AbstractStringPattern {
     }
 
     @Override
-    public Automaton createAutomaton() {
-        return WildcardQuery.toAutomaton(new Term(null, wildcard), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+    public boolean matchesAll() {
+        return LuceneWildcard.matchesAll(wildcard);
+    }
+
+    @Override
+    public String exactMatch() {
+        return LuceneWildcard.exactMatch(wildcard);
     }
 
     @Override

@@ -1053,7 +1053,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     }
 
     /**
-     * Charges the time of the node-level reduce to {@code shards}, by the rows their sources emitted.
+     * Charges the time of the node-level reduce to {@code shards}, by the rows their sources emitted since the previous task.
      */
     private TaskLoadAttribution.Target reduceLoad(List<DataNodeRequest.Shard> shards, AcquiredSearchContexts searchContexts) {
         List<ShardId> shardIds = shards.stream().map(DataNodeRequest.Shard::shardId).toList();

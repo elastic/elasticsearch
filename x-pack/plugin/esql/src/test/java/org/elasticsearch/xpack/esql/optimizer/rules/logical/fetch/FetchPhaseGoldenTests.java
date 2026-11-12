@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -45,6 +46,48 @@ public class FetchPhaseGoldenTests extends GoldenTestCase {
         Stage.NODE_REDUCE,
         Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION
     );
+
+    /**
+     * The golden tests can't run the node reduction of a plan with several exchanges, like the branches of a {@code FORK}.
+     */
+    private static final EnumSet<Stage> FORK_STAGES = EnumSet.of(
+        Stage.LOGICAL_OPTIMIZATION,
+        Stage.PHYSICAL_OPTIMIZATION,
+        Stage.LOCAL_PHYSICAL_OPTIMIZATION
+    );
+
+    /**
+     * A hybrid search: each branch sends its candidates as documents with the columns its cut and {@code FUSE} read,
+     * {@code FUSE} keeps the first document of each group, and the fetch loads the other columns of the ten winners.
+     */
+    public void testFuse() {
+        String query = """
+            FROM books METADATA _id, _index, _score
+            | FORK ( WHERE title:"Tolkien" | SORT _score DESC | LIMIT 50 )
+                   ( WHERE author:"Tolkien" | SORT _score DESC | LIMIT 50 )
+            | FUSE
+            | SORT _score DESC
+            | LIMIT 10
+            | KEEP title, author, _score
+            """;
+        withFetchPhase(query, EsqlTestUtils.TEST_SEARCH_STATS).stages(FORK_STAGES).run();
+        // older nodes sum the scores of FUSE another way
+        withoutFetchPhase(query, EsqlTestUtils.TEST_SEARCH_STATS).stages(FORK_STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).run();
+    }
+
+    /** Without {@code FUSE}, the fetch reads the documents the merge takes from every branch. */
+    public void testFork() {
+        String query = """
+            FROM employees
+            | FORK ( WHERE salary > 50000 | SORT hire_date DESC | LIMIT 20 )
+                   ( WHERE languages > 2 | SORT hire_date DESC | LIMIT 20 )
+            | SORT hire_date DESC
+            | LIMIT 10
+            | KEEP first_name, last_name, hire_date, _fork
+            """;
+        withFetchPhase(query, EsqlTestUtils.TEST_SEARCH_STATS).stages(FORK_STAGES).run();
+        withoutFetchPhase(query, EsqlTestUtils.TEST_SEARCH_STATS).stages(FORK_STAGES).run();
+    }
 
     /** The sort key crosses the exchange, the kept columns are fetched for the ten winners, the filter field stays local. */
     public void testTopN() {

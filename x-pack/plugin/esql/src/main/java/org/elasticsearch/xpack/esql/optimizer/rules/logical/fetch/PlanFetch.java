@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Fetch;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
@@ -106,12 +107,23 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
             return plan;
         }
         Shape shape = shape(plan);
-        if (policy.mode() == FetchPhaseMode.AUTO && shape instanceof Candidate candidate) {
-            shape = paysOff(candidate);
+        if (policy.mode() == FetchPhaseMode.AUTO) {
+            Declined tooExpensive = switch (shape) {
+                case Candidate candidate -> paysOff(candidate.cut(), candidate.relation(), candidate.demand().deferred());
+                case ForkFetch.Candidate fork -> paysOff(fork.finalCut(), fork.relation(), fork.fetched());
+                case Declined declined -> null;
+            };
+            shape = tooExpensive == null ? shape : tooExpensive;
         }
         return switch (shape) {
             case Declined declined -> declined(plan, declined, outcomes);
             case Candidate candidate -> rewrite(plan, candidate, outcomes);
+            case ForkFetch.Candidate fork -> {
+                LogicalPlan rewritten = ForkFetch.rewrite(plan, fork);
+                outcomes.record(Outcome.APPLIED, null);
+                logger.debug("fetch phase planned through [FORK]: fetched {}", fork.fetched());
+                yield rewritten;
+            }
         };
     }
 
@@ -129,11 +141,11 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
      */
     record Demand(List<Attribute> eager, List<Attribute> deferred) {}
 
-    private sealed interface Shape permits Declined, Candidate {}
+    sealed interface Shape permits Declined, Candidate, ForkFetch.Candidate {}
 
-    private record Declined(Outcome outcome, String reason) implements Shape {}
+    record Declined(Outcome outcome, String reason) implements Shape, ForkFetch.BranchShape {}
 
-    private static Declined ineligible(String reason) {
+    static Declined ineligible(String reason) {
         return new Declined(Outcome.INELIGIBLE_SHAPE, reason);
     }
 
@@ -173,12 +185,12 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
             return beforeTheFetch.isEmpty() ? null : new FilterAroundTheFetch(filter, beforeTheFetch, afterTheFetch);
         }
 
-        /** The rows the fetch reads: the narrowed cut, without the rows the conditions before the fetch drop. */
-        LogicalPlan beforeTheFetch(LogicalPlan narrowedCut) {
+        /** The rows the fetch reads: the rows of the cut, without the ones the conditions before the fetch drop. */
+        LogicalPlan beforeTheFetch(LogicalPlan rowsOfTheCut) {
             if (conditionsAfterTheFetch.isEmpty()) {
-                return filter.replaceChild(narrowedCut);
+                return filter.replaceChild(rowsOfTheCut);
             }
-            return new Filter(filter.source(), narrowedCut, Predicates.combineAnd(conditionsBeforeTheFetch));
+            return new Filter(filter.source(), rowsOfTheCut, Predicates.combineAnd(conditionsBeforeTheFetch));
         }
 
         /** What takes the place of the filter in the plan: the fetch, and the conditions that read a fetched column. */
@@ -218,6 +230,9 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
             }
             chain.add(leaf);
             leaf = docInput;
+        }
+        if (leaf instanceof Fork fork) {
+            return namesADocColumn(plan) ? ineligible("the query names a column [_doc]") : ForkFetch.shape(chain, fork);
         }
         if (leaf.children().isEmpty() == false) {
             return ineligible("[" + leaf.nodeName() + "] combines several plans");
@@ -276,22 +291,26 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
      *     <li>The fetch must defer {@code _source}. It is usually the largest column per row and the most expensive to
      *     load, stored or synthetic, so skipping it for the dropped rows is what pays for the round trip.</li>
      * </ul>
-     * Once the round trip is paid, the fetch defers every column {@link #demand} allows, not only {@code _source}.
+     * Once the round trip is paid, the fetch defers every column {@link #demand} allows, not only {@code _source}. A
+     * {@code FORK} takes the same decision for its final cut, the relation of its branches and the columns it fetches.
+     *
+     * @return why the fetch phase doesn't pay off, or {@code null} when it does
      */
-    private static Shape paysOff(Candidate candidate) {
-        if (candidate.cut() instanceof TopN == false) {
+    @Nullable
+    private static Declined paysOff(UnaryPlan cut, EsRelation relation, List<Attribute> deferred) {
+        if (cut instanceof TopN == false) {
             return new Declined(Outcome.DECLINED_COST, "a [LIMIT] cut leaves too few dropped rows to pay for the fetch");
         }
-        if (hasOneShard(candidate.relation())) {
+        if (hasOneShard(relation)) {
             return new Declined(
                 Outcome.DECLINED_COST,
                 "the relation has one shard, whose node loads the deferred columns of the winners only"
             );
         }
-        if (candidate.demand().deferred().stream().noneMatch(attribute -> attribute.dataType() == DataType.SOURCE)) {
+        if (deferred.stream().noneMatch(attribute -> attribute.dataType() == DataType.SOURCE)) {
             return new Declined(Outcome.DECLINED_COST, "the fetch defers no [_source], so it saves too little to pay for its round trip");
         }
-        return candidate;
+        return null;
     }
 
     /** Whether the shards of the relation add up to one. An index that doesn't report its shards counts as 0, unknown. */
@@ -397,7 +416,7 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
     }
 
     /** A local {@code LIMIT} or {@code TopN} only cuts the rows of one node, so it doesn't pick the global winners. */
-    private static boolean isCut(LogicalPlan node) {
+    static boolean isCut(LogicalPlan node) {
         return (node instanceof TopN topN && topN.local() == false) || (node instanceof Limit limit && limit.local() == false);
     }
 
@@ -406,7 +425,7 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * completed, so any command of one input can follow. A command that only runs on the data nodes can't follow a cut.
      * A command of several inputs after the cut keeps the plan eager, since the fetch would have to follow one of them.
      */
-    private static boolean isSupportedAfterCut(LogicalPlan command) {
+    static boolean isSupportedAfterCut(LogicalPlan command) {
         return command instanceof UnaryPlan
             && (command instanceof ExecutesOn executesOn && executesOn.executesOn() == ExecuteLocation.REMOTE) == false;
     }
@@ -420,7 +439,7 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * with the relation, see {@code Mapper#mapUnary}: not a command that only runs on the coordinator, and no pipeline
      * breaker but the local cuts the optimizer copies there.
      */
-    private static boolean isSupportedBeforeCut(LogicalPlan command) {
+    static boolean isSupportedBeforeCut(LogicalPlan command) {
         if (command instanceof ExecutesOn executesOn && executesOn.executesOn() == ExecuteLocation.COORDINATOR) {
             return false;
         }
@@ -437,7 +456,7 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
     }
 
     /** The rule adds a column named {@code _doc}. A column of the query with the same name would clash with it. */
-    private static boolean namesADocColumn(LogicalPlan plan) {
+    static boolean namesADocColumn(LogicalPlan plan) {
         String docName = EsQueryExec.DOC_ID_FIELD.getName();
         return plan.anyMatch(node -> node.output().stream().anyMatch(attribute -> attribute.name().equals(docName)));
     }
@@ -447,7 +466,7 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * {@link CarriesDocOnDataNodes#docInput} names for a command of several, or {@code null} when no input does.
      */
     @Nullable
-    private static LogicalPlan docInput(LogicalPlan command) {
+    static LogicalPlan docInput(LogicalPlan command) {
         return switch (command) {
             case UnaryPlan unary -> unary.child();
             case CarriesDocOnDataNodes carrier -> carrier.docInput();
@@ -460,7 +479,7 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * relation produces it, and every projection on the way keeps it. The other inputs, like the lookup index of a join,
      * stay as they are.
      */
-    private static LogicalPlan carryDoc(LogicalPlan plan, Attribute doc) {
+    static LogicalPlan carryDoc(LogicalPlan plan, Attribute doc) {
         if (plan instanceof EsRelation relation) {
             return relation.withAttributes(CollectionUtils.prependToCopy(doc, relation.output()));
         }
@@ -478,7 +497,7 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
 
     private static LogicalPlan rewrite(LogicalPlan plan, Candidate candidate, FetchPhaseOutcomes outcomes) {
         // the data drivers produce _doc next to the eager columns, and every projection before the cut keeps it
-        Attribute doc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
+        Attribute doc = newDocAttribute();
         UnaryPlan cut = candidate.cut();
         LogicalPlan beforeTheCut = carryDoc(cut.child(), doc);
         if (beforeTheCut.outputSet().contains(doc) == false) {
@@ -492,16 +511,50 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
             cut.replaceChild(beforeTheCut),
             CollectionUtils.prependToCopy(doc, candidate.demand().eager())
         );
-        FilterAroundTheFetch filter = candidate.filterAroundTheFetch();
-        Fetch fetch = new Fetch(
-            cut.source(),
-            filter == null ? narrowed : filter.beforeTheFetch(narrowed),
+        LogicalPlan rewritten = fetchAfterTheCut(
+            plan,
+            cut,
+            narrowed,
+            candidate.filterAroundTheFetch(),
             doc,
             candidate.demand().deferred(),
-            candidate.relation().indexPattern(),
-            originalIndices(candidate.relation())
+            candidate.relation()
         );
-        LogicalPlan replaced = filter == null ? cut : filter.filter();
+        outcomes.record(Outcome.APPLIED, null);
+        logger.debug("fetch phase planned: eager {}, deferred {}", candidate.demand().eager(), candidate.demand().deferred());
+        return rewritten;
+    }
+
+    /** A {@code _doc} column of its own. */
+    static Attribute newDocAttribute() {
+        return new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
+    }
+
+    /**
+     * Puts the fetch of {@code fetched} above {@code rowsOfTheCut}, which takes the place of {@code originalCut} in
+     * {@code plan}. The conditions of {@code filter} that read no fetched column run between them.
+     *
+     * @param doc      the {@code _doc} column of the rows of the cut
+     * @param relation the relation the documents come from, which authorizes the fetch
+     */
+    static LogicalPlan fetchAfterTheCut(
+        LogicalPlan plan,
+        UnaryPlan originalCut,
+        LogicalPlan rowsOfTheCut,
+        @Nullable FilterAroundTheFetch filter,
+        Attribute doc,
+        List<Attribute> fetched,
+        EsRelation relation
+    ) {
+        Fetch fetch = new Fetch(
+            originalCut.source(),
+            filter == null ? rowsOfTheCut : filter.beforeTheFetch(rowsOfTheCut),
+            doc,
+            fetched,
+            relation.indexPattern(),
+            originalIndices(relation)
+        );
+        LogicalPlan replaced = filter == null ? originalCut : filter.filter();
         LogicalPlan replacement = filter == null ? fetch : filter.afterTheFetch(fetch);
 
         // the query returns what it returned before, never _doc
@@ -509,8 +562,6 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
         if (sameIds(rewritten.output(), plan.output()) == false) {
             rewritten = new Project(plan.source(), rewritten, plan.output());
         }
-        outcomes.record(Outcome.APPLIED, null);
-        logger.debug("fetch phase planned: eager {}, deferred {}", candidate.demand().eager(), candidate.demand().deferred());
         return rewritten;
     }
 

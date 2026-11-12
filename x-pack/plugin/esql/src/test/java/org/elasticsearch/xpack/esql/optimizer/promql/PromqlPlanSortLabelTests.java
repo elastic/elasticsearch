@@ -1,0 +1,86 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.optimizer.promql;
+
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
+
+/** {@code sort} and {@code sort_by_label} translated over a label container. */
+public class PromqlPlanSortLabelTests extends AbstractPromqlPlanOptimizerTests {
+
+    private static final String INSTANT = "PROMQL index=k8s time=\"2024-05-10T00:03:00.000Z\" ";
+
+    public PromqlPlanSortLabelTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
+    /** An instant {@code sort} orders the series, which keep their labels. */
+    public void testInstantSortOrdersTheSeries() {
+        LogicalPlan plan = planPromqlV2(INSTANT + "sort(network.bytes_in)", false);
+
+        assertThat(plan.collect(OrderBy.class), hasSize(1));
+        assertThat(names(plan.output()), hasItem("_timeseries"));
+    }
+
+    /** A range {@code sort} has no order, like Prometheus. */
+    public void testRangeSortHasNoOrder() {
+        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h sort(network.bytes_in)", false);
+
+        assertThat(plan.collect(OrderBy.class), empty());
+        assertWarnings("sort: ordering is discarded for range queries");
+    }
+
+    /**
+     * An instant {@code sort_by_label} orders by a label read from the label container; the label stays in {@code _timeseries}
+     * and is not exposed as a column of its own.
+     */
+    public void testSortByLabelReadsTheLabelFromTheContainer() {
+        assumeTrue("Requires PROMQL_SORT_BY_LABEL capability", EsqlCapabilities.Cap.PROMQL_SORT_BY_LABEL.isEnabled());
+        LogicalPlan plan = planPromqlV2(INSTANT + "sort_by_label(network.bytes_in, \"pod\")", false);
+
+        assertThat(plan.collect(OrderBy.class), hasSize(1));
+        var paths = new ArrayList<String>();
+        plan.forEachExpressionDown(
+            TimeSeriesMetadataPath.class,
+            path -> paths.add(BytesRefs.toString(((Literal) path.labels().getFirst()).value()))
+        );
+        assertThat(paths, hasItem("pod"));
+        assertThat(names(plan.output()), not(hasItem("pod")));
+        assertThat(names(plan.output()), hasItem("_timeseries"));
+    }
+
+    /** The translated sorts plan through the optimizer. */
+    public void testSortsOptimize() {
+        var queries = new ArrayList<>(List.of("sort(network.bytes_in)", "sort_desc(sum by (cluster) (network.bytes_in))"));
+        if (EsqlCapabilities.Cap.PROMQL_SORT_BY_LABEL.isEnabled()) {
+            queries.add("sort_by_label(network.bytes_in, \"pod\")");
+        }
+        for (String query : queries) {
+            LogicalPlan plan = planPromqlV2(INSTANT + query, true);
+            assertThat(query, plan.collect(TimeSeriesAggregate.class), hasSize(1));
+        }
+    }
+
+    private static List<String> names(List<Attribute> attributes) {
+        return attributes.stream().map(Attribute::name).toList();
+    }
+}

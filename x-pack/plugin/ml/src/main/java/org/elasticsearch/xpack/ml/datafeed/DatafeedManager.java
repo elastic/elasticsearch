@@ -376,10 +376,10 @@ public class DatafeedManager {
                         && current.getCloudInternalCredential() != null ? Map.of() : headers;
                     BiConsumer<DatafeedConfig, ActionListener<Boolean>> wrappedValidator = (updatedConfig, validatorListener) -> {
                         warnIfProjectRoutingIsInert(request.getUpdate().getProjectRouting());
-                        if (DatafeedUpdate.changesEsqlProbeInputs(current, update)) {
-                            jobConfigProvider.validateDatafeedJobAndEsqlQuery(updatedConfig, updatedConfig.getHeaders(), validatorListener);
-                        } else {
+                        if (current.getEsqlQuery() == null) {
                             jobConfigProvider.validateDatafeedJob(updatedConfig, validatorListener);
+                        } else {
+                            jobConfigProvider.validateDatafeedUpdate(current, updatedConfig, updatedConfig.getHeaders(), validatorListener);
                         }
                     };
                     final Consumer<Boolean> executeUpdate = rollbackSnapshotRetained -> {

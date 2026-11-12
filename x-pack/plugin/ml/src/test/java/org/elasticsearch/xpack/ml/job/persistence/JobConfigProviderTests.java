@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -213,6 +214,60 @@ public class JobConfigProviderTests extends ESTestCase {
         inOrder.verify(queryValidator)
             .validateSourceTimeField(same(client), eq(HEADERS), eq(ESQL_QUERY), eq(null), eq("@timestamp"), any(), eq("df"));
         inOrder.verifyNoMoreInteractions();
+    }
+
+    private void validateUpdateExpectingSuccess(JobConfigProvider provider, DatafeedConfig current, DatafeedConfig updated) {
+        AtomicInteger calls = new AtomicInteger();
+        provider.validateDatafeedUpdate(current, updated, HEADERS, ActionTestUtils.assertNoFailureListener(ok -> {
+            assertThat(ok, equalTo(Boolean.TRUE));
+            calls.incrementAndGet();
+        }));
+        assertThat(calls.get(), equalTo(1));
+    }
+
+    public void testValidateDatafeedUpdateWhenNothingProbedHasChangedShouldNotProbe() {
+        DatafeedConfig current = newEsqlDatafeed().build();
+        DatafeedConfig updated = new DatafeedConfig.Builder(current).setQueryDelay(TimeValue.timeValueSeconds(90)).build();
+
+        validateUpdateExpectingSuccess(newProvider(false), current, updated);
+
+        verifyNoInteractions(queryValidator);
+    }
+
+    public void testValidateDatafeedUpdateWhenOnlySummaryCountRequirementChangesShouldProbeColumnsOnly() {
+        stubColumnsProbe(null);
+        stubWrapClientWithoutCredential(client);
+        DatafeedConfig current = newEsqlDatafeed().setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
+            .build();
+        DatafeedConfig updated = new DatafeedConfig.Builder(current).setDelayedDataCheckConfig(
+            DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(1))
+        ).build();
+
+        validateUpdateExpectingSuccess(newProvider(false), current, updated);
+
+        verify(queryValidator).validateQuery(same(client), eq(HEADERS), eq(ESQL_QUERY), eq(null), eq("time"), eq("c"), any(), eq("df"));
+        verify(queryValidator, never()).validateSourceTimeField(any(), any(), anyString(), any(), anyString(), any(), any());
+    }
+
+    public void testValidateDatafeedUpdateWhenCredentialIsClearedShouldRunBothProbes() {
+        stubColumnsProbe(null);
+        stubSourceTimeFieldProbe(null);
+        stubWrapClientWithoutCredential(client);
+        DatafeedConfig current = newEsqlDatafeed().setCloudInternalCredential(randomPersistedCloudCredential("old-key")).build();
+        DatafeedConfig updated = new DatafeedConfig.Builder(current).setCloudInternalCredential(null).build();
+
+        validateUpdateExpectingSuccess(newProvider(false), current, updated);
+
+        verify(queryValidator).validateQuery(same(client), eq(HEADERS), eq(ESQL_QUERY), eq(null), eq("time"), eq("c"), any(), eq("df"));
+        verify(queryValidator).validateSourceTimeField(
+            same(client),
+            eq(HEADERS),
+            eq(ESQL_QUERY),
+            eq(null),
+            eq("@timestamp"),
+            any(),
+            eq("df")
+        );
     }
 
     /**

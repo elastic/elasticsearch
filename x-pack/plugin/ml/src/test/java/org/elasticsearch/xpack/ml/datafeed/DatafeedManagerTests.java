@@ -476,6 +476,10 @@ public class DatafeedManagerTests extends ESTestCase {
             invocation.<ActionListener<Boolean>>getArgument(2).onResponse(Boolean.TRUE);
             return null;
         }).when(jobConfigProvider).validateDatafeedJobAndEsqlQuery(any(), any(), any());
+        doAnswer(invocation -> {
+            invocation.<ActionListener<Boolean>>getArgument(3).onResponse(Boolean.TRUE);
+            return null;
+        }).when(jobConfigProvider).validateDatafeedUpdate(any(), any(), any(), any());
     }
 
     private static void mockGetJobWithSnapshot(JobConfigProvider jobConfigProvider, String jobId, @Nullable String snapshotId) {
@@ -928,8 +932,19 @@ public class DatafeedManagerTests extends ESTestCase {
         assertThat(fixture.validatedHeaders.get(), equalTo(storedHeaders));
     }
 
+    /** Records the stored and to-be-persisted configs that the manager hands to update validation. */
+    private static AtomicReference<List<DatafeedConfig>> captureValidatedConfigs(JobConfigProvider jobConfigProvider) {
+        AtomicReference<List<DatafeedConfig>> configs = new AtomicReference<>();
+        doAnswer(invocation -> {
+            configs.set(List.of(invocation.getArgument(0), invocation.getArgument(1)));
+            invocation.<ActionListener<Boolean>>getArgument(3).onResponse(Boolean.TRUE);
+            return null;
+        }).when(jobConfigProvider).validateDatafeedUpdate(any(), any(), any(), any());
+        return configs;
+    }
+
     @SuppressWarnings("unchecked")
-    public void testUpdateEsqlDatafeedWhenOnlyQueryDelayChangesShouldNotRunEsqlProbes() {
+    public void testUpdateEsqlDatafeedWhenOnlyQueryDelayChangesShouldValidateAgainstStoredConfig() {
         assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         UpdateFixture fixture = new UpdateFixture();
         DatafeedConfig storedConfig = esqlDatafeedBuilder("df-esql", "job-esql").setProjectRouting(ProjectRoutingResolver.LOCAL_ONLY)
@@ -937,10 +952,7 @@ public class DatafeedManagerTests extends ESTestCase {
             .build();
         when(fixture.credentialManager.hasCloudManagedCredential(any())).thenReturn(true);
         stubUpdateKeepPath(fixture.datafeedConfigProvider, fixture.jobConfigProvider, storedConfig);
-        doAnswer(invocation -> {
-            invocation.<ActionListener<Boolean>>getArgument(1).onResponse(Boolean.TRUE);
-            return null;
-        }).when(fixture.jobConfigProvider).validateDatafeedJob(any(), any());
+        AtomicReference<List<DatafeedConfig>> validated = captureValidatedConfigs(fixture.jobConfigProvider);
 
         AtomicReference<Exception> failure = new AtomicReference<>();
         fixture.manager.updateDatafeed(
@@ -952,12 +964,53 @@ public class DatafeedManagerTests extends ESTestCase {
         );
         assertThat(failure.get(), nullValue());
 
-        verify(fixture.jobConfigProvider).validateDatafeedJob(any(), any());
+        assertThat(validated.get().get(0).getId(), equalTo(storedConfig.getId()));
+        assertThat(validated.get().get(1).getQueryDelay(), equalTo(TimeValue.timeValueSeconds(90)));
+        assertThat(validated.get().get(1).getCloudInternalCredential().id(), equalTo("existing-key-id"));
         verify(fixture.jobConfigProvider, never()).validateDatafeedJobAndEsqlQuery(any(), any(), any());
     }
 
+    /**
+     * A re-key with no other field change still changes the identity the probes run as, so the probe plan needs the stored config
+     * (old credential) next to the to-be-persisted one (minted credential).
+     */
     @SuppressWarnings("unchecked")
-    public void testUpdateEsqlDatafeedWhenProjectRoutingChangesShouldRunEsqlProbes() {
+    public void testUpdateEsqlDatafeedWhenOnlyForceRekeyingShouldValidateMintedConfigAgainstStoredConfig() {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        UpdateFixture fixture = new UpdateFixture();
+        DatafeedConfig storedConfig = esqlDatafeedBuilder("df-esql", "job-esql").setProjectRouting(ProjectRoutingResolver.LOCAL_ONLY)
+            .setCloudInternalCredential(randomPersistedCloudCredential("existing-key-id"))
+            .build();
+        stubUpdateMigrationPath(
+            fixture.datafeedConfigProvider,
+            fixture.jobConfigProvider,
+            fixture.credentialManager,
+            fixture.apiKeyService,
+            fixture.client,
+            fixture.threadPool,
+            storedConfig,
+            new AtomicReference<>()
+        );
+        AtomicReference<List<DatafeedConfig>> validated = captureValidatedConfigs(fixture.jobConfigProvider);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        fixture.manager.updateDatafeed(
+            new UpdateDatafeedAction.Request(new DatafeedUpdate.Builder("df-esql").setForceRekeying(true).build()),
+            mockClusterStateForUpdate(),
+            null,
+            fixture.threadPool,
+            ActionListener.wrap(r -> {}, failure::set)
+        );
+        assertThat(failure.get(), nullValue());
+
+        assertThat(validated.get().get(0).getId(), equalTo(storedConfig.getId()));
+        assertThat(validated.get().get(0).getCloudInternalCredential().id(), equalTo("existing-key-id"));
+        assertThat(validated.get().get(1).getCloudInternalCredential().id(), equalTo("minted-key-id"));
+        assertThat(validated.get().get(1).getProjectRouting(), equalTo(storedConfig.getProjectRouting()));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUpdateEsqlDatafeedWhenProjectRoutingChangesShouldValidateWithPlanInputs() {
         assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         UpdateFixture fixture = new UpdateFixture();
         DatafeedConfig storedConfig = esqlDatafeedBuilder("df-esql", "job-esql").setProjectRouting(ProjectRoutingResolver.LOCAL_ONLY)
@@ -980,8 +1033,14 @@ public class DatafeedManagerTests extends ESTestCase {
 
         fixture.update(new DatafeedUpdate.Builder("df-esql").setProjectRouting("_alias:prod-*").build());
 
-        verify(fixture.jobConfigProvider).validateDatafeedJobAndEsqlQuery(any(), any(), any());
+        verify(fixture.jobConfigProvider).validateDatafeedUpdate(
+            argThat(stored -> "existing-key-id".equals(stored.getCloudInternalCredential().id())),
+            any(),
+            any(),
+            any()
+        );
         verify(fixture.jobConfigProvider, never()).validateDatafeedJob(any(), any());
+        verify(fixture.jobConfigProvider, never()).validateDatafeedJobAndEsqlQuery(any(), any(), any());
     }
 
     public void testPutEsqlDatafeedWhenCpsOnAndMlFlagOffShouldRejectRemoteSource() {
@@ -1072,10 +1131,10 @@ public class DatafeedManagerTests extends ESTestCase {
         /** Call after {@code stubUpdateMigrationPath}, which also stubs validation. */
         void captureValidatedHeaders() {
             doAnswer(invocation -> {
-                validatedHeaders.set(invocation.getArgument(1));
-                invocation.<ActionListener<Boolean>>getArgument(2).onResponse(Boolean.TRUE);
+                validatedHeaders.set(invocation.getArgument(2));
+                invocation.<ActionListener<Boolean>>getArgument(3).onResponse(Boolean.TRUE);
                 return null;
-            }).when(jobConfigProvider).validateDatafeedJobAndEsqlQuery(any(), any(), any());
+            }).when(jobConfigProvider).validateDatafeedUpdate(any(), any(), any(), any());
         }
 
         void update(DatafeedUpdate update) {

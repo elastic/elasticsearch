@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlProbePlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -87,6 +88,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -783,11 +785,30 @@ public class JobConfigProvider {
      * Validates against the job and runs ES|QL {@code LIMIT 0} probes as {@code headers} under the config's cloud credential.
      */
     public void validateDatafeedJobAndEsqlQuery(DatafeedConfig config, Map<String, String> headers, ActionListener<Boolean> listener) {
+        validateDatafeedJobAndProbes(config, headers, job -> EsqlProbePlan.ALL, listener);
+    }
+
+    /** Validates {@code updated} against its job and runs only the ES|QL probes whose inputs differ from {@code current}. */
+    public void validateDatafeedUpdate(
+        DatafeedConfig current,
+        DatafeedConfig updated,
+        Map<String, String> headers,
+        ActionListener<Boolean> listener
+    ) {
+        validateDatafeedJobAndProbes(updated, headers, job -> EsqlProbePlan.forUpdate(current, updated, job), listener);
+    }
+
+    private void validateDatafeedJobAndProbes(
+        DatafeedConfig config,
+        Map<String, String> headers,
+        Function<Job, EsqlProbePlan> planner,
+        ActionListener<Boolean> listener
+    ) {
         getJob(config.getJobId(), null, ActionListener.wrap(jobBuilder -> {
             try {
                 Job job = jobBuilder.build();
                 DatafeedJobValidator.validate(config, job, xContentRegistry);
-                validateEsqlProbes(config, job, headers, listener);
+                validateEsqlProbes(config, job, headers, planner.apply(job), listener);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -795,8 +816,14 @@ public class JobConfigProvider {
     }
 
     /** ES|QL probes only; DSL configs complete without searching. */
-    private void validateEsqlProbes(DatafeedConfig config, Job job, Map<String, String> headers, ActionListener<Boolean> listener) {
-        if (config.getEsqlQuery() == null) {
+    private void validateEsqlProbes(
+        DatafeedConfig config,
+        Job job,
+        Map<String, String> headers,
+        EsqlProbePlan plan,
+        ActionListener<Boolean> listener
+    ) {
+        if (config.getEsqlQuery() == null || (plan.columns() == false && plan.sourceTimeField() == false)) {
             listener.onResponse(Boolean.TRUE);
             return;
         }
@@ -806,14 +833,8 @@ public class JobConfigProvider {
             config.getCloudInternalCredential() != null
         );
         Client probeClient = credentialManagerSupplier.get().wrapClient(client, effectiveConfig.getCloudInternalCredential());
-        esqlQueryValidator.validateQuery(
-            probeClient,
-            headers,
-            effectiveConfig.getEsqlQuery(),
-            effectiveConfig.getProjectRouting(),
-            job.getDataDescription().getTimeField(),
-            EsqlDatafeedQueryValidator.requiredSummaryCountField(effectiveConfig, job),
-            ActionListener.wrap(
+        ActionListener<Boolean> sourceTimeFieldProbe = plan.sourceTimeField()
+            ? ActionListener.wrap(
                 ok -> esqlQueryValidator.validateSourceTimeField(
                     probeClient,
                     headers,
@@ -824,7 +845,20 @@ public class JobConfigProvider {
                     effectiveConfig.getId()
                 ),
                 listener::onFailure
-            ),
+            )
+            : listener;
+        if (plan.columns() == false) {
+            sourceTimeFieldProbe.onResponse(Boolean.TRUE);
+            return;
+        }
+        esqlQueryValidator.validateQuery(
+            probeClient,
+            headers,
+            effectiveConfig.getEsqlQuery(),
+            effectiveConfig.getProjectRouting(),
+            job.getDataDescription().getTimeField(),
+            EsqlDatafeedQueryValidator.requiredSummaryCountField(effectiveConfig, job),
+            sourceTimeFieldProbe,
             effectiveConfig.getId()
         );
     }

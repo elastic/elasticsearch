@@ -738,28 +738,6 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         assertTrue(DatafeedUpdate.isUserInitiatedProjectRoutingChange(datafeed, update));
     }
 
-    public void testChangesEsqlProbeInputsWhenDslDatafeedShouldReturnFalse() {
-        DatafeedConfig datafeed = new DatafeedConfig.Builder("df-1", "job-1").setIndices(List.of("logs-*")).build();
-        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setProjectRouting("_alias:prod-*").build();
-        assertFalse(DatafeedUpdate.changesEsqlProbeInputs(datafeed, update));
-    }
-
-    public void testChangesEsqlProbeInputsWhenProjectRoutingChangesShouldReturnTrue() {
-        DatafeedConfig datafeed = new DatafeedConfig.Builder("df-1", "job-1").setEsqlQuery(
-            "FROM logs-* | STATS c = COUNT(*) BY time = BUCKET(@timestamp, 1h)"
-        ).setSourceTimeField("@timestamp").setGroupingInterval(TimeValue.timeValueHours(1)).build();
-        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setProjectRouting("_alias:prod-*").build();
-        assertTrue(DatafeedUpdate.changesEsqlProbeInputs(datafeed, update));
-    }
-
-    public void testChangesEsqlProbeInputsWhenOnlyQueryDelayChangesShouldReturnFalse() {
-        DatafeedConfig datafeed = new DatafeedConfig.Builder("df-1", "job-1").setEsqlQuery(
-            "FROM logs-* | STATS c = COUNT(*) BY time = BUCKET(@timestamp, 1h)"
-        ).setSourceTimeField("@timestamp").setGroupingInterval(TimeValue.timeValueHours(1)).build();
-        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setQueryDelay(TimeValue.timeValueSeconds(60)).build();
-        assertFalse(DatafeedUpdate.changesEsqlProbeInputs(datafeed, update));
-    }
-
     public void testProjectRoutingParsing() throws IOException {
         String datafeedUpdateJson = """
             {

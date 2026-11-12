@@ -590,3 +590,22 @@ tests:
   tasks:
   - :x-pack:plugin:esql:qa:security:javaRestTest
   issue: https://github.com/elastic/elasticsearch/issues/165735
+- class: org.elasticsearch.xpack.spatial.SpatialDiskUsageIT
+  tasks:
+  - :x-pack:plugin:spatial:internalClusterTest
+  method: testCartesianShape
+  issue: https://github.com/elastic/elasticsearch/issues/165745
+- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/165756
+- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbColumnarIT
+  tasks:
+  - :x-pack:plugin:esql:qa:security:javaRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/165773
+- class: org.elasticsearch.xpack.logsdb.LogsdbIndexingRollingUpgradeIT
+  tasks:
+  - :x-pack:plugin:logsdb:qa:rolling-upgrade:bcUpgradeTest
+  method: testIndexingLogsdbColumnar
+  issue: https://github.com/elastic/elasticsearch/issues/165787

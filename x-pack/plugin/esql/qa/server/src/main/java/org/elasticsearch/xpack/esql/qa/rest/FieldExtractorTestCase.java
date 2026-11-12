@@ -898,7 +898,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         var capsName = EsqlCapabilities.Cap.FLATTENED_KEYS.name().toLowerCase(Locale.ROOT);
         boolean keys = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
-        Map<String, Object> result = runEsql("FROM test* | KEEP attrs.bar | SORT attrs.bar | LIMIT 2");
+        Map<String, Object> result = runEsql(
+            "FROM test* | KEEP attrs.bar | SORT attrs.bar | LIMIT 2",
+            keys ? new AssertWarnings.NoWarnings() : withoutKeysWarnings()
+        );
         assertResultMap(
             result,
             List.of(columnInfo("attrs.bar", "keyword")),
@@ -1592,6 +1595,13 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         );
     }
 
+    /**
+     * The warnings of a query that reads a name under a {@code flattened} field on a cluster whose nodes don't read keys.
+     */
+    protected AssertWarnings withoutKeysWarnings() {
+        return new AssertWarnings.NoWarnings();
+    }
+
     protected Matcher<Integer> pidMatcher() {
         // Nested even under STORED/_source. Mixed-cluster still allows 111 from older nodes.
         return nullValue(Integer.class);
@@ -2043,6 +2053,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     private Map<String, Object> runEsql(String query) throws IOException {
+        return runEsql(query, new AssertWarnings.NoWarnings());
+    }
+
+    private Map<String, Object> runEsql(String query, AssertWarnings assertWarnings) throws IOException {
         RestEsqlTestCase.RequestObjectBuilder request = new RestEsqlTestCase.RequestObjectBuilder().query(query);
         if (preference != null) {
             canUsePragmasOk();
@@ -2051,7 +2065,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             );
             request.pragmasOk();
         }
-        return runEsqlSync(request, new AssertWarnings.NoWarnings(), profileLogger);
+        return runEsqlSync(request, assertWarnings, profileLogger);
     }
 
     protected abstract void canUsePragmasOk();

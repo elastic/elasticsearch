@@ -7,23 +7,21 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
-import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 
-import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 /** PromQL arithmetic and comparison operators translated over a label container. */
@@ -62,7 +60,7 @@ public class PromqlPlanVectorBinaryOperatorV2Tests extends AbstractPromqlPlanOpt
 
         HashJoin join = plan.collect(HashJoin.class).getFirst();
         assertThat(join.leftFields(), hasSize(2));
-        assertThat(signatures(plan), hasItem(List.of("pod")));
+        assertThat(names(as(join.left(), PackDims.class).dims()), equalTo(List.of("pod")));
     }
 
     /** {@code group_left(...)} writes the included labels of the one side into the many side's labels. */
@@ -72,10 +70,10 @@ public class PromqlPlanVectorBinaryOperatorV2Tests extends AbstractPromqlPlanOpt
             false
         );
 
-        assertThat(plan.collect(HashJoin.class), hasSize(1));
-        var written = new ArrayList<String>();
-        plan.forEachExpressionDown(TimeSeriesMetadataSet.class, set -> written.add(literal(set.label())));
-        assertThat(written, hasItem("region"));
+        HashJoin join = plan.collect(HashJoin.class).getFirst();
+        assertThat(names(as(join.left(), PackDims.class).dims()), equalTo(List.of("pod")));
+        assertThat(names(join.addedFields()).stream().anyMatch(name -> name.endsWith("region")), is(true));
+        assertThat(names(plan.output()), hasItem("region"));
     }
 
     /** A source-backed scalar broadcasts over the other operand by joining on the step alone. */
@@ -109,19 +107,6 @@ public class PromqlPlanVectorBinaryOperatorV2Tests extends AbstractPromqlPlanOpt
     }
 
     /** The label lists of the signatures two series match on. */
-    private static List<List<String>> signatures(LogicalPlan plan) {
-        var found = new ArrayList<List<String>>();
-        plan.forEachExpressionDown(
-            TimeSeriesMetadataFilter.class,
-            filter -> found.add(filter.labels().stream().map(PromqlPlanVectorBinaryOperatorV2Tests::literal).toList())
-        );
-        return found;
-    }
-
-    private static String literal(Expression literal) {
-        return BytesRefs.toString(((Literal) literal).value());
-    }
-
     private static List<String> names(List<Attribute> attributes) {
         return attributes.stream().map(Attribute::name).toList();
     }

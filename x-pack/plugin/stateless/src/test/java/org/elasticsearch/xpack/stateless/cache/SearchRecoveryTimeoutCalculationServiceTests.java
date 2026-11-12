@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -114,6 +115,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             List.of(
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING,
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
+                ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING,
@@ -128,15 +130,17 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_IGNORE_NON_SEARCH_NODE_SHUTDOWNS_SETTING
             )
         );
-        // With data node recovery throttling the master does not throttle relocations, unless a test sets its limit
-        final var withMasterLimit = Settings.builder()
+        // With data node recovery throttling the master does not throttle relocations, unless a test sets its limits
+        final var withMasterUnthrottled = Settings.builder()
+            .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
             .put(
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
                 Integer.MAX_VALUE
             )
+            .put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(), -1)
             .put(settings)
             .build();
-        return new ClusterSettings(withMasterLimit, registeredSettings);
+        return new ClusterSettings(withMasterUnthrottled, registeredSettings);
     }
 
     /// Returns `clusterState` with non-empty [Metadata#nodeShutdowns()] for a node that is NOT in the cluster (stale).
@@ -1404,6 +1408,8 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         }
     }
 
+    /// With data node recovery throttling, the slots of the target are the data node limit, and not the relocations in flight. Without it,
+    /// or when the master throttles as well, whichever of its settings does, only the relocations in flight are known to use slots.
     public void testSlotsAreTheLimitsWithDataNodeThrottlingAndTheRelocationsInFlightOtherwise() {
         try (
             var threadPool = new FakeTimeThreadPool(
@@ -1441,23 +1447,29 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 .getTargetRelocatingShard();
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + elapsedMs);
 
-            // Columns: { data node limit, master limit, expected slots }
+            final int unbounded = Integer.MAX_VALUE;
+            // Columns: { data node limit, master concurrent recoveries, master concurrent incoming recoveries, master concurrent
+            // rebalance, expected slots }
             final int[][] cases = {
                 // no data node limit, the master throttles: only the relocations in flight are known to use slots
-                { Integer.MAX_VALUE, 2, relocatingShards },
-                { Integer.MAX_VALUE, Integer.MAX_VALUE, relocatingShards },
-                // the data node limit is set, but the master throttles as well, so its relocations in flight are all that is visible
-                { 3, 2, relocatingShards },
-                { 2, 3, relocatingShards },
-                { 3, 0, relocatingShards },
+                { unbounded, 2, 2, 2, relocatingShards },
+                { unbounded, unbounded, unbounded, -1, relocatingShards },
+                // the data node limit is set, but the master throttles as well, whichever of its limits does: only the relocations in
+                // flight are visible
+                { 3, 2, unbounded, -1, relocatingShards },
+                { 3, unbounded, 2, -1, relocatingShards },
+                { 3, unbounded, unbounded, 2, relocatingShards },
+                { 3, unbounded, 0, -1, relocatingShards },
                 // the data nodes throttle: the limit is the slots
-                { 3, Integer.MAX_VALUE, 3 },
+                { 3, unbounded, unbounded, -1, 3 },
                 // not more slots than the shards of the source can use
-                { 10, Integer.MAX_VALUE, shardsOnSource } };
+                { 10, unbounded, unbounded, -1, shardsOnSource } };
             for (final int[] testCase : cases) {
                 final int dataNodeLimit = testCase[0];
-                final int masterLimit = testCase[1];
-                final int expectedSlots = testCase[2];
+                final int masterConcurrentRecoveries = testCase[1];
+                final int masterConcurrentIncomingRecoveries = testCase[2];
+                final int masterConcurrentRebalance = testCase[3];
+                final int expectedSlots = testCase[4];
                 final var service = newCalculationService(
                     threadPool,
                     Settings.builder()
@@ -1470,14 +1482,29 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                             dataNodeLimit
                         )
                         .put(
+                            ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(),
+                            masterConcurrentRecoveries
+                        )
+                        .put(
                             ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
-                            masterLimit
+                            masterConcurrentIncomingRecoveries
+                        )
+                        .put(
+                            ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(),
+                            masterConcurrentRebalance
                         )
                         .build(),
                     0L
                 );
                 assertThat(
-                    "data node limit " + dataNodeLimit + ", master limit " + masterLimit,
+                    "data node limit "
+                        + dataNodeLimit
+                        + ", master concurrent recoveries "
+                        + masterConcurrentRecoveries
+                        + ", incoming "
+                        + masterConcurrentIncomingRecoveries
+                        + ", rebalance "
+                        + masterConcurrentRebalance,
                     service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, null).timeout().millis(),
                     equalTo(equalSharePerSlotMs * expectedSlots)
                 );
@@ -2149,6 +2176,63 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, null).timeout().millis(),
                 equalTo(expectedEqualShareMs * relocationsToTarget)
             );
+        }
+    }
+
+    /// The service follows the updates of the master settings: while the master does not throttle the slots are the data node limit, and
+    /// as soon as one of its settings does they are the relocations in flight, until it is unset.
+    public void testTimeoutFollowsMasterThrottlingSettingsUpdates() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            final var clusterSettings = newClusterSettings(
+                Settings.builder()
+                    .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
+                    .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING.getKey(), 0.5)
+                    .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 2)
+                    .build()
+            );
+            final var service = newCalculationService(threadPool, clusterSettings, 0L);
+
+            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
+            final var index = new Index("idx", randomUUID());
+            // 4 shards on the source, all relocating to the target
+            final var state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+                4,
+                4,
+                index,
+                "source-node",
+                "target-node",
+                threadPool.absoluteTimeInMillis()
+            );
+            // 2000ms into the 10s grace: the equal share of a shard is 8000 / 4 × 0.5 = 1000ms
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, 0))
+                .shardsWithState(RELOCATING)
+                .getFirst()
+                .getTargetRelocatingShard();
+
+            // the master does not throttle: the 2 slots of the data node limit
+            assertThat(service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, null).timeout().millis(), equalTo(2000L));
+
+            // one of the master settings throttles: the 4 relocations in flight
+            final var throttlingMasterSetting = randomFrom(
+                ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING,
+                ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
+                ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING
+            );
+            clusterSettings.applySettings(Settings.builder().put(throttlingMasterSetting.getKey(), 2).build());
+            assertThat(service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, null).timeout().millis(), equalTo(4000L));
+
+            // the master does not throttle again
+            clusterSettings.applySettings(Settings.EMPTY);
+            assertThat(service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, null).timeout().millis(), equalTo(2000L));
         }
     }
 

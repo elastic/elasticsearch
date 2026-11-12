@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -29,7 +30,9 @@ import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.Inc
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
 
+import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /// Computes how long search shard recovery should await offline warming (internal replicated-files path only), see
 /// [#searchRecoveryTimeout].
@@ -78,10 +81,21 @@ public class SearchRecoveryTimeoutCalculationService {
         Setting.Property.Dynamic
     );
 
+    /// The values of the master settings at which the master leaves the throttling of the recoveries to a search node to the data nodes, as
+    /// with data node recovery throttling (DNRT)
+    private static final Map<Setting<Integer>, Integer> MASTER_THROTTLING_DISABLED_VALUES = Map.of(
+        ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING,
+        Integer.MAX_VALUE,
+        ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
+        Integer.MAX_VALUE,
+        ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING,
+        -1
+    );
+
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
     private volatile int maxConcurrentRelocationRecoveries;
-    private volatile int masterConcurrentIncomingRecoveries;
+    private volatile boolean masterThrottlingDisabled;
     private volatile TimeValue searchRecoveryWarmingRelocationWithShutdownTimeout;
     private volatile TimeValue searchRecoveryWarmingRelocationTimeout;
     private volatile TimeValue searchRecoveryWarmingNonRelocationTimeout;
@@ -110,9 +124,10 @@ public class SearchRecoveryTimeoutCalculationService {
             maxHeap,
             limits -> this.maxConcurrentRelocationRecoveries = limits.maxConcurrentNonCriticalRecoveries()
         );
-        clusterSettings.initializeAndWatch(
-            ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
-            value -> this.masterConcurrentIncomingRecoveries = value
+        this.masterThrottlingDisabled = masterThrottlingDisabled(clusterSettings::get);
+        clusterSettings.addSettingsUpdateConsumer(
+            settings -> this.masterThrottlingDisabled = masterThrottlingDisabled(setting -> setting.get(settings)),
+            List.copyOf(MASTER_THROTTLING_DISABLED_VALUES.keySet())
         );
         clusterSettings.initializeAndWatch(
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
@@ -403,6 +418,7 @@ public class SearchRecoveryTimeoutCalculationService {
     /// the slots known to be available to the relocations from shutting-down nodes, see [#knownRelocationSlots], split between the sources
     /// in proportion to their relocations in flight, and not more than `shardsOnSource`. It scales the equal share of one shard to the time
     /// the shards of the source can use the slots together. It can be fractional and below one, when the slots are split between sources.
+    /// Without data node recovery throttling, it is the relocations from the source to the target that are in flight.
     private double estimateConcurrentRelocations(
         final ClusterState state,
         final String sourceNodeId,
@@ -424,12 +440,19 @@ public class SearchRecoveryTimeoutCalculationService {
         return dataNodeRecoveryThrottlingEnabled() ? maxConcurrentRelocationRecoveries : allRelocationsToTarget;
     }
 
-    /// The data nodes throttle the relocations, and not the master, when their non-critical limit is finite and the master's per node limit
-    /// is unbounded. The data node settings are only registered by the stateless plugin, and are unbounded by default. While the master
-    /// throttles, the cluster state shows only the relocations it has started, whatever the data node limit is.
+    /// The data nodes throttle the relocations, and not the master, when their non-critical limit is finite and the master does not
+    /// throttle, see [#masterThrottlingDisabled]. The data node settings are only registered by the stateless plugin, and are unbounded by
+    /// default. While the master throttles, the cluster state shows only the relocations it has started, whatever the data node limit is.
+    // TODO: move to DataNodeRecoveryThrottlingSettings (elastic/elasticsearch-team#5653)
     private boolean dataNodeRecoveryThrottlingEnabled() {
         return maxConcurrentRelocationRecoveries < IncomingRecoveryLimits.UNBOUNDED.maxConcurrentNonCriticalRecoveries()
-            && masterConcurrentIncomingRecoveries == Integer.MAX_VALUE;
+            && masterThrottlingDisabled;
+    }
+
+    private static boolean masterThrottlingDisabled(final Function<Setting<Integer>, Integer> currentValue) {
+        return MASTER_THROTTLING_DISABLED_VALUES.entrySet()
+            .stream()
+            .allMatch(disabledValue -> disabledValue.getValue().equals(currentValue.apply(disabledValue.getKey())));
     }
 
     /// Counts relocations whose source is `sourceNodeId` and whose target is `targetNodeId` (i.e. shards relocating

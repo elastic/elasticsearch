@@ -1339,8 +1339,7 @@ public class EsqlSessionTests extends ESTestCase {
             new AtomicReference<>();
         AtomicReference<Map<ExternalSourceSpec, FolderRangePredicate>> capturedFolderRanges = new AtomicReference<>();
         AtomicBoolean resolveCalled = new AtomicBoolean();
-        // The arity the session calls, and the only overridable one: every other overload is final and delegates
-        // here, so a fake cannot override a narrower one and silently run the real resolver instead.
+        // The one resolve the resolver has, so a fake overriding it cannot be bypassed by a narrower overload.
         ExternalSourceResolver capturingResolver = new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, null) {
             @Override
             public void resolve(

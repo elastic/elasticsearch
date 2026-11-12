@@ -600,10 +600,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         );
         var joins = plan.collect(HashJoin.class);
         assertThat(joins, hasSize(1));
-        assertThat(
-            joins.getFirst().leftFields().stream().map(Attribute::name).toList(),
-            containsInAnyOrder("step", PackDims.PACKED_FIELD_NAME)
-        );
+        assertThat(joins.getFirst().leftFields().stream().map(Attribute::name).toList(), containsInAnyOrder("step"));
     }
 
     /** Translates as a join of independent pipelines matched on label containers, which takes the container functions. */

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ColumnStatTypeSupport;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
@@ -693,7 +694,6 @@ public class ExternalSourceCacheService implements Closeable {
             if (wholeFile.isEmpty() == false) {
                 // A whole-file read is authoritative for the whole file; fragments (if any arrived
                 // alongside) add nothing and must not be summed on top.
-                // A refusal logs which gate refused, so nothing is added here.
                 Map<String, Object> mergedForFile = mergeWholeFileContributions(e.getKey(), wholeFile);
                 if (mergedForFile != null && mergedForFile.isEmpty() == false) {
                     merged.put(e.getKey(), mergedForFile);
@@ -1683,12 +1683,20 @@ public class ExternalSourceCacheService implements Closeable {
     /**
      * Names the disagreement that refused a merge, so a genuinely non-deterministic read of one file is still
      * visible rather than silently indistinguishable from the legitimate two-datasets-over-one-resource case.
-     * Row counts, modification times and fingerprints carry nothing secret.
+     * Row counts, modification times and fingerprints carry nothing secret. The path can: a contribution is
+     * recorded under the storage location verbatim, so for an https resource it is the pre-signed URL whose query
+     * string is the signature. Redacted here as it is everywhere a resource is rendered for a human to read.
      *
      * @return {@code null} always, so a refusal reads as one statement
      */
     private static Map<String, Object> refused(String path, String what, Object mine, Object theirs) {
-        logger.debug("whole-file contributions for [{}] disagree on [{}]: [{}] against [{}]", path, what, mine, theirs);
+        logger.debug(
+            "whole-file contributions for [{}] disagree on [{}]: [{}] against [{}]",
+            ExternalFailures.redactHttpUrl(path),
+            what,
+            mine,
+            theirs
+        );
         return null;
     }
 

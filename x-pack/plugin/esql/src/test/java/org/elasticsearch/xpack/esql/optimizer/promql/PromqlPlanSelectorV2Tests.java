@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.ToTimeSeriesMetadata;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -55,7 +55,7 @@ public class PromqlPlanSelectorV2Tests extends AbstractPromqlPlanOptimizerTests 
     /** A literal is a vector without labels. */
     public void testLiteralSelectorHasNoLabels() {
         LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h 1", false);
-        assertThat(expressions(plan, TimeSeriesWithout.class), empty());
+        assertThat(expressions(plan, ToTimeSeriesMetadata.class), empty());
     }
 
     private static <E extends Expression> List<E> expressions(LogicalPlan plan, Class<E> type) {

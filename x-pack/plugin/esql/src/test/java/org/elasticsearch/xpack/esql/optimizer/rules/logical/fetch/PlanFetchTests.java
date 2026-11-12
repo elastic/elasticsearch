@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.plugin.ReductionPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -464,6 +465,45 @@ public class PlanFetchTests extends ESTestCase {
     }
 
     /**
+     * A {@code LOOKUP JOIN} keeps the {@code _doc} of each left row. The columns of the lookup index and the key it looks up
+     * cross as values, the other columns of the left rows are fetched.
+     */
+    public void testALookupJoinBeforeTheCutFetchesTheColumnsOfTheLeftRows() {
+        PhysicalPlan plan = planWithLanguagesLookup(
+            "FROM employees | LOOKUP JOIN languages_lookup ON language_code | SORT hire_date | LIMIT 10"
+                + " | KEEP first_name, language_code, language_name"
+        );
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+        assertThat(
+            names(single(plan, ExchangeExec.class).output()),
+            containsInAnyOrder("_doc", "hire_date", "language_code", "language_name")
+        );
+    }
+
+    /** Only the relation the rows come from gets {@code _doc}. The lookup index of a join has no {@code _doc} to give. */
+    public void testTheLookupIndexOfAJoinGetsNoDoc() {
+        PhysicalPlan plan = planWithLanguagesLookup(
+            "FROM employees | LOOKUP JOIN languages_lookup ON language_code | SORT hire_date | LIMIT 10 | KEEP first_name, language_name"
+        );
+        FragmentExec fragment = single(plan, FragmentExec.class);
+        List<EsRelation> relations = fragment.fragment().collect(EsRelation.class);
+        assertThat(relations, hasSize(2));
+        for (EsRelation relation : relations) {
+            boolean carriesDoc = relation.output().stream().anyMatch(EsQueryExec::isDocAttribute);
+            assertThat(relation.indexPattern(), carriesDoc, equalTo(relation.indexMode() != IndexMode.LOOKUP));
+        }
+    }
+
+    /** A {@code LOOKUP JOIN} after the cut keeps the plan eager: the fetch would have to follow one of its inputs. */
+    public void testALookupJoinAfterTheCutKeepsThePlanEager() {
+        PhysicalPlan plan = planWithLanguagesLookup(
+            "FROM employees | LIMIT 10 | LOOKUP JOIN languages_lookup ON language_code | KEEP first_name, language_name"
+        );
+        assertEager(plan);
+    }
+
+    /**
      * A command before the cut runs on the data nodes. One that only runs on the coordinator splits the plan below the
      * cut, so the plan stays eager.
      */
@@ -607,6 +647,17 @@ public class PlanFetchTests extends ESTestCase {
         return EsqlTestUtils.analyzer()
             .addIndex(EsIndexGenerator.esIndex("employees", mapping(), Map.of("employees", IndexMode.STANDARD)))
             .minimumTransportVersion(minimumVersion);
+    }
+
+    /** {@code employees} with a {@code language_code} to join on, and the {@code languages_lookup} index. */
+    private static PhysicalPlan planWithLanguagesLookup(String query) {
+        Map<String, EsField> mapping = new HashMap<>(mapping());
+        mapping.put("language_code", new EsField("language_code", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+        TestAnalyzer employees = EsqlTestUtils.analyzer()
+            .addIndex(EsIndexGenerator.esIndex("employees", mapping, Map.of("employees", IndexMode.STANDARD)))
+            .addLanguagesLookup()
+            .minimumTransportVersion(TransportVersion.current());
+        return plan(employees, query);
     }
 
     /** {@code employees} with a known number of shards. The other analyzers report 0, an unknown count. */

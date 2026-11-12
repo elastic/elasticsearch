@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch.FetchPhasePolicy.Outcome;
+import org.elasticsearch.xpack.esql.plan.logical.CarriesDocOnDataNodes;
 import org.elasticsearch.xpack.esql.plan.logical.DocPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags.FetchPhaseMode;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
@@ -194,7 +196,8 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
      *     <li>commands above the cut that can run on the coordinator, see {@link #isSupportedAfterCut},</li>
      *     <li>the cut, the {@code TopN} or {@code LIMIT} closest to the relation that isn't local,</li>
      *     <li>commands between the cut and the relation that keep the document of each row and run on the data nodes,
-     *     see {@link #isSupportedBeforeCut},</li>
+     *     see {@link #isSupportedBeforeCut}. The chain goes through a command of several inputs along the input whose
+     *     {@code _doc} it keeps, like the left side of a {@code LOOKUP JOIN}, see {@link CarriesDocOnDataNodes},</li>
      *     <li>one {@code STANDARD} or {@code TIME_SERIES} relation,</li>
      *     <li>no column named {@code _doc}, the name of the document column the rule adds,</li>
      *     <li>at least one column the query only needs after the cut, and that can be fetched.</li>
@@ -207,14 +210,14 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * too, and the fetch reaches them directly, with the index expressions the query wrote for their cluster.
      */
     private static Shape shape(LogicalPlan plan) {
-        List<UnaryPlan> chain = new ArrayList<>();
+        List<LogicalPlan> chain = new ArrayList<>();
         LogicalPlan leaf = plan;
-        while (leaf instanceof UnaryPlan unary) {
-            if (unary instanceof Fetch) {
+        for (LogicalPlan docInput = docInput(leaf); docInput != null; docInput = docInput(leaf)) {
+            if (leaf instanceof Fetch) {
                 return ineligible("the plan already fetches");
             }
-            chain.add(unary);
-            leaf = unary.child();
+            chain.add(leaf);
+            leaf = docInput;
         }
         if (leaf.children().isEmpty() == false) {
             return ineligible("[" + leaf.nodeName() + "] combines several plans");
@@ -231,12 +234,12 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
         if (cutIndex < 0) {
             return ineligible("no [LIMIT] or [TopN] cuts the rows");
         }
-        for (UnaryPlan node : chain.subList(0, cutIndex)) {
+        for (LogicalPlan node : chain.subList(0, cutIndex)) {
             if (isSupportedAfterCut(node) == false) {
                 return ineligible("[" + node.nodeName() + "] runs after the cut");
             }
         }
-        for (UnaryPlan node : chain.subList(cutIndex + 1, chain.size())) {
+        for (LogicalPlan node : chain.subList(cutIndex + 1, chain.size())) {
             if (isSupportedBeforeCut(node) == false) {
                 return ineligible("[" + node.nodeName() + "] runs before the cut");
             }
@@ -248,7 +251,7 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
             return ineligible("the query names a column [_doc]");
         }
 
-        UnaryPlan cut = chain.get(cutIndex);
+        UnaryPlan cut = (UnaryPlan) chain.get(cutIndex);
         Demand demand = demand(plan, cut, relation);
         if (demand.deferred().isEmpty()) {
             return new Declined(Outcome.INELIGIBLE_NO_DEFERRABLE_FIELDS, "the cut reads every column, or the others cannot be fetched");
@@ -369,6 +372,13 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
                 collectValueReads(expression, loaded);
             }
         });
+        // a join looks up the values of its keys
+        beforeTheCut.forEachDown(Join.class, join -> {
+            loaded.addAll(join.leftReferences());
+            if (join.config().joinOnConditions() != null) {
+                collectValueReads(join.config().joinOnConditions(), loaded);
+            }
+        });
         return loaded.build();
     }
 
@@ -393,22 +403,30 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
 
     /**
      * The fetch runs right above the cut, and every command after it runs on the coordinator over the rows the fetch
-     * completed, so any command can follow. A command that only runs on the data nodes can't follow a cut.
+     * completed, so any command of one input can follow. A command that only runs on the data nodes can't follow a cut.
+     * A command of several inputs after the cut keeps the plan eager, since the fetch would have to follow one of them.
      */
     private static boolean isSupportedAfterCut(LogicalPlan command) {
-        return (command instanceof ExecutesOn executesOn && executesOn.executesOn() == ExecuteLocation.REMOTE) == false;
+        return command instanceof UnaryPlan
+            && (command instanceof ExecutesOn executesOn && executesOn.executesOn() == ExecuteLocation.REMOTE) == false;
     }
 
     /**
      * A command before the cut runs on the data nodes, where {@code _doc} names the document of each row. It must keep
      * that tie, see {@link DocPreserving}. {@code MV_EXPAND} repeats a row for each value, and every copy keeps the
-     * {@code _doc} of its document. The mapper must also send the command to the data nodes with the relation, see
-     * {@code Mapper#mapUnary}: not a command that only runs on the coordinator, and no pipeline breaker but the local
-     * cuts the optimizer copies there.
+     * {@code _doc} of its document. A command of several inputs keeps the {@code _doc} of one of them, see
+     * {@link CarriesDocOnDataNodes}. A {@code LOOKUP JOIN} repeats a left row for each match, and the columns it adds
+     * come from another index, so they keep crossing as values. The mapper must also send the command to the data nodes
+     * with the relation, see {@code Mapper#mapUnary}: not a command that only runs on the coordinator, and no pipeline
+     * breaker but the local cuts the optimizer copies there.
      */
     private static boolean isSupportedBeforeCut(LogicalPlan command) {
         if (command instanceof ExecutesOn executesOn && executesOn.executesOn() == ExecuteLocation.COORDINATOR) {
             return false;
+        }
+        if (command instanceof UnaryPlan == false) {
+            // the chain only goes through a command of several inputs that keeps the _doc of one of them
+            return command instanceof CarriesDocOnDataNodes;
         }
         if (command instanceof DocPreserving == false) {
             return false;
@@ -424,18 +442,45 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
         return plan.anyMatch(node -> node.output().stream().anyMatch(attribute -> attribute.name().equals(docName)));
     }
 
-    private static LogicalPlan rewrite(LogicalPlan plan, Candidate candidate, FetchPhaseOutcomes outcomes) {
-        // the data drivers produce _doc next to the eager columns, and every projection before the cut keeps it
-        Attribute doc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
-        UnaryPlan cut = candidate.cut();
-        LogicalPlan beforeTheCut = cut.child()
-            .transformUp(EsRelation.class, relation -> relation.withAttributes(CollectionUtils.prependToCopy(doc, relation.output())));
-        beforeTheCut = beforeTheCut.transformUp(Project.class, project -> {
+    /**
+     * The input whose document each row of {@code command} keeps: the only input of a command of one input, the one
+     * {@link CarriesDocOnDataNodes#docInput} names for a command of several, or {@code null} when no input does.
+     */
+    @Nullable
+    private static LogicalPlan docInput(LogicalPlan command) {
+        return switch (command) {
+            case UnaryPlan unary -> unary.child();
+            case CarriesDocOnDataNodes carrier -> carrier.docInput();
+            default -> null;
+        };
+    }
+
+    /**
+     * {@code plan} with {@code doc} from the relation up to {@code plan}, along the inputs {@link #docInput} names: the
+     * relation produces it, and every projection on the way keeps it. The other inputs, like the lookup index of a join,
+     * stay as they are.
+     */
+    private static LogicalPlan carryDoc(LogicalPlan plan, Attribute doc) {
+        if (plan instanceof EsRelation relation) {
+            return relation.withAttributes(CollectionUtils.prependToCopy(doc, relation.output()));
+        }
+        LogicalPlan docInput = docInput(plan);
+        LogicalPlan carried = carryDoc(docInput, doc);
+        LogicalPlan rebuilt = plan.replaceChildren(plan.children().stream().map(child -> child == docInput ? carried : child).toList());
+        if (rebuilt instanceof Project project) {
             List<NamedExpression> projections = new ArrayList<>(project.projections().size() + 1);
             projections.add(doc);
             projections.addAll(project.projections());
             return project.withProjections(projections);
-        });
+        }
+        return rebuilt;
+    }
+
+    private static LogicalPlan rewrite(LogicalPlan plan, Candidate candidate, FetchPhaseOutcomes outcomes) {
+        // the data drivers produce _doc next to the eager columns, and every projection before the cut keeps it
+        Attribute doc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
+        UnaryPlan cut = candidate.cut();
+        LogicalPlan beforeTheCut = carryDoc(cut.child(), doc);
         if (beforeTheCut.outputSet().contains(doc) == false) {
             assert false : "a command before the cut drops [_doc]: " + beforeTheCut;
             return declined(plan, new Declined(Outcome.INCONSISTENT_PROJECTION, "a command before the cut drops [_doc]"), outcomes);

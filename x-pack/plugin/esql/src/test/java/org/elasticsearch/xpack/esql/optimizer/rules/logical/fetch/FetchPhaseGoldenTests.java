@@ -118,6 +118,18 @@ public class FetchPhaseGoldenTests extends GoldenTestCase {
             """, EsqlTestUtils.TEST_SEARCH_STATS);
     }
 
+    /** A {@code LOOKUP JOIN} on the data nodes keeps the {@code _doc} of its left rows, and its own columns cross as values. */
+    public void testLookupJoinBeforeTheCut() {
+        runBoth("""
+            FROM employees
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | SORT emp_no
+            | LIMIT 10
+            | KEEP first_name, language_name
+            """, EsqlTestUtils.TEST_SEARCH_STATS);
+    }
+
     /** DISSECT before the cut reads its input on the data node, so the input crosses the exchange as a value too. */
     public void testDissectBeforeTheCut() {
         runBoth("""

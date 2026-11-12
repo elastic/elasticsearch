@@ -568,3 +568,8 @@ tests:
   - :x-pack:plugin:transform:yamlRestTest
   method: test {yaml=multi_cluster/80_transform/Batch transform from remote cluster}
   issue: https://github.com/elastic/elasticsearch/issues/165718
+- class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
+  tasks:
+  - :x-pack:plugin:transform:yamlRestTest
+  method: test {yaml=multi_cluster/80_transform/Batch transform preview from remote cluster}
+  issue: https://github.com/elastic/elasticsearch/issues/165720

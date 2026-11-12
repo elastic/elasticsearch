@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -318,6 +319,17 @@ public final class FetchDocsSourceOperator extends SourceOperator {
             "fetch_docs_source",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(Status.class, (builder, value, params) -> {
+            builder.startObject();
+            builder.field("pages_emitted", value.pagesEmitted);
+            builder.field("docs_emitted", value.docsEmitted);
+            builder.field("segment_runs", value.segmentRuns);
+            return builder.endObject();
+        })
+            .required("pages_emitted", ProfileSchema.integer())
+            .required("docs_emitted", ProfileSchema.integer())
+            .required("segment_runs", ProfileSchema.integer())
+            .build();
 
         private static final TransportVersion ESQL_FETCH_DOCS_SOURCE_STATUS = TransportVersion.fromName("esql_fetch_docs_source_status");
 
@@ -361,11 +373,7 @@ public final class FetchDocsSourceOperator extends SourceOperator {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("pages_emitted", pagesEmitted);
-            builder.field("docs_emitted", docsEmitted);
-            builder.field("segment_runs", segmentRuns);
-            return builder.endObject();
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         @Override

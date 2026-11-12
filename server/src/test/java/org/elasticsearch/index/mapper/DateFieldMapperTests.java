@@ -1020,6 +1020,40 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertThat(src, containsString("\"field\":[\"" + v2 + "\",\"" + v1 + "\",\"" + v3 + "\",\"" + v2 + "\"]"));
     }
 
+    /**
+     * In a strictly columnar index a null counts only as an element of the field's own array (see
+     * {@link MultiValuedBinaryDocValuesField#keepsNullSlot}). Date keeps array order in the offsets sidecar like the mappers that
+     * {@link OffsetDocValuesLoaderTestCase} covers, but has no subclass of it.
+     */
+    public void testColumnarDateKeepsOnlyNullsInsideTheFieldsArray() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+            b.startObject("field").field("type", "date").field("format", "epoch_millis").endObject();
+            b.startObject("obj").startObject("properties");
+            b.startObject("field").field("type", "date").field("format", "epoch_millis").endObject();
+            b.endObject().endObject();
+        })).documentMapper();
+        String absent = syntheticSource(mapper, b -> {});
+        assertEquals(absent, syntheticSource(mapper, b -> b.nullField("field")));
+        assertEquals(absent, syntheticSource(mapper, b -> b.startObject("obj").nullField("field").endObject()));
+
+        long value = randomLongBetween(0L, 4_000_000_000_000L);
+        assertEquals(
+            syntheticSource(mapper, b -> b.startArray("obj").startObject().field("field", value).endObject().endArray()),
+            syntheticSource(mapper, b -> {
+                b.startArray("obj");
+                b.startObject().nullField("field").endObject();
+                b.startObject().field("field", value).endObject();
+                b.endArray();
+            })
+        );
+        assertEquals(
+            "{\"field\":[null,\"" + value + "\"]}",
+            syntheticSource(mapper, b -> b.startArray("field").nullValue().value(value).endArray())
+        );
+        assertEquals("{\"field\":[null,null]}", syntheticSource(mapper, b -> b.startArray("field").nullValue().nullValue().endArray()));
+    }
+
     @Override
     protected List<CheckedConsumer<XContentBuilder, IOException>> fieldMappingsForIndexSortRangeTest() {
         return List.of(b -> {
@@ -1040,4 +1074,9 @@ public class DateFieldMapperTests extends MapperTestCase {
         }
         throw new AssertionError("no [format] parameter");
     }
+
+    public void testScriptedFieldIsNotStaticallySingleValued() throws IOException {
+        assertScriptedFieldIsNotStaticallySingleValued("non-empty");
+    }
+
 }

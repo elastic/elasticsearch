@@ -319,11 +319,11 @@ public class InternalEngineTests extends EngineTestCase {
         indexDoc(engine, update);
         assertTrue(engine.isSafeAccessRequired());
         assertThat(engine.getVersionMap().values(), hasSize(1));
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertEquals(0, searcher.getIndexReader().numDocs());
         }
 
-        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)) {
             assertEquals(1, searcher.getIndexReader().numDocs());
             TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, 1);
             org.apache.lucene.document.Document luceneDoc = searcher.storedFields().document(search.scoreDocs[0].doc);
@@ -336,7 +336,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.refresh("test");
         }
         assertTrue("safe access should be required we carried it over", engine.isSafeAccessRequired());
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertEquals(1, searcher.getIndexReader().numDocs());
             TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, 1);
             org.apache.lucene.document.Document luceneDoc = searcher.storedFields().document(search.scoreDocs[0].doc);
@@ -352,7 +352,7 @@ public class InternalEngineTests extends EngineTestCase {
         if (randomBoolean()) { // randomly refresh here again
             engine.refresh("test");
         }
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertEquals(2, searcher.getIndexReader().numDocs());
         }
         if (operation.origin() == PRIMARY) {
@@ -362,7 +362,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertTrue("safe access should be required", engine.isSafeAccessRequired());
         engine.refresh("test");
         assertTrue("safe access should be required", engine.isSafeAccessRequired());
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertEquals(1, searcher.getIndexReader().numDocs());
         }
     }
@@ -693,7 +693,7 @@ public class InternalEngineTests extends EngineTestCase {
         try (Engine recoveringEngine = new InternalEngine(engine.config())) {
             recoverFromTranslog(recoveringEngine, translogHandler, Long.MAX_VALUE);
             recoveringEngine.refresh("test");
-            try (Engine.Searcher searcher = recoveringEngine.acquireSearcher("test")) {
+            try (Engine.Searcher searcher = recoveringEngine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 Integer totalHits = searcher.search(Queries.ALL_DOCS_INSTANCE, new TotalHitCountCollectorManager(searcher.getSlices()));
                 assertThat(totalHits, equalTo(operations.getLast() instanceof Engine.Delete ? 0 : 1));
             }
@@ -801,7 +801,7 @@ public class InternalEngineTests extends EngineTestCase {
             recoveringEngine = new InternalEngine(initialEngine.config());
             recoverFromTranslog(recoveringEngine, translogHandler, Long.MAX_VALUE);
             recoveringEngine.refresh("test");
-            try (Engine.Searcher searcher = recoveringEngine.acquireSearcher("test")) {
+            try (Engine.Searcher searcher = recoveringEngine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, docs);
                 assertEquals(docs, topDocs.totalHits.value());
             }
@@ -901,7 +901,7 @@ public class InternalEngineTests extends EngineTestCase {
         final MappingLookup mappingLookup = mapperService.mappingLookup();
         DocumentParser documentParser = mapperService.documentParser();
         engine.refresh("warm_up");
-        Engine.Searcher searchResult = engine.acquireSearcher("test");
+        Engine.Searcher searchResult = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         searchResult.close();
 
@@ -912,7 +912,7 @@ public class InternalEngineTests extends EngineTestCase {
         indexDoc(engine, indexForDoc(doc));
 
         // its not there...
-        searchResult = engine.acquireSearcher("test");
+        searchResult = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         MatcherAssert.assertThat(
             searchResult,
@@ -964,7 +964,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.refresh("test");
 
         // now its there...
-        searchResult = engine.acquireSearcher("test");
+        searchResult = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(
             searchResult,
@@ -994,7 +994,7 @@ public class InternalEngineTests extends EngineTestCase {
         indexDoc(engine, indexForDoc(doc));
 
         // its not updated yet...
-        searchResult = engine.acquireSearcher("test");
+        searchResult = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(
             searchResult,
@@ -1023,7 +1023,7 @@ public class InternalEngineTests extends EngineTestCase {
         // refresh and it should be updated
         engine.refresh("test");
 
-        searchResult = engine.acquireSearcher("test");
+        searchResult = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(
             searchResult,
@@ -1039,7 +1039,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.delete(new Engine.Delete("1", newUid(doc), primaryTerm.get()));
 
         // its not deleted yet
-        searchResult = engine.acquireSearcher("test");
+        searchResult = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(
             searchResult,
@@ -1067,7 +1067,7 @@ public class InternalEngineTests extends EngineTestCase {
         // refresh and it should be deleted
         engine.refresh("test");
 
-        searchResult = engine.acquireSearcher("test");
+        searchResult = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         MatcherAssert.assertThat(
             searchResult,
@@ -1086,7 +1086,7 @@ public class InternalEngineTests extends EngineTestCase {
         indexDoc(engine, new Engine.Index(newUid(doc), primaryTerm.get(), doc, Versions.MATCH_DELETED));
 
         // its not there...
-        searchResult = engine.acquireSearcher("test");
+        searchResult = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         MatcherAssert.assertThat(
             searchResult,
@@ -1102,7 +1102,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.refresh("test");
 
         // now its there...
-        searchResult = engine.acquireSearcher("test");
+        searchResult = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(
             searchResult,
@@ -1139,7 +1139,7 @@ public class InternalEngineTests extends EngineTestCase {
         indexDoc(engine, indexForDoc(doc));
 
         // its not updated yet...
-        searchResult = engine.acquireSearcher("test");
+        searchResult = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(
             searchResult,
@@ -1154,7 +1154,7 @@ public class InternalEngineTests extends EngineTestCase {
         // refresh and it should be updated
         engine.refresh("test");
 
-        searchResult = engine.acquireSearcher("test");
+        searchResult = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(
             searchResult,
@@ -1306,7 +1306,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testSearchResultRelease() throws Exception {
         engine.refresh("warm_up");
-        Engine.Searcher searchResult = engine.acquireSearcher("test");
+        Engine.Searcher searchResult = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         searchResult.close();
 
@@ -1315,7 +1315,7 @@ public class InternalEngineTests extends EngineTestCase {
         indexDoc(engine, indexForDoc(doc));
 
         // its not there...
-        searchResult = engine.acquireSearcher("test");
+        searchResult = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         MatcherAssert.assertThat(
             searchResult,
@@ -1327,7 +1327,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.refresh("test");
 
         // now its there...
-        searchResult = engine.acquireSearcher("test");
+        searchResult = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(
             searchResult,
@@ -1338,7 +1338,7 @@ public class InternalEngineTests extends EngineTestCase {
         // delete, refresh and do a new search, it should not be there
         engine.delete(new Engine.Delete("1", newUid(doc), primaryTerm.get()));
         engine.refresh("test");
-        Engine.Searcher updateSearchResult = engine.acquireSearcher("test");
+        Engine.Searcher updateSearchResult = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
         MatcherAssert.assertThat(updateSearchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         updateSearchResult.close();
 
@@ -1573,12 +1573,12 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(updateResult.getVersion(), equalTo(2L));
         assertFalse(updateResult.isCreated());
         replicaEngine.refresh("test");
-        try (Engine.Searcher searcher = replicaEngine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = replicaEngine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertEquals(1, searcher.getDirectoryReader().numDocs());
         }
 
         engine.refresh("test");
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertEquals(1, searcher.getDirectoryReader().numDocs());
         }
     }
@@ -1940,7 +1940,9 @@ public class InternalEngineTests extends EngineTestCase {
             // If we already merged down to 1 segment, then the next force-merge will be a noop. We need to add an extra segment to make
             // merges happen so we can verify that _recovery_source are pruned. See: https://github.com/elastic/elasticsearch/issues/41628.
             final int numSegments;
-            try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            try (
+                Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)
+            ) {
                 numSegments = searcher.getDirectoryReader().leaves().size();
             }
             if (numSegments == 1) {
@@ -2241,7 +2243,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.refresh("test");
 
         if (lastFieldValueDoc1 != null) {
-            try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 Integer totalHits = searcher.search(
                     new TermQuery(new Term("value", lastFieldValueDoc1)),
                     new TotalHitCountCollectorManager(searcher.getSlices())
@@ -2250,7 +2252,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
         }
         if (lastFieldValueDoc2 != null) {
-            try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 Integer totalHits = searcher.search(
                     new TermQuery(new Term("value", lastFieldValueDoc2)),
                     new TotalHitCountCollectorManager(searcher.getSlices())
@@ -2480,7 +2482,7 @@ public class InternalEngineTests extends EngineTestCase {
                 // even if doc is not not deleted, lastFieldValue can still be null if this is the
                 // first op and it failed.
                 if (docDeleted == false && lastFieldValue != null) {
-                    try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+                    try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                         Integer totalHits = searcher.search(
                             new TermQuery(new Term("value", lastFieldValue)),
                             new TotalHitCountCollectorManager(searcher.getSlices())
@@ -2508,7 +2510,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         assertVisibleCount(engine, docDeleted ? 0 : 1);
         if (docDeleted == false) {
-            try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 Integer totalHits = searcher.search(
                     new TermQuery(new Term("value", lastFieldValue)),
                     new TotalHitCountCollectorManager(searcher.getSlices())
@@ -2597,7 +2599,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertVisibleCount(engine, docDeleted ? 0 : 1);
         if (docDeleted == false) {
             logger.info("searching for [{}]", lastFieldValue);
-            try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 Integer totalHits = searcher.search(
                     new TermQuery(new Term("value", lastFieldValue)),
                     new TotalHitCountCollectorManager(searcher.getSlices())
@@ -2617,7 +2619,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertOpsOnReplica(replicaOps, replicaEngine, true, logger);
         final int opsOnPrimary = assertOpsOnPrimary(primaryOps, finalReplicaVersion, deletedOnReplica, replicaEngine);
         final long currentSeqNo = getSequenceID(replicaEngine, new Engine.Get(false, false, Term.toString(lastReplicaOp.uid()))).v1();
-        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)) {
             Integer totalHits = searcher.search(Queries.ALL_DOCS_INSTANCE, new TotalHitCountCollectorManager(searcher.getSlices()));
             if (totalHits > 0) {
                 // last op wasn't delete
@@ -2641,7 +2643,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         assertVisibleCount(engine, lastFieldValue == null ? 0 : 1);
         if (lastFieldValue != null) {
-            try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 Integer totalHits = searcher.search(
                     new TermQuery(new Term("value", lastFieldValue)),
                     new TotalHitCountCollectorManager(searcher.getSlices())
@@ -3529,7 +3531,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testExtractShardId() {
-        try (Engine.Searcher test = this.engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (Engine.Searcher test = this.engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)) {
             ShardId shardId = ShardUtils.extractShardId(test.getDirectoryReader());
             assertNotNull(shardId);
             assertEquals(shardId, engine.config().getShardId());
@@ -3839,7 +3841,9 @@ public class InternalEngineTests extends EngineTestCase {
         engine.close();
         try (InternalEngine engine = new InternalEngine(config)) {
             engine.skipTranslogRecovery();
-            try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            try (
+                Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)
+            ) {
                 TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, randomIntBetween(numDocs, numDocs + 10));
                 assertThat(topDocs.totalHits.value(), equalTo(0L));
             }
@@ -3929,7 +3933,7 @@ public class InternalEngineTests extends EngineTestCase {
         Engine.IndexResult result = indexDoc(engine, idxRequest);
         engine.refresh("test");
         assertThat(result.getVersion(), equalTo(2L));
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, numDocs + 1);
             assertThat(topDocs.totalHits.value(), equalTo(numDocs + 1L));
         }
@@ -3938,7 +3942,7 @@ public class InternalEngineTests extends EngineTestCase {
         translogHandler = createTranslogHandler(mapperService);
         engine = createEngine(store, primaryTranslogDir, inSyncGlobalCheckpointSupplier);
         engine.refresh("warm_up");
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, numDocs + 1);
             assertThat(topDocs.totalHits.value(), equalTo(numDocs + 1L));
         }
@@ -3949,7 +3953,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine = createEngine(store, primaryTranslogDir, inSyncGlobalCheckpointSupplier);
         }
         engine.refresh("test");
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, numDocs);
             assertThat(topDocs.totalHits.value(), equalTo((long) numDocs));
         }
@@ -4296,7 +4300,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         engine.refresh("test");
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
             assertEquals(1, topDocs.totalHits.value());
         }
@@ -4331,7 +4335,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         engine.refresh("test");
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
             assertEquals(1, topDocs.totalHits.value());
         }
@@ -4388,7 +4392,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         engine.refresh("test");
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
             assertEquals(0, topDocs.totalHits.value());
         }
@@ -4411,7 +4415,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         // promote to primary: first do refresh
         engine.refresh("test");
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
             assertEquals(1, topDocs.totalHits.value());
         }
@@ -4451,7 +4455,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         engine.refresh("test");
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
             assertEquals(1, topDocs.totalHits.value());
         }
@@ -4495,12 +4499,12 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         engine.refresh("test");
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
             assertEquals(1, topDocs.totalHits.value());
         }
         engine.refresh("test");
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
             assertEquals(1, topDocs.totalHits.value());
         }
@@ -4574,7 +4578,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(indexResult.getVersion(), equalTo(1L));
         assertNotEquals(UNASSIGNED_SEQ_NO, indexResult.getSeqNo());
         engine.refresh("test");
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
             assertEquals(1, topDocs.totalHits.value());
         }
@@ -4596,7 +4600,7 @@ public class InternalEngineTests extends EngineTestCase {
         indexResult = indexDoc(replicaEngine, index);
         assertThat(indexResult.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
         replicaEngine.refresh("test");
-        try (Engine.Searcher searcher = replicaEngine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = replicaEngine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
             assertEquals(1, topDocs.totalHits.value());
         }
@@ -4665,7 +4669,7 @@ public class InternalEngineTests extends EngineTestCase {
         Engine.IndexResult indexResult = indexDoc(engine, secondIndexRequest);
         assertFalse(indexResult.isCreated());
         engine.refresh("test");
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
             assertEquals(1, topDocs.totalHits.value());
         }
@@ -4686,7 +4690,7 @@ public class InternalEngineTests extends EngineTestCase {
         );
         indexDoc(replicaEngine, secondIndexRequestReplica);
         replicaEngine.refresh("test");
-        try (Engine.Searcher searcher = replicaEngine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = replicaEngine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
             assertEquals(1, topDocs.totalHits.value());
         }
@@ -4775,7 +4779,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
         });
         engine.refresh("test");
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             int count = searcher.count(Queries.ALL_DOCS_INSTANCE);
             assertEquals(numDocs, count);
         }
@@ -4883,7 +4887,7 @@ public class InternalEngineTests extends EngineTestCase {
             };
             thread[i].start();
         }
-        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)) {
             assertEquals("unexpected refresh", 0, searcher.getIndexReader().maxDoc());
         }
         for (int i = 0; i < thread.length; i++) {
@@ -4891,7 +4895,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         engine.refresh("test");
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             int count = searcher.count(Queries.ALL_DOCS_INSTANCE);
             assertEquals(docs.size(), count);
         }
@@ -5031,7 +5035,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(seqID.v2(), equalTo(3L));
 
         // we can query by the _seq_no
-        Engine.Searcher searchResult = engine.acquireSearcher("test");
+        Engine.Searcher searchResult = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(
             searchResult,
@@ -5096,7 +5100,13 @@ public class InternalEngineTests extends EngineTestCase {
             InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), newMergePolicy()))
         ) {
             CheckedRunnable<IOException> lookupAndCheck = () -> {
-                try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+                try (
+                    Engine.Searcher searcher = engine.acquireSearcher(
+                        "test",
+                        Engine.SearcherScope.INTERNAL,
+                        SplitShardCountSummary.IRRELEVANT
+                    )
+                ) {
                     Map<String, Long> liveOps = latestOps.entrySet()
                         .stream()
                         .filter(e -> e.getValue().operationType() == Engine.Operation.TYPE.INDEX)
@@ -5149,7 +5159,7 @@ public class InternalEngineTests extends EngineTestCase {
         indexDoc(engine, indexForDoc(createParsedDoc("1", null)));
         engine.refresh("test");
 
-        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)) {
             // A retained (non-pruned) _seq_no doc value is read and returned regardless of leniency: strict and lenient loads agree.
             DocIdAndSeqNo strict = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), Uid.encodeId("1"), false);
             assertNotNull(strict);
@@ -5275,7 +5285,11 @@ public class InternalEngineTests extends EngineTestCase {
             return testParsedDocument("1", null, document, B_1);
         };
         final BytesRef uid = Uid.encodeId("1");
-        final BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory = engine::acquireSearcher;
+        final BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory = (source, scope) -> engine.acquireSearcher(
+            source,
+            scope,
+            SplitShardCountSummary.IRRELEVANT
+        );
         for (int i = 0; i < numberOfOperations; i++) {
             if (randomBoolean()) {
                 final Engine.Index index = new Engine.Index(
@@ -5644,7 +5658,7 @@ public class InternalEngineTests extends EngineTestCase {
      * second is the primary term.
      */
     private Tuple<Long, Long> getSequenceID(Engine engine, Engine.Get get) throws EngineException {
-        try (Engine.Searcher searcher = engine.acquireSearcher("get", Engine.SearcherScope.INTERNAL)) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("get", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)) {
             final long primaryTerm;
             final long seqNo;
             DocIdAndSeqNo docIdAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), get.uid());
@@ -5831,8 +5845,12 @@ public class InternalEngineTests extends EngineTestCase {
         ) {
             engine.refresh("warm_up");
             try (
-                Engine.Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
-                Engine.Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)
+                Engine.Searcher getSearcher = engine.acquireSearcher(
+                    "test",
+                    Engine.SearcherScope.INTERNAL,
+                    SplitShardCountSummary.IRRELEVANT
+                );
+                Engine.Searcher searchSearcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)
             ) {
                 assertSameReader(getSearcher, searchSearcher);
             }
@@ -5847,8 +5865,12 @@ public class InternalEngineTests extends EngineTestCase {
             assertTrue(refreshResult.refreshed());
             assertNotEquals(Engine.RefreshResult.UNKNOWN_GENERATION, refreshResult.generation());
             try (
-                Engine.Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
-                Engine.Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)
+                Engine.Searcher getSearcher = engine.acquireSearcher(
+                    "test",
+                    Engine.SearcherScope.INTERNAL,
+                    SplitShardCountSummary.IRRELEVANT
+                );
+                Engine.Searcher searchSearcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)
             ) {
                 assertEquals(10, getSearcher.getIndexReader().numDocs());
                 assertEquals(0, searchSearcher.getIndexReader().numDocs());
@@ -5857,8 +5879,12 @@ public class InternalEngineTests extends EngineTestCase {
             engine.refresh("test", Engine.SearcherScope.EXTERNAL, true);
 
             try (
-                Engine.Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
-                Engine.Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)
+                Engine.Searcher getSearcher = engine.acquireSearcher(
+                    "test",
+                    Engine.SearcherScope.INTERNAL,
+                    SplitShardCountSummary.IRRELEVANT
+                );
+                Engine.Searcher searchSearcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)
             ) {
                 assertEquals(10, getSearcher.getIndexReader().numDocs());
                 assertEquals(10, searchSearcher.getIndexReader().numDocs());
@@ -5874,24 +5900,36 @@ public class InternalEngineTests extends EngineTestCase {
             engine.refresh("test", Engine.SearcherScope.EXTERNAL, true);
 
             try (
-                Engine.Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
-                Engine.Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)
+                Engine.Searcher getSearcher = engine.acquireSearcher(
+                    "test",
+                    Engine.SearcherScope.INTERNAL,
+                    SplitShardCountSummary.IRRELEVANT
+                );
+                Engine.Searcher searchSearcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)
             ) {
                 assertEquals(11, getSearcher.getIndexReader().numDocs());
                 assertEquals(11, searchSearcher.getIndexReader().numDocs());
                 assertSameReader(getSearcher, searchSearcher);
             }
 
-            try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            try (
+                Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)
+            ) {
                 engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
-                try (Engine.Searcher nextSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+                try (
+                    Engine.Searcher nextSearcher = engine.acquireSearcher(
+                        "test",
+                        Engine.SearcherScope.INTERNAL,
+                        SplitShardCountSummary.IRRELEVANT
+                    )
+                ) {
                     assertSame(searcher.getIndexReader(), nextSearcher.getIndexReader());
                 }
             }
 
-            try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)) {
+            try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 engine.refresh("test", Engine.SearcherScope.EXTERNAL, true);
-                try (Engine.Searcher nextSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)) {
+                try (Engine.Searcher nextSearcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                     assertSame(searcher.getIndexReader(), nextSearcher.getIndexReader());
                 }
             }
@@ -6096,7 +6134,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
         thread.join();
         engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
-        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)) {
             TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, searcher.getIndexReader().numDocs());
             for (int i = 0; i < search.scoreDocs.length; i++) {
                 org.apache.lucene.document.Document luceneDoc = searcher.storedFields().document(search.scoreDocs[i].doc);
@@ -6899,7 +6937,10 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testAcquireSearcherOnClosingEngine() throws Exception {
         engine.close();
-        expectThrows(AlreadyClosedException.class, () -> engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL));
+        expectThrows(
+            AlreadyClosedException.class,
+            () -> engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)
+        );
     }
 
     public void testNoOpOnClosingEngine() throws Exception {
@@ -7090,7 +7131,7 @@ public class InternalEngineTests extends EngineTestCase {
                 );
                 indexDoc(engine, appendOnlyPrimary(doc, false, 1));
                 engine.refresh("test");
-                try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+                try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                     LeafReader leafReader = getOnlyLeafReader(searcher.getIndexReader());
                     assertEquals(createdVersion.luceneVersion().major, leafReader.getMetaData().createdVersionMajor());
                 }
@@ -7192,7 +7233,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.delete(new Engine.Delete("0", Uid.encodeId("0"), primaryTerm.get()));
             engine.refresh("test");
             // now we have 2 segments since we now added a tombstone plus the old segment with the delete
-            try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 IndexReader reader = searcher.getIndexReader();
                 assertEquals(2, reader.leaves().size());
                 LeafReaderContext leafReaderContext = reader.leaves().getFirst();
@@ -7209,7 +7250,7 @@ public class InternalEngineTests extends EngineTestCase {
             // lets force merge the tombstone and the original segment and make sure the doc is still there but the ID term is gone
             engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
             engine.refresh("test");
-            try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 IndexReader reader = searcher.getIndexReader();
                 assertEquals(1, reader.leaves().size());
                 LeafReaderContext leafReaderContext = reader.leaves().getFirst();
@@ -7627,7 +7668,7 @@ public class InternalEngineTests extends EngineTestCase {
             try (InternalEngine engine = createEngine(configWithWarmer)) {
                 assertThat(warmedUpReaders, empty());
                 assertThat(
-                    expectThrows(Throwable.class, () -> engine.acquireSearcher("test")).getMessage(),
+                    expectThrows(Throwable.class, () -> engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)).getMessage(),
                     equalTo("searcher was not warmed up yet for source[test]")
                 );
                 int times = randomIntBetween(1, 10);
@@ -7635,8 +7676,14 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.refresh("test");
                 }
                 assertThat(warmedUpReaders, hasSize(1));
-                try (Engine.Searcher internalSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-                    try (Engine.Searcher externalSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)) {
+                try (
+                    Engine.Searcher internalSearcher = engine.acquireSearcher(
+                        "test",
+                        Engine.SearcherScope.INTERNAL,
+                        SplitShardCountSummary.IRRELEVANT
+                    )
+                ) {
+                    try (Engine.Searcher externalSearcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                         assertSame(internalSearcher.getDirectoryReader(), externalSearcher.getDirectoryReader());
                         assertSame(warmedUpReaders.getFirst(), externalSearcher.getDirectoryReader());
                     }
@@ -7645,16 +7692,28 @@ public class InternalEngineTests extends EngineTestCase {
                 if (randomBoolean()) {
                     engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
                     assertThat(warmedUpReaders, hasSize(1));
-                    try (Engine.Searcher internalSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-                        try (Engine.Searcher externalSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)) {
+                    try (
+                        Engine.Searcher internalSearcher = engine.acquireSearcher(
+                            "test",
+                            Engine.SearcherScope.INTERNAL,
+                            SplitShardCountSummary.IRRELEVANT
+                        )
+                    ) {
+                        try (Engine.Searcher externalSearcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                             assertNotSame(internalSearcher.getDirectoryReader(), externalSearcher.getDirectoryReader());
                         }
                     }
                 }
                 engine.refresh("test");
                 assertThat(warmedUpReaders, hasSize(2));
-                try (Engine.Searcher internalSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-                    try (Engine.Searcher externalSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)) {
+                try (
+                    Engine.Searcher internalSearcher = engine.acquireSearcher(
+                        "test",
+                        Engine.SearcherScope.INTERNAL,
+                        SplitShardCountSummary.IRRELEVANT
+                    )
+                ) {
+                    try (Engine.Searcher externalSearcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                         assertSame(internalSearcher.getDirectoryReader(), externalSearcher.getDirectoryReader());
                         assertSame(warmedUpReaders.get(1), externalSearcher.getDirectoryReader());
                     }
@@ -7677,7 +7736,7 @@ public class InternalEngineTests extends EngineTestCase {
             : appendOnlyReplica(doc, false, 1, randomIntBetween(0, 5));
         indexDoc(engine, operation);
         engine.refresh("test");
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             IndexReader reader = searcher.getIndexReader();
             assertThat(reader.leaves().size(), Matchers.greaterThanOrEqualTo(1));
             for (LeafReaderContext context : reader.leaves()) {
@@ -8190,7 +8249,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(result.getSeqNo(), greaterThanOrEqualTo(0L));
         }
         engine.refresh("test");
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertThat(searcher.getIndexReader().numDocs(), equalTo(ops.size()));
         }
     }
@@ -8221,7 +8280,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(result.getSeqNo(), greaterThanOrEqualTo(0L));
 
         engine.refresh("test");
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertThat(searcher.getIndexReader().numDocs(), equalTo(1));
         }
     }
@@ -8267,7 +8326,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(r2.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
         engine.refresh("test");
 
-        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)) {
             assertThat(searcher.getIndexReader().numDocs(), equalTo(2));
         }
 
@@ -8310,7 +8369,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         // Refresh and confirm no ghost documents were written by addBatch.
         engine.refresh("test");
-        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)) {
             assertThat(
                 "no ghost documents should be written when all batch docs are preflight errors",
                 searcher.getIndexReader().numDocs(),
@@ -8335,7 +8394,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
         }
         engine.refresh("test");
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertThat(searcher.getIndexReader().numDocs(), equalTo(3));
         }
     }

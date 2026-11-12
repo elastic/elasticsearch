@@ -35,6 +35,7 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
@@ -388,6 +389,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         final Map<String, String> covered = new LinkedHashMap<>();
         final Map<String, Object> rejected = new LinkedHashMap<>();
         final List<FactorySettings> variants = new ArrayList<>();
+        final List<IndexVersion> versionBoundaries = new ArrayList<>();
         String probeText;
 
         private FactorySettings(boolean neverShares, Map<String, Object> base) {
@@ -425,6 +427,19 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         /** Construction MUST throw when this setting is set; probed by building the base plus {@code name=value}. */
         public FactorySettings rejects(String name, Object value) {
             rejected.put(name, Objects.requireNonNull(value));
+            return this;
+        }
+
+        /**
+         * The factory's behavior is gated on the index version created, so indices on either side of
+         * {@code boundary} MUST NOT share an instance, while indices within one gate range MUST.
+         * Probed by building the base at each boundary and at the version just before it: the builds
+         * bracketing a boundary must differ, and builds within a range (including at/after the newest
+         * boundary, up to current) must share. A boundary is skipped when no read-compatible version
+         * predates it.
+         */
+        public FactorySettings gatedAt(IndexVersion boundary) {
+            versionBoundaries.add(boundary);
             return this;
         }
 
@@ -627,6 +642,71 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
                             }
                         }
                     }
+                    // Ascending so each consecutive pair of boundaries brackets one gate range.
+                    List<IndexVersion> boundaries = probe.versionBoundaries.stream()
+                        // Once a boundary ages out of the known versions every readable index is at or after
+                        // the gate, so there is no pre-gate build to compare (and getPreviousVersion would throw).
+                        .filter(b -> b.after(IndexVersionUtils.getLowestReadCompatibleVersion()))
+                        .distinct()
+                        .sorted()
+                        .toList();
+                    Analyzer previousGateBuild = null;
+                    IndexVersion previousBoundary = null;
+                    for (IndexVersion boundary : boundaries) {
+                        IndexVersion before = IndexVersionUtils.getPreviousVersion(boundary);
+                        // Compare the builds on either side of THIS boundary rather than against the
+                        // current-version reference: a later gate in the key would otherwise mask a missing
+                        // earlier one, and the probe would not pin the flip to the declared version.
+                        Analyzer atBoundary = build(registry, chainSettings(kind, type, probe.base), boundary, tracked).get("a").analyzer();
+                        Analyzer beforeBoundary = build(registry, chainSettings(kind, type, probe.base), before, tracked).get("a")
+                            .analyzer();
+                        assertNotSame(
+                            kind
+                                + " ["
+                                + type
+                                + "] base "
+                                + probe.base
+                                + " is gated at index version "
+                                + boundary
+                                + " and must not share across it; the gate is not folded into sharingKey()",
+                            atBoundary,
+                            beforeBoundary
+                        );
+                        if (previousGateBuild != null) {
+                            // Within a gate range the key must be constant: a key that also distinguishes
+                            // versions between gates fragments sharing beyond the declared boundaries.
+                            assertSame(
+                                kind
+                                    + " ["
+                                    + type
+                                    + "] base "
+                                    + probe.base
+                                    + " must share across versions "
+                                    + previousBoundary
+                                    + " and "
+                                    + before
+                                    + ", which lie in the same gate range; sharingKey() folds more than the declared gates",
+                                previousGateBuild,
+                                beforeBoundary
+                            );
+                        }
+                        previousGateBuild = atBoundary;
+                        previousBoundary = boundary;
+                    }
+                    if (previousGateBuild != null) {
+                        assertSame(
+                            kind
+                                + " ["
+                                + type
+                                + "] base "
+                                + probe.base
+                                + " must share across versions "
+                                + previousBoundary
+                                + " and current, which lie at or after the newest gate; sharingKey() folds more than the declared gates",
+                            previousGateBuild,
+                            probeReference
+                        );
+                    }
                 }
             }
         } finally {
@@ -808,8 +888,13 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
     }
 
     private static IndexAnalyzers build(AnalysisRegistry registry, Settings analysis, List<IndexAnalyzers> tracked) throws IOException {
+        return build(registry, analysis, IndexVersion.current(), tracked);
+    }
+
+    private static IndexAnalyzers build(AnalysisRegistry registry, Settings analysis, IndexVersion created, List<IndexAnalyzers> tracked)
+        throws IOException {
         Settings s = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, created)
             // Room for the larger gram/shingle spans some probes use.
             .put("index.max_ngram_diff", 10)
             .put("index.max_shingle_diff", 10)

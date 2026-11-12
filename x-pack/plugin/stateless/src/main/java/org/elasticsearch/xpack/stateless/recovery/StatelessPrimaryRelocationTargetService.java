@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -71,7 +72,8 @@ public class StatelessPrimaryRelocationTargetService {
     }
 
     void handlePrewarmRelocation(TransportStatelessPrimaryRelocationPrewarmAction.Request request, ActionListener<Void> listener) {
-        ActionListener.completeWith(listener, () -> {
+        // reply to the source when the warming has completed (or failed)
+        ActionListener.run(listener, l -> {
             logger.trace("{} prewarming due to primary relocation", request.shardId());
 
             final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
@@ -84,13 +86,12 @@ public class StatelessPrimaryRelocationTargetService {
                 Set.of()
             );
             try {
-                indexShardCacheWarmer.preWarmIndexShardCacheForPeerRecovery(indexShard, sourceBlobsInfo, request.hasRecentIdLookup());
+                indexShardCacheWarmer.preWarmIndexShardCacheForPeerRecovery(indexShard, sourceBlobsInfo, request.hasRecentIdLookup(), l);
             } catch (IndexShardNotRecoveringException e) {
                 // This could happen if the prewarm request is delayed. The caller decides whether to ignore this failure.
                 logger.trace(format("%s not prewarming as shard is not recovering", request.shardId()), e);
                 throw e;
             }
-            return null;
         });
     }
 
@@ -139,7 +140,16 @@ public class StatelessPrimaryRelocationTargetService {
                 final var recoveryState = indexShard.recoveryState();
                 recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
                 recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
-                indexShard.openEngineAndSkipTranslogRecovery();
+                final var hollowRecoveryState = recoveryHintsFromSource == null ? null : recoveryHintsFromSource.hollowRecoveryState();
+                indexShard.openEngineAndSkipTranslogRecovery(
+                    hollowRecoveryState == null
+                        ? null
+                        : new IndexShard.LastCommitInfo(
+                            hollowRecoveryState.metadata().generation(),
+                            hollowRecoveryState.metadata().userData(),
+                            hollowRecoveryState.metadata().luceneVersion()
+                        )
+                );
 
                 // Synthetic id's do not use inverted indices and prewarming them is not necessary
                 final int maxPrewarmedSegments = idLookupPrewarmMaxSegments;

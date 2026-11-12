@@ -153,9 +153,9 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         synsApiService.putSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber), false, randomBoolean(), putFuture);
         assertEquals(SynonymsManagementAPIService.UpdateSynonymsResultStatus.CREATED, safeGet(putFuture).synonymsOperationResult());
 
-        PlainActionFuture<PagedResult<SynonymRule>> getFuture = new PlainActionFuture<>();
+        PlainActionFuture<SynonymsManagementAPIService.SynonymSetRules> getFuture = new PlainActionFuture<>();
         synsApiService.getSynonymSetRules(Set.of(synonymSetId), false, getFuture);
-        PagedResult<SynonymRule> result = safeGet(getFuture);
+        PagedResult<SynonymRule> result = safeGet(getFuture).rules();
         assertEquals(rulesNumber, result.totalResults());
         assertEquals(rulesNumber, result.pageResults().length);
     }
@@ -190,9 +190,9 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
                     "*synonym filter for sets*" + synonymSetId + "*exceeds the maximum allowed*"
                 )
             );
-            PlainActionFuture<PagedResult<SynonymRule>> getFuture = new PlainActionFuture<>();
+            PlainActionFuture<SynonymsManagementAPIService.SynonymSetRules> getFuture = new PlainActionFuture<>();
             synsApiService.getSynonymSetRules(Set.of(synonymSetId), false, getFuture);
-            PagedResult<SynonymRule> result = safeGet(getFuture);
+            PagedResult<SynonymRule> result = safeGet(getFuture).rules();
             assertEquals(rulesNumber, result.totalResults());   // true total from index
             assertEquals(maxRules, result.pageResults().length); // capped at limit
             mockLog.assertAllExpectationsMatched();
@@ -466,9 +466,9 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
                     "*synonym filter for sets*exceeds the maximum allowed*"
                 )
             );
-            PlainActionFuture<PagedResult<SynonymRule>> getFuture = new PlainActionFuture<>();
+            PlainActionFuture<SynonymsManagementAPIService.SynonymSetRules> getFuture = new PlainActionFuture<>();
             service.getSynonymSetRules(Set.of(setA, setB), false, getFuture);
-            PagedResult<SynonymRule> result = safeGet(getFuture);
+            PagedResult<SynonymRule> result = safeGet(getFuture).rules();
             assertEquals(rulesPerSet * 2, result.totalResults());
             assertEquals(maxRules, result.pageResults().length);
             mockLog.assertAllExpectationsMatched();
@@ -503,10 +503,11 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
                     "*" + existsSetId + "*"
                 )
             );
-            PlainActionFuture<PagedResult<SynonymRule>> getFuture = new PlainActionFuture<>();
+            PlainActionFuture<SynonymsManagementAPIService.SynonymSetRules> getFuture = new PlainActionFuture<>();
             synonymsManagementAPIService.getSynonymSetRules(Set.of(existsSetId, missingSetId), true, getFuture);
-            PagedResult<SynonymRule> result = safeGet(getFuture);
-            assertEquals(0, result.pageResults().length);
+            SynonymsManagementAPIService.SynonymSetRules result = safeGet(getFuture);
+            assertEquals(0, result.rules().pageResults().length);
+            assertEquals(Set.of(missingSetId), result.missingSetIds());
             mockLog.assertAllExpectationsMatched();
         }
     }
@@ -519,7 +520,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         String setA = randomIdentifier();
         String setB = randomIdentifier();
 
-        PlainActionFuture<PagedResult<SynonymRule>> future = new PlainActionFuture<>();
+        PlainActionFuture<SynonymsManagementAPIService.SynonymSetRules> future = new PlainActionFuture<>();
         synonymsManagementAPIService.getSynonymSetRules(Set.of(setA, setB), true, future);
 
         Exception ex = expectThrows(ResourceNotFoundException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));

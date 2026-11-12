@@ -1,0 +1,4 @@
+ExchangeSinkExec[[_doc{f}#0, _score{m}#1],false]
+\_ProjectExec[[_doc{f}#0, _score{m}#1]]
+  \_TopNExec[[Order[_score{m}#1,DESC,FIRST]],10[INTEGER],28]
+    \_ExchangeSourceExec[[_doc{f}#0, _score{m}#1],false]

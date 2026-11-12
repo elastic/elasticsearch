@@ -44,7 +44,7 @@ public class PointInTimeBuilderTests extends AbstractXContentSerializingTestCase
         TimeValue keepAlive = instance.getKeepAlive();
         switch(between(0 , 1)) {
             case 0 -> encodedId = randomValueOtherThan(encodedId, () -> new BytesArray(randomAlphaOfLength(20)));
-            case 1 -> keepAlive = randomValueOtherThan(keepAlive, () -> randomBoolean() ? null : randomPositiveTimeValue());
+            case 1 -> keepAlive = randomValueOtherThan(keepAlive, () -> randomBoolean() ? null : randomTimeValue());
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new PointInTimeBuilder(encodedId).setKeepAlive(keepAlive);

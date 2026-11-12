@@ -35,7 +35,7 @@ class ShardCountStatsTest extends AbstractWireSerializingTestCase<ShardCountStat
 
     @Override
     protected ShardCountStats createTestInstance() {
-        return new ShardCountStats(randomIntBetween(0, Integer.MAX_VALUE));
+        return new ShardCountStats(randomLongBetween(0, Long.MAX_VALUE));
     }
 
     @Override

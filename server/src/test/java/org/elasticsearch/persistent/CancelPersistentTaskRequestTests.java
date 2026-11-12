@@ -13,13 +13,12 @@ import org.elasticsearch.persistent.RemovePersistentTaskAction.Request;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
 
 public class CancelPersistentTaskRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomTimeValue(), randomAsciiOfLength(10));
+        return new Request(randomTimeValue(), randomAsciiLettersOfLength(10));
     }
 
     @Override

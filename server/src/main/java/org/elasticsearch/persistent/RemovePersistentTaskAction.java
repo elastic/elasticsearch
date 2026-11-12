@@ -52,7 +52,7 @@ public class RemovePersistentTaskAction {
             this.taskId = taskId;
         }
 
-        public String getTaskId(){
+        String getTaskId(){
             return taskId;
         }
 

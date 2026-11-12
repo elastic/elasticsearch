@@ -527,6 +527,11 @@ public class TaskManagerTests extends ESTestCase {
                 }
 
                 @Override
+                public SpanBuilder setNoParent() {
+                    return this;
+                }
+
+                @Override
                 public SpanBuilder setAttribute(String key, boolean value) {
                     span.attributes.put(key, value);
                     return this;

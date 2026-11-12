@@ -48,6 +48,7 @@ public class APMSpanBuilder implements SpanBuilder {
 
     @Nullable
     private Context parentContext;
+    private boolean noParent = false;
     @Nullable
     private AttributesBuilder attributesBuilder;
     private SpanKind spanKind = SpanKind.INTERNAL;
@@ -112,9 +113,16 @@ public class APMSpanBuilder implements SpanBuilder {
     public SpanBuilder setParent(Span parentSpan) {
         if (parentSpan instanceof APMSpan apmSpan) {
             this.parentContext = apmSpan.context();
-        } else if (parentSpan == Span.noop()) {
-            this.parentContext = Context.root();
+            // the last call wins, as it does in the OTel API
+            this.noParent = false;
         }
+        return this;
+    }
+
+    @Override
+    public SpanBuilder setNoParent() {
+        this.parentContext = Context.root();
+        this.noParent = true;
         return this;
     }
 
@@ -179,9 +187,16 @@ public class APMSpanBuilder implements SpanBuilder {
         final io.opentelemetry.api.trace.SpanBuilder otelSpanBuilder = services.tracer().spanBuilder(name);
 
         // A span can have a parent span, which is important for seeing a complete trace in the APM UI.
-        // Try to use the local parent first, otherwise look for a remote parent in the request headers; otherwise use Context.root()
-        final Context parentContext = localParentSpan != null ? localParentContext : getRemoteParentContext(services);
-        otelSpanBuilder.setParent(parentContext);
+        // Try to use the local parent first, otherwise look for a remote parent in the request headers; otherwise use Context.root().
+        // A span that was explicitly started without a parent is the root of a new trace: nothing is inherited, not even a remote parent.
+        final Context newSpanParent;
+        if (noParent) {
+            newSpanParent = Context.root();
+            otelSpanBuilder.setNoParent();
+        } else {
+            newSpanParent = localParentSpan != null ? localParentContext : getRemoteParentContext(services);
+            otelSpanBuilder.setParent(newSpanParent);
+        }
 
         setAttributes(otelSpanBuilder);
 
@@ -193,7 +208,7 @@ public class APMSpanBuilder implements SpanBuilder {
         }
 
         final io.opentelemetry.api.trace.Span otelSpan = otelSpanBuilder.startSpan();
-        final Context contextForNewSpan = parentContext.with(otelSpan)
+        final Context contextForNewSpan = newSpanParent.with(otelSpan)
             .with(SPAN_LOCAL_DEPTH_KEY, localDepth)
             .with(SPAN_LOCAL_COUNT_KEY, localSpanCount);
 

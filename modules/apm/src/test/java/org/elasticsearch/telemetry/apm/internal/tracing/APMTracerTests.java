@@ -308,23 +308,117 @@ public class APMTracerTests extends ESTestCase {
         assertThat(finishedSpan("child").getParentSpanId(), equalTo(finishedSpan("root").getSpanId()));
     }
 
-    public void testNoopSpanAsTheParentStartsALocalRoot() {
+    public void testNoParentStartsANewTraceInsteadOfInheritingTheCurrentSpan() {
         final APMTracer tracer = tracer(enabledSettings(), 0);
         final Span root = tracer.spanBuilder("root").startSpan();
 
         try (var ignored = root.storeInThreadContext()) {
-            // no remote parent either, as the header describes the current span
-            threadContext.removeHeaders(Task.TRACE_PARENT_HTTP_HEADER, Task.TRACE_STATE);
-
-            // a root, so it is at depth 0 and is not dropped by the limit
-            final Span span = tracer.spanBuilder("local-root").setParent(Span.noop()).startSpan();
+            // a root, so it is at depth 0 and is not dropped by the limit, which would drop a child of the current span
+            final Span span = tracer.spanBuilder("new-root").setNoParent().startSpan();
             assertThat(isRecorded(span), is(true));
             span.end();
         }
         root.end();
 
-        assertThat(finishedSpan("local-root").getParentSpanContext().isValid(), is(false));
-        assertThat(finishedSpan("local-root").getTraceId(), not(equalTo(finishedSpan("root").getTraceId())));
+        assertThat(finishedSpan("new-root").getParentSpanContext().isValid(), is(false));
+        assertThat(finishedSpan("new-root").getTraceId(), not(equalTo(finishedSpan("root").getTraceId())));
+    }
+
+    public void testNoParentIgnoresTheRemoteParentInTheRequestHeaders() {
+        final APMTracer tracer = tracer(enabledSettings());
+        threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, TRACE_PARENT);
+
+        tracer.spanBuilder("new-root").setNoParent().startSpan().end();
+
+        final SpanData data = finishedSpan("new-root");
+        assertThat(data.getParentSpanContext().isValid(), is(false));
+        assertThat(data.getTraceId(), not(equalTo(TRACE_ID)));
+    }
+
+    public void testNoParentIsNotDroppedWithTheTraceOfTheCurrentSpan() {
+        final APMTracer tracer = tracer(enabledSettings(), 5, false, Sampler.parentBased(Sampler.alwaysOn()));
+        threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, UNSAMPLED_TRACE_PARENT);
+        final Span entry = tracer.spanBuilder("entry").startSpan();
+        assertThat(isRecorded(entry), is(false));
+
+        try (var ignored = entry.storeInThreadContext()) {
+            // a child of the current span is dropped with it, but a new trace is sampled on its own
+            assertThat(isRecorded(tracer.spanBuilder("child").startSpan()), is(false));
+
+            final Span newRoot = tracer.spanBuilder("new-root").setNoParent().startSpan();
+            assertThat(isRecorded(newRoot), is(true));
+            newRoot.end();
+        }
+
+        assertThat(finishedSpan("new-root").getTraceId(), not(equalTo(TRACE_ID)));
+    }
+
+    public void testChildOfASpanStartedWithNoParentBelongsToTheNewTrace() {
+        final APMTracer tracer = tracer(enabledSettings(), 1);
+        final Span root = tracer.spanBuilder("root").startSpan();
+
+        try (var ignored = root.storeInThreadContext()) {
+            final Span newRoot = tracer.spanBuilder("new-root").setNoParent().startSpan();
+            try (var ignored2 = newRoot.storeInThreadContext()) {
+                startAndEnd(tracer, "child");
+            }
+            newRoot.end();
+        }
+        root.end();
+
+        assertThat(finishedSpan("child").getTraceId(), equalTo(finishedSpan("new-root").getTraceId()));
+        assertThat(finishedSpan("child").getParentSpanId(), equalTo(finishedSpan("new-root").getSpanId()));
+        assertThat(finishedSpan("child").getTraceId(), not(equalTo(finishedSpan("root").getTraceId())));
+    }
+
+    public void testNoParentSetAfterTheParentWins() {
+        final APMTracer tracer = tracer(enabledSettings());
+        final Span given = tracer.spanBuilder("given").startSpan();
+        tracer.spanBuilder("name1").setParent(given).setNoParent().startSpan().end();
+        given.end();
+
+        assertThat(finishedSpan("name1").getParentSpanContext().isValid(), is(false));
+        assertThat(finishedSpan("name1").getTraceId(), not(equalTo(finishedSpan("given").getTraceId())));
+    }
+
+    public void testParentSetAfterNoParentWins() {
+        final APMTracer tracer = tracer(enabledSettings(), 1);
+        final Span given = tracer.spanBuilder("given").startSpan();
+        tracer.spanBuilder("name1").setNoParent().setParent(given).startSpan().end();
+        given.end();
+
+        assertThat(finishedSpan("name1").getParentSpanId(), equalTo(finishedSpan("given").getSpanId()));
+        assertThat(finishedSpan("name1").getTraceId(), equalTo(finishedSpan("given").getTraceId()));
+    }
+
+    /** A noop span is not a context, so as a parent it changes nothing: the parent is inherited, as if none had been given. */
+    public void testNoopSpanAsTheParentIsIgnored() {
+        final APMTracer tracer = tracer(enabledSettings(), 1);
+        final Span root = tracer.spanBuilder("root").startSpan();
+
+        try (var ignored = root.storeInThreadContext()) {
+            tracer.spanBuilder("child").setParent(Span.noop()).startSpan().end();
+        }
+        root.end();
+
+        assertThat(finishedSpan("child").getParentSpanId(), equalTo(finishedSpan("root").getSpanId()));
+    }
+
+    public void testNoopSpanAsTheParentStillFollowsTheRemoteParent() {
+        final APMTracer tracer = tracer(enabledSettings());
+        threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, TRACE_PARENT);
+
+        tracer.spanBuilder("name1").setParent(Span.noop()).startSpan().end();
+
+        assertThat(finishedSpan("name1").getTraceId(), equalTo(TRACE_ID));
+        assertThat(finishedSpan("name1").getParentSpanId(), equalTo(SPAN_ID));
+    }
+
+    public void testNoParentOnADisabledTracerDoesNotRecord() {
+        final APMTracer tracer = tracer(enabledSettings());
+        tracer.setEnabled(false);
+
+        assertThat(isRecorded(tracer.spanBuilder("name1").setNoParent().startSpan()), is(false));
     }
 
     /**

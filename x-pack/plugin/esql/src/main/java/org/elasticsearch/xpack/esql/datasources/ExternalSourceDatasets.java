@@ -30,8 +30,8 @@ import java.util.Set;
  * each decides something on its own. A node carrying the <b>definition itself</b> is still counted, so that a plan
  * holding only such nodes is not {@link #isEmpty()} — the refusals keyed on that, a cross-cluster request and a
  * request with neither shards nor external splits, would otherwise let one through. A node with neither a name nor a
- * definition is only planned by the snapshot-only inline {@code EXTERNAL} command, and its presence is reported so
- * the caller can apply the release/snapshot rule {@link DatasetConfigResolver#rebind} applies.
+ * definition is planned on snapshot builds alone, and its presence is reported so the caller can apply the
+ * release/snapshot rule {@link DatasetConfigResolver#rebind} applies.
  */
 public final class ExternalSourceDatasets {
 

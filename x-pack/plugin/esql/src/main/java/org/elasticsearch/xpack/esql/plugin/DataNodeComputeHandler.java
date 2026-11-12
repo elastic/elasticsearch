@@ -1088,10 +1088,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         final CancellableTask cancellableTask = (CancellableTask) task;
         final TransportVersion channelVersion = channel.getVersion();
         if (request.isExternalOnly()) {
-            // Before the dataset fast path (an unnamed snapshot-only EXTERNAL source has no dataset and would skip the
-            // authorizer) and before the authorizer, whose local action would otherwise park on the not-recovered block
-            // for up to its master timeout. The block is this node's own, cleared by the first state it applies; it says
-            // nothing about shards, so it is the right signal for a node that holds none.
+            // Before the dataset fast path (a source naming no dataset would skip the authorizer) and before the
+            // authorizer, whose local action would otherwise park on the not-recovered block for up to its master
+            // timeout. The block is this node's own, cleared by the first state it applies; it says nothing about
+            // shards, so it is the right signal for a node that holds none.
             final ClusterState state = clusterService.state();
             if (state.clusterRecovered() == false) {
                 notReady(

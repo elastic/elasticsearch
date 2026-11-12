@@ -44,10 +44,12 @@ import java.util.function.Predicate;
  * Refusals, all {@code 400}. The binding failures share one message, so a caller probing names learns nothing from
  * the shape of the error:
  * <ul>
- *   <li>a null dataset name on a release build. Only the inline {@code EXTERNAL} command, which exists on snapshot
- *       builds alone, plans a source with no dataset behind it; on a release build such an exec can only have come
- *       from a crafted plan or from a coordinator too old to serialize the name, and the release branch must never fall
- *       back to the plan config, since a client can negotiate an older transport version on purpose.</li>
+ *   <li>no {@link DatasetReference} at all on a release build. A source with no dataset behind it is planned on
+ *       snapshot builds alone; on a release build such an exec can only have come from a crafted plan or from a
+ *       coordinator too old to serialize the reference, and the release branch must never fall back to the plan
+ *       config, since a client can negotiate an older transport version on purpose.</li>
+ *   <li>a {@link DatasetReference.Inline} on a release build. Its syntax is snapshot-only but the wire path is not,
+ *       so a release node can be sent one and must refuse to bind it.</li>
  *   <li>a dataset that is not registered here, whose data source is not, or whose resource this node cannot parse.</li>
  * </ul>
  * A split outside the dataset's resource is refused naming the split: splits are plan-carried too, and with the
@@ -68,9 +70,9 @@ public final class DatasetConfigResolver {
     /**
      * @param project       this node's view of the project the request runs in; the same instance the local planner
      *                      is handed, so both see one state
-     * @param snapshotBuild whether a source with no dataset name is allowed through unchanged (inline {@code EXTERNAL});
-     *                      injected rather than read from {@link Build} so unit tests that plan bare execs keep passing
-     *                      when the suite runs against a release build
+     * @param snapshotBuild whether a source with no dataset reference is allowed through unchanged and a carried
+     *                      definition may be bound; injected rather than read from {@link Build} so unit tests that
+     *                      plan bare execs keep passing when the suite runs against a release build
      */
     public DatasetConfigResolver(ProjectMetadata project, boolean snapshotBuild) {
         this(project, snapshotBuild, new DatasetDefinitionValidator(Map.of()));

@@ -55,8 +55,8 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 
 /**
- * Rewrites {@code FROM <dataset>} into the same {@link UnresolvedExternalRelation} the
- * {@code EXTERNAL} command produces, so both paths converge at the existing resolver + analyzer.
+ * Rewrites {@code FROM <dataset>} into an {@link UnresolvedExternalRelation}, the one leaf every external read
+ * converges on at the resolver and the analyzer, whether the definition was registered or written in the query.
  * Runs once on the parsed plan before pre-analysis.
  *
  * <p>Pattern expansion (wildcards, exclusions, date math, hidden flag) is <b>not</b> done here. It happens in the
@@ -325,9 +325,8 @@ public final class DatasetRewriter {
      *
      * <p>Throws {@link VerificationException} for: non-{@code STANDARD} {@link IndexMode} on a dataset, or
      * branch-cap exceeded. Designed
-     * to run once on the parsed plan before pre-analysis (so the analyzer sees a uniform
-     * {@code UnresolvedExternalRelation} tree regardless of whether the user wrote {@code FROM <dataset>} or inline
-     * {@code EXTERNAL}).
+     * to run once on the parsed plan before pre-analysis, so the analyzer sees a uniform
+     * {@code UnresolvedExternalRelation} tree whichever way the read was written.
      *
      * @param resolutions per-relation resolution keyed by relation identity (see {@link DatasetResolver}). A relation
      *                    absent from the map (e.g. remote-prefixed, or no pattern could match a dataset name) is left

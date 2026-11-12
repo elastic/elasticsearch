@@ -85,9 +85,8 @@ public final class ExternalSourceAuthorizer {
      *                      filter's role resolution, a cluster-state block wait), so the caller's continuation is
      *                      moved off it as {@link DatasetResolver} does. The handler runs on this executor already, so
      *                      the hop is forced through rather than subject to the pool's queue limit.
-     * @param snapshotBuild whether an external node with no dataset name is let through unchanged (inline
-     *                      {@code EXTERNAL}); injected rather than read from {@code Build} for the same reason as in
-     *                      {@link DatasetConfigResolver}
+     * @param snapshotBuild whether an external node naming no dataset is let through unchanged; injected rather than
+     *                      read from {@code Build} for the same reason as in {@link DatasetConfigResolver}
      */
     public ExternalSourceAuthorizer(Client client, ThreadContext threadContext, Executor executor, boolean snapshotBuild) {
         this.client = client;

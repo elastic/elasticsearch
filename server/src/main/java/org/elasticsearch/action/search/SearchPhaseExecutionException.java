@@ -28,26 +28,15 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     private final ShardSearchFailure[] shardFailures;
     private final ElasticsearchException guessedCause; // log4j requires a stable cause!
 
-    @Deprecated // Use List<ShardSearchFailure> instead
-    public SearchPhaseExecutionException(String phaseName, String msg, ShardSearchFailure[] shardFailures) {
-        this(phaseName, msg, null, shardFailures);
-    }
-
     public SearchPhaseExecutionException(String phaseName, String msg, List<ShardSearchFailure> shardFailures) {
         this(phaseName, msg, null, shardFailures);
     }
 
     public SearchPhaseExecutionException(String phaseName, String msg, Throwable cause, List<ShardSearchFailure> shardFailures) {
-        this(phaseName, msg, cause, shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY));
-    }
-
-    @Deprecated // Use List<ShardSearchFailure> instead
-    @SuppressWarnings("this-escape")
-    public SearchPhaseExecutionException(String phaseName, String msg, Throwable cause, ShardSearchFailure[] shardFailures) {
         super(msg, deduplicateCause(cause, shardFailures));
         this.phaseName = phaseName;
-        this.shardFailures = shardFailures;
-        this.guessedCause = cause == null || super.getCause() == null ? guessFirstRootCause(shardFailures) : null;
+        this.shardFailures = shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
+        this.guessedCause = cause == null || super.getCause() == null ? guessFirstRootCause(this.shardFailures) : null;
     }
 
     @SuppressWarnings("this-escape")
@@ -65,7 +54,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         out.writeArray(shardFailures);
     }
 
-    private static Throwable deduplicateCause(Throwable cause, ShardSearchFailure[] shardFailures) {
+    private static Throwable deduplicateCause(Throwable cause, List<ShardSearchFailure> shardFailures) {
         if (shardFailures == null) {
             throw new IllegalArgumentException("shardSearchFailures must not be null");
         }

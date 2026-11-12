@@ -689,7 +689,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             throw new SearchPhaseExecutionException(
                 "query",
                 "Partial shards failure",
-                new ShardSearchFailure[] { new ShardSearchFailure(new RuntimeException("failed")) }
+                List.of(new ShardSearchFailure(new RuntimeException("failed")))
             );
         };
 

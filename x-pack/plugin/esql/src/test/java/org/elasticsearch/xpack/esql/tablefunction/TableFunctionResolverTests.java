@@ -611,16 +611,10 @@ public class TableFunctionResolverTests extends ESTestCase {
     }
 
     /**
-     * A query may name many calls, and they go out together, so the ceiling is checked before any of them is
-     * asked rather than by the branch-count check on the optimized plan, which would arrive after every one of
-     * them had been made.
-     */
-    /**
      * A relation installed under several parents is read once per parent, so it is given a supplier that copies
      * per read. Without it the first reader releases the page and the second crashes on it — reproduced end to
-     * end as {@code TableFunctionFacilityIT.testOneCallReadByEveryForkBranch}, though only on some seeds, since
-     * whether the branches share one page depends on the shape the query is planned into. This pins it whatever
-     * the seed.
+     * end as {@code TableFunctionFacilityIT.testOneCallReadByEveryForkBranch}. This pins it at the unit layer,
+     * where no seed decides it.
      */
     public void testARelationReadBySeveralParentsCopiesPerRead() {
         UnresolvedTableFunctionRelation shared = call("2");
@@ -648,6 +642,11 @@ public class TableFunctionResolverTests extends ESTestCase {
         assertThat(((LocalRelation) resolved).supplier(), instanceOf(ImmediateLocalSupplier.class));
     }
 
+    /**
+     * A query may name many calls, and they go out together, so the ceiling is checked before any of them is
+     * asked rather than by the branch-count check on the optimized plan, which would arrive after every one of
+     * them had been made.
+     */
     public void testAQueryWiderThanTheCeilingIsRefusedBeforeAnythingIsAsked() {
         Numbers function = new Numbers();
         List<LogicalPlan> calls = new ArrayList<>();

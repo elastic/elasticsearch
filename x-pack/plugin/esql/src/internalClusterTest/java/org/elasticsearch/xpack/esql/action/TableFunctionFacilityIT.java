@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -61,7 +60,7 @@ public class TableFunctionFacilityIT extends AbstractEsqlIntegTestCase {
     /** Registers the test function in place of this node's set, which on this branch is empty anyway. */
     public static final class EsqlWithTestTableFunction extends EsqlPluginWithEnterpriseOrTrialLicense {
         @Override
-        protected List<TableFunction> tableFunctions(Client client) {
+        protected List<TableFunction> tableFunctions() {
             return List.of(new Letters(), new Indexed());
         }
     }

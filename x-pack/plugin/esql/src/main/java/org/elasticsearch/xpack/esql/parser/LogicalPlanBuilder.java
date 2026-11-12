@@ -510,9 +510,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      * Reads one {@code NAME(...)} from a source list into a {@link TableFunctionInvocation}.
      * <p>
      * The name is not looked up here, and nor are the arguments checked against any function's signature: this
-     * builds the call and nothing else. {@code TableFunctionResolver} does all of it later, raising the
-     * unknown-name, shape and per-function errors against the {@link Source} carried below, so the user still
-     * reads about their own syntax at the position they wrote it.
+     * builds the call and nothing else, as {@code ExpressionBuilder} leaves a scalar function unresolved for the
+     * analyzer to bind. {@code TableFunctionResolver} does all of it later, raising the unknown-name, shape and
+     * per-function errors against the {@link Source} carried below, so the user still reads about their own
+     * syntax at the position they wrote it.
      */
     private TableFunctionInvocation tableFunctionInvocation(EsqlBaseParser.TableFunctionContext ctx) {
         Source source = source(ctx);
@@ -523,10 +524,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         for (EsqlBaseParser.TableFunctionArgumentContext argumentCtx : ctx.tableFunctionArgument()) {
             arguments.add(tableFunctionArgument(name, argumentCtx));
         }
-        // Not resolved against the registry here, as a scalar function is not: ExpressionBuilder leaves an
-        // UnresolvedFunction for the analyzer to bind. TableFunctionResolver resolves this one, and raises the
-        // unknown-name, shape and per-function errors against the Source carried below — so the user sees the same
-        // message at the same position, just not from the parser.
         return new TableFunctionInvocation(source, name, arguments);
     }
 

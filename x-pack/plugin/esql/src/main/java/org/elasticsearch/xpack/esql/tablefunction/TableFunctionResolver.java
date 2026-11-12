@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedTableFunctionRelation;
-import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -197,20 +196,16 @@ public class TableFunctionResolver {
     /**
      * Makes a relation that is about to be installed in several places safe to read from each of them.
      * <p>
-     * A {@link LocalRelation} carrying a page is not safe that way: the page goes downstream and is released by
-     * whichever consumer reads it first, so the next one finds it gone. Reached here by asking a call once and
-     * installing its relation under every FORK branch, which crashes on the released block or hangs the request.
-     * The engine already meets this wherever one of these is read twice, and answers it the same way every time --
-     * by swapping in a supplier that copies per read. {@code InlineJoin.extractSubPlan} does it, and so does
-     * {@code Approximation}, both with these same lines.
+     * Reached here by asking a call once and installing its relation under every FORK branch, which without
+     * {@link LocalRelation#readableRepeatedly()} crashes on the released block or hangs the request.
      * <p>
      * Only where a leaf really does occur more than once, so a call written once and read once pays no copy. And
      * only for {@code LocalRelation}: a leaf a function left unresolved becomes its own relation per occurrence
      * further down, the way a written-out index pattern does, so there is nothing to make safe.
      */
     private static LeafPlan readableRepeatedly(LeafPlan relation, int occurrences) {
-        if (occurrences > 1 && relation instanceof LocalRelation local && local.supplier() instanceof CopyingLocalSupplier == false) {
-            return new LocalRelation(local.source(), local.output(), new CopyingLocalSupplier(local.supplier().get()));
+        if (occurrences > 1 && relation instanceof LocalRelation local) {
+            return local.readableRepeatedly();
         }
         return relation;
     }

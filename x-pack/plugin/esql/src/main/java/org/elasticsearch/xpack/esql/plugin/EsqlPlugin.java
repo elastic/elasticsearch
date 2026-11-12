@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
@@ -553,7 +552,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Already-constructed functions, so one that needs a collaborator is handed it here rather than the
         // registry acquiring one on every function's behalf.
         TableFunctionResolver tableFunctionResolver = new TableFunctionResolver(
-            new TableFunctionRegistry(tableFunctions(services.client())),
+            new TableFunctionRegistry(tableFunctions()),
             services.threadPool().executor(ThreadPool.Names.SEARCH)
         );
         EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
@@ -994,12 +993,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
      * protected hook on this plugin is {@link #loadMetricsCollectors} and {@code getLicenseState}, both overridden
      * by test subclasses.
      * <p>
-     * A function needing collaborators is constructed with them here; that is why the registry takes
-     * already-constructed functions rather than names, and why the client is a parameter here rather than
-     * something a function reaches for: a function that has to ask the cluster something is given the one
-     * handle it needs, and the facility itself never acquires one.
+     * A function needing collaborators is constructed with them here, which is why the registry takes
+     * already-constructed functions rather than names: a function that has to ask the cluster something is handed
+     * what it needs at registration, and the facility itself never acquires anything.
      */
-    protected List<TableFunction> tableFunctions(Client client) {
+    protected List<TableFunction> tableFunctions() {
         return List.of();
     }
 

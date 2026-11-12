@@ -284,25 +284,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         this.externalChangesBatcher = new SnapshotExternalChangesBatcher(
             clusterService,
             initializingClones::contains,
-            (entry, metadata) -> submitFinalizeSnapshotRepositoryDataWriteTask(
-                entry,
-                metadata,
-                // Unlike SnapshotDeletionStartBatcher$FinalizeTaskSubmitter we do not need the latest RepositoryData to process external
-                // changes, so we pass a null RepositoryData here which causes it to be loaded from the repository (only) if this submission
-                // starts immediately, which means that no other task is currently updating it.
-                null
-            ),
             this::runReadyShardClonesInCluster,
-            (entry, minVersion) -> submitDeleteSnapshotsRepositoryDataWriteTask(
-                entry.projectId(),
-                entry.repoName(),
-                entry,
-                // Unlike SnapshotDeletionStartBatcher$DeleteTaskSubmitter we do not need the latest RepositoryData to process external
-                // changes, so we pass a null RepositoryData here which causes it to be loaded from the repository (only) if this submission
-                // starts immediately, which means that no other task is currently updating it.
-                null,
-                minVersion
-            )
+            this::ensureRepositoryDataWriteTaskRunning
         );
 
         this.shardSnapshotUpdateCompletionHandler = this::handleShardSnapshotUpdateCompletion;
@@ -973,9 +956,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         projectId,
                         request.repository(),
                         this::notifyAbortedByDeletion,
-                        this::submitFinalizeSnapshotRepositoryDataWriteTask,
+                        this::ensureRepositoryDataWriteTaskRunning,
                         this::completeOrAddDeleteListener,
-                        this::submitDeleteSnapshotsRepositoryDataWriteTask,
                         this::protectedRestoreSources
                     )
                 );
@@ -998,24 +980,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             snapshotDeletionListeners.computeIfAbsent(deleteUUID, k -> new CopyOnWriteArrayList<>())
                 .add(ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext()));
         }
-    }
-
-    /// Submit a ready-to-run delete-snapshots task to the conceptual executor of [RepositoryData] write tasks for that repository. See
-    /// [#ensureRepositoryDataWriteTaskRunning] for more information.
-    private void submitDeleteSnapshotsRepositoryDataWriteTask(
-        ProjectId projectId,
-        String repositoryName,
-        SnapshotDeletionsInProgress.Entry deleteEntry,
-        @Nullable /* if the triggering task did not have access to the latest RepositoryData (e.g. it didn't just update it) */
-        RepositoryData repositoryData,
-        IndexVersion minNodeVersion
-    ) {
-        assert deleteEntry.state() == SnapshotDeletionsInProgress.State.STARTED : deleteEntry;
-        // Retained for the submitter API. The running task reads the minimum node version from the current cluster state.
-        Objects.requireNonNull(minNodeVersion);
-        // The delete is already STARTED in the cluster state, which is what makes it the next RepositoryData write for this repository.
-        // If another write is running, that write observes the cluster state before going idle.
-        ensureRepositoryDataWriteTaskRunning(projectId, repositoryName, repositoryData);
     }
 
     /** Deletes snapshot from repository
@@ -2345,7 +2309,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 snapshotMetrics.snapshotsStartedCounter().incrementBy(1, attributes);
                 createSnapshotTask.listener.onResponse(snapshot);
                 if (newEntry.state().completed()) {
-                    submitFinalizeSnapshotRepositoryDataWriteTask(newEntry, currentState.metadata(), createSnapshotTask.repositoryData);
+                    ensureRepositoryDataWriteTaskRunning(
+                        snapshot.getProjectId(),
+                        snapshot.getRepository(),
+                        createSnapshotTask.repositoryData
+                    );
                 }
             });
             return res;
@@ -2355,21 +2323,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     // ------------------------------------------------------------------------------------------------------------------------------------
     // Snapshot finalization
     // ------------------------------------------------------------------------------------------------------------------------------------
-
-    /// Submit a ready-to-run finalize-snapshot task to the conceptual executor of [RepositoryData] write tasks for that repository. See
-    /// [#ensureRepositoryDataWriteTaskRunning] for more information.
-    private void submitFinalizeSnapshotRepositoryDataWriteTask(
-        SnapshotsInProgress.Entry entry,
-        Metadata metadata,
-        @Nullable /* if the triggering task did not have access to the latest RepositoryData (e.g. it didn't just update it) */
-        RepositoryData repositoryData
-    ) {
-        final Snapshot snapshot = entry.snapshot();
-        // The snapshot entry is already completed in the cluster state. The metadata passed by the caller is not used: finalization reads
-        // the cluster state when the task actually starts.
-        Objects.requireNonNull(metadata);
-        ensureRepositoryDataWriteTaskRunning(snapshot.getProjectId(), snapshot.getRepository(), repositoryData);
-    }
 
     private void finalizeSnapshotEntry(Snapshot snapshot, Metadata metadata, RepositoryData repositoryData) {
         final ProjectId projectId = snapshot.getProjectId();
@@ -2802,6 +2755,14 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     // ------------------------------------------------------------------------------------------------------------------------------------
     // RepositoryData write executor
     // ------------------------------------------------------------------------------------------------------------------------------------
+
+    /// Ensures that ready snapshot finalizations or deletions for a repository are eventually processed.
+    @FunctionalInterface
+    interface RepositoryDataWriteTaskRunner {
+        /// Start a repository write if one is not already running.
+        /// @param repositoryData latest repository generation if available, otherwise `null` to load it before starting the write
+        void ensureRepositoryDataWriteTaskRunning(ProjectId projectId, String repository, @Nullable RepositoryData repositoryData);
+    }
 
     /// Start a [RepositoryData] write for `repository` if one is not already running. Ready work is whatever the current [ClusterState]
     /// says is ready: the first completed snapshot entry, or otherwise a [SnapshotDeletionsInProgress.State#STARTED] deletion. Duplicate

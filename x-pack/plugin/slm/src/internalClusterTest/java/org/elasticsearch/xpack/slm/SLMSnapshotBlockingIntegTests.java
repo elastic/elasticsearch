@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.slm;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
@@ -18,7 +19,9 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -34,6 +37,7 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.slm.SnapshotInvocationRecord;
@@ -351,6 +355,44 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             new ExecuteSnapshotLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, policyId)
         ).get();
         testUnsuccessfulSnapshotRetention(randomBoolean());
+    }
+
+    /** Verifies that losing mastership while an SLM snapshot is running can notify its failure listener from a state applier. */
+    public void testSnapshotFailureOnMasterStepDown() throws Exception {
+        final String indexName = "test";
+        final String policyName = "test-policy";
+        indexRandomDocs(indexName, 20);
+        createRepository(REPO, "mock");
+        createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, REPO, indexName, true);
+
+        blockAllDataNodes(REPO);
+        try {
+            final String snapshotName = executePolicy(policyName);
+            waitForBlockOnAnyDataNode(REPO);
+            final String initialMaster = internalCluster().getMasterName();
+            final long initialTerm = internalCluster().getInstance(ClusterService.class, initialMaster).state().term();
+
+            // Keep the snapshot out of finalization so SnapshotsService fails its listener immediately on losing mastership.
+            // Step down without stopping the node so its state applier notifies SLM's pending completion listener.
+            MockLog.awaitLogger(
+                () -> internalCluster().getInstance(Coordinator.class, initialMaster).startInitialJoin(),
+                SnapshotLifecycleTask.class,
+                new MockLog.SeenEventExpectation(
+                    "SLM handles the snapshot failure after stepping down",
+                    SnapshotLifecycleTask.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to create snapshot for snapshot lifecycle policy [" + policyName + "]"
+                )
+            );
+
+            awaitClusterState(initialMaster, state -> state.term() > initialTerm && state.nodes().getMasterNode() != null);
+            ensureStableCluster(masterNodeNames.size() + dataNodeNames.size());
+            unblockAllDataNodes(REPO);
+            awaitNoMoreRunningOperations();
+            assertSnapshotSuccessful(snapshotName);
+        } finally {
+            unblockAllDataNodes(REPO);
+        }
     }
 
     // Test that SLM stats and lastSuccess/lastFailure are correctly updated with master shutdown

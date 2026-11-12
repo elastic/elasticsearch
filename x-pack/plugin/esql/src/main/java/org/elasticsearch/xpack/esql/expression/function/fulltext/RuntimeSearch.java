@@ -22,6 +22,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -66,6 +67,16 @@ public final class RuntimeSearch {
     public static final String CONTENT_FIELD = "content_field";
 
     private static final Similarity BOOLEAN_SIMILARITY = new BooleanSimilarity();
+
+    /**
+     * Budget in bytes for the automata that {@link #prebuildFuzzyAutomata} keeps for one compiled query. The filter
+     * and the score evaluator of a {@code match} each compile their own query, so each has its own budget. No circuit
+     * breaker accounts for the automata, they live as long as the query runs, and concurrent queries add up, so the
+     * budget is small relative to the heap. It still fits 32 distinct 20-character terms at {@code fuzziness: AUTO}
+     * (two edits, about 360 KB of automata each) with room to spare, even though a clause is admitted on its
+     * {@link FuzzyQueries#estimateBytes} estimate (about 950 KB for such a term) rather than its actual size.
+     */
+    static final long PREBUILT_FUZZY_AUTOMATA_BUDGET_BYTES = ByteSizeValue.ofMb(16).getBytes();
 
     private RuntimeSearch() {}
 
@@ -201,26 +212,19 @@ public final class RuntimeSearch {
     }
 
     /**
-     * Caps the bytes of automata that {@link #prebuildFuzzyAutomata} keeps for one compiled query. Nothing charges
-     * them to a circuit breaker, they live as long as the query runs, and concurrent queries add up, so the cap stays
-     * small next to the heap. It still fits a query string of 32 distinct 20-character terms at {@code fuzziness: AUTO}
-     * (two edits, about 360 KB each) with room to spare, even though each clause must first fit its
-     * {@link FuzzyQueries#estimateBytes} estimate (about 950 KB for such a term).
-     */
-    static final long PREBUILT_FUZZY_AUTOMATA_BUDGET_BYTES = ByteSizeValue.ofMb(16).getBytes();
-
-    /**
-     * Replaces each {@link FuzzyQuery} with edits in the compiled query by a {@link PrebuiltFuzzyQuery}, whose
-     * automata are built once rather than on every per-row rewrite against the {@link MemoryIndex}. Identical
-     * clauses, such as a repeated word, share one instance. Clauses that would exceed
-     * {@link #PREBUILT_FUZZY_AUTOMATA_BUDGET_BYTES} stay plain {@link FuzzyQuery}s, which rebuild their automata per
-     * row as they would without this. Walks the {@link BooleanQuery} and {@link BoostQuery} wrappers a compiled
-     * {@code match} query can contain and returns the same instance for any subtree it leaves unchanged.
+     * Replaces each {@link FuzzyQuery} with edits in a compiled query by a {@link PrebuiltFuzzyQuery}, so the
+     * automata are built once instead of on every per-row rewrite against the {@link MemoryIndex}. Equal clauses,
+     * such as a repeated word, share one instance. Clauses that don't fit in what is left of
+     * {@link #PREBUILT_FUZZY_AUTOMATA_BUDGET_BYTES} stay plain {@link FuzzyQuery}s and keep rebuilding their automata
+     * per row. So does a clause whose automaton is too complex to determinize, which fails when the query first runs.
+     * The walk covers the {@link BooleanQuery} and {@link BoostQuery} wrappers a compiled {@code match} query can
+     * contain and returns the same instance for any subtree it leaves unchanged.
      */
     static Query prebuildFuzzyAutomata(Query query) {
         return prebuildFuzzyAutomata(query, PREBUILT_FUZZY_AUTOMATA_BUDGET_BYTES);
     }
 
+    /** Like {@link #prebuildFuzzyAutomata(Query)} with an explicit budget, for tests. */
     static Query prebuildFuzzyAutomata(Query query, long budgetBytes) {
         return new FuzzyAutomataPrebuilder(budgetBytes).rewrite(query);
     }
@@ -255,11 +259,16 @@ public final class RuntimeSearch {
         }
 
         private FuzzyQuery prebuild(FuzzyQuery fuzzy) {
-            // One segment: the per-row MemoryIndex has exactly one
+            // the estimate scales with the segment count, and the per-row MemoryIndex has one segment
             if (FuzzyQueries.estimateBytes(fuzzy, 1) > remainingBytes) {
                 return fuzzy;
             }
-            PrebuiltFuzzyQuery query = new PrebuiltFuzzyQuery(fuzzy);
+            PrebuiltFuzzyQuery query;
+            try {
+                query = new PrebuiltFuzzyQuery(fuzzy);
+            } catch (TooComplexToDeterminizeException e) {
+                return fuzzy;
+            }
             remainingBytes -= query.ramBytesUsed();
             return query;
         }

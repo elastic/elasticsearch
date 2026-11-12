@@ -20,23 +20,30 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.LevenshteinAutomata;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
- * A {@link FuzzyQuery} whose Levenshtein automata are built once, in the constructor. Runtime {@code match} rewrites
- * its query against a fresh single-document {@link org.apache.lucene.index.memory.MemoryIndex} per row, and a plain
- * {@link FuzzyQuery} rebuilds its automata on every rewrite. Lucene doesn't keep them on the query on purpose, since
- * query caches hold queries as keys; that doesn't apply here, where the query lives only as long as the evaluator
- * factory. The automata are held for that lifetime. No circuit breaker counts them; instead
- * {@link RuntimeSearch#prebuildFuzzyAutomata} caps their {@link #ramBytesUsed} per compiled query and leaves clauses
- * past that budget as plain {@link FuzzyQuery}s. A term too complex for the automaton fails when the evaluator is
- * built rather than on the first row.
+ * A {@link FuzzyQuery} that builds its Levenshtein automata once, in the constructor.
  * <p>
- * Terms get the same {@link BoostAttribute} as in {@code FuzzyTermsEnum}, and the inherited rewrite method selects
- * and scores them, so the query matches and scores exactly like {@link FuzzyQuery}. Unlike {@code FuzzyTermsEnum},
- * the enum doesn't lower the edit distance once the top-terms queue is full; that is only an early exit, since
- * {@link TopTermsRewrite} drops non-competitive terms anyway.
+ * Runtime {@code match} rewrites its query per row against a fresh single-document
+ * {@link org.apache.lucene.index.memory.MemoryIndex}, and a plain {@link FuzzyQuery} rebuilds its automata on every
+ * rewrite. Lucene avoids keeping automata on the query because query caches use queries as keys. That doesn't apply
+ * here: the query lives only as long as the evaluator factory. No circuit breaker accounts for the automata. Instead,
+ * {@link RuntimeSearch#prebuildFuzzyAutomata} keeps the {@link #ramBytesUsed} of all prebuilt clauses in a compiled
+ * query under a fixed budget and leaves the rest as plain {@link FuzzyQuery}s.
+ * <p>
+ * One instance serves the evaluators of every driver running the query. That is safe because the terms enum only reads
+ * the automata. {@link CompiledAutomaton#floor} writes to scratch state inside the automaton and must not be called
+ * on them.
+ * <p>
+ * Hits and scores are identical to {@link FuzzyQuery}: the terms enum sets the same {@link BoostAttribute} as
+ * {@code FuzzyTermsEnum}, and the inherited rewrite method selects and scores the terms. The enum doesn't lower the
+ * edit distance once the top-terms queue is full, which {@code FuzzyTermsEnum} does only as an early exit;
+ * {@link TopTermsRewrite} drops non-competitive terms either way.
  */
 final class PrebuiltFuzzyQuery extends FuzzyQuery implements Accountable {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(PrebuiltFuzzyQuery.class);
@@ -45,31 +52,49 @@ final class PrebuiltFuzzyQuery extends FuzzyQuery implements Accountable {
     private final CompiledAutomaton[] automata;
     private final int termLength;
 
+    /**
+     * @throws TooComplexToDeterminizeException if an automaton for the term is too complex to determinize
+     */
     PrebuiltFuzzyQuery(FuzzyQuery query) {
         super(
             query.getTerm(),
             query.getMaxEdits(),
             query.getPrefixLength(),
-            // FuzzyQuery has no getter for maxExpansions; here it only feeds equals/hashCode and validation
+            // FuzzyQuery has no maxExpansions getter; it only feeds equals/hashCode and validation, so take it from the rewrite method
             query.getRewriteMethod() instanceof TopTermsRewrite<?> topTerms ? topTerms.getSize() : FuzzyQuery.defaultMaxExpansions,
             query.getTranspositions(),
             query.getRewriteMethod()
         );
-        assert query.getMaxEdits() > 0 : "maxEdits must be positive but was " + query.getMaxEdits();
-        String text = query.getTerm().text();
-        this.termLength = text.codePointCount(0, text.length());
+        if (query.getMaxEdits() == 0) {
+            throw new IllegalArgumentException("an exact FuzzyQuery has no automata to prebuild");
+        }
+        // The automata FuzzyQuery builds: the prefix matches exactly and the edits apply to the rest of the term
+        int[] codePoints = query.getTerm().text().codePoints().toArray();
+        this.termLength = codePoints.length;
+        int prefixLength = Math.min(query.getPrefixLength(), termLength);
+        String prefix = UnicodeUtil.newString(codePoints, 0, prefixLength);
+        int[] suffix = Arrays.copyOfRange(codePoints, prefixLength, termLength);
+        LevenshteinAutomata levenshtein = new LevenshteinAutomata(suffix, Character.MAX_CODE_POINT, query.getTranspositions());
         this.automata = new CompiledAutomaton[query.getMaxEdits() + 1];
         for (int k = 1; k <= query.getMaxEdits(); k++) {
-            automata[k] = FuzzyQuery.getFuzzyAutomaton(text, k, query.getPrefixLength(), query.getTranspositions());
+            automata[k] = new CompiledAutomaton(levenshtein.toAutomaton(k, prefix), true, false);
         }
     }
 
+    /**
+     * Ignores {@code atts}. {@code FuzzyTermsEnum} uses it to share automata between segments, which is unnecessary
+     * here, and the rewrite methods read the {@link BoostAttribute} from the returned enum's own
+     * {@link TermsEnum#attributes()}.
+     */
     @Override
     protected TermsEnum getTermsEnum(Terms terms, AttributeSource atts) throws IOException {
         return new PrebuiltFuzzyTermsEnum(terms, automata, getTerm().bytes(), termLength);
     }
 
-    /** The prebuilt max-edit automaton, the one {@link FuzzyQuery#getAutomata} would build again on every call. */
+    /**
+     * Returns the prebuilt automaton for the maximum edit distance. {@link FuzzyQuery#getAutomata} builds a new one on
+     * every call.
+     */
     @Override
     public CompiledAutomaton getAutomata() {
         return automata[automata.length - 1];
@@ -92,6 +117,10 @@ final class PrebuiltFuzzyQuery extends FuzzyQuery implements Accountable {
         return bytes;
     }
 
+    /**
+     * Iterates the terms the max-edit automaton accepts and boosts each one by its exact edit distance, the way
+     * {@code FuzzyTermsEnum} does.
+     */
     private static final class PrebuiltFuzzyTermsEnum extends FilteredTermsEnum {
         private final CompiledAutomaton[] automata;
         private final BytesRef term;
@@ -108,6 +137,7 @@ final class PrebuiltFuzzyQuery extends FuzzyQuery implements Accountable {
 
         @Override
         protected AcceptStatus accept(BytesRef candidate) {
+            // the candidate's exact edit distance: step down while a tighter automaton still matches
             int ed = automata.length - 1;
             while (ed > 0 && matches(candidate, ed - 1)) {
                 ed--;

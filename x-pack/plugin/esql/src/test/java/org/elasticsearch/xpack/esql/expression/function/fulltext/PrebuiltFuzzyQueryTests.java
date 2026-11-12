@@ -133,7 +133,7 @@ public class PrebuiltFuzzyQueryTests extends ESTestCase {
             .get(0)
             .reader()
             .terms(FIELD)
-            .intersect(FuzzyQuery.getFuzzyAutomaton(term.text(), 1, 0, true), null);
+            .intersect(new FuzzyQuery(term, 1, 0, 50, true).getAutomata(), null);
         int matchingTerms = 0;
         while (matching.next() != null) {
             matchingTerms++;
@@ -300,9 +300,10 @@ public class PrebuiltFuzzyQueryTests extends ESTestCase {
     }
 
     /**
-     * A compiled {@code match} gets one fuzzy clause per occurrence of a word; the occurrences share one prebuilt query.
+     * A compiled {@code match} gets one fuzzy clause per occurrence of a word; the occurrences share one prebuilt query,
+     * and the boolean query still folds the equal clauses into one boosted clause, so hits and scores don't change.
      */
-    public void testRepeatedTermsSharePrebuiltQuery() {
+    public void testRepeatedTermsSharePrebuiltQuery() throws IOException {
         Query compiled = compile("bron foxx bron lazy bron foxx", Lucene.STANDARD_ANALYZER, "fuzziness", "1");
         Query rewritten = RuntimeSearch.prebuildFuzzyAutomata(compiled);
         List<FuzzyQuery> leaves = fuzzyLeaves(rewritten);
@@ -316,6 +317,13 @@ public class PrebuiltFuzzyQueryTests extends ESTestCase {
         );
         for (List<FuzzyQuery> occurrences : byTerm.values()) {
             assertThat(occurrences, everyItem(sameInstance(occurrences.get(0))));
+        }
+
+        MemoryIndex memoryIndex = new MemoryIndex();
+        for (String row : List.of("bron", "bron bron brun", "brown fox lazy", "foxx bron lazy", "the quick dog")) {
+            memoryIndex.reset();
+            memoryIndex.addField(RuntimeSearch.CONTENT_FIELD, row, Lucene.STANDARD_ANALYZER);
+            assertSameHitsAndScores(memoryIndex, compiled, rewritten);
         }
     }
 
@@ -346,6 +354,28 @@ public class PrebuiltFuzzyQueryTests extends ESTestCase {
             memoryIndex.addField(RuntimeSearch.CONTENT_FIELD, String.join(" ", row), Lucene.STANDARD_ANALYZER);
             assertSameHitsAndScores(memoryIndex, compiled, rewritten);
         }
+    }
+
+    /**
+     * The evaluators of every driver share one {@link PrebuiltFuzzyQuery}, so concurrent searches, each on its own
+     * {@link MemoryIndex}, must match and score like the plain {@link FuzzyQuery}.
+     */
+    public void testConcurrentSearchesShareQuery() {
+        FuzzyQuery plain = new FuzzyQuery(new Term(FIELD, "abcd"), 2, between(0, 2), between(1, 10), randomBoolean());
+        PrebuiltFuzzyQuery prebuilt = new PrebuiltFuzzyQuery(plain);
+        List<String> rows = randomList(50, 50, () -> String.join(" ", randomList(1, 30, () -> typo(ASCII_ALPHABET, "abcd"))));
+        startInParallel(4, thread -> {
+            MemoryIndex memoryIndex = new MemoryIndex();
+            for (String row : rows) {
+                memoryIndex.reset();
+                memoryIndex.addField(FIELD, row, Lucene.STANDARD_ANALYZER);
+                try {
+                    assertSameHitsAndScores(memoryIndex, plain, prebuilt);
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            }
+        });
     }
 
     /**
@@ -397,7 +427,8 @@ public class PrebuiltFuzzyQueryTests extends ESTestCase {
         PrebuiltFuzzyQuery prebuilt = new PrebuiltFuzzyQuery(plain);
         long automata = 0;
         for (int k = 1; k <= plain.getMaxEdits(); k++) {
-            automata += FuzzyQuery.getFuzzyAutomaton(text, k, plain.getPrefixLength(), plain.getTranspositions()).ramBytesUsed();
+            automata += new FuzzyQuery(plain.getTerm(), k, plain.getPrefixLength(), 50, plain.getTranspositions()).getAutomata()
+                .ramBytesUsed();
         }
         assertThat(prebuilt.ramBytesUsed(), greaterThan(automata + prebuilt.getTerm().ramBytesUsed()));
         assertThat(prebuilt.ramBytesUsed(), lessThan(automata + prebuilt.getTerm().ramBytesUsed() + 256));
@@ -512,7 +543,7 @@ public class PrebuiltFuzzyQueryTests extends ESTestCase {
             try {
                 expected = search(memoryIndex, query, similarity);
             } catch (RuntimeException e) {
-                // e.g. a scoring boolean rewrite turns a candidate shorter than its edit distance into a negative boost
+                // both must fail alike, e.g. scoring_boolean rejects the negative boost of a candidate shorter than its edit distance
                 RuntimeException actual = expectThrows(e.getClass(), () -> search(memoryIndex, prebuilt, similarity));
                 assertEquals(e.getMessage(), actual.getMessage());
                 continue;

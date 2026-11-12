@@ -231,10 +231,27 @@ public class SnapshotDeletionStartBatcherTests extends ESTestCase {
                 assertEquals(repoName, snapshot.getRepository());
                 snapshotAbortNotifications.add(snapshot.getSnapshotId());
             },
-            (entry, ignoredMetadata, ignoredRepositoryData) -> {
-                assertEquals(ProjectId.DEFAULT, entry.projectId());
-                assertEquals(repoName, entry.repository());
-                snapshotEndNotifications.add(entry.snapshot().getSnapshotId());
+            (projectId, repositoryName, repositoryData) -> {
+                assertEquals(ProjectId.DEFAULT, projectId);
+                assertEquals(repoName, repositoryName);
+                assertNotNull(repositoryData);
+                // The callback identifies the repository; ready work is recorded in the published cluster state.
+                final var state = clusterService.state();
+                final var deletes = SnapshotDeletionsInProgress.get(state)
+                    .getEntries()
+                    .stream()
+                    .filter(entry -> entry.projectId().equals(projectId) && entry.repository().equals(repositoryName))
+                    .filter(entry -> entry.state() == SnapshotDeletionsInProgress.State.STARTED)
+                    .toList();
+                if (deletes.isEmpty()) {
+                    SnapshotsInProgress.get(state)
+                        .forRepo(projectId, repositoryName)
+                        .stream()
+                        .filter(entry -> entry.state().completed())
+                        .forEach(entry -> snapshotEndNotifications.add(entry.snapshot().getSnapshotId()));
+                } else {
+                    startedDeletions.addAll(deletes);
+                }
             },
             (deletionUuid, itemListener) -> {
                 if (deletionUuid == null) {
@@ -242,11 +259,6 @@ public class SnapshotDeletionStartBatcherTests extends ESTestCase {
                 } else {
                     completionHandlers.computeIfAbsent(deletionUuid, ignored -> new ArrayList<>()).add(itemListener);
                 }
-            },
-            (projectId, repositoryName, deleteEntry, ignoredRepositoryData, ignoredMinNodeVersion) -> {
-                assertEquals(ProjectId.DEFAULT, projectId);
-                assertEquals(repoName, repositoryName);
-                startedDeletions.add(deleteEntry);
             },
             // indirection so that a test can install its protection after the batcher is constructed
             (state, projectId, repositoryName) -> restoreSourceProtection.protectedSnapshots(state, projectId, repositoryName)

@@ -50,7 +50,11 @@ public class Delta extends TimeSeriesAggregateFunction
         AnyNullIsNull,
         UnitAware.PreservesUnit {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Delta", Delta::readFrom);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Delta.class).ternary(Delta::new).name("delta");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Delta.class)
+        .ternary(Delta::new)
+        // valuesSeen and same-timestamp endpoint ties must not depend on partial-merge order.
+        .capabilities("fix_partial_merge_order")
+        .name("delta");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .withinSeries(Delta::new)
         .description("Calculates the difference between the first and last value of each time series in a range vector.")

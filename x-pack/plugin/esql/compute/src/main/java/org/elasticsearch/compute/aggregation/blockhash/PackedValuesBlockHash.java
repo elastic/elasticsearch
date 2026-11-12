@@ -242,7 +242,7 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
          */
         void add() {
             for (position = 0; position < positionCount; position++) {
-                boolean singleEntry = startPosition(groups);
+                boolean singleEntry = startPosition(groups, bytes);
                 if (singleEntry) {
                     addSingleEntry();
                 } else {
@@ -253,16 +253,16 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         }
 
         private void addSingleEntry() {
-            fillBytesSv(groups);
+            seenNull |= fillBytesSv(groups, bytes);
             appendOrdSv(position, Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.bytesRefView()))));
         }
 
         private void addMultipleEntries() {
             int g = 0;
             do {
-                fillBytesMv(groups, g);
+                seenNull |= fillBytesMv(groups, g, bytes);
                 appendOrdInMv(position, Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.bytesRefView()))));
-                g = rewindKeys(groups);
+                g = rewindKeys(groups, bytes);
             } while (g >= 0);
             finishMv();
             for (Group group : groups) {
@@ -276,21 +276,46 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         }
     }
 
+    /**
+     * Encodes the probed keys into a scratch buffer of its own rather than {@link #bytes} and probes with
+     * {@link BytesRefHashTable#concurrentSafeFind}, so it doesn't modify the hash and a hash that is no longer
+     * added to can be probed from several threads at once. The scratch buffer and the results are made with the
+     * probed blocks' factory, so each caller charges its own breaker rather than the one the hash was built on.
+     */
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
-        return new LookupWork(page, targetBlockSize.getBytes(), DEFAULT_BATCH_SIZE);
+        BlockFactory resultFactory = page.getBlock(specs.get(0).channel()).blockFactory();
+        BreakingBytesRefBuilder scratch = new BreakingBytesRefBuilder(
+            resultFactory.breaker(),
+            "PackedValuesBlockHash.lookup",
+            nullTrackingBytes
+        );
+        boolean success = false;
+        try {
+            LookupWork work = new LookupWork(page, resultFactory, targetBlockSize.getBytes(), DEFAULT_BATCH_SIZE, scratch);
+            success = true;
+            return work;
+        } finally {
+            if (success == false) {
+                scratch.close();
+            }
+        }
     }
 
     class LookupWork implements ReleasableIterator<IntBlock> {
         private final Group[] groups;
+        private final BlockFactory resultFactory;
         private final long targetByteSize;
         private final int positionCount;
+        private final BreakingBytesRefBuilder bytes;
         private int position;
 
-        LookupWork(Page page, long targetByteSize, int batchSize) {
+        LookupWork(Page page, BlockFactory resultFactory, long targetByteSize, int batchSize, BreakingBytesRefBuilder bytes) {
             this.groups = specs.stream().map(s -> new Group(s, page, batchSize)).toArray(Group[]::new);
+            this.resultFactory = resultFactory;
             this.positionCount = page.getPositionCount();
             this.targetByteSize = targetByteSize;
+            this.bytes = bytes;
         }
 
         @Override
@@ -301,7 +326,7 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         @Override
         public IntBlock next() {
             int size = Math.toIntExact(Math.min(positionCount - position, targetByteSize / Integer.BYTES / 2));
-            try (IntBlock.Builder ords = blockFactory.newIntBlockBuilder(size)) {
+            try (IntBlock.Builder ords = resultFactory.newIntBlockBuilder(size)) {
                 if (ords.estimatedBytes() > targetByteSize) {
                     throw new IllegalStateException(
                         "initial builder overshot target [" + ords.estimatedBytes() + "] vs [" + targetByteSize + "]"
@@ -309,7 +334,7 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
                 }
                 while (position < positionCount && ords.estimatedBytes() < targetByteSize) {
                     // TODO a test where targetByteSize is very small should still make a few rows.
-                    boolean singleEntry = startPosition(groups);
+                    boolean singleEntry = startPosition(groups, bytes);
                     if (singleEntry) {
                         lookupSingleEntry(ords);
                     } else {
@@ -322,8 +347,8 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         }
 
         private void lookupSingleEntry(IntBlock.Builder ords) {
-            fillBytesSv(groups);
-            long found = bytesRefHash.find(bytes.bytesRefView());
+            fillBytesSv(groups, bytes);
+            long found = bytesRefHash.concurrentSafeFind(bytes.bytesRefView());
             if (found < 0) {
                 ords.appendNull();
             } else {
@@ -337,10 +362,10 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
             int g = 0;
             int count = 0;
             do {
-                fillBytesMv(groups, g);
+                fillBytesMv(groups, g, bytes);
 
                 // emit ords
-                long found = bytesRefHash.find(bytes.bytesRefView());
+                long found = bytesRefHash.concurrentSafeFind(bytes.bytesRefView());
                 if (found >= 0) {
                     if (firstFound < 0) {
                         firstFound = found;
@@ -359,7 +384,7 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
                         }
                     }
                 }
-                g = rewindKeys(groups);
+                g = rewindKeys(groups, bytes);
             } while (g >= 0);
             if (firstFound < 0) {
                 ords.appendNull();
@@ -376,17 +401,17 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(groups);
+            Releasables.closeExpectNoException(Releasables.wrap(groups), bytes);
         }
     }
 
     /**
-     * Correctly position all {@code groups}, clear the {@link #bytes},
+     * Correctly position all {@code groups}, clear {@code bytes},
      * and position it past the null tracking bytes. Call this before
      * encoding a new position.
      * @return true if this position has only a single ordinal
      */
-    private boolean startPosition(Group[] groups) {
+    private boolean startPosition(Group[] groups, BreakingBytesRefBuilder bytes) {
         boolean singleEntry = true;
         for (Group g : groups) {
             /*
@@ -408,38 +433,50 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         return singleEntry;
     }
 
-    private void fillBytesSv(Group[] groups) {
+    /**
+     * Encodes the current single-valued position of every group into {@code bytes}.
+     * @return true if any of the encoded values was null
+     */
+    private boolean fillBytesSv(Group[] groups, BreakingBytesRefBuilder bytes) {
+        boolean sawNull = false;
         for (int g = 0; g < groups.length; g++) {
             Group group = groups[g];
             assert group.writtenValues == 0;
             assert group.valueCount == 1;
             if (group.encoder.read(group.valueOffset++, bytes) == 0) {
-                seenNull = true;
+                sawNull = true;
                 int nullByte = g / 8;
                 int nullShift = g % 8;
                 bytes.bytes()[nullByte] |= (byte) (1 << nullShift);
             }
         }
-        padZerosForFixedLengthKey();
+        padZerosForFixedLengthKey(bytes);
+        return sawNull;
     }
 
-    private void fillBytesMv(Group[] groups, int startingGroup) {
+    /**
+     * Encodes the next permutation of a multivalued position, starting at {@code startingGroup}, into {@code bytes}.
+     * @return true if any of the encoded values was null
+     */
+    private boolean fillBytesMv(Group[] groups, int startingGroup, BreakingBytesRefBuilder bytes) {
+        boolean sawNull = false;
         for (int g = startingGroup; g < groups.length; g++) {
             Group group = groups[g];
             group.bytesStart = bytes.length();
             if (group.encoder.read(group.valueOffset + group.writtenValues, bytes) == 0) {
                 assert group.valueCount == 1 : "null value in non-singleton list";
-                seenNull = true;
+                sawNull = true;
                 int nullByte = g / 8;
                 int nullShift = g % 8;
                 bytes.bytes()[nullByte] |= (byte) (1 << nullShift);
             }
             ++group.writtenValues;
         }
-        padZerosForFixedLengthKey();
+        padZerosForFixedLengthKey(bytes);
+        return sawNull;
     }
 
-    private void padZerosForFixedLengthKey() {
+    private void padZerosForFixedLengthKey(BreakingBytesRefBuilder bytes) {
         if (batchWork == null) {
             return;
         }
@@ -455,7 +492,7 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         }
     }
 
-    private int rewindKeys(Group[] groups) {
+    private int rewindKeys(Group[] groups, BreakingBytesRefBuilder bytes) {
         int g = groups.length - 1;
         Group group = groups[g];
         bytes.setLength(group.bytesStart);

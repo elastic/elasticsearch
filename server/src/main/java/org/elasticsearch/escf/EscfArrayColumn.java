@@ -48,8 +48,12 @@ final class EscfArrayColumn extends EscfColumn {
         return EscfColumnKind.ARRAY;
     }
 
+    /**
+     * Ignores {@code countNulls}: it compares per-row element counts without reading elements, so a null element counts as a value.
+     * That can only over-report, which makes the caller fall back to the row path.
+     */
     @Override
-    public boolean hasMultiValueDoc() {
+    public boolean hasMultiValueDoc(boolean countNulls) {
         final int[] offs = rowOffsets.ints;
         final int base = rowOffsets.offset;
         for (int d = 0; d < docCount; d++) {

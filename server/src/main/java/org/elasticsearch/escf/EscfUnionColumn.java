@@ -101,29 +101,39 @@ final class EscfUnionColumn extends EscfColumn {
 
     /**
      * A union row is multi-valued when it is an array holding more than one leaf value, counting through nested arrays the way the
-     * mappers flatten them. An explicit {@code null} element counts: a mapper that substitutes {@code null_value} for it writes a
-     * value, so {@code [x, null]} is two values on a single-valued field.
+     * mappers flatten them. An explicit {@code null} element counts only when {@code countNulls}: a mapper that substitutes
+     * {@code null_value} for it writes a value, so {@code [x, null]} is two values on a single-valued field, but a mapper that drops
+     * it writes one.
+     *
+     * <p>Costs one {@link ArrayReader} per array row, and stops reading a row at its second value.
      */
     @Override
-    public boolean hasMultiValueDoc() {
+    public boolean hasMultiValueDoc(boolean countNulls) {
         for (int row = 0; row < docCount; row++) {
             if (isAbsent(row)) {
                 continue;
             }
             final byte type = byteAt(typeVec, row);
-            if ((type == SourceValueType.FIXED_ARRAY || type == SourceValueType.UNION_ARRAY) && countLeaves(getArrayValue(row), 0) > 1) {
+            if ((type == SourceValueType.FIXED_ARRAY || type == SourceValueType.UNION_ARRAY)
+                && countLeaves(getArrayValue(row), 0, countNulls) > 1) {
                 return true;
             }
         }
         return false;
     }
 
-    private static int countLeaves(ArrayReader reader, int soFar) {
+    private static int countLeaves(ArrayReader reader, int soFar, boolean countNulls) {
         int count = soFar;
-        while (reader.next() && count <= 1) {
+        while (count <= 1 && reader.next()) {
+            if (reader.isNull()) {
+                if (countNulls) {
+                    count++;
+                }
+                continue;
+            }
             final byte type = reader.type();
             count = type == SourceValueType.FIXED_ARRAY || type == SourceValueType.UNION_ARRAY
-                ? countLeaves(reader.nestedArray(), count)
+                ? countLeaves(reader.nestedArray(), count, countNulls)
                 : count + 1;
         }
         return count;

@@ -132,7 +132,17 @@ public abstract class EscfColumn implements SliceableColumn {
      * per-row element-range offsets. Used by {@link org.elasticsearch.index.mapper.FieldMapper#mapColumnBatch}
      * to enforce {@code multi_value=false} before delegating to the field-specific implementation.
      */
-    public boolean hasMultiValueDoc() {
+    public final boolean hasMultiValueDoc() {
+        return hasMultiValueDoc(true);
+    }
+
+    /**
+     * As {@link #hasMultiValueDoc()}, but an explicit {@code null} array element is a value only when {@code countNulls} is
+     * {@code true}. A mapper that drops a {@code null} (it has no {@code null_value} to substitute) passes {@code false}, so that
+     * {@code [x, null]} is not reported as two values. An implementation may ignore {@code countNulls} and answer {@code true} for a
+     * document the mapper would accept, because the caller then falls back to the row path, which is always correct.
+     */
+    public boolean hasMultiValueDoc(boolean countNulls) {
         return false;
     }
 

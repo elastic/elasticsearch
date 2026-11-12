@@ -362,7 +362,7 @@ public abstract class FieldMapper extends Mapper {
      * @param source the Escf column holding the field's source values for the batch
      */
     public final void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
-        if (shouldEnforceSingleValueBatch() && source.hasMultiValueDoc()) {
+        if (shouldEnforceSingleValueBatch() && source.hasMultiValueDoc(nullCountsAsValueBatch())) {
             throw new UnsupportedOperationException(
                 "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value per document"
             );
@@ -584,6 +584,15 @@ public abstract class FieldMapper extends Mapper {
      */
     protected boolean shouldEnforceSingleValueBatch() {
         return false;
+    }
+
+    /**
+     * Whether an explicit {@code null} array element counts as a value when {@link #shouldEnforceSingleValueBatch} is checked: true
+     * when this mapper writes something for it (a {@code null_value}), false when it drops it. Defaults to {@code true}, which can
+     * only send a valid batch to the row path, never accept an invalid one.
+     */
+    protected boolean nullCountsAsValueBatch() {
+        return true;
     }
 
     /**

@@ -116,11 +116,7 @@ public final class EscfColumnTransforms {
      * @return a forward-only cursor over stringified values
      */
     public static ObjectTupleCursor<BytesRef> utf8Cursor(EscfColumn column, boolean retainValues) {
-        // STRING columns have a native BytesRef cursor with no per-row dispatch needed.
-        if (column.kind() == EscfColumnKind.STRING) {
-            return column.bytesRefCursor(retainValues);
-        }
-        return new StringifyingCursor(column);
+        return typedUtf8Cursor(column, retainValues);
     }
 
     /**
@@ -131,6 +127,15 @@ public final class EscfColumnTransforms {
     public abstract static class TypedUtf8Cursor extends ObjectTupleCursor<BytesRef> {
         /** The {@link SourceValueType} byte of the value {@link #value()} currently holds; {@code NULL} when that is {@code null}. */
         public abstract byte valueType();
+
+        /** The current value as it was in the source, when {@link #valueType()} is {@code INT} or {@code LONG}. */
+        public abstract long longValue();
+
+        /**
+         * The current value as it was in the source, when {@link #valueType()} is {@code FLOAT} or {@code DOUBLE}. A {@code FLOAT} is
+         * widened exactly, so casting back to {@code float} recovers it.
+         */
+        public abstract double doubleValue();
     }
 
     /**
@@ -155,6 +160,16 @@ public final class EscfColumnTransforms {
                 public byte valueType() {
                     return SourceValueType.STRING;
                 }
+
+                @Override
+                public long longValue() {
+                    throw new IllegalStateException("value is a STRING, not a number");
+                }
+
+                @Override
+                public double doubleValue() {
+                    throw new IllegalStateException("value is a STRING, not a number");
+                }
             };
         }
         return new StringifyingCursor(column);
@@ -171,6 +186,9 @@ public final class EscfColumnTransforms {
         private int arDepth = 0;
         // The SourceValueType of the value last returned, which the stringified bytes alone do not say.
         private byte valueType = SourceValueType.NULL;
+        // The raw number last returned, valid for the matching valueType; saves a caller re-parsing the stringified form.
+        private long currentLong;
+        private double currentDouble;
 
         StringifyingCursor(EscfColumn column) {
             this.column = column;
@@ -180,6 +198,18 @@ public final class EscfColumnTransforms {
         @Override
         public byte valueType() {
             return valueType;
+        }
+
+        @Override
+        public long longValue() {
+            assert valueType == SourceValueType.INT || valueType == SourceValueType.LONG : SourceValueType.name(valueType);
+            return currentLong;
+        }
+
+        @Override
+        public double doubleValue() {
+            assert valueType == SourceValueType.FLOAT || valueType == SourceValueType.DOUBLE : SourceValueType.name(valueType);
+            return currentDouble;
         }
 
         @Override
@@ -206,11 +236,13 @@ public final class EscfColumnTransforms {
                         return doc;
                     }
                     case SourceValueType.LONG -> {
-                        currentValue = new BytesRef(Long.toString(column.getLongValue(doc)));
+                        currentLong = column.getLongValue(doc);
+                        currentValue = new BytesRef(Long.toString(currentLong));
                         return doc;
                     }
                     case SourceValueType.DOUBLE -> {
-                        currentValue = new BytesRef(Double.toString(column.getDoubleValue(doc)));
+                        currentDouble = column.getDoubleValue(doc);
+                        currentValue = new BytesRef(Double.toString(currentDouble));
                         return doc;
                     }
                     case SourceValueType.STRING -> {
@@ -262,19 +294,23 @@ public final class EscfColumnTransforms {
                         return true;
                     }
                     case SourceValueType.INT -> {
+                        currentLong = cur.intValue();
                         currentValue = new BytesRef(Integer.toString(cur.intValue()));
                         return true;
                     }
                     case SourceValueType.LONG -> {
-                        currentValue = new BytesRef(Long.toString(cur.longValue()));
+                        currentLong = cur.longValue();
+                        currentValue = new BytesRef(Long.toString(currentLong));
                         return true;
                     }
                     case SourceValueType.FLOAT -> {
+                        currentDouble = cur.floatValue();
                         currentValue = new BytesRef(Float.toString(cur.floatValue()));
                         return true;
                     }
                     case SourceValueType.DOUBLE -> {
-                        currentValue = new BytesRef(Double.toString(cur.doubleValue()));
+                        currentDouble = cur.doubleValue();
+                        currentValue = new BytesRef(Double.toString(currentDouble));
                         return true;
                     }
                     case SourceValueType.STRING -> {

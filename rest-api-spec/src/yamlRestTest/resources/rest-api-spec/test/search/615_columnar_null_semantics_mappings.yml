@@ -1,0 +1,139 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar.bare_null_is_absence" ]
+      reason: "columnar index mode and bare null handling required"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+              nv_kwd:
+                type: keyword
+                null_value: NA
+              nv_lng:
+                type: long
+                null_value: 7
+              bad_lng:
+                type: long
+                ignore_malformed: true
+              bad_dt:
+                type: date
+                ignore_malformed: true
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { "_id": "bare_null_with_null_value" } }'
+          - '{ "nv_kwd": null, "nv_lng": null }'
+          - '{ "index": { "_id": "array_null_with_null_value" } }'
+          - '{ "nv_kwd": [ null ], "nv_lng": [ null ] }'
+          - '{ "index": { "_id": "malformed" } }'
+          - '{ "bad_lng": "abc", "bad_dt": "not a date" }'
+          - '{ "index": { "_id": "malformed_and_null" } }'
+          - '{ "bad_lng": [ "abc", null ], "bad_dt": [ "not a date", null ] }'
+          - '{ "index": { "_id": "valid" } }'
+          - '{ "bad_lng": 1, "bad_dt": "2026-01-01T00:00:00.000Z" }'
+          - '{ "index": { "_id": "empty_string" } }'
+          - '{ "kwd": "" }'
+          - '{ "index": { "_id": "empty_string_and_null" } }'
+          - '{ "kwd": [ "", null ] }'
+          - '{ "index": { "_id": "null_only" } }'
+          - '{ "kwd": [ null ] }'
+          - '{ "index": { "_id": "missing" } }'
+          - '{ "other": "c" }'
+
+---
+exists matches a null that null_value turns into a keyword value:
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: nv_kwd } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: bare_null_with_null_value }
+  - match: { hits.hits.1._id: array_null_with_null_value }
+
+---
+exists matches a null that null_value turns into a long value:
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: nv_lng } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: bare_null_with_null_value }
+  - match: { hits.hits.1._id: array_null_with_null_value }
+
+---
+exists does not match a malformed long:
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: bad_lng } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: valid }
+
+---
+exists does not match a malformed date:
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: bad_dt } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: valid }
+
+---
+exists matches an empty string but not a lone null:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "exists matches documents that hold only nulls"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: empty_string }
+  - match: { hits.hits.1._id: empty_string_and_null }

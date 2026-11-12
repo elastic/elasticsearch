@@ -29,15 +29,17 @@ import static java.util.stream.Stream.concat;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 /**
- * Like {@link LookupJoin} but unmatched results are dropped.
+ * Coordinator hash join over a local build side (maps to {@code HashJoinExec}).
+ * <p>
+ * {@link JoinTypes#INNER} drops unmatched probe rows; {@link JoinTypes#LEFT} keeps them (PromQL {@code unless}).
  */
-public class InnerJoin extends Join implements SortPreserving {
+public class HashJoin extends Join implements SortPreserving {
 
     private final List<Attribute> addedFields;
     private final boolean unique;
     private List<Attribute> lazyOutput;
 
-    public InnerJoin(
+    public HashJoin(
         Source source,
         LogicalPlan left,
         LogicalPlan right,
@@ -46,7 +48,23 @@ public class InnerJoin extends Join implements SortPreserving {
         List<Attribute> addedFields,
         boolean unique
     ) {
-        super(source, left, right, JoinTypes.INNER, leftFields, rightFields, null, ExecuteLocation.COORDINATOR);
+        this(source, left, right, leftFields, rightFields, addedFields, unique, JoinTypes.INNER);
+    }
+
+    public HashJoin(
+        Source source,
+        LogicalPlan left,
+        LogicalPlan right,
+        List<Attribute> leftFields,
+        List<Attribute> rightFields,
+        List<Attribute> addedFields,
+        boolean unique,
+        JoinType type
+    ) {
+        super(source, left, right, type, leftFields, rightFields, null, ExecuteLocation.COORDINATOR);
+        if (type != JoinTypes.INNER && type != JoinTypes.LEFT) {
+            throw new IllegalArgumentException("HashJoin supports INNER or LEFT, got [" + type.joinName() + "]");
+        }
         this.addedFields = addedFields;
         this.unique = unique;
     }
@@ -99,11 +117,11 @@ public class InnerJoin extends Join implements SortPreserving {
     }
 
     /**
-     * Finds the first (bottom-up) {@link InnerJoin} whose right subquery has not yet been replaced with results.
+     * Finds the first (bottom-up) {@link HashJoin} whose right subquery has not yet been replaced with results.
      */
     public static LogicalPlanTuple firstSubPlan(LogicalPlan optimizedPlan, Set<LocalRelation> subPlansResults) {
         var subPlanHolder = new Holder<LogicalPlan>();
-        optimizedPlan.forEachUp(InnerJoin.class, join -> {
+        optimizedPlan.forEachUp(HashJoin.class, join -> {
             if (subPlanHolder.get() == null) {
                 if ((join.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) == false) {
                     subPlanHolder.set(join.right());
@@ -122,12 +140,12 @@ public class InnerJoin extends Join implements SortPreserving {
     }
 
     /**
-     * Rebuilds the main plan after the right-side subquery has been materialized, replacing the matching InnerJoin's right child with
+     * Rebuilds the main plan after the right-side subquery has been materialized, replacing the matching HashJoin's right child with
      * the materialized local relation.
      */
     public static LogicalPlan newMainPlan(LogicalPlan optimizedPlan, LogicalPlanTuple subPlans, LocalRelation resultWrapper) {
         LogicalPlan newPlan = optimizedPlan.transformUp(
-            InnerJoin.class,
+            HashJoin.class,
             join -> join.right() == subPlans.originalSubPlan() ? join.replaceRight(resultWrapper) : join
         );
         newPlan.setOptimized();
@@ -135,13 +153,13 @@ public class InnerJoin extends Join implements SortPreserving {
     }
 
     @Override
-    public InnerJoin replaceChildren(LogicalPlan left, LogicalPlan right) {
-        return new InnerJoin(source(), left, right, leftFields(), rightFields(), addedFields, unique);
+    public HashJoin replaceChildren(LogicalPlan left, LogicalPlan right) {
+        return new HashJoin(source(), left, right, leftFields(), rightFields(), addedFields, unique, config().type());
     }
 
     @Override
     protected NodeInfo<Join> info() {
-        return NodeInfo.create(this, InnerJoin::new, left(), right(), leftFields(), rightFields(), addedFields, unique);
+        return NodeInfo.create(this, HashJoin::new, left(), right(), leftFields(), rightFields(), addedFields, unique, config().type());
     }
 
     @Override
@@ -155,8 +173,8 @@ public class InnerJoin extends Join implements SortPreserving {
         if (super.equals(o) == false) {
             return false;
         }
-        InnerJoin innerJoin = (InnerJoin) o;
-        return unique == innerJoin.unique && addedFields.equals(innerJoin.addedFields);
+        HashJoin hashJoin = (HashJoin) o;
+        return unique == hashJoin.unique && addedFields.equals(hashJoin.addedFields);
     }
 
     @Override

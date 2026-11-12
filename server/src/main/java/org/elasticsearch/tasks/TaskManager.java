@@ -185,9 +185,8 @@ public class TaskManager implements ClusterStateApplier {
     }
 
     /**
-     * Starts the span of the task, as a child of the span that is current in the thread context, if there is one; or the current span from
-     * thread context, if there isn't. The span is kept by the task, which is what ends it when it is unregistered, and it is not made
-     * current anywhere.
+     * Starts the span of the task. It is a child of the parent task span, if there is one; or the current span from thread context, if
+     * there isn't. The span is kept by the task, which is what ends it when it is unregistered.
      */
     void startTrace(Task task) {
         final SpanBuilder spanBuilder = tracer.spanBuilder(task.getAction()).setAttribute(AttributeKeys.TASK_ID, task.getId());

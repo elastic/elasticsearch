@@ -25,12 +25,21 @@ public interface SpanBuilder {
 
     /**
      * Manually set the parent of the span that will be started. If not called, the span's parent will be automatically inherited from the
-     * current {@link ThreadContext}. Pass {@code Span.noop()} to start a completely new trace manually.
+     * current {@link ThreadContext}. Passing {@code Span.noop()} is ignored: the context is inherited from the {@link ThreadContext} in
+     * this case.
      *
      * @param parentSpan the parent of the span that will be started
      * @return {@code this}
      */
     SpanBuilder setParent(Span parentSpan);
+
+    /**
+     * Explicitly marks the new span as the root of the new trace. It will not inherit context from any place, including
+     * {@link ThreadContext}.
+     *
+     * @return {@code this}
+     */
+    SpanBuilder setNoParent();
 
     /**
      * Sets an attribute on the span that will be started. Setting a key that is already set replaces its value.

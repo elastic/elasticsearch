@@ -18,6 +18,11 @@ enum NoopSpanBuilder implements SpanBuilder {
     }
 
     @Override
+    public SpanBuilder setNoParent() {
+        return this;
+    }
+
+    @Override
     public SpanBuilder setAttribute(String key, boolean value) {
         return this;
     }

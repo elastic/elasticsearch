@@ -126,11 +126,6 @@ tests:
   - :x-pack:plugin:analytics:test
   method: testFilteredAsSubAgg
   issue: https://github.com/elastic/elasticsearch/issues/164886
-- class: org.elasticsearch.common.logging.DeprecationLoggerTests
-  tasks:
-  - :server:test
-  method: testMultipleSlowLoggersUseSingleLog4jLogger
-  issue: https://github.com/elastic/elasticsearch/issues/165030
 - class: org.elasticsearch.smoketest.MlWithSecurityInsufficientRoleIT
   tasks:
   - :x-pack:plugin:ml:qa:ml-with-security:yamlRestTest

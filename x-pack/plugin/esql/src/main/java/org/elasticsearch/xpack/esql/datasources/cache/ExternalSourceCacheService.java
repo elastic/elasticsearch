@@ -1685,7 +1685,7 @@ public class ExternalSourceCacheService implements Closeable {
      * visible rather than silently indistinguishable from the legitimate two-datasets-over-one-resource case.
      * Row counts, modification times and fingerprints carry nothing secret. The path can: a contribution is
      * recorded under the storage location verbatim, so for an https resource it is the pre-signed URL whose query
-     * string is the signature. Redacted here as it is everywhere a resource is rendered for a human to read.
+     * string is the signature. Redacted here as the resolver's own log line redacts it.
      *
      * @return {@code null} always, so a refusal reads as one statement
      */

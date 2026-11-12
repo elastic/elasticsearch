@@ -105,7 +105,7 @@ public record ExternalSourceSpec(String path, Map<String, Object> config) {
     /**
      * The resource, and the dataset name when the read came from one. Nothing derived from {@code config}: the
      * generated record {@code toString} would print the credentials outright, and a hash of the map is a function of
-     * a secret that is plaintext on a cluster which opted out of state encryption. One debug log renders these.
+     * a secret that is plaintext on a cluster which opted out of state encryption. Two debug logs render these.
      */
     @Override
     public String toString() {

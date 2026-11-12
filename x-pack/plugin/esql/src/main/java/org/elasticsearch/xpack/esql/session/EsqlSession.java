@@ -2384,18 +2384,6 @@ public class EsqlSession {
         PreAnalysisResult result,
         ActionListener<PreAnalysisResult> listener,
         Configuration configuration,
-        EsqlFunctionRegistry functionRegistry
-    ) {
-        preAnalyzeExternalSources(externalSourceResolver, plan, preAnalysis, result, listener, configuration, functionRegistry, null);
-    }
-
-    static void preAnalyzeExternalSources(
-        ExternalSourceResolver externalSourceResolver,
-        LogicalPlan plan,
-        PreAnalyzer.PreAnalysis preAnalysis,
-        PreAnalysisResult result,
-        ActionListener<PreAnalysisResult> listener,
-        Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
         @Nullable QueryDslTimestampBoundsExtractor.TimestampBounds listingBounds
     ) {
@@ -2413,11 +2401,11 @@ public class EsqlSession {
         Map<ExternalSourceSpec, FolderRangePredicate> folderRanges = listingInputs.folderRanges();
 
         // Always non-null (empty when no ungrouped aggregate is present). A non-null set switches the
-        // resolver to selective eager stats: only the listed paths read every file's footer at
+        // resolver to selective eager stats: only the listed specs read every file's footer at
         // planning time; the rest defer (see ExternalStatsRequirementExtractor).
         Set<ExternalSourceSpec> specsRequiringStats = ExternalStatsRequirementExtractor.specsRequiringEagerStats(plan);
 
-        // Always non-null (empty when every relation is read for its rows). A path in this set is one whose rows
+        // Always non-null (empty when every relation is read for its rows). A spec in this set is one whose rows
         // the query all discards, so its resolution owes a schema and nothing else and may stop listing as soon
         // as it has one. What "having one" means is the dataset's business, not the query's: see
         // ExternalSourceResolver#listingExtentsFor.

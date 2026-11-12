@@ -2145,8 +2145,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * Legacy {@code null} overload: a {@code null} {@code pathsRequiringStats} keeps the original
-     * eager-for-every-path behavior, so all footers are read regardless of query shape.
+     * A {@code null} {@code specsRequiringStats} keeps the original eager-for-every-spec behavior, so all footers
+     * are read regardless of query shape.
      */
     public void testFirstFileWinsLegacyNullSetReadsAllFooters() throws Exception {
         AtomicInteger metadataReads = new AtomicInteger();
@@ -2574,7 +2574,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * Non-cacheable FFW resolve that counts footer reads (format-reader metadata calls) and threads a
-     * {@code pathsRequiringStats} set through the new 5-arg {@code resolve} overload.
+     * {@code specsRequiringStats} set through {@link #resolvePaths}, which lifts paths to specs for the one
+     * {@code resolve}.
      */
     private ExternalSourceResolution resolveFfwWithRequirement(
         ThreeFileStats stats,

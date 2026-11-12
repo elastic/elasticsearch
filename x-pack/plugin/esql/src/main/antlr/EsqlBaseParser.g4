@@ -134,7 +134,7 @@ indexPatternOrSubquery
 // parses. An unknown one is refused during analysis, at the position it was written.
 //
 // Narrower than functionExpression's arguments, and with no slot of its own for a trailing map: a map is one
-// alternative of tableFunctionArgument, so it may be written in any position. Why, on TableFunctionArgument.
+// alternative of tableFunctionArgument, so it may be written in any position; see that rule for why.
 tableFunction
     : {this.isDevVersion()}? name=DEV_TABLE_FUNCTION_NAME (tableFunctionArgument (COMMA tableFunctionArgument)*)? RP
     ;

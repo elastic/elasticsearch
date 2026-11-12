@@ -67,6 +67,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -74,6 +75,7 @@ import org.junit.AfterClass;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneOffset;
@@ -134,7 +136,8 @@ public class ArrowResponseTests extends ESTestCase {
         "ulong",
         factory -> factory.newLongBlockBuilder(0),
         block -> block.appendLong(randomLong()),
-        (block, i, scratch) -> block.getLong(i),
+        // Blocks store unsigned longs with the sign bit flipped
+        (block, i, scratch) -> block.getLong(i) ^ NumericUtils.TWOS_COMPLEMENT_BITMASK,
         UInt8Vector::get
     );
 
@@ -502,6 +505,33 @@ public class ArrowResponseTests extends ESTestCase {
             assertEquals(tsid, new BytesRef(vector.get(0)));
             assertTrue(vector.isNull(1));
             assertEquals(tsid, new BytesRef(vector.get(2)));
+        }
+    }
+
+    public void testUnsignedLongValues() throws IOException {
+        List<BigInteger> values = List.of(
+            BigInteger.ZERO,
+            BigInteger.ONE,
+            BigInteger.valueOf(Long.MAX_VALUE),
+            BigInteger.ONE.shiftLeft(63),
+            BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE)
+        );
+        LongBlock block;
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(values.size())) {
+            for (BigInteger value : values) {
+                builder.appendLong(NumericUtils.asLongUnsigned(value));
+            }
+            block = builder.build();
+        }
+        var column = TestColumn.create("ul", DataType.UNSIGNED_LONG, false);
+        try (
+            TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            UInt8Vector vector = (UInt8Vector) root.getVector("ul");
+            for (int i = 0; i < values.size(); i++) {
+                assertEquals(values.get(i), vector.getObjectNoOverflow(i));
+            }
         }
     }
 

@@ -35,6 +35,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.CacheMissWaitMetrics;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
@@ -769,6 +770,10 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
         var storeMetrics = directoryMetrics.metrics(StoreMetrics.NAME);
         if (storeMetrics != null) {
             searchResponseMetrics.recordStoreBytesRead(storeMetrics.cast(StoreMetrics.class).getBytesRead(), searchRequestAttributes);
+        }
+        if (directoryMetrics.metrics(DirectoryMetrics.BLOB_STORE_CACHE_METRICS_NAME) instanceof CacheMissWaitMetrics cacheMissWait
+            && cacheMissWait.getWaits() > 0) {
+            searchResponseMetrics.recordCacheMissWait(cacheMissWait.getWaitTime(), searchRequestAttributes);
         }
     }
 

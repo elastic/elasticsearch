@@ -104,6 +104,11 @@ setup:
   - match: { errors: false }
 
   - do:
+      cluster.health:
+        wait_for_status: green
+        wait_for_no_initializing_shards: true
+
+  - do:
       indices.get_data_stream:
         name: columnar-skip-index
 

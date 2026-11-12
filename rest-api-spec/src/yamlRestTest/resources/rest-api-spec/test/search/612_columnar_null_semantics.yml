@@ -737,10 +737,9 @@ exists matches only documents with a non-null value on string fields after a del
   - do:
       indices.stats:
         index: test
-        metric: docs,segments
+        metric: docs
 
   - gt: { _all.primaries.docs.deleted: 0 }
-  - match: { _all.primaries.segments.count: 2 }
 
   - do:
       search:

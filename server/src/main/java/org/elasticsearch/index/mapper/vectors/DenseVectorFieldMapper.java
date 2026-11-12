@@ -4382,6 +4382,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     final float[] vector = new float[dims];
                     // Accumulated in float, element by element, exactly as FloatElement#parseVectorArray does on the row path, so
                     // that the unit-length check of dot_product accepts and rejects the same vectors on both paths.
+                    // TODO: only dot_product and cosine need the magnitude (l2_norm and max_inner_product use it only to guard
+                    // against overflow), and it could be computed after the loop with the SIMD ESVectorUtil#dotProduct, as the
+                    // query path does.
                     float squaredMagnitude = 0;
                     final ArrayReader array = source.getArrayValue(doc);
                     int index = 0;
@@ -4449,6 +4452,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
     /**
      * The value of the vector element {@code array} is positioned on, converted to a float the way the row path's
      * {@code XContentParser#floatValue} converts a JSON number. Anything but a number is left for the row path to reject.
+     *
+     * <p>TODO: a {@code DOUBLE} element was parsed from JSON as a double and is narrowed here, so it is rounded twice and may differ
+     * by an ulp from the row path, which parses straight to float; it also takes twice the bytes of a float in the batch. Read
+     * float elements once the ESCF encoder produces them for float vectors: https://github.com/elastic/elasticsearch/issues/165790
      */
     private float vectorElementValue(ArrayReader array) {
         return switch (array.type()) {

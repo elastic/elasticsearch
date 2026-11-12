@@ -56,8 +56,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  *
  * <p>If a node cannot unwrap the on-disk blob at startup (missing or wrong password), {@link #fromXContent} produces a <em>degraded</em>
  * instance ({@link #isUnwrapFailed()} returns {@code true}) instead of throwing. The node starts normally, but the encryption service
- * reports {@code UNAVAILABLE_DECRYPTION_FAILED} and all encrypt/decrypt calls fail until the operator fixes the password and restarts,
- * or calls {@code POST /_encryption/_reset?accept_data_loss=true}.
+ * reports {@code UNAVAILABLE_DECRYPTION_FAILED} and all encrypt/decrypt calls fail until the elected master restores the key (see
+ * {@link KeyRotationCoordinator}), or {@code POST /_encryption/_reset?accept_data_loss=true} is called.
  *
  * <p>GATEWAY serialization never fails, since that would make the node reject every publication. A node that cannot wrap the keys, or
  * that receives a degraded instance, persists its {@link GatewayKeys} for the same active key instead, or no key material.
@@ -172,7 +172,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         @Nullable
         String passwordId() {
             GatewayCopy copy = gatewayCopy;
-            return copy == null || copy.wrappedKeys().isEmpty() ? null : copy.passwordId();
+            return copy == null ? null : copy.passwordId();
         }
     }
 
@@ -289,11 +289,8 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
     @Nullable
     ProjectEncryptionKeyMetadata unwrapGatewayKeys() {
         assert isUnwrapFailed();
-        GatewayCopy copy = gatewayCopy();
-        if (copy == null || copy.wrappedKeys().isEmpty() || copy.activeKeyId().equals(activeKeyId) == false) {
-            return null;
-        }
-        return unwrap(copy, pekEncryption);
+        GatewayCopy copy = gatewayCopyForActiveKey();
+        return copy == null ? null : unwrap(copy, pekEncryption);
     }
 
     @Nullable
@@ -396,11 +393,8 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         }
 
         if (unwrapFailureReason != null) {
-            GatewayCopy copy = gatewayCopy();
-            if (copy == null || copy.wrappedKeys().isEmpty() || copy.activeKeyId().equals(activeKeyId) == false) {
-                return writeNoKeys();
-            }
-            return gatewayChunk(copy);
+            GatewayCopy copy = gatewayCopyForActiveKey();
+            return copy == null ? writeNoKeys() : gatewayChunk(copy);
         }
 
         GatewayBytes gw;
@@ -435,6 +429,12 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
     private GatewayCopy gatewayCopy() {
         GatewayKeys gatewayKeys = pekEncryption.gatewayKeys();
         return gatewayKeys == null ? null : gatewayKeys.gatewayCopy;
+    }
+
+    @Nullable
+    private GatewayCopy gatewayCopyForActiveKey() {
+        GatewayCopy copy = gatewayCopy();
+        return copy != null && copy.activeKeyId().equals(activeKeyId) ? copy : null;
     }
 
     private Iterator<? extends ToXContent> writeGatewayCopy(GatewayCopy copy) {

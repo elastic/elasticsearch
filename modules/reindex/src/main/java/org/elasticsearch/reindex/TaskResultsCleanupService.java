@@ -10,6 +10,7 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -207,7 +208,16 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
             projects = projectsToCleanup;
         }
         logger.debug("running task results cleanup for [{}] project(s)", projects.size());
-        try (var refs = new RefCountingListener(ActionListener.running(this::scheduleNextCleanup))) {
+        try (
+            var refs = new RefCountingListener(
+                // #cleanupTaskResultsForProject invokes its listener in a project context,
+                // but #scheduleNextCleanup should not do that because nested ProjectResolver#executeOnProject are forbidden
+                ContextPreservingActionListener.wrapPreservingContext(
+                    ActionListener.running(this::scheduleNextCleanup),
+                    threadPool.getThreadContext()
+                )
+            )
+        ) {
             for (ProjectId project : projects) {
                 cleanupTaskResultsForProject(project, refs.acquire());
             }

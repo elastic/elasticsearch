@@ -145,6 +145,149 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertNull(lookup.isPassthrough("unknown"));
     }
 
+    /** A field with {@code multi_value=false}, including with {@code on_failure=ignore}, is statically single-valued. */
+    public void testIsSingleValueGuaranteed() throws IOException {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(columnar, mapping(b -> {
+            for (String type : List.of("keyword", "long", "double", "ip", "date", "boolean")) {
+                b.startObject(type + "_single").field("type", type).field("multi_value", false);
+                b.endObject();
+                b.startObject(type + "_multi").field("type", type).endObject();
+            }
+            b.startObject("keyword_ignore").field("type", "keyword").field("multi_value", false).field("on_failure", "ignore").endObject();
+        }));
+        MappingLookup lookup = mapperService.mappingLookup();
+        for (String type : List.of("keyword", "long", "double", "ip", "date", "boolean")) {
+            assertTrue(type, isStaticallySingleValued(lookup, type + "_single"));
+            assertFalse(type, isStaticallySingleValued(lookup, type + "_multi"));
+        }
+        // MapperTestCase#testMultiValueFalseOnFailureIgnoreBlockLoaderSeesOneValue checks that block loaders do not expose the diverted
+        // value.
+        assertTrue(isStaticallySingleValued(lookup, "keyword_ignore"));
+        assertFalse(isStaticallySingleValued(lookup, "unknown"));
+
+        MapperService standard = createMapperService(mapping(b -> b.startObject("field").field("type", "keyword").endObject()));
+        assertFalse(isStaticallySingleValued(standard.mappingLookup(), "field"));
+    }
+
+    private static boolean isStaticallySingleValued(MappingLookup lookup, String field) {
+        MappedFieldType fieldType = lookup.getFieldType(field);
+        return fieldType != null && fieldType.isStaticallySingleValued();
+    }
+
+    public void testIsSingleValueGuaranteedFromIndexSetting() throws IOException {
+        Settings columnarSingleValue = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
+            .build();
+        MapperService mapperService = createMapperService(columnarSingleValue, mapping(b -> {
+            b.startObject("plain").field("type", "keyword").endObject();
+            b.startObject("override").field("type", "keyword").field("multi_value", true).endObject();
+        }));
+        assertTrue(isStaticallySingleValued(mapperService.mappingLookup(), "plain"));
+        assertFalse(isStaticallySingleValued(mapperService.mappingLookup(), "override"));
+    }
+
+    /**
+     * {@code multi_value=false} is only accepted in strict columnar index modes, which reject {@code copy_to}, so no {@code copy_to}
+     * can feed such a field. If that changes, test that a {@code copy_to} into a {@code multi_value=false} field rejects a second
+     * value, because the single-value guarantee relies on it.
+     */
+    public void testMultiValueFalseCannotBeCombinedWithCopyTo() {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(columnar, mapping(b -> {
+            b.startObject("src").field("type", "keyword").field("copy_to", "target").endObject();
+            b.startObject("target").field("type", "keyword").field("multi_value", false).endObject();
+        })));
+        assertThat(e.getMessage(), containsString("[copy_to] is not allowed on field [src]"));
+
+        e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
+            b.startObject("target").field("type", "keyword").field("multi_value", false).endObject();
+        })));
+        assertThat(e.getMessage(), containsString("parameter [multi_value] can only be used in columnar index modes"));
+    }
+
+    /**
+     * An array of objects gives a field one value per object, so a {@code multi_value=false} field rejects it, for object and nested
+     * parents.
+     */
+    public void testMultiValueFalseRejectsArrayOfObjects() throws IOException {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        for (String parentType : List.of("object", "nested")) {
+            DocumentMapper mapper = createMapperService(columnar, mapping(b -> {
+                b.startObject("parent").field("type", parentType).startObject("properties");
+                b.startObject("child").field("type", "keyword").field("multi_value", false).endObject();
+                b.endObject().endObject();
+            })).documentMapper();
+
+            mapper.parse(source(b -> b.startObject("parent").field("child", "1").endObject()));
+            DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+                b.startArray("parent");
+                b.startObject().field("child", "1").endObject();
+                b.startObject().field("child", "2").endObject();
+                b.endArray();
+            })));
+            assertThat(
+                parentType,
+                e.getCause().getMessage(),
+                containsString("Field [parent.child] is configured with [multi_value=false] but encountered multiple values")
+            );
+        }
+    }
+
+    /**
+     * An alias has the guarantee of its target: it is reported when the target is, and not when the target is not.
+     */
+    public void testStaticallySingleValuedThroughAlias() throws IOException {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(columnar, mapping(b -> {
+            b.startObject("single").field("type", "keyword").field("multi_value", false).endObject();
+            b.startObject("multi").field("type", "keyword").endObject();
+            b.startObject("single_alias").field("type", "alias").field("path", "single").endObject();
+            b.startObject("multi_alias").field("type", "alias").field("path", "multi").endObject();
+        }));
+        MappingLookup lookup = mapperService.mappingLookup();
+        assertTrue(isStaticallySingleValued(lookup, "single_alias"));
+        assertFalse(isStaticallySingleValued(lookup, "multi_alias"));
+    }
+
+    /**
+     * A runtime field in a field caps request replaces the field type of the mapped field with the same name. Its values do not
+     * come from the mapper, so a field type that is not the mapper's own is not guaranteed, even under the same name.
+     */
+    public void testFieldTypeOfShadowingRuntimeFieldIsNotStaticallySingleValued() throws IOException {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(
+            columnar,
+            mapping(b -> b.startObject("field").field("type", "keyword").field("multi_value", false).endObject())
+        );
+        MappingLookup lookup = mapperService.mappingLookup();
+        MappedFieldType mapped = lookup.getFieldType("field");
+        assertTrue(mapped.isStaticallySingleValued());
+
+        MappedFieldType shadowing = new KeywordFieldMapper.KeywordFieldType("field");
+        assertNotSame(mapped, shadowing);
+        assertFalse(shadowing.isStaticallySingleValued());
+    }
+
+    /**
+     * A multi-field reads its own {@code multi_value} parameter, so a single-valued parent does not make its sub-field single-valued.
+     */
+    public void testSingleValueGuaranteeOfMultiField() throws IOException {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(columnar, mapping(b -> {
+            b.startObject("parent").field("type", "keyword").field("multi_value", false);
+            b.startObject("fields");
+            b.startObject("plain").field("type", "keyword").endObject();
+            b.startObject("single").field("type", "keyword").field("multi_value", false).endObject();
+            b.endObject().endObject();
+        }));
+        MappingLookup lookup = mapperService.mappingLookup();
+        assertTrue(isStaticallySingleValued(lookup, "parent"));
+        assertFalse(isStaticallySingleValued(lookup, "parent.plain"));
+        assertTrue(isStaticallySingleValued(lookup, "parent.single"));
+    }
+
     public void testMappingLookupAutoFlattenedPassthroughStatus() throws IOException {
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();

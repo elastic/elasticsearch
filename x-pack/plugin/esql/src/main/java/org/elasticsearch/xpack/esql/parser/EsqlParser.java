@@ -59,14 +59,24 @@ public class EsqlParser {
     public static final int MAX_LENGTH = 1_000_000;
 
     /**
-     * Maximum number of binary operators between two consecutive separators (a pipe or a comma) of an ESQL query. A flat chain
-     * such as {@code 0+0+0+...} or a balanced tree such as {@code ((a+a)+(a+a))+...} stays under the parenthesis depth limit
-     * but makes ANTLR allocate a very large parse tree, so such queries are rejected from the token stream
+     * Maximum number of binary operators between two consecutive separators of an ESQL query. A comma separates at any nesting level,
+     * a pipe only outside parentheses, so a nested pipe, e.g. in a subquery, cannot be used to reset the count of the enclosing
+     * expression. A flat chain such as {@code 0+0+0+...} or a balanced tree such as {@code ((a+a)+(a+a))+...} stays under the
+     * parenthesis depth limit but makes ANTLR allocate a very large parse tree, so such queries are rejected from the token stream
      * before parsing starts. The check is syntax-blind: unary {@code +}/{@code -} are conservatively counted too, and so is the
      * {@code *} in {@code COUNT(*)}. Commas separate independent expressions (fields of an {@code EVAL}, arguments of a function),
      * so wide but shallow queries such as an {@code EVAL} with thousands of fields are not affected.
      */
     public static final int MAX_BINARY_OPERATORS = 1000;
+
+    /**
+     * Maximum number of left parentheses, which are the function calls, subqueries and parenthesized expressions, of one top level item
+     * of an ESQL query. Unlike the binary operators, they are not reset inside parentheses, only by a comma or a pipe outside of any
+     * parentheses, e.g. between the fields of an {@code EVAL}. A balanced tree of nested function calls such as
+     * {@code max(max(0,0),max(0,0))} contains no binary operators, so the {@link #MAX_BINARY_OPERATORS} limit does not see it, but its
+     * prediction cost in ANTLR grows with the number of the nested calls, and a few thousand characters can take gigabytes of heap.
+     */
+    public static final int MAX_LEFT_PARENTHESES = 500;
 
     private static void replaceSymbolWithLiteral(Map<String, String> symbolReplacements, String[] literalNames, String[] symbolicNames) {
         for (int i = 0, replacements = symbolReplacements.size(); i < symbolicNames.length && replacements > 0; i++) {
@@ -263,18 +273,20 @@ public class EsqlParser {
 
             // Pre-scan the token stream for expression depth and complexity BEFORE invoking ANTLR's
             // recursive-descent parser.
-            boolean tokenized;
+            boolean lexed;
             try {
                 pipeline.tokenStream().fill();
-                tokenized = true;
+                lexed = true;
             } catch (ParsingException pe) {
+                lexed = false;
+            }
+            // If the lexer failed, the buffer still holds the tokens before the invalid character. Those are the only tokens the
+            // parser can work on before reporting the error, so they must respect the limits too.
+            checkTokenLimits(pipeline.tokenStream().getTokens());
+            if (lexed == false) {
                 // Lexer error during fill() — rebuild the entire pipeline from scratch so the
                 // parser runs lazily and reports the same error as without this pre-scan.
                 pipeline = createParserPipeline(query, params);
-                tokenized = false;
-            }
-            if (tokenized) {
-                checkTokenLimits(pipeline.tokenStream().getTokens());
             }
 
             ParserRuleContext tree = parseFunction.apply(pipeline.parser());
@@ -299,9 +311,14 @@ public class EsqlParser {
         int depth = 0;
         int prefixChain = 0;
         int binaryOperators = 0;
+        int leftParentheses = 0;
         for (Token token : tokens) {
-            switch (token.getType()) {
-                case EsqlBaseLexer.LP -> depth++;
+            int type = token.getType();
+            switch (type) {
+                case EsqlBaseLexer.LP -> {
+                    depth++;
+                    leftParentheses++;
+                }
                 case EsqlBaseLexer.RP -> depth--;
                 case EsqlBaseLexer.NOT, EsqlBaseLexer.MINUS, EsqlBaseLexer.PLUS -> prefixChain++;
                 default -> prefixChain = 0;
@@ -312,12 +329,24 @@ public class EsqlParser {
                     ExpressionBuilder.MAX_EXPRESSION_DEPTH
                 );
             }
-            if (token.getType() == EsqlBaseLexer.PIPE || token.getType() == EsqlBaseLexer.COMMA) {
+            // depth can be negative for an invalid query with an unmatched right parenthesis, which is reported by the parser
+            boolean topLevelSeparator = depth <= 0 && (type == EsqlBaseLexer.COMMA || type == EsqlBaseLexer.PIPE);
+            if (type == EsqlBaseLexer.COMMA || topLevelSeparator) {
                 binaryOperators = 0;
-            } else if (isBinaryOperator(token.getType()) && ++binaryOperators > MAX_BINARY_OPERATORS) {
+            }
+            if (topLevelSeparator) {
+                leftParentheses = 0;
+            }
+            if (isBinaryOperator(type) && ++binaryOperators > MAX_BINARY_OPERATORS) {
                 throw new ParsingException(
                     "ES|QL statement exceeded the maximum number of binary operators allowed between commas or pipes ({})",
                     MAX_BINARY_OPERATORS
+                );
+            }
+            if (leftParentheses > MAX_LEFT_PARENTHESES) {
+                throw new ParsingException(
+                    "ES|QL statement exceeded the maximum number of left parentheses allowed in an expression ({})",
+                    MAX_LEFT_PARENTHESES
                 );
             }
         }

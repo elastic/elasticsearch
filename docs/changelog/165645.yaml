@@ -1,5 +1,5 @@
-area: Search
+area: Mapping
 issues: []
 pr: 165645
-summary: Semantic_text preserve inference id on merge
+summary: Keep existing `semantic_text` inference_id on mapping updates that omit it
 type: bug

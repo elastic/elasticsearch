@@ -656,6 +656,7 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         TransportActionServices transport = new TransportActionServices(
+            null,
             transportService,
             null,
             exchangeService,

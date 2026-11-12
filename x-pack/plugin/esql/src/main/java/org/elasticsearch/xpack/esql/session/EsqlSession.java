@@ -12,12 +12,14 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -131,6 +133,7 @@ import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -705,6 +708,21 @@ public class EsqlSession {
                                     null
                                 ),
                                 minimumVersion
+                            )
+                        );
+                        return;
+                    }
+
+                    // The EQL delegate does not yet honor the out-of-band request filter, and applying it post-hoc would
+                    // strip events out of sequence matches (a wrong answer). Reject rather than silently ignore the
+                    // filter and return rows it should have excluded as complete. Lifts once the filter is bridged to
+                    // the delegate through a coordinator-local execution context. Checked before the dataset and view
+                    // rewriters so a rejected query does not also carry their partially-applied-filter warnings.
+                    if (request.filter() != null && analyzedPlan.inner().anyMatch(EqlRelation.class::isInstance)) {
+                        listener.onFailure(
+                            new VerificationException(
+                                "[EQL] source command cannot yet be combined with a request filter; "
+                                    + "remove the filter or express it inside the EQL query"
                             )
                         );
                         return;
@@ -2875,6 +2893,14 @@ public class EsqlSession {
             listener.onResponse(result.withIndices(indexPattern, IndexResolution.empty(indexPattern.indexPattern())));
         } else {
             executionInfo.queryProfile().incFieldCapsCalls();
+            // Retain the merged field-caps only for a local, unfiltered, full-mapping EQL pattern, so the EQL delegate
+            // reuses it instead of re-resolving. Any other case (non-EQL, filtered, remote, narrowed) falls back.
+            // Known boundary: ES|QL resolves with a "-nested" filter, so a reused response omits nested fields — an EQL
+            // query referencing a nested field resolves it as absent under reuse where self-resolution would reject it.
+            // Nested fields are not a supported EQL target, so this is a documented limitation, not a wrong answer.
+            Consumer<FieldCapabilitiesResponse> mergedCapsSink = shouldRetainEqlFieldCaps(indexPattern, preAnalysis, requestFilter, result)
+                ? caps -> result.eqlFieldCaps().put(indexPattern, caps)
+                : null;
             indexResolver.resolveMainIndicesVersioned(
                 indexPattern.indexPattern(),
                 result.fieldNames,
@@ -2898,6 +2924,7 @@ public class EsqlSession {
                 trackUnmappedFieldIndices,
                 namedFields,
                 indicesExpressionGrouper,
+                mergedCapsSink,
                 planningCpu.meteredCpu(listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                     maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, l, retryListener -> {
@@ -2916,12 +2943,39 @@ public class EsqlSession {
                             trackUnmappedFieldIndices,
                             namedFields,
                             indicesExpressionGrouper,
+                            mergedCapsSink,
                             planningCpu.meteredCpu(retryListener)
                         );
                     });
                 }))
             );
         }
+    }
+
+    /**
+     * Whether to retain the merged field-caps of this pattern for reuse by the EQL delegate. Only for a pattern that is
+     * an EQL source, unfiltered (a filter narrows the index set), resolving the full mapping (ALL_FIELDS), and local
+     * (CCS is handled by the EQL engine's own cross-cluster support). Any other case falls back to the EQL engine's
+     * own field-caps resolution — never a wrong schema.
+     */
+    private static boolean shouldRetainEqlFieldCaps(
+        IndexPattern indexPattern,
+        PreAnalyzer.PreAnalysis preAnalysis,
+        QueryBuilder requestFilter,
+        PreAnalysisResult result
+    ) {
+        if (preAnalysis.eqlPatterns().contains(indexPattern) == false || requestFilter != null) {
+            return false;
+        }
+        if (result.fieldNames().equals(IndexResolver.ALL_FIELDS) == false) {
+            return false;
+        }
+        for (String part : Strings.splitStringByCommaToArray(indexPattern.indexPattern())) {
+            if (RemoteClusterAware.isRemoteIndexName(part)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -3376,7 +3430,11 @@ public class EsqlSession {
         InferenceResolution inferenceResolution,
         ExternalSourceResolution externalSourceResolution,
         TransportVersion minimumTransportVersion,
-        IndexViewOrigins indexViewOrigins
+        IndexViewOrigins indexViewOrigins,
+        // Merged field-caps retained (by pattern) for EQL source commands only, so the EQL delegate reuses this
+        // resolution instead of issuing its own _field_caps. Mutable, shared by reference across the with* copies
+        // (like indexResolution); empty for every non-EQL query.
+        Map<IndexPattern, FieldCapabilitiesResponse> eqlFieldCaps
     ) {
 
         public PreAnalysisResult(Set<String> fieldNames, Set<String> wildcardJoinIndices) {
@@ -3391,7 +3449,8 @@ public class EsqlSession {
                 InferenceResolution.EMPTY,
                 ExternalSourceResolution.EMPTY,
                 TransportVersion.current(),
-                IndexViewOrigins.EMPTY
+                IndexViewOrigins.EMPTY,
+                new HashMap<>()
             );
         }
 
@@ -3422,7 +3481,8 @@ public class EsqlSession {
                 inferenceResolution,
                 externalSourceResolution,
                 minimumTransportVersion,
-                indexViewOrigins
+                indexViewOrigins,
+                eqlFieldCaps
             );
         }
 
@@ -3438,7 +3498,8 @@ public class EsqlSession {
                 inferenceResolution,
                 externalSourceResolution,
                 minimumTransportVersion,
-                indexViewOrigins
+                indexViewOrigins,
+                eqlFieldCaps
             );
         }
 
@@ -3454,7 +3515,8 @@ public class EsqlSession {
                 inferenceResolution,
                 externalSourceResolution,
                 minimumTransportVersion,
-                indexViewOrigins
+                indexViewOrigins,
+                eqlFieldCaps
             );
         }
 
@@ -3470,7 +3532,8 @@ public class EsqlSession {
                 inferenceResolution,
                 externalSourceResolution,
                 minimumTransportVersion,
-                indexViewOrigins
+                indexViewOrigins,
+                eqlFieldCaps
             );
         }
 
@@ -3492,7 +3555,8 @@ public class EsqlSession {
                 inferenceResolution,
                 externalSourceResolution,
                 minimumTransportVersion,
-                indexViewOrigins
+                indexViewOrigins,
+                eqlFieldCaps
             );
         }
 
@@ -3508,7 +3572,8 @@ public class EsqlSession {
                 inferenceResolution,
                 externalSourceResolution,
                 minimumTransportVersion,
-                indexViewOrigins
+                indexViewOrigins,
+                eqlFieldCaps
             );
         }
     }

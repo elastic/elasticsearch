@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
@@ -34,7 +33,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.ToTime
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.promql.function.HashOffset;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
@@ -79,7 +77,8 @@ import java.util.TreeSet;
  * columns. The rule first collects those sets ({@link Classes}), then rewrites the plan bottom-up, keeping each container's split as
  * a {@link Shape} until a node needs it as columns.
  * <p>
- * A collapse keeping one row per series keys by the series id when nothing above it reads a view of the series, and otherwise by the
+ * A collapse keeping one row per series keys by its keyword view of every label when nothing above it reads a view of the series, and
+ * otherwise by the
  * one view the source reads: the one leaving out only what every reader leaves out. Any other aggregate keys by the view leaving out
  * every label its class removes or writes. Labels key packed ({@link PackDims}): a label of several values keys as a whole, and the
  * residual container, which is large, keys as it is.
@@ -412,12 +411,10 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
                     Shape columns;
                     if (collapse && isSource(definition)) {
                         if (finding == false && views.getOrDefault(named.id(), Set.of()).isEmpty()) {
-                            // Nothing reads a view of the series above: the series id keys the collapse.
-                            Attribute id = seriesId(aggregate.child());
-                            child = withSeriesId(aggregate.child(), id);
-                            // Under a name of its own: the time-series aggregation keys every collapse by _tsid already.
-                            String name = Attribute.rawTemporaryName(MetadataAttribute.TSID_FIELD, "series", new NameId().toString());
-                            groupings.add(new Alias(id.source(), name, id));
+                            // Nothing reads a view of the series above: the keyword view of every label keys the collapse, one row
+                            // per series. The time-series aggregation keys by _tsid first, but cannot regroup by it.
+                            String name = Attribute.rawTemporaryName(MetadataAttribute.TIMESERIES, "series", new NameId().toString());
+                            groupings.add(new Alias(Source.EMPTY, name, new TimeSeriesWithout(Source.EMPTY, new ArrayList<>())));
                             var aliases = new ArrayList<NamedExpression>();
                             columns = columns(shape.withLabels(shape.labels()).withoutRest(), aliases);
                             groupings.addAll(aliases);
@@ -491,28 +488,6 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
             shape.labels().forEach((name, value) -> labels.put(name, named(value, name, aliases)));
             groupings.addAll(aliases);
             return new Shape(null, id, shape.excluded(), labels);
-        }
-
-        /** The time-series id of the source under {@code plan}. */
-        private static Attribute seriesId(LogicalPlan plan) {
-            for (EsRelation relation : plan.collect(EsRelation.class)) {
-                for (Attribute attribute : relation.output()) {
-                    if (attribute.name().equals(MetadataAttribute.TSID_FIELD)) {
-                        return attribute;
-                    }
-                }
-            }
-            return new MetadataAttribute(plan.source(), MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false);
-        }
-
-        /** {@code plan} with its source reading {@code id}. */
-        private static LogicalPlan withSeriesId(LogicalPlan plan, Attribute id) {
-            return plan.transformUp(
-                EsRelation.class,
-                relation -> relation.output().contains(id)
-                    ? relation
-                    : relation.withAttributes(CollectionUtils.combine(relation.output(), id))
-            );
         }
 
         /** The view the collapse {@code id} carries, as its column and what it leaves out. */

@@ -9,9 +9,9 @@ ProjectExec[[parts.domain{r}#0, parts.fragment{r}#1, parts.path{r}#2, parts.exte
               \_ExchangeExec[[_tsid{m}#17, step{r}#14, $$LASTOVERTIME_$1$timestamps{r}#21, $$LASTOVERTIME_$2$values{r}#22, $$_timeseries$values{r}#23],true]
                 \_TimeSeriesAggregateExec[[_tsid{m}#17, step{r}#14],[LASTOVERTIME(network.bytes_in{f}#18,@timestamp{f}#19,true[BOOLEAN],PT0S[TIME_DURATION]) AS LASTOVERTIME_$1#15, step{r}#14 AS step#14, VALUES($$$VALUES$0{r$}#20,true[BOOLEAN],PT0S[TIME_DURATION]) AS _timeseries#13],INITIAL,[_tsid{m}#17, step{r}#14, $$LASTOVERTIME_$1$timestamps{r}#24, $$LASTOVERTIME_$2$values{r}#25, $$_timeseries$values{r}#26],1040,BUCKET(@timestamp{f}#19,PT1H[TIME_DURATION])]
                   \_FieldExtractExec[[_tsid{m}#17, network.bytes_in{f}#18]<[],[],[]>,_doc{f}#27]
-                    \_EvalExec[[BUCKET(@timestamp{f}#19,PT1H[TIME_DURATION]) AS step#14, TOTIMESERIESMETADATA(TIMESERIESWITHOUT()) AS $$$VALUES$0#20]]
-                      \_FieldExtractExec[[@timestamp{f}#19]<[],[],[]>,_doc{f}#27]
-                        \_EsQueryExec[k8s-downsampled], indexMode[standard], [_doc{f}#27], limit[], sort[] estimatedRowSize[1068] queryBuilderAndTags [[QueryBuilderAndTags[query={
+                    \_EvalExec[[BUCKET(@timestamp{f}#19,PT1H[TIME_DURATION]) AS step#14, TOTIMESERIESMETADATA(_timeseries{f}#28) AS $$$VALUES$0#20]]
+                      \_FieldExtractExec[[@timestamp{f}#19, _timeseries{f}#28]<[],[],[]>,_doc{f}#27]
+                        \_EsQueryExec[k8s-downsampled], indexMode[standard], [_doc{f}#27], limit[], sort[] estimatedRowSize[1118] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "bool" : {
     "must" : [
       {

@@ -19,6 +19,7 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.routing.allocation.SnapshotRestoreAllocationSettings;
 import org.elasticsearch.cluster.action.shard.ShardStartedTaskExecutor;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
@@ -1307,7 +1308,7 @@ public class StatelessPlugin extends Plugin
             BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED,
             COMBINE_DYNAMIC_MAPPING_UPDATES_BY_DEFAULT,
             FAILURE_STORE_REFRESH_INTERVAL_SETTING,
-            InternalClusterInfoService.SNAPSHOT_RESTORE_ALLOCATION_ENABLED,
+            SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED,
             SnapshotRestoreStorageMonitor.REROUTE_INTERVAL_SETTING,
             ObjectStoreService.TYPE_SETTING,
             ObjectStoreService.BUCKET_SETTING,

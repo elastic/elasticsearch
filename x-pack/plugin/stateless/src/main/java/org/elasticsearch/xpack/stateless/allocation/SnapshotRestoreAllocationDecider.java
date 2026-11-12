@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.stateless.allocation;
 
-import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.SnapshotRestoreAllocationSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
@@ -33,7 +33,7 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
 
     public SnapshotRestoreAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         this.indexingReservedDisk = IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING.get(settings);
-        clusterSettings.initializeAndWatch(InternalClusterInfoService.SNAPSHOT_RESTORE_ALLOCATION_ENABLED, value -> this.enabled = value);
+        clusterSettings.initializeAndWatch(SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED, value -> this.enabled = value);
     }
 
     @Override

@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.cluster.routing.allocation.SnapshotRestoreAllocationSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WriteLoadDeciderShardWriteLoadType;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WriteLoadDeciderStatus;
@@ -98,19 +99,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         Property.Dynamic,
         Property.NodeScope
     );
-    /**
-     * Enables snapshot-restore disk capacity checks. When true, this service collects disk usage into
-     * {@link ClusterInfo} even if the disk threshold decider is disabled. Also gates the stateless
-     * restore allocation decider and storage monitor (registered by StatelessPlugin).
-     * Temporary until restore no longer needs disk capacity checks. Operator-only and registered in
-     * StatelessPlugin to allow removal without deprecation.
-     */
-    public static final Setting<Boolean> SNAPSHOT_RESTORE_ALLOCATION_ENABLED = Setting.boolSetting(
-        "cluster.routing.allocation.snapshot_restore.enabled",
-        false,
-        Property.OperatorDynamic,
-        Property.NodeScope
-    );
     private volatile boolean diskThresholdEnabled;
     private volatile boolean snapshotRestoreAllocationEnabled;
     private volatile WriteLoadDeciderStatus writeLoadConstraintEnabled;
@@ -169,7 +157,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
             this::setDiskThresholdEnabled
         );
-        clusterSettings.initializeAndWatchIfRegistered(SNAPSHOT_RESTORE_ALLOCATION_ENABLED, this::setSnapshotRestoreAllocationEnabled);
+        clusterSettings.initializeAndWatchIfRegistered(
+            SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED,
+            this::setSnapshotRestoreAllocationEnabled
+        );
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, this::setWriteLoadConstraintEnabled);
         clusterSettings.initializeAndWatch(
             WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING,

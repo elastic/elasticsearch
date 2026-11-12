@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.stateless.allocation;
 
-import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -15,6 +14,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.SnapshotRestoreAllocationSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 
 import java.util.List;
@@ -22,7 +22,7 @@ import java.util.function.Predicate;
 
 /**
  * Existing-shards allocator for stateless. Shard data lives in the object store, so this allocator does not
- * recover from local copies. When {@link InternalClusterInfoService#SNAPSHOT_RESTORE_ALLOCATION_ENABLED} is on,
+ * recover from local copies. When {@link SnapshotRestoreAllocationSettings#SNAPSHOT_RESTORE_ALLOCATION_ENABLED} is on,
  * it defers unassigned snapshot primaries until {@link org.elasticsearch.snapshots.InternalSnapshotsInfoService}
  * has fetched their size (mirroring {@code PrimaryShardAllocator}'s {@code FETCHING_SHARD_DATA} gate).
  * Desired-balance reconciliation then assigns them with {@link SnapshotRestoreAllocationDecider} enforcing disk
@@ -34,7 +34,7 @@ public class StatelessExistingShardsAllocator implements ExistingShardsAllocator
 
     public StatelessExistingShardsAllocator(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(
-            InternalClusterInfoService.SNAPSHOT_RESTORE_ALLOCATION_ENABLED,
+            SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED,
             value -> snapshotRestoreAllocationEnabled = value
         );
     }

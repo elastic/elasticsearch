@@ -21,7 +21,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
-import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
@@ -40,6 +39,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.SnapshotRestoreAllocationSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
@@ -655,7 +655,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             protected AllocationService createAllocationService(Settings settings, SnapshotsInfoService snapshotsInfoService) {
                 final ClusterSettings clusterSettings = new ClusterSettings(
                     settings,
-                    Sets.addToCopy(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, InternalClusterInfoService.SNAPSHOT_RESTORE_ALLOCATION_ENABLED)
+                    Sets.addToCopy(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED)
                 );
                 final AllocationService allocationService = new AllocationService(
                     randomAllocationDeciders(settings, clusterSettings, List.of(new ClusterPlugin() {

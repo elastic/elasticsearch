@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -26,6 +25,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.SnapshotRestoreAllocationSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -122,10 +122,10 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
     ) {
         final Settings settings = Settings.builder()
             .put("cluster.routing.allocation.type", "desired_balance")
-            .put(InternalClusterInfoService.SNAPSHOT_RESTORE_ALLOCATION_ENABLED.getKey(), snapshotRestoreAllocationEnabled)
+            .put(SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED.getKey(), snapshotRestoreAllocationEnabled)
             .build();
         final Set<Setting<?>> registered = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        registered.add(InternalClusterInfoService.SNAPSHOT_RESTORE_ALLOCATION_ENABLED);
+        registered.add(SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED);
         final ClusterSettings clusterSettings = new ClusterSettings(settings, registered);
         var service = new AllocationService(
             new AllocationDeciders(
@@ -360,10 +360,10 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
     private static ClusterSettings monitorClusterSettings(TimeValue rerouteInterval) {
         return new ClusterSettings(
             Settings.builder()
-                .put(InternalClusterInfoService.SNAPSHOT_RESTORE_ALLOCATION_ENABLED.getKey(), true)
+                .put(SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED.getKey(), true)
                 .put(SnapshotRestoreStorageMonitor.REROUTE_INTERVAL_SETTING.getKey(), rerouteInterval)
                 .build(),
-            Set.of(InternalClusterInfoService.SNAPSHOT_RESTORE_ALLOCATION_ENABLED, SnapshotRestoreStorageMonitor.REROUTE_INTERVAL_SETTING)
+            Set.of(SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED, SnapshotRestoreStorageMonitor.REROUTE_INTERVAL_SETTING)
         );
     }
 }

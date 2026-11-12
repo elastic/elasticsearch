@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.stateless.allocation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.allocation.SnapshotRestoreAllocationSettings;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -65,7 +65,7 @@ public class SnapshotRestoreStorageMonitor {
         this.clusterState = clusterState;
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
         this.rerouteService = rerouteService;
-        clusterSettings.initializeAndWatch(InternalClusterInfoService.SNAPSHOT_RESTORE_ALLOCATION_ENABLED, value -> this.enabled = value);
+        clusterSettings.initializeAndWatch(SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED, value -> this.enabled = value);
         clusterSettings.initializeAndWatch(REROUTE_INTERVAL_SETTING, value -> this.rerouteInterval = value);
     }
 

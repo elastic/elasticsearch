@@ -16,7 +16,6 @@ setup:
                 mode: columnar
                 compound_format: false
                 number_of_shards: 1
-                number_of_replicas: 0
                 sort.field: [ "trace_id" ]
                 sort.order: [ "desc" ]
             mappings:
@@ -105,7 +104,6 @@ setup:
 
   - do:
       cluster.health:
-        wait_for_status: green
         wait_for_no_initializing_shards: true
 
   - do:

@@ -22,8 +22,8 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2;
  * Mechanism: a {@link TranslationContextV2} per command; recursive descent via {@link TranslationContextV2#translate} where every
  * PromQL node produces an {@code IntermediateResult} its parent composes, and {@link TranslationContextV2#translateFinal}
  * projects the result to the command's declared output. The translation reads every label from the label container, which holds the
- * dimensions alone; {@link PushDownPromqlLabels} then reads the labels the plan names from their fields, so it is part of the
- * translation, not an optimization of it.
+ * dimensions alone; {@link PushDownPromqlLabels}, the rule right after it, then reads the labels the plan names from their
+ * fields, so it is part of the translation, not an optimization of it.
  */
 public final class TranslatePromqlToEsqlPlanV2 extends AnalyzerRules.ParameterizedAnalyzerRule<PromqlCommand, AnalyzerContext> {
 
@@ -34,6 +34,6 @@ public final class TranslatePromqlToEsqlPlanV2 extends AnalyzerRules.Parameteriz
 
     @Override
     protected LogicalPlan rule(PromqlCommand cmd, AnalyzerContext context) {
-        return PushDownPromqlLabels.pushDown(new TranslationContextV2(cmd, context).translateFinal(), context.configuration());
+        return new TranslationContextV2(cmd, context).translateFinal();
     }
 }

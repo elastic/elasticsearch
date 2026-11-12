@@ -164,6 +164,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateE
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesWithout;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AddPromqlResultOrder;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PushDownPromqlLabels;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlanV2;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslateTimeSeriesCollapse;
@@ -344,7 +345,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // translate PromQL plan to ESQL. It should run before TranslateTimeSeriesAggregate and implicit casting
                 context().configuration().pragmas().enablePromqlTranslationV2()
                     ? new TranslatePromqlToEsqlPlanV2()
-                    : new TranslatePromqlToEsqlPlan()
+                    : new TranslatePromqlToEsqlPlan(),
+                // Reads the labels the V2 translation names from their fields and splits its label containers into columns; off
+                // without V2.
+                new PushDownPromqlLabels()
             ),
             new Batch<>(
                 "Resolution",

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
+import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
@@ -59,22 +61,22 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 /**
- * Pushes the labels of a translated PromQL plan down into columns: {@link TranslatePromqlToEsqlPlanV2} applies it to every plan it
- * translates.
+ * Pushes the labels of a translated PromQL plan down into columns, right after {@link TranslatePromqlToEsqlPlanV2}; off unless
+ * {@code enable_promql_translation_v2} is set.
  * <p>
  * Translation carries the labels of a series as one label container ({@code _timeseries}) and states every label operation as a
  * call over it: {@link TimeSeriesMetadataFilter} keeps some labels or leaves them out, {@link TimeSeriesMetadataSet} writes one
  * and {@link TimeSeriesMetadataPath} reads one; aggregations, joins, unions and hashing compare containers as a whole. Translation
  * reads every label from the source's container, while the container holds the dimensions alone: a label the plan names is read
  * from its field here, a field that is not a dimension or a passthrough alias such as {@code cpu} included. Comparing and
- * rewriting whole containers is slow, and a node before 9.7 cannot read the typed container at all. It splits each container
+ * rewriting whole containers is slow, and a node before 9.7 cannot read the typed container at all. This rule splits each container
  * into columns instead: a residual container, which the source reads as a view leaving out the labels the plan removes or writes,
  * and one column per label the plan names. Every operation then works on columns, and the residual view is the keyword
  * {@code _timeseries} once lowered ({@code LowerLabelContainerToKeyword}). Only the command's rendered label container writes
  * labels back into the residual one.
  * <p>
  * The containers a join or a union compares, and the ones an expression combines, are split alike: they share the set of labels in
- * columns. It first collects those sets ({@link Classes}), then rewrites the plan bottom-up, keeping each container's split as
+ * columns. The rule first collects those sets ({@link Classes}), then rewrites the plan bottom-up, keeping each container's split as
  * a {@link Shape} until a node needs it as columns.
  * <p>
  * A collapse keeping one row per series keys by the series id when nothing above it reads a view of the series, and otherwise by the
@@ -82,9 +84,16 @@ import java.util.TreeSet;
  * every label its class removes or writes. Labels key packed ({@link PackDims}): a label of several values keys as a whole, and the
  * residual container, which is large, keys as it is.
  */
-public final class PushDownPromqlLabels {
+public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
-    private PushDownPromqlLabels() {}
+    @Override
+    public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+        // the translation it follows emits label containers only with V2
+        if (context.configuration().pragmas().enablePromqlTranslationV2() == false) {
+            return plan;
+        }
+        return pushDown(plan, context.configuration());
+    }
 
     /** {@code plan} with its PromQL label containers split into columns; {@code configuration} renders the ones left whole. */
     static LogicalPlan pushDown(LogicalPlan plan, Configuration configuration) {

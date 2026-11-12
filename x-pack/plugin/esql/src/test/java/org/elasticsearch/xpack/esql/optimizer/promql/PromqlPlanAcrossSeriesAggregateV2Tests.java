@@ -32,9 +32,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 /** PromQL aggregations across series translated over a label container. */
-public class PromqlPlanAggregationLabelTests extends AbstractPromqlPlanOptimizerTests {
+public class PromqlPlanAcrossSeriesAggregateV2Tests extends AbstractPromqlPlanOptimizerTests {
 
-    public PromqlPlanAggregationLabelTests(VersionMode versionMode) {
+    public PromqlPlanAcrossSeriesAggregateV2Tests(VersionMode versionMode) {
         super(versionMode);
     }
 

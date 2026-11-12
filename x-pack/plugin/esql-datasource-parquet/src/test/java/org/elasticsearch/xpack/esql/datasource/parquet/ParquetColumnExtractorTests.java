@@ -1032,8 +1032,9 @@ public class ParquetColumnExtractorTests extends ESTestCase {
     /**
      * After the first bucket lands, look-ahead GETs may already be done. {@code waitForNextCompleted}
      * then returns those slots on its fast path without reading the cancel signal; taking their
-     * value through {@code .get()} would keep decoding. Cancel must be observed on that second
-     * wait and the landed chunks released so the breaker returns to zero.
+     * value through {@code .get()} would keep decoding. First decode waits until every dispatched
+     * GET has completed, then flips cancel, so the leftover value-take is the site that must abort.
+     * A missed {@code PrefetchedChunks.release} would leave the dedicated watermark hold.
      */
     public void testCancelledExtractAfterFirstBucketReleasesLandedChunks() throws Exception {
         byte[] data = writeMultiRowGroupFile(2000);
@@ -1051,26 +1052,33 @@ public class ParquetColumnExtractorTests extends ESTestCase {
             rgWindows[i][1] = rg.getStartingPos() + rg.getCompressedSize();
         }
 
-        AtomicBoolean cancelled = new AtomicBoolean();
-        AtomicInteger blockCharges = new AtomicInteger();
-        TrackingCircuitBreaker trackingBreaker = new TrackingCircuitBreaker() {
-            @Override
-            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-                super.addEstimateBytesAndMaybeBreak(bytes, label);
-                // Decode of the first landed bucket is the first ESQL block charge. Flip cancel
-                // there so the next value-take — not waitForNextCompleted's anyOf wait — sees it.
-                if (bytes > 0 && "<esql_block_factory>".equals(label)) {
-                    cancelled.set(true);
-                    blockCharges.incrementAndGet();
-                }
-            }
-        };
-        BlockFactory trackingFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(trackingBreaker).build();
-
         ExecutorService ioExecutor = Executors.newFixedThreadPool(4);
         try {
             BlockingChunkStorageObject blocking = new BlockingChunkStorageObject(data, ioExecutor, rgWindows);
-            ParquetFormatReader reader = new ParquetFormatReader(trackingFactory);
+            AtomicBoolean cancelled = new AtomicBoolean();
+            AtomicInteger blockCharges = new AtomicInteger();
+            TrackingCircuitBreaker trackingBreaker = new TrackingCircuitBreaker() {
+                @Override
+                public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                    super.addEstimateBytesAndMaybeBreak(bytes, label);
+                    if (bytes > 0 && "<esql_block_factory>".equals(label)) {
+                        try {
+                            assertTrue(
+                                "look-ahead GETs still in flight at first decode",
+                                blocking.awaitDispatchedReadsCompleted(15, TimeUnit.SECONDS)
+                            );
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new AssertionError(e);
+                        }
+                        cancelled.set(true);
+                        blockCharges.incrementAndGet();
+                    }
+                }
+            };
+            BlockFactory trackingFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(trackingBreaker).build();
+            ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+            ParquetFormatReader reader = new ParquetFormatReader(trackingFactory).withIoWatermark(watermark);
             AtomicReference<Throwable> thrown = new AtomicReference<>();
             CountDownLatch returned = new CountDownLatch(1);
             try (ColumnExtractor extractor = new ParquetColumnExtractor(blocking, reader, fullFooter, ErrorPolicy.PERMISSIVE)) {
@@ -1095,17 +1103,15 @@ public class ParquetColumnExtractorTests extends ESTestCase {
                     "expected 3 in-flight chunk prefetches; observed " + blocking.observedDispatches.get(),
                     blocking.dispatchedAtLeast.await(15, TimeUnit.SECONDS)
                 );
-                // Land every look-ahead GET so waitForNextCompleted's later iterations take the
-                // already-done fast path rather than blocking on anyOf.
                 blocking.release();
                 assertTrue("extract did not return within 5s of first-bucket cancel", returned.await(5, TimeUnit.SECONDS));
                 assertThat(thrown.get(), instanceOf(TaskCancelledException.class));
                 assertTrue("first bucket must have started decoding before cancel", blockCharges.get() > 0);
             }
+            assertBusy(() -> assertEquals("missed PrefetchedChunks.release leaks the watermark hold", 0L, watermark.used()));
         } finally {
             ioExecutor.shutdownNow();
         }
-        assertBusy(() -> assertEquals("landed prefetch chunks must be released", 0L, trackingBreaker.getUsed()));
     }
 
     /**
@@ -1662,6 +1668,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         private final CountDownLatch releaseLatch = new CountDownLatch(1);
         private final CountDownLatch dispatchedAtLeast = new CountDownLatch(3);
         private final AtomicInteger observedDispatches = new AtomicInteger();
+        private final AtomicInteger completedBlocking = new AtomicInteger();
 
         BlockingChunkStorageObject(byte[] data, Executor executor, long[][] chunkWindows) {
             this.data = data;
@@ -1676,6 +1683,25 @@ public class ParquetColumnExtractorTests extends ESTestCase {
 
         void release() {
             releaseLatch.countDown();
+        }
+
+        /**
+         * True once every chunk-window GET that has been dispatched has also delivered (or
+         * failed). Used so the second-wait cancel test can flip the signal only after
+         * look-ahead futures are done, forcing {@code waitForNextCompleted}'s fast path.
+         */
+        boolean awaitDispatchedReadsCompleted(long timeout, TimeUnit unit) throws InterruptedException {
+            long deadlineNanos = System.nanoTime() + unit.toNanos(timeout);
+            while (true) {
+                int dispatched = observedDispatches.get();
+                if (dispatched >= 3 && completedBlocking.get() >= dispatched) {
+                    return true;
+                }
+                if (System.nanoTime() >= deadlineNanos) {
+                    return dispatched >= 3 && completedBlocking.get() >= dispatched;
+                }
+                Thread.sleep(5);
+            }
         }
 
         private boolean overlapsAnyChunk(long position, long length) {
@@ -1755,6 +1781,10 @@ public class ParquetColumnExtractorTests extends ESTestCase {
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     listener.onFailure(new IOException("interrupted while waiting for release", e));
+                } finally {
+                    if (blocking) {
+                        completedBlocking.incrementAndGet();
+                    }
                 }
             });
         }

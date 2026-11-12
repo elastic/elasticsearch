@@ -69,6 +69,8 @@ foo * on(bar) group_right (baz and qux);
 |unexpected <op:and> in grouping opts, expected "," or ")";
 foo * on(bar) group_left (baz);
 |unexpected end of input;
+foo * on(bar) group_left (baz;
+|unclosed left parenthesis;
 foo + bool bar;
 |bool modifier can only be used on comparison operators;
 foo + bool 10;

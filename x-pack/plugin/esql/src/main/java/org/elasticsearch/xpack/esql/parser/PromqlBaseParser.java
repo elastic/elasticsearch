@@ -1367,7 +1367,7 @@ public class PromqlBaseParser extends ParserConfig {
         case 2:
           {
           setState(197);
-          if (!(_input.LA(1) != LP)) throw new FailedPredicateException(this, "_input.LA(1) != LP");
+          if (!(_input.LA(1) != LP)) throw new FailedPredicateException(this, "_input.LA(1) != LP", "Unclosed left parenthesis in the labels of [" + _input.LT(-1).getText() + "]");
           }
           break;
         }

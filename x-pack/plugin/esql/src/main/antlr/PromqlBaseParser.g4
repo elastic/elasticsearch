@@ -80,7 +80,7 @@ seriesMatcher
 modifier
     // An opening parenthesis after group_x must start its label list.
     : matching=(IGNORING | ON) modifierLabels=labelList
-      (joining=(GROUP_LEFT | GROUP_RIGHT) (groupLabels=labelList | {_input.LA(1) != LP}?))?
+      (joining=(GROUP_LEFT | GROUP_RIGHT) (groupLabels=labelList | {_input.LA(1) != LP}?<fail={"Unclosed left parenthesis in the labels of [" + _input.LT(-1).getText() + "]"}>))?
     ;
 
 // NB: PromQL explicitly allows a trailing comma for label enumeration

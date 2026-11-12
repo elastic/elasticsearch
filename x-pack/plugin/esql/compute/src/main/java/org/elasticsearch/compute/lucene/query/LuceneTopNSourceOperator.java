@@ -700,16 +700,29 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
      *     {@code TopFieldCollector} when its first comparator is the relevance one in its natural order (see
      *     {@link #sharesMinCompetitiveScore}). Those sorts get one manager per distinct {@link Sort}, shared across drivers.
      *     Every other sort gets a new manager per collector: sharing one wouldn't prune anything, it would only add a lock
-     *     and keep every collector reachable until the query finishes.
+     *     and keep every collector reachable until the query finishes. The only bound those sorts share is the {@link SharedSortBound},
+     *     which the operator uses to skip whole shards when the first sort key is a date field.
      * </p>
      * <p>
-     *     A shared manager may span shards. That is safe because {@code limit} is the global limit and only the score is
-     *     shared, so a document below another shard's minimum score can't make the final top N either. Which shards share
-     *     one follows from {@code Sort.equals()}. A sort field backed by an {@code IndexFieldData.XFieldComparatorSource}
-     *     compares by identity, so each shard gets its own manager; numeric, date and geo distance sorts build those. A
-     *     {@code SortedSetSortField} or {@code BinarySortField} compares by value, so shards share one; keyword sorts build
-     *     those, so {@code SORT _score DESC, keyword_field} shares one manager across shards, like a bare
-     *     {@code SORT _score DESC}.
+     *     A shared {@link TopFieldCollectorManager} keeps a reference to every collector it creates, so those collectors
+     *     and their queues stay reachable for as long as the {@link Factory} does, after the operators that used them have
+     *     closed. {@link TopScoreDocCollectorManager} keeps none.
+     * </p>
+     * <p>
+     *     A shared manager may span shards. That is safe because {@code limit} is the global limit: a collector publishes a
+     *     score only once it holds {@code limit} documents that score at least as high, so a document scoring lower in
+     *     another shard can't make the final top N. Lucene publishes the document id together with the score, and
+     *     {@code TopScoreDocCollector} uses it to decide whether a document with exactly the published score is still
+     *     collected. Ids of different shards are unrelated, so across shards that decision is arbitrary. It only picks
+     *     which of the documents that tie on the last score of the top N are returned.
+     * </p>
+     * <p>
+     *     A manager holds one {@link Sort}, so shards share one only when their sorts are equal. That is what keeps a
+     *     shard's collectors on the comparators resolved against its own mappings. A sort field backed by an
+     *     {@code IndexFieldData.XFieldComparatorSource} compares by identity, so each shard gets its own manager; numeric,
+     *     date and geo distance sorts build those. A {@code SortedSetSortField} or {@code BinarySortField} compares by
+     *     value, so shards share one; keyword sorts build those, so {@code SORT _score DESC, keyword_field} shares one
+     *     manager across shards, like a bare {@code SORT _score DESC}.
      * </p>
      */
     static class PerShardCollectorProvider {
@@ -734,7 +747,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             Map<Sort, TopFieldCollectorManager> fieldManagers = new HashMap<>();
             Map<Integer, ShardCollectors> byShard = new HashMap<>();
             for (ShardContext shardContext : contexts.iterable()) {
-                if (shardContext.searcher().getIndexReader().maxDoc() == 0) {
+                if (LuceneSliceQueue.isEmpty(shardContext)) {
                     // LuceneSliceQueue creates no slices for empty shards, so they never need a collector. Building their sort
                     // can also fail, e.g. a geo distance sort on a field the index doesn't map.
                     continue;

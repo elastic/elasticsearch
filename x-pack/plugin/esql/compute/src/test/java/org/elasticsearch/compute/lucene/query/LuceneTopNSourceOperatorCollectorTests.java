@@ -223,7 +223,8 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
 
     /**
      * The point of sharing a manager: once one driver's collector has a full queue, a collector for another driver starts
-     * with that driver's queue bottom as its minimum competitive score, so its scorer can skip documents immediately.
+     * with that driver's queue bottom as its minimum competitive score, so its scorer can skip documents immediately. The
+     * other driver may be on another shard, whose sort is equal.
      */
     public void testSharedMinCompetitiveScoreReachesOtherCollectors() throws IOException {
         List<SortBuilder<?>> sorts = randomBoolean()
@@ -232,14 +233,21 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         int limit = randomIntBetween(5, 20);
         setupIndex(100);
         ShardContext ctx = createMockShardContext(0);
-        var provider = new LuceneTopNSourceOperator.PerShardCollectorProvider(limit, true, sorts, new IndexedByShardIdFromSingleton<>(ctx));
+        ShardContext otherShard = createMockShardContext(1);
+        var provider = new LuceneTopNSourceOperator.PerShardCollectorProvider(
+            limit,
+            true,
+            sorts,
+            new IndexedByShardIdFromList<>(List.of(ctx, otherShard))
+        );
 
         // The first driver collects more than limit hits with increasing scores, which fills its queue and publishes its bottom
         int hits = limit + randomIntBetween(1, 30);
         float bottom = collectIncreasingScores(provider.newPerShardCollector(ctx), hits, limit);
 
-        // A collector for another driver picks the published score up as soon as it gets a scorer
-        var other = provider.newPerShardCollector(ctx);
+        // A collector for another driver picks the published score up as soon as it gets a scorer. It gets either that score
+        // or the next float up, never more, so it only ever skips documents that tie with or score below the published one.
+        var other = provider.newPerShardCollector(randomBoolean() ? ctx : otherShard);
         RecordingScorable scorer = new RecordingScorable();
         other.getLeafCollector(reader.leaves().getFirst()).setScorer(scorer);
         assertThat(scorer.minCompetitiveScore, greaterThanOrEqualTo(bottom));
@@ -285,9 +293,9 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     /**
-     * {@code SORT _score DESC, x} is the only sort whose collectors come from a shared {@link TopFieldCollectorManager}, whose
-     * {@code newCollector()} isn't thread-safe. Collectors created concurrently must all come from that one manager and share
-     * its minimum competitive score.
+     * The collectors of {@code SORT _score DESC, x} come from a shared {@link TopFieldCollectorManager}, whose
+     * {@code newCollector()} isn't thread-safe. Collectors created concurrently must all come from that one manager, which
+     * must have recorded every one of them, and share its minimum competitive score.
      */
     public void testConcurrentCollectorsForScoreFirstMultiKeySortShareManager() throws Exception {
         int limit = randomIntBetween(5, 20);
@@ -302,6 +310,8 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
 
         List<TopDocsCollector<?>> collectors = createCollectorsConcurrently(provider, ctx);
         assertThat(provider.topFieldCollectorManagers.size(), equalTo(1));
+        // An unsynchronized newCollector() loses appends to the manager's list
+        assertThat(provider.topFieldCollectorManagers.values().iterator().next().getCollectors().size(), equalTo(collectors.size()));
         for (TopDocsCollector<?> collector : collectors) {
             assertThat(collector, instanceOf(TopFieldCollector.class));
         }
@@ -477,8 +487,9 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     /**
-     * The factory resolves each shard's sort exactly once: the provider builds it, and the slice queue takes the shard's
-     * {@link ScoreMode} from the provider instead of resolving the sort itself.
+     * The provider builds each shard's sort once. The slice queue takes the shard's {@link ScoreMode} from the provider and
+     * creating collectors reuses the sort, so neither builds it again. {@link DataPartitioning#AUTO} is left out: its
+     * strategy builds the sort of an index-sorted shard once more to compare it with the index sort.
      */
     public void testFactoryBuildsEachShardSortOnce() throws IOException {
         setupIndex(100);
@@ -496,7 +507,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         List<SortBuilder<?>> sorts = needsScore
             ? (randomBoolean() ? List.of(new ScoreSortBuilder()) : List.of(new ScoreSortBuilder(), new FieldSortBuilder("s")))
             : List.of(new FieldSortBuilder("s"));
-        new LuceneTopNSourceOperator.Factory(
+        var factory = new LuceneTopNSourceOperator.Factory(
             new IndexedByShardIdFromList<>(contexts),
             c -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
             DataPartitioning.SHARD,
@@ -510,6 +521,11 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
             () -> 0L,
             QueryWarnings.EMIT
         );
+        for (ShardContext ctx : contexts) {
+            for (int c = randomIntBetween(1, 5); c > 0; c--) {
+                assertThat(factory.perShardCollectorProvider.newPerShardCollector(ctx).collector, notNullValue());
+            }
+        }
         for (int i = 0; i < numShards; i++) {
             assertEquals("shard " + i, 1, buildSortCalls[i]);
         }

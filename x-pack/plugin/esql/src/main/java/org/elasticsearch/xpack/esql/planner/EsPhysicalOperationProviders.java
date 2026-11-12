@@ -625,6 +625,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
                 directoryBytesRead,
+                context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE),
                 singleValueQueryWarnings
             );
         } else {

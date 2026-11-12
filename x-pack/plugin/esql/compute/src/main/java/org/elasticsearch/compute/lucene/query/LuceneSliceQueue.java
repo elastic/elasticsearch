@@ -590,6 +590,7 @@ public final class LuceneSliceQueue {
                     return new TimeSeriesPartitioner(requiredField).partition(
                         searcher.getLeafContexts(),
                         taskConcurrency,
+                        requiredField == null ? MAX_DOCS_PER_SLICE : minDocsPerSlice,
                         MAX_DOCS_PER_SLICE
                     );
                 } catch (IOException e) {
@@ -966,11 +967,15 @@ public final class LuceneSliceQueue {
         /**
          * Combines the prefix cells of the leaves into slices, targeting at least {@code taskConcurrency} slices
          * for each metric (indicated via the first prefix byte). Each slice contains at least
-         * {@code maxDocsPerLeave} docs to avoid tiny slices, but is capped so that the largest leaf of the
+         * {@code minDocsPerSlice} docs to avoid tiny slices, but is capped so that the largest leaf of the
          * metric gives about {@code maxDocsPerLeave} docs to a slice, to bound per-leaf processing cost.
          */
-        List<List<PartialLeafReaderContext>> partition(List<LeafReaderContext> leaves, int taskConcurrency, int maxDocsPerLeave)
-            throws IOException {
+        List<List<PartialLeafReaderContext>> partition(
+            List<LeafReaderContext> leaves,
+            int taskConcurrency,
+            int minDocsPerSlice,
+            int maxDocsPerLeave
+        ) throws IOException {
             List<LeafCells> cells = new ArrayList<>(leaves.size());
             int shift = 0;
             for (LeafReaderContext leaf : leaves) {
@@ -1014,7 +1019,7 @@ public final class LuceneSliceQueue {
                     largestLeafDocs = Math.max(largestLeafDocs, leafDocs);
                 }
                 final long docsPerSlice = Math.min(
-                    Math.max(Math.ceilDiv(metricDocs, taskConcurrency), maxDocsPerLeave),
+                    Math.max(Math.ceilDiv(metricDocs, taskConcurrency), minDocsPerSlice),
                     (long) maxDocsPerLeave * metricDocs / largestLeafDocs
                 );
                 int sliceDocs = 0;
@@ -1081,6 +1086,9 @@ public final class LuceneSliceQueue {
         }
 
         static DocIdSetIterator disiWithField(LeafReaderContext leaf, @Nullable String metricField) throws IOException {
+            if (metricField == null) {
+                return DocIdSetIterator.all(leaf.reader().maxDoc());
+            }
             FieldInfo fieldInfo = leaf.reader().getFieldInfos().fieldInfo(metricField);
             if (fieldInfo == null) {
                 return DocIdSetIterator.empty();

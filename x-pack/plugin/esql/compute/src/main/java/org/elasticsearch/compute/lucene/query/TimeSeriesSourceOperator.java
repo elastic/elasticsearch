@@ -38,6 +38,7 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
             int maxPageSize,
             int limit,
             LongSupplier directoryBytesRead,
+            int minDocsPerSlice,
             QueryWarnings singleValueQueryWarnings
         ) {
             super(
@@ -51,7 +52,7 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
                 limit,
                 false,
                 directoryBytesRead,
-                LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+                minDocsPerSlice,
                 singleValueQueryWarnings
             );
         }

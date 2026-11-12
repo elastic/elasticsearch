@@ -42,6 +42,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -892,6 +893,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public IndexSearcher searcher() {
             return ctx.searcher();
+        }
+
+        @Override
+        public boolean canPartitionByTsidPrefix() {
+            return PartitionedDocValues.canPartitionByTsidPrefix(ctx.getIndexSettings().getIndexVersionCreated());
         }
 
         @Override

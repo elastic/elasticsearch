@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
@@ -8052,6 +8053,37 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
         assertThat(firstPassAggs, hasSize(1));
         assertThat(firstPassAggs.get(0).filter(), instanceOf(Or.class));
+    }
+
+    /**
+     * Grouping by {@code _tsid} matches the per-time-series grouping of the first pass, so the second pass must regroup on the
+     * first-pass {@code _tsid} rather than on a {@code VALUES(_tsid)} that reuses its id.
+     */
+    public void testTranslateStatsByTsid() {
+        var plan = planMetrics("""
+            TS k8s METADATA _tsid
+            | STATS BY _tsid
+            | STATS c = COUNT(*)
+            """);
+
+        List<TimeSeriesAggregate> firstPass = new ArrayList<>();
+        plan.forEachDown(TimeSeriesAggregate.class, firstPass::add);
+        assertThat(firstPass, hasSize(1));
+        TimeSeriesAggregate aggsByTsid = firstPass.get(0);
+        assertThat(aggsByTsid.groupings(), hasSize(1));
+        Attribute tsid = as(aggsByTsid.groupings().get(0), MetadataAttribute.class);
+        assertThat(tsid.name(), equalTo(MetadataAttribute.TSID_FIELD));
+        aggsByTsid.forEachExpression(Values.class, values -> fail("first pass must not wrap _tsid in VALUES: " + values));
+
+        List<Aggregate> secondPass = new ArrayList<>();
+        plan.forEachDown(Aggregate.class, agg -> {
+            if (agg instanceof TimeSeriesAggregate == false && agg.groupings().isEmpty() == false) {
+                secondPass.add(agg);
+            }
+        });
+        assertThat(secondPass, hasSize(1));
+        assertThat(secondPass.get(0).groupings(), hasSize(1));
+        assertThat(Expressions.attribute(Alias.unwrap(secondPass.get(0).groupings().get(0))).id(), equalTo(tsid.id()));
     }
 
     public void testTranslateWithDateTrunc() {

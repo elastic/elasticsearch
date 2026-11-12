@@ -301,6 +301,9 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                     }
                     firstPassGroupings.add(firstPassBucket);
                     secondPassGroupings.add(new Alias(group.source(), g.name(), firstPassBucket.toAttribute(), g.id()));
+                } else if (Alias.unwrap(g).semanticEquals(tsid.get())) {
+                    // The first pass already groups by _tsid, so regroup on it directly instead of wrapping it in VALUES
+                    secondPassGroupings.add(new Alias(group.source(), g.name(), tsid.get(), g.id()));
                 } else {
                     var unwrapped = Alias.unwrap(g);
                     if (unwrapped instanceof Attribute a) {

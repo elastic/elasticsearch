@@ -1907,6 +1907,51 @@ public class BlockHashTests extends BlockHashTestCase {
         }
     }
 
+    /**
+     * Regression for #164417: emitted full-dictionary keys must not share the hash's mutable
+     * {@code BytesRefArray}, since clearing the hash after a regular partial flush truncates it
+     * before downstream operators have necessarily consumed those keys.
+     */
+    public void testTimeSeriesBlockHashKeysSurviveHashClear() {
+        BytesRef tsidA = new BytesRef("id-a");
+        BytesRef tsidB = new BytesRef("id-b");
+        TimeSeriesBlockHash hash = new TimeSeriesBlockHash(0, 1, false, false, blockFactory);
+        Block[] keys = null;
+        try {
+            addSingleTsidRow(hash, tsidA, 1L);
+            addSingleTsidRow(hash, tsidB, 2L);
+            addSingleTsidRow(hash, tsidA, 3L);
+            try (IntVector selected = blockFactory.newIntRangeVector(0, 3)) {
+                keys = hash.getKeys(selected);
+            }
+            BytesRefBlock tsids = (BytesRefBlock) keys[0];
+            BytesRef scratch = new BytesRef();
+            assertThat(tsids.getBytesRef(0, scratch), equalTo(tsidA));
+            assertThat(tsids.getBytesRef(1, scratch), equalTo(tsidB));
+            assertThat(tsids.getBytesRef(2, scratch), equalTo(tsidA));
+
+            hash.clear();
+
+            assertThat(tsids.getBytesRef(0, scratch), equalTo(tsidA));
+            assertThat(tsids.getBytesRef(1, scratch), equalTo(tsidB));
+            assertThat(tsids.getBytesRef(2, scratch), equalTo(tsidA));
+
+            BytesRef tsidC = new BytesRef("id-c");
+            addSingleTsidRow(hash, tsidC, 4L);
+            try (IntVector selected = blockFactory.newIntRangeVector(0, 1)) {
+                Block[] nextKeys = hash.getKeys(selected);
+                try {
+                    assertThat(((BytesRefBlock) nextKeys[0]).getBytesRef(0, scratch), equalTo(tsidC));
+                } finally {
+                    Releasables.close(nextKeys);
+                }
+            }
+        } finally {
+            Releasables.close(hash);
+            Releasables.close(keys);
+        }
+    }
+
     private void addSingleTsidRow(TimeSeriesBlockHash hash, BytesRef tsid, long timestamp) {
         try (
             BytesRefVector.Builder tsidBuilder = blockFactory.newBytesRefVectorBuilder(1);

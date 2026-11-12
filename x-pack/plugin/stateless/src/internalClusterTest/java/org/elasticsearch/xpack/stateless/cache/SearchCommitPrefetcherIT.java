@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkResponse;
@@ -44,7 +45,6 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher.BCCPreFetchedOffset;
-import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -256,7 +256,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             });
 
         ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, DiscoveryNodeRole.SEARCH_ROLE);
-        String prewarmThreadPool = StatelessPlugin.PREWARM_THREAD_POOL;
+        String prewarmThreadPool = StatelessThreadPools.PREWARM_THREAD_POOL;
         // number of completed tasks in the prewarming threadpool before we start indexing
         long preIngestTasksPrewarmingPool = getNumberOfCompletedTasks(threadPool, prewarmThreadPool);
         // number of completed tasks in the refresh pool before we start indexing
@@ -331,7 +331,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
 
         var numberOfCommits = randomIntBetween(5, 8);
         ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, DiscoveryNodeRole.SEARCH_ROLE);
-        String prewarmThreadPool = StatelessPlugin.PREWARM_THREAD_POOL;
+        String prewarmThreadPool = StatelessThreadPools.PREWARM_THREAD_POOL;
         // number of completed tasks in the prewarming threadpool before we start indexing
         long preIngestTasksPrewarmingPool = getNumberOfCompletedTasks(threadPool, prewarmThreadPool);
         // number of completed tasks in the refresh pool before we start indexing
@@ -1096,7 +1096,6 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider,
             SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
             // no-op the warming on shard recovery so we do not introduce noise in the testing
@@ -1105,7 +1104,6 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                 threadPool,
                 telemetryProvider,
                 clusterSettings,
-                warmingRatioProvider,
                 searchRecoveryTimeoutCalculationService
             ) {
                 @Override
@@ -1114,6 +1112,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
+                    WarmingRatioProvider warmingRatioProvider,
                     @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener

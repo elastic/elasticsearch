@@ -20,10 +20,14 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermInSetQuery;
@@ -53,6 +57,7 @@ import static org.elasticsearch.search.internal.BreakerWeightTestUtils.conjuncti
 import static org.elasticsearch.search.internal.BreakerWeightTestUtils.newContextIndexSearcher;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 public class MultiTermBreakerWeightTests extends ESTestCase {
 
@@ -313,6 +318,42 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
         assertThat("the out-of-band scorer must charge execution RAM", breaker.getUsed(), greaterThan(0L));
         searcher.close();
         assertThat("closing the searcher must release the residual out-of-band charge", breaker.getUsed(), equalTo(0L));
+    }
+
+    /** A clause served from the query cache builds nothing, so only the search that fills the cache is charged. */
+    public void testClauseServedFromQueryCacheIsNotCharged() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        LRUQueryCache queryCache = new LRUQueryCache(10, Long.MAX_VALUE, leaf -> true, Float.POSITIVE_INFINITY);
+        // Caches the multi-term clause only, not the term clause or the queries that enclose them.
+        QueryCachingPolicy policy = new QueryCachingPolicy() {
+            @Override
+            public void onUse(Query query) {}
+
+            @Override
+            public boolean shouldCache(Query query) {
+                return (query instanceof TermQuery || query instanceof BooleanQuery || query instanceof ConstantScoreQuery) == false;
+            }
+        };
+        Query query = conjunction(termInSetQuery(), new TermQuery(new Term(LEAD_FIELD, RARE_LEAD)));
+        try (
+            ContextIndexSearcher searcher = new ContextIndexSearcher(
+                reader,
+                IndexSearcher.getDefaultSimilarity(),
+                queryCache,
+                policy,
+                false
+            )
+        ) {
+            searcher.setCircuitBreaker(breaker);
+            assertThat(searcher.search(query, new CountingCollectorManager()), equalTo(RARE_DOCS));
+            assertThat("filling the cache builds the result set", breaker.charges(), hasSize(1));
+            assertThat(queryCache.getCacheCount(), equalTo(1L));
+
+            assertThat(searcher.search(query, new CountingCollectorManager()), equalTo(RARE_DOCS));
+            assertThat(queryCache.getHitCount(), equalTo(1L));
+            assertThat("a cached clause must not be charged", breaker.charges(), hasSize(1));
+            assertThat(breaker.getUsed(), equalTo(0L));
+        }
     }
 
     private void assertChargesThenReleases(Query query) throws IOException {

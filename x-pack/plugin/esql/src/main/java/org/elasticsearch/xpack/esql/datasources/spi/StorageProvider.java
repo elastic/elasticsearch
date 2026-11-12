@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 
@@ -32,6 +33,16 @@ public interface StorageProvider extends Closeable {
     StorageObject newObject(StoragePath path, long length, Instant lastModified);
 
     /**
+     * Creates a StorageObject whose version is already known from a listing or a probe, so that its first read is
+     * conditional on that version and its footer is cached under it. A provider that cannot condition on a version
+     * ignores it, and the object is then not footer-cached. Decorators must forward this overload, or the version
+     * is lost before it reaches the footer key.
+     */
+    default StorageObject newObject(StoragePath path, long length, @Nullable Instant lastModified, @Nullable String version) {
+        return newObject(path, length, lastModified);
+    }
+
+    /**
      * Lists objects under a prefix. For blob storage, lists all objects with the given prefix.
      * Returns an iterator to support lazy loading of large directories.
      *
@@ -39,6 +50,24 @@ public interface StorageProvider extends Closeable {
      * @param recursive if true, recurse into subdirectories; if false, list only immediate children
      */
     StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException;
+
+    /**
+     * As {@link #listObjects(StoragePath, boolean)}, but may return only objects whose name under {@code directory}
+     * begins with {@code namePrefix}.
+     * <p>
+     * A separate method rather than a wider contract on the two-argument form, because that form is also handed real
+     * directories by the partition walk and the prefix fan-out, and every shipped provider treats its argument as
+     * one: the blob stores append a separator when it lacks one, and the local provider refuses a path that is not a
+     * directory. So a caller cannot narrow a listing by lengthening the path it passes — hence this.
+     * <p>
+     * The default is correct and merely wide: it lists the directory and leaves the caller's own matcher to drop what
+     * the name prefix would have. A provider over a flat namespace should override it, because there the narrowing is
+     * free — the prefix is what the store indexes on — and the caller filters either way, so an override changes how
+     * many keys cross the wire and never which files a query sees.
+     */
+    default StorageIterator listObjects(StoragePath directory, String namePrefix, boolean recursive) throws IOException {
+        return listObjects(directory, recursive);
+    }
 
     /**
      * Lists the immediate children of a directory-like prefix, distinguishing subdirectories from
@@ -68,7 +97,7 @@ public interface StorageProvider extends Closeable {
      */
     default StorageEntry objectMetadata(StoragePath path) throws IOException {
         StorageObject object = newObject(path);
-        return new StorageEntry(path, object.length(), object.lastModified());
+        return new StorageEntry(path, object.length(), object.lastModified(), object.probedVersion());
     }
 
     /** Returns the URI schemes this provider handles (e.g., ["http", "https"]). */

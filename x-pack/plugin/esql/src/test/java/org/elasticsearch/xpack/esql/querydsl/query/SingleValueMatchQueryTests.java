@@ -38,7 +38,8 @@ import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -47,6 +48,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -82,9 +84,9 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
             return Settings.EMPTY;
         }
 
-        /** Whether this setup writes the ColumNAR codec's payload, which it can only do where the codec is available. */
-        default boolean needsColumnarCodec() {
-            return false;
+        /** The version the index is created at, which in a strict-columnar mode decides whether the ColumNAR codec is used. */
+        default IndexVersion indexVersion() {
+            return IndexVersion.current();
         }
     }
 
@@ -136,8 +138,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
     }
 
     public void testQuery() throws IOException {
-        assumeCodecAvailable();
-        MapperService mapper = createMapperService(setup.indexSettings(), mapping(setup::mapping));
+        MapperService mapper = createMapperService(setup.indexVersion(), setup.indexSettings(), mapping(setup::mapping));
         try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d)) {
             List<List<Object>> fieldValues = setup.build(iw);
             try (IndexReader reader = iw.getReader()) {
@@ -153,8 +154,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
     }
 
     public void testEmpty() throws IOException {
-        assumeCodecAvailable();
-        MapperService mapper = createMapperService(setup.indexSettings(), mapping(setup::mapping));
+        MapperService mapper = createMapperService(setup.indexVersion(), setup.indexSettings(), mapping(setup::mapping));
         try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d)) {
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
@@ -164,14 +164,6 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                 );
             }
         }
-    }
-
-    /** A setup that writes the codec's payload only runs where the codec can be turned on. */
-    private void assumeCodecAvailable() {
-        assumeTrue(
-            "columnar_codec feature flag must be enabled",
-            setup.needsColumnarCodec() == false || ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()
-        );
     }
 
     @FunctionalInterface
@@ -241,13 +233,10 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         @Override
         public Settings indexSettings() {
             // The HIGH-cardinality keyword setups rely on a strict-columnar index mode to default the field to binary doc values.
-            // Which of the two layouts it gets follows the codec setting, and these build the doc values by hand, so the setting is
-            // named rather than left to its default.
             return switch (docValuesMode) {
                 case DOC_VALUES_ONLY_HIGH_CARDINALITY, DOC_VALUES_ONLY_HIGH_CARDINALITY_PAYLOAD, DOC_VALUES_ONLY_SINGLE_VALUED,
                     DOC_VALUES_ONLY_SINGLE_VALUED_COLUMNAR -> Settings.builder()
                         .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-                        .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), docValuesMode.columnarCodec())
                         .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), docValuesMode.singleValuedBlobs() == false)
                         .build();
                 case DEFAULT, DOC_VALUES_ONLY -> Settings.EMPTY;
@@ -255,8 +244,12 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         }
 
         @Override
-        public boolean needsColumnarCodec() {
-            return docValuesMode.columnarCodec();
+        public IndexVersion indexVersion() {
+            // Which of the two layouts a strict-columnar index gets follows its version, and these build the doc values by hand, so
+            // the setups without the codec are created just before every columnar index started using it.
+            return docValuesMode.highCardinality() && docValuesMode.columnarCodec() == false
+                ? IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG)
+                : IndexVersion.current();
         }
 
         @Override

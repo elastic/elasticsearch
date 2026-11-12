@@ -32,6 +32,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
+import org.elasticsearch.index.store.SelfAccountingIndexInput;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
@@ -158,26 +161,37 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
             protected IndexInput doOpenInput(String name, IOContext context, BlobFileRanges blobFileRanges) {
                 final IndexInput delegate = super.doOpenInput(name, context, blobFileRanges);
                 openInputs.put(delegate, name);
-                return new FilterIndexInput("tracked(" + name + ")", delegate) {
-                    private final AtomicBoolean closed = new AtomicBoolean(false);
-
-                    @Override
-                    public void close() throws IOException {
-                        if (closed.compareAndSet(false, true)) {
-                            try {
-                                super.close();
-                            } finally {
-                                openInputs.remove(delegate);
-                            }
-                        }
-                    }
-                };
+                return new TrackedIndexInput(name, delegate);
             }
 
             @Override
             public void close() throws IOException {
                 super.close();
                 assert openInputs.isEmpty() : "open inputs " + openInputs.values() + " not closed";
+            }
+
+            private final class TrackedIndexInput extends FilterIndexInput implements SelfAccountingIndexInput {
+                private final AtomicBoolean closed = new AtomicBoolean(false);
+
+                TrackedIndexInput(String name, IndexInput delegate) {
+                    super("tracked(" + name + ")", delegate);
+                }
+
+                @Override
+                public void accountBytesReadTo(PluggableDirectoryMetricsHolder<StoreMetrics> holder) {
+                    asInstanceOf(SelfAccountingIndexInput.class, in).accountBytesReadTo(holder);
+                }
+
+                @Override
+                public void close() throws IOException {
+                    if (closed.compareAndSet(false, true)) {
+                        try {
+                            super.close();
+                        } finally {
+                            openInputs.remove(in);
+                        }
+                    }
+                }
             }
         }
     }

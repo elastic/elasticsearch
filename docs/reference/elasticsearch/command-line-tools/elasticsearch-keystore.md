@@ -56,7 +56,7 @@ Only some settings are designed to be read from the keystore. However, there is 
 :   Creates the keystore.
 
 `-f, --force`
-:   When used with the `add` parameter, the command no longer prompts you before overwriting existing entries in the keystore. Also, if you haven’t created a keystore yet, it creates a keystore that is obfuscated but not password protected.
+:   When used with the `add` parameter, the command no longer prompts you before overwriting existing entries in the keystore. Also, if you haven’t created a keystore yet, it creates a keystore that is obfuscated but not password protected. Only a password protects the contents of the keystore at rest.
 
 `-h, --help`
 :   Returns all of the command parameters.
@@ -68,7 +68,7 @@ Only some settings are designed to be read from the keystore. However, there is 
 :   Lists the settings in the keystore. If the keystore is password protected, you are prompted to enter the password.
 
 `-p`
-:   When used with the `create` parameter, the command prompts you to enter a keystore password. If you don’t specify the `-p` flag or if you enter an empty password, the keystore is obfuscated but not password protected.
+:   When used with the `create` parameter, the command prompts you to enter a keystore password. If you don’t specify the `-p` flag or if you enter an empty password, the keystore is obfuscated but not password protected. Only a password protects the contents of the keystore at rest.
 
 `passwd`
 :   Changes or sets the keystore password. If the keystore is password protected, you are prompted to enter the current password and the new one. You can optionally use an empty string to remove the password. If the keystore is not password protected, you can use this command to set a password.

@@ -767,6 +767,24 @@ public class S3StorageProvider implements StorageProvider {
         return new S3StorageObject(t.sync, t.async, asyncReadRetryStrategy, storageIdentity, t.bucket, t.key, path, length, lastModified);
     }
 
+    @Override
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
+        Target t = resolve(path);
+        S3StorageObject object = new S3StorageObject(
+            t.sync,
+            t.async,
+            asyncReadRetryStrategy,
+            storageIdentity,
+            t.bucket,
+            t.key,
+            path,
+            length,
+            lastModified
+        );
+        object.seedVersion(version);
+        return object;
+    }
+
     /** The bucket, the key and the clients that serve them, which the four single-path entry points all need. */
     private record Target(S3Client sync, S3AsyncClient async, String bucket, String key) {}
 
@@ -784,6 +802,16 @@ public class S3StorageProvider implements StorageProvider {
 
     @Override
     public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+        return listObjects(prefix, "", recursive);
+    }
+
+    /**
+     * S3 lists by key prefix natively, so {@code namePrefix} is appended to the directory's key and the store does
+     * the narrowing. The separator closing that directory's key is added either way; what differs is that with a
+     * name prefix the key asked for then deliberately stops mid-name.
+     */
+    @Override
+    public StorageIterator listObjects(StoragePath prefix, String namePrefix, boolean recursive) throws IOException {
         validateS3Scheme(prefix);
         String bucket = prefix.host();
         String keyPrefix = extractKey(prefix);
@@ -791,6 +819,7 @@ public class S3StorageProvider implements StorageProvider {
         if (keyPrefix.isEmpty() == false && keyPrefix.endsWith(StoragePath.PATH_SEPARATOR) == false) {
             keyPrefix += StoragePath.PATH_SEPARATOR;
         }
+        keyPrefix += namePrefix;
 
         // Prefer the already-discovered client when available; fall back to s3Client for the first call.
         DiscoveredClients dcNow = discoveredClients;
@@ -869,7 +898,12 @@ public class S3StorageProvider implements StorageProvider {
     /** One conversion from an SDK listing entry to a {@link StorageEntry}, shared by both listing shapes. */
     private static StorageEntry toStorageEntry(S3Object s3Object, String pathPrefix) {
         Instant lastModified = s3Object.lastModified() != null ? s3Object.lastModified() : Instant.EPOCH;
-        return new StorageEntry(StoragePath.of(pathPrefix + s3Object.key()), s3Object.size(), lastModified);
+        return new StorageEntry(
+            StoragePath.of(pathPrefix + s3Object.key()),
+            s3Object.size(),
+            lastModified,
+            S3StorageObject.strongEtag(s3Object.eTag())
+        );
     }
 
     @Override

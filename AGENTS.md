@@ -105,6 +105,11 @@ Plugins can set `deploymentTarget` in `build.gradle`. That value tells the node 
 - REST classes expose routes via `RestHandler#routes`; when adding endpoints ensure naming matches existing REST/Transport patterns to aid discoverability.
 - Transport `ActionType` strings encode scope (`indices:data/read/...`, `cluster:admin/...`, etc.); align new names with these conventions to integrate with privilege resolution.
 
+## Liveness
+- Listeners must be completed eventually.
+- Resources (file handles, reference-count increments, circuit-breaker reservations, pooled memory allocations, etc) must be released eventually.
+- When writing or reviewing asynchronous code, consult `docs/internal/Liveness.md` for guidance.
+
 ## Logging & Error Handling
 - Elasticsearch should prefer its own logger `org.elasticsearch.logging.LogManager` & `org.elasticsearch.logging.Logger`; declare `private static final Logger logger = LogManager.getLogger(Class.class)`.
 - Always use parameterized logging (`logger.debug("operation [{}]", value)`); never build strings via concatenation.
@@ -173,6 +178,13 @@ They describe two separate capability mechanisms and the rule for choosing betwe
 and `LIMIT` is pushed to `k`, so membership is not unique. Pin results with a
 filter on a uniquely nearest document, or assert counts / `{any}`. See
 `x-pack/plugin/esql/qa/testFixtures/src/main/resources/_README.md` (Approximate knn).
+
+In ES|QL YAML REST tests (`x-pack/plugin/src/yamlRestTest/resources/rest-api-spec/test/esql/`),
+do not rely on dynamic mapping from `index` or `bulk` being immediately visible
+to a subsequent `esql.query`, as the write can return before every node applies
+the new mapping. Instead, define explicit `mappings` in `indices.create`, or if
+the test specifically exercises dynamic mapping or `dynamic_templates`, add
+`cluster.health: { wait_for_events: languid }` before `esql.query`.
 
 ## Backwards compatibility
 - For changes to a `Writeable` implementation (`writeTo` and constructor from `StreamInput`), add a new `public static final <UNIQUE_DESCRIPTIVE_NAME> = TransportVersion.fromName("<unique_descriptive_name>")` and use it in the new code paths. Confirm the backport branches and then generate a new version file with `./gradlew generateTransportVersion`. On the `patch/serverless-fix` branch use `./gradlew generateTransportVersion --patch`, which generates a patch id rather than one `main` may already have taken.

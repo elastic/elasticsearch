@@ -9,12 +9,14 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * Central fallback routing for field values that cannot be indexed normally.
@@ -95,9 +97,7 @@ public final class FallbackPostMapper {
 
         /** Builds a {@link FieldContext} for the regular field parse path ({@code parseObjectOrField}). */
         public static FieldContext forField(DocumentParserContext ctx, FieldMapper mapper) {
-            Mapper.SourceKeepMode mode = mapper.sourceKeepMode().isPresent()
-                ? mapper.sourceKeepMode().get()
-                : ctx.sourceKeepModeFromIndexSettings();
+            Mapper.SourceKeepMode mode = effectiveKeepMode(mapper.sourceKeepMode(), ctx.indexSettings());
             return new FieldContext(
                 ctx.canAddIgnoredField(),
                 false,
@@ -119,12 +119,10 @@ public final class FallbackPostMapper {
             Mapper.SourceKeepMode mode = Mapper.SourceKeepMode.NONE;
             boolean syntheticFallback = false;
             if (mapper instanceof ObjectMapper objectMapper) {
-                mode = objectMapper.sourceKeepMode().isPresent()
-                    ? objectMapper.sourceKeepMode().get()
-                    : ctx.sourceKeepModeFromIndexSettings();
+                mode = effectiveKeepMode(objectMapper.sourceKeepMode(), ctx.indexSettings());
                 // Objects with source_keep:all or source_keep:arrays (non-nested) must pre-capture array
                 // elements because object content cannot be reconstructed field-by-field from doc values.
-                syntheticFallback = mode == Mapper.SourceKeepMode.ALL
+                syntheticFallback = capturesWholeObject(mode)
                     || (mode == Mapper.SourceKeepMode.ARRAYS && objectMapper instanceof NestedObjectMapper == false);
                 // Nested objects natively preserve array structure via Lucene's nested document mechanism;
                 // clear ARRAYS mode so SOURCE_KEEP_ARRAYS_IN_ARRAY pre-capture is not triggered.
@@ -132,9 +130,7 @@ public final class FallbackPostMapper {
                     mode = Mapper.SourceKeepMode.NONE;
                 }
             } else if (mapper instanceof FieldMapper fieldMapper) {
-                mode = fieldMapper.sourceKeepMode().isPresent()
-                    ? fieldMapper.sourceKeepMode().get()
-                    : ctx.sourceKeepModeFromIndexSettings();
+                mode = effectiveKeepMode(fieldMapper.sourceKeepMode(), ctx.indexSettings());
                 syntheticFallback = fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
             }
             return new FieldContext(
@@ -178,6 +174,42 @@ public final class FallbackPostMapper {
     }
 
     /**
+     * The {@code synthetic_source_keep} mode in force for a mapper: its own setting, or else the index default. The row path and the
+     * columnar batch path must resolve this identically for their decisions to agree.
+     */
+    static Mapper.SourceKeepMode effectiveKeepMode(Optional<Mapper.SourceKeepMode> own, IndexSettings indexSettings) {
+        return own.orElse(indexSettings.sourceKeepMode());
+    }
+
+    /**
+     * Whether the row path copies every value of a field to {@code _ignored_source}, even a scalar not inside an array: the field
+     * has no synthetic source of its own, or keeps all source. {@link #resolvePrecaptureReason} reports the same decision as a
+     * {@link Reason}.
+     *
+     * <p>The columnar batch path writes no {@code _ignored_source}, so it must leave fields for which this is true to the row path.
+     */
+    static boolean capturesScalarValues(boolean syntheticFallback, Mapper.SourceKeepMode keepMode) {
+        return syntheticFallback || keepMode == Mapper.SourceKeepMode.ALL;
+    }
+
+    /**
+     * Whether the row path may keep the source of an array value of a field, in {@code _ignored_source} or as positional offsets. It
+     * is a conservative superset of the cases {@link #resolvePrecaptureReason} captures: it ignores whether the mapper rebuilds
+     * arrays itself, because the batch path writes no offsets outside strict-columnar modes either. Refusing more is always safe.
+     */
+    static boolean mayKeepArraySource(boolean syntheticFallback, Mapper.SourceKeepMode keepMode) {
+        return capturesScalarValues(syntheticFallback, keepMode) || keepMode != Mapper.SourceKeepMode.NONE;
+    }
+
+    /**
+     * Whether the row path copies a whole object to {@code _ignored_source}, and with it every leaf beneath, whatever those leaves'
+     * own mappers do. See {@code DocumentParser#parseObjectOrNested}.
+     */
+    static boolean capturesWholeObject(Mapper.SourceKeepMode keepMode) {
+        return keepMode == Mapper.SourceKeepMode.ALL;
+    }
+
+    /**
      * Returns the {@link Reason} to use when pre-capturing a field's XContent to {@code _ignored_source}
      * before the mapper runs, or {@code null} if no pre-capture is needed.
      */
@@ -189,11 +221,8 @@ public final class FallbackPostMapper {
         if (fc.isCopyToDestinationField() && fc.isWithinCopyTo() == false) {
             return Reason.COPY_TO_DESTINATION;
         }
-        if (fc.syntheticFallback()) {
-            return Reason.SYNTHETIC_FALLBACK;
-        }
-        if (fc.sourceKeepMode() == Mapper.SourceKeepMode.ALL) {
-            return Reason.SOURCE_KEEP_ALL;
+        if (capturesScalarValues(fc.syntheticFallback(), fc.sourceKeepMode())) {
+            return fc.syntheticFallback() ? Reason.SYNTHETIC_FALLBACK : Reason.SOURCE_KEEP_ALL;
         }
         if (fc.sourceKeepMode() == Mapper.SourceKeepMode.ARRAYS && fc.inArrayScope() && fc.parsesArrayValue() == false) {
             return Reason.SOURCE_KEEP_ARRAYS_IN_ARRAY;
@@ -267,6 +296,59 @@ public final class FallbackPostMapper {
             case ON_FAILURE -> {
                 if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
                     OnFailureStoredValues.storeValueForOnFailureIgnore(context, fieldPath, context.parser());
+                }
+                yield true;
+            }
+        };
+    }
+
+    /**
+     * Captures the current parser token as a value that failed to parse with {@code ignore_malformed: true}, like
+     * {@link #capture(DocumentParserContext, String, Reason)} with {@link Reason#MALFORMED}. When the field records array offsets
+     * for the array being parsed (see {@link FieldArrayContext#shouldRecordOffsets}), the malformed value is also recorded with
+     * those offsets, so that it travels along if the array is moved to {@code _ignored_source} because its encoded offsets are
+     * too large to store; see {@link FieldArrayContext#recordIgnored}.
+     *
+     * @param offsetsFieldName the field's offsets field, or {@code null} when the field records no offsets
+     * @param multiValue       the field's {@code multi_value} doc values parameter
+     */
+    public static boolean captureMalformed(
+        DocumentParserContext context,
+        String fieldPath,
+        @Nullable String offsetsFieldName,
+        boolean multiValue
+    ) throws IOException {
+        // The fallback needs _ignored_source, so there is no point in recording the value where that is unavailable.
+        if (context.canAddIgnoredField() == false
+            || FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, multiValue) == false) {
+            return capture(context, fieldPath, Reason.MALFORMED);
+        }
+        // Encode once: for objects and arrays, encoding consumes the parser token.
+        BytesRef encoded = XContentDataHelper.encodeToken(context.parser());
+        context.getOffSetContext().recordIgnored(offsetsFieldName, encoded);
+        return capture(context, fieldPath, Reason.MALFORMED, encoded);
+    }
+
+    /**
+     * Like {@link #capture(DocumentParserContext, String, Reason)} but uses a value that was already encoded with
+     * {@link XContentDataHelper#encodeToken} instead of the current parser token.
+     */
+    private static boolean capture(DocumentParserContext context, String fieldPath, Reason reason, BytesRef encoded) throws IOException {
+        return switch (route(reason, malformedUsesOnFailureColumn(context.indexSettings()))) {
+            case IGNORED_SOURCE -> {
+                if (context.canAddIgnoredField() == false) {
+                    yield false;
+                }
+                context.addIgnoredField(IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldPath, encoded));
+                yield true;
+            }
+            case IGNORE_MALFORMED -> {
+                IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fieldPath, encoded);
+                yield true;
+            }
+            case ON_FAILURE -> {
+                if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
+                    OnFailureStoredValues.storeEncoded(context, fieldPath, encoded);
                 }
                 yield true;
             }

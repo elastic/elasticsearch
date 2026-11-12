@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.request;
 
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
@@ -56,8 +56,8 @@ public class ElasticInferenceServiceAuthorizationRequest extends ElasticInferenc
     }
 
     @Override
-    public HttpRequestBase createHttpRequestBase() {
-        var httpGet = new HttpGet(uri);
+    public SimpleHttpRequest createSimpleHttpRequest() {
+        var httpGet = SimpleRequestBuilder.get(uri).build();
         traceContextHandler.propagateTraceContext(httpGet);
 
         return httpGet;

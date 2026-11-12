@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
-import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -44,8 +43,6 @@ import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.view.DeleteViewAction;
-import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.After;
 import org.junit.Before;
 
@@ -61,7 +58,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -182,32 +178,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
      * validator used by {@code local_ds} is a pass-through and stores a missing key (legacy hydrate).
      */
     private static final String FILE_DS = "file_ds";
-
-    /**
-     * Names every {@code testXxx} body creates via {@link PutViewAction}. As with datasets, the SUITE-scoped
-     * cluster requires explicit teardown so views don't leak across methods.
-     */
-    private static final Set<String> CREATED_VIEWS = Set.of(
-        "employees_view",
-        "employees_filtered_view",
-        "mapped_dataset_view",
-        "fork_dataset_view",
-        "fork_dataset_view_a",
-        "fork_dataset_view_b"
-    );
-
-    @After
-    public void cleanupViews() throws Exception {
-        for (String view : CREATED_VIEWS) {
-            try {
-                client().execute(DeleteViewAction.INSTANCE, deleteViewRequest(view)).actionGet(30, SECONDS);
-            } catch (ResourceNotFoundException ignored) {
-                // already deleted by the test itself
-            } catch (Exception e) {
-                logger.warn("view cleanup [{}] failed", view, e);
-            }
-        }
-    }
 
     /**
      * Tears down every dataset in cluster state, not just those the base {@code registerDataset} helper recorded: tests
@@ -5287,42 +5257,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * A view whose body targets a dataset carrying a DECLARED mapping: the declared coercion must survive view
-     * inlining (view resolution rewrites the inlined leaf into the external relation, which must keep the mapping —
-     * a dropped mapping here would silently read the file's physical type instead of the declared one).
-     */
-    public void testViewOverMappedDatasetPreservesCoercion() throws Exception {
-        Path root = createTempDir();
-        Files.writeString(root.resolve("d.csv"), "val:integer\n100\n");
-
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("val", new DatasetFieldMapping("long", null)); // declare integer file column as long
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(
-                    TIMEOUT,
-                    TIMEOUT,
-                    "mapped_ds_for_view",
-                    "local_ds",
-                    root.toUri() + "*.csv",
-                    null,
-                    new HashMap<>(Map.of("format", "csv")),
-                    mapping
-                )
-            )
-        );
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("mapped_dataset_view", "FROM mapped_ds_for_view")));
-
-        try (var response = run(syncEsqlQueryRequest("FROM mapped_dataset_view | KEEP val | LIMIT 1"), TIMEOUT)) {
-            assertThat("declared type must survive view inlining", response.columns().get(0).outputType(), equalTo("long"));
-            assertThat(getValuesList(response).get(0).get(0), equalTo(100L));
-        }
-    }
-
-    /**
      * A dataset carrying a DECLARED mapping used inside a subquery ({@code FROM (FROM mapped)}): the declared
      * coercion must survive the subquery planning rewrite, not just a top-level {@code FROM}.
      */
@@ -5353,55 +5287,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         try (var response = run(syncEsqlQueryRequest("FROM (FROM mapped_ds_for_subquery) | KEEP val | LIMIT 1"), TIMEOUT)) {
             assertThat("declared type must survive the subquery rewrite", response.columns().get(0).outputType(), equalTo("long"));
             assertThat(getValuesList(response).get(0).get(0), equalTo(100L));
-        }
-    }
-
-    public void testViewOverExternalDatasetIsQueryable() throws Exception {
-        registerDataSource("local_ds", Map.of());
-        registerDataset("employees_external", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        // The view body targets the dataset. View resolution runs before the dataset rewrite, so it inlines the body
-        // while it is still a plain index-shaped relation; the rewriter then turns the inlined leaf into an external
-        // relation over the CSV fixture. This is the end-to-end realisation of a view "containing" an external source.
-        // There is no index named "employees_external", so the query can only succeed via the external dataset pipeline —
-        // if the inlined leaf were treated as an index it would fail with "unknown index" (see testFromUnknownName...).
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("employees_view", "FROM employees_external")));
-
-        try (var response = run(syncEsqlQueryRequest("FROM employees_view | SORT emp_no | LIMIT 10"), TIMEOUT)) {
-            List<? extends ColumnInfo> columns = response.columns();
-            assertThat(columns, hasSize(2));
-            assertThat(columns.get(0).name(), equalTo("emp_no"));
-            assertThat(columns.get(1).name(), equalTo("first_name"));
-
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(3));
-            assertThat(rows.get(0).get(0), equalTo(1));
-            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
-            assertThat(rows.get(1).get(0), equalTo(2));
-            assertThat(rows.get(1).get(1).toString(), equalTo("Bob"));
-            assertThat(rows.get(2).get(0), equalTo(3));
-            assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
-        }
-    }
-
-    public void testViewOverExternalDatasetWithTransformInBody() throws Exception {
-        registerDataSource("local_ds", Map.of());
-        registerDataset("employees_external", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        // A non-trivial view body (a WHERE on top of the dataset) proves the external leaf resolves and executes when
-        // it is nested below other commands inside a resolved view, not just as a bare top-level relation.
-        assertAcked(
-            client().execute(
-                PutViewAction.INSTANCE,
-                putViewRequest("employees_filtered_view", "FROM employees_external | WHERE emp_no > 1")
-            )
-        );
-
-        try (var response = run(syncEsqlQueryRequest("FROM employees_filtered_view | SORT emp_no"), TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(2));
-            assertThat(rows.get(0).get(0), equalTo(2));
-            assertThat(rows.get(0).get(1).toString(), equalTo("Bob"));
-            assertThat(rows.get(1).get(0), equalTo(3));
-            assertThat(rows.get(1).get(1).toString(), equalTo("Carol"));
         }
     }
 
@@ -6397,14 +6282,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat("error chain should contain message fragment [" + fragment + "]", cause, notNullValue());
     }
 
-    private static PutViewAction.Request putViewRequest(String name, String query) {
-        return new PutViewAction.Request(TIMEOUT, TIMEOUT, new View(name, query));
-    }
-
-    private static DeleteViewAction.Request deleteViewRequest(String name) {
-        return new DeleteViewAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
-    }
-
     private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
         return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings));
     }
@@ -7036,52 +6913,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 getValuesList(response),
                 equalTo(List.of(List.of("fork1", 11), List.of("fork1", 10), List.of("fork2", 10), List.of("fork2", 3)))
             );
-        }
-    }
-
-    public void testForkOverCompactedDatasetViews() throws Exception {
-        registerDataSource("local_ds", Map.of());
-        registerDataset("fork_view_dataset_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        registerDataset("fork_view_dataset_b", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
-        assertAcked(
-            client().execute(PutViewAction.INSTANCE, putViewRequest("fork_dataset_view", "FROM fork_view_dataset_a, fork_view_dataset_b"))
-        );
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("fork_dataset_view_a", "FROM fork_view_dataset_a")));
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("fork_dataset_view_b", "FROM fork_view_dataset_b")));
-
-        for (String source : List.of(
-            "fork_dataset_view",
-            "fork_dataset_view_a, fork_view_dataset_b",
-            "fork_dataset_view_a, fork_dataset_view_b"
-        )) {
-            String query = "FROM " + source + """
-                 | FORK
-                     (STATS count = COUNT(*))
-                     (WHERE emp_no >= 10 | STATS count = COUNT(*))
-                 | KEEP _fork, count
-                 | SORT _fork
-                """;
-            try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
-                List<List<Object>> rows = getValuesList(response);
-                assertThat(rows, hasSize(2));
-                assertThat(rows.get(0).get(1), equalTo(5L));
-                assertThat(rows.get(1).get(1), equalTo(2L));
-            }
-        }
-
-        String composed = """
-            FROM fork_dataset_view, fork_view_dataset_a
-             | FORK
-                 (STATS count = COUNT(*))
-                 (WHERE emp_no >= 10 | STATS count = COUNT(*))
-             | KEEP _fork, count
-             | SORT _fork
-            """;
-        try (var response = run(syncEsqlQueryRequest(composed), TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(2));
-            assertThat(rows.get(0).get(1), equalTo(8L));
-            assertThat(rows.get(1).get(1), equalTo(2L));
         }
     }
 

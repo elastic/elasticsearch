@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
@@ -37,7 +38,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
@@ -124,8 +125,8 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
         ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, DiscoveryNodeRole.SEARCH_ROLE);
         // this is the executor Lucene uses to fetch data from the object store in the cache in an on-demand manner
         // (e.g. when a reader is opened or when a search operation is executed)
-        String shardReadThreadPool = StatelessPlugin.SHARD_READ_THREAD_POOL;
-        String fillVbccThreadPool = StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL;
+        String shardReadThreadPool = StatelessThreadPools.SHARD_READ_THREAD_POOL;
+        String fillVbccThreadPool = StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL;
         // let's get the number of completed tasks before we start indexing so when we wait for the downloads to finish
         // we can assert that the number of completed tasks is higher, to make sure downloads actually occurred
         long preRefreshCompletedDownloadTasks = getNumberOfCompletedTasks(threadPool, shardReadThreadPool);
@@ -390,7 +391,6 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider,
             SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
             // no-op the warming on shard recovery so we can manually fetch ranges into the cache on the search tier
@@ -399,7 +399,6 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
                 threadPool,
                 telemetryProvider,
                 clusterSettings,
-                warmingRatioProvider,
                 searchRecoveryTimeoutCalculationService
             ) {
                 @Override
@@ -408,9 +407,10 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
+                    WarmingRatioProvider warmingRatioProvider,
                     @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
-                    org.elasticsearch.action.ActionListener<Void> listener
+                    ActionListener<Void> listener
                 ) {
                     listener.onResponse(null);
                 }

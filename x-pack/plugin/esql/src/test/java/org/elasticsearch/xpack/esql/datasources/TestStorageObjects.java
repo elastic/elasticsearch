@@ -50,6 +50,11 @@ final class TestStorageObjects {
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -103,6 +108,11 @@ final class TestStorageObjects {
      */
     static AbstractMeteredStorageObject meteredLeaf(StoragePath path, byte[] data) {
         return new AbstractMeteredStorageObject() {
+            @Override
+            public String version() {
+                return "v1";
+            }
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;

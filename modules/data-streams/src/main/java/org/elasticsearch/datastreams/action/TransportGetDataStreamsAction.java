@@ -46,6 +46,7 @@ import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
@@ -62,6 +63,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
@@ -71,6 +73,11 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
     GetDataStreamAction.Response> {
 
     private static final Logger LOGGER = LogManager.getLogger(TransportGetDataStreamsAction.class);
+    private static final Set<String> EXPOSED_INDEX_SETTINGS = Set.of(
+        IndexSettings.MODE.getKey(),
+        IndexMetadata.LIFECYCLE_NAME,
+        IndexSettings.PREFER_ILM_SETTING.getKey()
+    );
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
     private final ClusterSettings clusterSettings;
@@ -211,7 +218,8 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
             Instant.now(),
             settings,
             List.of(),
-            state.metadata().index(dataStream.getWriteIndex()).getCreationVersion()
+            state.metadata().index(dataStream.getWriteIndex()).getCreationVersion(),
+            EXPOSED_INDEX_SETTINGS
         ).applyTo(settings);
     }
 

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourceUsageAccumulator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -85,6 +86,37 @@ public class ExternalSourceResolverDiscoveryFailureTelemetryTests extends ESTest
         resolver.mapResolveFailure(PATH_STRING, failure);
 
         assertRecorded("s3", "storage_unavailable", "503");
+    }
+
+    /** A rewrite under a stale version behind the factory wrapper keeps its retryable 503, not a 400. */
+    public void testObjectChangedBehindFactoryWrapperStaysRetryable() {
+        RuntimeException mapped = resolver.mapResolveFailure(
+            PATH_STRING,
+            new IllegalArgumentException("factory failed", new ExternalObjectChangedException(PATH))
+        );
+
+        assertTrue(mapped instanceof ExternalObjectChangedException);
+        assertRecorded("s3", "storage_unavailable", "503");
+    }
+
+    /** On the first resolution pass an object change is retried, so it is not a discovery failure yet. */
+    public void testObjectChangedOnTheFirstPassIsNotCounted() {
+        resolver.objectChangeRetryAhead(true);
+        RuntimeException mapped = resolver.mapResolveFailure(PATH_STRING, new ExternalObjectChangedException(PATH));
+
+        assertTrue(mapped instanceof ExternalObjectChangedException);
+        assertThat(accumulator.discoveryFailures(), equalTo(0L));
+    }
+
+    /** Any other failure on the first pass is not retried, so it is counted as before. */
+    public void testOtherFailureOnTheFirstPassIsCounted() {
+        resolver.objectChangeRetryAhead(true);
+        resolver.mapResolveFailure(
+            PATH_STRING,
+            new ExternalUnavailableException(Condition.STORE_THROTTLED, PATH, "HTTP 429", "", true, 100L)
+        );
+
+        assertRecorded("s3", "storage_throttled", "503");
     }
 
     public void testThrottledIsDistinctFromUnavailable() {

@@ -71,6 +71,7 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
@@ -107,6 +108,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.ObjLongConsumer;
@@ -272,6 +274,32 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         Map<String, BlobFileRanges> blobFileRanges
     ) {
         public static IndexingShardState EMPTY = new IndexingShardState(null, Set.of(), Map.of());
+
+        /** Reconstructs a hollow commit's file locations from its metadata, without reading referenced blobs. */
+        public static IndexingShardState forHollowCommit(BatchedCompoundCommit latestBcc, Set<BlobFile> otherBlobs) {
+            // We re-calculate the blob locations of all commit's files, by replacing the referenced blob location for
+            // replicated .si files in the CC's extra content with their extra content blob location instead.
+            // We do not calculate blob file ranges for internal files using replicated headers/footers, since we do not
+            // expect replicated content to exist (all hollow files should be in first region typically), and we do not
+            // expect reading of any other files than .si files.
+            final var hollowCC = latestBcc.lastCompoundCommit();
+            assert hollowCC.hollow();
+            assert hollowCC.extraContent()
+                .keySet()
+                .stream()
+                .allMatch(filename -> Objects.equals(IndexFileNames.getExtension(filename), LuceneFilesExtensions.SI.getExtension()))
+                : "currently only segment info ."
+                    + LuceneFilesExtensions.SI.getExtension()
+                    + " files are expected to be in extra content files, and found "
+                    + hollowCC.extraContent().keySet();
+            // When combining the replicated files with the commit files, the replicated .si files should override the
+            // referenced .si files in commit files, so that only the replicated .si files' locations stay.
+            final Map<String, BlobFileRanges> hollowCommitBlobFileRanges = Stream.concat(
+                hollowCC.commitFiles().entrySet().stream(),
+                hollowCC.extraContent().entrySet().stream()
+            ).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> new BlobFileRanges(e.getValue()), (v1, v2) -> v2));
+            return new IndexingShardState(latestBcc, otherBlobs, hollowCommitBlobFileRanges);
+        }
     }
 
     public static final Setting<ObjectStoreType> TYPE_SETTING = Setting.enumSetting(
@@ -356,6 +384,32 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         Setting.Property.NodeScope
     );
 
+    public static final String TRANSLOG_UPLOAD_DURATION_HISTOGRAM = "es.stateless.translog.upload.duration.histogram";
+    public static final String TRANSLOG_UPLOAD_SIZE_HISTOGRAM = "es.stateless.translog.upload.size.histogram";
+
+    // 1 to 1_000_000 milliseconds (= ~16 min)
+    public static final List<Long> TRANSLOG_UPLOAD_DURATION_BUCKET_BOUNDARIES = List.of(
+        1L,
+        5L,
+        10L,
+        25L,
+        50L,
+        100L,
+        250L,
+        500L,
+        1_000L,
+        2_500L,
+        5_000L,
+        10_000L,
+        30_000L,
+        60_000L,
+        120_000L,
+        300_000L,
+        600_000L,
+        900_000L,
+        1_000_000L
+    );
+
     /**
      * Multipart upload threshold for the stateless object store. When set, this value is injected into the native multipart threshold
      * setting for the configured backend ({@code buffer_size} for S3, {@code multipart_upload_chunk_size} for GCS,
@@ -405,6 +459,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     private final long slowTranslogUploadLogThresholdMillis;
 
+    private final LongHistogram translogUploadDurationHistogram;
+    private final LongHistogram translogUploadSizeHistogram;
     private final LongHistogram bccMultipartUploadPartStartLatencyHistogram;
 
     public ObjectStoreService(
@@ -421,13 +477,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         this.clusterService = clusterService;
         this.uploadTranslogTaskRunner = new PrioritizedThrottledTaskRunner<>(
             getClass().getSimpleName() + "#upload-translog-file-task-runner",
-            threadPool.info(StatelessPlugin.TRANSLOG_THREAD_POOL).getMax(),
-            threadPool.executor(StatelessPlugin.TRANSLOG_THREAD_POOL)
+            threadPool.info(StatelessThreadPools.TRANSLOG_THREAD_POOL).getMax(),
+            threadPool.executor(StatelessThreadPools.TRANSLOG_THREAD_POOL)
         );
         this.uploadTaskRunner = new PrioritizedThrottledTaskRunner<>(
             "upload_task_runner",
-            threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax(),
-            threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL),
+            threadPool.info(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).getMax(),
+            threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL),
             meterRegistry,
             threadPool::relativeTimeInNanos
         );
@@ -441,6 +497,21 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         this.concurrentMultipartUploads = OBJECT_STORE_CONCURRENT_MULTIPART_UPLOADS.get(settings);
         this.cacheSearchRecoveryBcc = CACHE_SEARCH_RECOVERY_BCC_ENABLED_SETTING.get(settings);
         this.slowTranslogUploadLogThresholdMillis = OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING.get(settings).getMillis();
+
+        // see `TranslogReplicator.TRANSLOG_UPLOAD_TOTAL_DURATION_HISTOGRAM` metric that captures the total duration including
+        // potential translog-upload retries
+        this.translogUploadDurationHistogram = meterRegistry.registerLongHistogram(
+            TRANSLOG_UPLOAD_DURATION_HISTOGRAM,
+            "time for the translog file to be uploaded (only for a successful upload)",
+            "milliseconds",
+            TRANSLOG_UPLOAD_DURATION_BUCKET_BOUNDARIES
+        );
+        this.translogUploadSizeHistogram = meterRegistry.registerLongHistogram(
+            TRANSLOG_UPLOAD_SIZE_HISTOGRAM,
+            // in kilobytes so that the default bucket boundaries can go up to ~128 MB (see HistogramBuckets.APM_DEFAULT_LONGS)
+            "size in kilobytes of a the translog uploaded to the object store",
+            "kilobytes"
+        );
         this.bccMultipartUploadPartStartLatencyHistogram = meterRegistry.registerLongHistogram(
             "es.stateless.bcc_multipart_upload.part_start.latency.histogram",
             "time from the start of a concurrent multipart upload of a BCC until the repository client requests the data of each part",
@@ -807,8 +878,24 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         return ProjectId.DEFAULT;
     }
 
-    public void uploadTranslogFile(String fileName, BytesReference reference, ActionListener<Void> listener) {
-        enqueueTask(listener, uploadTranslogTaskRunner, l -> new TranslogFileUploadTask(fileName, reference, l));
+    /**
+     * Uploads a translog file to the object store. Since the upload is first queued in the {@code uploadTranslogTaskRunner} before
+     * executing on its thread pool, {@code onBeforeUpload} is called right before the upload actually starts (i.e., after the queueing).
+     * At that same point {@code isAlreadyUploaded} is checked first: if the file was already uploaded by a parallel upload while this
+     * one was queued, then the upload is skipped.
+     */
+    public void uploadTranslogFile(
+        String fileName,
+        BytesReference reference,
+        BooleanSupplier isAlreadyUploaded,
+        Runnable onBeforeUpload,
+        ActionListener<Void> listener
+    ) {
+        enqueueTask(
+            listener,
+            uploadTranslogTaskRunner,
+            l -> new TranslogFileUploadTask(fileName, reference, isAlreadyUploaded, onBeforeUpload, l)
+        );
     }
 
     public void uploadBatchedCompoundCommitFile(
@@ -834,9 +921,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         asyncDeleteFile(() -> {
             translogBlobsToDelete.add(fileToDelete);
             if (translogDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(StatelessPlugin.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(this::getTranslogBlobContainer));
+                threadPool.executor(StatelessThreadPools.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(this::getTranslogBlobContainer));
             }
-        }, StatelessPlugin.TRANSLOG_THREAD_POOL);
+        }, StatelessThreadPools.TRANSLOG_THREAD_POOL);
     }
 
     public void asyncDeleteShardFile(StaleCompoundCommit staleCompoundCommit) {
@@ -844,9 +931,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         asyncDeleteFile(() -> {
             commitBlobsToDelete.add(staleCompoundCommit);
             if (shardFileDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
+                threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
             }
-        }, StatelessPlugin.SHARD_WRITE_THREAD_POOL);
+        }, StatelessThreadPools.SHARD_WRITE_THREAD_POOL);
     }
 
     private void asyncDeleteFile(Runnable deleteFileRunnable, String executor) {
@@ -976,8 +1063,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 blobTermAndGen
             )
         );
-        var dir = directory.createPerBccMetadataReadDirectory();
-        dir.updateMetadata(
+        var dir = directory.createPerBccMetadataReadDirectory(
             Map.of(blobName, new BlobFileRanges(new BlobLocation(new BlobFile(blobName, blobTermAndGen), 0L, maxBlobLength))),
             maxBlobLength
         );
@@ -1150,31 +1236,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 );
                 // If the last CC is hollow, we do not need to read any other blobs than the last CC itself.
                 if (readSingleBlobIfHollow && latestBcc.lastCompoundCommit().hollow()) {
-                    ActionListener.completeWith(l, () -> {
-                        // We re-calculate the blob locations of all commit's files, by replacing the referenced blob location for
-                        // replicated .si files in the CC's extra content with their extra content blob location instead.
-                        // We do not calculate blob file ranges for internal files using replicated headers/footers, since we do not
-                        // expect replicated content to exist (all hollow files should be in first region typically), and we do not
-                        // expect reading of any other files than .si files.
-                        final var hollowCC = latestBcc.lastCompoundCommit();
-                        assert hollowCC.extraContent()
-                            .keySet()
-                            .stream()
-                            .allMatch(
-                                filename -> Objects.equals(IndexFileNames.getExtension(filename), LuceneFilesExtensions.SI.getExtension())
-                            )
-                            : "currently only segment info ."
-                                + LuceneFilesExtensions.SI.getExtension()
-                                + " files are expected to be in extra content files, and found "
-                                + hollowCC.extraContent().keySet();
-                        // When combining the replicated files with the commit files, the replicated .si files should override the
-                        // referenced .si files in commit files, so that only the replicated .si files' locations stay.
-                        final Map<String, BlobFileRanges> hollowCommitBlobFileRanges = Stream.concat(
-                            hollowCC.commitFiles().entrySet().stream(),
-                            hollowCC.extraContent().entrySet().stream()
-                        ).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> new BlobFileRanges(e.getValue()), (v1, v2) -> v2));
-                        return new IndexingShardState(latestBcc, otherBlobs, hollowCommitBlobFileRanges);
-                    });
+                    ActionListener.completeWith(l, () -> IndexingShardState.forHollowCommit(latestBcc, otherBlobs));
                 } else {
                     Map<String, BlobFileRanges> blobFileRanges = new ConcurrentHashMap<>();
 
@@ -1246,7 +1308,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                     ) {
                         for (var blobContainerWithTerm : blobContainersWithTerms) {
                             // use the prewarm thread pool to avoid exceeding the connection pool size with blob listings
-                            threadPool.executor(StatelessPlugin.PREWARM_THREAD_POOL)
+                            threadPool.executor(StatelessThreadPools.PREWARM_THREAD_POOL)
                                 .execute(
                                     ActionRunnable.run(
                                         listeners.acquire(),
@@ -1295,7 +1357,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             }
         }
 
-        final Executor executor = threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL);
+        final Executor executor = threadPool.executor(StatelessThreadPools.BLOB_COPY_THREAD_POOL);
         ConcurrentMultipartHelper.runConcurrentTasks(tasks.size(), executor, i -> {
             var t = tasks.get(i);
             task.ensureNotCancelled();
@@ -1329,7 +1391,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             blobName,
             blobName,
             virtualBcc.getTotalSizeInBytes(),
-            threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL)
+            threadPool.executor(StatelessThreadPools.BLOB_COPY_THREAD_POOL)
         );
     }
 
@@ -1531,11 +1593,21 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
         private final String fileName;
         private final BytesReference reference;
+        private final BooleanSupplier isAlreadyUploaded;
+        private final Runnable onBeforeUpload;
         private final ActionListener<Void> listener;
 
-        TranslogFileUploadTask(String fileName, BytesReference reference, ActionListener<Void> listener) {
+        TranslogFileUploadTask(
+            String fileName,
+            BytesReference reference,
+            BooleanSupplier isAlreadyUploaded,
+            Runnable onBeforeUpload,
+            ActionListener<Void> listener
+        ) {
             this.fileName = Objects.requireNonNull(fileName);
             this.reference = Objects.requireNonNull(reference);
+            this.isAlreadyUploaded = Objects.requireNonNull(isAlreadyUploaded);
+            this.onBeforeUpload = Objects.requireNonNull(onBeforeUpload);
             this.listener = Objects.requireNonNull(listener);
         }
 
@@ -1547,10 +1619,17 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         @Override
         protected void doRun() throws Exception {
             final BlobContainer blobContainer = getTranslogBlobContainer();
+            if (isAlreadyUploaded.getAsBoolean()) {
+                listener.onResponse(null);
+                return;
+            }
+            onBeforeUpload.run();
 
             var before = threadPool.relativeTimeInMillis();
             blobContainer.writeBlob(OperationPurpose.TRANSLOG, fileName, reference, false);
             var uploadDuration = threadPool.relativeTimeInMillis() - before;
+            translogUploadDurationHistogram.record(uploadDuration);
+            translogUploadSizeHistogram.record(ByteSizeUnit.BYTES.toKB(reference.length()));
 
             final Supplier<String> logMessage = () -> format(
                 "translog file %s of size [%d] bytes uploaded in [%d] ms",
@@ -1786,8 +1865,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                             // Ensure that one large upload doesn't starve other uploads
                             new ThrottledTaskRunner(
                                 "bcc-concurrent-multipart-upload",
-                                Math.max(1, threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax() / 2),
-                                threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)
+                                Math.max(1, threadPool.info(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).getMax() / 2),
+                                threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL)
                             ).asExecutor()
                         );
                     } finally {
@@ -1858,7 +1937,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         public void onAfter() {
             translogDeleteSchedulePermit.release();
             if (isRunning() && translogBlobsToDelete.isEmpty() == false && translogDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(StatelessPlugin.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(blobContainer));
+                threadPool.executor(StatelessThreadPools.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(blobContainer));
             }
         }
 
@@ -1926,7 +2005,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             toDeleteInThisTask.values().forEach(commitBlobsToDelete::addAll);
             shardFileDeleteSchedulePermit.release();
             if (lifecycle.started() && commitBlobsToDelete.isEmpty() == false && shardFileDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
+                threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
             }
         }
 

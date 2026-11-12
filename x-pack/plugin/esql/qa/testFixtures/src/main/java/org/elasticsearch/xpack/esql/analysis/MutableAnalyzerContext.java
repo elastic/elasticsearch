@@ -86,7 +86,9 @@ public class MutableAnalyzerContext extends AnalyzerContext {
             timestampBounds,
             IpLocationResolution.SERVICE_UNAVAILABLE,
             false,
-            EsqlFlags.DEFAULTS
+            Map.of(),
+            EsqlFlags.DEFAULTS,
+            Map.of()
         );
         this.currentVersion = minimumVersion;
     }

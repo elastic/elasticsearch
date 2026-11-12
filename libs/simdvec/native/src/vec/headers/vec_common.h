@@ -3,6 +3,7 @@
 #define VEC_COMMON_H
 
 #include <stdint.h>
+#include <algorithm>
 #include <type_traits>
 #include <utility>
 
@@ -66,18 +67,55 @@ static inline const T* sequential_mapper(const T* data, const int32_t i, const i
     return data + (int64_t)i * pitch;
 }
 
-// Offset layout: vectors share a common base but are at non-sequential positions
-// given by offsets[i], each `pitch` elements from the base.
-template <typename T>
-static inline const T* offsets_mapper(const T* data, const int32_t i, const int32_t* offsets, const int32_t pitch) {
-    return data + (int64_t)offsets[i] * pitch;
-}
-
 // Sparse layout: vectors reside in disjoint memory regions. `data` is an array
 // of pre-resolved pointers — one per vector — so pitch and offsets are unused.
 template <typename T>
 static inline const T* sparse_mapper(const T* const* data, const int32_t i, const int32_t* offsets, const int32_t pitch) {
     return data[i];
+}
+
+// Position of the k-th (0-based) set bit of mask; k must be below popcount(mask).
+// The k-th bit needs to be extracted from the middle of the mask, independently from other bits being set around it;
+// our kernels do unrolling and prefetching, so the need to be able to access (and select) any vector at random
+// inside the dataset.
+// Defined per architecture (as different processors may or may not have native instructions for this operation).
+static inline int32_t mask_select(const uint32_t mask, const int32_t k);
+
+// Masked layout: a block of up to 32 vectors, each `pitch` elements apart, of which only those
+// whose bit is set in the mask offsets[0] are scored; the i-th vector is the one at the position
+// of the i-th set bit.
+template <typename T>
+static inline const T* masked_mapper(const T* data, const int32_t i, const int32_t* offsets, const int32_t pitch) {
+    return data + (int64_t)mask_select((uint32_t)offsets[0], i) * pitch;
+}
+
+// The bits of `mask` that select vectors inside a block of `count` vectors. Masked kernels
+// must score with this mask, so that whatever the mask, they never read vectors or write
+// scores past the end of the block.
+static inline int32_t clamp_mask(const int32_t mask, const int32_t count) {
+    if (count <= 0) {
+        return 0;
+    }
+    if (count >= 32) {
+        return mask;
+    }
+    return (int32_t)((uint32_t)mask & ((1u << count) - 1));
+}
+
+// --- Output mapper functions ---
+// Each output mapper resolves the result slot of the i-th scored vector.
+// All share the same signature so they can be passed as a template
+// parameter to the bulk scoring templates, next to the (input) mapper.
+
+// Compact output: the score of the i-th vector goes to results[i].
+static inline int32_t compact_output(const int32_t* offsets, const int32_t i) {
+    return i;
+}
+
+// Masked output: the score of the i-th vector goes to the position of the i-th set bit of
+// offsets[0] (see masked_mapper).
+static inline int32_t masked_output(const int32_t* offsets, const int32_t i) {
+    return mask_select((uint32_t)offsets[0], i);
 }
 
 // Populates out[0..N-1] by invoking mapper for indices [base..base+N-1],
@@ -137,6 +175,30 @@ static inline T tree_reduce(const T values[N]) {
             tree_reduce<N/2, T, reduce>(values),
             tree_reduce<N/2, T, reduce>(values + N/2));
     }
+}
+
+// Reads bytes (1, 2, 4 or 8) bytes at p into the low bytes of a uint64_t.
+template <int bytes>
+static inline uint64_t load_bytes(const int8_t* p) {
+    static_assert(bytes == 1 || bytes == 2 || bytes == 4 || bytes == 8, "bytes must be 1, 2, 4 or 8");
+    uint64_t value = 0;
+    std::copy_n(p, bytes, reinterpret_cast<int8_t*>(&value));
+    return value;
+}
+
+// Adds to sum the dot product of the given number of bytes at r of a striped doc and query: doc_bits and
+// query_bits contiguous bit planes of bit_length bytes each, each plane pair weighted by
+// 2^(doc bit + query bit). The kernels score the last 1-15 bytes of their planes with at most one such step
+// each of 8, 4, 2 and 1 bytes; bounded steps rather than a loop, which the compiler would otherwise
+// vectorize into far more code than these at most 15 bytes are worth.
+template <int doc_bits, int query_bits, int bytes>
+static inline void dot_striped_scalar(int64_t& sum, const int8_t* a, const int8_t* q, const int32_t bit_length, const int r) {
+    apply_indexed<doc_bits>([&](auto D) {
+        const uint64_t doc = load_bytes<bytes>(a + D * bit_length + r);
+        apply_indexed<query_bits>([&](auto Q) {
+            sum += (int64_t)__builtin_popcountll(load_bytes<bytes>(q + Q * bit_length + r) & doc) << (D + Q);
+        });
+    });
 }
 
 #endif // VEC_COMMON_H

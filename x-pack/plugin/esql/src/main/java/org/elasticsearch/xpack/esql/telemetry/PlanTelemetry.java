@@ -15,7 +15,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -33,8 +35,9 @@ public class PlanTelemetry {
     private final Map<String, Integer> functions = new HashMap<>();
     private final Map<String, Integer> settings = new HashMap<>();
     private final Map<String, String> resolvedSettings = new HashMap<>();
+    private final Map<String, Integer> viewSettings = new HashMap<>();
+    private final Map<String, Set<String>> viewResolvedSettings = new HashMap<>();
     private Integer linkedProjectsCount = null;
-    private boolean externalSource = false;
     private final Set<String> externalStorageTypes = new TreeSet<>();
     private final Set<String> externalFormats = new TreeSet<>();
 
@@ -57,20 +60,6 @@ public class PlanTelemetry {
 
     public Integer linkedProjectsCount() {
         return linkedProjectsCount;
-    }
-
-    /**
-     * Marks that the query touched an ES|QL external data source (an {@code ExternalRelation} was present in the
-     * analyzed plan). Read at query completion so the coordinator emits external-source-scoped operational metrics
-     * only for queries that actually scanned an external source.
-     */
-    public void externalSource(boolean externalSource) {
-        this.externalSource = externalSource;
-    }
-
-    /** Whether the analyzed plan touched an ES|QL external data source; gates the external-source query metrics at completion. */
-    public boolean externalSource() {
-        return externalSource;
     }
 
     /**
@@ -132,6 +121,27 @@ public class PlanTelemetry {
         }
     }
 
+    /**
+     * Records the settings of the views the query resolved, apart from the caller's and the way {@link #setting} and
+     * {@link #resolvedSettings} record those: one usage of a setting per view whose definition {@code SET}s it explicitly,
+     * and every value a view body resolved a setting to, whether its definition {@code SET} it or left it at its default.
+     */
+    public void viewSettings(Collection<ViewQuerySettings> views) {
+        for (ViewQuerySettings view : views) {
+            ResolvedSettings resolved = view.asResolvedSettings();
+            for (QuerySettingDef<?> def : ViewQuerySettings.SETTINGS) {
+                if (applicableSettings.contains(def) == false) {
+                    continue;
+                }
+                if (view.supplied().contains(def.name())) {
+                    add(viewSettings, def.name());
+                }
+                viewResolvedSettings.computeIfAbsent(def.name().toUpperCase(Locale.ROOT), k -> new TreeSet<>())
+                    .add(def.telemetryLabel(resolved));
+            }
+        }
+    }
+
     public Map<String, Integer> commands() {
         return commands;
     }
@@ -146,5 +156,15 @@ public class PlanTelemetry {
 
     public Map<String, String> resolvedSettings() {
         return resolvedSettings;
+    }
+
+    /** Number of resolved views whose definition {@code SET}s each setting. */
+    public Map<String, Integer> viewSettings() {
+        return viewSettings;
+    }
+
+    /** Every value resolved view definitions {@code SET} each setting to; a query with several such views may have several. */
+    public Map<String, Set<String>> viewResolvedSettings() {
+        return viewResolvedSettings;
     }
 }

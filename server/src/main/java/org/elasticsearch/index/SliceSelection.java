@@ -24,9 +24,9 @@ import java.util.List;
 public record SliceSelection(Kind kind, List<String> names) {
 
     public enum Kind {
-        /** No slice was selected. A field mapper decides whether it can search without one. */
+        /** No slice was selected. Every slice is read, unless the field mapper that builds a query needs them by name. */
         UNSPECIFIED,
-        /** Every slice is read: with {@link SliceIndexing#SLICE_ALL}, or by a search request that names no slice. */
+        /** Every slice was selected, with {@link SliceIndexing#SLICE_ALL}. A field mapper may still need them by name. */
         ALL,
         /** One or more slices were selected by name. */
         NAMED
@@ -50,17 +50,17 @@ public record SliceSelection(Kind kind, List<String> names) {
         for (String name : names) {
             final String value = name.trim();
             if (value.isEmpty()) {
-                throw new IllegalArgumentException("[" + SliceIndexing.PARAM_NAME + "] cannot be blank");
+                throw new IllegalArgumentException("[" + SliceIndexing.FIELD_NAME + "] cannot be blank");
             }
             if (SliceIndexing.SLICE_ALL.equals(value)) {
                 throw new IllegalArgumentException(
-                    "[" + SliceIndexing.PARAM_NAME + "] value [" + SliceIndexing.SLICE_ALL + "] cannot be combined with other slices"
+                    "[" + SliceIndexing.FIELD_NAME + "] value [" + SliceIndexing.SLICE_ALL + "] cannot be combined with other slices"
                 );
             }
             unique.add(value);
         }
         if (unique.isEmpty()) {
-            throw new IllegalArgumentException("[" + SliceIndexing.PARAM_NAME + "] cannot be blank");
+            throw new IllegalArgumentException("[" + SliceIndexing.FIELD_NAME + "] cannot be blank");
         }
         return new SliceSelection(Kind.NAMED, List.copyOf(unique));
     }

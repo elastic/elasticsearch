@@ -412,7 +412,7 @@ public class SliceSelectionIT extends ESRestTestCase {
     private static void addDoc(StringBuilder bulk, String index, String slice, int position, String vector) {
         bulk.append(
             org.elasticsearch.core.Strings.format(
-                "{\"index\": {\"_index\": \"%s\", \"_id\": \"%d\", \"slice\": \"%s\"}}\n",
+                "{\"index\": {\"_index\": \"%s\", \"_id\": \"%d\", \"_slice\": \"%s\"}}\n",
                 index,
                 position,
                 slice

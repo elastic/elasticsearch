@@ -94,6 +94,20 @@ public class MatchOnlyTextSynonymPhraseTests extends MapperServiceTestCase {
         assertThat("no phrase to confirm against values it cannot read", query.toString(), not(containsString("field:\"new york\"")));
     }
 
+    /**
+     * A field with no terms has nothing to seed the documents a phrase is confirmed against, and outside a strictly
+     * columnar index its values are not read either, so it does not promise positions and the synonym's words are
+     * asked for on their own.
+     */
+    public void testAFieldWithNoTermsOutsideColumnarIsStillQueryable() throws IOException {
+        final MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "match_only_text").field("index", false).field("doc_values", true))
+        );
+        final SearchExecutionContext context = createSearchExecutionContext(mapperService);
+        final Query query = new MatchQueryBuilder("field", "ny").analyzer("synonym").toQuery(context);
+        assertThat(query.toString(), not(containsString("field:\"new york\"")));
+    }
+
     /** Holds {@code new york} beside {@code ny}, as a multi word synonym does. */
     private static Analyzer multiWordSynonym() {
         final SynonymMap.Builder synonyms = new SynonymMap.Builder(true);

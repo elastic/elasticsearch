@@ -268,9 +268,9 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
             .nodeHeapMetrics(
                 Map.of(
                     "node-a",
-                    new NodeHeapMetrics("node-a", 1_000L, new NodeHeapEstimates(200L, 0L)),
+                    new NodeHeapMetrics("node-a", 1_000L, new NodeHeapEstimates(200L, 0L, randomNonNegativeLong())),
                     "node-b",
-                    new NodeHeapMetrics("node-b", 2_000L, new NodeHeapEstimates(1_000L, 0L))
+                    new NodeHeapMetrics("node-b", 2_000L, new NodeHeapEstimates(1_000L, 0L, randomNonNegativeLong()))
                 )
             )
             .build();
@@ -364,6 +364,6 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
     }
 
     private NodeHeapEstimates validHeapEstimate(long totalHeapUsageBytes) {
-        return new NodeHeapEstimates(totalHeapUsageBytes, randomLongBetween(0, totalHeapUsageBytes));
+        return new NodeHeapEstimates(totalHeapUsageBytes, randomLongBetween(0, totalHeapUsageBytes), randomNonNegativeLong());
     }
 }

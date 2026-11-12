@@ -17,11 +17,14 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ParsedContentReservation;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.Index;
@@ -43,6 +46,7 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -345,6 +349,32 @@ public class QueryRewriteContext {
     }
 
     /**
+     * Returns a parser that charges the REST request this rewrite runs for, see {@link ParsedContentReservation#track(ThreadContext,
+     * XContentParser)}. Use it for content that the rewrite parses, such as the query inside a {@code wrapper} query, which the request's
+     * own parsers never read. Away from the REST request, such as on a data node, the parse is checked against
+     * {@link #parsedContentBreaker()} instead, if there is one.
+     */
+    public XContentParser trackParsedContent(XContentParser parser) {
+        final ThreadPool threadPool = client == null ? null : client.threadPool();
+        final ParsedContentReservation reservation = threadPool == null
+            ? null
+            : threadPool.getThreadContext().getTransient(ParsedContentReservation.TRANSIENT_NAME);
+        if (reservation != null) {
+            return reservation.track(parser);
+        }
+        final CircuitBreaker breaker = parsedContentBreaker();
+        return breaker == null ? parser : ParsedContentReservation.trackWhileParsing(breaker, parser);
+    }
+
+    /**
+     * The breaker that content this rewrite parses away from a REST request is checked against, or {@code null} for none.
+     */
+    @Nullable
+    protected CircuitBreaker parsedContentBreaker() {
+        return null;
+    }
+
+    /**
      * Returns the time in milliseconds that is shared across all resources involved. Even across shards and nodes.
      *
      * Used in date field query rewriting
@@ -386,6 +416,14 @@ public class QueryRewriteContext {
     }
 
     /**
+     * Whether the rewritten query is turned into a Lucene query on the spot and never stored on the request, so it can contain
+     * {@link TransientQueryBuilder}s.
+     */
+    public boolean allowsTransientQueries() {
+        return false;
+    }
+
+    /**
      * Returns the {@link MappedFieldType} for the provided field name.
      * If the field is not mapped, the behaviour depends on the index.query.parse.allow_unmapped_fields setting, which defaults to true.
      * In case unmapped fields are allowed, null is returned when the field is not mapped.
@@ -401,6 +439,9 @@ public class QueryRewriteContext {
     protected MappedFieldType fieldType(String name) {
         // If the field is not allowed, behave as if it is not mapped
         if (allowedFields != null && false == allowedFields.test(name)) {
+            return null;
+        }
+        if (isInternalSliceField(name)) {
             return null;
         }
         final String fieldName = resolveSliceAlias(name);
@@ -620,8 +661,9 @@ public class QueryRewriteContext {
         if (isSliceFieldAlias(pattern)) {
             return Set.of(SliceIndexing.FIELD_NAME);
         }
-        if (isRoutingHiddenBySlice(pattern)) {
-            // A slice-enabled index hides _routing from field retrieval; it is fetched as _slice instead.
+        if (isRoutingHiddenBySlice(pattern) || isInternalSliceField(pattern)) {
+            // A slice-enabled index hides _routing from field retrieval (it is fetched as _slice instead) and never
+            // exposes its internal sort key and hash fields.
             return Set.of();
         }
         Set<String> matches;
@@ -644,6 +686,12 @@ public class QueryRewriteContext {
                 }
             }
         }
+        if (isSliceFieldAliasEnabled()
+            && (matches.contains(SliceIndexing.SLICE_KEY_FIELD_NAME) || matches.contains(SliceIndexing.SLICE_HASH_FIELD_NAME))) {
+            matches = new HashSet<>(matches);
+            matches.remove(SliceIndexing.SLICE_KEY_FIELD_NAME);
+            matches.remove(SliceIndexing.SLICE_HASH_FIELD_NAME);
+        }
         // If the field is not allowed, behave as if it is not mapped
         return allowedFields == null ? matches : matches.stream().filter(allowedFields).collect(Collectors.toSet());
     }
@@ -658,6 +706,15 @@ public class QueryRewriteContext {
      */
     protected final boolean isRoutingHiddenBySlice(String fieldName) {
         return isSliceFieldAliasEnabled() && RoutingFieldMapper.NAME.equals(fieldName);
+    }
+
+    /**
+     * {@code _slice_key} exists only for the slice layout (the index sort) and {@code _slice_hash} is a reserved name.
+     * Their encoded values mean nothing to users, so they are never resolvable by name on a slice-enabled index.
+     */
+    protected final boolean isInternalSliceField(String fieldName) {
+        return isSliceFieldAliasEnabled()
+            && (SliceIndexing.SLICE_KEY_FIELD_NAME.equals(fieldName) || SliceIndexing.SLICE_HASH_FIELD_NAME.equals(fieldName));
     }
 
     private boolean isSliceFieldAliasEnabled() {

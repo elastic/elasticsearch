@@ -667,6 +667,16 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
               "indices": [
                 {
                   "names": [
+                    "$.nightshift.sources.*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "read_view_metadata"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
                     "*"
                   ],
                   "privileges": [
@@ -717,7 +727,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                   "field_security": [
                     {
                       "grant": [
-                        "spaceId", "id", "workflowId", "managed", "managedBy",
+                        "spaceId", "id", "runName", "workflowId", "managed", "managedBy",
                         "originManagedWorkflowId", "managedVersion", "status", "createdAt",
                         "isTestRun", "stepId", "createdBy", "executedBy", "effectiveIdentity.*", "startedAt",
                         "finishedAt", "duration", "triggeredBy", "eventChainDepth",
@@ -741,7 +751,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                   "field_security": [
                     {
                       "grant": [
-                        "spaceId", "id", "workflowId", "managed", "managedBy",
+                        "spaceId", "id", "runName", "workflowId", "managed", "managedBy",
                         "originManagedWorkflowId", "managedVersion", "status", "createdAt",
                         "isTestRun", "stepId", "createdBy", "executedBy", "effectiveIdentity.*", "startedAt",
                         "finishedAt", "duration", "triggeredBy", "eventChainDepth",
@@ -766,7 +776,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                   "field_security": [
                     {
                       "grant": [
-                        "spaceId", "id", "workflowId", "managed", "managedBy",
+                        "spaceId", "id", "runName", "workflowId", "managed", "managedBy",
                         "originManagedWorkflowId", "managedVersion", "status", "createdAt",
                         "isTestRun", "stepId", "createdBy", "executedBy", "effectiveIdentity.*", "startedAt",
                         "finishedAt", "duration", "triggeredBy", "eventChainDepth",

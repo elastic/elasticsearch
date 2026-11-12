@@ -8,14 +8,11 @@
  */
 
 import org.apache.tools.ant.filters.ReplaceTokens
-import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.internal.distribution.CreateEmptyDirectories
+import org.elasticsearch.gradle.internal.distribution.PackageMetadata
+import org.elasticsearch.gradle.internal.distribution.TokenExpansions
 import org.redline_rpm.header.Flags
-
-import java.nio.file.Files
-import java.nio.file.Path
-import java.util.regex.Matcher
-import java.util.regex.Pattern
 
 /*****************************************************************************
  *                         Deb and rpm configuration                         *
@@ -56,32 +53,30 @@ plugins {
 ['deb', 'rpm'].each { type ->
   String packagingFiles = "build/packaging/${type}"
 
-  String taskName = "process${type.capitalize()}Files"
-  tasks.register(taskName, Copy) {
+  tasks.register(PackageMetadata.Type.fromExtension(type).processFilesTaskName(), Copy) {
     into packagingFiles
 
     with copySpec {
       from 'src/common'
       from "src/${type}"
-      filter("tokens": expansionsForDistribution(type, false), ReplaceTokens.class)
+      filter("tokens": TokenExpansions.forProject(project, type, false), ReplaceTokens.class)
     }
 
     into('etc/elasticsearch') {
       with configFiles(type, false)
     }
 
-    filter("tokens": expansionsForDistribution(type, false), ReplaceTokens.class)
+    filter("tokens": TokenExpansions.forProject(project, type, false), ReplaceTokens.class)
 
-    doLast {
-      // create empty dirs, we set the permissions when configuring the packages
-      mkdir "${packagingFiles}/var/log/elasticsearch"
-      mkdir "${packagingFiles}/var/lib/elasticsearch"
-      mkdir "${packagingFiles}/usr/share/elasticsearch/plugins"
-
+    // create empty dirs, we set the permissions when configuring the packages
+    doLast(new CreateEmptyDirectories([
+      'var/log/elasticsearch',
+      'var/lib/elasticsearch',
+      'usr/share/elasticsearch/plugins',
       // bare empty dir for /etc/elasticsearch and /etc/elasticsearch/jvm.options.d
-      mkdir "${packagingFiles}/elasticsearch"
-      mkdir "${packagingFiles}/elasticsearch/jvm.options.d"
-    }
+      'elasticsearch',
+      'elasticsearch/jvm.options.d'
+    ]))
   }
 }
 
@@ -89,31 +84,16 @@ plugins {
 // since we have different templated files that need to be consumed, but the structure
 // is the same
 def commonPackageConfig(String type, String architecture) {
+  PackageMetadata metadata = PackageMetadata.of(type, architecture)
   return {
     onlyIf("not running on windows") {
       OS.current().equals(OS.WINDOWS) == false
     }
-    dependsOn "process${type.capitalize()}Files"
-    packageName = "elasticsearch"
-    if (type == 'deb') {
-      if (architecture == 'x64') {
-        arch = 'amd64'
-      } else {
-        assert architecture == 'aarch64': architecture
-        arch = 'arm64'
-      }
-    } else {
-      assert type == 'rpm': type
-      if (architecture == 'x64') {
-        arch = 'X86_64'
-      } else {
-        assert architecture == 'aarch64': architecture
-        arch = 'aarch64'
-      }
-    }
+    dependsOn metadata.type().processFilesTaskName()
+    packageName = PackageMetadata.PACKAGE_NAME
+    arch = metadata.packageArchitecture()
     // Follow elasticsearch's file naming convention
-    String prefix = "${architecture == 'aarch64' ? 'aarch64-' : ''}${type}"
-    destinationDirectory = file("${prefix}/build/distributions")
+    destinationDirectory = file("${metadata.projectName()}/build/distributions")
     archiveFileName.value(project.provider({ "${packageName}-${project.version}-${archString}.${type}" }))
     String packagingFiles = "build/packaging/${type}"
 
@@ -128,7 +108,6 @@ def commonPackageConfig(String type, String architecture) {
 
     // top level "into" directive is not inherited from ospackage for some reason, so we must
     // specify it again explicitly for copying common files
-    String platform = 'linux-' + ((architecture == 'x64') ? 'x86_64' : architecture)
     into('/usr/share/elasticsearch') {
       into('bin') {
         with binFiles(type, false)
@@ -182,7 +161,7 @@ def commonPackageConfig(String type, String architecture) {
       assert type == 'rpm'
       into('/usr/share/elasticsearch') {
         from(layout.settingsDirectory.file('licenses').asFile) {
-          include 'ELASTIC-LICENSE-2.0.txt'
+          include TokenExpansions.licenseFileName(false)
           rename { 'LICENSE.txt' }
         }
         filePermissions {
@@ -226,7 +205,7 @@ def commonPackageConfig(String type, String architecture) {
       createDirectoryEntry true
       fileType CONFIG | NOREPLACE
     }
-    String envFile = expansionsForDistribution(type, false)['path.env']
+    String envFile = metadata.type().envFile()
     configurationFile envFile
     into(new File(envFile).getParent()) {
       fileType CONFIG | NOREPLACE
@@ -327,6 +306,7 @@ ospackage {
 }
 
 Closure commonDebConfig(String architecture) {
+  PackageMetadata metadata = PackageMetadata.of('deb', architecture)
   return {
     configure(commonPackageConfig('deb', architecture))
 
@@ -334,9 +314,9 @@ Closure commonDebConfig(String architecture) {
     // ospackage silently ignores setting it. This is probably because `License`
     // is not actually a field in the Debian control file. So instead, we set
     // the license as "custom field".
-    customFields['License'] = 'Elastic-License'
+    customFields['License'] = metadata.license()
 
-    archiveVersion = project.version.replace('-', '~')
+    archiveVersion = metadata.packageVersion(project.version.toString())
     packageGroup = 'web'
 
     // versions found on oldest supported distro, centos-6
@@ -362,10 +342,11 @@ tasks.register('buildDeb', Deb) {
 }
 
 Closure commonRpmConfig(String architecture) {
+  PackageMetadata metadata = PackageMetadata.of('rpm', architecture)
   return {
     configure(commonPackageConfig('rpm', architecture))
 
-    license = 'Elastic License'
+    license = metadata.license()
 
     packageGroup = 'Application/Internet'
     requires '/bin/bash'
@@ -374,7 +355,7 @@ Closure commonRpmConfig(String architecture) {
 
     prefix '/usr'
     packager = 'Elasticsearch'
-    archiveVersion = project.version.replace('-', '_')
+    archiveVersion = metadata.packageVersion(project.version.toString())
     release = '1'
     os = 'LINUX'
     distribution = 'Elasticsearch'
@@ -394,19 +375,14 @@ tasks.register('buildRpm', Rpm) {
   configure(commonRpmConfig('x64'))
 }
 
-Closure dpkgExists = { it -> new File('/bin/dpkg-deb').exists() || new File('/usr/bin/dpkg-deb').exists() || new File('/usr/local/bin/dpkg-deb').exists() }
-Closure rpmExists = { it -> new File('/bin/rpm').exists() || new File('/usr/bin/rpm').exists() || new File('/usr/local/bin/rpm').exists() }
-
-Closure debFilter = { f -> f.name.endsWith('.deb') }
-
 // This configures the default artifact for the distribution specific
 // subprojects. We have subprojects because Gradle project substitutions
 // can only bind to the default configuration of a project
 subprojects {
   apply plugin: 'distribution'
 
-  String buildTask = "build${it.name.replaceAll(/-[a-z]/) { it.substring(1).toUpperCase() }.capitalize()}"
-  ext.buildDist = parent.tasks.named(buildTask)
+  PackageMetadata packageMetadata = PackageMetadata.fromProjectName(project.name)
+  ext.buildDist = parent.tasks.named(packageMetadata.buildTaskName())
   tasks.named('assemble').configure {
     dependsOn buildDist
   }
@@ -416,154 +392,10 @@ subprojects {
     'default' buildDist
   }
 
-  if (dpkgExists() || rpmExists()) {
-
-    // sanity checks if packages can be extracted
-    final File extractionDir = new File(buildDir, 'extracted')
-    File packageExtractionDir
-    if (project.name.contains('deb')) {
-      packageExtractionDir = new File(extractionDir, 'deb-extracted')
-    } else {
-      assert project.name.contains('rpm')
-      packageExtractionDir = new File(extractionDir, 'rpm-extracted')
-    }
-    tasks.register('checkExtraction', LoggedExec) {
-      dependsOn buildDist
-      doFirst {
-        delete(extractionDir)
-        extractionDir.mkdirs()
-      }
-    }
-
-    tasks.named("check").configure { dependsOn "checkExtraction" }
-    if (project.name.contains('deb')) {
-      tasks.named("checkExtraction").configure {
-        onlyIf("dpkg exists", dpkgExists)
-        commandLine 'dpkg-deb', '-x', "${-> buildDist.get().outputs.files.filter(debFilter).singleFile}", packageExtractionDir
-      }
-    } else {
-      assert project.name.contains('rpm')
-      tasks.named("checkExtraction").configure {
-        onlyIf("rpm exists", rpmExists)
-        final File rpmDatabase = new File(extractionDir, 'rpm-database')
-        commandLine 'rpm',
-          '--badreloc',
-          '--ignorearch',
-          '--ignoreos',
-          '--nodeps',
-          '--noscripts',
-          '--notriggers',
-          '--dbpath',
-          rpmDatabase,
-          '--relocate',
-          "/=${packageExtractionDir}",
-          '-i',
-          "${-> buildDist.get().outputs.files.singleFile}"
-      }
-    }
-
-    tasks.register("checkLicense") {
-      dependsOn buildDist, "checkExtraction"
-    }
-    tasks.named("check").configure { dependsOn "checkLicense" }
-    if (project.name.contains('deb')) {
-      tasks.named("checkLicense").configure {
-        onlyIf("dpkg exists", dpkgExists)
-        doLast {
-          Path copyrightPath
-          String expectedLicense
-          String licenseFilename
-          copyrightPath = packageExtractionDir.toPath().resolve("usr/share/doc/elasticsearch/copyright")
-          expectedLicense = "Elastic-License"
-          licenseFilename = "ELASTIC-LICENSE-2.0.txt"
-          final List<String> header = Arrays.asList(
-            "Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/",
-            "Copyright: Elasticsearch B.V. <info@elastic.co>",
-            "License: " + expectedLicense
-          )
-          final List<String> licenseLines = Files.readAllLines(rootDir.toPath().resolve("licenses/" + licenseFilename))
-          final List<String> expectedLines = header + licenseLines.collect { " " + it }
-          assertLinesInFile(copyrightPath, expectedLines)
-        }
-      }
-    } else {
-      assert project.name.contains('rpm')
-      tasks.named("checkLicense").configure {
-        onlyIf("rpm exists", rpmExists)
-        doLast {
-          String licenseFilename
-          licenseFilename = "ELASTIC-LICENSE-2.0.txt"
-          final List<String> licenseLines = Files.readAllLines(rootDir.toPath().resolve("licenses/" + licenseFilename))
-          final Path licensePath = packageExtractionDir.toPath().resolve("usr/share/elasticsearch/LICENSE.txt")
-          assertLinesInFile(licensePath, licenseLines)
-        }
-      }
-    }
-
-    tasks.register("checkNotice") {
-      dependsOn buildDist, "checkExtraction"
-      onlyIf("${project.name.contains('deb') ? 'dpkg' : 'rpm'} exists") {
-        (project.name.contains('deb') && dpkgExists.call(it)) || (project.name.contains('rpm') && rpmExists.call(it))
-      }
-      doLast {
-        final List<String> noticeLines = Arrays.asList("Elasticsearch", "Copyright 2009-2024 Elasticsearch")
-        final Path noticePath = packageExtractionDir.toPath().resolve("usr/share/elasticsearch/NOTICE.txt")
-        assertLinesInFile(noticePath, noticeLines)
-      }
-    }
-
-    def checkLicenseMetadataTaskProvider = tasks.register('checkLicenseMetadata', LoggedExec) {
-      dependsOn buildDist, "checkExtraction"
-    }
-    tasks.named("check").configure {
-      dependsOn "checkNotice"
-      dependsOn(checkLicenseMetadataTaskProvider)
-    }
-
-    if (project.name.contains('deb')) {
-      checkLicenseMetadataTaskProvider.configure { LoggedExec exec ->
-        onlyIf("dpkg exists", dpkgExists)
-        exec.commandLine 'dpkg-deb', '--info', "${-> buildDist.get().outputs.files.filter(debFilter).singleFile}"
-        exec.getCaptureOutput().set(true)
-        doLast {
-          String expectedLicense
-          expectedLicense = "Elastic-License"
-          final Pattern pattern = Pattern.compile("\\s*License: (.+)")
-          final String[] actualLines = getOutput().split("\n")
-          int count = 0
-          for (final String actualLine : actualLines) {
-            final Matcher matcher = pattern.matcher(actualLine)
-            if (matcher.matches()) {
-              count++
-              final String actualLicense = matcher.group(1)
-              if (expectedLicense != actualLicense) {
-                throw new GradleException("expected license [${expectedLicense} for package info but found [${actualLicense}]")
-              }
-            }
-          }
-          if (count == 0) {
-            throw new GradleException("expected license [${expectedLicense}] for package info but found none in:\n${info}")
-          }
-          if (count > 1) {
-            throw new GradleException("expected a single license for package info but found [${count}] in:\n${info}")
-          }
-        }
-      }
-    } else {
-      assert project.name.contains('rpm')
-      checkLicenseMetadataTaskProvider.configure { LoggedExec exec ->
-        onlyIf("rpm exists", rpmExists)
-        exec.commandLine 'rpm', '-qp', '--queryformat', '%{License}', "${-> buildDist.get().outputs.files.singleFile}"
-        exec.getCaptureOutput().set(true)
-        doLast {
-          String license = getOutput()
-          String expectedLicense
-          expectedLicense = "Elastic License"
-          if (license != expectedLicense) {
-            throw new GradleException("expected license [${expectedLicense}] for [${-> buildDist.get().outputs.files.singleFile}] but was [${license}]")
-          }
-        }
-      }
-    }
+  // sanity checks of the package, skipped on hosts without dpkg-deb or rpm
+  apply plugin: 'elasticsearch.internal-distribution-package-check'
+  distributionPackageCheck {
+    packageType = packageMetadata.type()
+    packageFile = buildDist.flatMap { it.archiveFile }
   }
 }

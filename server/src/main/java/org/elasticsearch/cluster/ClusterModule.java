@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.StreamsMetadata;
+import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.routing.DelayedAllocationService;
@@ -99,6 +100,7 @@ import org.elasticsearch.persistent.PersistentTasksNodeService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.script.ScriptMetadata;
 import org.elasticsearch.snapshots.RegisteredPolicySnapshots;
+import org.elasticsearch.snapshots.SnapshotsInProgressEncryptedData;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskResultsService;
@@ -281,6 +283,12 @@ public class ClusterModule extends AbstractModule {
         List<Entry> entries = new ArrayList<>();
         // Cluster State
         registerClusterCustom(entries, SnapshotsInProgress.TYPE, SnapshotsInProgress::new, SnapshotsInProgress::readDiffFrom);
+        registerClusterCustom(
+            entries,
+            SnapshotsInProgressEncryptedData.TYPE,
+            SnapshotsInProgressEncryptedData::new,
+            SnapshotsInProgressEncryptedData::readDiffFrom
+        );
         registerClusterCustom(entries, RestoreInProgress.TYPE, RestoreInProgress::new, RestoreInProgress::readDiffFrom);
         registerClusterCustom(
             entries,
@@ -412,6 +420,9 @@ public class ClusterModule extends AbstractModule {
                 new ParseField(DataStreamMetadata.TYPE),
                 DataStreamMetadata::fromXContent
             )
+        );
+        entries.add(
+            new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(ViewMetadata.TYPE), ViewMetadata::fromXContent)
         );
         entries.add(
             new NamedXContentRegistry.Entry(

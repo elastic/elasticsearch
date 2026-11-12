@@ -34,6 +34,8 @@ import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -53,6 +55,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestBuilder;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TestPlainActionFuture;
@@ -210,6 +213,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.TimeZone;
@@ -225,6 +229,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -285,6 +290,27 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     private static final Collection<String> loggedLeaks = new ArrayList<>();
 
+    /**
+     * Promise warnings we tolerate instead of failing a test on. A listener that throws is normally one of our own
+     * callbacks breaking, which is what the DefaultPromise appender below exists to catch; these are third-party
+     * listeners throwing while their own library shuts down, where nothing on our side is wrong or fixable.
+     * <p>
+     * Each entry names the class that declares the listener, which is the stable part of what Netty reports: for a
+     * lambda it logs the declaring class followed by a generated suffix that differs from run to run. Deliberately not
+     * the package — that would also cover these clients' request paths, where a throw is worth seeing.
+     */
+    private static final List<String> TOLERATED_PROMISE_WARNINGS = List.of(
+        // gRPC's transport, throwing from a ChannelFutureListener for an HTTP/2 stream it had already closed, after
+        // FlightServer.close() returned. A known source of flakiness for the Arrow Flight based tests, which is where
+        // this first showed up. Logged as "An exception was thrown by io.grpc.netty.NettyServerHandler$X
+        // .operationComplete()". See #144244, #144263.
+        "An exception was thrown by io.grpc.netty.NettyServerHandler",
+        // The AWS SDK's connection pool. Its idle-count bookkeeping — on the acquire and release paths as well as on
+        // channel close — is submitted to an event executor that the client's own shutdown may already have terminated.
+        // See #161727.
+        "An exception was thrown by software.amazon.awssdk.http.nio.netty.internal.IdleConnectionCountingChannelPool"
+    );
+
     private HeaderWarningAppender headerWarningAppender;
 
     @AfterClass
@@ -344,11 +370,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             public void append(LogEvent event) {
                 if (Level.WARN.equals(event.getLevel())) {
                     final String message = event.getMessage().getFormattedMessage();
-                    // gRPC's Netty transport can sometimes throw from an internal ChannelFutureListener during stream shutdown,
-                    // which Netty logs as a WARN on DefaultPromise:
-                    // "An exception was thrown by io.grpc.netty.NettyServerHandler$X.operationComplete()"
-                    // This is a known source of test flakiness for Arrow Flight based tests and is not actionable here.
-                    if (message.contains("An exception was thrown by io.grpc.netty.NettyServerHandler")) {
+                    if (TOLERATED_PROMISE_WARNINGS.stream().anyMatch(message::contains)) {
                         return;
                     }
                     synchronized (loggedLeaks) {
@@ -786,6 +808,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         );
         filtered.add("Configuring [path.data] with a list is deprecated. Instead specify as a string value");
         filtered.add("setting [path.shared_data] is deprecated and will be removed in a future release");
+        filtered.add("Running Elasticsearch with Java 21-24 is deprecated.");
         filtered.add(
             "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed "
                 + "in a future release. See the breaking changes documentation for the next major version."
@@ -1091,6 +1114,18 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static boolean randomBoolean() {
         return random().nextBoolean();
+    }
+
+    public static Settings.Builder randomBatchIndexing(Settings.Builder settings) {
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
+            int choice = randomIntBetween(0, 2);
+            if (choice == 0) {
+                settings.put(IndexSettings.BATCH_INDEXING.getKey(), true);
+            } else if (choice == 1) {
+                settings.put(IndexSettings.BATCH_INDEXING.getKey(), false);
+            }
+        }
+        return settings;
     }
 
     public static Boolean randomOptionalBoolean() {
@@ -1828,23 +1863,24 @@ public abstract class ESTestCase extends LuceneTestCase {
     // After 1s, we stop growing the sleep interval exponentially and just sleep 1s until maxWaitTime
     private static final long AWAIT_BUSY_THRESHOLD = 1000L;
 
-    /**
-     * Periodically execute the supplied function until it returns true, or until the
-     * specified maximum wait time has elapsed. If at all possible, use
-     * {@link ESTestCase#assertBusy(CheckedRunnable)} instead.
-     *
-     * @param breakSupplier determines whether to return immediately or continue waiting.
-     * @param maxWaitTime the maximum amount of time to wait
-     * @param unit the unit of tie for <code>maxWaitTime</code>
-     * @return the last value returned by <code>breakSupplier</code>
-     */
+    /// Executes provided supplier until it returns `true` or provided maximum wait time elapses.
+    /// Up to 1 second of sleep is applied between executions of the supplier.
     public static boolean waitUntil(BooleanSupplier breakSupplier, long maxWaitTime, TimeUnit unit) {
-        long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
+        return waitUntil(() -> Optional.of(breakSupplier.getAsBoolean()).filter(Boolean::booleanValue), new TimeValue(maxWaitTime, unit))
+            .isPresent();
+    }
+
+    /// Executes provided supplier until it returns a non-empty [Optional] or provided maximum wait time elapses.
+    /// Returns an empty optional if timed out.
+    /// Up to 1 second of sleep is applied between executions of the supplier.
+    public static <T> Optional<T> waitUntil(Supplier<Optional<T>> evaluation, TimeValue maxWaitTime) {
+        long maxTimeInMillis = maxWaitTime.millis();
         long timeInMillis = 1;
         long sum = 0;
         while (sum + timeInMillis < maxTimeInMillis) {
-            if (breakSupplier.getAsBoolean()) {
-                return true;
+            Optional<T> iterationResult = evaluation.get();
+            if (iterationResult.isPresent()) {
+                return iterationResult;
             }
             safeSleep(timeInMillis);
             sum += timeInMillis;
@@ -1852,7 +1888,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         timeInMillis = maxTimeInMillis - sum;
         safeSleep(Math.max(timeInMillis, 0));
-        return breakSupplier.getAsBoolean();
+        return evaluation.get();
     }
 
     protected TestThreadPool createThreadPool(ExecutorBuilder<?>... executorBuilders) {
@@ -3285,11 +3321,37 @@ public abstract class ESTestCase extends LuceneTestCase {
         runInParallel(tasks.length, i -> tasks[i].run());
     }
 
+    /**
+     * Runs {@code task} to completion on a new thread other than the calling one, which waits for it. Any failure of the task, including
+     * a failed assertion, is rethrown on the calling thread as an {@link AssertionError}.
+     */
+    public static void onOtherThread(CheckedRunnable<Exception> task) {
+        final AtomicReference<Throwable> failure = new AtomicReference<>();
+        final Thread thread = new Thread(() -> {
+            try {
+                task.run();
+            } catch (Throwable t) {
+                failure.set(t);
+            }
+        }, "TEST-onOtherThread");
+        thread.start();
+        try {
+            thread.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("interrupted while waiting for the task on the other thread", e);
+        }
+        if (failure.get() != null) {
+            throw new AssertionError(failure.get());
+        }
+    }
+
     public static void ensureAllContextsReleased(SearchService searchService) {
         try {
             assertBusy(() -> {
                 assertThat(searchService.getActiveContexts(), equalTo(0));
                 assertThat(searchService.getOpenScrollContexts(), equalTo(0));
+                assertThat(searchService.queryScheduler().queries(), equalTo(0));
             });
         } catch (Exception e) {
             throw new AssertionError("Failed to verify search contexts", e);
@@ -3333,6 +3395,48 @@ public abstract class ESTestCase extends LuceneTestCase {
             return newSearcher(r, maybeWrap, wrapWithAssertions, Concurrency.INTER_SEGMENT);
         }
         return newSearcher(r, maybeWrap, wrapWithAssertions, Concurrency.NONE);
+    }
+
+    /**
+     * Wraps {@code collector} as a {@link CollectorManager} that reuses a single instance.
+     * Only safe with a sequential searcher either created without an executor or always searching a single slice.
+     * Note that reduce returns null. Results need to be collected by the provided collector.
+     */
+    public static <C extends Collector> CollectorManager<C, Void> singleThreadedCollectorManager(C collector) {
+        return new CollectorManager<>() {
+            private boolean created;
+
+            @Override
+            public C newCollector() {
+                assert created == false : "singleThreadedCollectorManager does not support concurrent search";
+                created = true;
+                return collector;
+            }
+
+            @Override
+            public Void reduce(Collection<C> collectors) {
+                assert collectors.size() == 1 : "Collectors must have only one collector";
+                return null;
+            }
+        };
+    }
+
+    /**
+     * A {@link CollectorManager} that creates a fresh collector for each slice.
+     * Note that reduce returns null. Results need to be externally gathered during collection.
+     */
+    public static <C extends Collector> CollectorManager<C, Void> collectorManager(CheckedSupplier<C, IOException> factory) {
+        return new CollectorManager<>() {
+            @Override
+            public C newCollector() throws IOException {
+                return factory.get();
+            }
+
+            @Override
+            public Void reduce(Collection<C> collectors) {
+                return null;
+            }
+        };
     }
 
     /**

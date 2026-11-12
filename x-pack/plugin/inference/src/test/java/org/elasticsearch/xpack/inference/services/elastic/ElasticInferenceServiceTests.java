@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -27,6 +28,9 @@ import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.DecisionQuestion;
+import org.elasticsearch.inference.DecisionQuestions;
+import org.elasticsearch.inference.DecisionRequest;
 import org.elasticsearch.inference.DocumentExtractionRequest;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.EmptySecretSettings;
@@ -58,7 +62,7 @@ import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.inference.completion.Reasoning;
 import org.elasticsearch.inference.completion.ReasoningDetail;
-import org.elasticsearch.inference.telemetry.InferenceProductContext;
+import org.elasticsearch.inference.completion.Template;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.ToXContent;
@@ -70,6 +74,7 @@ import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.CompletionResults;
+import org.elasticsearch.xpack.core.inference.results.DecisionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
@@ -86,8 +91,12 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderT
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInferenceServiceDecisionModel;
+import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInferenceServiceDecisionModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInferenceServiceDecisionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
@@ -107,6 +116,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -114,6 +124,7 @@ import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.inference.DataFormat.BASE64;
+import static org.elasticsearch.inference.DataFormat.URL;
 import static org.elasticsearch.inference.DataType.IMAGE;
 import static org.elasticsearch.inference.InferenceString.ofText;
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
@@ -612,6 +623,237 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
         assertThat(sparseEmbeddingsModel.getSecretSettings(), is(EmptySecretSettings.INSTANCE));
     }
 
+    public void testParseRequestConfig_CreatesADecisionModel() throws IOException {
+        try (var service = createServiceWithMockSender()) {
+            var modelListener = new TestPlainActionFuture<Model>();
+
+            service.parseRequestConfig(
+                INFERENCE_ENTITY_ID,
+                TaskType.DECISION,
+                getRequestConfigMap(
+                    Map.of(ServiceFields.MODEL_ID, "my-decision-model-id"),
+                    Map.of(
+                        DecisionQuestions.QUESTIONS_FIELD,
+                        Map.of("is_complaint", Map.of("type", "predicate", "instructions", "Is the customer complaining?"))
+                    ),
+                    Map.of()
+                ),
+                modelListener
+            );
+
+            var model = modelListener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+            assertThat(model, instanceOf(ElasticInferenceServiceDecisionModel.class));
+
+            var decisionModel = (ElasticInferenceServiceDecisionModel) model;
+            assertThat(decisionModel.getServiceSettings().modelId(), is("my-decision-model-id"));
+            assertThat(
+                decisionModel.getTaskSettings(),
+                is(
+                    new ElasticInferenceServiceDecisionTaskSettings(
+                        new DecisionQuestions(Map.of("is_complaint", new DecisionQuestion.Predicate("Is the customer complaining?")))
+                    )
+                )
+            );
+            assertThat(decisionModel.getSecretSettings(), is(EmptySecretSettings.INSTANCE));
+        }
+    }
+
+    public void testParseRequestConfig_DecisionModel_RejectsUnknownTaskSettings() throws IOException {
+        try (var service = createServiceWithMockSender()) {
+            var modelListener = new TestPlainActionFuture<Model>();
+
+            service.parseRequestConfig(
+                INFERENCE_ENTITY_ID,
+                TaskType.DECISION,
+                getRequestConfigMap(Map.of(ServiceFields.MODEL_ID, "my-decision-model-id"), Map.of("unknown_field", "value"), Map.of()),
+                modelListener
+            );
+
+            var exception = expectThrows(Exception.class, () -> modelListener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+            assertThat(exception.getMessage(), containsString("unknown field [unknown_field]"));
+        }
+    }
+
+    public void testDecisionInfer_SendsDecisionRequest_WithStoredQuestions() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var elasticInferenceServiceURL = getUrl(webServer);
+
+        try (var service = createService(senderFactory, elasticInferenceServiceURL)) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody("""
+                {
+                    "answers": [
+                        {"type": "predicate", "name": "is_complaint", "probability": 0.92},
+                        {
+                            "type": "choice",
+                            "name": "team",
+                            "choice": "billing",
+                            "confidence": 0.9,
+                            "probabilities": [{"value": "billing", "probability": 0.95}, {"value": "other", "probability": 0.05}]
+                        }
+                    ]
+                }
+                """));
+
+            var choices = new LinkedHashMap<String, String>();
+            choices.put("billing", "Charges, refunds, invoices");
+            choices.put("other", null);
+            var questions = new LinkedHashMap<String, DecisionQuestion>();
+            questions.put("is_complaint", new DecisionQuestion.Predicate("Is the customer complaining?"));
+            questions.put("team", new DecisionQuestion.Choice("Which team should handle this?", choices));
+            var model = ElasticInferenceServiceDecisionModelTests.createModel(
+                elasticInferenceServiceURL,
+                "my-model-id",
+                new DecisionQuestions(questions)
+            );
+
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            var input = ofText("I was charged twice.");
+            service.decisionInfer(model, new DecisionRequest(input, null), null, listener);
+
+            var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
+            assertThat(result, instanceOf(DecisionResults.class));
+            var answers = ((DecisionResults) result).answers();
+            assertThat(answers.get("is_complaint"), is(new DecisionResults.PredicateAnswer(0.92)));
+            assertThat(answers.get("team"), is(new DecisionResults.ChoiceAnswer("billing", Map.of("billing", 0.95, "other", 0.05), 0.9)));
+
+            var request = webServer.requests().getFirst();
+            assertThat(request.getUri().getPath(), is("/api/v1/decide"));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
+            assertThat(
+                entityAsMap(request.getBody()),
+                is(
+                    Map.of(
+                        "model",
+                        "my-model-id",
+                        "input",
+                        inferenceStringToMap(input),
+                        "questions",
+                        List.of(
+                            Map.of("type", "predicate", "name", "is_complaint", "instructions", "Is the customer complaining?"),
+                            Map.of(
+                                "type",
+                                "choice",
+                                "name",
+                                "team",
+                                "instructions",
+                                "Which team should handle this?",
+                                "choices",
+                                List.of(Map.of("value", "billing", "description", "Charges, refunds, invoices"), Map.of("value", "other"))
+                            )
+                        )
+                    )
+                )
+            );
+        }
+    }
+
+    public void testDecisionInfer_RequestQuestionsReplaceStoredQuestions_ImageInput() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var elasticInferenceServiceURL = getUrl(webServer);
+
+        try (var service = createService(senderFactory, elasticInferenceServiceURL)) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody("""
+                {
+                    "answers": [
+                        {
+                            "type": "score",
+                            "name": "severity",
+                            "score": 0.3,
+                            "confidence": 0.7,
+                            "probabilities": [
+                                {"value": 0, "label": "cosmetic", "probability": 0.7},
+                                {"value": 1, "label": "blocking", "probability": 0.3}
+                            ]
+                        }
+                    ]
+                }
+                """));
+
+            var model = ElasticInferenceServiceDecisionModelTests.createModel(
+                elasticInferenceServiceURL,
+                "my-model-id",
+                new DecisionQuestions(Map.of("stored", new DecisionQuestion.Predicate("Stored question?")))
+            );
+            Map<String, Object> taskSettings = new HashMap<>();
+            taskSettings.put(
+                DecisionQuestions.QUESTIONS_FIELD,
+                Map.of(
+                    "severity",
+                    Map.of("type", "score", "instructions", "How severe is the damage?", "levels", List.of("cosmetic", "blocking"))
+                )
+            );
+            var input = randomFrom(
+                new InferenceString(IMAGE, BASE64, TEST_DATA_URI),
+                new InferenceString(IMAGE, URL, "https://example.com/image.png")
+            );
+            var decisionRequest = new DecisionRequest(input, taskSettings);
+
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.decisionInfer(model, decisionRequest, null, listener);
+
+            var result = (DecisionResults) listener.actionGet(TEST_REQUEST_TIMEOUT);
+            assertThat(
+                result.answers(),
+                is(Map.of("severity", new DecisionResults.ScoreAnswer(0.3, Map.of("cosmetic", 0.7, "blocking", 0.3), 0.7)))
+            );
+
+            assertThat(
+                entityAsMap(webServer.requests().getFirst().getBody()),
+                is(
+                    Map.of(
+                        "model",
+                        "my-model-id",
+                        "input",
+                        inferenceStringToMap(input),
+                        "questions",
+                        List.of(
+                            Map.of(
+                                "type",
+                                "score",
+                                "name",
+                                "severity",
+                                "instructions",
+                                "How severe is the damage?",
+                                "levels",
+                                List.of(Map.of("label", "cosmetic"), Map.of("label", "blocking"))
+                            )
+                        )
+                    )
+                )
+            );
+        }
+    }
+
+    public void testDecisionInfer_ThrowsValidationError_WhenNoQuestions() throws IOException {
+        try (var service = createServiceWithMockSender()) {
+            var model = ElasticInferenceServiceDecisionModelTests.createModel(getUrl(webServer), "my-model-id");
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+
+            service.decisionInfer(model, DecisionRequest.of("some input"), null, listener);
+
+            var exception = expectThrows(ValidationException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(
+                exception.getMessage(),
+                is(
+                    "Validation Failed: 1: No questions to answer, "
+                        + "specify [questions] in the [task_settings] of the inference endpoint or the request;"
+                )
+            );
+        }
+    }
+
+    public void testDecisionInfer_ThrowsForNonDecisionModel() throws IOException {
+        try (var service = createServiceWithMockSender()) {
+            var model = ElasticInferenceServiceRerankModelTests.createModel(getUrl(webServer), "my-model-id");
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+
+            service.decisionInfer(model, DecisionRequest.of("some input"), null, listener);
+
+            var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(exception.getMessage(), containsString("The internal model was invalid"));
+        }
+    }
+
     public void testInfer_ThrowsErrorWhenTaskTypeIsNotValid_ChatCompletion() throws IOException {
         var sender = createMockSender();
 
@@ -678,7 +920,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             );
             var request = webServer.requests().getFirst();
             assertNull(request.getUri().getQuery());
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo("application/json; charset=UTF-8"));
 
             var requestMap = entityAsMap(request.getBody());
             assertThat(requestMap, is(Map.of("input", List.of("input text"), "model", "my-model-id", "usage_context", "search")));
@@ -765,7 +1007,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
             var request = webServer.requests().getFirst();
             assertNull(request.getUri().getQuery());
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo("application/json; charset=UTF-8"));
 
             var requestMap = entityAsMap(request.getBody());
             assertThat(requestMap, is(Map.of("input", List.of(input), "model", modelId, "usage_context", inputType)));
@@ -820,7 +1062,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             // Verify the outgoing HTTP request
             var request = webServer.requests().getFirst();
             assertNull(request.getUri().getQuery());
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo("application/json; charset=UTF-8"));
 
             // Verify the outgoing request body
             Map<String, Object> requestMap = entityAsMap(request.getBody());
@@ -847,20 +1089,17 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
     public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_WithStoredTaskSettings() throws IOException {
         assertDocumentExtractionInferSendsRequest(
-            new ElasticInferenceServiceDocumentExtractionTaskSettings(
-                "markdown",
-                new ElasticInferenceServiceDocumentExtractionTaskSettings.CssSettings(List.of(".main-content"), null)
-            ),
+            new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", Map.of("preset", "ocr", "page", 2)),
             Map.of(),
-            Map.of("output_format", "markdown", "css", Map.of("extract_only", List.of(".main-content")))
+            Map.of("output_format", "markdown", "parameters", Map.of("preset", "ocr", "page", 2))
         );
     }
 
     public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_WithRequestTaskSettings() throws IOException {
         assertDocumentExtractionInferSendsRequest(
             ElasticInferenceServiceDocumentExtractionTaskSettings.EMPTY_SETTINGS,
-            Map.of("output_format", "text", "css", Map.of("extract_only", List.of("#post-body"), "remove", List.of("nav"))),
-            Map.of("output_format", "text", "css", Map.of("extract_only", List.of("#post-body"), "remove", List.of("nav")))
+            Map.of("output_format", "text", "parameters", Map.of("preset", "pdf", "page", 2, "retain_images", "none")),
+            Map.of("output_format", "text", "parameters", Map.of("preset", "pdf", "page", 2, "retain_images", "none"))
         );
     }
 
@@ -869,11 +1108,47 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
         assertDocumentExtractionInferSendsRequest(
             new ElasticInferenceServiceDocumentExtractionTaskSettings(
                 "markdown",
-                new ElasticInferenceServiceDocumentExtractionTaskSettings.CssSettings(List.of(".main-content"), List.of("nav"))
+                Map.of("preset", "pdf", "page", 1, "retain_images", "none")
             ),
-            Map.of("output_format", "text", "css", Map.of("extract_only", List.of("#post-body"))),
-            // output_format and css.extract_only come from the request, css.remove is kept from the stored settings
-            Map.of("output_format", "text", "css", Map.of("extract_only", List.of("#post-body"), "remove", List.of("nav")))
+            Map.of("parameters", Map.of("preset", "ocr", "page", 3)),
+            // the preset and page parameters come from the request, output_format and the other parameters are kept from the stored
+            // settings
+            Map.of("output_format", "markdown", "parameters", Map.of("preset", "ocr", "page", 3, "retain_images", "none"))
+        );
+    }
+
+    /**
+     * The parameters are made-up values only demonstrating the pass-through; they are not valid parameters.
+     * <p>
+     * Parameters are passed through to the Elastic Inference Service as they are, including embedded objects, arrays and arrays of
+     * objects. Stored and request parameters are merged per top-level parameter, so an object in the request replaces the stored one.
+     */
+    public void testDocumentExtractionInfer_SendsEmbeddedParameterObjects() throws IOException {
+        assertDocumentExtractionInferSendsRequest(
+            new ElasticInferenceServiceDocumentExtractionTaskSettings(
+                null,
+                Map.of("ocr", Map.of("preferEndToEnd", true, "inlineFormula", true), "targetSelector", List.of("main", "article"))
+            ),
+            Map.of(
+                "parameters",
+                Map.of(
+                    "ocr",
+                    Map.of("preferEndToEnd", false),
+                    "layout",
+                    Map.of("regions", List.of(Map.of("name", "header", "order", 1), Map.of("name", "body", "order", 2)))
+                )
+            ),
+            Map.of(
+                "parameters",
+                Map.of(
+                    "ocr",
+                    Map.of("preferEndToEnd", false),
+                    "targetSelector",
+                    List.of("main", "article"),
+                    "layout",
+                    Map.of("regions", List.of(Map.of("name", "header", "order", 1), Map.of("name", "body", "order", 2)))
+                )
+            )
         );
     }
 
@@ -958,7 +1233,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             var request = webServer.requests().getFirst();
             assertNull(request.getUri().getQuery());
             assertThat(request.getUri().getPath(), is("/api/v1/document-extraction"));
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo("application/json; charset=UTF-8"));
 
             // Verify the outgoing request body
             var expectedRequestMap = new HashMap<String, Object>();
@@ -1075,7 +1350,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             // Verify the outgoing HTTP request
             var request = webServer.requests().getFirst();
             assertNull(request.getUri().getQuery());
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo("application/json; charset=UTF-8"));
 
             // Verify the outgoing request body preserves the image type/format/value objects
             Map<String, Object> requestMap = entityAsMap(request.getBody());
@@ -1120,10 +1395,16 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             String productSolution = "security";
             String productFeature = "attack_discovery";
             String interactionId = "interaction-id";
-            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
-            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, productSolution);
-            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, productFeature);
-            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, interactionId);
+            String traceId = "trace-id";
+            String userId = "user-id";
+            String spaceId = "space-id";
+            threadPool.getThreadContext().putHeader("X-elastic-product-use-case", productUseCase);
+            threadPool.getThreadContext().putHeader("X-elastic-product-solution", productSolution);
+            threadPool.getThreadContext().putHeader("X-elastic-product-feature", productFeature);
+            threadPool.getThreadContext().putHeader("X-Elastic-Inference-Interaction-Id", interactionId);
+            threadPool.getThreadContext().putHeader("X-Elastic-Trace-Id", traceId);
+            threadPool.getThreadContext().putHeader("X-Elastic-User-Id", userId);
+            threadPool.getThreadContext().putHeader("X-Elastic-Space-Id", spaceId);
 
             var model = ElasticInferenceServiceRerankModelTests.createModel(elasticInferenceServiceURL, "my-model-id");
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
@@ -1146,17 +1427,17 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             // Verify the header was sent in the request
             var request = webServer.requests().getFirst();
             assertNull(request.getUri().getQuery());
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo("application/json; charset=UTF-8"));
 
             // Check that the product use case header was set correctly
-            var productUseCaseHeaders = request.getHeaders().get(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+            var productUseCaseHeaders = request.getHeaders().get("X-elastic-product-use-case");
             assertThat(productUseCaseHeaders, contains(productUseCase));
-            assertThat(request.getHeaders().get(InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER), contains(productSolution));
-            assertThat(request.getHeaders().get(InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER), contains(productFeature));
-            assertThat(
-                request.getHeaders().get(InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER),
-                contains(interactionId)
-            );
+            assertThat(request.getHeaders().get("X-elastic-product-solution"), contains(productSolution));
+            assertThat(request.getHeaders().get("X-elastic-product-feature"), contains(productFeature));
+            assertThat(request.getHeaders().get("X-Elastic-Inference-Interaction-Id"), contains(interactionId));
+            assertThat(request.getHeaders().get("X-Elastic-Trace-Id"), contains(traceId));
+            assertThat(request.getHeaders().get("X-Elastic-User-Id"), contains(userId));
+            assertThat(request.getHeaders().get("X-Elastic-Space-Id"), contains(spaceId));
         }
     }
 
@@ -1183,7 +1464,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
             // Set up the product use case in the thread context
             String productUseCase = "test-product-use-case";
-            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
+            threadPool.getThreadContext().putHeader("X-elastic-product-use-case", productUseCase);
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(elasticInferenceServiceURL, "my-model-id");
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
@@ -1206,10 +1487,10 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             // Verify the header was sent in the request
             var request = webServer.requests().getFirst();
             assertNull(request.getUri().getQuery());
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo("application/json; charset=UTF-8"));
 
             // Check that the product use case header was set correctly
-            var productUseCaseHeaders = request.getHeaders().get(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+            var productUseCaseHeaders = request.getHeaders().get("X-elastic-product-use-case");
             assertThat(productUseCaseHeaders, contains("internal_search", productUseCase));
 
             // Verify request body
@@ -1241,7 +1522,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             String productUseCase = "test-product-use-case";
-            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
+            threadPool.getThreadContext().putHeader("X-elastic-product-use-case", productUseCase);
 
             // Create completion model
             var model = ElasticInferenceServiceCompletionModelTests.createModel(
@@ -1265,7 +1546,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             var httpRequest = webServer.requests().getFirst();
 
             // Check that the product use case header was set correctly
-            assertThat(httpRequest.getHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is(productUseCase));
+            assertThat(httpRequest.getHeader("X-elastic-product-use-case"), is(productUseCase));
         }
     }
 
@@ -1340,6 +1621,152 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 """);
             assertThat(requestBody, is(expectedJson));
         }
+    }
+
+    public void testUnifiedCompletionInfer_ForwardsTemplate() throws Exception {
+        var elasticInferenceServiceURL = getUrl(webServer);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (
+            var service = createService(senderFactory, elasticInferenceServiceURL);
+            var ignored = threadPool.getThreadContext().stashContext()
+        ) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(templateMockedStreamingResponse()));
+
+            var model = ElasticInferenceServiceCompletionModelTests.createModel(
+                INFERENCE_ENTITY_ID,
+                TaskType.CHAT_COMPLETION,
+                new ElasticInferenceServiceCompletionServiceSettings(MODEL_ID_VALUE),
+                ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
+            );
+
+            var request = templateOnlyRequest(0.1f);
+
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.unifiedCompletionInfer(model, UnifiedCompletionRequest.streaming(request), null, listener);
+            InferenceServiceResults inferenceServiceResults = listener.actionGet(TEST_REQUEST_TIMEOUT);
+
+            assertThat(webServer.requests(), hasSize(1));
+            var requestBody = webServer.requests().getFirst().getBody();
+
+            String expectedRequestJson = stripWhitespace("""
+                {
+                    "temperature": 0.1,
+                    "model": "some model id",
+                    "template": {
+                        "id": ".attack-discovery",
+                        "version": 2,
+                        "variables": {
+                            "time_range": "24h"
+                        }
+                    },
+                    "n": 1,
+                    "stream": true,
+                    "stream_options": {
+                        "include_usage": true
+                    }
+                }
+                """);
+            assertThat(requestBody, is(expectedRequestJson));
+            InferenceEventsAssertion.assertThat(inferenceServiceResults).hasFinishedStream().hasNoErrors();
+        }
+    }
+
+    /**
+     * The reasoning merge in {@code ElasticInferenceService#getUnifiedInputs} rebuilds the request body, so this checks the
+     * template survives that rebuild.
+     */
+    public void testUnifiedCompletionInfer_KeepsTemplateWhenMergingStoredReasoning() throws Exception {
+        var elasticInferenceServiceURL = getUrl(webServer);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (
+            var service = createService(senderFactory, elasticInferenceServiceURL);
+            var ignored = threadPool.getThreadContext().stashContext()
+        ) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(templateMockedStreamingResponse()));
+
+            var model = ElasticInferenceServiceCompletionModelTests.createModel(
+                elasticInferenceServiceURL,
+                INFERENCE_ENTITY_ID,
+                MODEL_ID_VALUE,
+                TaskType.CHAT_COMPLETION,
+                new ElasticInferenceServiceChatCompletionTaskSettings(new Reasoning(Reasoning.ReasoningEffort.LOW, null, null, null))
+            );
+
+            var request = templateOnlyRequest(null);
+
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.unifiedCompletionInfer(model, UnifiedCompletionRequest.streaming(request), null, listener);
+            listener.actionGet(TEST_REQUEST_TIMEOUT);
+
+            assertThat(webServer.requests(), hasSize(1));
+            var requestBody = webServer.requests().getFirst().getBody();
+
+            String expectedRequestJson = stripWhitespace("""
+                {
+                    "model": "some model id",
+                    "reasoning": {
+                        "effort": "low"
+                    },
+                    "template": {
+                        "id": ".attack-discovery",
+                        "version": 2,
+                        "variables": {
+                            "time_range": "24h"
+                        }
+                    },
+                    "n": 1,
+                    "stream": true,
+                    "stream_options": {
+                        "include_usage": true
+                    }
+                }
+                """);
+            assertThat(requestBody, is(expectedRequestJson));
+        }
+    }
+
+    private static UnifiedCompletionRequestBody templateOnlyRequest(@Nullable Float temperature) {
+        return new UnifiedCompletionRequestBody(
+            null,
+            null,
+            null,
+            null,
+            temperature,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new Template(".attack-discovery", 2, Map.of("time_range", "24h"))
+        );
+    }
+
+    private static String templateMockedStreamingResponse() throws IOException {
+        return Strings.format("""
+            data: %s
+
+            data: [DONE]
+
+            """, XContentHelper.stripWhitespace("""
+            {
+                "id": "1",
+                "object": "completion",
+                "created": 1677858242,
+                "model": "some model id",
+                "choices": [{
+                        "finish_reason": "stop",
+                        "index": 0,
+                        "delta": {
+                            "role": "assistant",
+                            "content": "Hello"
+                        }
+                    }
+                ]
+            }
+            """));
     }
 
     public void testUnifiedCompletionInfer_SupportsReasoning() throws Exception {
@@ -1635,7 +2062,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             var model = ElasticInferenceServiceDenseEmbeddingsModelTests.createTextEmbeddingModel(getUrl(webServer), "my-dense-model-id");
 
             String productUseCase = "test-product-use-case";
-            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
+            threadPool.getThreadContext().putHeader("X-elastic-product-use-case", productUseCase);
 
             TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
             // 2 inputs
@@ -1659,10 +2086,10 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             assertThat(webServer.requests(), hasSize(1));
             var request = webServer.requests().getFirst();
             assertNull(request.getUri().getQuery());
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
 
             // Check that the product use case header was set correctly
-            var productUseCaseHeaders = request.getHeaders().get(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+            var productUseCaseHeaders = request.getHeaders().get("X-elastic-product-use-case");
             assertThat(productUseCaseHeaders, contains("internal_ingest", productUseCase));
 
         }
@@ -1693,7 +2120,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             String productUseCase = "test-product-use-case";
-            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
+            threadPool.getThreadContext().putHeader("X-elastic-product-use-case", productUseCase);
 
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.embeddingInfer(
@@ -1708,10 +2135,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             assertThat(webServer.requests(), hasSize(1));
 
             // Check that the product use case header was set correctly
-            var productUseCaseHeaders = webServer.requests()
-                .getFirst()
-                .getHeaders()
-                .get(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+            var productUseCaseHeaders = webServer.requests().getFirst().getHeaders().get("X-elastic-product-use-case");
             assertThat(productUseCaseHeaders, contains("internal_ingest", productUseCase));
         }
 
@@ -1809,7 +2233,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 assertThat(request.getUri().getPath(), endsWith("/embed/dense"));
             }
             assertThat(request.getUri().getQuery(), nullValue());
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
 
             List<Object> expectedInputs;
             if (taskType == TaskType.TEXT_EMBEDDING) {
@@ -1889,7 +2313,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             var request = webServer.requests().getFirst();
             assertThat(request.getUri().getPath(), endsWith("/embed/dense"));
             assertThat(request.getUri().getQuery(), nullValue());
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
 
             var expectedInputs = inputs.stream().map(InferenceStringGroupTests::toRequestMap).toList();
             var requestMap = entityAsMap(request.getBody());
@@ -2027,8 +2451,10 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                            "sensitive": false,
                            "updatable": false,
                            "type": "str",
-                           "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion", "embedding",
-                           "document_extraction"]
+                           "supported_task_types": [
+                               "text_embedding", "sparse_embedding" , "rerank", "chat_completion", "embedding",
+                               "document_extraction", "decision"
+                           ]
                        },
                        "max_input_tokens": {
                            "description": "Allows you to specify the maximum number of tokens per input.",
@@ -2082,8 +2508,10 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                            "sensitive": false,
                            "updatable": false,
                            "type": "str",
-                           "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion", "embedding",
-                           "document_extraction"]
+                           "supported_task_types": [
+                               "text_embedding", "sparse_embedding" , "rerank", "chat_completion", "embedding",
+                               "document_extraction", "decision"
+                           ]
                        },
                        "max_input_tokens": {
                            "description": "Allows you to specify the maximum number of tokens per input.",
@@ -2310,6 +2738,11 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
         validateModelBuilding(model);
     }
 
+    public void testBuildModelFromConfigAndSecrets_Decision() throws IOException {
+        var model = createTestModel(TaskType.DECISION);
+        validateModelBuilding(model);
+    }
+
     public void testBuildModelFromConfigAndSecrets_DocumentExtraction() throws IOException {
         var model = createTestModel(TaskType.DOCUMENT_EXTRACTION);
         validateModelBuilding(model);
@@ -2349,6 +2782,11 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 TaskType.CHAT_COMPLETION
             );
             case RERANK -> ElasticInferenceServiceRerankModelTests.createModel(URL_VALUE, MODEL_ID_VALUE);
+            case DECISION -> ElasticInferenceServiceDecisionModelTests.createModel(
+                URL_VALUE,
+                MODEL_ID_VALUE,
+                new DecisionQuestions(Map.of("is_complaint", new DecisionQuestion.Predicate("Is the customer complaining?")))
+            );
             case DOCUMENT_EXTRACTION -> ElasticInferenceServiceDocumentExtractionModelTests.createModel(URL_VALUE, MODEL_ID_VALUE);
             default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
         };
@@ -2371,11 +2809,6 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
     public Model createEmbeddingModel(SimilarityMeasure similarity) {
         var settings = new ElasticInferenceServiceDenseEmbeddingsServiceSettings(randomAlphaOfLength(8), similarity, null, null);
         return ElasticInferenceServiceDenseEmbeddingsModelTests.createTextEmbeddingModel(randomAlphaOfLength(8), settings, null);
-    }
-
-    @Override
-    public SimilarityMeasure getDefaultSimilarity() {
-        return SimilarityMeasure.COSINE;
     }
 
     @Override

@@ -276,6 +276,7 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
 required_capability: promql_label_functions
+required_capability: fix_promql_label_join_empty_removes_label
 PROMQL index=prom-metrics-name step=1h result=(sum by (dst) (label_join(metrics.requests{pod="podA"}, "dst", "-")))
 | EVAL dst_is_absent = dst IS NULL
 | KEEP result, dst_is_absent

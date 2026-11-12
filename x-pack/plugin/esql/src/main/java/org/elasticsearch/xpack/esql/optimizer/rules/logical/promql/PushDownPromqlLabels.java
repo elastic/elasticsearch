@@ -878,8 +878,10 @@ public final class PushDownPromqlLabels {
             var without = new ArrayList<Expression>();
             for (String label : excluded) {
                 Attribute field = PromqlLabels.getLabel(input, label);
-                // TimeSeriesWithout reads the names of the labels it leaves out, present at the source or not
-                without.add(field != null ? field : new ReferenceAttribute(Source.EMPTY, label, DataType.KEYWORD));
+                // A label the source has no field for is in no series: leaving it out changes nothing.
+                if (field != null) {
+                    without.add(field);
+                }
             }
             return new ToTimeSeriesMetadata(source, new TimeSeriesWithout(source, without));
         }

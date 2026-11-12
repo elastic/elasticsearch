@@ -25,9 +25,9 @@ import static java.util.function.Predicate.not;
  * Translates the PromQL aggregations across series over a label container: the series are grouped by their labels after
  * the grouping, {@code by(...)} keeping the listed labels and {@code without(...)} leaving them out.
  */
-final class AggregationLabelTranslation {
+final class AcrossSeriesAggregateV2 {
 
-    private AggregationLabelTranslation() {}
+    private AcrossSeriesAggregateV2() {}
 
     /**
      * Translates the child once, then aggregates it keyed by the labels of each group. Within-series functions remain

@@ -177,11 +177,6 @@ tests:
   - :qa:mixed-cluster:v8.17.10#yamlRestTest
   method: test {yaml=indices.create/20_synthetic_source/synthetic_source with copy_to inside nested object}
   issue: https://github.com/elastic/elasticsearch/issues/165482
-- class: org.elasticsearch.xpack.search.AsyncSearchCleanupScrollIT
-  tasks:
-  - :x-pack:plugin:async-search:internalClusterTest
-  method: testRestartDoesNotDrainWhileCleanupScrollIsOpen
-  issue: https://github.com/elastic/elasticsearch/issues/165484
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   tasks:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v8.15.5#javaRestTest

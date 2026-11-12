@@ -152,7 +152,7 @@ exists in the default index mode matches only documents with a non-null value:
 exists matches only documents with a non-null value on a keyword field without an index:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
-      reason: "exists matches documents that hold only nulls"
+      reason: "string exists matches documents that hold only nulls (proposed contract)"
 
   - do:
       search:
@@ -191,7 +191,7 @@ exists matches only documents with a non-null value on a keyword field without a
 exists matches only documents with a non-null value on an indexed keyword field:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
-      reason: "exists matches documents that hold only nulls"
+      reason: "string exists matches documents that hold only nulls (proposed contract)"
 
   - do:
       search:
@@ -230,7 +230,7 @@ exists matches only documents with a non-null value on an indexed keyword field:
 exists matches only documents with a non-null value on a text field:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
-      reason: "exists matches documents that hold only nulls"
+      reason: "string exists matches documents that hold only nulls (proposed contract)"
 
   - do:
       search:
@@ -336,10 +336,74 @@ exists matches only documents with a non-null value on a date field:
   - match: { count: 5 }
 
 ---
-exists count stays the same after a deletion and a merge on string fields:
+exists hits, size 0 total and count agree on a keyword field without an index:
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - set: { hits.total.value: total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd } }
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: $total }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: kwd } }
+
+  - match: { count: $total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd } }
+          sort: [ _doc ]
+          from: $total
+          size: 1
+          _source: false
+
+  - length: { hits.hits: 0 }
+
+---
+exists hits, size 0 total and count agree on an indexed keyword field:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
-      reason: "exists matches documents that hold only nulls"
+      reason: "the exists total takes the term count and is lower than the hits when documents hold only nulls"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - set: { hits.total.value: total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: $total }
 
   - do:
       count:
@@ -347,7 +411,46 @@ exists count stays the same after a deletion and a merge on string fields:
         body:
           query: { exists: { field: kwd_indexed } }
 
-  - match: { count: 5 }
+  - match: { count: $total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          sort: [ _doc ]
+          from: $total
+          size: 1
+          _source: false
+
+  - length: { hits.hits: 0 }
+
+---
+exists hits, size 0 total and count agree on a text field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "the exists total takes the term count and is lower than the hits when documents hold only nulls"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - set: { hits.total.value: total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: $total }
 
   - do:
       count:
@@ -355,7 +458,41 @@ exists count stays the same after a deletion and a merge on string fields:
         body:
           query: { exists: { field: txt } }
 
-  - match: { count: 5 }
+  - match: { count: $total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          sort: [ _doc ]
+          from: $total
+          size: 1
+          _source: false
+
+  - length: { hits.hits: 0 }
+
+---
+exists count does not change when an unrelated document is deleted and the segment is merged on string fields:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "the exists total takes the term count and is lower than the hits when documents hold only nulls"
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+
+  - set: { count: before_kwd }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+
+  - set: { count: before_txt }
 
   - do:
       delete:
@@ -369,7 +506,7 @@ exists count stays the same after a deletion and a merge on string fields:
         body:
           query: { exists: { field: kwd_indexed } }
 
-  - match: { count: 5 }
+  - match: { count: $before_kwd }
 
   - do:
       count:
@@ -377,7 +514,7 @@ exists count stays the same after a deletion and a merge on string fields:
         body:
           query: { exists: { field: txt } }
 
-  - match: { count: 5 }
+  - match: { count: $before_txt }
 
   - do:
       indices.forcemerge:
@@ -390,7 +527,7 @@ exists count stays the same after a deletion and a merge on string fields:
         body:
           query: { exists: { field: kwd_indexed } }
 
-  - match: { count: 5 }
+  - match: { count: $before_kwd }
 
   - do:
       count:
@@ -398,7 +535,305 @@ exists count stays the same after a deletion and a merge on string fields:
         body:
           query: { exists: { field: txt } }
 
-  - match: { count: 5 }
+  - match: { count: $before_txt }
+
+---
+exists hits, size 0 total and count agree on string fields after a deletion:
+  - do:
+      delete:
+        index: test
+        id: missing
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - set: { hits.total.value: total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: $total }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+
+  - match: { count: $total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          sort: [ _doc ]
+          from: $total
+          size: 1
+          _source: false
+
+  - length: { hits.hits: 0 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - set: { hits.total.value: total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: $total }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+
+  - match: { count: $total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          sort: [ _doc ]
+          from: $total
+          size: 1
+          _source: false
+
+  - length: { hits.hits: 0 }
+
+---
+exists hits, size 0 total and count agree on string fields after a merge:
+  - do:
+      delete:
+        index: test
+        id: missing
+        refresh: true
+
+  - do:
+      indices.forcemerge:
+        index: test
+        max_num_segments: 1
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - set: { hits.total.value: total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: $total }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+
+  - match: { count: $total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          sort: [ _doc ]
+          from: $total
+          size: 1
+          _source: false
+
+  - length: { hits.hits: 0 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - set: { hits.total.value: total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: $total }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+
+  - match: { count: $total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          sort: [ _doc ]
+          from: $total
+          size: 1
+          _source: false
+
+  - length: { hits.hits: 0 }
+
+---
+exists matches only documents with a non-null value on string fields after a deletion:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "string exists matches documents that hold only nulls (proposed contract)"
+
+  - do:
+      delete:
+        index: test
+        id: missing
+        refresh: true
+
+  - do:
+      indices.stats:
+        index: test
+        metric: docs,segments
+
+  - gt: { _all.primaries.docs.deleted: 0 }
+  - match: { _all.primaries.segments.count: 2 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+---
+exists matches only documents with a non-null value on string fields after a merge:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "string exists matches documents that hold only nulls (proposed contract)"
+
+  - do:
+      delete:
+        index: test
+        id: missing
+        refresh: true
+
+  - do:
+      indices.forcemerge:
+        index: test
+        max_num_segments: 1
+
+  - do:
+      indices.stats:
+        index: test
+        metric: docs,segments
+
+  - match: { _all.primaries.segments.count: 1 }
+  - match: { _all.primaries.docs.count: 9 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
 
 ---
 sort puts documents with only nulls among the documents with no keyword value:

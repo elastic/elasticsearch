@@ -139,11 +139,11 @@ public class ZstdCompressionMode extends CompressionMode {
 
         static int decompressInput(DataInput in, int compressedLength, MemorySegment dst) throws IOException {
             if (in instanceof IndexInput indexIn && IndexInputUtils.canUseSegmentSlices(indexIn)) {
-                try {
+                try (Arena arena = Arena.ofConfined()) {
                     return IndexInputUtils.withSlice(
                         indexIn,
                         compressedLength,
-                        len -> Arena.ofAuto().allocate(len, ValueLayout.JAVA_LONG.byteAlignment()),
+                        len -> arena.allocate(len, ValueLayout.JAVA_LONG.byteAlignment()),
                         src -> ZSTD.decompress(dst, src)
                     );
                 } catch (@SuppressWarnings("unused") AlreadyClosedException e) {

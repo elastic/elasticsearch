@@ -51,6 +51,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextTests;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchSortValuesAndFormats;
@@ -354,6 +355,27 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         assertThat(sortAndFormat.format(), equalTo(DocValueFormat.RAW));
     }
 
+    /**
+     * The coordinating node tells the placeholder sort fields of unmapped fields apart from the sort fields of mapped fields by their
+     * field name (see {@link SortFieldValidation}), so it must be the name of the anonymous field type, also once sent over the wire.
+     */
+    public void testUnmappedTypeSortFieldIsNamedAfterTheAnonymousFieldType() throws IOException {
+        // a context with a real mapper service, the mock one can't build the anonymous field type
+        SearchExecutionContext context = SearchExecutionContextTests.createSearchExecutionContext("uuid", null);
+        SortOrder order = randomFrom(SortOrder.values());
+
+        SortField sortField = new FieldSortBuilder("unmapped").unmappedType("keyword").order(order).build(context).field();
+        assertThat(sortField.getField(), equalTo(SearchExecutionContext.ANONYMOUS_FIELD_NAME));
+
+        SortField mergeSortField = Lucene.rewriteMergeSortField(sortField);
+        assertThat(mergeSortField.getField(), equalTo(SearchExecutionContext.ANONYMOUS_FIELD_NAME));
+        assertThat(mergeSortField.getType(), equalTo(SortField.Type.STRING));
+        assertThat(mergeSortField.getMissingValue(), equalTo(order == SortOrder.ASC ? SortField.STRING_LAST : SortField.STRING_FIRST));
+
+        SortField numericSortField = new FieldSortBuilder("unmapped").unmappedType("long").build(context).field();
+        assertThat(numericSortField.getField(), equalTo(SearchExecutionContext.ANONYMOUS_FIELD_NAME));
+    }
+
     public void testFormatDateTime() throws Exception {
         SearchExecutionContext searchExecutionContext = createMockSearchExecutionContext();
 
@@ -431,6 +453,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                         false,
                         null,
                         null,
+                        false,
                         false,
                         false,
                         false

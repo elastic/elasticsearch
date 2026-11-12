@@ -41,6 +41,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
@@ -217,7 +218,31 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     /**
      * Identifies one cache entry being built: the segment cache key plus the query.
      */
-    private record SegmentQueryKey(Object segmentKey, Query query) {}
+    private static final class SegmentQueryKey {
+        private final Object segmentKey;
+        private final Query query;
+        // Query#hashCode can be expensive and this key is hashed on both add and remove
+        private final int hash;
+
+        SegmentQueryKey(Object segmentKey, Query query) {
+            this.segmentKey = segmentKey;
+            this.query = query;
+            this.hash = Objects.hash(segmentKey, query);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof SegmentQueryKey other
+                && hash == other.hash
+                && segmentKey.equals(other.segmentKey)
+                && query.equals(other.query);
+        }
+
+        @Override
+        public int hashCode() {
+            return hash;
+        }
+    }
 
     /**
      * Get usage statistics for the given shard.

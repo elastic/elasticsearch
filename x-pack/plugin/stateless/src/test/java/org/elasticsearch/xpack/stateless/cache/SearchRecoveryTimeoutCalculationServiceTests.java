@@ -1760,9 +1760,10 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
             )
         ) {
-            final Settings.Builder settings = Settings.builder()
+            final Settings settings = Settings.builder()
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
-                .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true);
+                .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+                .build();
 
             final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
@@ -1778,12 +1779,12 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             );
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
 
-            // 4 shards on the source in both cases, every relocating one going to targetNodeId, and a slot for each of them
+            // 4 shards on the source in both cases, every relocating one going to targetNodeId, and a slot available for each of them
             IntStream.of(0, 1).forEach(pendingShards -> {
                 final var service = newCalculationService(
                     threadPool,
                     Settings.builder()
-                        .put(settings.build())
+                        .put(settings)
                         .put(
                             DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
                             4 - pendingShards

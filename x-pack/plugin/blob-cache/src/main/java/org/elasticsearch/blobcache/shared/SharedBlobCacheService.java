@@ -1427,11 +1427,12 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          *                         success for bytes that are not resident in cache yet.
          * @param listener a listener that is completed with {@code true} if the current thread triggered the download and write of (part
          *                 of) the range, and with {@code false} if the range is already available in cache or another caller is downloading
-         *                 and writing all of it. Without {@code awaitPendingFill}, {@code false} says nothing about whether the range is
-         *                 resident and {@code true} only covers the gaps this caller wrote. With {@code awaitPendingFill}, either value is
-         *                 delivered only once the whole range is resident, and a failed download or write anywhere in the range, by this
-         *                 or another caller, completes the listener with that exception instead. The listener may be invoked on the current
-         *                 thread, an executor thread or another executor thread used by another caller.
+         *                 and writing all of it. Without {@code awaitPendingFill}, {@code true} only covers the gaps this caller wrote,
+         *                 {@code false} says nothing about whether the range is resident, and a failure by another caller is not reported.
+         *                 With {@code awaitPendingFill}, either value is delivered only once the whole range is resident, and the listener
+         *                 is completed with the exception if a download or write anywhere in the range fails, including one by another
+         *                 caller. The listener may be invoked on the current thread, an executor thread or another executor thread used by
+         *                 another caller.
          */
         void populate(
             final ByteRange rangeToWrite,

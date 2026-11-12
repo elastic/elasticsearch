@@ -47,6 +47,10 @@ public class StatelessCommitServiceTestUtils {
         return statelessCommitService.getCommitCleaner();
     }
 
+    public static String describeBlobRetention(StatelessCommitService statelessCommitService, ShardId shardId) {
+        return statelessCommitService.describeBlobRetention(shardId);
+    }
+
     public static void logBlobReferences(StatelessCommitService statelessCommitService, ShardId shardId, Level logLevel) {
         final var commitState = statelessCommitService.getSafe(shardId);
         logger.log(logLevel, "blob references of shard [{}]: {}", shardId, commitState.getPrimaryTermAndGenToBlobReferences());

@@ -19,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.action.FetchShardCommitsInUseAction;
@@ -26,12 +27,15 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
+import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTestUtils;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.hamcrest.Matchers;
 
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -501,6 +505,13 @@ public class StatelessCommitServiceIT extends AbstractStatelessPluginIntegTestCa
         );
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.xpack.stateless.commits.StatelessCommitService:TRACE,"
+            + "org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner:DEBUG,"
+            + "org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseAction:TRACE,"
+            + "org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction:DEBUG",
+        reason = "https://github.com/elastic/elasticsearch/issues/161643"
+    )
     public void testTrackOldSearchNodesWhenIndexingShardRelocates() throws Exception {
         startMasterOnlyNode();
         var indexSettings = Settings.builder()
@@ -559,12 +570,68 @@ public class StatelessCommitServiceIT extends AbstractStatelessPluginIntegTestCa
             scrollSearchResponse.decRef();
         }
 
+        logBlobRetention("before the final cleanup check", indexNodeB, shardId, commitsBeforeForceMerge);
         // Re-poll commit usage because search readers may release old commits asynchronously.
-        assertBusy(() -> {
-            flushAndUpdateCommitServiceTrackingAndBlobStoreFiles(indexNodeB, indexName);
-            Set<PrimaryTermAndGeneration> afterScrollReleaseCommitBlobs = listBlobsTermAndGenerations(shardId);
-            commitsBeforeForceMerge.forEach(e -> assertThat(afterScrollReleaseCommitBlobs, not(hasItem(e))));
-        });
+        try {
+            assertBusy(() -> {
+                flushAndUpdateCommitServiceTrackingAndBlobStoreFiles(indexNodeB, indexName);
+                Set<PrimaryTermAndGeneration> afterScrollReleaseCommitBlobs = listBlobsTermAndGenerations(shardId);
+                commitsBeforeForceMerge.forEach(e -> assertThat(afterScrollReleaseCommitBlobs, not(hasItem(e))));
+            });
+        } catch (AssertionError e) {
+            logBlobRetention("after the final cleanup check failed", indexNodeB, shardId, commitsBeforeForceMerge);
+            throw e;
+        }
+    }
+
+    /**
+     * Logs what keeps the shard's BCC blobs alive: the indexing node's view of each blob (ref count, local commits and readers, search
+     * nodes, dependent blobs), the blobs pending deletion, and for every search node either the BCCs its live search engine reports as
+     * in use or, once its copy is gone, what its {@link ClosedShardService} still reports.
+     */
+    private void logBlobRetention(String when, String indexNode, ShardId shardId, Set<PrimaryTermAndGeneration> expectedDeleted) {
+        try {
+            final var commitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+            final var report = new StringBuilder();
+            report.append("expected to be deleted: ").append(new TreeSet<>(expectedDeleted));
+            report.append("\nblobs in the object store: ").append(new TreeSet<>(listBlobsTermAndGenerations(shardId)));
+            report.append("\npending deletes on [")
+                .append(indexNode)
+                .append("]: ")
+                .append(StatelessCommitServiceTestUtils.getStatelessCommitCleaner(commitService).getPendingDeletes(shardId));
+            report.append("\nindex node [")
+                .append(indexNode)
+                .append("] view: ")
+                .append(StatelessCommitServiceTestUtils.describeBlobRetention(commitService, shardId));
+            for (String node : internalCluster().getNodeNames()) {
+                final var indexService = internalCluster().getInstance(IndicesService.class, node).indexService(shardId.getIndex());
+                final var shard = indexService == null ? null : indexService.getShardOrNull(shardId.id());
+                if (shard != null) {
+                    final var engine = shard.getEngineOrNull();
+                    report.append("\nnode [")
+                        .append(node)
+                        .append("] routing [")
+                        .append(shard.routingEntry())
+                        .append("] state [")
+                        .append(shard.state())
+                        .append("] ")
+                        .append(
+                            engine instanceof SearchEngine searchEngine
+                                ? "search engine in use: " + searchEngine.describeAcquiredPrimaryTermAndGenerations()
+                                : "engine: " + (engine == null ? null : engine.getClass().getSimpleName())
+                        );
+                } else {
+                    final var closedShardService = internalCluster().getInstance(ClosedShardService.class, node);
+                    report.append("\nnode [")
+                        .append(node)
+                        .append("] no shard copy, closed shard service in use: ")
+                        .append(new TreeSet<>(closedShardService.getPrimaryTermAndGenerations(shardId)));
+                }
+            }
+            logger.info("BCC retention report {}:\n{}", when, report);
+        } catch (Exception e) {
+            logger.warn("failed to build the BCC retention report " + when, e);
+        }
     }
 
     private static Settings.Builder excludeNodes(String... nodes) {

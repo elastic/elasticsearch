@@ -307,11 +307,14 @@ public class PlannerSettings {
      * Threshold for the number of values returned by an IN subquery above which a hash join is used
      * instead of an IN list filter. Below or equal to this threshold, the subquery result is inlined
      * as {@code WHERE field IN (v1, v2, ...)}. Above it, a LEFT hash join is used for better performance.
+     * <p>
+     * The default, {@code -1}, picks by cost, as described on {@code AbstractSubqueryJoin#filterPathThreshold}. A value of {@code 0} or
+     * more is used as is for every query.
      */
     public static final Setting<Integer> IN_SUBQUERY_HASH_JOIN_THRESHOLD = Setting.intSetting(
         "esql.in_subquery_hash_join_threshold",
-        100,
-        0,
+        -1,
+        -1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

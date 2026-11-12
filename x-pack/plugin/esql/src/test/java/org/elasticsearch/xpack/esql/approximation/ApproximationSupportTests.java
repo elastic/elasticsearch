@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fetch;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -224,6 +225,7 @@ public class ApproximationSupportTests extends ESTestCase {
         FillNull.class,
         HashJoin.class,
         InlineStats.class,
+        Into.class,
         Keep.class,
         MarkJoin.class,
         Lookup.class,

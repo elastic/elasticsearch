@@ -84,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InfoCommandPlanUtils;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -556,6 +557,38 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitDedupCommand(EsqlBaseParser.DedupCommandContext ctx) {
         Source source = source(ctx);
         return input -> new Dedup(source, input);
+    }
+
+    @Override
+    public PlanFactory visitIntoCommand(EsqlBaseParser.IntoCommandContext ctx) {
+        if (Build.current().isSnapshot() == false) {
+            throw new ParsingException(source(ctx), "INTO is in preview and only available in SNAPSHOT builds");
+        }
+        Source source = source(ctx);
+        if ((ctx.getParent() instanceof EsqlBaseParser.ProcessingCommandContext procCtx
+            && procCtx.getParent() instanceof EsqlBaseParser.CompositeQueryContext compCtx
+            && compCtx.getParent() instanceof EsqlBaseParser.SingleStatementContext) == false) {
+            throw new ParsingException(source, "INTO must be the last command of the query");
+        }
+        String destination = visitIndexPattern(List.of(ctx.indexPattern()));
+        if (destination.contains(WILDCARD)) {
+            throw new ParsingException(source(ctx.indexPattern()), "invalid index pattern [{}], * is not allowed in INTO", destination);
+        }
+        if (RemoteClusterAware.splitIndexName(destination).clusterAlias() != null) {
+            throw new ParsingException(
+                source(ctx.indexPattern()),
+                "invalid index pattern [{}], remote clusters are not supported with INTO",
+                destination
+            );
+        }
+        if (destination.contains(IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR)) {
+            throw new ParsingException(
+                source(ctx.indexPattern()),
+                "invalid index pattern [{}], index pattern selectors are not supported in INTO",
+                destination
+            );
+        }
+        return input -> new Into(source, input, destination);
     }
 
     @Override

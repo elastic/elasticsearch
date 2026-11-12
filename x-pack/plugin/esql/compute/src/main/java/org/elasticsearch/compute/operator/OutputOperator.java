@@ -47,6 +47,9 @@ public class OutputOperator extends SinkOperator {
                 return new OutputOperator(columns, mapper, collectedPages::add);
             } else {
                 // Normal execution path: use the provided pageConsumer
+                if (pageConsumer instanceof PageConsumer consumer) {
+                    consumer.bind(driverContext);
+                }
                 return new OutputOperator(columns, mapper, pageConsumer);
             }
         }
@@ -67,21 +70,30 @@ public class OutputOperator extends SinkOperator {
         return columns;
     }
 
-    boolean finished = false;
+    private boolean finished = false;
 
     @Override
     public boolean isFinished() {
-        return finished;
+        return finished && (pageConsumer instanceof PageConsumer consumer ? consumer.isFinished() : true);
     }
 
     @Override
     public void finish() {
         finished = true;
+        if (pageConsumer instanceof PageConsumer consumer) {
+            consumer.finish();
+        }
+    }
+
+    // The driver hands over pages while needsInput() is true and only consults isBlocked() once no page moved.
+    @Override
+    public boolean needsInput() {
+        return finished == false && isBlocked().listener().isDone();
     }
 
     @Override
-    public boolean needsInput() {
-        return finished == false;
+    public IsBlockedResult isBlocked() {
+        return pageConsumer instanceof PageConsumer consumer ? consumer.isBlocked() : NOT_BLOCKED;
     }
 
     @Override
@@ -91,7 +103,9 @@ public class OutputOperator extends SinkOperator {
 
     @Override
     public void close() {
-
+        if (pageConsumer instanceof PageConsumer consumer) {
+            consumer.close();
+        }
     }
 
     @Override

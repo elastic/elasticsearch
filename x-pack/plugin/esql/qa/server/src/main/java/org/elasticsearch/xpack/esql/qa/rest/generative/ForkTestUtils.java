@@ -17,6 +17,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMA
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V8;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INTO_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_COMPLETION_RERANK_FUSE_HIGHLIGHT_MMR;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_FORK;
@@ -52,6 +53,8 @@ public class ForkTestUtils {
             "Tests using FORK are skipped since we don't support multiple FORKs",
             testCase.requiredCapabilities.contains(FORK_V9.capabilityName())
         );
+
+        assumeFalse("INTO must be the last command of the query", testCase.requiredCapabilities.contains(INTO_COMMAND.capabilityName()));
 
         assumeFalse(
             "LOAD_ALL fork wrapping of existing csv-specs is not covered yet",

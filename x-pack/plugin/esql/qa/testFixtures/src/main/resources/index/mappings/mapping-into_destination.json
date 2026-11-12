@@ -1,0 +1,23 @@
+{
+  "dynamic": "strict",
+  "properties": {
+    "into_keyword": {
+      "type": "keyword"
+    },
+    "into_long": {
+      "type": "long"
+    },
+    "into_double": {
+      "type": "double"
+    },
+    "into_boolean": {
+      "type": "boolean"
+    },
+    "into_date": {
+      "type": "date"
+    },
+    "into_ip": {
+      "type": "ip"
+    }
+  }
+}

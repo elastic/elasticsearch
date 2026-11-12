@@ -107,6 +107,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.into.IntoPageWriter;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
@@ -121,6 +122,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
@@ -1162,6 +1164,38 @@ public class ComputeService {
             // external blob-store pool after ExternalSourceResolver dispatches resolution there.
             EsqlPlugin.externalBlobStorePool()
         );
+        if (physicalPlan instanceof StreamingOutputExec streaming && streaming.child() instanceof IntoExec) {
+            listener.onFailure(new IllegalArgumentException("INTO is not supported on the streaming query endpoint"));
+            return;
+        }
+        if (physicalPlan instanceof IntoExec into) {
+            IntoPageWriter writer = new IntoPageWriter(client, into.destination(), into.child().output());
+            physicalPlan = into.withWriter(writer);
+            listener = listener.delegateFailureAndWrap((l, result) -> {
+                if (writer.failure() != null) {
+                    l.onFailure(writer.failure());
+                    return;
+                }
+                Page stats;
+                try {
+                    stats = writer.stats().toPage(blockFactory);
+                } catch (Exception e) {
+                    l.onFailure(e);
+                    return;
+                }
+                l.onResponse(
+                    new Result(
+                        result.schema(),
+                        List.of(stats),
+                        result.attributeMetadata(),
+                        result.configuration(),
+                        result.completionInfo(),
+                        result.executionInfo(),
+                        result.approximationApplied()
+                    )
+                );
+            });
+        }
         final SubPlan executionPlan;
         final Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses;
         final Runnable warnIndexCoordinatorOnce = newIndexCoordinatorWarningCallback(clusterService.localNode());
@@ -1196,21 +1230,29 @@ public class ComputeService {
                     planTimeProfile,
                     warnIndexCoordinatorOnce
                 );
-                case SubPlan.Merge merge -> new SubPlansExecutor(
-                    this,
-                    exchangeService,
-                    sessionId,
-                    rootTask,
-                    flags,
-                    configuration,
-                    foldContext,
-                    execInfo,
-                    initialClusterStatuses,
-                    warnIndexCoordinatorOnce,
-                    planTimeProfile,
-                    merge,
-                    dispatchListener
-                ).executePlan();
+                case SubPlan.Merge merge -> {
+                    if (physicalPlan instanceof IntoExec) {
+                        dispatchListener.onFailure(
+                            new IllegalArgumentException("INTO is not supported in a query with FORK or UNION branches")
+                        );
+                        return;
+                    }
+                    new SubPlansExecutor(
+                        this,
+                        exchangeService,
+                        sessionId,
+                        rootTask,
+                        flags,
+                        configuration,
+                        foldContext,
+                        execInfo,
+                        initialClusterStatuses,
+                        warnIndexCoordinatorOnce,
+                        planTimeProfile,
+                        merge,
+                        dispatchListener
+                    ).executePlan();
+                }
             }
         } catch (Exception e) {
             // executePlan does planning work outside its own try/catch (breakPlanBetweenCoordinatorAndDataNode, getIndices), so a
@@ -1454,7 +1496,12 @@ public class ComputeService {
         final PageStreamPublisher streamPublisher = coordinatorPlan instanceof StreamingOutputExec streaming
             ? streaming.pageStream()
             : null;
-        if (exchangeSinkSupplier == null && coordinatorPlan instanceof StreamingOutputExec == false) {
+        if (coordinatorPlan instanceof IntoExec into) {
+            if (into.writer() == null) {
+                throw new IllegalStateException("INTO plan executed without a writer");
+            }
+            coordinatorPlan = new OutputExec(into.child(), into.writer());
+        } else if (exchangeSinkSupplier == null && coordinatorPlan instanceof StreamingOutputExec == false) {
             coordinatorPlan = new OutputExec(coordinatorPlan, collectedPages::add);
         }
 

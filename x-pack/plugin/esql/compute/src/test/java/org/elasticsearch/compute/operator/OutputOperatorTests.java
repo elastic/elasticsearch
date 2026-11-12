@@ -7,16 +7,20 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.AnyOperatorTestCase;
+import org.elasticsearch.core.Nullable;
 import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class OutputOperatorTests extends AnyOperatorTestCase {
     @Override
@@ -55,5 +59,94 @@ public class OutputOperatorTests extends AnyOperatorTestCase {
     @Override
     protected void assertStatus(Map<String, Object> map, List<Page> input, List<Page> output) {
         assertThat(map, nullValue());
+    }
+
+    private static class TrackingConsumer implements PageConsumer {
+        @Nullable
+        DriverContext boundTo;
+        final List<Page> pages = new ArrayList<>();
+        @Nullable
+        SubscribableListener<Void> blocked;
+        boolean finished;
+        boolean done;
+        boolean closed;
+
+        @Override
+        public void bind(DriverContext driverContext) {
+            boundTo = driverContext;
+        }
+
+        @Override
+        public void accept(Page page) {
+            pages.add(page);
+        }
+
+        @Override
+        public IsBlockedResult isBlocked() {
+            return blocked == null ? Operator.NOT_BLOCKED : new IsBlockedResult(blocked, "tracking");
+        }
+
+        @Override
+        public void finish() {
+            finished = true;
+        }
+
+        @Override
+        public boolean isFinished() {
+            return done;
+        }
+
+        @Override
+        public void close() {
+            closed = true;
+        }
+    }
+
+    public void testPageConsumerIsBoundToTheDriver() {
+        TrackingConsumer consumer = new TrackingConsumer();
+        DriverContext driverContext = driverContext();
+        try (Operator operator = new OutputOperator.OutputOperatorFactory(List.of("a"), p -> p, consumer).get(driverContext)) {
+            assertThat(consumer.boundTo, sameInstance(driverContext));
+            assertTrue(operator.needsInput());
+        }
+        assertTrue(consumer.closed);
+    }
+
+    public void testNeedsInputFollowsTheConsumer() {
+        TrackingConsumer consumer = new TrackingConsumer();
+        try (OutputOperator operator = new OutputOperator(List.of("a"), p -> p, consumer)) {
+            assertTrue(operator.needsInput());
+            assertThat(operator.isBlocked(), sameInstance(Operator.NOT_BLOCKED));
+
+            SubscribableListener<Void> listener = new SubscribableListener<>();
+            consumer.blocked = listener;
+            assertFalse(operator.needsInput());
+            assertThat(operator.isBlocked().listener(), sameInstance(listener));
+
+            listener.onResponse(null);
+            assertTrue(operator.needsInput());
+        }
+    }
+
+    public void testFinishWaitsForTheConsumer() {
+        TrackingConsumer consumer = new TrackingConsumer();
+        try (OutputOperator operator = new OutputOperator(List.of("a"), p -> p, consumer)) {
+            assertFalse(operator.isFinished());
+            operator.finish();
+            assertTrue(consumer.finished);
+            assertFalse(operator.isFinished());
+            assertFalse(operator.needsInput());
+            consumer.done = true;
+            assertTrue(operator.isFinished());
+        }
+    }
+
+    public void testPlainConsumerFinishesWithTheOperator() {
+        try (OutputOperator operator = new OutputOperator(List.of("a"), p -> p, p -> {})) {
+            assertTrue(operator.needsInput());
+            operator.finish();
+            assertTrue(operator.isFinished());
+            assertFalse(operator.needsInput());
+        }
     }
 }

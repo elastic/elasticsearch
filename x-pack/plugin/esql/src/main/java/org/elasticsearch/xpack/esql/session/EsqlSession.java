@@ -135,6 +135,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
@@ -148,6 +149,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -297,6 +299,8 @@ public class EsqlSession {
      * transport threads.
      */
     private volatile ExplainContext explainContext;
+    @Nullable
+    private volatile String intoDestination;
     private final ProjectMetadata projectMetadata;
 
     /**
@@ -502,6 +506,12 @@ public class EsqlSession {
             // The traversal-based command telemetry only sees the unwrapped query, so count the
             // EXPLAIN command itself here.
             planTelemetry.command(explain);
+        }
+        if (parsedPlan instanceof Into into) {
+            Into.verifyProducer(into.child());
+            intoDestination = into.destination();
+            planTelemetry.command(into);
+            parsedPlan = into.child();
         }
         parsingProfile.stop();
 
@@ -1151,6 +1161,11 @@ public class EsqlSession {
         planRunner.run(PlanRunner.Role.OUTPUT, resultPlan, configuration, foldContext, planTimeProfile, listener);
     }
 
+    private PhysicalPlan withInto(PhysicalPlan physicalPlan) {
+        String destination = intoDestination;
+        return destination == null ? physicalPlan : new IntoExec(physicalPlan.source(), physicalPlan, destination, null);
+    }
+
     private void executeSubPlans(
         LogicalPlan optimizedPlan,
         Configuration configuration,
@@ -1198,7 +1213,7 @@ public class EsqlSession {
             // into ExternalSourceCacheService before delivering Result.
             runner.run(
                 PlanRunner.Role.OUTPUT,
-                physicalPlan,
+                withInto(physicalPlan),
                 configuration,
                 foldContext,
                 planTimeProfile,
@@ -1572,7 +1587,7 @@ public class EsqlSession {
                         }
                         runner.run(
                             PlanRunner.Role.OUTPUT,
-                            newPhysicalPlan,
+                            withInto(newPhysicalPlan),
                             configuration,
                             foldContext,
                             planTimeProfile,

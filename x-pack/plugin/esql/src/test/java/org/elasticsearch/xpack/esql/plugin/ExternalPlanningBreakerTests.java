@@ -357,7 +357,7 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
 
         PlainActionFuture<ExternalSourceResolution> resolved = new PlainActionFuture<>();
         ExternalSourceSpec spec = new ExternalSourceSpec(glob, Map.of("schema_resolution", "union_by_name"));
-        resolver.resolve(List.of(spec), null, null, null, null, resolved);
+        resolver.resolve(List.of(spec), null, null, null, null, null, resolved);
         FileList listing = resolved.actionGet(30, TimeUnit.SECONDS).resolvedSource(spec).fileList();
         long seam1 = ExternalSourceResolver.listingPlanningCharge(listing);
         assertThat(seam1, greaterThan(0L));

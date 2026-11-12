@@ -190,7 +190,7 @@ public class ExternalSourceResolver {
      * the credentials are stripped and it reverts to pre-credential-forwarding behavior. For a dataset, a
      * current node does not read the forwarded sub-map at all: it rebuilds the whole config from its own
      * registry ({@link DatasetConfigResolver}) before planning, so what travels here only matters to older
-     * targets and to the snapshot-only inline {@code EXTERNAL} command, which has no registry entry.
+     * targets and to a source with no registry entry behind it, which only a snapshot build plans.
      */
     public static Map<String, Object> planConfig(Map<String, Object> config) {
         if (config == null || config.isEmpty() || config.containsKey(DATASOURCE_CONFIG_KEY) == false) {
@@ -718,113 +718,8 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * The one-path-read-one-way form: each path is lifted to a spec under its entry in {@code pathConfigs}, and the
-     * two path-keyed maps are re-keyed onto those specs.
-     * <p>
-     * A path appearing once carries one configuration, so lifting it loses nothing. A plan does not: two relations can
-     * read one path under two configurations, which is two reads and two resolutions, and a path-keyed call can only
-     * express one of them. So this form is for a caller holding a path and a configuration — a test, or anything
-     * resolving one read at a time — and a plan resolves through
-     * {@link #resolve(List, Map, Map, Set, Set, Map, ActionListener)} with the reads its relations denote.
-     * <p>
-     * This form and the wider path-keyed ones below exist for those callers; every one of them lifts its arguments
-     * into specs and delegates to the widest path-keyed form, which delegates to the spec-keyed resolve. Production
-     * has one caller and it is spec-keyed: {@code EsqlSession}.
-     */
-    final void resolve(
-        List<String> paths,
-        Map<String, Map<String, Object>> pathConfigs,
-        ActionListener<ExternalSourceResolution> listener
-    ) {
-        resolve(paths, pathConfigs, null, null, null, null, listener);
-    }
-
-    /** As {@link #resolve(List, Map, ActionListener)}, with declared mappings and the eager-stats set. */
-    final void resolve(
-        List<String> paths,
-        Map<String, Map<String, Object>> pathConfigs,
-        @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
-        @Nullable Map<String, DatasetMapping> declaredMappings,
-        @Nullable Set<String> pathsRequiringStats,
-        ActionListener<ExternalSourceResolution> listener
-    ) {
-        resolve(paths, pathConfigs, filterHints, declaredMappings, pathsRequiringStats, null, listener);
-    }
-
-    /** As {@link #resolve(List, Map, ActionListener)}, also naming the paths whose rows the query discards. */
-    final void resolve(
-        List<String> paths,
-        Map<String, Map<String, Object>> pathConfigs,
-        @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
-        @Nullable Map<String, DatasetMapping> declaredMappings,
-        @Nullable Set<String> pathsRequiringStats,
-        @Nullable Set<String> pathsReadingNoRows,
-        ActionListener<ExternalSourceResolution> listener
-    ) {
-        if (paths == null) {
-            // Kept, and pinned by ExternalSourceResolverTests#testNullPathListReturnsEmptyResolution: a null path
-            // list is an empty resolution rather than a failure, which is what a caller with nothing to resolve
-            // passes.
-            resolve((List<ExternalSourceSpec>) null, null, declaredMappings, null, null, null, listener);
-            return;
-        }
-        List<ExternalSourceSpec> specs = new ArrayList<>(paths.size());
-        // The demand sets are spec-keyed, so a path-keyed caller's sets are lifted the same way its paths are:
-        // one path carries one configuration here, which is the premise this whole path-keyed form rests on.
-        Set<ExternalSourceSpec> specsRequiringStats = pathsRequiringStats == null ? null : new HashSet<>();
-        Set<ExternalSourceSpec> specsReadingNoRows = pathsReadingNoRows == null ? null : new HashSet<>();
-        Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> specHints = filterHints == null
-            ? null
-            : new HashMap<>();
-        for (String path : paths) {
-            ExternalSourceSpec spec = new ExternalSourceSpec(path, pathConfigs.getOrDefault(path, Map.of()));
-            specs.add(spec);
-            if (specHints != null && filterHints.get(path) != null) {
-                specHints.put(spec, filterHints.get(path));
-            }
-            if (specsRequiringStats != null && pathsRequiringStats.contains(path)) {
-                specsRequiringStats.add(spec);
-            }
-            if (specsReadingNoRows != null && pathsReadingNoRows.contains(path)) {
-                specsReadingNoRows.add(spec);
-            }
-        }
-        resolve(specs, specHints, declaredMappings, specsRequiringStats, specsReadingNoRows, null, listener);
-    }
-
-    /**
      * Resolves external sources. A per-path declared mapping drives strict/non-strict schema resolution and carries
      * column renames; {@code specsRequiringStats} gates the FIRST_FILE_WINS eager all-file stats aggregation.
-     *
-     * @param declaredMappings    per-path declared mapping — strict skips inference, non-strict overlays it, and its
-     *        derived read-instructions (renames, date formats) ride a typed {@code DeclaredReadSpec} to
-     *        the reader boundary; {@code null} when no path declares a mapping.
-     * @param specsRequiringStats specs whose multi-file FFW resolution must eagerly aggregate global
-     *        statistics across all files (the ungrouped-aggregate metadata fast path). A {@code null}
-     *        value selects legacy behavior — every spec resolves eagerly — preserving existing call
-     *        sites and tests. When non-null, a spec absent from the set defers the per-file footer
-     *        reads (keeping {@code STATS_FILE_COUNT}, marking stats partial). See
-     *        {@link ExternalStatsRequirementExtractor#specsRequiringEagerStats}.
-     * @param specsReadingNoRows specs whose rows the query all discards, so resolution owes them a schema and
-     *        nothing else. Membership no longer decides how far a listing runs - the dataset's mode does, for a
-     *        reading query too. {@code null} leaves every spec resolving as a reading query. See
-     *        {@link SchemaDiscoveryPathExtractor#specsReadingNoRows}.
-     */
-    public final void resolve(
-        List<ExternalSourceSpec> specs,
-        @Nullable Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
-        @Nullable Map<String, DatasetMapping> declaredMappings,
-        @Nullable Set<ExternalSourceSpec> specsRequiringStats,
-        @Nullable Set<ExternalSourceSpec> specsReadingNoRows,
-        ActionListener<ExternalSourceResolution> listener
-    ) {
-        resolve(specs, filterHints, declaredMappings, specsRequiringStats, specsReadingNoRows, null, listener);
-    }
-
-    /**
-     * As {@link #resolve(List, Map, Map, Set, Set, ActionListener)} plus per-spec folder-range
-     * predicates built from the TEMPORAL extract before {@code projectListingHints} drops
-     * {@code @timestamp}. A spec absent from the map gets grain INs only.
      * <p>
      * An object rewritten after its listing was cached fails its conditional read with the object-changed condition. When
      * that happens here, during resolution, nothing has run yet and the query's task is still live, so resolution drops
@@ -835,8 +730,22 @@ public class ExternalSourceResolver {
      * listing and schema-map charge. A glob near the planning limit can then trip the request breaker, a retryable 429, where a
      * fresh query would not.
      * <p>
-     * The one overridable overload, and the one the session calls: every other is {@code final} and delegates here, so a
-     * test double that overrides this sees every resolution.
+     * The only entry point, so a test double that overrides it sees every resolution.
+     *
+     * @param declaredMappings    per-path declared mapping — strict skips inference, non-strict overlays it, and its
+     *        derived read-instructions (renames, date formats) ride a typed {@code DeclaredReadSpec} to
+     *        the reader boundary; {@code null} when no path declares a mapping.
+     * @param specsRequiringStats specs whose multi-file FFW resolution must eagerly aggregate global
+     *        statistics across all files (the ungrouped-aggregate metadata fast path). A {@code null}
+     *        value resolves every spec eagerly. When non-null, a spec absent from the set defers the per-file
+     *        footer reads (keeping {@code STATS_FILE_COUNT}, marking stats partial). See
+     *        {@link ExternalStatsRequirementExtractor#specsRequiringEagerStats}.
+     * @param specsReadingNoRows specs whose rows the query all discards, so resolution owes them a schema and
+     *        nothing else. Membership no longer decides how far a listing runs - the dataset's mode does, for a
+     *        reading query too. {@code null} leaves every spec resolving as a reading query. See
+     *        {@link SchemaDiscoveryPathExtractor#specsReadingNoRows}.
+     * @param folderRanges per-spec folder-range predicates, built from the TEMPORAL extract before
+     *        {@code projectListingHints} drops {@code @timestamp}. A spec absent from the map gets grain INs only.
      */
     public void resolve(
         List<ExternalSourceSpec> specs,
@@ -1742,9 +1651,8 @@ public class ExternalSourceResolver {
                 // ExternalStatsRequirementExtractor#specsRequiringEagerStats — pay the N footer reads. Every other
                 // shape (LIMIT, SELECT *, grouped STATS ... BY, INLINESTATS) takes the defer branch below: it keeps
                 // STATS_FILE_COUNT (from enrichWithFileCount above) but marks stats partial, so Phase 2 split
-                // discovery reads footers once instead of twice. Legacy callers pass requiresStats == true for every
-                // path (the resolve overload with a null specsRequiringStats set), preserving the original
-                // eager-for-all behavior.
+                // discovery reads footers once instead of twice. A caller passing a null specsRequiringStats set
+                // resolves every spec eagerly, which is the behaviour before the set existed.
                 //
                 // For an eager (requiresStats) resolve the cost is acceptable while a read still buys
                 // something - remainingReadsBuyNothing stops the gather when none does:

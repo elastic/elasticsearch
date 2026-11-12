@@ -5127,8 +5127,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
      * The sibling of the two-formats case, for the pair the statistics reconcile cannot tell apart by read
      * configuration alone. Both datasets read the one file as CSV and resolve the same columns, so their
      * read-config fingerprints are equal and only the reader's own configuration -- the error policy -- differs.
-     * The merge refuses the pair on that difference, so each read is counted on its own and
-     * {@code COUNT(a) == 4} is the two data rows seen by each of the two reads.
+     * What this pins is that such a pair no longer trips an assertion in {@code mergeWholeFileContributions} and
+     * the query completes; whether the merge refused the pair or merged it is invisible here, because
+     * {@code COUNT(a) == 4} is the scan's own answer and the reconcile only decides what is cached.
      * On {@code main} the same query never reaches the reconcile, because the data node refuses it first with
      * {@code external dataset [policy_default] definition changed while the query was planned}.
      */

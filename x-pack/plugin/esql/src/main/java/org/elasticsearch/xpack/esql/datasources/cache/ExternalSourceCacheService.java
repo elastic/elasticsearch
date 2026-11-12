@@ -693,10 +693,9 @@ public class ExternalSourceCacheService implements Closeable {
             if (wholeFile.isEmpty() == false) {
                 // A whole-file read is authoritative for the whole file; fragments (if any arrived
                 // alongside) add nothing and must not be summed on top.
-                Map<String, Object> mergedForFile = mergeWholeFileContributions(wholeFile);
-                if (mergedForFile == null) {
-                    logger.debug("dropping captured stats for [{}]: whole-file contributions do not describe one read", e.getKey());
-                } else if (mergedForFile.isEmpty() == false) {
+                // A refusal logs which gate refused, so nothing is added here.
+                Map<String, Object> mergedForFile = mergeWholeFileContributions(e.getKey(), wholeFile);
+                if (mergedForFile != null && mergedForFile.isEmpty() == false) {
                     merged.put(e.getKey(), mergedForFile);
                     if (anyPendingDatasetAggregate) {
                         completedWholeFile.put(e.getKey(), mergedForFile);
@@ -1634,7 +1633,7 @@ public class ExternalSourceCacheService implements Closeable {
      * {@link #foldStripeFragments} refuses an mtime or fingerprint disagreement for the same reason, though it
      * carries no row-count or column-stat gate of its own.
      */
-    private static Map<String, Object> mergeWholeFileContributions(List<SourceStatsContribution.WholeFile> wholeFile) {
+    private static Map<String, Object> mergeWholeFileContributions(String path, List<SourceStatsContribution.WholeFile> wholeFile) {
         // The whole-file column-union below keys off the flat _stats.* layout, so re-serialize the
         // typed contributions to the wire map at this boundary (mirrors foldFragments).
         List<Map<String, Object>> maps = new ArrayList<>(wholeFile.size());
@@ -1651,12 +1650,21 @@ public class ExternalSourceCacheService implements Closeable {
             if (sameRead(base, next) == false) {
                 // Differently configured reads: merging would relabel one read's measurements as the other's,
                 // because the merge keeps the first contribution's identity. Refused, per this method's javadoc.
-                return null;
+                return refused(
+                    path,
+                    "read configuration",
+                    base.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY) + "/" + base.get(ExternalStats.CONFIG_FINGERPRINT_KEY),
+                    next.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY) + "/" + next.get(ExternalStats.CONFIG_FINGERPRINT_KEY)
+                );
             }
             if (agreesWithBase(base, next) == false) {
                 // Identically configured and still disagreeing on row count or mtime: not one file measured
                 // twice. Refused, per this method's javadoc.
-                return null;
+                String key = sameNumericOrEqual(
+                    base.get(SourceStatisticsSerializer.STATS_ROW_COUNT),
+                    next.get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+                ) ? ExternalStats.MTIME_MILLIS_KEY : SourceStatisticsSerializer.STATS_ROW_COUNT;
+                return refused(path, key, base.get(key), next.get(key));
             }
             for (Map.Entry<String, Object> e : next.entrySet()) {
                 if (e.getKey().startsWith(SourceStatisticsSerializer.STATS_COL_PREFIX)) {
@@ -1664,7 +1672,7 @@ public class ExternalSourceCacheService implements Closeable {
                     if (prev != null && Objects.equals(prev, e.getValue()) == false) {
                         // Equal row count and mtime still do not establish one file: a replica copied with its
                         // timestamp preserved measures the same rows and different columns. Refused, same reason.
-                        return null;
+                        return refused(path, e.getKey(), prev, e.getValue());
                     }
                 }
             }
@@ -1673,11 +1681,23 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
+     * Names the disagreement that refused a merge, so a genuinely non-deterministic read of one file is still
+     * visible rather than silently indistinguishable from the legitimate two-datasets-over-one-resource case.
+     * Row counts, modification times and fingerprints carry nothing secret.
+     *
+     * @return {@code null} always, so a refusal reads as one statement
+     */
+    private static Map<String, Object> refused(String path, String what, Object mine, Object theirs) {
+        logger.debug("whole-file contributions for [{}] disagree on [{}]: [{}] against [{}]", path, what, mine, theirs);
+        return null;
+    }
+
+    /**
      * Whether two contributions for one path were produced by the same read: the same resolved read configuration
      * (how the file's columns are bound and typed) and the same format configuration (how the reader itself is
      * configured). Either may differ on its own -- two branches of one query binding one file differently, two
      * datasets over one resource setting a different delimiter or error policy -- and each is a legitimate shape
-     * rather than an invariant violation, so this gate safe-misses, as every other gate in the fold now does.
+     * rather than an invariant violation, so this gate safe-misses, as every other gate in the merge does.
      */
     private static boolean sameRead(Map<String, Object> a, Map<String, Object> b) {
         return Objects.equals(a.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY), b.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY))

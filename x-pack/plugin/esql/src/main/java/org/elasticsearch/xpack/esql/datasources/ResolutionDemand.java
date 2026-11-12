@@ -65,7 +65,7 @@ public enum ResolutionDemand {
     }
 
     /**
-     * Whether the query discards every row from this path. No longer decides how far a listing runs - the
+     * Whether the query discards every row this spec reads. No longer decides how far a listing runs - the
      * dataset's mode does that - and its one remaining caller is the declared-mapping path's coercibility check, which a
      * query reading no rows never performs the cast for.
      */

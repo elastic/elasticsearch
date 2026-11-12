@@ -52,8 +52,16 @@ public class TestTelemetryPlugin extends Plugin implements TelemetryPlugin {
         return meter.getRecorder().getMeasurements(InstrumentType.DOUBLE_UP_DOWN_COUNTER, name);
     }
 
+    public List<Measurement> getDoubleAsyncUpDownCounterMeasurement(String name) {
+        return meter.getRecorder().getMeasurements(InstrumentType.DOUBLE_ASYNC_UP_DOWN_COUNTER, name);
+    }
+
     public List<Measurement> getLongUpDownCounterMeasurement(String name) {
         return meter.getRecorder().getMeasurements(InstrumentType.LONG_UP_DOWN_COUNTER, name);
+    }
+
+    public List<Measurement> getLongAsyncUpDownCounterMeasurement(String name) {
+        return meter.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_UP_DOWN_COUNTER, name);
     }
 
     public List<Measurement> getDoubleGaugeMeasurement(String name) {

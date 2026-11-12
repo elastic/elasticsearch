@@ -183,64 +183,23 @@ public class ProjectEncryptionKeyHealthIndicatorServiceTests extends ESTestCase 
         assertEquals(ProjectEncryptionKeyHealthIndicatorService.GREEN_NOT_CONFIGURED, result.symptom());
     }
 
-    public void testYellowWhenCannotWrapForDisk() {
-        ProjectEncryptionKeyMetadata metadata = pekMetadata(PASSWORD_ID);
-        ClusterState state = stateWith(metadata);
-
-        ProjectEncryptionKeyHealthIndicatorService indicator = indicator(
-            state,
-            mockPekService(EncryptionServiceState.READY, null, true, false)
-        );
-
-        HealthIndicatorResult result = indicator.calculate(false, 1, HealthInfo.EMPTY_HEALTH_INFO);
-        assertEquals(HealthStatus.YELLOW, result.status());
-        assertEquals(ProjectEncryptionKeyHealthIndicatorService.YELLOW_CANNOT_PERSIST, result.symptom());
-        assertEquals(1, result.diagnosisList().size());
-        assertEquals(
-            ProjectEncryptionKeyHealthIndicatorService.MISSING_WRAP_CREDENTIALS_DEFINITION,
-            result.diagnosisList().get(0).definition()
-        );
-        assertEquals(ProjectEncryptionKeyHealthIndicatorService.WRAP_FAILURE_IMPACTS, result.impacts());
-    }
-
-    public void testYellowWhenPasswordMissingBeforeInstall() {
-        ClusterState state = stateWith(null);
-
-        ProjectEncryptionKeyHealthIndicatorService indicator = indicator(
-            state,
-            mockPekService(EncryptionServiceState.READY, PASSWORD_ID, true, false)
-        );
-
-        HealthIndicatorResult result = indicator.calculate(true, 1, HealthInfo.EMPTY_HEALTH_INFO);
-        assertEquals(HealthStatus.YELLOW, result.status());
-        assertEquals(ProjectEncryptionKeyHealthIndicatorService.YELLOW_PASSWORD_NOT_CONFIGURED, result.symptom());
-        assertEquals(1, result.diagnosisList().size());
-        assertEquals(
-            ProjectEncryptionKeyHealthIndicatorService.PASSWORD_NOT_CONFIGURED_DEFINITION,
-            result.diagnosisList().get(0).definition()
-        );
-        assertEquals(ProjectEncryptionKeyHealthIndicatorService.PASSWORD_NOT_CONFIGURED_IMPACTS, result.impacts());
-    }
-
-    public void testYellowWhenKeyNotYetPersistedAfterPasswordConfigured() {
-        ProjectEncryptionKeyMetadata metadata = pekMetadata(PASSWORD_ID);
-        ClusterState state = stateWith(metadata);
-
-        ProjectEncryptionKeyHealthIndicatorService indicator = indicator(
-            state,
-            mockPekService(EncryptionServiceState.READY, PASSWORD_ID),
-            true
-        );
-
-        HealthIndicatorResult result = indicator.calculate(true, 1, HealthInfo.EMPTY_HEALTH_INFO);
-        assertEquals(HealthStatus.YELLOW, result.status());
-        assertEquals(ProjectEncryptionKeyHealthIndicatorService.YELLOW_NOT_YET_PERSISTED, result.symptom());
-        assertEquals(1, result.diagnosisList().size());
-        assertEquals(
-            ProjectEncryptionKeyHealthIndicatorService.KEY_NOT_YET_PERSISTED_DEFINITION,
-            result.diagnosisList().get(0).definition()
-        );
-        assertEquals(ProjectEncryptionKeyHealthIndicatorService.WRAP_FAILURE_IMPACTS, result.impacts());
+    /** No password with a key installed, no password before the first install, and a password configured but not yet persisted. */
+    public void testYellowWhenKeyCannotBePersisted() {
+        for (ProjectEncryptionKeyHealthIndicatorService indicator : List.of(
+            indicator(stateWith(pekMetadata(PASSWORD_ID)), mockPekService(EncryptionServiceState.READY, null, true, false)),
+            indicator(stateWith(null), mockPekService(EncryptionServiceState.READY, PASSWORD_ID, true, false)),
+            indicator(stateWith(pekMetadata(PASSWORD_ID)), mockPekService(EncryptionServiceState.READY, PASSWORD_ID), true)
+        )) {
+            HealthIndicatorResult result = indicator.calculate(true, 1, HealthInfo.EMPTY_HEALTH_INFO);
+            assertEquals(HealthStatus.YELLOW, result.status());
+            assertEquals(ProjectEncryptionKeyHealthIndicatorService.YELLOW_CANNOT_PERSIST, result.symptom());
+            assertEquals(1, result.diagnosisList().size());
+            assertEquals(
+                ProjectEncryptionKeyHealthIndicatorService.MISSING_WRAP_CREDENTIALS_DEFINITION,
+                result.diagnosisList().get(0).definition()
+            );
+            assertEquals(ProjectEncryptionKeyHealthIndicatorService.WRAP_FAILURE_IMPACTS, result.impacts());
+        }
     }
 
     public void testRedWhenElectedMasterHoldsNoKeyAndDataIsEncrypted() {

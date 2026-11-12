@@ -35,8 +35,8 @@ import static org.elasticsearch.health.HealthStatus.YELLOW;
  * <ul>
  *   <li>YELLOW opt-out: no password is configured and {@code cluster.state.encryption.required} is {@code false}, meaning
  *       secrets are stored unencrypted in cluster state.</li>
- *   <li>YELLOW cannot-persist: a PEK is installed but this node lacks the password material to wrap it for disk, so its on-disk
- *       cluster state carries no usable copy of the key.</li>
+ *   <li>YELLOW cannot-persist: this node lacks the password material to wrap the PEK for disk, or has not persisted it since the
+ *       password was configured.</li>
  * </ul>
  * If the elected master holds no key material, encryption is unavailable on every node: RED if encrypted data exists, YELLOW otherwise.
  */
@@ -50,9 +50,6 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
     static final String GREEN_NOT_CONFIGURED = "Cluster state encryption is not configured.";
     static final String GREEN_HEALTHY = "Cluster state encryption is healthy.";
     static final String YELLOW_CANNOT_PERSIST = "Cluster state encryption cannot be persisted to disk on this node.";
-    static final String YELLOW_NOT_YET_PERSISTED = "The cluster state encryption key is not yet persisted to disk on this node.";
-    static final String YELLOW_PASSWORD_NOT_CONFIGURED =
-        "Cluster state encryption is configured but the password for the active password id is missing on this node.";
     static final String MASTER_HAS_NO_KEY = "The elected master holds no cluster state encryption key; encryption is unavailable.";
     static final String YELLOW_OPT_OUT = "Cluster state encryption is disabled; secrets are stored unencrypted.";
     static final String YELLOW_MISSING_PASSWORD = "Cluster state encryption is degraded: no active password is configured on this node.";
@@ -62,18 +59,9 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
             NAME,
             "encryption_key_not_persisted",
             2,
-            "This node's on-disk cluster state has no usable copy of the cluster state encryption key. If the whole cluster restarts and"
-                + " this node is elected master, cluster state encryption becomes unavailable.",
-            List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
-        )
-    );
-    static final List<HealthIndicatorImpact> PASSWORD_NOT_CONFIGURED_IMPACTS = List.of(
-        new HealthIndicatorImpact(
-            NAME,
-            "encryption_password_not_configured",
-            2,
-            "If this node is the elected master, no cluster state encryption key is installed and secrets cannot be encrypted. Otherwise"
-                + " this node cannot persist the key to disk once it is installed.",
+            "This node's on-disk cluster state has no usable copy of the cluster state encryption key. While this node is the elected"
+                + " master no key can be installed, and if it is elected master after a restart, cluster state encryption becomes"
+                + " unavailable.",
             List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
         )
     );
@@ -109,37 +97,21 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
     static final Diagnosis.Definition MISSING_WRAP_CREDENTIALS_DEFINITION = new Diagnosis.Definition(
         NAME,
         "missing_wrap_credentials",
-        "A cluster state encryption key is installed but this node lacks the password material to wrap it for disk.",
+        "This node lacks the password material to persist the cluster state encryption key, or has not persisted it since the password"
+            + " was configured.",
         "Provision cluster.state.encryption.active_password_id and the matching cluster.state.encryption.password.<id> in the keystore"
             + " (stateful) or operator file settings (serverless). If the password was added to the keystore call"
-            + " POST /_nodes/reload_secure_settings (stateful).",
-        HELP_URL
-    );
-    static final Diagnosis.Definition KEY_NOT_YET_PERSISTED_DEFINITION = new Diagnosis.Definition(
-        NAME,
-        "key_not_yet_persisted",
-        "This node could not persist the cluster state encryption key earlier and has not rewritten it since its password was configured.",
-        "The key is written to disk with the next change to persistent cluster settings, index templates or other cluster-wide metadata."
-            + " Changes to indices do not trigger it. To persist it now, change a persistent cluster setting or restart this node.",
-        HELP_URL
-    );
-    static final Diagnosis.Definition PASSWORD_NOT_CONFIGURED_DEFINITION = new Diagnosis.Definition(
-        NAME,
-        "password_not_configured",
-        "cluster.state.encryption.active_password_id is set but the matching cluster.state.encryption.password.<id> is not configured"
-            + " on this node.",
-        "Provision cluster.state.encryption.password.<id> for the active password id in the keystore (stateful) or operator file settings"
-            + " (serverless). If the password was added to the keystore call POST /_nodes/reload_secure_settings (stateful).",
+            + " POST /_nodes/reload_secure_settings (stateful). The key is then persisted with the next change to cluster-wide metadata;"
+            + " to persist it now, change a persistent cluster setting or restart this node.",
         HELP_URL
     );
     static final Diagnosis.Definition MASTER_HAS_NO_KEY_DEFINITION = new Diagnosis.Definition(
         NAME,
         "master_has_no_key",
         "The elected master started without a usable copy of the cluster state encryption key and published cluster state without it.",
-        "Configure the encryption password on the elected master. If it persisted the key with that password, reload secure settings"
-            + " and it restores the key. Otherwise restart it, so that a master-eligible node that holds the key is elected and restores"
-            + " it, and repeat this if the newly elected master holds no key either. Only reset encryption if no node holds the key: a"
-            + " reset permanently deletes all encrypted data.",
+        "Configure the encryption password on the elected master and reload secure settings; if it persisted the key with that password,"
+            + " it restores the key. Otherwise restart it so that a master-eligible node that holds the key is elected. Only reset"
+            + " encryption if no node holds the key: a reset permanently deletes all encrypted data.",
         HELP_URL
     );
     static final Diagnosis.Definition MISSING_PASSWORD_DEFINITION = new Diagnosis.Definition(
@@ -194,25 +166,7 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
 
         return switch (serviceState) {
             case READY -> {
-                if (metadata == null) {
-                    if (pekService.canWrapForDisk() == false) {
-                        yield createIndicator(
-                            YELLOW,
-                            YELLOW_PASSWORD_NOT_CONFIGURED,
-                            detailsBuilder(null, serviceState),
-                            PASSWORD_NOT_CONFIGURED_IMPACTS,
-                            List.of(new Diagnosis(PASSWORD_NOT_CONFIGURED_DEFINITION, List.of()))
-                        );
-                    }
-                    yield createIndicator(
-                        GREEN,
-                        "Cluster state encryption is configured; awaiting first key install.",
-                        detailsBuilder(null, serviceState),
-                        List.of(),
-                        List.of()
-                    );
-                }
-                if (pekService.canWrapForDisk() == false) {
+                if (pekService.canWrapForDisk() == false || keyMissingFromGateway.getAsBoolean()) {
                     yield createIndicator(
                         YELLOW,
                         YELLOW_CANNOT_PERSIST,
@@ -221,13 +175,13 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
                         List.of(new Diagnosis(MISSING_WRAP_CREDENTIALS_DEFINITION, List.of()))
                     );
                 }
-                if (keyMissingFromGateway.getAsBoolean()) {
+                if (metadata == null) {
                     yield createIndicator(
-                        YELLOW,
-                        YELLOW_NOT_YET_PERSISTED,
-                        detailsBuilder(metadata, serviceState),
-                        WRAP_FAILURE_IMPACTS,
-                        List.of(new Diagnosis(KEY_NOT_YET_PERSISTED_DEFINITION, List.of()))
+                        GREEN,
+                        "Cluster state encryption is configured; awaiting first key install.",
+                        detailsBuilder(null, serviceState),
+                        List.of(),
+                        List.of()
                     );
                 }
                 yield createIndicator(GREEN, GREEN_HEALTHY, detailsBuilder(metadata, serviceState), List.of(), List.of());

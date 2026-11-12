@@ -113,7 +113,7 @@ public class ProjectEncryptionKeyMissingPasswordIT extends ESIntegTestCase {
         // A master-eligible node persists accepted state before acking it; data-only nodes persist asynchronously, so only the former
         // is guaranteed to have written its key-less copy by now.
         for (String node : masterEligibleWithoutPassword) {
-            assertEquals(ProjectEncryptionKeyHealthIndicatorService.YELLOW_NOT_YET_PERSISTED, health(node).symptom());
+            assertEquals(ProjectEncryptionKeyHealthIndicatorService.YELLOW_CANNOT_PERSIST, health(node).symptom());
         }
 
         updateClusterSettings(Settings.builder().put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "52mb"));

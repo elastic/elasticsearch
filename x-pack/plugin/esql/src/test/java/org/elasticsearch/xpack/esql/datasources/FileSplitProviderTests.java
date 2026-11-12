@@ -440,6 +440,57 @@ public class FileSplitProviderTests extends ESTestCase {
         assertTrue("a missing-column prune of a resolved, non-empty fileList is exhaustive", result.exhaustivelyPruned());
     }
 
+    public void testMinMaxFilterDropsMissSplits() {
+        ExternalSplit keep = splitWithRange("s3://b/keep.parquet", "age", 30, 50);
+        ExternalSplit drop = splitWithRange("s3://b/drop.parquet", "age", 1, 10);
+        Expression filter = new GreaterThan(SRC, fieldAttr("age"), intLiteral(20), null);
+        List<ExternalSplit> kept = FileSplitProvider.dropStatsMisses(List.of(keep, drop), List.of(filter));
+        assertEquals(1, kept.size());
+        assertEquals(((FileSplit) keep).path(), ((FileSplit) kept.get(0)).path());
+    }
+
+    public void testMinMaxFilterKeepsOverlapAndMissingStats() {
+        ExternalSplit overlap = splitWithRange("s3://b/overlap.parquet", "age", 10, 30);
+        ExternalSplit noStats = new FileSplit("file", StoragePath.of("s3://b/text.csv"), 0, 50, "csv", Map.of(), Map.of());
+        Expression filter = new GreaterThan(SRC, fieldAttr("age"), intLiteral(20), null);
+        List<ExternalSplit> kept = FileSplitProvider.dropStatsMisses(List.of(overlap, noStats), List.of(filter));
+        assertEquals(2, kept.size());
+    }
+
+    public void testMvInRangeDropsDisjointSplit() {
+        ExternalSplit drop = splitWithRange("s3://b/low.parquet", "age", 1, 10);
+        ExternalSplit keep = splitWithRange("s3://b/high.parquet", "age", 40, 50);
+        Expression filter = new MvInRange(SRC, fieldAttr("age"), intLiteral(30), intLiteral(60));
+        List<ExternalSplit> kept = FileSplitProvider.dropStatsMisses(List.of(drop, keep), List.of(filter));
+        assertEquals(1, kept.size());
+        assertEquals(StoragePath.of("s3://b/high.parquet"), ((FileSplit) kept.get(0)).path());
+    }
+
+    public void testDataColumnStatsFilterDropsPartitionConjunct() {
+        StoragePath path = StoragePath.of("s3://b/year=2024/file.parquet");
+        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), "s3://b/year=*/*.parquet");
+        PartitionMetadata partitions = new PartitionMetadata(Map.of("year", DataType.INTEGER), Map.of(path, Map.of("year", 2024)));
+        Expression yearEq = new Equals(SRC, fieldAttr("year"), intLiteral(2024));
+        Expression ageGt = new GreaterThan(SRC, fieldAttr("age"), intLiteral(90), null);
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), partitions, List.of(yearEq, ageGt));
+        List<Expression> statsFilter = FileSplitProvider.dataColumnStatsFilter(ctx);
+        assertEquals(1, statsFilter.size());
+        assertEquals(ageGt, statsFilter.get(0));
+    }
+
+    public void testDataColumnStatsFilterDropsMixedOr() {
+        StoragePath path = StoragePath.of("s3://b/year=2024/file.parquet");
+        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), "s3://b/year=*/*.parquet");
+        PartitionMetadata partitions = new PartitionMetadata(Map.of("year", DataType.INTEGER), Map.of(path, Map.of("year", 2024)));
+        Expression mixedOr = new Or(
+            SRC,
+            new Equals(SRC, fieldAttr("year"), intLiteral(2024)),
+            new GreaterThan(SRC, fieldAttr("age"), intLiteral(90), null)
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), partitions, List.of(mixedOr));
+        assertTrue(FileSplitProvider.dataColumnStatsFilter(ctx).isEmpty());
+    }
+
     /**
      * An unresolved or already-empty fileList yields zero splits, but that is NOT an exhaustive prune: there is
      * nothing to read anyway (empty) or the listing happens at runtime (unresolved), so the coordinator must not
@@ -7139,6 +7190,95 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals("Total row count across splits should be sum of all files", 1000L, totalRowCount);
     }
 
+    public void testDiscoverSplitsDropsMinMaxMissesAndFlagsExhaustivePrune() {
+        Map<String, Object> low = new HashMap<>();
+        low.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
+        low.put(SourceStatisticsSerializer.columnMinKey("age"), 1);
+        low.put(SourceStatisticsSerializer.columnMaxKey("age"), 10);
+        low.put(SourceStatisticsSerializer.columnNullCountKey("age"), 0L);
+        low.put(SourceStatisticsSerializer.columnValueCountKey("age"), 10L);
+        Map<String, Object> high = new HashMap<>();
+        high.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
+        high.put(SourceStatisticsSerializer.columnMinKey("age"), 100);
+        high.put(SourceStatisticsSerializer.columnMaxKey("age"), 110);
+        high.put(SourceStatisticsSerializer.columnNullCountKey("age"), 0L);
+        high.put(SourceStatisticsSerializer.columnValueCountKey("age"), 10L);
+
+        Map<String, List<SplitRange>> perFile = Map.of(
+            "low.parquet",
+            List.of(new SplitRange(0, 200, low), new SplitRange(200, 200, low)),
+            "high.parquet",
+            List.of(new SplitRange(0, 300, high))
+        );
+        RangeAwareFormatReader mockReader = new RangeAwareFormatReader() {
+            @Override
+            public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+                return Configured.empty(this);
+            }
+
+            @Override
+            public List<SplitRange> discoverSplitRanges(StorageObject object) {
+                return perFile.get(object.path().objectName());
+            }
+
+            @Override
+            public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String formatName() {
+                return "parquet";
+            }
+
+            @Override
+            public List<String> fileExtensions() {
+                return List.of(".parquet");
+            }
+
+            @Override
+            public RowPositionStrategy rowPositionStrategy() {
+                return PassThroughRowPositionStrategy.INSTANCE;
+            }
+
+            @Override
+            public void close() {}
+        };
+        FileSplitProvider splitter = splitterFor(mockReader);
+        StoragePath lowPath = StoragePath.of("s3://b/low.parquet");
+        StoragePath highPath = StoragePath.of("s3://b/high.parquet");
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(lowPath, 400, Instant.EPOCH), new StorageEntry(highPath, 300, Instant.EPOCH)),
+            "s3://b/*.parquet"
+        );
+        Expression filter = new GreaterThan(SRC, fieldAttr("age"), intLiteral(50), null);
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of(filter));
+        SplitDiscoveryResult result = splitter.discoverSplits(ctx);
+
+        assertEquals(1, result.splits().size());
+        assertEquals(highPath, ((FileSplit) result.splits().get(0)).path());
+        assertEquals(1, result.filesScanned());
+        assertFalse(result.exhaustivelyPruned());
+
+        Expression none = new GreaterThan(SRC, fieldAttr("age"), intLiteral(1000), null);
+        SplitDiscoveryResult empty = splitter.discoverSplits(
+            new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of(none))
+        );
+        assertTrue(empty.splits().isEmpty());
+        assertEquals(0, empty.filesScanned());
+        assertTrue("every planned range missed the filter on a complete listing", empty.exhaustivelyPruned());
+    }
+
     /**
      * The invariant this class must not lose: a listing that covers part of a dataset is the schema's answer, never
      * the query's file set. Resolution hands one over under {@code first_file_wins}, where one file defines the
@@ -10686,6 +10826,16 @@ public class FileSplitProviderTests extends ESTestCase {
             Set.of(),
             retained
         );
+    }
+
+    private static ExternalSplit splitWithRange(String uri, String column, int min, int max) {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        stats.put(SourceStatisticsSerializer.columnMinKey(column), min);
+        stats.put(SourceStatisticsSerializer.columnMaxKey(column), max);
+        stats.put(SourceStatisticsSerializer.columnNullCountKey(column), 0L);
+        stats.put(SourceStatisticsSerializer.columnValueCountKey(column), 100L);
+        return FileSplit.withStatisticsAndReadSchema("file", StoragePath.of(uri), 0, 100, "parquet", Map.of(), Map.of(), null, stats, null);
     }
 
     private static FieldAttribute fieldAttr(String name) {

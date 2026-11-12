@@ -1,0 +1,5 @@
+pr: 162881
+summary: Stricter `BUCKET` argument validation
+area: ES|QL
+type: bug
+issues: []

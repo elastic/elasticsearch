@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
@@ -67,8 +68,28 @@ public class PreAnalyzer {
         boolean needsAnalyzerGroups,
         boolean needsFieldSemantics,
         List<String> externalSourcePaths,
-        List<String> inferenceIds
+        List<String> inferenceIds,
+        Set<IndexPattern> eqlPatterns  // patterns of EQL source commands; used to retain their field-caps for reuse
     ) {
+        /** The same pre-analysis, but building the field semantics of the resolved indices. */
+        public PreAnalysis withFieldSemantics() {
+            return new PreAnalysis(
+                indexes,
+                enriches,
+                lookupIndices,
+                linkedIndices,
+                useAggregateMetricDoubleWhenNotSupported,
+                useDenseVectorWhenNotSupported,
+                hasTimeSeriesAggregation,
+                requiresAllDimensionFields,
+                needsAnalyzerGroups,
+                true,
+                externalSourcePaths,
+                inferenceIds,
+                eqlPatterns
+            );
+        }
+
         public static final PreAnalysis EMPTY = new PreAnalysis(
             Map.of(),
             List.of(),
@@ -81,7 +102,8 @@ public class PreAnalyzer {
             false,
             false,
             List.of(),
-            List.of()
+            List.of(),
+            Set.of()
         );
     }
 
@@ -106,6 +128,21 @@ public class PreAnalyzer {
                         "index pattern '" + p.indexPattern() + "' found with different index mode: " + m2 + " != " + m1
                     );
                 }
+            }
+        });
+        // The EQL source command resolves its schema through the same field-caps path as FROM: its pattern
+        // joins the same indexes map, so preAnalyzeMainIndices resolves it once into the shared IndexResolution.
+        // EQL is always STANDARD mode; reject a collision with a same-pattern non-STANDARD relation, matching the
+        // UnresolvedRelation conflict above. Reachable via a mixed subquery (e.g. FROM (TS idx), (EQL idx "…")),
+        // where it throws exactly as the FROM/TS twin does.
+        Set<IndexPattern> eqlPatterns = new LinkedHashSet<>();
+        plan.forEachUp(UnresolvedEqlRelation.class, p -> {
+            eqlPatterns.add(p.indexPattern());
+            IndexMode existing = indexes.putIfAbsent(p.indexPattern(), IndexMode.STANDARD);
+            if (existing != null && existing != IndexMode.STANDARD) {
+                throw new IllegalStateException(
+                    "index pattern '" + p.indexPattern() + "' found with different index mode: " + existing + " != " + IndexMode.STANDARD
+                );
             }
         });
         List<LookupIndexPattern> lookupIndices = new ArrayList<>();
@@ -218,7 +255,8 @@ public class PreAnalyzer {
             needsAnalyzerGroups,
             needsFieldSemantics,
             icebergPaths,
-            inferenceIds
+            inferenceIds,
+            eqlPatterns
         );
     }
 

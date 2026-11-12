@@ -143,6 +143,32 @@ public class IgnoredMetadataFieldIT extends ESSingleNodeTestCase {
         assertEquals(List.of(DATE_FIELD_NAME), items[2].getResponse().getField(IgnoredFieldMapper.NAME).getValues());
     }
 
+    /**
+     * Realtime GETs of documents that are not refreshed yet return {@code _ignored}, whether the GET refreshes the shard or is
+     * served from the translog, and keep returning the same value after a refresh.
+     */
+    public void testIgnoredMetadataFieldRealtimeGetBeforeRefresh() {
+        indexUnrefreshedTestDoc(NUMERIC_FIELD_NAME, "unrefreshed-1", "forty-three");
+        for (int i = 0; i < 2; i++) {
+            GetResponse get = client().prepareGet(TEST_INDEX, "unrefreshed-1").get();
+            assertTrue(get.isExists());
+            assertEquals(List.of(NUMERIC_FIELD_NAME), get.getField(IgnoredFieldMapper.NAME).getValues());
+        }
+
+        indexUnrefreshedTestDoc(DATE_FIELD_NAME, "unrefreshed-2", "tomorrow");
+        for (int i = 0; i < 2; i++) {
+            GetResponse get = client().prepareGet(TEST_INDEX, "unrefreshed-2").get();
+            assertTrue(get.isExists());
+            assertEquals(List.of(DATE_FIELD_NAME), get.getField(IgnoredFieldMapper.NAME).getValues());
+        }
+        MultiGetResponse multiGet = client().prepareMultiGet().add(TEST_INDEX, "unrefreshed-2").get();
+        assertEquals(List.of(DATE_FIELD_NAME), multiGet.getResponses()[0].getResponse().getField(IgnoredFieldMapper.NAME).getValues());
+
+        indicesAdmin().prepareRefresh(TEST_INDEX).get();
+        GetResponse refreshed = client().prepareGet(TEST_INDEX, "unrefreshed-2").get();
+        assertEquals(List.of(DATE_FIELD_NAME), refreshed.getField(IgnoredFieldMapper.NAME).getValues());
+    }
+
     public void testIgnoredMetadataFieldAggregation() {
         SearchResponse avgSearch = null;
         SearchResponse termsSearch = null;
@@ -180,6 +206,15 @@ public class IgnoredMetadataFieldIT extends ESSingleNodeTestCase {
             if (termsSearch != null) {
                 termsSearch.decRef();
             }
+        }
+    }
+
+    private void indexUnrefreshedTestDoc(String testField, String docId, String testValue) {
+        DocWriteResponse docWriteResponse = client().prepareIndex(TEST_INDEX).setId(docId).setSource(testField, testValue).get();
+        try {
+            assertEquals(RestStatus.CREATED, docWriteResponse.status());
+        } finally {
+            docWriteResponse.decRef();
         }
     }
 

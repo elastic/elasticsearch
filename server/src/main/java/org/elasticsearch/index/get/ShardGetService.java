@@ -515,13 +515,11 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 mappingLookup.getMapping().ignoredSourceFormat()
             )
             : mappingLookup.newSourceLoader(sourceFilter, mapperMetrics.sourceFieldMetrics(), null);
-        // _ignored is returned like _routing whenever the document has it, matching the default metadata fields of search hits.
-        // A realtime get on a stored-source index reads _source and _routing straight from the translog operation, and loading
-        // _ignored there would index the operation into an in-memory segment, so by default it is only loaded once the document
-        // is in a segment (synthetic source indexes the operation anyway). Requesting it via stored_fields always loads it.
+        // _ignored is returned like _routing whenever the document has it, matching the default metadata fields of search hits,
+        // so a GET reports the same ignored fields before and after a refresh. A realtime get on a stored-source index that is
+        // served from the translog indexes the operation into an in-memory segment to read it.
         // Internal callers that never expose it (get-for-update, term vectors) skip it unless it is requested via stored_fields.
-        final boolean includeIgnored = storedFieldSet.contains(IgnoredFieldMapper.NAME)
-            || (includeIgnoredByDefault && (get.isFromTranslog() == false || mappingLookup.isSourceSynthetic()));
+        final boolean includeIgnored = storedFieldSet.contains(IgnoredFieldMapper.NAME) || includeIgnoredByDefault;
         final boolean supportDocValuesForIgnoredMetaField = indexSettings.getIndexVersionCreated()
             .onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD);
         if (includeIgnored && supportDocValuesForIgnoredMetaField == false) {

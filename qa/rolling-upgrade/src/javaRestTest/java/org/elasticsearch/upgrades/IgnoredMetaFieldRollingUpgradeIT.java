@@ -115,11 +115,12 @@ public class IgnoredMetaFieldRollingUpgradeIT extends AbstractRollingUpgradeTest
             }
         } else if (isUpgradedCluster()) {
             assertRestStatus(client().performRequest(waitForClusterStatus("green", "90s")), RestStatus.OK);
+            // the upgraded cluster returns _ignored from GET by default
             final Map<String, Object> doc1 = entityAsMap(get("old-get-index", "1"));
-            assertNull(doc1.get(IgnoredFieldMapper.NAME));
+            assertThat(((List<?>) doc1.get(IgnoredFieldMapper.NAME)), Matchers.containsInAnyOrder("ip_address", "keyword"));
             assertRestStatus(client().performRequest(indexDocument("old-get-index", "barbar", "192.168.0.1234", "2")), RestStatus.CREATED);
             final Map<String, Object> doc2 = entityAsMap(get("old-get-index", "2"));
-            assertNull(doc2.get(IgnoredFieldMapper.NAME));
+            assertThat(((List<?>) doc2.get(IgnoredFieldMapper.NAME)), Matchers.containsInAnyOrder("ip_address", "keyword"));
 
             final String newVersionIndexName = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
             assertRestStatus(client().performRequest(createNewIndex(newVersionIndexName)), RestStatus.OK);
@@ -129,7 +130,7 @@ public class IgnoredMetaFieldRollingUpgradeIT extends AbstractRollingUpgradeTest
                 RestStatus.CREATED
             );
             final Map<String, Object> docFromNewIndex = entityAsMap(get(newVersionIndexName, "3"));
-            assertNull(docFromNewIndex.get(IgnoredFieldMapper.NAME));
+            assertThat(((List<?>) docFromNewIndex.get(IgnoredFieldMapper.NAME)), Matchers.containsInAnyOrder("ip_address", "keyword"));
         }
     }
 

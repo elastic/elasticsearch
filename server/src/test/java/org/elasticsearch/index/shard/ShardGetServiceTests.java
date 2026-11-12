@@ -624,9 +624,9 @@ public class ShardGetServiceTests extends IndexShardTestCase {
     }
 
     /**
-     * A GET returns the {@code _ignored} metadata field by default when the document has ignored fields and is read from a
-     * segment, also when other stored fields are requested. A realtime get served from the translog returns it only when
-     * {@code stored_fields} names it. Get-for-update does not load it.
+     * A GET returns the {@code _ignored} metadata field by default when the document has ignored fields, whether the realtime get
+     * refreshes the shard, is served from the translog or reads a refreshed segment, also when other stored fields are requested.
+     * Get-for-update does not load it.
      */
     public void testGetReturnsIgnoredMetadataFieldByDefault() throws IOException {
         runGetReturnsIgnoredMetadataFieldByDefault(IndexVersion.current());
@@ -661,10 +661,18 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             final String ignoredDoc = """
                 { "foo": "bar", "kw": "too long", "num": "not a number" }""";
 
-            // the first realtime get refreshes and makes the engine track translog locations for later gets
-            indexDoc(primary, "test", "0", """
+            // the first realtime get on a fresh shard refreshes it and makes the engine track translog locations for later gets
+            indexDoc(primary, "test", "0", ignoredDoc);
+            assertTrue(primary.getEngine().refreshNeeded());
+            GetResult firstGet = get(primary, "0", null);
+            try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+                assertEquals(1, searcher.getIndexReader().maxDoc()); // read from the refreshed segment
+            }
+            assertIgnoredFields(firstGet);
+
+            indexDoc(primary, "test", "2", """
                 { "foo": "bar", "kw": "ok", "num": 1 }""");
-            GetResult notIgnored = get(primary, "0", null);
+            GetResult notIgnored = get(primary, "2", null);
             assertTrue(notIgnored.isExists());
             assertFalse(notIgnored.getMetadataFields().containsKey(IgnoredFieldMapper.NAME));
 
@@ -674,12 +682,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
                 assertEquals(1, searcher.getIndexReader().maxDoc()); // read from the translog
             }
-            // a default translog read needs only _source and _routing and does not index the operation into a segment
-            assertFalse(fromTranslog.getMetadataFields().containsKey(IgnoredFieldMapper.NAME));
-            if (indexVersion.onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
-                // asking for _ignored indexes the operation into an in-memory segment and reads its doc values
-                assertIgnoredFields(get(primary, "1", new String[] { IgnoredFieldMapper.NAME }));
-            }
+            assertIgnoredFields(fromTranslog);
+            assertIgnoredFields(get(primary, "1", new String[] { IgnoredFieldMapper.NAME }));
 
             GetResult fromTranslogOnly = primary.getService()
                 .getFromTranslog(
@@ -695,7 +699,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                     false
                 );
             assertNotNull(fromTranslogOnly);
-            assertFalse(fromTranslogOnly.getMetadataFields().containsKey(IgnoredFieldMapper.NAME));
+            assertIgnoredFields(fromTranslogOnly);
 
             GetResult forUpdate = getForUpdate(primary, "1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
             assertFalse(forUpdate.getMetadataFields().containsKey(IgnoredFieldMapper.NAME));
@@ -748,15 +752,19 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         try {
             recoverShardFromStore(primary);
-            // the first realtime get refreshes and makes the engine track translog locations for later gets
-            indexDoc(primary, "test", "0", """
+            final String ignoredDoc = """
+                { "kw": "too long", "num": "not a number" }""";
+            // the first realtime get on a fresh shard refreshes it and makes the engine track translog locations for later gets
+            indexDoc(primary, "test", "0", ignoredDoc);
+            assertIgnoredFields(get(primary, "0", null));
+
+            indexDoc(primary, "test", "2", """
                 { "kw": "ok", "num": 1 }""");
-            GetResult notIgnored = get(primary, "0", null);
+            GetResult notIgnored = get(primary, "2", null);
             assertTrue(notIgnored.isExists());
             assertFalse(notIgnored.getMetadataFields().containsKey(IgnoredFieldMapper.NAME));
 
-            indexDoc(primary, "test", "1", """
-                { "kw": "too long", "num": "not a number" }""");
+            indexDoc(primary, "test", "1", ignoredDoc);
             assertTrue(primary.getEngine().refreshNeeded());
             GetResult fromTranslog = get(primary, "1", null);
             try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {

@@ -187,6 +187,10 @@ tests:
   - :x-pack:plugin:async-search:internalClusterTest
   method: testRestartDoesNotDrainWhileCleanupScrollIsOpen
   issue: https://github.com/elastic/elasticsearch/issues/165484
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v8.15.5#javaRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/165675
 
 # Examples:
 #

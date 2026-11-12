@@ -601,3 +601,8 @@ tests:
   - :x-pack:plugin:slm:internalClusterTest
   method: testSnapshotFailureOnMasterStepDown
   issue: https://github.com/elastic/elasticsearch/issues/165822
+- class: org.elasticsearch.action.search.SearchShardResponseCircuitBreakerIT
+  tasks:
+  - :server:internalClusterTest
+  method: testTripWhileSendingShardRequestLeavesNoReaderContext
+  issue: https://github.com/elastic/elasticsearch/issues/165825

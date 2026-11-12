@@ -96,7 +96,8 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
             false,
             directoryBytesRead,
             singleValueQueryWarnings,
-            null
+            null,
+            true
         );
     }
 

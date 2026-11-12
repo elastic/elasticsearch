@@ -25,6 +25,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.IncomingRecoveryLimits;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
 
@@ -315,10 +316,9 @@ public class SearchRecoveryTimeoutCalculationService {
     ///
     /// with `deadline = start + min(metadata grace, cap)`. The timeout is capped at the remaining grace period.
     ///
-    /// `concurrentRelocations` is this source's share of the target's configured incoming recovery slots, see
-    /// [#maxRelocationSlotsPerTarget], split between all relocations to the target from any shutting-down source, and not more than the
-    /// shards of this source. It may be below one slot, so the timeout may round down to zero (skipping warming). This
-    /// is a rough estimate, and an upper bound: it ignores the other recoveries competing for the target's slots.
+    /// `concurrentRelocations` is this source's share of the slots known to be available to the target's relocations, see
+    /// [#estimateConcurrentRelocations]. It may be below one slot, so the timeout may round down to zero (skipping warming). This is a
+    /// rough estimate, and an upper bound: it ignores the other recoveries competing for the target's slots.
     ///
     /// The heuristics above decide the first plan of the shutdown phase. Only equal-share plans are
     /// [SearchRecoveryTimeout#extendable]. A re-evaluation of an equal-share plan (`previousPlan`) always yields an equal-share
@@ -359,15 +359,7 @@ public class SearchRecoveryTimeoutCalculationService {
         // accounting of the bytes warmed for shards for all the relocations of a given node shutting down.
         final double dataVolumeMs = warmingCacheBytes > 0 ? ((double) totalBytesToWarm / warmingCacheBytes) * remaining : 0;
 
-        // The current shard is itself one such relocation, floor at 1 in case it is not yet visible on the source's RoutingNode.
-        final int relocationsFromSourceToTarget = Math.max(1, countRelocationsBetween(state, sourceNodeId, targetNodeId));
-        final int allRelocationsToTarget = Math.max(1, countRelocationsFromShuttingDownNodesTo(state, targetNodeId));
-
-        // Share the target's slots between shutting-down sources, preserving fractional shares below one slot.
-        final double concurrentRelocations = Math.min(
-            shardsOnSource,
-            (double) maxRelocationSlotsPerTarget() * relocationsFromSourceToTarget / allRelocationsToTarget
-        );
+        final double concurrentRelocations = estimateConcurrentRelocations(state, sourceNodeId, targetNodeId, shardsOnSource);
 
         if (previousPlan != null && previousPlan.isEqualSharePlan() && previousPlan.perShardShareMs() > 0) {
             // Re-evaluation of an equal-share plan: every shard still on the source was already budgeted previousPlan.perShardShareMs()
@@ -407,10 +399,37 @@ public class SearchRecoveryTimeoutCalculationService {
         }
     }
 
-    /// The limit, not the free count, of incoming recoveries a node accepts at once: the lower of the data node limit (unbounded unless
-    /// configured) and the master's per node limit. At least one, as zero would stop relocations altogether.
-    private int maxRelocationSlotsPerTarget() {
-        return Math.max(1, Math.min(maxConcurrentRelocationRecoveries, masterConcurrentIncomingRecoveries));
+    /// Returns the estimated number of the shards of `sourceNodeId` that relocate to `targetNodeId` at the same time: the source's share of
+    /// the slots known to be available to the relocations from shutting-down nodes, see [#knownRelocationSlots], split between the sources
+    /// in proportion to their relocations in flight, and not more than `shardsOnSource`. It scales the equal share of one shard to the time
+    /// the shards of the source can use the slots together. It can be fractional and below one, when the slots are split between sources.
+    private double estimateConcurrentRelocations(
+        final ClusterState state,
+        final String sourceNodeId,
+        final String targetNodeId,
+        final int shardsOnSource
+    ) {
+        // The current shard is itself one such relocation, floor at 1 in case it is not yet visible on the source's RoutingNode.
+        final int relocationsFromSourceToTarget = Math.max(1, countRelocationsBetween(state, sourceNodeId, targetNodeId));
+        final int allRelocationsToTarget = Math.max(1, countRelocationsFromShuttingDownNodesTo(state, targetNodeId));
+        return Math.min(
+            shardsOnSource,
+            (double) knownRelocationSlots(allRelocationsToTarget) * relocationsFromSourceToTarget / allRelocationsToTarget
+        );
+    }
+
+    /// The slots known to be available to the relocations to the target: the data node limit, or, while the master throttles and reserves
+    /// no slots, only the ones in use by the relocations in flight.
+    private int knownRelocationSlots(final int allRelocationsToTarget) {
+        return dataNodeRecoveryThrottlingEnabled() ? maxConcurrentRelocationRecoveries : allRelocationsToTarget;
+    }
+
+    /// The data nodes throttle the relocations, and not the master, when their non-critical limit is finite and the master's per node limit
+    /// is unbounded. The data node settings are only registered by the stateless plugin, and are unbounded by default. While the master
+    /// throttles, the cluster state shows only the relocations it has started, whatever the data node limit is.
+    private boolean dataNodeRecoveryThrottlingEnabled() {
+        return maxConcurrentRelocationRecoveries < IncomingRecoveryLimits.UNBOUNDED.maxConcurrentNonCriticalRecoveries()
+            && masterConcurrentIncomingRecoveries == Integer.MAX_VALUE;
     }
 
     /// Counts relocations whose source is `sourceNodeId` and whose target is `targetNodeId` (i.e. shards relocating

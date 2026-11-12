@@ -1404,7 +1404,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         }
     }
 
-    public void testSlotsAreTheLowerOfTheDataNodeAndMasterLimitsNotTheRelocationsInFlight() {
+    public void testSlotsAreTheLimitsWithDataNodeThrottlingAndTheRelocationsInFlightOtherwise() {
         try (
             var threadPool = new FakeTimeThreadPool(
                 getTestName(),
@@ -1443,14 +1443,17 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
 
             // Columns: { data node limit, master limit, expected slots }
             final int[][] cases = {
-                { Integer.MAX_VALUE, 2, 2 },
+                // no data node limit, the master throttles: only the relocations in flight are known to use slots
+                { Integer.MAX_VALUE, 2, relocatingShards },
+                { Integer.MAX_VALUE, Integer.MAX_VALUE, relocatingShards },
+                // the data node limit is set, but the master throttles as well, so its relocations in flight are all that is visible
+                { 3, 2, relocatingShards },
+                { 2, 3, relocatingShards },
+                { 3, 0, relocatingShards },
+                // the data nodes throttle: the limit is the slots
                 { 3, Integer.MAX_VALUE, 3 },
-                { 3, 2, 2 },
-                { 2, 3, 2 },
-                // unbounded, but not more slots than the shards of the source can use
-                { Integer.MAX_VALUE, Integer.MAX_VALUE, shardsOnSource },
-                // a limit of zero would stop the relocations altogether, at least one slot is assumed
-                { Integer.MAX_VALUE, 0, 1 } };
+                // not more slots than the shards of the source can use
+                { 10, Integer.MAX_VALUE, shardsOnSource } };
             for (final int[] testCase : cases) {
                 final int dataNodeLimit = testCase[0];
                 final int masterLimit = testCase[1];
@@ -2276,8 +2279,8 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 { 1, 400, 675, 640, 1080 },
                 { 3, 1200, 2025, 1920, 3240 },
                 { 5, 2000, 3375, 3200, 5400 },
-                // all the slots of the target, and not more than the 4 shards of the source: 4 slots
-                { Integer.MAX_VALUE, 4000, 4500, 6400, 7200 } };
+                // no data node limit, so the master throttles: only the 2 and 3 relocations in flight are known to use slots
+                { Integer.MAX_VALUE, 2000, 3375, 3200, 5400 } };
             for (final var testCase : cases) {
                 final var service = newCalculationService(
                     threadPool,

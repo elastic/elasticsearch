@@ -206,6 +206,39 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(paramQuery.emptyResult(), is(false));
     }
 
+    /**
+     * A key that does not hold its values as terms, like a runtime field, is looked up with queries: the bulk lookup
+     * seeks the terms dictionary and would match nothing.
+     */
+    public void testNoBulkLookupOnFieldWithoutTerms() {
+        PhysicalPlan plan = optimizeLookupPlan("""
+            ROW language_name = "French"
+            | LOOKUP JOIN languages_lookup ON language_name
+            """, statsWithoutTerms("language_name"));
+
+        assertNoBulkLookup(plan);
+    }
+
+    public void testNoBulkLookupOnExpressionWithoutTerms() {
+        PhysicalPlan plan = optimizeLookupPlan("""
+            ROW name = "French"
+            | LOOKUP JOIN languages_lookup ON name == language_name
+            """, statsWithoutTerms("language_name"));
+
+        assertNoBulkLookup(plan);
+    }
+
+    private static SearchStats statsWithoutTerms(String field) {
+        return new EsqlTestUtils.TestConfigurableSearchStats().exclude(EsqlTestUtils.TestConfigurableSearchStats.Config.INDEXED, field);
+    }
+
+    private static void assertNoBulkLookup(PhysicalPlan plan) {
+        assertThat(plan.anyMatch(p -> p instanceof BulkLookupMvFilterExec), is(false));
+        ParameterizedQueryExec paramQuery = as(plan.collect(ParameterizedQueryExec.class).getFirst(), ParameterizedQueryExec.class);
+        assertNull(paramQuery.bulkLookupLeft());
+        assertNull(paramQuery.bulkLookupRight());
+    }
+
     private PhysicalPlan optimizeLookupPlan(String esql, SearchStats searchStats) {
         PhysicalPlan dataNodePlan = plannerOptimizer.plan(esql);
 

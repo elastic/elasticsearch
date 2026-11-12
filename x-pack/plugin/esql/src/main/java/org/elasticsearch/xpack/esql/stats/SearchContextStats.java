@@ -498,6 +498,27 @@ public class SearchContextStats implements SearchStats {
     }
 
     @Override
+    public boolean holdsValuesAsTerms(FieldName field) {
+        for (SearchExecutionContext context : contexts) {
+            if (holdsValuesAsTerms(context, field.string()) == false) {
+                return false;
+            }
+        }
+        return contexts.isEmpty() == false;
+    }
+
+    /**
+     * Whether the shard of {@code context} keeps each value of {@code field} as a term, exactly as written: an indexed
+     * {@code keyword} with no normalizer. A runtime field or a {@code keyword} with {@code index: false} has no terms, and a
+     * normalizer changes the value before indexing it, so a lookup that seeks values in the terms dictionary would miss them.
+     */
+    public static boolean holdsValuesAsTerms(SearchExecutionContext context, String field) {
+        return context.getFieldType(field) instanceof KeywordFieldMapper.KeywordFieldType keyword
+            && keyword.indexType().hasTerms()
+            && keyword.hasNormalizer() == false;
+    }
+
+    @Override
     public boolean hasValueQueries(FieldAttribute.FieldName name) {
         for (SearchExecutionContext ctx : contexts) {
             if (isNestedSubfield(ctx, name.string())) {

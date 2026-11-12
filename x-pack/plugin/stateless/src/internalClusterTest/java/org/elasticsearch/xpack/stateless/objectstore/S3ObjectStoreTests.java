@@ -473,7 +473,8 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             @Override
             public boolean intercept(HttpExchange exchange) throws IOException {
                 final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
-                // only commit uploads have a generation to parse below, let merge blob uploads through
+                // only BCC uploads have a generation to parse below, let merge blob uploads through
+                // TODO(szybia): also fail merge blob uploads once they are uploaded for real
                 if (request.contains("PUT") && request.contains("indices/") && request.contains(BatchedCompoundCommit.PREFIX)) {
                     // request format: /bucket/base_path/indices/UUID/0/1/stateless_commit_N?x-purpose=Indices for single part uploads,
                     // while for multi-part uploads: .../stateless_commit_N?uploadId=UUID&partNumber=N&x-purpose=Indices where the

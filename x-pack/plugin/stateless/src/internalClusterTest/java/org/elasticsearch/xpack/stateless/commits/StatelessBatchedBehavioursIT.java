@@ -151,8 +151,8 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessPluginIntegTe
         );
         try {
             assertBusy(() -> {
-                final Set<String> commitBlobFileNames = listCommitBlobNames(blobContainer);
-                assertThat(commitBlobFileNames, equalTo(Set.of(BatchedCompoundCommit.blobNameFromGeneration(generation))));
+                final Set<String> bccBlobNames = listBccBlobNames(blobContainer);
+                assertThat(bccBlobNames, equalTo(Set.of(BatchedCompoundCommit.blobNameFromGeneration(generation))));
             }, 30, TimeUnit.SECONDS);
         } catch (AssertionError e) {
             try {

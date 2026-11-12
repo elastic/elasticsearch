@@ -34,7 +34,7 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
     public static final String PREFIX = "stateless_commit_";
 
     /// Prefix of merge blobs (`stateless_merge_<gen>_<segment>_<discriminator>`). Nothing writes them yet; nodes must ignore them.
-    /// TODO(szybia): move to MergeBlobFile (#162535)
+    /// TODO(szybia): move to MergeBlobFile (#162535) along with startsWithMergeBlobPrefix.
     public static final String MERGE_BLOB_PREFIX = "stateless_merge_";
 
     public BatchedCompoundCommit {

@@ -25,6 +25,7 @@ import java.util.HexFormat;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -36,16 +37,27 @@ import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.ME
 /// Blobs are written when a shard starts, right after a BCC upload, and a few milliseconds after a BCC upload (by which point the shard
 /// may be closed or the index deleted, deliberately).
 ///
+/// State is static and cleared by [#reset()] before each test. With a cluster shared across tests (`Scope.SUITE`), a blob of an earlier
+/// test is either cleared by the reset or, if written after it, skipped by the presence check because its index has been deleted.
+///
 /// TODO(szybia): remove once merge blobs are uploaded for real
 public class MergeBlobInjector implements IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(MergeBlobInjector.class);
 
-    public record InjectedBlob(ShardId shardId, long primaryTerm, String blobName) {}
+    /// The content is derived from `seed` rather than kept on heap.
+    public record InjectedBlob(ShardId shardId, long primaryTerm, String blobName, long seed) {
+        public byte[] bytes() {
+            final var random = new Random(seed);
+            final byte[] bytes = new byte[random.nextInt(1, 4096)];
+            random.nextBytes(bytes);
+            return bytes;
+        }
+    }
 
     private enum Moment {
-        ON_START('s'),
-        AFTER_UPLOAD('u'),
+        AFTER_SHARD_STARTED('s'),
+        AFTER_BCC_UPLOAD('u'),
         LATER('l');
 
         private final char letter;
@@ -55,7 +67,7 @@ public class MergeBlobInjector implements IndexEventListener {
         }
     }
 
-    private static final Map<InjectedBlob, byte[]> INJECTED = new ConcurrentHashMap<>();
+    private static final Set<InjectedBlob> INJECTED = ConcurrentHashMap.newKeySet();
 
     // Primary term of each shard removed by a restore to fewer shards, at the time it was removed
     private static final Map<ShardId, Long> REMOVED_SHARDS = new ConcurrentHashMap<>();
@@ -65,13 +77,12 @@ public class MergeBlobInjector implements IndexEventListener {
         REMOVED_SHARDS.clear();
     }
 
-    /// Blobs injected since the last [#reset()] with the bytes written. A blob is registered before its write and unregistered if the
-    /// write throws, so every entry was written and must still be in the object store. Blobs of removed shards are left out.
-    public static Map<InjectedBlob, byte[]> injected() {
-        return INJECTED.entrySet()
-            .stream()
-            .filter(e -> e.getKey().primaryTerm() > REMOVED_SHARDS.getOrDefault(e.getKey().shardId(), 0L))
-            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+    /// Blobs injected since the last [#reset()]. A blob is registered before its write and unregistered if the write throws, so every
+    /// entry was written and must still be in the object store. Blobs of removed shards are left out.
+    public static Set<InjectedBlob> injected() {
+        return INJECTED.stream()
+            .filter(blob -> blob.primaryTerm() > REMOVED_SHARDS.getOrDefault(blob.shardId(), 0L))
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     /// Records the shards removed by a restore to fewer shards: the stale shard GC deletes every blob under them. The shard id can be
@@ -83,7 +94,7 @@ public class MergeBlobInjector implements IndexEventListener {
         for (var project : event.previousState().metadata().projects().values()) {
             for (IndexMetadata previous : project) {
                 final var current = event.state().metadata().findIndex(previous.getIndex());
-                if (current.isEmpty()) {
+                if (current.isEmpty() || current.get() == previous) {
                     continue;
                 }
                 for (int shard = current.get().getNumberOfShards(); shard < previous.getNumberOfShards(); shard++) {
@@ -118,7 +129,7 @@ public class MergeBlobInjector implements IndexEventListener {
         // will upload during a short test, so that listings see merge blobs "newer" than the latest commit.
         final long startGeneration = Randomness.get().nextLong(1, 1000);
         try {
-            threadPool.generic().execute(() -> inject(shardId, primaryTerm, Moment.ON_START, startGeneration));
+            threadPool.generic().execute(() -> inject(shardId, primaryTerm, Moment.AFTER_SHARD_STARTED, startGeneration));
             commitService.addConsumerForNewUploadedBcc(shardId, info -> onBccUploaded(shardId, info));
         } catch (Exception e) {
             // the node may be shutting down, or the shard's commit state already unregistered if the shard closed right after starting
@@ -134,7 +145,8 @@ public class MergeBlobInjector implements IndexEventListener {
             // below, equal to, or above the BCC generation, like a merge that started a few commits before it was first committed
             final long startGeneration = Math.max(1L, bccGeneration + (bccGeneration % 5) - 2);
             if (Randomness.get().nextBoolean()) {
-                threadPool.generic().execute(() -> inject(shardId, termAndGeneration.primaryTerm(), Moment.AFTER_UPLOAD, startGeneration));
+                threadPool.generic()
+                    .execute(() -> inject(shardId, termAndGeneration.primaryTerm(), Moment.AFTER_BCC_UPLOAD, startGeneration));
             } else {
                 threadPool.schedule(
                     () -> inject(shardId, termAndGeneration.primaryTerm(), Moment.LATER, startGeneration),
@@ -152,10 +164,9 @@ public class MergeBlobInjector implements IndexEventListener {
         // stateless_merge_<gen>_<segment>_<discriminator>: the segment is the moment letter plus the generation in base 36, never a '_'
         final String blobName = MERGE_BLOB_PREFIX + startGeneration + '_' + moment.letter + Long.toString(startGeneration, 36) + '_'
             + HexFormat.of().toHexDigits(random.nextLong());
-        final byte[] bytes = new byte[random.nextInt(1, 4096)];
-        random.nextBytes(bytes);
-        final var injectedBlob = new InjectedBlob(shardId, primaryTerm, blobName);
-        INJECTED.put(injectedBlob, bytes);
+        final var injectedBlob = new InjectedBlob(shardId, primaryTerm, blobName, random.nextLong());
+        final byte[] bytes = injectedBlob.bytes();
+        INJECTED.add(injectedBlob);
         try {
             shardBlobContainer.apply(shardId, primaryTerm).writeBlob(OperationPurpose.INDICES, blobName, new BytesArray(bytes), false);
             logger.debug("injected merge blob {} ({}, {} bytes)", injectedBlob, moment, bytes.length);

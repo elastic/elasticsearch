@@ -260,8 +260,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             final ClusterState state = internalCluster().clusterService().state();
             final List<String> problems = new ArrayList<>();
             // re-read on every attempt: a blob is registered before its write and unregistered if the write fails
-            for (var entry : MergeBlobInjector.injected().entrySet()) {
-                final var blob = entry.getKey();
+            for (var blob : MergeBlobInjector.injected()) {
                 final var indexMetadata = state.metadata().findIndex(blob.shardId().getIndex());
                 if (indexMetadata.isEmpty() || blob.shardId().id() >= indexMetadata.get().getNumberOfShards()) {
                     continue;
@@ -270,7 +269,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
                     InputStream in = objectStoreService.getProjectBlobContainer(blob.shardId(), blob.primaryTerm())
                         .readBlob(OperationPurpose.INDICES, blob.blobName())
                 ) {
-                    if (Arrays.equals(in.readAllBytes(), entry.getValue()) == false) {
+                    if (Arrays.equals(in.readAllBytes(), blob.bytes()) == false) {
                         problems.add(blob + " has different content");
                     }
                 } catch (Exception e) {
@@ -1247,21 +1246,21 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     }
 
     /**
-     * List all finalized commit blobs in the blob container, exclude any temporary commit blobs present for in-progress
+     * List all finalized BCC blobs in the blob container, exclude any temporary BCC blobs present for in-progress
      * atomic writes.
      *
      * @param blobContainer An BlobContainer that extends or delegates to a {@link FsBlobContainer}
-     * @return The list of finalized commit blobs in that container
+     * @return The list of finalized BCC blobs in that container
      */
-    protected Set<String> listCommitBlobsWithAbsolutePath(BlobContainer blobContainer) throws IOException {
+    protected Set<String> listBccBlobsWithAbsolutePath(BlobContainer blobContainer) throws IOException {
         var blobContainerPath = blobContainer.path().buildAsString();
-        return listCommitBlobNames(blobContainer).stream()
+        return listBccBlobNames(blobContainer).stream()
             .filter(blob -> FsBlobContainer.isTempBlobName(blob.substring(blob.lastIndexOf('/') + 1)) == false)
             .map(blob -> blobContainerPath + blob)
             .collect(Collectors.toSet());
     }
 
-    protected static Set<String> listCommitBlobNames(BlobContainer blobContainer) throws IOException {
+    protected static Set<String> listBccBlobNames(BlobContainer blobContainer) throws IOException {
         return blobContainer.listBlobs(operationPurpose)
             .keySet()
             .stream()

@@ -17,6 +17,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTests;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightIndexKey;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -31,10 +33,12 @@ import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fetch;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -214,12 +218,17 @@ public class PlanFetchTests extends ESTestCase {
     }
 
     /**
-     * A sort on a generated highlight column keeps {@code HIGHLIGHT} before the cut, so the plan stays eager.
+     * A sort on a generated highlight column keeps {@code HIGHLIGHT} before the cut, on the data nodes. The highlight
+     * crosses the exchange as a value and the other columns are fetched.
      */
-    public void testSortOnAHighlightKeepsThePlanEager() {
-        assertEager(
-            plan(books(), "FROM books | HIGHLIGHT \"ring\" ON title | SORT highlight_title | LIMIT 10 | KEEP book_no, highlight_title")
+    public void testHighlightBeforeTheCutRunsOnTheDataNodes() {
+        PhysicalPlan plan = plan(
+            books(),
+            "FROM books | HIGHLIGHT \"ring\" ON title | SORT highlight_title | LIMIT 10 | KEEP book_no, highlight_title"
         );
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("book_no")));
+        assertThat(names(fetch.child().output()), equalTo(List.of("_doc", "highlight_title")));
     }
 
     /**
@@ -322,6 +331,20 @@ public class PlanFetchTests extends ESTestCase {
     }
 
     /**
+     * With {@code AUTO}, a relation with one shard stays eager. Its data node cuts the rows down to the global winners,
+     * and node-level late materialization loads the deferred columns of those only.
+     */
+    public void testAutoKeepsASingleShardEager() {
+        String query = "FROM employees METADATA _source | SORT hire_date | LIMIT 10 | KEEP first_name, _source";
+        assertEager(plan(employeesWithShards(1), query, AUTO, configuration(Settings.EMPTY)));
+        assertThat(
+            "the same query over three shards gets the fetch phase",
+            plan(employeesWithShards(3), query, AUTO, configuration(Settings.EMPTY)).collect(FetchExec.class),
+            hasSize(1)
+        );
+    }
+
+    /**
      * The rule narrows the cut to the documents and the columns that cross as values, and fetches the rest above it.
      * Below the cut, the relation and every projection add {@code _doc}.
      */
@@ -339,27 +362,106 @@ public class PlanFetchTests extends ESTestCase {
 
     /** A plan the rule declines is returned as it came in, so the query plans exactly as without the fetch phase. */
     public void testDeclinedPlansAreUntouched() {
-        LogicalPlan eager = logicalPlan("FROM employees | SORT hire_date | LIMIT 10 | STATS m = MAX(salary)", DISABLED);
+        LogicalPlan eager = logicalPlan("FROM employees | STATS m = MAX(salary) BY hire_date | SORT m | LIMIT 10", DISABLED);
         assertThat(applyTo(eager), sameInstance(eager));
     }
 
-    /** Running the rule on its own output changes nothing: the fetch now runs after the cut. */
+    /** Running the rule on its own output changes nothing: a plan that already fetches is left as it is. */
     public void testRunningTwiceIsANoop() {
         LogicalPlan fetched = logicalPlan(BASIC, ALWAYS);
         assertThat(applyTo(fetched), sameInstance(fetched));
     }
 
-    public void testIneligibleShapes() {
-        // the optimizer puts the default LIMIT on top of the aggregation
-        assertEager(plan("FROM employees | SORT hire_date | LIMIT 10 | STATS m = MAX(salary)"));
+    /** An aggregation before the cut builds each row from several documents, so no row has one {@code _doc}. */
+    public void testAggregationBeforeTheCutKeepsThePlanEager() {
         assertEager(plan("FROM employees | STATS m = MAX(salary) BY hire_date | SORT m | LIMIT 10"));
-        assertEager(plan("FROM employees | SORT salary | LIMIT 100 | SORT hire_date | LIMIT 10 | KEEP first_name, hire_date"));
-        assertEager(plan("FROM employees | MV_EXPAND languages | SORT hire_date | LIMIT 10 | KEEP first_name, languages"));
+    }
+
+    /** Commands after the cut run on the coordinator over the rows the fetch completed, so they read fetched columns. */
+    public void testStatsAfterTheCutReadsTheFetchedColumns() {
+        PhysicalPlan plan = plan("FROM employees | SORT hire_date | LIMIT 10 | STATS m = MAX(salary)");
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("salary")));
+        assertThat(names(fetch.child().output()), equalTo(List.of("_doc", "hire_date")));
+    }
+
+    /**
+     * The fetch runs after the cut closest to the relation. A second cut after it runs on the coordinator over the fetched
+     * rows, so its sort key is fetched too.
+     */
+    public void testASecondCutRunsAfterTheFetch() {
+        PhysicalPlan plan = plan("FROM employees | SORT salary | LIMIT 100 | SORT hire_date | LIMIT 10 | KEEP first_name, hire_date");
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name", "hire_date")));
+        assertThat(names(fetch.child().output()), equalTo(List.of("_doc", "salary")));
+    }
+
+    /**
+     * {@code MV_EXPAND} before the cut repeats a row for each value, and every copy keeps the {@code _doc} of its
+     * document. The expanded column is computed on the data node, so it crosses the exchange as a value.
+     */
+    public void testMvExpandBeforeTheCut() {
+        PhysicalPlan plan = plan("FROM employees | MV_EXPAND languages | SORT hire_date | LIMIT 10 | KEEP first_name, languages");
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+        assertThat(names(fetch.child().output()), equalTo(List.of("_doc", "hire_date", "languages")));
+    }
+
+    /**
+     * A command before the cut runs on the data nodes. One that only runs on the coordinator splits the plan below the
+     * cut, so the plan stays eager.
+     */
+    public void testCoordinatorCommandBeforeTheCutKeepsThePlanEager() {
+        Attribute firstName = field("first_name", DataType.KEYWORD);
+        Attribute lastName = field("last_name", DataType.KEYWORD);
+        Attribute sort = field("sort", DataType.LONG);
+        EsRelation relation = relation(List.of(firstName, lastName, sort), Map.of("", List.of("idx")));
+        for (Enrich.Mode mode : Enrich.Mode.values()) {
+            Enrich enrich = enrich(relation, mode, firstName);
+            LogicalPlan plan = new Project(Source.EMPTY, topN(enrich, sort), List.of(lastName, enrich.output().getLast()));
+            LogicalPlan rewritten = applyTo(plan);
+            if (mode == Enrich.Mode.COORDINATOR) {
+                assertThat(rewritten, sameInstance(plan));
+            } else {
+                assertThat(mode.toString(), names(single(rewritten, Fetch.class).fetchedAttributes()), equalTo(List.of("last_name")));
+            }
+        }
+    }
+
+    /** A command after the cut runs on the coordinator. One that only runs on the data nodes keeps the plan eager. */
+    public void testRemoteCommandAfterTheCutKeepsThePlanEager() {
+        Attribute firstName = field("first_name", DataType.KEYWORD);
+        Attribute lastName = field("last_name", DataType.KEYWORD);
+        Attribute sort = field("sort", DataType.LONG);
+        EsRelation relation = relation(List.of(firstName, lastName, sort), Map.of("", List.of("idx")));
+        for (Enrich.Mode mode : Enrich.Mode.values()) {
+            Enrich enrich = enrich(topN(relation, sort), mode, firstName);
+            LogicalPlan plan = new Project(Source.EMPTY, enrich, List.of(lastName, enrich.output().getLast()));
+            LogicalPlan rewritten = applyTo(plan);
+            if (mode == Enrich.Mode.REMOTE) {
+                assertThat(rewritten, sameInstance(plan));
+            } else {
+                assertThat(mode.toString(), single(rewritten, Fetch.class).fetchedAttributes(), equalTo(List.of(firstName, lastName)));
+            }
+        }
     }
 
     public void testNoExchange() {
         assertEager(plan("ROW x = 1"));
         assertWarnings(DEFAULT_LIMIT_WARNING);
+    }
+
+    /**
+     * The rule names the document column {@code _doc}, so a query that names a column {@code _doc} keeps the plan eager
+     * instead of failing on the duplicate name, wherever the query defines it.
+     */
+    public void testAColumnNamedDocKeepsThePlanEager() {
+        assertEager(
+            plan("FROM employees METADATA _source | EVAL _doc = emp_no | SORT hire_date | LIMIT 10 | KEEP first_name, _doc, _source")
+        );
+        assertEager(
+            plan("FROM employees METADATA _source | SORT hire_date | LIMIT 10 | EVAL _doc = emp_no | KEEP first_name, _doc, _source")
+        );
     }
 
     public void testNothingToDefer() {
@@ -436,6 +538,14 @@ public class PlanFetchTests extends ESTestCase {
         return EsqlTestUtils.analyzer()
             .addIndex(EsIndexGenerator.esIndex("employees", mapping(), Map.of("employees", IndexMode.STANDARD)))
             .minimumTransportVersion(minimumVersion);
+    }
+
+    /** {@code employees} with a known number of shards. The other analyzers report 0, an unknown count. */
+    private static TestAnalyzer employeesWithShards(int shards) {
+        Map<String, IndexProperties> properties = Map.of("employees", new IndexProperties(IndexMode.STANDARD, shards));
+        return EsqlTestUtils.analyzer()
+            .addIndex(new EsIndex("employees", mapping(), properties, Map.of(), Map.of()))
+            .minimumTransportVersion(TransportVersion.current());
     }
 
     private static PhysicalPlan plan(TestAnalyzer analyzer, String query) {
@@ -539,20 +649,44 @@ public class PlanFetchTests extends ESTestCase {
      */
     private static LogicalPlan topNPlan(List<Attribute> returned, Map<String, List<String>> concreteIndices) {
         Attribute sort = field("sort", DataType.LONG);
-        List<Order> order = List.of(new Order(Source.EMPTY, sort, Order.OrderDirection.ASC, Order.NullsPosition.LAST));
         List<Attribute> relationOutput = new ArrayList<>(returned);
         relationOutput.add(sort);
-        EsRelation relation = new EsRelation(
+        return new Project(Source.EMPTY, topN(relation(relationOutput, concreteIndices), sort), returned);
+    }
+
+    private static EsRelation relation(List<Attribute> output, Map<String, List<String>> concreteIndices) {
+        return new EsRelation(
             Source.EMPTY,
             "idx",
             IndexMode.STANDARD,
             Map.of("", List.of("idx")),
             concreteIndices,
             Map.of("idx", new IndexProperties(IndexMode.STANDARD, 0)),
-            relationOutput
+            output
         );
-        TopN topN = new TopN(Source.EMPTY, relation, order, EsqlTestUtils.of(10), false);
-        return new Project(Source.EMPTY, topN, returned);
+    }
+
+    /** {@code SORT sort | LIMIT 10}, the cut the data nodes and the coordinator both apply. */
+    private static TopN topN(LogicalPlan child, Attribute sort) {
+        List<Order> order = List.of(new Order(Source.EMPTY, sort, Order.OrderDirection.ASC, Order.NullsPosition.LAST));
+        return new TopN(Source.EMPTY, child, order, EsqlTestUtils.of(10), false);
+    }
+
+    /**
+     * {@code ENRICH} in the given mode, built by hand because the analyzer rejects a remote {@code ENRICH} after a cut.
+     * It adds {@code language_name}, the last column of its output.
+     */
+    private static Enrich enrich(LogicalPlan child, Enrich.Mode mode, Attribute matchField) {
+        return new Enrich(
+            Source.EMPTY,
+            child,
+            mode,
+            Literal.keyword(Source.EMPTY, "languages"),
+            matchField,
+            new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("languages_idx"), "first_name", List.of("language_name")),
+            Map.of("", "languages_idx"),
+            List.of(field("language_name", DataType.KEYWORD))
+        );
     }
 
     private static FieldAttribute field(String name, DataType type) {

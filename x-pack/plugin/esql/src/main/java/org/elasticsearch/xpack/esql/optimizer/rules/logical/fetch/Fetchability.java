@@ -17,12 +17,10 @@ import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMa
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 
@@ -54,17 +52,16 @@ public final class Fetchability {
     );
 
     /**
-     * Field implementations that need nothing but the shard's mapping to load. Union types qualify because the per
-     * index conversion is chosen from the shard's mapping. Fields that may be unmapped do not: a per-node rule chooses
-     * between doc values and {@code _source} for them, and the fetch side does not run it.
+     * Field implementations that need nothing but the shard's mapping to load. Fields that may be unmapped do not
+     * qualify: a per-node rule chooses between doc values and {@code _source} for them, and the fetch side does not run
+     * it. Union types, {@code MultiTypeEsField} and {@code CompactMultiTypeEsField}, convert per index from the shard's
+     * mapping, so they should load the same way. They stay eager until tests cover that conversion on the fetch side.
      */
     private static final Set<Class<? extends EsField>> FETCHABLE_FIELDS = Set.of(
         EsField.class,
         KeywordEsField.class,
         TextEsField.class,
-        DateEsField.class,
-        MultiTypeEsField.class,
-        CompactMultiTypeEsField.class
+        DateEsField.class
     );
 
     private Fetchability() {}

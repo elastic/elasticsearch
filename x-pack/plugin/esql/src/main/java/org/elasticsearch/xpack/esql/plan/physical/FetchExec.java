@@ -7,15 +7,12 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,17 +24,10 @@ import java.util.Objects;
  * <p>
  * The child produces the rows: the coordinator half of the cut over the exchange, narrowed to the {@code _doc} of each
  * row and the columns that crossed the exchange as values. Those documents left the nodes that read them and carry
- * their origins, see
- * {@link DocVector#origins()}. Like {@link FieldExtractExec}, the output is the child's output followed by the fetched
- * columns, so the plan above this node doesn't change.
+ * their origins, see {@link DocVector#origins()}. Like {@link FieldExtractExec}, the output is the child's output
+ * followed by the fetched columns, so the plan above this node doesn't change. It doesn't escape the coordinator.
  */
 public final class FetchExec extends UnaryExec implements EstimatesRowSize {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        PhysicalPlan.class,
-        "FetchExec",
-        FetchExec::new
-    );
-
     private final Attribute doc;
     private final List<Attribute> fetchedAttributes;
     private final String indexPattern;
@@ -69,32 +59,14 @@ public final class FetchExec extends UnaryExec implements EstimatesRowSize {
         this.estimatedRowSize = estimatedRowSize;
     }
 
-    private FetchExec(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(PhysicalPlan.class),
-            in.readNamedWriteable(Attribute.class),
-            in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readString(),
-            in.readStringCollectionAsList(),
-            in.readOptionalVInt()
-        );
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeNamedWriteable(child());
-        out.writeNamedWriteable(doc);
-        out.writeNamedWriteableCollection(fetchedAttributes);
-        out.writeString(indexPattern);
-        out.writeStringCollection(originalIndices);
-        out.writeOptionalVInt(estimatedRowSize);
+        throw new UnsupportedOperationException("doesn't escape the coordinator node");
     }
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        throw new UnsupportedOperationException("doesn't escape the coordinator node");
     }
 
     public Attribute doc() {

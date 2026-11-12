@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -20,14 +19,17 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.plan.logical.DocPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Fetch;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -97,16 +99,14 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
             shape = paysOff(candidate);
         }
         return switch (shape) {
-            case Declined declined -> {
-                logger.debug("fetch phase not planned: {}", declined.reason());
-                yield plan;
-            }
-            case Candidate candidate -> {
-                LogicalPlan rewritten = rewrite(plan, candidate);
-                logger.debug("fetch phase planned: eager {}, deferred {}", candidate.demand().eager(), candidate.demand().deferred());
-                yield rewritten;
-            }
+            case Declined declined -> declined(plan, declined.reason());
+            case Candidate candidate -> rewrite(plan, candidate);
         };
+    }
+
+    private static LogicalPlan declined(LogicalPlan plan, String reason) {
+        logger.debug("fetch phase not planned: {}", reason);
+        return plan;
     }
 
     /**
@@ -131,25 +131,25 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
     /**
      * The plans the fetch phase supports. From the root down, the plan is one chain of commands over one relation:
      * <ol>
-     *     <li>only {@code KEEP}, {@code DROP}, {@code RENAME}, {@code EVAL}, {@code WHERE}, {@code LIMIT} and
-     *     {@code HIGHLIGHT} above the cut,</li>
+     *     <li>commands above the cut that can run on the coordinator, see {@link #isSupportedAfterCut},</li>
      *     <li>the cut, the {@code TopN} or {@code LIMIT} closest to the relation that isn't local,</li>
-     *     <li>only {@code WHERE}, {@code EVAL}, projections and local cuts between the cut and the relation,</li>
+     *     <li>commands between the cut and the relation that keep the document of each row and run on the data nodes,
+     *     see {@link #isSupportedBeforeCut},</li>
      *     <li>one {@code STANDARD} or {@code TIME_SERIES} relation, on the local cluster,</li>
+     *     <li>no column named {@code _doc}, the name of the document column the rule adds,</li>
      *     <li>at least one column the query only needs after the cut, and that can be fetched.</li>
      * </ol>
      * Nothing between the cut and the relation breaks the pipeline, so the mapper copies the cut to the data nodes and
-     * puts the only exchange of the plan right below the coordinator's copy.
-     * <p>
-     * The lists are deliberately short. Any other command keeps the plan eager, which is always correct, so a new
-     * command needs no change here. Adding a command to a list needs a reason why {@code _doc} still names the document
-     * of every row after it. Commands that duplicate rows, join them or build them from several documents need that
-     * reason one by one.
+     * puts the only exchange of the plan right below the coordinator's copy. A plan that already fetches is left as it
+     * is. Any other plan keeps loading its columns eagerly, which is always correct.
      */
     private static Shape shape(LogicalPlan plan) {
         List<UnaryPlan> chain = new ArrayList<>();
         LogicalPlan leaf = plan;
         while (leaf instanceof UnaryPlan unary) {
+            if (unary instanceof Fetch) {
+                return new Declined("the plan already fetches");
+            }
             chain.add(unary);
             leaf = unary.child();
         }
@@ -184,6 +184,9 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
         if (isLocal(relation) == false) {
             return new Declined("the relation reads a remote cluster");
         }
+        if (namesADocColumn(plan)) {
+            return new Declined("the query names a column [_doc]");
+        }
 
         UnaryPlan cut = chain.get(cutIndex);
         Demand demand = demand(plan, cut, relation);
@@ -202,6 +205,8 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
      *     <li>The cut must be a {@code TopN}. A data node stops reading after {@code LIMIT} rows, and without a
      *     filter the coordinator queries only a few nodes at a time, so an eager {@code LIMIT} loads few rows that the
      *     coordinator drops.</li>
+     *     <li>The relation must have more than one shard. The data node that holds a single shard cuts its rows down to
+     *     the global winners, and node-level late materialization already loads the deferred columns of those only.</li>
      *     <li>The fetch must defer {@code _source}. It is usually the largest column per row and the most expensive to
      *     load, stored or synthetic, so skipping it for the dropped rows is what pays for the round trip.</li>
      * </ul>
@@ -211,10 +216,25 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
         if (candidate.cut() instanceof TopN == false) {
             return new Declined("a [LIMIT] cut leaves too few dropped rows to pay for the fetch");
         }
+        if (hasOneShard(candidate.relation())) {
+            return new Declined("the relation has one shard, whose node loads the deferred columns of the winners only");
+        }
         if (candidate.demand().deferred().stream().noneMatch(attribute -> attribute.dataType() == DataType.SOURCE)) {
             return new Declined("the fetch defers no [_source], so it saves too little to pay for its round trip");
         }
         return candidate;
+    }
+
+    /** Whether the shards of the relation add up to one. An index that doesn't report its shards counts as 0, unknown. */
+    private static boolean hasOneShard(EsRelation relation) {
+        int shards = 0;
+        for (IndexProperties properties : relation.indexProperties().values()) {
+            if (properties.numberOfShards() <= 0) {
+                return false;
+            }
+            shards += properties.numberOfShards();
+        }
+        return shards == 1;
     }
 
     /**
@@ -225,9 +245,9 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
      *     <li>the relation produces it, so the document is enough to load it,</li>
      *     <li>{@link Fetchability#isFetchable} accepts it,</li>
      *     <li>the cut does not read it. A sort key crosses the exchange even when the query does not return it.</li>
-     *     <li>no {@link Eval} before the cut reads its values. The data node loads those for every row the {@code Eval}
-     *     sees, so the fetch would read them a second time. In {@code SORT a + 1 | LIMIT 10 | KEEP a}, the sort key is
-     *     an {@code Eval} of {@code a}, so {@code a} is eager.</li>
+     *     <li>no command before the cut reads its values. The data node loads those for every row the command sees, so
+     *     the fetch would read them a second time. In {@code SORT a + 1 | LIMIT 10 | KEEP a}, the sort key is an
+     *     {@code EVAL} of {@code a}, so {@code a} is eager.</li>
      * </ul>
      * Everything else stays eager, which keeps the fetch partial rather than all or nothing: {@code _score}, values
      * computed before the cut, and fields that may be unmapped all keep crossing as values. Renames are not followed: a
@@ -237,14 +257,14 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * @param cut  the cut, a command of {@code plan}
      */
     static Demand demand(LogicalPlan plan, UnaryPlan cut, EsRelation relation) {
-        AttributeSet readAfterTheCut = readAfter(plan, cut);
+        AttributeSet requiredAfterCut = requiredAfterCut(plan, cut);
         AttributeSet relationOutput = relation.outputSet();
         AttributeSet readByCut = cut.references();
-        AttributeSet loadedBeforeTheCut = loadedByEvals(cut.child());
+        AttributeSet loadedBeforeTheCut = loadedBeforeTheCut(cut.child());
         List<Attribute> eager = new ArrayList<>();
         List<Attribute> deferred = new ArrayList<>();
         for (Attribute attribute : cut.output()) {
-            if (readAfterTheCut.contains(attribute) == false && readByCut.contains(attribute) == false) {
+            if (requiredAfterCut.contains(attribute) == false && readByCut.contains(attribute) == false) {
                 continue;
             }
             boolean defer = relationOutput.contains(attribute)
@@ -256,27 +276,31 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
         return new Demand(List.copyOf(eager), List.copyOf(deferred));
     }
 
-    private static AttributeSet readAfter(LogicalPlan plan, UnaryPlan cut) {
-        AttributeSet.Builder read = AttributeSet.builder().addAll(plan.outputSet());
+    /** The columns the query returns, and the columns the commands above the cut read. */
+    private static AttributeSet requiredAfterCut(LogicalPlan plan, UnaryPlan cut) {
+        AttributeSet.Builder required = AttributeSet.builder().addAll(plan.outputSet());
         for (LogicalPlan node = plan; node != cut; node = ((UnaryPlan) node).child()) {
-            read.addAll(node.references());
+            required.addAll(node.references());
         }
-        return read.build();
+        return required.build();
     }
 
     /**
-     * The attributes whose values an {@link Eval} before the cut reads, so the data node loads them before the cut.
+     * The attributes whose values a command before the cut reads, so the data node loads them before the cut.
      * <p>
-     * A field passed straight to a function the loader may compute itself, like {@code LENGTH(message)}, doesn't count.
-     * The data node may load the length and never the message, and only the data node can tell. Filters don't count
-     * either: Lucene usually answers them without loading values. Where these guesses are wrong, the column is read
-     * twice, once before the cut and once by the fetch.
+     * Filters don't count: Lucene usually answers them without loading values. Projections don't count either: they only
+     * pass columns on. A field passed straight to a function the loader may compute itself, like {@code LENGTH(message)},
+     * doesn't count. The data node may load the length and never the message, and only the data node can tell. Where
+     * these guesses are wrong, the column is read twice, once before the cut and once by the fetch.
      */
-    private static AttributeSet loadedByEvals(LogicalPlan beforeTheCut) {
+    private static AttributeSet loadedBeforeTheCut(LogicalPlan beforeTheCut) {
         AttributeSet.Builder loaded = AttributeSet.builder();
-        beforeTheCut.forEachDown(Eval.class, eval -> {
-            for (Alias field : eval.fields()) {
-                collectValueReads(field.child(), loaded);
+        beforeTheCut.forEachDown(UnaryPlan.class, command -> {
+            if (command instanceof Filter || command instanceof Project) {
+                return;
+            }
+            for (Expression expression : command.expressions()) {
+                collectValueReads(expression, loaded);
             }
         });
         return loaded.build();
@@ -302,28 +326,36 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
     }
 
     /**
-     * The fetch runs right above the cut, so everything after it sees the fetched columns. A {@code LIMIT} after the cut
-     * only drops more rows. It shows up above a {@code WHERE} that follows the cut, because the implicit limit of the
-     * query cannot move below a {@code WHERE}.
-     * <p>
-     * {@code HIGHLIGHT} appends one column per field it highlights, computed from the values of the row alone, so it
-     * highlights the fetched text of the winners. The optimizer moves a sort and a limit below it unless the sort reads
-     * a generated highlight column, so it usually follows the cut.
+     * The fetch runs right above the cut, and every command after it runs on the coordinator over the rows the fetch
+     * completed, so any command can follow. A command that only runs on the data nodes can't follow a cut.
      */
-    private static boolean isSupportedAfterCut(LogicalPlan node) {
-        return node instanceof Project
-            || node instanceof Eval
-            || node instanceof Filter
-            || node instanceof Limit
-            || node instanceof Highlight;
+    private static boolean isSupportedAfterCut(LogicalPlan command) {
+        return (command instanceof ExecutesOn executesOn && executesOn.executesOn() == ExecuteLocation.REMOTE) == false;
     }
 
-    private static boolean isSupportedBeforeCut(LogicalPlan node) {
-        return node instanceof Filter
-            || node instanceof Eval
-            || node instanceof Project
-            || (node instanceof Limit limit && limit.local())
-            || (node instanceof TopN topN && topN.local());
+    /**
+     * A command before the cut runs on the data nodes, where {@code _doc} names the document of each row. It must keep
+     * that tie, see {@link DocPreserving}. {@code MV_EXPAND} repeats a row for each value, and every copy keeps the
+     * {@code _doc} of its document. The mapper must also send the command to the data nodes with the relation, see
+     * {@code Mapper#mapUnary}: not a command that only runs on the coordinator, and no pipeline breaker but the local
+     * cuts the optimizer copies there.
+     */
+    private static boolean isSupportedBeforeCut(LogicalPlan command) {
+        if (command instanceof ExecutesOn executesOn && executesOn.executesOn() == ExecuteLocation.COORDINATOR) {
+            return false;
+        }
+        if (command instanceof DocPreserving == false) {
+            return false;
+        }
+        return command instanceof PipelineBreaker == false
+            || (command instanceof Limit limit && limit.local())
+            || (command instanceof TopN topN && topN.local());
+    }
+
+    /** The rule adds a column named {@code _doc}. A column of the query with the same name would clash with it. */
+    private static boolean namesADocColumn(LogicalPlan plan) {
+        String docName = EsQueryExec.DOC_ID_FIELD.getName();
+        return plan.anyMatch(node -> node.output().stream().anyMatch(attribute -> attribute.name().equals(docName)));
     }
 
     private static boolean isLocal(EsRelation relation) {
@@ -351,6 +383,10 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
             projections.addAll(project.projections());
             return project.withProjections(projections);
         });
+        if (beforeTheCut.outputSet().contains(doc) == false) {
+            assert false : "a command before the cut drops [_doc]: " + beforeTheCut;
+            return declined(plan, "a command before the cut drops [_doc]");
+        }
 
         // nothing above the narrowed cut reads the deferred columns from it, so they don't cross the exchange
         Project narrowed = new Project(
@@ -372,6 +408,7 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
         if (sameIds(rewritten.output(), plan.output()) == false) {
             rewritten = new Project(plan.source(), rewritten, plan.output());
         }
+        logger.debug("fetch phase planned: eager {}, deferred {}", candidate.demand().eager(), candidate.demand().deferred());
         return rewritten;
     }
 

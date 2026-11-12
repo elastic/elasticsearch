@@ -69,6 +69,16 @@ public class PlanFetchDemandTests extends ESTestCase {
         assertThat("deferred", names(demand.deferred()), equalTo(List.of("b")));
     }
 
+    /** Any command before the cut that reads a column loads it on the data node, not only {@code EVAL}. */
+    public void testColumnADissectBeforeTheCutReadsStaysEager() {
+        assertDemand("FROM idx | DISSECT b \"%{p} %{q}\" | SORT p | LIMIT 10 | KEEP b, q, a", List.of("b", "p", "q"), List.of("a"));
+    }
+
+    /** {@code MV_EXPAND} before the cut computes the expanded column on the data node, so it crosses as a value. */
+    public void testExpandedColumnStaysEager() {
+        assertDemand("FROM idx | MV_EXPAND b | SORT ts | LIMIT 10 | KEEP a, b", List.of("b", "ts"), List.of("a"));
+    }
+
     /**
      * The loader may compute {@code LENGTH(b)} itself and never read {@code b}, so {@code b} is still fetched.
      */

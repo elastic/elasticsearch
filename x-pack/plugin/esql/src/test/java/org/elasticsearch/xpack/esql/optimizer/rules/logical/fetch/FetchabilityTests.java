@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -40,8 +41,12 @@ public class FetchabilityTests extends ESTestCase {
         assertFetchable(field(DateEsField.dateEsField("f", Map.of(), true, EsField.TimeSeriesFieldType.NONE)));
     }
 
-    public void testUnionTypesAreFetchable() {
-        assertFetchable(field(new MultiTypeEsField("f", DataType.DATE_NANOS, true, Map.of(), EsField.TimeSeriesFieldType.NONE, null)));
+    /** Union types stay eager until tests cover their per index conversion on the fetch side. */
+    public void testUnionTypesAreNotFetchable() {
+        assertNotFetchable(field(new MultiTypeEsField("f", DataType.DATE_NANOS, true, Map.of(), EsField.TimeSeriesFieldType.NONE, null)));
+        assertNotFetchable(
+            field(new CompactMultiTypeEsField("f", DataType.DATE_NANOS, true, Map.of(), EsField.TimeSeriesFieldType.NONE, null))
+        );
     }
 
     public void testFieldsWithoutAMappingAreNotFetchable() {

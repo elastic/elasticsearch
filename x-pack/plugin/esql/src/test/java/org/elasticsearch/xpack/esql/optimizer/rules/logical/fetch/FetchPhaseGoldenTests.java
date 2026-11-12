@@ -108,6 +108,28 @@ public class FetchPhaseGoldenTests extends GoldenTestCase {
             """, EsqlTestUtils.TEST_SEARCH_STATS);
     }
 
+    /** MV_EXPAND before the cut runs on the data node. The expanded column crosses the exchange as a value. */
+    public void testMvExpandBeforeTheCut() {
+        runBoth("""
+            FROM employees
+            | MV_EXPAND job_positions
+            | SORT hire_date
+            | LIMIT 10
+            | KEEP first_name, job_positions
+            """, EsqlTestUtils.TEST_SEARCH_STATS);
+    }
+
+    /** DISSECT before the cut reads its input on the data node, so the input crosses the exchange as a value too. */
+    public void testDissectBeforeTheCut() {
+        runBoth("""
+            FROM employees
+            | DISSECT first_name "%{name}"
+            | SORT name
+            | LIMIT 10
+            | KEEP first_name, name, last_name
+            """, EsqlTestUtils.TEST_SEARCH_STATS);
+    }
+
     /** WHERE and EVAL after the cut run on the coordinator over the fetched columns. */
     public void testWhereAndEvalAfterTheCut() {
         runBoth("""

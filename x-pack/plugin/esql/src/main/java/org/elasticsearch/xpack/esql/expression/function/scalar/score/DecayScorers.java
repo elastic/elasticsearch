@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.score.Decay.Decay
 /**
  * Scorers for {@link Decay}, built once per query from its constant arguments, so scoring a row does no parsing.
  * Each scorer holds only primitives, so it is immutable and shared by every driver running the query.
+ * The {@code score} methods must not throw: the {@link Decay} evaluators declare no {@code warnExceptions},
+ * so an exception would fail the query instead of turning the row into {@code null} with a warning.
  */
 final class DecayScorers {
 

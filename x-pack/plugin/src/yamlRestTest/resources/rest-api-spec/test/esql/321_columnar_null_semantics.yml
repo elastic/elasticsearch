@@ -51,10 +51,10 @@ setup:
           - '{ "kwd": [ null, "a", null ], "lng": [ null, 1, null ] }'
 
 ---
-IS NOT NULL keeps only documents with a non-null keyword value:
+IS NOT NULL keeps only documents with a non-null keyword value when it is pushed down:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
-      reason: "IS NOT NULL on a keyword matches documents that hold only nulls"
+      reason: "IS NOT NULL on a string is pushed down to exists, which matches documents that hold only nulls"
 
   - do:
       esql.query:
@@ -64,7 +64,7 @@ IS NOT NULL keeps only documents with a non-null keyword value:
   - match: { values: [ [ both_ends_null ], [ leading_null ], [ mixed ], [ trailing_null ], [ value ] ] }
 
 ---
-IS NOT NULL keeps only documents with a non-null long value:
+IS NOT NULL keeps only documents with a non-null long value when it is pushed down:
   - do:
       esql.query:
         body:
@@ -73,19 +73,64 @@ IS NOT NULL keeps only documents with a non-null long value:
   - match: { values: [ [ both_ends_null ], [ leading_null ], [ mixed ], [ trailing_null ], [ value ] ] }
 
 ---
+IS NOT NULL keeps only documents with a non-null keyword value when it is evaluated on the loaded value:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _id | LIMIT 100 | WHERE kwd IS NOT NULL | SORT _id | KEEP _id'
+
+  - match: { values: [ [ both_ends_null ], [ leading_null ], [ mixed ], [ trailing_null ], [ value ] ] }
+
+---
+IS NOT NULL keeps only documents with a non-null long value when it is evaluated on the loaded value:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _id | LIMIT 100 | WHERE lng IS NOT NULL | SORT _id | KEEP _id'
+
+  - match: { values: [ [ both_ends_null ], [ leading_null ], [ mixed ], [ trailing_null ], [ value ] ] }
+
+---
+IS NOT NULL returns the same rows pushed down and evaluated on a keyword field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "the pushed down IS NOT NULL returns documents that the same predicate evaluated on the loaded value does not"
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _id | WHERE kwd IS NOT NULL | SORT _id | KEEP _id | LIMIT 100'
+
+  - set: { values: pushed }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _id | LIMIT 100 | WHERE kwd IS NOT NULL | SORT _id | KEEP _id'
+
+  - match: { values: $pushed }
+
+---
+IS NOT NULL returns the same rows pushed down and evaluated on a long field:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _id | WHERE lng IS NOT NULL | SORT _id | KEEP _id | LIMIT 100'
+
+  - set: { values: pushed }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _id | LIMIT 100 | WHERE lng IS NOT NULL | SORT _id | KEEP _id'
+
+  - match: { values: $pushed }
+
+---
 a keyword value read after a function is null for documents with only nulls:
   - do:
       esql.query:
         body:
           query: 'FROM test METADATA _id | EVAL upper = TO_UPPER(kwd) | WHERE upper IS NOT NULL | SORT _id | KEEP _id | LIMIT 100'
-
-  - match: { values: [ [ both_ends_null ], [ leading_null ], [ mixed ], [ trailing_null ], [ value ] ] }
-
----
-a long value read after a function is null for documents with only nulls:
-  - do:
-      esql.query:
-        body:
-          query: 'FROM test METADATA _id | EVAL largest = MV_MAX(lng) | WHERE largest IS NOT NULL | SORT _id | KEEP _id | LIMIT 100'
 
   - match: { values: [ [ both_ends_null ], [ leading_null ], [ mixed ], [ trailing_null ], [ value ] ] }

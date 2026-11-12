@@ -66,7 +66,8 @@ public class PromqlPlanVectorBinaryOperatorV2Tests extends AbstractPromqlPlanOpt
     /** {@code group_left(...)} writes the included labels of the one side into the many side's labels. */
     public void testGroupLeftWritesTheIncludedLabels() {
         LogicalPlan plan = planPromqlV2(
-            "PROMQL index=k8s step=1h sum by (pod, cluster) (network.bytes_in) * on (pod) group_left (region) sum by (pod, region) (network.cost)",
+            "PROMQL index=k8s step=1h sum by (pod, cluster) (network.bytes_in)"
+                + " * on (pod) group_left (region) sum by (pod, region) (network.cost)",
             false
         );
 

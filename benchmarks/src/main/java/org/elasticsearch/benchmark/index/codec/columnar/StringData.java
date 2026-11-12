@@ -198,6 +198,28 @@ public enum StringData {
     },
 
     /**
+     * A host name on an index sorted by it, descending: the values of {@link #SORTED_HOSTNAME} in reverse term
+     * order. Each host holds a long run, so a chunk is often wholly inside a range.
+     */
+    DESCENDING_HOSTNAME {
+        @Override
+        boolean ordered() {
+            return true;
+        }
+
+        @Override
+        BytesRef[] generate(int count, Random random) {
+            final BytesRef[] values = SORTED_HOSTNAME.generate(count, random);
+            for (int i = 0, j = count - 1; i < j; i++, j--) {
+                final BytesRef swap = values[i];
+                values[i] = values[j];
+                values[j] = swap;
+            }
+            return values;
+        }
+    },
+
+    /**
      * A pod name on an index sorted by it: the same large vocabulary as {@link #POD_NAME}, in term order,
      * each name in one run. A vocabulary this large is beyond what a bounded dictionary can hold, so the
      * column stays plain — but the values arrive in runs, which is the shape both the compressor and the

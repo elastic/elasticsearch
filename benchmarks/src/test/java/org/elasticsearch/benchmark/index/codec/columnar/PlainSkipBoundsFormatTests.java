@@ -48,6 +48,9 @@ public class PlainSkipBoundsFormatTests extends ESTestCase {
         for (StringData data : new StringData[] {
             StringData.SORTED_POD_NAME,
             StringData.DESCENDING_POD_NAME,
+            StringData.SORTED_HOSTNAME,
+            StringData.DESCENDING_HOSTNAME,
+            StringData.CLUSTERED_POD_NAME,
             StringData.SHUFFLED_POD_NAME,
             StringData.TRACE_ID }) {
             final BytesRef[] values = data.generate(DOCS, new Random(randomLong()));
@@ -83,6 +86,9 @@ public class PlainSkipBoundsFormatTests extends ESTestCase {
             assertEquals(label + " range", range, bounded.queryRange(sorted[low], sorted[high]));
 
             final BytesRef value = sorted[between(0, sorted.length - 1)];
+            final long term = plain.queryTerm(value);
+            assertThat(label + " term", term, greaterThan(0L));
+            assertEquals(label + " term", term, bounded.queryTerm(value));
             final BytesRef prefix = new BytesRef(value.bytes, value.offset, between(1, value.length));
             assertEquals(label + " prefix", plain.queryPrefix(prefix), bounded.queryPrefix(prefix));
 

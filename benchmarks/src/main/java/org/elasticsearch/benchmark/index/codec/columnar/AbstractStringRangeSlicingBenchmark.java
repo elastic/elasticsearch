@@ -63,9 +63,9 @@ public abstract class AbstractStringRangeSlicingBenchmark {
 
     private Path path;
     private Directory directory;
-    private StringFormat.Column column;
-    private BytesRef lower;
-    private BytesRef upper;
+    StringFormat.Column column;
+    BytesRef lower;
+    BytesRef upper;
     private final Random random;
 
     public AbstractStringRangeSlicingBenchmark() {

@@ -80,7 +80,6 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
         return planPromql(withPromqlTranslationV2(tsAnalyzer()), query, false, optimize);
     }
 
-    /** {@code analyzer} translating PromQL over a label container, see {@link QueryPragmas#ENABLE_PROMQL_TRANSLATION_V2}. */
     /**
      * The labels each view of the source's series in {@code collapse} leaves out, sorted: the typed label container's
      * {@link TimeSeriesWithout}, or the keyword {@code _timeseries} it is lowered to where a node before 9.7 takes part.
@@ -99,6 +98,7 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
         return views;
     }
 
+    /** {@code analyzer} translating PromQL over a label container, see {@link QueryPragmas#ENABLE_PROMQL_TRANSLATION_V2}. */
     protected static TestAnalyzer withPromqlTranslationV2(TestAnalyzer analyzer) {
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.ENABLE_PROMQL_TRANSLATION_V2.getKey(), true).build());
         return analyzer.configuration(EsqlTestUtils.configuration(pragmas));

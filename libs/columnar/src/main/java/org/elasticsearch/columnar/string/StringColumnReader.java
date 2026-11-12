@@ -542,7 +542,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         }
         final int count = meta.numDocsWithField();
         final BytesRef target = exact != null ? exact : prefix;
-        final int first = firstAtLeast(target, Math.max(from, windows.startLow()), windows.startHigh());
+        final int first = firstAtLeast(target, Math.max(from, windows.startLow()), windows.startHigh(), from > 0);
         // NOTE: an empty range still reports where the search stopped, which bounds the next target below.
         if (first == count || matches(valueAt(first), prefix, exact) == false) {
             return new RankRange(first, first);
@@ -625,7 +625,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         if (lower == null) {
             from = 0;
         } else {
-            from = firstAtLeast(lower, windows.startLow(), windows.startHigh());
+            from = firstAtLeast(lower, windows.startLow(), windows.startHigh(), false);
             if (includeLower == false && from < count && valueAt(from).compareTo(lower) == 0) {
                 int lo = from;
                 int hi = windows.startHigh();
@@ -712,14 +712,15 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     /**
      * The first rank at or after {@code from} whose value sorts at or after {@code target}. Doubling the step
      * before bisecting the bracket costs reads proportional to the distance rather than to the column, and
-     * keeps them close enough together to share a decoded block.
+     * keeps them close enough together to share a decoded block. A search confined to a chunk window starts at
+     * its low end without a cursor to carry, and bisects it.
      */
-    private int firstAtLeast(BytesRef target, int from, int count) throws IOException {
+    private int firstAtLeast(BytesRef target, int from, int count, boolean carriedCursor) throws IOException {
         int lo = from;
         int hi = count;
         // NOTE: doubling only pays while the target is near `from`, which is so for a cursor carried across
         // ascending targets and not for a lone bound that can sit anywhere.
-        if (from > 0) {
+        if (carriedCursor) {
             long step = 1;
             hi = (int) Math.min(from + step, count);
             while (hi < count && valueAt(hi).compareTo(target) < 0) {

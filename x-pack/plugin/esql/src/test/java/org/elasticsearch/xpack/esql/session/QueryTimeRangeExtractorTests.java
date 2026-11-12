@@ -298,8 +298,19 @@ public class QueryTimeRangeExtractorTests extends ESTestCase {
             "MV_EXPAND @timestamp",
             "LOOKUP JOIN lookup_index ON level",
             "ENRICH policy ON level",
-            "GROK message \"%{WORD:level}\"" }) {
+            "GROK message \"%{WORD:@timestamp}\"",
+            "DISSECT message \"%{@timestamp} %{rest}\"" }) {
             assertRanges("FROM logs | " + command + " | WHERE @timestamp >= \"2024-05-01T00:00:00Z\"", Map.of("logs", TimeRange.UNBOUNDED));
+        }
+    }
+
+    /** The commands that extract columns from a string keep the range, unless they extract the timestamp. */
+    public void testExtractingCommandsKeepTheRange() {
+        for (String command : new String[] { "GROK message \"%{WORD:level}\"", "DISSECT message \"%{level} %{rest}\"" }) {
+            assertRanges(
+                "FROM logs | " + command + " | WHERE @timestamp >= \"2024-05-01T00:00:00Z\"",
+                Map.of("logs", new TimeRange(T1, null))
+            );
         }
     }
 
@@ -414,28 +425,19 @@ public class QueryTimeRangeExtractorTests extends ESTestCase {
         assertRanges("PROMQL index=metrics " + query, Map.of("metrics", new TimeRange(from, to)));
     }
 
-    /**
-     * The walk of the plan is capped. A plan beyond the cap gets no range for any pattern, including those that the walk did
-     * reach: a pattern may be read again, without a time range, by the part of the plan that was not walked.
-     */
-    public void testPlanBeyondCallLimit() {
+    /** Neither the walk of the plan nor that of a condition is capped: long plans and conditions keep their range. */
+    public void testLongPlansAndConditions() {
         String filtered = "FROM logs | WHERE @timestamp >= \"2024-05-01T00:00:00Z\"";
-        assertRanges(filtered + " | EVAL a = 1".repeat(50), Map.of("logs", new TimeRange(T1, null)));
-        assertRanges(filtered + " | EVAL a = 1".repeat(100), Map.of());
+        assertRanges(filtered + " | EVAL a = 1".repeat(200), Map.of("logs", new TimeRange(T1, null)));
         assertRanges(
-            "FROM (" + filtered + "), (FROM logs" + " | EVAL a = 1".repeat(100) + ") | WHERE @timestamp >= \"2024-05-02T00:00:00Z\"",
-            Map.of()
+            "FROM (" + filtered + "), (FROM logs" + " | EVAL a = 1".repeat(200) + ") | WHERE @timestamp >= \"2024-05-02T00:00:00Z\"",
+            Map.of("logs", new TimeRange(T1 + Duration.ofDays(1).toMillis(), null))
         );
-    }
-
-    /** The walk of a condition is capped as well. What is left of the condition by then is taken to allow any time. */
-    public void testConditionBeyondCallLimit() {
         String others = " AND level == \"error\"".repeat(200);
-        assertRange("@timestamp >= \"2024-05-01T00:00:00Z\"" + " AND level == \"error\"".repeat(20), T1, null);
-        assertRange("@timestamp >= \"2024-05-01T00:00:00Z\"" + others, null, null);
-        // The side of the disjunction that is not walked to its end must not leave the other side to bound the range.
-        assertRange("@timestamp >= \"2024-05-02T00:00:00Z\" OR (@timestamp >= \"2024-05-01T00:00:00Z\"" + others + ")", null, null);
-        assertRange("@timestamp >= \"2024-05-01T00:00:00Z\"" + " - 1 millisecond + 1 millisecond".repeat(100), null, null);
+        assertRange("@timestamp >= \"2024-05-01T00:00:00Z\"" + others, T1, null);
+        assertRange("level == \"error\"" + others + " AND @timestamp >= \"2024-05-01T00:00:00Z\"", T1, null);
+        assertRange("@timestamp >= \"2024-05-02T00:00:00Z\" OR (@timestamp >= \"2024-05-01T00:00:00Z\"" + others + ")", T1, null);
+        assertRange("@timestamp >= \"2024-05-01T00:00:00Z\"" + " - 1 millisecond + 1 millisecond".repeat(100), T1, null);
     }
 
     /** The upper end is sent as the exclusive start of the next millisecond, which keeps the nanoseconds within the last one. */

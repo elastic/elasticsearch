@@ -77,7 +77,6 @@ import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
@@ -1926,10 +1925,8 @@ public class EsqlSession {
             BoundSemantics.RANGE_QUERY
         );
         // The time range that the query itself restricts each index pattern to prunes index resolution like the request filter
-        // does. A request filter that filters on time itself is taken to say what there is to say about it.
-        Map<IndexPattern, QueryBuilder> queryTimeFilters = filtersOnTimestamp(requestFilter, configuration)
-            ? Map.of()
-            : queryTimeFilters(parsed, unmappedResolution, viewSettings, configuration);
+        // does, and next to it: both must match, and the query is often narrower than the time picker.
+        Map<IndexPattern, QueryBuilder> queryTimeFilters = queryTimeFilters(parsed, unmappedResolution, viewSettings, configuration);
         String description = requestFilter == null && queryTimeFilters.isEmpty()
             ? "the only attempt without filter"
             : "first attempt with filter";
@@ -1960,17 +1957,6 @@ public class EsqlSession {
             result,
             logicalPlanListener
         );
-    }
-
-    /**
-     * Whether the request filter references {@code @timestamp}. The time range of the query is then not extracted.
-     */
-    static boolean filtersOnTimestamp(@Nullable QueryBuilder requestFilter, Configuration configuration) {
-        if (requestFilter == null) {
-            return false;
-        }
-        QueryDslFieldNameExtractor.Result referenced = QueryDslFieldNameExtractor.extract(requestFilter, configuration);
-        return referenced.requiresAllFields() || referenced.fieldNames().contains(MetadataAttribute.TIMESTAMP_FIELD);
     }
 
     /**
@@ -3263,7 +3249,10 @@ public class EsqlSession {
             // The analysis of a pattern without indices does not fail on its own when unmapped fields are nullified, as they are
             // for PromQL. It would succeed with the columns of no index at all.
             LOGGER.debug("The time range of the query matches no index of a pattern ({})", description);
-            retryWithoutFilter(
+            // Only the time range goes. The request filter stays, so that the query resolves the indices that it did before
+            // queries had a time range to go by.
+            retryWithFilter(
+                requestFilter,
                 parsed,
                 unmappedResolution,
                 viewSettings,
@@ -3316,7 +3305,8 @@ public class EsqlSession {
                 listener.onFailure(ve);
             } else {
                 // retrying the index resolution without index filtering.
-                retryWithoutFilter(
+                retryWithFilter(
+                    null,
                     parsed,
                     unmappedResolution,
                     viewSettings,
@@ -3337,7 +3327,7 @@ public class EsqlSession {
 
     /**
      * Whether the time range of the query left one of its index patterns without any index. The indices are then resolved
-     * again without filters, so that the query sees the mapping it would have seen without the time range.
+     * again without the range, so that the query sees the mapping it would have seen without it.
      */
     private static boolean leftPatternWithoutIndices(Map<IndexPattern, QueryBuilder> queryTimeFilters, PreAnalysisResult result) {
         for (IndexPattern pattern : queryTimeFilters.keySet()) {
@@ -3350,9 +3340,11 @@ public class EsqlSession {
     }
 
     /**
-     * Resolves the indices again without any index filtering, and analyzes the plan with what they resolve to.
+     * Resolves the indices again with the given request filter only, {@code null} for no index filtering at all, and analyzes
+     * the plan with what they resolve to. The time range of the query is not used again.
      */
-    private void retryWithoutFilter(
+    private void retryWithFilter(
+        @Nullable QueryBuilder requestFilter,
         LogicalPlan parsed,
         UnmappedResolution unmappedResolution,
         Map<String, ViewQuerySettings> viewSettings,
@@ -3372,8 +3364,8 @@ public class EsqlSession {
             viewSettings,
             configuration,
             executionInfo,
-            "second attempt, without filter",
-            null,
+            requestFilter == null ? "second attempt, without filter" : "second attempt, without the time range of the query",
+            requestFilter,
             Map.of(),
             timestampBounds,
             listingBounds,

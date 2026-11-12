@@ -191,30 +191,18 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
     }
 
     /**
-     * A request filter that has a time range of its own is the only one to filter index resolution, whatever the time range
-     * of the query is, and whatever else the request filter holds.
+     * A request filter that has a time range of its own is combined with the time range of the query like any other: both
+     * must match, and the query is often narrower than the time picker.
      */
-    public void testTimeRangeOfQueryNotUsedWhenRequestFilterHasOne() {
+    public void testTimeRangeOfQueryNarrowsRequestFilterWithTimeRange() {
         QueryBuilder requestRange = QueryBuilders.rangeQuery("@timestamp").gte("2024-04-01T00:00:00Z").lte("2024-06-01T00:00:00Z");
         analyze("FROM logs-*" + TIME_RANGE, requestRange);
-        assertThat(indexFilters, contains(requestRange));
-
-        indexFilters.clear();
-        QueryBuilder oneSided = QueryBuilders.rangeQuery("@timestamp").gte("now-1d");
-        analyze("FROM logs-*" + TIME_RANGE, oneSided);
-        assertThat(indexFilters, contains(oneSided));
+        assertThat(indexFilters, contains(new BoolQueryBuilder().filter(requestRange).filter(TIME_FILTER)));
 
         indexFilters.clear();
         QueryBuilder nested = new BoolQueryBuilder().filter(REQUEST_FILTER).filter(requestRange);
         analyze("FROM logs-*" + TIME_RANGE, nested);
-        assertThat(indexFilters, contains(nested));
-    }
-
-    /** With a time range in the request filter, the query is tried again without that filter only, as it was before. */
-    public void testRetryWhenRequestFilterHasTimeRange() {
-        QueryBuilder requestRange = QueryBuilders.rangeQuery("@timestamp").gte("2024-04-01T00:00:00Z");
-        assertThat(columns(analyze("FROM logs-*" + TIME_RANGE + " | KEEP old_only", requestRange)), contains("old_only"));
-        assertThat(indexFilters, contains(requestRange, null));
+        assertThat(indexFilters, contains(new BoolQueryBuilder().filter(nested).filter(TIME_FILTER)));
     }
 
     /** A filter that the query applies after a LIMIT is not one on the rows of the index. */
@@ -236,11 +224,14 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
         assertThat(columns, hasItem("old_only"));
     }
 
-    /** The retry drops the request filter along with the time range of the query. */
-    public void testRetryWhenTimeRangeLeavesNoIndexDropsRequestFilter() {
+    /**
+     * The request filter stays when the time range of the query leaves no index: the query then resolves the indices of the
+     * request filter, as it did before queries had a time range to go by.
+     */
+    public void testRetryWhenTimeRangeLeavesNoIndexKeepsRequestFilter() {
         matchingIndices = filter -> boundsTimestamp(filter) ? List.of() : List.of(RECENT, OLD);
         analyze("FROM logs-*" + TIME_RANGE, REQUEST_FILTER);
-        assertThat(indexFilters, contains(new BoolQueryBuilder().filter(REQUEST_FILTER).filter(TIME_FILTER), null));
+        assertThat(indexFilters, contains(new BoolQueryBuilder().filter(REQUEST_FILTER).filter(TIME_FILTER), REQUEST_FILTER));
     }
 
     /** A field that only the pruned index maps fails the analysis, which is tried again without the time range. */

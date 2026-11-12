@@ -60,9 +60,9 @@ import static org.hamcrest.Matchers.equalTo;
  * sequentially, and {@code batch=true} sets {@code index.batch_indexing} so the documents go through the ESCF batch path (skipped
  * when the {@code batch_indexing} feature flag is off). On the batch path a dense DOUBLE column keeps a scalar floating-point
  * number's spelling next to its value whenever the spelling is not the canonical {@code Double.toString} rendering, so the keyword
- * terms match the sequential path. Two known limitations of the batch path are skipped rather than failed: the stored source is
- * rebuilt from the value, so the spelling and the float32 width are lost there and an integer larger than a long comes back as a
- * string.
+ * terms match the sequential path, and a rebuilt JSON source keeps it too. Known limitations of the batch path are skipped rather
+ * than failed: a binary-format source is rebuilt from the value, so a float32 comes back at double width; an integer larger than
+ * a long comes back as a string; and array elements do not carry their spelling yet.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1)
 public class NumberTokenFidelityIT extends ESIntegTestCase {
@@ -189,7 +189,16 @@ public class NumberTokenFidelityIT extends ESIntegTestCase {
         if (batch) {
             assumeTrue("batch indexing needs its feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
             // Known limitations of the batch path, skipped so that the rest of the matrix has to pass on it.
-            assumeFalse("batch indexing rebuilds stored _source from the value, so the spelling is not kept there", check == Check.SOURCE);
+            // TODO 1: a binary-format float32 is stored as a double and rebuilt as one, so the stored _source of a CBOR or SMILE
+            //  document is widened. The batch needs to record the token width so that SourceRowToXContent writes a float32 again.
+
+            // TODO 2: an integer larger than a long is stored as a STRING and rebuilt with quotes. The batch needs a big-integer
+            //  value type that the row parser and SourceRowToXContent present as a number token.
+            assumeFalse(
+                "batch indexing rebuilds a binary-format source from the value, and an integer larger than a long as a string",
+                check == Check.SOURCE
+                    && (scenario.contentType() != XContentType.JSON || scenarioName.equals("json_integer_larger_than_a_long"))
+            );
             assumeFalse(
                 "array elements do not carry their spelling yet",
                 check == Check.KEYWORD_TERMS && scenario.expectedTerms().size() > 1

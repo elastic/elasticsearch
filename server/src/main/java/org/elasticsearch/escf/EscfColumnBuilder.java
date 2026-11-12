@@ -269,9 +269,7 @@ public final class EscfColumnBuilder implements Releasable {
 
     public void setDouble(int row, double value, @Nullable XContentString.UTF8Bytes lexicalForm) {
         byte[] text = lexicalForm == null ? null : lexicalForm.bytes();
-        /**
-         * Position is needed to store the spellings when available.
-         */
+        // Position is needed to store the spellings when available.
         int off = lexicalForm == null ? 0 : lexicalForm.offset();
         int len = lexicalForm == null ? 0 : lexicalForm.length();
         if (row == lastWrittenRow) {

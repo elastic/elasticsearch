@@ -19,7 +19,6 @@ import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.math.BigInteger;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 /**
@@ -279,12 +278,24 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
      */
     @Nullable
     private static XContentString.UTF8Bytes lexicalForm(double value, byte[] srcBuf, int srcOff, int srcLen) {
-        // Check if we need to store the spelling; a JSON number token is ASCII, so ISO-8859-1 decodes it exactly.
-        String text = new String(srcBuf, srcOff, srcLen, StandardCharsets.ISO_8859_1);
-        if (Double.toString(value).equals(text)) {
+        // Check if we need to store the spelling, comparing the rendering against the token bytes in place.
+        if (isCanonical(Double.toString(value), srcBuf, srcOff, srcLen)) {
             return null;
         }
         return new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen);
+    }
+
+    /** Whether the {@code len} ASCII bytes at {@code off} read exactly as {@code canonical}. */
+    private static boolean isCanonical(String canonical, byte[] bytes, int off, int len) {
+        if (canonical.length() != len) {
+            return false;
+        }
+        for (int i = 0; i < len; i++) {
+            if (canonical.charAt(i) != (char) (bytes[off + i] & 0xFF)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

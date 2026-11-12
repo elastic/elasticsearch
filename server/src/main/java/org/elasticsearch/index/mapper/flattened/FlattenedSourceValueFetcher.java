@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.flattened;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -32,22 +33,25 @@ import java.util.TreeSet;
  * dot-notation keys and converts all leaf values to strings, matching the representation
  * stored in doc values. When the source value is a list of maps, all maps are merged
  * into a single flat JSON blob rather than being processed individually. Just like doc
- * values.
+ * values, it has no value that {@code ignore_above} left out.
  */
 final class FlattenedSourceValueFetcher extends SourceValueFetcher {
     private final Set<String> sourcePaths;
     private final Object nullValue;
+    private final Mapper.IgnoreAbove ignoreAbove;
     private final boolean preserveArrays;
 
     FlattenedSourceValueFetcher(
         Set<String> sourcePaths,
         Object nullValue,
+        Mapper.IgnoreAbove ignoreAbove,
         IgnoredSourceFormat ignoredSourceFormat,
         boolean preserveArrays
     ) {
         super(sourcePaths, nullValue, ignoredSourceFormat);
         this.sourcePaths = sourcePaths;
         this.nullValue = nullValue;
+        this.ignoreAbove = ignoreAbove;
         this.preserveArrays = preserveArrays;
     }
 
@@ -116,6 +120,9 @@ final class FlattenedSourceValueFetcher extends SourceValueFetcher {
         }
 
         private void addValue(String key, String value) {
+            if (ignoreAbove.isIgnored(value)) {
+                return;
+            }
             merged.computeIfAbsent(new BytesRef(key), k -> preserveArrays ? new ArrayList<>() : new TreeSet<>()).add(new BytesRef(value));
         }
 

@@ -811,7 +811,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         null,
                         () -> exchangeSink(pagesProduced::incrementAndGet),
                         singleNodeOptimizations,
-                        sortBound
+                        sortBound,
+                        null
                     );
                     computeService.runCompute(
                         parentTask,
@@ -1009,7 +1010,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         new FoldContext(request.pragmas().foldLimit().getBytes()),
                         internalExchange::exchangeSource,
                         () -> externalSink.createExchangeSink(() -> {}),
-                        request.singleNodeOptimizations()
+                        request.singleNodeOptimizations(),
+                        null,
+                        reduceLoad(request.shards(), searchContexts)
                     ),
                     reductionPlan.nodeReducePlan(),
                     plannerSettings,
@@ -1044,7 +1047,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
      * Charges the time of tasks equally to {@code shards}.
      */
     private TaskLoadAttribution.Target shardsLoad(List<DataNodeRequest.Shard> shards) {
-        return searchService.getIndicesService().searchLoad(shards.stream().map(DataNodeRequest.Shard::shardId).toList());
+        return searchService.searchLoad(shards.stream().map(DataNodeRequest.Shard::shardId).toList());
     }
 
     /**
@@ -1053,6 +1056,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
      */
     static TaskId queryId(DataNodeRequest request, Task task) {
         return request.queryId().isSet() ? request.queryId() : task.getParentTaskId();
+    }
+
+    /**
+     * Charges the time of the node-level reduce to {@code shards}, by the rows their sources emitted since the previous task.
+     */
+    private TaskLoadAttribution.Target reduceLoad(List<DataNodeRequest.Shard> shards, AcquiredSearchContexts searchContexts) {
+        List<ShardId> shardIds = shards.stream().map(DataNodeRequest.Shard::shardId).toList();
+        return searchService.searchLoad(shardIds, searchContexts::rowsEmitted);
     }
 
     /**

@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
@@ -414,7 +415,15 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         List<Attribute> output = List.of(col);
         String path = "s3://bucket/data.parquet";
         SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "test", path);
-        ExternalRelation relation = new ExternalRelation(Source.EMPTY, path, metadata, output, FileList.UNRESOLVED, Map.of(), "ds");
+        ExternalRelation relation = new ExternalRelation(
+            Source.EMPTY,
+            path,
+            metadata,
+            output,
+            FileList.UNRESOLVED,
+            Map.of(),
+            new DatasetReference.Named("ds")
+        );
         FragmentExec plan = new FragmentExec(relation);
         Set<String> names = TransportEsqlStreamQueryAction.collectIndexNames(plan);
         assertEquals("ExternalRelation inside FragmentExec must not contribute any index names", Set.of(), names);

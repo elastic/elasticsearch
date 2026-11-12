@@ -91,6 +91,45 @@ public class ExternalSourceDatasetsTests extends ESTestCase {
         assertThat(datasets.hasUnnamed(), is(true));
     }
 
+    /**
+     * A supplied definition inside a fragment, which is the shape a coordinator sends for an inline read: the
+     * reference is on a logical {@link ExternalRelation}, and the physical {@code ExternalSourceExec} the other
+     * tests here build arrives only in a crafted request. Nothing covered this branch for the inline arm, so
+     * dropping it left the node-side gate unasked for the only plan shape a real query produces.
+     */
+    public void testInlineRelationInsideFragmentIsCollectedAsItsDataSource() {
+        ExternalSourceDatasets datasets = ExternalSourceDatasets.of(sink(new FragmentExec(inlineRelation("supplier"))));
+        assertThat(datasets.dataSources(), contains("supplier"));
+        assertThat(datasets.names(), empty());
+        assertThat(datasets.hasUnnamed(), is(false));
+        assertThat(datasets.isEmpty(), is(false));
+    }
+
+    /**
+     * The same arm on an {@code ExternalSourceExec}, which is the shape a plan has once it is distributed — so a
+     * crafted shard request is read the same way as a fragment the coordinator built.
+     */
+    public void testInlineExecIsCollectedAsItsDataSource() {
+        ExternalSourceDatasets datasets = ExternalSourceDatasets.of(sink(inlineExec("supplier")));
+        assertThat(datasets.dataSources(), contains("supplier"));
+        assertThat(datasets.names(), empty());
+        assertThat(datasets.isEmpty(), is(false));
+    }
+
+    /** Both sets come off one plan, so neither arm hides the other from the authorizer. */
+    public void testANamedArmAndAnInlineArmAreBothCollected() {
+        PhysicalPlan merged = new MergeExec(SRC, List.of(exec("left"), inlineExec("supplier")), output(), MergeExec.Kind.UNION);
+
+        ExternalSourceDatasets datasets = ExternalSourceDatasets.of(sink(merged));
+        assertThat(datasets.names(), contains("left"));
+        assertThat(datasets.dataSources(), contains("supplier"));
+    }
+
+    private static ExternalSourceExec inlineExec(String dataSource) {
+        return new ExternalSourceExec(SRC, "s3://bucket/data/*.parquet", "parquet", output(), Map.of(), Map.of(), null, 10)
+            .withDatasetReference(new DatasetReference.Inline(dataSource, Map.of("resource", "s3://bucket/data/*.parquet")));
+    }
+
     public void testEveryBranchOfAMergedPlan() {
         PhysicalPlan merged = new MergeExec(
             SRC,
@@ -119,19 +158,46 @@ public class ExternalSourceDatasetsTests extends ESTestCase {
         return new ExchangeSinkExec(SRC, output(), false, child);
     }
 
+    /** The name arm, or no reference at all — which is what a source with no dataset behind it carries. */
+    private static DatasetReference reference(String datasetName) {
+        return datasetName == null ? null : new DatasetReference.Named(datasetName);
+    }
+
     private static List<Attribute> output() {
         return List.of(new FieldAttribute(SRC, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)));
     }
 
     private static ExternalSourceExec exec(String datasetName) {
-        return new ExternalSourceExec(SRC, "s3://bucket/data/*.parquet", "parquet", output(), Map.of(), Map.of(), null, 10).withDatasetName(
-            datasetName
+        return new ExternalSourceExec(SRC, "s3://bucket/data/*.parquet", "parquet", output(), Map.of(), Map.of(), null, 10)
+            .withDatasetReference(reference(datasetName));
+    }
+
+    /** {@link #relation} carrying a supplied definition rather than a registered name. */
+    private static ExternalRelation inlineRelation(String dataSource) {
+        List<Attribute> output = output();
+        SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "parquet", "s3://bucket/data/*.parquet");
+        return new ExternalRelation(
+            SRC,
+            "s3://bucket/data/*.parquet",
+            metadata,
+            output,
+            FileList.UNRESOLVED,
+            Map.of(),
+            new DatasetReference.Inline(dataSource, Map.of("resource", "s3://bucket/data/*.parquet"))
         );
     }
 
     private static ExternalRelation relation(String datasetName) {
         List<Attribute> output = output();
         SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "parquet", "s3://bucket/data/*.parquet");
-        return new ExternalRelation(SRC, "s3://bucket/data/*.parquet", metadata, output, FileList.UNRESOLVED, Map.of(), datasetName);
+        return new ExternalRelation(
+            SRC,
+            "s3://bucket/data/*.parquet",
+            metadata,
+            output,
+            FileList.UNRESOLVED,
+            Map.of(),
+            reference(datasetName)
+        );
     }
 }

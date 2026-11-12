@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -831,7 +832,15 @@ public class ExternalDistributionTests extends ESTestCase {
             new FieldAttribute(SRC, "name", new EsField("name", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
         );
         SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "parquet", "s3://bucket/data/*.parquet");
-        return new ExternalRelation(SRC, "s3://bucket/data/*.parquet", metadata, output, null, Map.of(), datasetName);
+        return new ExternalRelation(
+            SRC,
+            "s3://bucket/data/*.parquet",
+            metadata,
+            output,
+            null,
+            Map.of(),
+            new DatasetReference.Named(datasetName)
+        );
     }
 
     private static EsRelation createEsRelation() {

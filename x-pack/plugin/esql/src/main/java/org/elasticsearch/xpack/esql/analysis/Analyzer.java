@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
@@ -917,7 +918,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 bindResult.schema(),
                 resolvedSource.fileList(),
                 resolvedSource.schemaMap(),
-                plan.datasetName(),
+                plan.datasetReference(),
                 bindResult.unresolvedMetadata(),
                 resolvedSource.declaredReadSpec()
             );
@@ -1002,7 +1003,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 emitted.add(name);
             }
             if (shadowed != null) {
-                context.deferredHeaderWarnings().add(shadowedExternalColumnsWarning(plan.datasetName(), shadowed));
+                DatasetReference reference = plan.datasetReference();
+                context.deferredHeaderWarnings()
+                    .add(shadowedExternalColumnsWarning(reference == null ? null : reference.describe(), shadowed));
             }
             List<Attribute> resolvedSchema = enriched == null ? baseSchema : List.copyOf(enriched);
             List<? extends NamedExpression> unresolvedList = unresolved == null ? List.of() : List.copyOf(unresolved);
@@ -4643,9 +4646,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // no METADATA grammar to be selective, so KEEP is how the user picks what surfaces. On
             // the FROM <dataset> path the user names metadata explicitly in a METADATA clause, so it
             // must surface unconditionally — KEEP there is ordinary projection, not a metadata gate.
-            // The two are distinguishable on the relation: a FROM <dataset> leaf carries a
-            // datasetName; the EXTERNAL shim's leaf does not.
-            boolean hasExternalCommandRelation = plan.anyMatch(p -> p instanceof ExternalRelation er && er.datasetName() == null);
+            // The two are distinguishable on the relation by whether a dataset stands behind it at all: every
+            // FROM <dataset> leaf references one, named or defined inline, and the shim's leaf references none.
+            boolean hasExternalCommandRelation = plan.anyMatch(p -> p instanceof ExternalRelation er && er.datasetReference() == null);
             List<Attribute> output = plan.output();
             List<Attribute> newOutput = new ArrayList<>(output.size());
             for (Attribute attr : output) {

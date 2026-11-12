@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
@@ -785,7 +786,10 @@ public class AnalyzerExternalTests extends ESTestCase {
         Map<String, List<String>> columnsByDataset = new HashMap<>();
         analyzed.forEachDown(
             ExternalRelation.class,
-            e -> columnsByDataset.put(e.datasetName(), e.output().stream().map(Attribute::name).toList())
+            e -> columnsByDataset.put(
+                ((DatasetReference.Named) e.datasetReference()).name(),
+                e.output().stream().map(Attribute::name).toList()
+            )
         );
         assertThat("both relations must resolve", columnsByDataset.keySet(), equalTo(Set.of("sales_csv", "sales_tsv")));
         assertThat("the csv read must carry the csv schema", columnsByDataset.get("sales_csv"), equalTo(List.of("from_csv")));
@@ -794,7 +798,13 @@ public class AnalyzerExternalTests extends ESTestCase {
 
     /** An {@link UnresolvedExternalRelation} on {@link #S3_PATH} under {@code config}, as DatasetRewriter builds one. */
     private static UnresolvedExternalRelation externalRelation(Source source, Map<String, Object> config, String datasetName) {
-        return new UnresolvedExternalRelation(source, Literal.keyword(source, S3_PATH), config, List.of(), datasetName);
+        return new UnresolvedExternalRelation(
+            source,
+            Literal.keyword(source, S3_PATH),
+            config,
+            List.of(),
+            new DatasetReference.Named(datasetName)
+        );
     }
 
     /** A resolved source over {@code schema}, with nothing listed: this case is about which schema binds where. */

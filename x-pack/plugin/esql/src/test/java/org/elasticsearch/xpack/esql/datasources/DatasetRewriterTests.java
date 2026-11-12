@@ -291,7 +291,7 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat("metadata fields preserved verbatim", out.metadataFields(), hasSize(2));
         assertThat(out.metadataFields().get(0).name(), equalTo(MetadataAttribute.INDEX));
         assertThat(out.metadataFields().get(1).name(), equalTo("_id"));
-        assertThat("dataset name threaded", out.datasetName(), equalTo("logs"));
+        assertThat("dataset name threaded", out.datasetReference(), equalTo(new DatasetReference.Named("logs")));
     }
 
     public void testDatasetReferencingUnknownDataSourceFailsWithExplicitMessage() {

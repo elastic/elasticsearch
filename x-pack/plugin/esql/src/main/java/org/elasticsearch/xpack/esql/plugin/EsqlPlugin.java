@@ -108,6 +108,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryCounters;
 import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryMetrics;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.DatasetListingService;
+import org.elasticsearch.xpack.esql.datasources.DatasetTableFunction;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FederationLicense;
@@ -116,6 +117,7 @@ import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.LocalFileAccess;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
+import org.elasticsearch.xpack.esql.datasources.dataset.DatasetDefinitionValidator;
 import org.elasticsearch.xpack.esql.datasources.dataset.DatasetService;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
@@ -549,12 +551,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-        // Already-constructed functions, so one that needs a collaborator is handed it here rather than the
-        // registry acquiring one on every function's behalf.
-        TableFunctionResolver tableFunctionResolver = new TableFunctionResolver(
-            new TableFunctionRegistry(tableFunctions()),
-            services.threadPool().executor(ThreadPool.Names.SEARCH)
-        );
         EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
         capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
 
@@ -647,6 +643,18 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 c.onQueryCompleted(metrics);
             }
         };
+        DatasetService datasetService = new DatasetService(
+            services.clusterService(),
+            crudValidators,
+            dataSourceModule.externalSourceMetrics()
+        );
+        // Here rather than beside the function registry above, because DATASET needs the one definition validator
+        // and that is built from the plugins' validators, which are not collected until crudValidators above.
+        TableFunctionResolver tableFunctionResolver = new TableFunctionResolver(
+            new TableFunctionRegistry(tableFunctions(datasetService.definitionValidator())),
+            services.threadPool().executor(ThreadPool.Names.SEARCH)
+        );
+
         ViewService viewService = new ViewService(services.clusterService(), parser, (statement, viewName, listener) -> {
             var request = PreparedEsqlQueryRequest.analyzeOnly(statement, "view [" + viewName + "]");
             services.client().execute(EsqlQueryAction.INSTANCE, request, listener.map(response -> null));
@@ -705,7 +713,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new MlAnomaliesView(viewService),
             new FederationLicense(this::getLicenseState),
             dataSourceService,
-            new DatasetService(services.clusterService(), crudValidators, dataSourceModule.externalSourceMetrics()),
+            datasetService,
             inventoryCounters,
             inventoryMetrics,
             new PluginComponentBinding<>(QueryMetricsListener.class, collector),
@@ -984,21 +992,21 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     }
 
     /**
-     * The table functions this node registers. None by default.
+     * The table functions this node registers. {@link DatasetTableFunction} is the only one.
      * <p>
-     * A seam rather than a constant so that a function can be registered without the facility naming one, and so
-     * that a test can register a set of its own: {@code TableFunctionFacilityIT} overrides this to drive the
-     * facility through real queries with a function that exists only in that test. An override <b>replaces</b>
-     * this set rather than adding to it, which is why the method is not named for extras. The precedent for a
-     * protected hook on this plugin is {@link #loadMetricsCollectors} and {@code getLicenseState}, both overridden
-     * by test subclasses.
+     * A seam rather than a constant so that nothing in the facility names a function, and so that a test can
+     * register a set of its own: {@code TableFunctionFacilityIT} overrides this to drive the facility through real
+     * queries with a function that exists only in that test. An override <b>replaces</b> this set rather than
+     * adding to it, which is why the method is not named for extras. The precedent for a protected hook on this
+     * plugin is {@link #loadMetricsCollectors} and {@code getLicenseState}, both overridden by test subclasses.
      * <p>
      * A function needing collaborators is constructed with them here, which is why the registry takes
-     * already-constructed functions rather than names: a function that has to ask the cluster something is handed
-     * what it needs at registration, and the facility itself never acquires anything.
+     * already-constructed functions rather than names: a function is handed what it needs at registration, and the
+     * facility itself never acquires anything. {@link DatasetTableFunction} needs the one definition validator, so
+     * that a read written in the query is held to what a registration is held to.
      */
-    protected List<TableFunction> tableFunctions() {
-        return List.of();
+    protected List<TableFunction> tableFunctions(DatasetDefinitionValidator datasetDefinitionValidator) {
+        return List.of(new DatasetTableFunction(datasetDefinitionValidator));
     }
 
     @Override

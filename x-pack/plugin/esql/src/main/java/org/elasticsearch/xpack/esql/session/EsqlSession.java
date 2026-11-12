@@ -88,6 +88,7 @@ import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
@@ -1885,6 +1886,7 @@ public class EsqlSession {
                     rewritten,
                     projectMetadata,
                     planningCpu.meteredCpu(delegate.delegateFailureAndWrap((tableFunctionDelegate, resolved) -> {
+                        DatasetReference.ensureEveryReferenceCanTravel(resolved, localClusterMinimumVersion);
                         analyzedPlanAfterDatasetResolution(
                             scopeIndexPatternsInViews(resolved, unmappedResolution, viewSettings),
                             unmappedResolution,

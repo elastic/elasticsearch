@@ -173,6 +173,16 @@ public class ExternalSourceAuthorizerTests extends ESTestCase {
         }
     }
 
+    /**
+     * A plan carrying a definition of its own names no dataset, so there is nothing to authorize by name and no
+     * request goes out. Pinned because the feature adds no gate of its own and an arm that silently started asking
+     * one would be a privilege this path does not have.
+     */
+    public void testACarriedDefinitionIsNotAuthorizedByName() {
+        authorize(inlinePlan("s3_source"), true);
+        assertThat(client.requests, hasSize(0));
+    }
+
     public void testIsExactLocalName() {
         assertThat(ExternalSourceAuthorizer.isExactLocalName("logs"), is(true));
         assertThat(ExternalSourceAuthorizer.isExactLocalName("logs-2024.01.01"), is(true));
@@ -180,6 +190,11 @@ public class ExternalSourceAuthorizerTests extends ESTestCase {
         assertThat(ExternalSourceAuthorizer.isExactLocalName("-logs"), is(false));
         assertThat(ExternalSourceAuthorizer.isExactLocalName("logs*"), is(false));
         assertThat(ExternalSourceAuthorizer.isExactLocalName("*"), is(false));
+        // A single-character wildcard and a leading slash are patterns to the authorization layer's own matcher,
+        // which routes either to an automaton, while Regex.isSimpleMatchPattern tests '*' alone. Letting one
+        // through here would authorize the literal string and then resolve nothing.
+        assertThat(ExternalSourceAuthorizer.isExactLocalName("log?"), is(false));
+        assertThat(ExternalSourceAuthorizer.isExactLocalName("/logs/"), is(false));
         assertThat(ExternalSourceAuthorizer.isExactLocalName("a,b"), is(false));
         assertThat(ExternalSourceAuthorizer.isExactLocalName("remote:logs"), is(false));
         assertThat(ExternalSourceAuthorizer.isExactLocalName("logs::data"), is(false));
@@ -256,7 +271,20 @@ public class ExternalSourceAuthorizerTests extends ESTestCase {
         for (String name : datasetNames) {
             children.add(
                 new ExternalSourceExec(SRC, "s3://bucket/data/*.parquet", "parquet", output(), Map.of(), Map.of(), null, 10)
-                    .withDatasetName(name)
+                    .withDatasetReference(name == null ? null : new DatasetReference.Named(name))
+            );
+        }
+        PhysicalPlan child = children.size() == 1 ? children.get(0) : new MergeExec(SRC, children, output(), MergeExec.Kind.UNION);
+        return new ExchangeSinkExec(SRC, output(), false, child);
+    }
+
+    /** A plan whose nodes carry inline definitions rather than registered names, read through {@code dataSources}. */
+    private static PhysicalPlan inlinePlan(String... dataSources) {
+        List<PhysicalPlan> children = new ArrayList<>();
+        for (String dataSource : dataSources) {
+            children.add(
+                new ExternalSourceExec(SRC, "s3://bucket/data/*.parquet", "parquet", output(), Map.of(), Map.of(), null, 10)
+                    .withDatasetReference(new DatasetReference.Inline(dataSource, Map.of("resource", "s3://bucket/data/*.parquet")))
             );
         }
         PhysicalPlan child = children.size() == 1 ? children.get(0) : new MergeExec(SRC, children, output(), MergeExec.Kind.UNION);

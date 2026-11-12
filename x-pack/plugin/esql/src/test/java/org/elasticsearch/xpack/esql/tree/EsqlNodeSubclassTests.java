@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
@@ -559,6 +560,23 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
                 Map.of(randomAlphaOfLength(4), randomAlphaOfLength(5)),
                 Map.of(randomAlphaOfLength(4), "yyyy-MM-dd"),
                 Set.of(randomAlphaOfLength(4), randomAlphaOfLength(5))
+            );
+        } else if (argClass == DatasetReference.class) {
+            // A sealed interface of two records, so unmockable. The inline arm is the richer one: its definition
+            // nests, so a transform that dropped a nested level would show.
+            if (randomBoolean()) {
+                return new DatasetReference.Named(randomAlphaOfLength(6));
+            }
+            return new DatasetReference.Inline(
+                randomAlphaOfLength(6),
+                Map.of(
+                    "resource",
+                    "s3://" + randomAlphaOfLength(6) + "/*.csv",
+                    "settings",
+                    Map.of("format", "csv"),
+                    "mappings",
+                    Map.of("properties", Map.of(randomAlphaOfLength(4), Map.of("type", "keyword")))
+                )
             );
         } else if (argClass == MatchConfig.class) {
             // MatchConfig is final, cannot be mocked

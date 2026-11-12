@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.tablefunction.TableFunctionSignature.either;
 import static org.elasticsearch.xpack.esql.tablefunction.TableFunctionSignature.name;
 import static org.elasticsearch.xpack.esql.tablefunction.TableFunctionSignature.namedValues;
 import static org.elasticsearch.xpack.esql.tablefunction.TableFunctionSignature.optional;
@@ -72,6 +73,41 @@ public class TableFunctionSignatureTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[thing] expects a name for [data source]"));
     }
 
+    /** An argument where one shape is shorthand for the other: both spellings pass, and the arity still binds. */
+    public void testEitherShapeIsAcceptedWhereBothAreDeclared() {
+        TableFunctionSignature signature = TableFunctionSignature.of(
+            name("data source"),
+            either("definition", TableFunctionSignature.Kind.NAME, TableFunctionSignature.Kind.NAMED_VALUES)
+        );
+
+        signature.check(call(aName(), aName()));
+        signature.check(call(aName(), aMap()));
+
+        ParsingException e = expectThrows(ParsingException.class, () -> signature.check(call(aName())));
+        assertThat(e.getMessage(), containsString("[thing] takes [data source, definition], found [1]"));
+    }
+
+    /**
+     * An argument accepting no shape is a position no call can fill, so it is refused where it is declared rather
+     * than on the query that reaches it.
+     */
+    public void testAnArgumentAcceptingNoShapeIsRefused() {
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> either("definition"));
+        assertThat(e.getMessage(), containsString("argument [definition] accepts no shape at all"));
+    }
+
+    /** Making a multi-shape argument optional keeps both shapes, rather than collapsing it to one of them. */
+    public void testAnOptionalArgumentKeepsEveryShapeItAccepted() {
+        TableFunctionSignature signature = TableFunctionSignature.of(
+            name("data source"),
+            optional(either("definition", TableFunctionSignature.Kind.NAME, TableFunctionSignature.Kind.NAMED_VALUES))
+        );
+
+        signature.check(call(aName()));
+        signature.check(call(aName(), aName()));
+        signature.check(call(aName(), aMap()));
+    }
+
     public void testNoArgumentsAtAll() {
         TableFunctionSignature none = TableFunctionSignature.of();
         none.check(call());
@@ -80,8 +116,8 @@ public class TableFunctionSignatureTests extends ESTestCase {
     }
 
     /**
-     * The one declaration guard, a shape no call could satisfy. Thrown rather than asserted, so it holds in
-     * production, which is the only place a mis-declared function would otherwise surface.
+     * One of the two declaration guards, each a shape no call could satisfy. Thrown rather than asserted, so these
+     * hold in production, which is the only place a mis-declared function would otherwise surface.
      */
     public void testARequiredArgumentCannotFollowAnOptionalOne() {
         IllegalStateException e = expectThrows(

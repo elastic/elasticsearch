@@ -143,6 +143,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.AsyncConnectorSourceOperatorFactory;
 import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFactory;
 import org.elasticsearch.xpack.esql.datasources.DatasetConfigResolver;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
 import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.ExternalLimitSplits;
@@ -2334,11 +2335,13 @@ public class LocalExecutionPlanner {
         // have run.
         Federation.ensureEnabled(settings);
         // Credential backstop. Every path that brings an external source to this point has already rebound the exec
-        // to this node's registered dataset (DatasetConfigResolver, in PlannerUtils.localPlan and in ComputeService
-        // .runCompute), which refuses a source with no dataset behind it on a release build. Repeat that one check
+        // to this node's own definition of it (DatasetConfigResolver, in PlannerUtils.localPlan and in ComputeService
+        // .runCompute), which refuses a source with no definition behind it on a release build. Repeat that one check
         // here: it catches a future path that builds the operator from an unbound exec, though not one that skips the
-        // rebind for a named exec, which only the rebind itself can guard.
-        if (externalSource.datasetName() == null && snapshotBuild == false) {
+        // rebind for a bound exec, which only the rebind itself can guard. A source whose definition the query
+        // carried is bound too, by its data source, so it passes for the same reason a named one does.
+        DatasetReference datasetReference = externalSource.datasetReference();
+        if (datasetReference == null && snapshotBuild == false) {
             throw DatasetConfigResolver.notRegistered(null);
         }
 
@@ -2353,11 +2356,12 @@ public class LocalExecutionPlanner {
         if (operatorFactoryRegistry == null) {
             throw new IllegalStateException("OperatorFactoryRegistry is required for external sources");
         }
-        // The plan carries the source type, but registered dataset settings are only valid with the file source factory.
-        if (externalSource.datasetName() != null && operatorFactoryRegistry.isFileSourceFactory(externalSource.sourceType()) == false) {
+        // The plan carries the source type, but dataset settings are only valid with the file source factory, however
+        // the definition they came from reached this node.
+        if (datasetReference != null && operatorFactoryRegistry.isFileSourceFactory(externalSource.sourceType()) == false) {
             throw new IllegalArgumentException(
                 "external dataset ["
-                    + externalSource.datasetName()
+                    + datasetReference.describe()
                     + "] cannot be read through non-file source type ["
                     + externalSource.sourceType()
                     + "]"
@@ -2462,7 +2466,7 @@ public class LocalExecutionPlanner {
         Map<String, Object> ctx = externalSource.config() == null
             ? null
             : (Map<String, Object>) externalSource.config().get(ExternalSourceResolver.DATASET_CONTEXT_KEY);
-        String datasetName = externalSource.datasetName();
+        String datasetName = externalSource.datasetReference() instanceof DatasetReference.Named named ? named.name() : null;
         String datasourceName = ctx == null ? null : (String) ctx.get("datasource");
         String datasourceType = ctx == null ? null : (String) ctx.get("type");
         if (datasetName == null && datasourceName == null) {

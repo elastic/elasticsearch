@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
@@ -63,7 +64,7 @@ import java.util.Set;
  * <ul>
  *   <li><b>Execution inputs (serialized):</b> {@code sourcePath}, {@code sourceType},
  *       {@code attributes}, {@code config}, {@code sourceMetadata}, {@code estimatedRowSize},
- *       {@code splits}, {@code datasetName}. These are what a data-node operator needs to read; in
+ *       {@code splits}, {@code datasetReference}. These are what a data-node operator needs to read; in
  *       the distributed path the data node reads the files via the serialized {@code splits}.</li>
  *   <li><b>Build-time state (not serialized):</b> {@code fileList}, {@code schemaMap},
  *       {@code unifiedSchema}. These are coordinator-resolved and read off the exec by split
@@ -92,7 +93,6 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     );
 
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_SPLITS = TransportVersion.fromName("esql_external_source_splits");
-    private static final TransportVersion ESQL_EXTERNAL_DATASET_NAME = TransportVersion.fromName("esql_external_dataset_name");
     private static final TransportVersion DATA_SOURCE_ENCRYPTED_DATA = TransportVersion.fromName("data_source_encrypted_data");
     private static final TransportVersion DATASET_DECLARED_SCHEMA = TransportVersion.fromName("dataset_declared_schema");
 
@@ -104,16 +104,16 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     private final Map<String, Object> sourceMetadata;
     private final Integer estimatedRowSize;
     private final List<ExternalSplit> splits;
-    // Registered dataset identifier when this exec came from FROM <dataset>, null for a bare glob.
-    // The data node rebinds config and sourcePath from the definition this names before it builds a
+    // Which dataset this exec reads: a registered name, or a definition the query supplied. Null only for a
+    // bare glob. The data node rebinds config and sourcePath from whichever arm arrived before it builds a
     // reader (DatasetConfigResolver), so a plan shipped over the wire never chooses its own storage
-    // credentials; a null name is refused there on release builds. A 9.5 data node also composes
-    // _index from this slot.
+    // credentials; a null reference is refused there on release builds. A 9.5 data node reads the name arm's
+    // bare string out of this slot to compose _index, which is why the old shape is one of the arms.
     @Nullable
-    private final String datasetName;
+    private final DatasetReference datasetReference;
     // Declared read-instructions (renames, per-column date formats), or DeclaredReadSpec.NONE. An execution input:
     // the data-node operator physicalizes reader-facing names from it. Serialized (TV-gated) so the data
-    // node needs no cluster-state re-derivation, and carried in info() (like datasetName) so a generic node-reflection
+    // node needs no cluster-state re-derivation, and carried in info() (like datasetReference) so a generic node-reflection
     // rebuild does not silently drop it — the renames used to ride the reflected `config` map and must stay as safe.
     private final DeclaredReadSpec declaredReadSpec;
 
@@ -193,9 +193,10 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
 
     /**
      * Public 15-arg ctor used by {@link #info()} (via constructor reference) and by tree tests: the 13-arg shape above
-     * plus {@code datasetName} and {@code declaredReadSpec}, so node-reflection reconstruction preserves both. Losing
-     * {@code datasetName} on a generic rewrite would drop it from the wire, and a 9.5 data node reads that slot to
-     * compose {@code _index}; losing {@code declaredReadSpec} would
+     * plus {@code datasetReference} and {@code declaredReadSpec}, so node-reflection reconstruction preserves both.
+     * Losing {@code datasetReference} on a generic rewrite would drop it from the wire, leaving the reading node with
+     * no dataset to resolve, and a 9.5 data node reads that slot to compose {@code _index}; losing
+     * {@code declaredReadSpec} would
      * silently drop the declared renames (the same reflection safety they had while riding the
      * reflected {@code config} map). This is the longest public ctor — {@code EsqlNodeSubclassTests} keys the required
      * {@link #info()} arity off it. Passes {@code null} for {@code pushedTopN} / {@code unifiedSchema}; those are
@@ -215,7 +216,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         FileList fileList,
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
         List<ExternalSplit> splits,
-        @Nullable String datasetName,
+        @Nullable DatasetReference datasetReference,
         DeclaredReadSpec declaredReadSpec
     ) {
         this(
@@ -234,7 +235,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             schemaMap,
             null,
             splits,
-            datasetName,
+            datasetReference,
             false,
             declaredReadSpec
         );
@@ -302,7 +303,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
         @Nullable ExternalSchema unifiedSchema,
         List<ExternalSplit> splits,
-        @Nullable String datasetName,
+        @Nullable DatasetReference datasetReference,
         boolean deferredExtraction,
         DeclaredReadSpec declaredReadSpec
     ) {
@@ -330,7 +331,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         this.schemaMap = schemaMap != null ? schemaMap : Map.of();
         this.unifiedSchema = unifiedSchema;
         this.splits = splits != null ? List.copyOf(splits) : List.of();
-        this.datasetName = datasetName;
+        this.datasetReference = datasetReference;
         this.deferredExtraction = deferredExtraction;
         this.declaredReadSpec = declaredReadSpec != null ? declaredReadSpec : DeclaredReadSpec.NONE;
     }
@@ -407,7 +408,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         List<ExternalSplit> splits = in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_SPLITS)
             ? in.readNamedWriteableCollectionAsList(ExternalSplit.class)
             : List.of();
-        String datasetName = in.getTransportVersion().supports(ESQL_EXTERNAL_DATASET_NAME) ? in.readOptionalString() : null;
+        DatasetReference datasetReference = DatasetReference.readOptionalFrom(in);
         DeclaredReadSpec declaredReadSpec = in.getTransportVersion().supports(DATASET_DECLARED_SCHEMA)
             ? DeclaredReadSpec.readFrom(in)
             : DeclaredReadSpec.NONE;
@@ -428,7 +429,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             Map.of(),
             null,
             splits,
-            datasetName,
+            datasetReference,
             false,
             declaredReadSpec
         );
@@ -450,9 +451,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_SPLITS)) {
             out.writeNamedWriteableCollection(splits);
         }
-        if (out.getTransportVersion().supports(ESQL_EXTERNAL_DATASET_NAME)) {
-            out.writeOptionalString(datasetName);
-        }
+        DatasetReference.writeOptional(out, datasetReference);
         if (out.getTransportVersion().supports(DATASET_DECLARED_SCHEMA)) {
             declaredReadSpec.writeTo(out);
         } else if (declaredReadSpec.isEmpty() == false) {
@@ -577,7 +576,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             schemaMap,
             unifiedSchema,
             newSplits,
-            datasetName,
+            datasetReference,
             deferredExtraction,
             declaredReadSpec
         );
@@ -605,7 +604,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             schemaMap,
             unifiedSchema,
             splits,
-            datasetName,
+            datasetReference,
             deferredExtraction,
             declaredReadSpec
         );
@@ -633,7 +632,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             newSchemaMap,
             unifiedSchema,
             splits,
-            datasetName,
+            datasetReference,
             deferredExtraction,
             declaredReadSpec
         );
@@ -656,7 +655,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             schemaMap,
             unifiedSchema,
             splits,
-            datasetName,
+            datasetReference,
             deferredExtraction,
             declaredReadSpec
         );
@@ -679,7 +678,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             schemaMap,
             unifiedSchema,
             splits,
-            datasetName,
+            datasetReference,
             deferredExtraction,
             declaredReadSpec
         );
@@ -702,7 +701,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             schemaMap,
             unifiedSchema,
             splits,
-            datasetName,
+            datasetReference,
             deferredExtraction,
             declaredReadSpec
         );
@@ -737,7 +736,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             schemaMap,
             unifiedSchema,
             splits,
-            datasetName,
+            datasetReference,
             deferredExtraction,
             declaredReadSpec
         );
@@ -763,7 +762,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             schemaMap,
             unifiedSchema,
             splits,
-            datasetName,
+            datasetReference,
             deferredExtraction,
             declaredReadSpec
         );
@@ -802,20 +801,20 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             schemaMap,
             newUnifiedSchema,
             splits,
-            datasetName,
+            datasetReference,
             deferredExtraction,
             declaredReadSpec
         );
     }
 
     /**
-     * Registered dataset identifier carried from {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation},
-     * or {@code null} if this exec came from inline {@code EXTERNAL}. See
-     * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#datasetName()}.
+     * Which dataset this exec reads, carried from
+     * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#datasetReference()}, or {@code null} if no
+     * dataset stands behind the source. Resolved on the reading node by {@code DatasetConfigResolver}.
      */
     @Nullable
-    public String datasetName() {
-        return datasetName;
+    public DatasetReference datasetReference() {
+        return datasetReference;
     }
 
     /**
@@ -845,19 +844,19 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             schemaMap,
             unifiedSchema,
             splits,
-            datasetName,
+            datasetReference,
             true,
             declaredReadSpec
         );
     }
 
     /**
-     * Returns a copy of this source carrying the given dataset name. Applied by
+     * Returns a copy of this source reading the given dataset. Applied by
      * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()} after
-     * construction; {@code datasetName} also flows through {@link #info()} so node-reflection
+     * construction; {@code datasetReference} also flows through {@link #info()} so node-reflection
      * reconstruction preserves it.
      */
-    public ExternalSourceExec withDatasetName(@Nullable String newDatasetName) {
+    public ExternalSourceExec withDatasetReference(@Nullable DatasetReference newDatasetReference) {
         return new ExternalSourceExec(
             source(),
             sourcePath,
@@ -874,7 +873,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             schemaMap,
             unifiedSchema,
             splits,
-            newDatasetName,
+            newDatasetReference,
             deferredExtraction,
             declaredReadSpec
         );
@@ -903,7 +902,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             schemaMap,
             unifiedSchema,
             splits,
-            datasetName,
+            datasetReference,
             deferredExtraction,
             declaredReadSpec
         );
@@ -939,7 +938,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             schemaMap,
             unifiedSchema,
             splits,
-            datasetName,
+            datasetReference,
             deferredExtraction,
             newDeclaredReadSpec
         );
@@ -969,7 +968,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             schemaMap,
             unifiedSchema,
             splits,
-            datasetName,
+            datasetReference,
             deferredExtraction,
             declaredReadSpec
         );
@@ -983,17 +982,13 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         // unifiedSchema: also excluded — the optimizer's attribute-rewriting rules walk every arg
         // in info() and would prune the Unified schema along with `attributes`, defeating its
         // whole purpose. Preserved through with* methods which carry it explicitly.
-        // datasetName: INCLUDED — it is a plain String (attribute rewriting cannot prune it) and the
-        // executing node rebinds config and sourcePath from the definition it names
-        // (DatasetConfigResolver); a 9.5 data node also reads it to compose _index during a rolling
-        // upgrade. Excluding it would drop the slot whenever a generic rule reconstructs this node via
-        // node reflection. _name itself is folded on the logical relation by
-        // MaterializeRelationClassAndName, and _index is a null constant here.
+        // datasetReference: INCLUDED — excluding it would drop the slot whenever a generic rule reconstructs this
+        // node via node reflection, leaving the reading node nothing to resolve.
         // Mirrors ExternalRelation#info.
         // declaredReadSpec: INCLUDED for the same reason — it carries no Attributes (attribute
         // rewriting cannot prune it) and holds the declared renames; the renames used
         // to ride the reflected `config` map, so dropping them on a generic reflection rebuild
-        // would be a silent regression. Mirrors datasetName.
+        // would be a silent regression. Mirrors datasetReference.
         // deferredExtraction: excluded — transient local-execution signal like pushedTopN, set by
         // InsertExternalFieldExtraction after every reflection-driven rewrite has run; preserved
         // via withDeferredExtraction().
@@ -1012,7 +1007,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             fileList,
             schemaMap,
             splits,
-            datasetName,
+            datasetReference,
             declaredReadSpec
         );
     }
@@ -1034,7 +1029,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             schemaMap,
             unifiedSchema,
             splits,
-            datasetName,
+            datasetReference,
             deferredExtraction,
             declaredReadSpec
         );
@@ -1065,7 +1060,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             && Objects.equals(schemaMap, other.schemaMap)
             && Objects.equals(unifiedSchema, other.unifiedSchema)
             && Objects.equals(splits, other.splits)
-            && Objects.equals(datasetName, other.datasetName)
+            && Objects.equals(datasetReference, other.datasetReference)
             && deferredExtraction == other.deferredExtraction
             && Objects.equals(declaredReadSpec, other.declaredReadSpec);
     }
@@ -1102,8 +1097,12 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         if (splits.isEmpty() == false) {
             sb.append("[splits=").append(splits.size()).append("]");
         }
-        if (datasetName != null) {
-            sb.append("[dataset=").append(mapper.location(datasetName)).append("]");
+        // Never the definition itself: it can carry a credential-bearing setting and this reaches EXPLAIN. And the
+        // label says which object the name belongs to, so an inline read does not appear to name a dataset.
+        if (datasetReference instanceof DatasetReference.Named named) {
+            sb.append("[dataset=").append(mapper.location(named.name())).append("]");
+        } else if (datasetReference != null) {
+            sb.append("[datasource=").append(mapper.location(datasetReference.describe())).append("]");
         }
         NodeUtils.toString(sb, attributes, format, mapper);
     }

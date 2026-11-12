@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -67,7 +68,15 @@ public class FilterRewriterTests extends ESTestCase {
     private static ExternalRelation relation(String name, Attribute... attrs) {
         List<Attribute> output = List.of(attrs);
         SourceMetadata metadata = new SimpleSourceMetadata(output, "test", "file:///" + name + ".csv");
-        return new ExternalRelation(Source.EMPTY, "file:///" + name + ".csv", metadata, output, FileList.UNRESOLVED, Map.of(), name);
+        return new ExternalRelation(
+            Source.EMPTY,
+            "file:///" + name + ".csv",
+            metadata,
+            output,
+            FileList.UNRESOLVED,
+            Map.of(),
+            new DatasetReference.Named(name)
+        );
     }
 
     // --- genericity: the target predicate is the API, nothing here knows about datasets/sources ---
@@ -157,7 +166,7 @@ public class FilterRewriterTests extends ESTestCase {
             TransportVersion.current()
         );
         Map<String, Filter> byDataset = new HashMap<>();
-        result.plan().forEachDown(Filter.class, f -> byDataset.put(((ExternalRelation) f.child()).datasetName(), f));
+        result.plan().forEachDown(Filter.class, f -> byDataset.put(((ExternalRelation) f.child()).datasetReference().describe(), f));
 
         assertThat(
             "dsA has region -> bound to the real attribute",
@@ -188,7 +197,7 @@ public class FilterRewriterTests extends ESTestCase {
         // The failure must be attributed to the integer dataset (string "active" is not a valid int), not to the keyword one.
         assertThat(
             "failure is on the integer-typed dataset, not the keyword one",
-            result.failures().stream().map(nf -> ((ExternalRelation) nf.node()).datasetName()).toList(),
+            result.failures().stream().map(nf -> ((ExternalRelation) nf.node()).datasetReference().describe()).toList(),
             contains("dsInt")
         );
     }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
@@ -117,6 +118,32 @@ public class ExternalRelationSerializationTests extends AbstractLogicalPlanSeria
             "metadata.schema() must preserve the source's full column layout across the wire, " + "not the (potentially narrower) output",
             fullSchema,
             roundTripped.metadata().schema()
+        );
+    }
+
+    /** The inline arm rides the wire; without it the reading node has no dataset to resolve. */
+    public void testInlineArmSurvivesRoundTripWhenSupported() throws IOException {
+        DatasetReference.Inline inline = new DatasetReference.Inline(
+            "s3_source",
+            Map.of("resource", "s3://bucket/*.csv", "settings", Map.of("format", "csv"))
+        );
+        ExternalRelation roundTripped = copyInstance(relationWith(inline, randomFieldAttributes(1, 3, false)), TransportVersion.current());
+
+        assertThat(roundTripped.datasetReference(), equalTo(inline));
+    }
+
+    private static ExternalRelation relationWith(DatasetReference reference, List<Attribute> output) {
+        SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "csv", "s3://bucket/x.csv", null, null, Map.of(), Map.of());
+        return new ExternalRelation(
+            randomSource(),
+            metadata.location(),
+            metadata,
+            output,
+            FileList.UNRESOLVED,
+            Map.of(),
+            reference,
+            List.of(),
+            DeclaredReadSpec.NONE
         );
     }
 

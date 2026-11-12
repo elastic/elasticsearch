@@ -6221,7 +6221,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testFromMixedIndexAndDatasetMetadataBindsOnBothHalves() throws Exception {
         // METADATA on a heterogeneous FROM must bind on BOTH branches and strip neither. The plan-global metadata
         // strip in Analyzer.planWithoutSyntheticAttributes fires only on the legacy EXTERNAL command's nameless leaf
-        // (an ExternalRelation whose datasetName() == null — the gate added in #149796); a FROM <dataset> leaf always
+        // (an ExternalRelation whose datasetReference() is null); a FROM <dataset> leaf always
         // carries a dataset name and the index leaf is a regular relation, so neither half matches the gate. This
         // asserts that _index and _id both bind on both halves — the index's own value on one, SQL NULL on the other,
         // since a dataset is neither an index nor a document store.

@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FederationLicense;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.dataset.DatasetService;
 import org.elasticsearch.xpack.esql.enrich.AbstractLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
@@ -157,7 +158,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         CrossProjectModeDecider crossProjectModeDecider,
         QueryMetricsListener metricsCollector,
         FederationLicense federationLicense,
-        ExternalWorkerReadiness externalWorkerReadiness
+        ExternalWorkerReadiness externalWorkerReadiness,
+        DatasetService datasetService
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -262,6 +264,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             blockFactoryProvider.blockFactory(),
             operatorFactoryRegistry,
             dataSourceModule.formatReaderRegistry(),
+            datasetService.definitionValidator(),
             client,
             externalWorkerReadiness
         );

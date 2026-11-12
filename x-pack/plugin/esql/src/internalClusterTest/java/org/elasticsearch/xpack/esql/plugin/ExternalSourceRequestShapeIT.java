@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -157,7 +158,7 @@ public class ExternalSourceRequestShapeIT extends AbstractExternalDataSourceIT {
         List<ExternalSplit> splits = List.of(
             new FileSplit("csv", StoragePath.ofLocalPath(file), 0, Files.size(file), "csv", Map.of(), Map.of())
         );
-        return exec.withDatasetName(dataset).withSplits(splits);
+        return exec.withDatasetReference(new DatasetReference.Named(dataset)).withSplits(splits);
     }
 
     /** Sends {@code request} to {@code node}'s own handler, as a coordinator would, and returns the refusal it answers with. */

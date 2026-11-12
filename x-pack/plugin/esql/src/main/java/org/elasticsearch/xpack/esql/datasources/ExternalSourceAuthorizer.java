@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -35,6 +34,10 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
 
 /**
  * Decides, on the node that received a plan, whether the request's credential may read the datasets the plan names.
+ * <p>
+ * A plan carrying a definition of its own rather than a registered dataset's name is nothing to this: a definition
+ * names no dataset to authorize, and the feature adds no privilege of its own. It is confined to snapshot builds,
+ * where {@link DatasetConfigResolver#rebind} binds it and a release node refuses it.
  * <p>
  * The compute actions are authorized by the security filter on their {@code indices()}, which the sender sets, and
  * a plan can pair an allowed index pattern with an external source for any dataset registered here; the filter never
@@ -82,9 +85,8 @@ public final class ExternalSourceAuthorizer {
      *                      filter's role resolution, a cluster-state block wait), so the caller's continuation is
      *                      moved off it as {@link DatasetResolver} does. The handler runs on this executor already, so
      *                      the hop is forced through rather than subject to the pool's queue limit.
-     * @param snapshotBuild whether an external node with no dataset name is let through unchanged (inline
-     *                      {@code EXTERNAL}); injected rather than read from {@code Build} for the same reason as in
-     *                      {@link DatasetConfigResolver}
+     * @param snapshotBuild whether an external node naming no dataset is let through unchanged; injected rather than
+     *                      read from {@code Build} for the same reason as in {@link DatasetConfigResolver}
      */
     public ExternalSourceAuthorizer(Client client, ThreadContext threadContext, Executor executor, boolean snapshotBuild) {
         this.client = client;
@@ -127,7 +129,8 @@ public final class ExternalSourceAuthorizer {
             }
         }
         if (names.isEmpty()) {
-            // Only unnamed nodes, on a snapshot build: there is no dataset to authorize, the rebind lets them through.
+            // Nothing to authorize by name: the plan's external nodes carried their own definitions, or are the
+            // unnamed snapshot-only kind the rebind lets through.
             listener.onResponse(null);
             return;
         }
@@ -179,16 +182,22 @@ public final class ExternalSourceAuthorizer {
     }
 
     /**
-     * A name the resolve action can be asked about as-is: non-empty, not an exclusion, no wildcard, no comma, and no
-     * colon (a remote prefix or a selector). Datasets are registered under plain index-style names, so anything else
-     * cannot be registered and is refused without a round-trip.
+     * A name the resolve action can be asked about as-is: non-empty, not an exclusion, no comma, no colon (a remote
+     * prefix or a selector), and nothing the authorization layer would read as a pattern. Datasets are registered
+     * under plain index-style names, so anything else cannot be registered and is refused without a round-trip.
+     * <p>
+     * The pattern half is the security layer's notion, not {@code Regex.isSimpleMatchPattern}: {@code StringMatcher}
+     * routes {@code *}, {@code ?} and a leading {@code /} to an automaton, so a name carrying one is matched against
+     * a grant as a pattern.
      */
     static boolean isExactLocalName(String name) {
         return name.isEmpty() == false
             && name.charAt(0) != '-'
+            && name.charAt(0) != '/'
             && name.indexOf(',') < 0
             && name.indexOf(':') < 0
-            && Regex.isSimpleMatchPattern(name) == false;
+            && name.indexOf('*') < 0
+            && name.indexOf('?') < 0;
     }
 
     /** The refusal for an external node under a cross-cluster-access authentication or in a remote-cluster compute. */

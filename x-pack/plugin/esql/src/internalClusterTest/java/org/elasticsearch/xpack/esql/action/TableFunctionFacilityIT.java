@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.dataset.DatasetDefinitionValidator;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
@@ -57,10 +58,10 @@ import static org.hamcrest.Matchers.hasSize;
  */
 public class TableFunctionFacilityIT extends AbstractEsqlIntegTestCase {
 
-    /** Registers the test function in place of this node's set, which on this branch is empty anyway. */
+    /** Registers the test function in place of this node's set, so the facility stands alone in these tests. */
     public static final class EsqlWithTestTableFunction extends EsqlPluginWithEnterpriseOrTrialLicense {
         @Override
-        protected List<TableFunction> tableFunctions() {
+        protected List<TableFunction> tableFunctions(DatasetDefinitionValidator datasetDefinitionValidator) {
             return List.of(new Letters(), new Indexed());
         }
     }

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -56,7 +57,7 @@ public class LookupFromIndexExternalSourceIT extends AbstractEsqlIntegTestCase {
             output,
             FileList.UNRESOLVED,
             Map.of(),
-            "secret_dataset"
+            new DatasetReference.Named("secret_dataset")
         );
         BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
         Page inputPage = new Page(blockFactory.newConstantIntBlockWith(1, 1));

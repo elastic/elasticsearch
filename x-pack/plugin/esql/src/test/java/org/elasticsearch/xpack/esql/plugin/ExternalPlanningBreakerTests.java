@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.datasources.Phase2Reservation;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.dataset.DatasetDefinitionValidator;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
@@ -680,6 +681,7 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             blockFactory,
             operators,
             readers,
+            new DatasetDefinitionValidator(Map.of()),
             null,
             // Holds no node back, so every node of a state is a worker.
             new ExternalWorkerReadiness(clusterService, null, threadPool, false)

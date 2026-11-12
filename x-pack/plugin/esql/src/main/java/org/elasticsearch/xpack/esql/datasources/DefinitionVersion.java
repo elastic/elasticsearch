@@ -84,8 +84,8 @@ public final class DefinitionVersion {
      * dataset over it reads, and must change their versions too.
      * <p>
      * Murmur3-128, following {@code ReadConfigFingerprint}, and like it this guards accidental collision rather
-     * than an adversary. The pre-image is written by whoever may register a dataset or a data source, which is a
-     * privileged operation; a reader who could choose it could also read what it addresses.
+     * than an adversary. A dataset read inline lets a reader choose part of the pre-image, but the cache key this
+     * version sits in also carries the source's secret identity, so a collision cannot cross a credential boundary.
      */
     public static String of(Dataset dataset, DataSource parent) {
         StringBuilder encoded = new StringBuilder();

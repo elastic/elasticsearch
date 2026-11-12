@@ -165,7 +165,7 @@ public class MaterializeRelationClassAndNameTests extends AbstractLogicalPlanOpt
         SourceMetadata metadata = new SimpleSourceMetadata(output, "test", RESOURCE);
         // The six-argument constructor is the one the wire takes below esql_external_dataset_name: no name.
         ExternalRelation unnamed = new ExternalRelation(Source.EMPTY, RESOURCE, metadata, output, FileList.UNRESOLVED, Map.of());
-        assertThat(unnamed.datasetName(), nullValue());
+        assertThat(unnamed.datasetReference(), nullValue());
 
         Project rewritten = as(new MaterializeRelationClassAndName().apply(unnamed), Project.class);
         Literal name = as(aliasNamed(as(rewritten.child(), Eval.class), MetadataAttribute.RELATION_NAME).child(), Literal.class);

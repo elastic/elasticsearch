@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -124,17 +125,17 @@ public class UnresolvedExternalRelationTests extends ESTestCase {
         Expression tablePath = Literal.keyword(source, "s3://bucket/table");
 
         UnresolvedExternalRelation inline = new UnresolvedExternalRelation(source, tablePath, new HashMap<>());
-        assertNull("inline EXTERNAL path leaves datasetName null", inline.datasetName());
+        assertNull("a source with no dataset behind it references none", inline.datasetReference());
 
         UnresolvedExternalRelation viaDataset = new UnresolvedExternalRelation(
             source,
             tablePath,
             new HashMap<>(),
             java.util.List.of(),
-            "my_dataset"
+            new DatasetReference.Named("my_dataset")
         );
-        assertThat(viaDataset.datasetName(), equalTo("my_dataset"));
-        // datasetName participates in equality so the analyzer can distinguish dataset-backed
+        assertThat(viaDataset.datasetReference(), equalTo(new DatasetReference.Named("my_dataset")));
+        // datasetReference participates in equality so the analyzer can distinguish dataset-backed
         // vs inline relations that otherwise share path + config.
         assertNotEquals(inline, viaDataset);
     }

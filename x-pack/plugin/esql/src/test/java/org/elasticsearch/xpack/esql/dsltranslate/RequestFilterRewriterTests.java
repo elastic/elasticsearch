@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
@@ -57,7 +58,15 @@ public class RequestFilterRewriterTests extends ESTestCase {
     private static ExternalRelation relation() {
         List<Attribute> output = List.of(new ReferenceAttribute(Source.EMPTY, "a", DataType.INTEGER));
         SourceMetadata metadata = new SimpleSourceMetadata(output, "test", "file:///data.csv");
-        return new ExternalRelation(Source.EMPTY, "file:///data.csv", metadata, output, FileList.UNRESOLVED, Map.of(), "ds");
+        return new ExternalRelation(
+            Source.EMPTY,
+            "file:///data.csv",
+            metadata,
+            output,
+            FileList.UNRESOLVED,
+            Map.of(),
+            new DatasetReference.Named("ds")
+        );
     }
 
     public void testNullFilterLeavesPlanUnchanged() {
@@ -172,7 +181,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
         List<Attribute> output = List.of(attrs);
         String path = "file:///" + name + ".csv";
         SourceMetadata metadata = new SimpleSourceMetadata(output, "test", path);
-        return new ExternalRelation(Source.EMPTY, path, metadata, output, FileList.UNRESOLVED, Map.of(), name);
+        return new ExternalRelation(Source.EMPTY, path, metadata, output, FileList.UNRESOLVED, Map.of(), new DatasetReference.Named(name));
     }
 
     private static ReferenceAttribute attr(String name, DataType type) {
@@ -329,7 +338,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
         );
 
         Map<String, Filter> byDataset = new HashMap<>();
-        result.forEachDown(Filter.class, f -> byDataset.put(((ExternalRelation) f.child()).datasetName(), f));
+        result.forEachDown(Filter.class, f -> byDataset.put(((ExternalRelation) f.child()).datasetReference().describe(), f));
 
         assertThat(
             "dsA binds both region and status",

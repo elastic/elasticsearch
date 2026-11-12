@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
@@ -94,14 +95,14 @@ public class ExternalRelationTests extends ESTestCase {
             createAttributes(),
             fileList,
             Map.of(),
-            "my_dataset"
+            new DatasetReference.Named("my_dataset")
         );
 
         ExternalSourceExec exec = relation.toPhysicalExec();
 
         // Build-time state copied from the relation.
         assertSame(fileList, exec.fileList());
-        assertEquals("my_dataset", exec.datasetName());
+        assertEquals(new DatasetReference.Named("my_dataset"), exec.datasetReference());
         assertNotNull("unifiedSchema seeded from the relation", exec.unifiedSchema());
         assertEquals(relation.output(), exec.output());
         assertEquals(relation.sourceType(), exec.sourceType());

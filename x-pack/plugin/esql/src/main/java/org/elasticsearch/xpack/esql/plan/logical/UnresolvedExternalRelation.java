@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 
 import java.util.Collections;
 import java.util.List;
@@ -45,7 +46,7 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
     private final Map<String, Object> config;
     private final List<NamedExpression> metadataFields;
     @Nullable
-    private final String datasetName;
+    private final DatasetReference datasetReference;
     @Nullable
     private final DatasetMapping mapping;
     private final String unresolvedMsg;
@@ -82,27 +83,23 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
      * per resolved name to the leaf's output. This constructor does not validate the names — invalid
      * names surface as unresolved attributes downstream with the existing "Unknown column" diagnostic.
      * <p>
-     * {@code datasetName} is the registered dataset identifier when the relation was created by
-     * {@link org.elasticsearch.xpack.esql.datasources.DatasetRewriter} from a {@code FROM <dataset>}
-     * pattern; it is {@code null} for the inline {@code EXTERNAL} command path where no dataset
-     * mapping exists. It flows through to the operator factory so the per-file {@code _index}
-     * synthesizer can populate the column with the user-facing dataset identifier rather than the
-     * raw resource path.
+     * {@code datasetReference} says which dataset is read: a registered name, or a definition the query supplied,
+     * or {@code null} for a source with no dataset behind it.
      *
      * @param source the source location in the query
      * @param tablePath the resource path or external table identifier (a {@code Literal} or parameter reference)
      * @param config plain-valued configuration (e.g., credentials, format options) — not wrapped in {@code Literal}
      * @param metadataFields names requested in the {@code METADATA} clause, in declaration order; never {@code null}
-     * @param datasetName registered dataset name when this leaf came from {@code FROM <dataset>}; {@code null} otherwise
+     * @param datasetReference the dataset this leaf reads, named or defined inline; {@code null} when neither
      */
     public UnresolvedExternalRelation(
         Source source,
         Expression tablePath,
         Map<String, Object> config,
         List<NamedExpression> metadataFields,
-        @Nullable String datasetName
+        @Nullable DatasetReference datasetReference
     ) {
-        this(source, tablePath, config, metadataFields, datasetName, null);
+        this(source, tablePath, config, metadataFields, datasetReference, null);
     }
 
     /**
@@ -116,14 +113,14 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
         Expression tablePath,
         Map<String, Object> config,
         List<NamedExpression> metadataFields,
-        @Nullable String datasetName,
+        @Nullable DatasetReference datasetReference,
         @Nullable DatasetMapping mapping
     ) {
         super(source);
         this.tablePath = tablePath;
         this.config = config;
         this.metadataFields = Objects.requireNonNull(metadataFields, "metadataFields");
-        this.datasetName = datasetName;
+        this.datasetReference = datasetReference;
         this.mapping = mapping;
         this.unresolvedMsg = "Unknown external table or Parquet file [" + extractTablePathValue(tablePath) + "]";
     }
@@ -151,7 +148,7 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
 
     @Override
     protected NodeInfo<UnresolvedExternalRelation> info() {
-        return NodeInfo.create(this, UnresolvedExternalRelation::new, tablePath, config, metadataFields, datasetName, mapping);
+        return NodeInfo.create(this, UnresolvedExternalRelation::new, tablePath, config, metadataFields, datasetReference, mapping);
     }
 
     public Expression tablePath() {
@@ -167,13 +164,12 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
     }
 
     /**
-     * Registered dataset identifier, or {@code null} when this relation was produced by the inline
-     * {@code EXTERNAL} command path (no dataset mapping). Threaded to the operator factory so the
-     * {@code _index} per-file synthesizer can emit the user-facing dataset name.
+     * Which dataset this relation reads — a registered name, or a definition the query supplied. {@code null} when
+     * there is no dataset behind the source at all.
      */
     @Nullable
-    public String datasetName() {
-        return datasetName;
+    public DatasetReference datasetReference() {
+        return datasetReference;
     }
 
     /**
@@ -209,7 +205,7 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
     public int hashCode() {
         // No source(): equals() below ignores it, and the equals/hashCode contract requires equal
         // nodes to hash equal (same node parsed at two positions must collapse in plan-node sets).
-        return Objects.hash(tablePath, config, metadataFields, datasetName, mapping, unresolvedMsg);
+        return Objects.hash(tablePath, config, metadataFields, datasetReference, mapping, unresolvedMsg);
     }
 
     @Override
@@ -226,7 +222,7 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
         return Objects.equals(tablePath, other.tablePath)
             && Objects.equals(config, other.config)
             && Objects.equals(metadataFields, other.metadataFields)
-            && Objects.equals(datasetName, other.datasetName)
+            && Objects.equals(datasetReference, other.datasetReference)
             && Objects.equals(mapping, other.mapping)
             && Objects.equals(unresolvedMsg, other.unresolvedMsg);
     }

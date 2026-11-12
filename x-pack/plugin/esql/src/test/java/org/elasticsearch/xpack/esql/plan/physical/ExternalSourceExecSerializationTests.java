@@ -12,6 +12,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
@@ -259,6 +260,25 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
         ExternalSourceExec original = randomExternalSourceExec(before).withDeclaredReadSpec(spec);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> copyInstance(original, before));
         assertThat(e.getMessage(), containsString("not supported on all nodes"));
+    }
+
+    /** The inline arm rides the wire; without it the reading node has no dataset to resolve. */
+    public void testInlineArmSurvivesRoundTripWhenSupported() throws IOException {
+        DatasetReference.Inline inline = new DatasetReference.Inline(
+            "s3_source",
+            Map.of("resource", "s3://bucket/*.csv", "settings", Map.of("format", "csv"))
+        );
+        ExternalSourceExec original = randomExternalSourceExec().withDatasetReference(inline);
+
+        assertThat(copyInstance(original, TransportVersion.current()).datasetReference(), equalTo(inline));
+    }
+
+    /** A source with no dataset behind it still serializes toward such a node; only the inline arm is refused. */
+    public void testAnEmptySlotSerializesToOlderTransportVersion() throws IOException {
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(DatasetReference.DATASET_REFERENCE);
+        ExternalSourceExec original = randomExternalSourceExec(before);
+
+        assertNull(copyInstance(original, before).datasetReference());
     }
 
     /**

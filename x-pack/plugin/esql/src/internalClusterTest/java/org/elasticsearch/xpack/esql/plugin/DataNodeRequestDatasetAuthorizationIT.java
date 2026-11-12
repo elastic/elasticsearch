@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
@@ -130,7 +131,7 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
     @Override
     protected String configUsers() {
         StringBuilder users = new StringBuilder(super.configUsers());
-        for (String user : List.of(READER, PATTERN_READER, DLS_READER, INDEX_ONLY_READER)) {
+        for (String user : users()) {
             users.append(user).append(':').append(SecuritySettingsSource.TEST_PASSWORD_HASHED).append('\n');
         }
         return users.toString();
@@ -139,10 +140,14 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
     @Override
     protected String configUsersRoles() {
         StringBuilder usersRoles = new StringBuilder(super.configUsersRoles());
-        for (String user : List.of(READER, PATTERN_READER, DLS_READER, INDEX_ONLY_READER)) {
+        for (String user : users()) {
             usersRoles.append(user).append(':').append(user).append('\n');
         }
         return usersRoles.toString();
+    }
+
+    private static List<String> users() {
+        return List.of(READER, PATTERN_READER, DLS_READER, INDEX_ONLY_READER);
     }
 
     @Override
@@ -269,6 +274,20 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
         assertThat(sendShard(READER, fragment(DATASET_A)).expectRows(), contains("a1", "a2"));
     }
 
+    /**
+     * A shard request whose fragment carries a definition rather than a registered name reads, because the feature
+     * adds no gate of its own: nothing the node asks is about the data source. Pinned so that the day one is added
+     * it is added here too, where the crafted-request shapes are.
+     */
+    public void testShardRequestCarryingAnInlineDefinitionReads() throws Exception {
+        assertThat(sendShard(READER, inlineFragment(fileA)).expectRows(), contains("a1", "a2"));
+    }
+
+    /** The same for a crafted request carrying the definition on a physical node rather than inside a fragment. */
+    public void testCraftedInlineDefinitionReads() throws Exception {
+        assertThat(sendExternal(READER, inlineExec(fileA)).expectRows(), contains("a1", "a2"));
+    }
+
     public void testCrossClusterAccessAuthenticationIsRefused() throws Exception {
         // A cross-cluster credential whose grants cover the dataset name by pattern would otherwise be authorized.
         Outcome outcome = send(crossClusterAccessAuthentication(), externalRequest(exec(DATASET_A, fileA)));
@@ -276,8 +295,18 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
         assertThat(refusal.getMessage(), containsString("local to the cluster that registered them"));
     }
 
+    /**
+     * The same for a plan carrying the definition rather than a name. Nothing about the refusal depends on the arm —
+     * it fires on the presence of an external source at all — but nothing else exercises that, and an arm added
+     * later to {@code ExternalSourceDatasets} without this would open the cross-cluster door silently.
+     */
+    public void testCrossClusterAccessAuthenticationIsRefusedForACarriedDefinition() throws Exception {
+        Outcome outcome = send(crossClusterAccessAuthentication(), externalRequest(inlineExec(fileA)));
+        assertThat(outcome.refusal().getMessage(), containsString("local to the cluster that registered them"));
+    }
+
     public void testMalformedDatasetNamesAreRefused() throws Exception {
-        for (String name : List.of("", "*", "-" + DATASET_A, DATASET_A + ",*", "remote:" + DATASET_A)) {
+        for (String name : List.of("", "*", "a?c", "-" + DATASET_A, DATASET_A + ",*", "remote:" + DATASET_A)) {
             assertRefused(sendExternal(READER, exec(name, fileA)), name);
         }
     }
@@ -481,7 +510,37 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
             config()
         );
         return new FragmentExec(
-            new ExternalRelation(Source.EMPTY, "s3://attacker/whatever/*.csv", metadata, output, FileList.UNRESOLVED, Map.of(), dataset)
+            new ExternalRelation(
+                Source.EMPTY,
+                "s3://attacker/whatever/*.csv",
+                metadata,
+                output,
+                FileList.UNRESOLVED,
+                Map.of(),
+                new DatasetReference.Named(dataset)
+            )
+        );
+    }
+
+    /**
+     * {@link #fragment} with a supplied definition in place of a registered name. The resource is the real file,
+     * because the node rebuilds the read from the carried definition rather than from a registered dataset, so this
+     * is the one shape where the resource on the relation is what gets read.
+     */
+    private static FragmentExec inlineFragment(Path file) {
+        List<Attribute> output = output();
+        String resource = StoragePath.fileUri(file);
+        SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "csv", resource, null, null, Map.of(), config());
+        return new FragmentExec(
+            new ExternalRelation(
+                Source.EMPTY,
+                resource,
+                metadata,
+                output,
+                FileList.UNRESOLVED,
+                Map.of(),
+                new DatasetReference.Inline(DATA_SOURCE, Map.of("resource", resource, "settings", Map.of("format", "csv")))
+            )
         );
     }
 
@@ -519,7 +578,29 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
         List<ExternalSplit> splits = List.of(
             new FileSplit("csv", StoragePath.ofLocalPath(file), 0, Files.size(file), "csv", Map.of(), Map.of())
         );
-        return exec.withDatasetName(dataset).withSplits(splits);
+        return exec.withDatasetReference(new DatasetReference.Named(dataset)).withSplits(splits);
+    }
+
+    /** The same hostile exec, carrying its definition instead of a registered dataset's name. */
+    private static ExternalSourceExec inlineExec(Path file) throws Exception {
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://attacker/whatever/*.csv",
+            "csv",
+            output(),
+            config(),
+            Map.of(),
+            null,
+            10
+        );
+        List<ExternalSplit> splits = List.of(
+            new FileSplit("csv", StoragePath.ofLocalPath(file), 0, Files.size(file), "csv", Map.of(), Map.of())
+        );
+        DatasetReference.Inline inline = new DatasetReference.Inline(
+            DATA_SOURCE,
+            Map.of("resource", StoragePath.fileUri(file), "settings", Map.of("format", "csv"))
+        );
+        return exec.withDatasetReference(inline).withSplits(splits);
     }
 
     /**

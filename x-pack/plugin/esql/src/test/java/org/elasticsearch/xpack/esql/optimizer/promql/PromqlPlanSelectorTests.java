@@ -42,6 +42,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -241,8 +242,10 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
             .stream()
             .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
             .map(e -> e instanceof Attribute attribute ? attribute.name() : e.toString())
+            .filter(name -> name.equals(MetadataAttribute.TIMESERIES) == false)
             .toList();
-        assertThat(dimensions, equalTo(List.of(MetadataAttribute.TIMESERIES)));
+        assertThat(dimensions, empty());
+        assertThat(sourceViews(plan), equalTo(Set.of(List.of())));
     }
 
     public void testGroupByAllInstantSelectorRate() {

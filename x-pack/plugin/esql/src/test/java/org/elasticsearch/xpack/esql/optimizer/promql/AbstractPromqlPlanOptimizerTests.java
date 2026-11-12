@@ -73,12 +73,12 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
     }
 
     /**
-     * The labels each view of the source's series in {@code collapse} leaves out, sorted: the typed label container's
+     * The labels each view of the source's series in {@code plan} leaves out, sorted: the typed label container's
      * {@link TimeSeriesWithout}, or the keyword {@code _timeseries} it is lowered to where a node before 9.7 takes part.
      */
-    protected static Set<List<String>> sourceViews(TimeSeriesAggregate collapse) {
+    protected static Set<List<String>> sourceViews(LogicalPlan plan) {
         var views = new LinkedHashSet<List<String>>();
-        collapse.forEachExpressionDown(Expression.class, e -> {
+        plan.forEachDown(node -> node.forEachExpressionDown(Expression.class, e -> {
             switch (e) {
                 case TimeSeriesWithout without -> views.add(without.children().stream().map(c -> ((Attribute) c).name()).sorted().toList());
                 case TimeSeriesMetadataAttribute keyword -> views.add(keyword.excludedFields().stream().sorted().toList());
@@ -86,8 +86,13 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
                 default -> {
                 }
             }
-        });
+        }));
         return views;
+    }
+
+    /** Plans {@code query} as where a node before 9.7 takes part: the label container is the keyword {@code _timeseries}. */
+    protected LogicalPlan planPromqlKeyword(String query, boolean optimize) {
+        return planPromql(tsAnalyzer().minimumTransportVersion(TimeSeriesCollapse.TS_COLLAPSE), query, false, optimize);
     }
 
     private LogicalPlan planPromql(TestAnalyzer analyzer, String query, boolean allowEmptyReferences, boolean optimize) {

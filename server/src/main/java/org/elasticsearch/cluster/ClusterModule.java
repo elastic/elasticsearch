@@ -38,9 +38,11 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStr
 import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTaskExecutor;
+import org.elasticsearch.cluster.routing.allocation.LoggingShardMovementListener;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.ShardMovementListener;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -207,7 +209,8 @@ public class ClusterModule extends AbstractModule {
             snapshotsInfoService,
             shardRoutingRoleStrategy,
             telemetryProvider.getMeterRegistry(),
-            clusterService.getClusterSettings()
+            clusterService.getClusterSettings(),
+            getShardMovementListener(clusterPlugins)
         );
         this.allocationService.addAllocFailuresResetListenerTo(clusterService);
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
@@ -257,6 +260,13 @@ public class ClusterModule extends AbstractModule {
             case 1 -> strategies.getFirst();
             default -> throw new IllegalArgumentException("multiple plugins define balancing weights factories, which is not permitted");
         };
+    }
+
+    static ShardMovementListener getShardMovementListener(List<ClusterPlugin> clusterPlugins) {
+        final var listeners = new ArrayList<ShardMovementListener>();
+        listeners.add(new LoggingShardMovementListener());
+        clusterPlugins.forEach(plugin -> listeners.addAll(plugin.getShardMovementListeners()));
+        return ShardMovementListener.composite(listeners);
     }
 
     static ShardRelocationOrder getShardRelocationOrder(List<ClusterPlugin> clusterPlugins, ClusterSettings clusterSettings) {

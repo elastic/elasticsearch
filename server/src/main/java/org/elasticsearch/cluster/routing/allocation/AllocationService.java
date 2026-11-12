@@ -143,12 +143,34 @@ public class AllocationService {
         MeterRegistry meterRegistry,
         ClusterSettings clusterSettings
     ) {
+        this(
+            allocationDeciders,
+            shardsAllocator,
+            clusterInfoService,
+            snapshotsInfoService,
+            shardRoutingRoleStrategy,
+            meterRegistry,
+            clusterSettings,
+            ShardMovementListener.NOOP
+        );
+    }
+
+    public AllocationService(
+        AllocationDeciders allocationDeciders,
+        ShardsAllocator shardsAllocator,
+        ClusterInfoService clusterInfoService,
+        SnapshotsInfoService snapshotsInfoService,
+        ShardRoutingRoleStrategy shardRoutingRoleStrategy,
+        MeterRegistry meterRegistry,
+        ClusterSettings clusterSettings,
+        ShardMovementListener shardMovementListener
+    ) {
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
         this.shardRoutingRoleStrategy = shardRoutingRoleStrategy;
-        this.shardChangesObserver = new ShardChangesObserver(meterRegistry);
+        this.shardChangesObserver = new ShardChangesObserver(meterRegistry, shardMovementListener);
         clusterSettings.initializeAndWatch(PRESERVE_DECISION_LABELS_SETTING, value -> this.preserveDecisionLabels = value);
     }
 

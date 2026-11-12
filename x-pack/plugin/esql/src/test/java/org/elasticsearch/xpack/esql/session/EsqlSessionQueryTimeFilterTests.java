@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -340,7 +341,9 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
      */
     public void testTimeSeriesSources() {
         QueryBuilder timeSeries = QueryBuilders.termQuery("_index_mode", "time_series");
-        for (String settings : new String[] { "", "SET exemplars=true; " }) {
+        // The exemplars setting is only available in snapshot builds.
+        String[] allSettings = Build.current().isSnapshot() ? new String[] { "", "SET exemplars=true; " } : new String[] { "" };
+        for (String settings : allSettings) {
             indexFilters.clear();
             try {
                 analyze(settings + "TS logs-*" + TIME_RANGE + " | STATS m = MAX(MAX_OVER_TIME(value))", null);

@@ -387,6 +387,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     );
 
     public static final String TRANSLOG_UPLOAD_DURATION_HISTOGRAM = "es.stateless.translog.upload.duration.histogram";
+    public static final String BCC_MULTIPART_UPLOAD_PART_START_LATENCY_HISTOGRAM =
+        "es.stateless.bcc_multipart_upload.part_start.latency.histogram";
+    public static final String BCC_UPLOAD_PART_DURATION_HISTOGRAM = "es.stateless.bcc_upload.part_duration.histogram";
     public static final String TRANSLOG_UPLOAD_SIZE_HISTOGRAM = "es.stateless.translog.upload.size.histogram";
 
     /**
@@ -494,12 +497,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             "kilobytes"
         );
         this.bccMultipartUploadPartStartLatencyHistogram = meterRegistry.registerLongHistogram(
-            "es.stateless.bcc_multipart_upload.part_start.latency.histogram",
+            BCC_MULTIPART_UPLOAD_PART_START_LATENCY_HISTOGRAM,
             "time from the start of a concurrent multipart upload of a BCC until the repository client requests the data of each part",
             "milliseconds"
         );
         this.bccMultipartUploadPartDurationHistogram = meterRegistry.registerLongHistogram(
-            "es.stateless.bcc_upload.part_duration.histogram",
+            BCC_UPLOAD_PART_DURATION_HISTOGRAM,
             "time from when the repository client requests the data of a part of a BCC upload until it closes the stream of that "
                 + "part (an upload done in a single request counts as one part), recorded once per stream opened",
             "milliseconds",
@@ -1842,7 +1845,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         protected void doRun() {
             boolean success = false;
             final long objectStoreQueueWaitMs = TimeValue.nsecToMSec(threadPool.relativeTimeInNanos() - timeInNanos);
-            final long uploadIoStartNanos = threadPool.relativeTimeInNanos();
+            final long uploadIoStartMillis = threadPool.relativeTimeInMillis();
             try {
                 final long totalSizeInBytes = virtualBatchedCompoundCommit.getTotalSizeInBytes();
                 if (concurrentMultipartUploads == false || blobContainer.supportsConcurrentMultipartUploads() == false) {
@@ -1901,7 +1904,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                     }
                 }
                 if (isDebugEnabled) {
-                    final long uploadIoMs = TimeValue.nsecToMSec(threadPool.relativeTimeInNanos() - uploadIoStartNanos);
+                    final long uploadIoMs = threadPool.relativeTimeInMillis() - uploadIoStartMillis;
                     logger.debug(
                         () -> format(
                             "%s file %s of size [%s] bytes from batched compound commit [%s] uploaded in [%s] ms"
@@ -1923,7 +1926,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 // TODO GoogleCloudStorageBlobStore should throw IOException too (https://github.com/elastic/elasticsearch/issues/92357)
                 onFailure(e);
             } finally {
-                final long uploadIoMs = TimeValue.nsecToMSec(threadPool.relativeTimeInNanos() - uploadIoStartNanos);
+                final long uploadIoMs = threadPool.relativeTimeInMillis() - uploadIoStartMillis;
                 bccObjectStoreUploadDurationHistogram.record(
                     uploadIoMs,
                     Map.of(

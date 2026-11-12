@@ -1711,7 +1711,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             safeAwait(waitForUploadLatch);
 
             final var measurements = meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_HISTOGRAM, "es.stateless.bcc_multipart_upload.part_start.latency.histogram");
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, ObjectStoreService.BCC_MULTIPART_UPLOAD_PART_START_LATENCY_HISTOGRAM);
             // time since the start of the upload is 10, 10 + 20 (=30), and 10 + 20 + 30 (=60) milliseconds
             assertThat(
                 measurements.stream().map(Measurement::getLong).toList(),
@@ -1723,7 +1723,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             );
 
             final var partDurations = meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_HISTOGRAM, "es.stateless.bcc_upload.part_duration.histogram");
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, ObjectStoreService.BCC_UPLOAD_PART_DURATION_HISTOGRAM);
             assertThat(partDurations.size(), equalTo((isMultipart ? 3 : 1) * (1 + retriesPerPart)));
             assertTrue(partDurations.stream().allMatch(m -> m.getLong() >= 0L));
             assertThat(

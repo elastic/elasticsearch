@@ -260,6 +260,11 @@ tests:
   tasks:
   - :x-pack:qa:core-rest-tests-with-security:yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/165497
+- class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorScoringTests
+  tasks:
+  - :x-pack:plugin:esql:compute:test
+  method: testTheResultsAreEmittedWhenTheLastSliceEndsAfterTheStatusInterval
+  issue: https://github.com/elastic/elasticsearch/issues/165682
 
 # Examples:
 #

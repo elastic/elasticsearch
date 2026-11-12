@@ -86,10 +86,12 @@ import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 import static org.elasticsearch.indices.recovery.RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -2758,6 +2760,68 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         blockedRecoveryListener.get().onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         taskQueue.runAllRunnableTasks();
         assertThat(service.currentQueueSize(), equalTo(0));
+    }
+
+    public void testSplitTargetRecoversAfterRelocations() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var clusterService = newClusterService(1);
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
+
+        // The blocker holds the only recovery slot until its listener is completed, so that the other recoveries all queue
+        final var blockedRecoveryListener = new AtomicReference<RecoveryListener>();
+        service.enqueue(
+            ProjectId.DEFAULT,
+            noopRecoveryListener(),
+            mockIndexShard(newCriticalRecoveryState(), UUIDs.randomBase64UUID(), stats),
+            newIndexMetadata(),
+            blockedRecoveryListener::set
+        );
+        taskQueue.runAllRunnableTasks();
+        assertNotNull("blocker should have been dispatched", blockedRecoveryListener.get());
+
+        final var splitTargetShardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 1);
+        final var splitTargetRouting = TestShardRouting.shardRoutingBuilder(
+            splitTargetShardId,
+            clusterService.localNode().getId(),
+            true,
+            ShardRoutingState.INITIALIZING
+        )
+            .withRecoverySource(new RecoverySource.ReshardSplitRecoverySource(new ShardId(splitTargetShardId.getIndex(), 0)))
+            .withRecoveryPriority(RecoveryPriority.UNASSIGNED_RESHARD_SPLIT_TARGET)
+            .build();
+        final var splitTargetShard = mockIndexShard(
+            new RecoveryState(splitTargetRouting, targetNode, sourceNode),
+            UUIDs.randomBase64UUID(),
+            stats
+        );
+        final var relocationTargetShards = Stream.of(
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO,
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED,
+            RecoveryPriority.RELOCATE_REBALANCING
+        ).map(priority -> mockRelocationTargetIndexShard(clusterService, "relocation-source", priority)).toList();
+
+        final List<IndexShard> shuffledShards = new ArrayList<>(relocationTargetShards);
+        shuffledShards.add(splitTargetShard);
+        Collections.shuffle(shuffledShards, random());
+        final var completionOrder = new CopyOnWriteArrayList<IndexShard>();
+        for (final var shard : shuffledShards) {
+            service.enqueue(
+                ProjectId.DEFAULT,
+                onRecoveryDoneListener(() -> completionOrder.add(shard)),
+                shard,
+                newIndexMetadata(),
+                l -> l.onRecoveryDone(shard.recoveryState(), ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+            );
+        }
+        taskQueue.runAllRunnableTasks();
+        assertThat(service.currentQueueSize(), equalTo(shuffledShards.size()));
+
+        blockedRecoveryListener.get().onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+        taskQueue.runAllRunnableTasks();
+        assertThat(service.currentQueueSize(), equalTo(0));
+        assertThat(completionOrder.size(), equalTo(shuffledShards.size()));
+        assertThat(completionOrder.getLast(), sameInstance(splitTargetShard));
+        assertThat(completionOrder.subList(0, relocationTargetShards.size()), containsInAnyOrder(relocationTargetShards.toArray()));
     }
 
     private static ClusterChangedEvent clusterChangedEventWithShutdowns(

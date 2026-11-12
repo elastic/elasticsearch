@@ -655,7 +655,10 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             protected AllocationService createAllocationService(Settings settings, SnapshotsInfoService snapshotsInfoService) {
                 final ClusterSettings clusterSettings = new ClusterSettings(
                     settings,
-                    Sets.addToCopy(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED)
+                    Sets.addToCopy(
+                        ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                        SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED
+                    )
                 );
                 final AllocationService allocationService = new AllocationService(
                     randomAllocationDeciders(settings, clusterSettings, List.of(new ClusterPlugin() {

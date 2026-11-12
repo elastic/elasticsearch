@@ -18,9 +18,13 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomNormalizedFloatVector;
 
 /**
  * Verifies that the columnar batch path of {@code dense_vector} produces the same Lucene fields as the row path, and that the
@@ -49,20 +53,30 @@ public class DenseVectorFieldMapperColumnarCompatibilityTests extends AbstractCo
         });
     }
 
-    /** A random vector, normalized to unit length when {@code unit} is set, rendered as a JSON array of floats. */
-    private static String randomVectorJson(int dims, boolean unit) {
-        final float[] vector = new float[dims];
-        double squaredMagnitude = 0;
-        for (int i = 0; i < dims; i++) {
-            vector[i] = randomFloatBetween(-1f, 1f, true);
-            squaredMagnitude += vector[i] * vector[i];
-        }
-        if (unit) {
-            final float length = (float) Math.sqrt(squaredMagnitude);
-            for (int i = 0; i < dims; i++) {
-                vector[i] /= length;
+    /** A random non-zero vector, normalized to unit length when {@code unit} is set, as {@code dot_product} requires. */
+    private static float[] randomVector(int dims, boolean unit) {
+        return unit ? randomNormalizedFloatVector(dims) : randomFloatVector(dims);
+    }
+
+    /**
+     * A vector as a JSON string holding its base64 encoding: big-endian float32 elements, or, when {@code bfloat16} is set,
+     * big-endian bfloat16 elements (the upper 16 bits of each float), the two encodings a float or bfloat16 field accepts.
+     */
+    private static String base64VectorJson(float[] vector, boolean bfloat16) {
+        final ByteBuffer encoded = ByteBuffer.allocate(vector.length * (bfloat16 ? Short.BYTES : Float.BYTES));
+        for (float value : vector) {
+            if (bfloat16) {
+                encoded.putShort((short) (Float.floatToIntBits(value) >>> 16));
+            } else {
+                encoded.putFloat(value);
             }
         }
+        return "\"" + Base64.getEncoder().encodeToString(encoded.array()) + "\"";
+    }
+
+    /** A random vector, normalized to unit length when {@code unit} is set, rendered as a JSON array of floats. */
+    private static String randomVectorJson(int dims, boolean unit) {
+        final float[] vector = randomVector(dims, unit);
         final StringBuilder json = new StringBuilder("[");
         for (int i = 0; i < dims; i++) {
             if (i > 0) {
@@ -231,10 +245,56 @@ public class DenseVectorFieldMapperColumnarCompatibilityTests extends AbstractCo
         expectThrows(IllegalArgumentException.class, () -> mapColumnarLeaf(mapperService, FIELD, vectorDoc("[0,0,0,0,0,0,0,0]")));
     }
 
-    public void testBase64VectorFallsBack() throws IOException {
+    /**
+     * Base64-encoded vectors, in the float32 and the bfloat16 encoding, index the same vectors as the row path, alone and in a batch
+     * that mixes them with arrays, absent and {@code null} vectors, which makes the source column a union.
+     */
+    public void testBase64Vectors() throws IOException {
+        final String similarity = randomFrom("l2_norm", "max_inner_product", "cosine");
+        final List<Doc> mixed = new ArrayList<>();
+        final int docCount = between(1, 20);
+        for (int i = 0; i < docCount; i++) {
+            final String source = switch (between(0, 4)) {
+                case 0 -> "{}";
+                case 1 -> vectorDoc("null");
+                case 2 -> vectorDoc(randomVectorJson(DIMS, randomBoolean()));
+                default -> vectorDoc(base64VectorJson(randomVector(DIMS, randomBoolean()), randomBoolean()));
+            };
+            mixed.add(doc("d" + i, i, source));
+        }
+        assertColumnarMatchesXContent(
+            vectorMapping(randomFrom("float", "bfloat16"), similarity),
+            vectordbColumnarSettings(),
+            batch(
+                "base64 float32 and bfloat16",
+                1L,
+                doc("d1", 1L, vectorDoc(base64VectorJson(randomVector(DIMS, false), false))),
+                doc("d2", 2L, vectorDoc(base64VectorJson(randomVector(DIMS, false), true)))
+            ),
+            batch("base64 mixed with arrays", 1L, mixed.toArray(Doc[]::new))
+        );
+    }
+
+    /** {@code dot_product} needs unit vectors; the float32 encoding keeps a unit vector unit length. */
+    public void testBase64DotProduct() throws IOException {
+        assertColumnarMatchesXContent(
+            vectorMapping(randomFrom("float", "bfloat16"), "dot_product"),
+            vectordbColumnarSettings(),
+            batch(
+                "base64 dot_product",
+                1L,
+                doc("d1", 1L, vectorDoc(base64VectorJson(randomVector(DIMS, true), false))),
+                doc("d2", 2L, vectorDoc(randomVectorJson(DIMS, true)))
+            )
+        );
+    }
+
+    /** A string that is not a base64 vector of the mapped dimensions is left for the row path to reject. */
+    public void testInvalidBase64VectorFallsBack() throws IOException {
         final MapperService mapperService = createMapperService(vectordbColumnarSettings(), vectorMapping("float", "l2_norm"));
-        final String base64 = Base64.getEncoder().encodeToString(new byte[DIMS * Float.BYTES]);
-        expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, vectorDoc("\"" + base64 + "\"")));
+        final String wrongDims = base64VectorJson(randomVector(DIMS - 1, false), randomBoolean());
+        expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, vectorDoc(wrongDims)));
+        expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, vectorDoc("\"not a vector!\"")));
     }
 
     public void testNonNumericElementFallsBack() throws IOException {

@@ -4352,9 +4352,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     /**
      * Columnar counterpart of {@link #parse} for the configurations {@link #doSupportsColumnarParse} accepts. Each document's
-     * vector is read from the batch's ESCF source column and validated as the row path validates it. A document the batch path
-     * cannot handle the same way, such as a base64-encoded vector, a vector of the wrong length or an invalid value, throws, which
-     * makes the whole batch fall back to the row path; the row path then reports the same per-document error it always has.
+     * vector is read from the batch's ESCF source column, as an array of numbers or a base64-encoded string, and validated as the
+     * row path validates it. A document the batch path cannot handle the same way, such as a vector of the wrong length or an
+     * invalid value, throws, which makes the whole batch fall back to the row path; the row path then reports the same
+     * per-document error it always has.
      *
      * <p>For a normalized {@code cosine} field, a vector that is not unit length is indexed normalized and its original length is
      * kept in the {@code ._magnitude} doc values field, as the row path does; that field is a sparse column holding a value for the
@@ -4374,18 +4375,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
         FixedBitSet hasMagnitude = null;
         for (int doc = 0; doc < docCount; doc++) {
             final byte type = source.getTypeByte(doc);
+            final float[] vector;
+            final float squaredMagnitude;
             switch (type) {
                 case SourceValueType.ABSENT, SourceValueType.NULL -> {
                     // no vector, as on the row path
+                    continue;
                 }
                 case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> {
-                    final float[] vector = new float[dims];
+                    vector = new float[dims];
                     // Accumulated in float, element by element, exactly as FloatElement#parseVectorArray does on the row path, so
                     // that the unit-length check of dot_product accepts and rejects the same vectors on both paths.
                     // TODO: only dot_product and cosine need the magnitude (l2_norm and max_inner_product use it only to guard
                     // against overflow), and it could be computed after the loop with the SIMD ESVectorUtil#dotProduct, as the
                     // query path does.
-                    float squaredMagnitude = 0;
+                    float sum = 0;
                     final ArrayReader array = source.getArrayValue(doc);
                     int index = 0;
                     while (array.next()) {
@@ -4396,36 +4400,48 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         }
                         final float value = vectorElementValue(array);
                         vector[index++] = value;
-                        squaredMagnitude += value * value;
+                        sum += value * value;
                     }
                     if (index != dims) {
                         throw new UnsupportedOperationException(
                             "mapColumnBatch: [" + fullPath() + "] has [" + index + "] dimensions, the mapping defines [" + dims + "]"
                         );
                     }
-                    element.checkVectorBounds(vector);
-                    element.checkVectorMagnitude(ft.similarity, FloatElement.errorElementsAppender(vector), squaredMagnitude);
-                    // Same arithmetic as FloatElement#parseKnnVectorAndIndex, so both paths index identical vectors.
-                    if (normalize && element.isUnitVector(squaredMagnitude) == false) {
-                        final float length = (float) Math.sqrt(squaredMagnitude);
-                        for (int i = 0; i < dims; i++) {
-                            vector[i] /= length;
-                        }
-                        if (magnitudes == null) {
-                            magnitudes = new byte[docCount * Long.BYTES];
-                            hasMagnitude = new FixedBitSet(docCount);
-                        }
-                        // FloatDocValuesField stores the float's raw bits as a numeric doc value.
-                        ByteUtils.writeLongLE(Float.floatToRawIntBits(length), magnitudes, doc * Long.BYTES);
-                        hasMagnitude.set(doc);
-                    }
-                    vectors[doc] = vector;
+                    squaredMagnitude = sum;
                 }
-                // A base64-encoded vector is a string; the row path decodes it.
+                case SourceValueType.STRING -> {
+                    // A base64-encoded vector, decoded and measured exactly as FloatElement#parseBase64EncodedVector does on the
+                    // row path. A string that does not decode to a vector of the mapped dimensions falls back to the row path,
+                    // which reports the error.
+                    try {
+                        vector = DecodedVector.decode(source.getStringValue(doc).bytes(), element.elementType(), dims, false)
+                            .toFloatArray();
+                    } catch (IllegalArgumentException e) {
+                        throw new UnsupportedOperationException("mapColumnBatch: [" + fullPath() + "] " + e.getMessage(), e);
+                    }
+                    squaredMagnitude = (float) element.computeSquaredMagnitude(VectorData.fromFloats(vector));
+                }
                 default -> throw new UnsupportedOperationException(
                     "mapColumnBatch: [" + fullPath() + "] value of source type [" + type + "] is not supported by the batch path"
                 );
             }
+            element.checkVectorBounds(vector);
+            element.checkVectorMagnitude(ft.similarity, FloatElement.errorElementsAppender(vector), squaredMagnitude);
+            // Same arithmetic as FloatElement#parseKnnVectorAndIndex, so both paths index identical vectors.
+            if (normalize && element.isUnitVector(squaredMagnitude) == false) {
+                final float length = (float) Math.sqrt(squaredMagnitude);
+                for (int i = 0; i < dims; i++) {
+                    vector[i] /= length;
+                }
+                if (magnitudes == null) {
+                    magnitudes = new byte[docCount * Long.BYTES];
+                    hasMagnitude = new FixedBitSet(docCount);
+                }
+                // FloatDocValuesField stores the float's raw bits as a numeric doc value.
+                ByteUtils.writeLongLE(Float.floatToRawIntBits(length), magnitudes, doc * Long.BYTES);
+                hasMagnitude.set(doc);
+            }
+            vectors[doc] = vector;
         }
         final FieldType vectorFieldType = new FieldType();
         vectorFieldType.setVectorAttributes(

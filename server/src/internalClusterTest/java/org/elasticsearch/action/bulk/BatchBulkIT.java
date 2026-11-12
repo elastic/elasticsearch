@@ -77,7 +77,9 @@ import org.junit.rules.TestRule;
 import org.junit.runners.model.Statement;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -86,6 +88,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -553,7 +556,8 @@ public class BatchBulkIT extends ESIntegTestCase {
 
     /**
      * A {@code vectordb_columnar} index with a {@code dense_vector} field is indexed through the batch path, not only accepted by it
-     * and then sent down the row path, and the vectors it indexes are searchable.
+     * and then sent down the row path, and the vectors it indexes are searchable, whether they are sent as arrays of numbers, as
+     * base64-encoded strings or as a mix of both.
      */
     public void testVectordbColumnarDenseVectorBatchMode() throws IOException {
         final String index = "test-vectordb-columnar";
@@ -598,17 +602,29 @@ public class BatchBulkIT extends ESIntegTestCase {
 
         String coordinatingNode = findCoordinatingNode();
 
+        // Vectors are sent as arrays of numbers, as base64-encoded strings (a documented input format of dense_vector), or as a mix
+        // of both, which makes the batch's source column a union.
+        final int encoding = randomIntBetween(0, 2);
         int numDocs = randomIntBetween(20, 100);
         float[][] vectors = new float[numDocs][];
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numDocs; i++) {
-            vectors[i] = new float[dims];
-            for (int d = 0; d < dims; d++) {
-                vectors[i][d] = randomFloatBetween(-100f, 100f, true);
+            vectors[i] = randomFloatVector(dims);
+            final boolean base64 = encoding == 1 || (encoding == 2 && randomBoolean());
+            final Object vector;
+            if (base64) {
+                // The base64 format holds the float elements in big-endian order, which is the default order of a ByteBuffer.
+                ByteBuffer encoded = ByteBuffer.allocate(dims * Float.BYTES);
+                for (float value : vectors[i]) {
+                    encoded.putFloat(value);
+                }
+                vector = Base64.getEncoder().encodeToString(encoded.array());
+            } else {
+                vector = vectors[i];
             }
             bulkRequest.add(
                 new IndexRequest(index).id("doc-" + i)
-                    .source(XContentType.JSON, "title", "title " + i, "vector", vectors[i])
+                    .source(XContentType.JSON, "title", "title " + i, "vector", vector)
                     .opType(DocWriteRequest.OpType.CREATE)
             );
         }

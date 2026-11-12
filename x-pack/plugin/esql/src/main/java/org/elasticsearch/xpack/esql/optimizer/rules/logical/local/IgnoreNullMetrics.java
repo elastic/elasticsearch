@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
@@ -43,6 +44,10 @@ import java.util.Set;
  * null, so filtering on the root metric fields only drops rows the aggregation would see as null anyway. Filtering on the root fields
  * rather than on the computed values also lets the filter be pushed down to Lucene as {@code exists} queries.
  * </p>
+ * <p>
+ * The filter is only added if every aggregation, apart from the ones carrying the grouping keys, reads at least one metric and reads
+ * nothing but metrics, constants and the timestamp.
+ * </p>
  */
 public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSeriesAggregate> {
     @Override
@@ -50,17 +55,34 @@ public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSe
         AttributeMap<Expression> aliases = aliases(agg.child());
         // Preserve expression order so equivalent plans produce the same null-filter predicate.
         Set<Attribute> metrics = new LinkedHashSet<>();
-        agg.forEachExpression(Attribute.class, attr -> {
+        Holder<Boolean> nonMetricInput = new Holder<>(false);
+        agg.forEachExpression(AggregateFunction.class, af -> {
+            // VALUES, DIMENSION_VALUES and PACK_DIMS only carry the grouping keys from the per time series aggregation to the final one
+            if (af instanceof Values || af instanceof DimensionValues || af instanceof PackDimsAgg) {
+                return;
+            }
             Set<Attribute> roots = new LinkedHashSet<>();
-            if (resolveRoots(attr, aliases, roots)) {
-                for (Attribute root : roots) {
-                    if (root.isMetric()) {
-                        metrics.add(root);
-                    }
+            for (Expression field : af.fields()) {
+                // some aggregations, like rate, read the timestamp alongside the metric
+                if (field instanceof Attribute attr && attr.semanticEquals(agg.timestamp())) {
+                    continue;
+                }
+                if (resolveMetrics(field, aliases, roots) == false) {
+                    nonMetricInput.set(true);
+                    return;
                 }
             }
+            if (roots.isEmpty()) {
+                // the aggregation doesn't read any metric, like a count over a constant
+                nonMetricInput.set(true);
+            } else {
+                metrics.addAll(roots);
+            }
         });
-        if (metrics.isEmpty() || hasNonMetricInput(agg, aliases)) {
+        // A filter on the metrics alone would drop the rows that only have values for a non-metric input. In that case, we skip the
+        // filter entirely rather than also filtering on the non-metric inputs. Nulls of non-metric fields have never been filtered out,
+        // and aggregations rely on seeing them, like absent_over_time or buckets reporting null.
+        if (nonMetricInput.get() || metrics.isEmpty()) {
             return agg;
         }
         Expression conditional = null;
@@ -77,48 +99,18 @@ public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSe
     }
 
     /**
-     * Whether an aggregation reads an input that isn't derived from metrics alone, such as a value computed with {@code COALESCE} or
-     * one that reads a field that's neither a metric, a dimension, nor the timestamp. A filter on the metrics alone would drop the rows
-     * that only have values for that input.
-     * <p>
-     * In that case, we skip the filter entirely rather than also filtering on the non-metric inputs. Nulls of non-metric fields have
-     * never been filtered out, and aggregations rely on seeing them, like {@code absent_over_time} or buckets reporting {@code null}.
-     * </p>
+     * Collects the metric fields an expression reads, following aliases, into {@code metrics}. Returns {@code false} if the expression
+     * reads a field that isn't a metric, or reads a field through an expression that isn't {@link AnyNullIsNull}: such an expression may
+     * be non-null when its inputs are null, so it can't be traced back to the fields it reads. Constants don't contribute any metrics.
      */
-    private static boolean hasNonMetricInput(TimeSeriesAggregate agg, AttributeMap<Expression> aliases) {
-        Holder<Boolean> found = new Holder<>(false);
-        agg.forEachExpression(AggregateFunction.class, af -> {
-            // VALUES and DIMENSION_VALUES only carry the grouping keys from the per time series aggregation to the final one
-            if (af instanceof Values || af instanceof DimensionValues) {
-                return;
-            }
-            for (Expression field : af.fields()) {
-                Set<Attribute> roots = new LinkedHashSet<>();
-                if (resolveRoots(field, aliases, roots) == false) {
-                    found.set(true);
-                    return;
-                }
-                for (Attribute root : roots) {
-                    if (root.isMetric() == false && root.isDimension() == false && root.semanticEquals(agg.timestamp()) == false) {
-                        found.set(true);
-                        return;
-                    }
-                }
-            }
-        });
-        return found.get();
-    }
-
-    /**
-     * Collects the attributes an expression reads, following aliases, into {@code roots}. Returns {@code false} if the expression
-     * reads an attribute through an expression that isn't {@link AnyNullIsNull}: such an expression may be non-null when its inputs
-     * are null, so it can't be traced back to the fields it reads. Constants don't contribute any roots.
-     */
-    private static boolean resolveRoots(Expression expression, AttributeMap<Expression> aliases, Set<Attribute> roots) {
+    private static boolean resolveMetrics(Expression expression, AttributeMap<Expression> aliases, Set<Attribute> metrics) {
         Expression resolved = aliases.resolve(expression, expression);
         if (resolved instanceof Attribute attribute) {
-            roots.add(attribute);
-            return true;
+            if (attribute.isMetric()) {
+                metrics.add(attribute);
+                return true;
+            }
+            return false;
         }
         if (resolved.foldable()) {
             return true;
@@ -127,7 +119,7 @@ public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSe
             return false;
         }
         for (Expression child : resolved.children()) {
-            if (resolveRoots(child, aliases, roots) == false) {
+            if (resolveMetrics(child, aliases, metrics) == false) {
                 return false;
             }
         }

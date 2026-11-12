@@ -235,6 +235,23 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
         }
     }
 
+    /**
+     * Every aggregation, apart from the ones carrying the grouping keys, must read at least one metric and nothing but metrics.
+     * Otherwise the filter would drop rows that aggregation counts, like the ones without metrics for a count over a dimension or a
+     * constant.
+     */
+    public void testSkipFilterForAggregationsNotReadingOnlyMetrics() {
+        for (String eval : new String[] { "d = length(dimension_1)", "d = 1", "d = dimension_1" }) {
+            LogicalPlan actual = metrics().localPlan(Strings.format("""
+                TS test
+                | EVAL %s
+                | STATS max(max_over_time(metric_1)), n = max(count_over_time(d)) BY dimension_1
+                | LIMIT 10
+                """, eval));
+            assertFalse(eval + "\n" + actual, actual.anyMatch(Filter.class::isInstance));
+        }
+    }
+
     public void testFilterAliasedAndOverwrittenMetrics() {
         for (String eval : new String[] {
             "converted = metric_1::double",

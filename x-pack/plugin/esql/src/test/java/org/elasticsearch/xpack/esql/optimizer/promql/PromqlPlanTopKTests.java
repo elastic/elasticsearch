@@ -15,14 +15,18 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
@@ -112,7 +116,7 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem(MetadataAttribute.TIMESERIES));
 
         var topNBy = as(plan.collect(TopNBy.class).get(0), TopNBy.class);
-        assertThat(topNBy.groupings().stream().map(g -> g instanceof Attribute a ? a.name() : g.toString()).toList(), hasItem("pod"));
+        assertThat(partitionLabels(topNBy), hasItem("pod"));
     }
 
     public void testTopkByGroupingOnlyMaterializesPartitionLabel() {
@@ -123,7 +127,8 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
             .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
             .map(e -> e instanceof Attribute attribute ? attribute.name() : e.toString())
             .toList();
-        assertThat(dimensions, equalTo(List.of(MetadataAttribute.TIMESERIES, "pod")));
+        assertThat(dimensions, hasItem("pod"));
+        assertThat(sourceViews(plan), equalTo(Set.of(List.of())));
     }
 
     public void testBottomkByGroupingPartitionsByLabelAndKeepsFullIdentity() {
@@ -134,7 +139,7 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem(MetadataAttribute.TIMESERIES));
 
         var topNBy = as(plan.collect(TopNBy.class).get(0), TopNBy.class);
-        assertThat(topNBy.groupings().stream().map(g -> g instanceof Attribute a ? a.name() : g.toString()).toList(), hasItem("pod"));
+        assertThat(partitionLabels(topNBy), hasItem("pod"));
     }
 
     public void testTopkWithoutGroupingNotYetSupported() {
@@ -158,7 +163,7 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
      * {@link Values} in the outer aggregate. Without that, physical planning drops the bare attribute from the
      * layout and fails with {@code can't find input for [topk(...)]}.
      */
-    public void testTopkOverSumByWrapsPassthroughInValues() {
+    public void testTopkOverSumByRanksTheSum() {
         assumeTrue("Requires FIX_PROMQL_TOPK_OVER_AGGREGATE capability", EsqlCapabilities.Cap.FIX_PROMQL_TOPK_OVER_AGGREGATE.isEnabled());
 
         var plan = logicalOptimizerWithLatestVersion.optimize(
@@ -168,10 +173,10 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         var topNBy = as(plan.collect(TopNBy.class).get(0), TopNBy.class);
         Aggregate outer = as(topNBy.child().collect(Aggregate.class).get(0), Aggregate.class);
         NamedExpression valueAgg = outer.aggregates().get(0);
-        assertThat(Alias.unwrap(valueAgg), instanceOf(Values.class));
+        assertThat(Alias.unwrap(valueAgg), instanceOf(Sum.class));
     }
 
-    public void testBottomkOverSumByWrapsPassthroughInValues() {
+    public void testBottomkOverSumByRanksTheSum() {
         assumeTrue("Requires FIX_PROMQL_TOPK_OVER_AGGREGATE capability", EsqlCapabilities.Cap.FIX_PROMQL_TOPK_OVER_AGGREGATE.isEnabled());
 
         var plan = logicalOptimizerWithLatestVersion.optimize(
@@ -181,7 +186,7 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         var topNBy = as(plan.collect(TopNBy.class).get(0), TopNBy.class);
         Aggregate outer = as(topNBy.child().collect(Aggregate.class).get(0), Aggregate.class);
         NamedExpression valueAgg = outer.aggregates().get(0);
-        assertThat(Alias.unwrap(valueAgg), instanceOf(Values.class));
+        assertThat(Alias.unwrap(valueAgg), instanceOf(Sum.class));
     }
 
     public void testLimitkProducesEmptyOrderTopNBy() {
@@ -221,7 +226,7 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
 
         var topNBy = as(plan.collect(TopNBy.class).get(0), TopNBy.class);
         assertThat(topNBy.order(), hasSize(0));
-        assertThat(topNBy.groupings().stream().map(g -> g instanceof Attribute a ? a.name() : g.toString()).toList(), hasItem("pod"));
+        assertThat(partitionLabels(topNBy), hasItem("pod"));
     }
 
     public void testLimitkWithoutGroupingNotYetSupported() {
@@ -234,7 +239,7 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(e.getMessage(), containsString("limitk"));
     }
 
-    public void testLimitkOverSumByWrapsPassthroughInValues() {
+    public void testLimitkOverSumByRanksTheSum() {
         assumeTrue("Requires PROMQL_LIMITK capability", EsqlCapabilities.Cap.PROMQL_LIMITK.isEnabled());
         assumeTrue("Requires FIX_PROMQL_TOPK_OVER_AGGREGATE capability", EsqlCapabilities.Cap.FIX_PROMQL_TOPK_OVER_AGGREGATE.isEnabled());
 
@@ -246,6 +251,19 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(topNBy.order(), hasSize(0));
         Aggregate outer = as(topNBy.child().collect(Aggregate.class).get(0), Aggregate.class);
         NamedExpression valueAgg = outer.aggregates().get(0);
-        assertThat(Alias.unwrap(valueAgg), instanceOf(Values.class));
+        assertThat(Alias.unwrap(valueAgg), instanceOf(Sum.class));
+    }
+
+    /** The labels {@code topNBy} partitions by: its grouping columns, a packed one standing for the labels it packs. */
+    private static List<String> partitionLabels(TopNBy topNBy) {
+        var labels = new ArrayList<String>();
+        for (var grouping : topNBy.groupings()) {
+            if (grouping instanceof Attribute attribute && attribute.name().equals(PackDims.PACKED_FIELD_NAME)) {
+                topNBy.forEachDown(PackDims.class, pack -> pack.dims().forEach(dim -> labels.add(dim.name())));
+            } else if (grouping instanceof Attribute attribute) {
+                labels.add(attribute.name());
+            }
+        }
+        return labels;
     }
 }

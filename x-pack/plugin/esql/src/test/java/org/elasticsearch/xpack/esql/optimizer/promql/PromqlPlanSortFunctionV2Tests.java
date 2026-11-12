@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
+import org.elasticsearch.xpack.esql.expression.promql.function.NaturalSortKey;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -50,20 +48,18 @@ public class PromqlPlanSortFunctionV2Tests extends AbstractPromqlPlanOptimizerTe
     }
 
     /**
-     * An instant {@code sort_by_label} orders by a label read from the label container; the label stays in {@code _timeseries}
+     * An instant {@code sort_by_label} orders by a label of the series, read from its field; the label stays in {@code _timeseries}
      * and is not exposed as a column of its own.
      */
-    public void testSortByLabelReadsTheLabelFromTheContainer() {
+    public void testSortByLabelReadsTheLabel() {
         assumeTrue("Requires PROMQL_SORT_BY_LABEL capability", EsqlCapabilities.Cap.PROMQL_SORT_BY_LABEL.isEnabled());
         LogicalPlan plan = planPromqlV2(INSTANT + "sort_by_label(network.bytes_in, \"pod\")", false);
 
         assertThat(plan.collect(OrderBy.class), hasSize(1));
-        var paths = new ArrayList<String>();
-        plan.forEachExpressionDown(
-            TimeSeriesMetadataPath.class,
-            path -> paths.add(BytesRefs.toString(((Literal) path.labels().getFirst()).value()))
-        );
-        assertThat(paths, hasItem("pod"));
+        var keys = new ArrayList<NaturalSortKey>();
+        plan.forEachExpressionDown(NaturalSortKey.class, keys::add);
+        assertThat(keys, hasSize(1));
+        assertThat(names(new ArrayList<>(keys.getFirst().references())), hasItem("pod"));
         assertThat(names(plan.output()), not(hasItem("pod")));
         assertThat(names(plan.output()), hasItem("_timeseries"));
     }

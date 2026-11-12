@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
@@ -90,6 +91,15 @@ public class FieldNameUtils {
     // parses to a Match directly, but the MATCH(...) / MATCH_PHRASE(...) call forms are still UnresolvedFunctions here.
     private static final String HIGHLIGHT_MATCH = "match";
     private static final String HIGHLIGHT_MATCH_PHRASE = "match_phrase";
+
+    /**
+     * The names the query uses as fields, which a {@code flattened} field may hold as keys.
+     */
+    public static Set<String> namedFields(LogicalPlan parsed) {
+        Set<String> names = new HashSet<>();
+        parsed.forEachExpressionDown(UnresolvedAttribute.class, ua -> names.add(ua.name()));
+        return names;
+    }
 
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
 
@@ -447,8 +457,9 @@ public class FieldNameUtils {
      * <li>The field itself: "a.b.c"</li>
      * <li>Its multi-fields: "a.b.c.*". A sample case where this is required is TEXT fields that may have a ".keyword" subfield that's
      * implicitly used in some queries.</li>
-     * <li>(Only when {@code unmapped_fields="load"}) All dot-delimited parent prefixes: ["a", "a.b"]. This is needed to get back flattened
-     * parents, so the verifier can detect subfields of flattened.</li>
+     * <li>(Only when {@code includeFieldParentPrefixes}) All dot-delimited parent prefixes: ["a", "a.b"]. This is needed to get back
+     * flattened parents, which hold a name as a key or, under {@code unmapped_fields="load"}, let the verifier detect their
+     * subfields.</li>
      * </ul>
      */
     private static void addRelatedFields(boolean includeFieldParentPrefixes, Set<String> allFields, String name) {

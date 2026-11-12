@@ -85,4 +85,11 @@ public interface ShardContext extends RefCounted {
      * their rows.
      */
     void addRowsEmitted(long rows);
+
+    /**
+     * Whether this shard has the {@code _tsid} prefix partitions
+     */
+    default boolean canPartitionByTsidPrefix() {
+        return false;
+    }
 }

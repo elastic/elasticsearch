@@ -32,7 +32,11 @@ public class ComputeSearchContextTests extends MapperServiceTestCase {
     public void testReleasingTheShardContextClosesTheSearchContext() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> b.startObject("k").field("type", "keyword").endObject()));
         SearchContext searchContext = new TestSearchContext(createSearchExecutionContext(mapperService, null));
-        ShardContext shardContext = new ComputeSearchContext(0, searchContext, new LongAdder()).shardContext(QueryWarnings.EMIT, Set.of());
+        ShardContext shardContext = new ComputeSearchContext(0, searchContext, new LongAdder()).shardContext(
+            QueryWarnings.EMIT,
+            Set.of(),
+            false
+        );
         shardContext.decRef();
         assertTrue(searchContext.isClosed());
     }
@@ -47,7 +51,9 @@ public class ComputeSearchContextTests extends MapperServiceTestCase {
         when(indexShard.shardId()).thenReturn(shardId);
         SearchContext searchContext = new TestSearchContext(createSearchExecutionContext(mapperService, null), indexShard, null);
         try (AcquiredSearchContexts contexts = new AcquiredSearchContexts(1)) {
-            ShardContext shardContext = contexts.newSubRangeView(List.of(searchContext)).get(0).shardContext(QueryWarnings.EMIT, Set.of());
+            ShardContext shardContext = contexts.newSubRangeView(List.of(searchContext))
+                .get(0)
+                .shardContext(QueryWarnings.EMIT, Set.of(), false);
             shardContext.addRowsEmitted(3);
             shardContext.addRowsEmitted(4);
             shardContext.decRef();

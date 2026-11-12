@@ -32,6 +32,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.util.VectorSchemaRootAppender;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -62,6 +63,7 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
@@ -82,6 +84,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -345,6 +348,12 @@ public class ArrowResponseTests extends ESTestCase {
         Map.entry(DataType.AGGREGATE_METRIC_DOUBLE, AGGREGATE_METRIC_DOUBLE_VALUES)
     );
 
+    /**
+     * Types whose blocks are always single-valued, so tests can't build multivalued columns of them. Kept independent of
+     * the formatters so that a formatter that wrongly rejects multivalued columns fails the tests instead of skipping them.
+     */
+    static final Set<DataType> SINGLE_VALUED_TYPES = EnumSet.of(DataType.AGGREGATE_METRIC_DOUBLE);
+
     // ---------------------------------------------------------------------------------------------
     // Tests
 
@@ -586,8 +595,8 @@ public class ArrowResponseTests extends ESTestCase {
             blockFactory.newConstantIntBlockWith(2, 1)
         );
         try (Page page = new Page(block)) {
-            IllegalStateException e = expectThrows(
-                IllegalStateException.class,
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
                 () -> new ArrowResponse(List.of(new ArrowResponse.Column(DataType.AGGREGATE_METRIC_DOUBLE, "metric")), List.of(page))
             );
             assertEquals(
@@ -595,6 +604,37 @@ public class ArrowResponseTests extends ESTestCase {
                     + "which the Arrow format does not support for this type",
                 e.getMessage()
             );
+            assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        }
+    }
+
+    /**
+     * A metric block with value indexes but one value per position reports {@code mayHaveMultivaluedFields()} without
+     * actually being multivalued. Such a summary must be written as a plain struct rather than rejected.
+     */
+    public void testAggregateMetricDoubleAcceptsSingleValuedMetricWithValueIndexes() throws IOException {
+        DoubleBlock min = blockFactory.newDoubleArrayBlock(
+            new double[] { 1.0, 2.0 },
+            2,
+            new int[] { 0, 1, 2 },
+            null,
+            randomFrom(Block.MvOrdering.values())
+        );
+        assertTrue(min.mayHaveMultivaluedFields());
+        assertFalse(min.doesHaveMultivaluedFields());
+        AggregateMetricDoubleBlock block = blockFactory.newAggregateMetricDoubleBlock(
+            min,
+            blockFactory.newConstantDoubleBlockWith(3.0, 2),
+            blockFactory.newConstantDoubleBlockWith(4.0, 2),
+            blockFactory.newConstantIntBlockWith(2, 2)
+        );
+        var column = TestColumn.create("metric", DataType.AGGREGATE_METRIC_DOUBLE, false);
+        try (
+            TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            assertAggregateMetricDoubleSchema((StructVector) root.getVector("metric"));
+            compareEsqlAndArrow(testCase, root);
         }
     }
 
@@ -1238,17 +1278,14 @@ public class ArrowResponseTests extends ESTestCase {
 
     record TestColumn(String name, DataType type, ValueType valueType, boolean multivalue) {
         static TestColumn create(String name, DataType type) {
-            return create(name, type, randomBoolean());
+            return create(name, type, SINGLE_VALUED_TYPES.contains(type) == false && randomBoolean());
         }
 
         static TestColumn create(String name, DataType type, boolean multivalue) {
-            return new TestColumn(name, type, VALUE_TYPES.get(type), multivalue && supportsMultivalued(type));
-        }
-
-        // Aggregate summaries are single-valued, including those produced from multivalued numeric inputs.
-        private static boolean supportsMultivalued(DataType type) {
-            BlockArrowFormatter formatter = ArrowResponse.ESQL_FORMATTERS.get(type);
-            return formatter == null || formatter.supportsMultivalued();
+            if (multivalue && SINGLE_VALUED_TYPES.contains(type)) {
+                throw new IllegalArgumentException("[" + type.outputType() + "] columns are always single-valued");
+            }
+            return new TestColumn(name, type, VALUE_TYPES.get(type), multivalue);
         }
     }
 

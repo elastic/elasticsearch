@@ -20,7 +20,6 @@ import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
@@ -184,7 +183,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
             }
             try {
                 if (settings.analyzeWildcard()) {
-                    Query analyzedQuery = newPossiblyAnalyzedQuery(fieldName, text, getAnalyzer(ft));
+                    Query analyzedQuery = newPossiblyAnalyzedQuery(ft, text, getAnalyzer(ft));
                     if (analyzedQuery != null) {
                         disjuncts.add(wrapWithBoost(analyzedQuery, entry.getValue()));
                     }
@@ -218,10 +217,11 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
 
     /**
      * Analyze the given string using its analyzer, constructing either a
-     * {@code PrefixQuery} or a {@code BooleanQuery} made up
-     * of {@code TermQuery}s and {@code PrefixQuery}s
+     * prefix query or a {@code BooleanQuery} made up
+     * of {@code TermQuery}s and prefix queries built by the field type
      */
-    private Query newPossiblyAnalyzedQuery(String field, String termStr, Analyzer analyzer) {
+    private Query newPossiblyAnalyzedQuery(MappedFieldType ft, String termStr, Analyzer analyzer) {
+        final String field = ft.name();
         List<List<BytesRef>> tlist = new ArrayList<>();
         try (TokenStream source = analyzer.tokenStream(field, termStr)) {
             source.reset();
@@ -249,7 +249,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
             }
         } catch (IOException e) {
             // Bail on any exceptions, going with a regular prefix query
-            return new PrefixQuery(new Term(field, termStr));
+            return ft.prefixQuery(analyzer.normalize(field, termStr).utf8ToString(), null, context);
         }
 
         if (tlist.size() == 0) {
@@ -257,7 +257,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         }
 
         if (tlist.size() == 1 && tlist.get(0).size() == 1) {
-            return new PrefixQuery(new Term(field, tlist.get(0).get(0)));
+            return ft.prefixQuery(tlist.get(0).get(0).utf8ToString(), null, context);
         }
 
         // build a boolean query with prefix on the last position only.
@@ -268,7 +268,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
             Query posQuery;
             if (plist.size() == 1) {
                 if (isLastPos) {
-                    posQuery = new PrefixQuery(new Term(field, plist.get(0)));
+                    posQuery = ft.prefixQuery(plist.get(0).utf8ToString(), null, context);
                 } else {
                     posQuery = newTermQuery(new Term(field, plist.get(0)), BoostAttribute.DEFAULT_BOOST);
                 }
@@ -283,7 +283,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
             } else {
                 BooleanQuery.Builder innerBuilder = new BooleanQuery.Builder();
                 for (BytesRef token : plist) {
-                    innerBuilder.add(new BooleanClause(new PrefixQuery(new Term(field, token)), BooleanClause.Occur.SHOULD));
+                    innerBuilder.add(new BooleanClause(ft.prefixQuery(token.utf8ToString(), null, context), BooleanClause.Occur.SHOULD));
                 }
                 posQuery = innerBuilder.build();
             }

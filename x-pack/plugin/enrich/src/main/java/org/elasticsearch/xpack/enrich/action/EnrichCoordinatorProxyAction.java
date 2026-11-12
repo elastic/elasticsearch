@@ -51,7 +51,7 @@ import java.util.concurrent.atomic.LongAdder;
 /**
  * An internal action to locally manage the load of the search requests that originate from the enrich processor.
  * This is because the enrich processor executes asynchronously and a bulk request could easily overload
- * the search tp.
+ * the search thread pool.
  */
 public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
 
@@ -97,16 +97,17 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
         static final String BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_MSEARCH + "[enrich_coordinator]";
 
         /**
-         * Estimated response bytes above which a batch keeps its permit until all of its slot listeners have run. The transport
-         * forks the response handler onto the search pool before deserialization and that fork cannot be rejected, so responses
-         * waiting there behind busy search threads are neither charged to the breaker (which only sees a response once a search
-         * thread processes it) nor bounded by the pool. Releasing the permit before the slot loop lets the queue grow by
-         * {@link #maxNumberOfConcurrentRequests} responses per running loop; holding it bounds in-flight, queued and running
-         * responses together. Below the threshold the permit is released up front as before, so small lookups keep their
-         * pipelining depth. A constant rather than a setting: it only separates lookups whose responses matter for heap from those
-         * that do not.
+         * Response bytes above which a batch continues counting against {@link #maxNumberOfConcurrentRequests the concurrent request limit}
+         * until all of its slot listeners have run. This caps the number of large enrich lookup batch responses held on this node, whether
+         * they are still in flight, waiting for a search thread or being processed.
+         * <p>
+         * Without the cap, up to {@link #maxNumberOfConcurrentRequests} more batch responses may be waiting for a search thread without
+         * being visible to the circuit breaker yet, while earlier large responses are still being processed (and charged).
+         * Batches with smaller responses stop counting against the limit as soon as they arrive, so new lookups are sent without
+         * waiting for earlier responses to be processed. This keeps parallelism and throughput high for small lookups, while keeping
+         * heap use bounded for large ones.
          */
-        static final long PERMIT_HOLD_THRESHOLD_BYTES = ByteSizeValue.ofMb(1).getBytes();
+        static final long PERMIT_HOLD_THRESHOLD_BYTES = ByteSizeValue.ofMb(8).getBytes();
 
         final BiConsumer<MultiSearchRequest, BiConsumer<MultiSearchResponse, Exception>> lookupFunction;
         final int maxLookupsPerRequest;
@@ -262,14 +263,8 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
          * Estimates the heap held by the successful items of a lookup response, with the estimate that the msearch response of
          * {@link TransportMultiSearchAction} uses. Items that are still charged on the shard side (local responses, see
          * {@link EnrichShardMultiSearchAction.ChargedSearchResponse}) are skipped; their charge is released when the coordinator
-         * releases the item. This relies on the local transport path and {@link #reduce} passing the shard-side items through as they
-         * are, without wrapping or copying them.
-         * <p>
-         * Failures are not charged: {@link EnrichShardMultiSearchAction} fails a whole lookup rather than single items, so the only
-         * failure that reaches a slot is the one exception of its index, shared by all slots of that index.
-         * <p>
-         * Used both for the charge of each shard response and, on the reduced response, to decide whether a batch holds its permit
-         * ({@link #PERMIT_HOLD_THRESHOLD_BYTES}). It reads stored lengths and counts only, so the second pass is cheap.
+         * releases the item.
+         * Failures are not charged: {@link EnrichShardMultiSearchAction} fails a whole lookup rather than single items.
          */
         static long estimateResponseBytes(MultiSearchResponse response) {
             long bytes = 0;
@@ -290,10 +285,9 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
         }
 
         /**
-         * Splits a batch into one shard lookup per enrich index and reduces their responses into one. The hits of a remote response are
-         * slices of the inbound transport buffer that nothing else accounts for on this node, so each per-index response is charged to
-         * {@code breaker} as soon as it arrives, while it waits for the other indices, and released once the consumer has run. A breaker
-         * trip fails the slots of that index only and frees its response right away.
+         * Splits a batch into one shard lookup per enrich index and reduces their responses into one.
+         * Each per-index response is charged to {@code breaker} as soon as it arrives and released once the consumer has run.
+         * A breaker trip fails the slots of that index only and frees its response right away.
          */
         static BiConsumer<MultiSearchRequest, BiConsumer<MultiSearchResponse, Exception>> lookupFunction(
             ElasticsearchClient client,

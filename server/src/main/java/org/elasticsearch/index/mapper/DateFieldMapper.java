@@ -1192,7 +1192,6 @@ public final class DateFieldMapper extends FieldMapper {
     private final DocValuesFieldFactory dvFactory;
     private final boolean ignoreMalformed;
     private final Long nullValue;
-    private final String nullValueAsString;
     private final Resolution resolution;
     private final boolean isSourceSynthetic;
 
@@ -1224,7 +1223,6 @@ public final class DateFieldMapper extends FieldMapper {
             builder.indexSettings.getIndexVersionCreated()
         );
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
-        this.nullValueAsString = builder.nullValue.getValue();
         this.nullValue = nullValue;
         this.resolution = resolution;
         this.isSourceSynthetic = isSourceSynthetic;
@@ -1252,7 +1250,7 @@ public final class DateFieldMapper extends FieldMapper {
 
     @Override
     public boolean isNullable() {
-        return docValuesParameters.nullability() || nullValueAsString != null;
+        return docValuesParameters.nullability() || nullValue != null;
     }
 
     @Override

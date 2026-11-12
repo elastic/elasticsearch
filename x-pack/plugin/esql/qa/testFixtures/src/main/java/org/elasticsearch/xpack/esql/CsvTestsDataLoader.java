@@ -525,8 +525,7 @@ public class CsvTestsDataLoader {
             ".ml-anomalies-shared-mappings.json",
             ".ml-anomalies-shared.csv",
             ".ml-anomalies-shared-settings.json"
-        ).withRequiredCapabilities(EsqlCapabilities.Cap.ML_ANOMALIES),
-        new TestDataset("into_destination").noData().withRequiredCapabilities(EsqlCapabilities.Cap.INTO_COMMAND)
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.ML_ANOMALIES)
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:

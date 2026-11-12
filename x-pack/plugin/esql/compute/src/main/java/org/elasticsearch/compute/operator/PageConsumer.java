@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Releasable;
 
 import java.util.function.Consumer;
 
@@ -16,13 +15,17 @@ import java.util.function.Consumer;
  * An {@link OutputOperator} consumer that participates in the driver lifecycle: it can hold the driver back while work
  * is in flight and remain unfinished after the last page until outstanding work completes.
  */
-public interface PageConsumer extends Consumer<Page>, Releasable {
+public interface PageConsumer extends Consumer<Page> {
 
     default void bind(DriverContext driverContext) {}
 
-    IsBlockedResult isBlocked();
+    default IsBlockedResult isBlocked() {
+        return Operator.NOT_BLOCKED;
+    }
 
-    void finish();
+    default void finish() {}
 
-    boolean isFinished();
+    default boolean isFinished() {
+        return true;
+    }
 }

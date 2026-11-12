@@ -8,17 +8,16 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.operator.PageConsumer;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.into.IntoStats;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * Coordinator-only root placed on top of the final physical plan for an {@code INTO} query. Its {@link #output()} is
@@ -28,9 +27,9 @@ public class IntoExec extends UnaryExec {
 
     private final String destination;
     @Nullable
-    private final PageConsumer writer;
+    private final Consumer<Page> writer;
 
-    public IntoExec(Source source, PhysicalPlan child, String destination, @Nullable PageConsumer writer) {
+    public IntoExec(Source source, PhysicalPlan child, String destination, @Nullable Consumer<Page> writer) {
         super(source, child);
         this.destination = Objects.requireNonNull(destination);
         this.writer = writer;
@@ -41,11 +40,11 @@ public class IntoExec extends UnaryExec {
     }
 
     @Nullable
-    public PageConsumer writer() {
+    public Consumer<Page> writer() {
         return writer;
     }
 
-    public IntoExec withWriter(PageConsumer writer) {
+    public IntoExec withWriter(Consumer<Page> writer) {
         return new IntoExec(source(), child(), destination, writer);
     }
 
@@ -55,18 +54,13 @@ public class IntoExec extends UnaryExec {
     }
 
     @Override
-    protected AttributeSet computeReferences() {
-        return AttributeSet.EMPTY;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("INTO runs on the coordinator and is never serialized");
+    public void writeTo(StreamOutput out) {
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
     public String getWriteableName() {
-        throw new UnsupportedOperationException("INTO runs on the coordinator and is never serialized");
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
@@ -81,18 +75,11 @@ public class IntoExec extends UnaryExec {
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), destination, writer);
+        return Objects.hash(super.hashCode(), destination);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        IntoExec other = (IntoExec) obj;
-        return Objects.equals(child(), other.child()) && destination.equals(other.destination) && Objects.equals(writer, other.writer);
+        return super.equals(obj) && destination.equals(((IntoExec) obj).destination);
     }
 }

@@ -1164,29 +1164,18 @@ public class ComputeService {
             // external blob-store pool after ExternalSourceResolver dispatches resolution there.
             EsqlPlugin.externalBlobStorePool()
         );
-        if (physicalPlan instanceof StreamingOutputExec streaming && streaming.child() instanceof IntoExec) {
-            listener.onFailure(new IllegalArgumentException("INTO is not supported on the streaming query endpoint"));
-            return;
-        }
         if (physicalPlan instanceof IntoExec into) {
             IntoPageWriter writer = new IntoPageWriter(client, into.destination(), into.child().output());
             physicalPlan = into.withWriter(writer);
             listener = listener.delegateFailureAndWrap((l, result) -> {
-                if (writer.failure() != null) {
-                    l.onFailure(writer.failure());
-                    return;
-                }
-                Page stats;
-                try {
-                    stats = writer.stats().toPage(blockFactory);
-                } catch (Exception e) {
-                    l.onFailure(e);
-                    return;
+                Exception failure = writer.failure();
+                if (failure != null) {
+                    throw failure;
                 }
                 l.onResponse(
                     new Result(
                         result.schema(),
-                        List.of(stats),
+                        List.of(writer.stats().toPage(blockFactory)),
                         result.attributeMetadata(),
                         result.configuration(),
                         result.completionInfo(),
@@ -1230,29 +1219,21 @@ public class ComputeService {
                     planTimeProfile,
                     warnIndexCoordinatorOnce
                 );
-                case SubPlan.Merge merge -> {
-                    if (physicalPlan instanceof IntoExec) {
-                        dispatchListener.onFailure(
-                            new IllegalArgumentException("INTO is not supported in a query with FORK or UNION branches")
-                        );
-                        return;
-                    }
-                    new SubPlansExecutor(
-                        this,
-                        exchangeService,
-                        sessionId,
-                        rootTask,
-                        flags,
-                        configuration,
-                        foldContext,
-                        execInfo,
-                        initialClusterStatuses,
-                        warnIndexCoordinatorOnce,
-                        planTimeProfile,
-                        merge,
-                        dispatchListener
-                    ).executePlan();
-                }
+                case SubPlan.Merge merge -> new SubPlansExecutor(
+                    this,
+                    exchangeService,
+                    sessionId,
+                    rootTask,
+                    flags,
+                    configuration,
+                    foldContext,
+                    execInfo,
+                    initialClusterStatuses,
+                    warnIndexCoordinatorOnce,
+                    planTimeProfile,
+                    merge,
+                    dispatchListener
+                ).executePlan();
             }
         } catch (Exception e) {
             // executePlan does planning work outside its own try/catch (breakPlanBetweenCoordinatorAndDataNode, getIndices), so a

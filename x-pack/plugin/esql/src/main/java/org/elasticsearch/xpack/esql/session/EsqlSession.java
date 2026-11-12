@@ -508,7 +508,6 @@ public class EsqlSession {
             planTelemetry.command(explain);
         }
         if (parsedPlan instanceof Into into) {
-            Into.verifyProducer(into.child());
             intoDestination = into.destination();
             planTelemetry.command(into);
             parsedPlan = into.child();

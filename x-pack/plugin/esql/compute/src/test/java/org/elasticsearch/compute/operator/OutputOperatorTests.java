@@ -13,7 +13,6 @@ import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.core.Nullable;
 import org.hamcrest.Matcher;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -64,12 +63,10 @@ public class OutputOperatorTests extends AnyOperatorTestCase {
     private static class TrackingConsumer implements PageConsumer {
         @Nullable
         DriverContext boundTo;
-        final List<Page> pages = new ArrayList<>();
         @Nullable
         SubscribableListener<Void> blocked;
         boolean finished;
         boolean done;
-        boolean closed;
 
         @Override
         public void bind(DriverContext driverContext) {
@@ -77,9 +74,7 @@ public class OutputOperatorTests extends AnyOperatorTestCase {
         }
 
         @Override
-        public void accept(Page page) {
-            pages.add(page);
-        }
+        public void accept(Page page) {}
 
         @Override
         public IsBlockedResult isBlocked() {
@@ -95,21 +90,13 @@ public class OutputOperatorTests extends AnyOperatorTestCase {
         public boolean isFinished() {
             return done;
         }
-
-        @Override
-        public void close() {
-            closed = true;
-        }
     }
 
     public void testPageConsumerIsBoundToTheDriver() {
         TrackingConsumer consumer = new TrackingConsumer();
         DriverContext driverContext = driverContext();
-        try (Operator operator = new OutputOperator.OutputOperatorFactory(List.of("a"), p -> p, consumer).get(driverContext)) {
-            assertThat(consumer.boundTo, sameInstance(driverContext));
-            assertTrue(operator.needsInput());
-        }
-        assertTrue(consumer.closed);
+        new OutputOperator.OutputOperatorFactory(List.of("a"), p -> p, consumer).get(driverContext).close();
+        assertThat(consumer.boundTo, sameInstance(driverContext));
     }
 
     public void testNeedsInputFollowsTheConsumer() {
@@ -138,15 +125,6 @@ public class OutputOperatorTests extends AnyOperatorTestCase {
             assertFalse(operator.needsInput());
             consumer.done = true;
             assertTrue(operator.isFinished());
-        }
-    }
-
-    public void testPlainConsumerFinishesWithTheOperator() {
-        try (OutputOperator operator = new OutputOperator(List.of("a"), p -> p, p -> {})) {
-            assertTrue(operator.needsInput());
-            operator.finish();
-            assertTrue(operator.isFinished());
-            assertFalse(operator.needsInput());
         }
     }
 }

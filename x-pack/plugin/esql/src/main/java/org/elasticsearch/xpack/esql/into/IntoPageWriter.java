@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.esql.into;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -20,7 +18,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
@@ -29,10 +26,12 @@ import org.elasticsearch.compute.operator.PageConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -50,17 +49,16 @@ public final class IntoPageWriter implements PageConsumer {
     private final Client client;
     private final Supplier<ThreadContext.StoredContext> caller;
     private final String destination;
-    private final String[] columns;
-    private final ResponseValueUtils.BlockValueExtractor[] extractors;
-
-    private final IntoStats stats = new IntoStats();
+    private final List<String> columns;
+    private final List<DataType> types;
     private final AtomicReference<Exception> failure = new AtomicReference<>();
 
     @Nullable
     private DriverContext driverContext;
+    private long total;
+    private long created;
     private int inFlight;
     private boolean finished;
-    private boolean done;
     @Nullable
     private SubscribableListener<Void> waiting;
 
@@ -68,18 +66,12 @@ public final class IntoPageWriter implements PageConsumer {
         this.client = client;
         this.caller = client.threadPool().getThreadContext().newRestorableContext(false);
         this.destination = destination;
-        this.columns = new String[output.size()];
-        this.extractors = new ResponseValueUtils.BlockValueExtractor[output.size()];
-        for (int i = 0; i < output.size(); i++) {
-            Attribute attribute = output.get(i);
-            columns[i] = attribute.name();
-            // Render dates in UTC regardless of the query's time zone so the destination parses them unambiguously.
-            extractors[i] = ResponseValueUtils.valueExtractorFor(attribute.dataType(), ZoneOffset.UTC);
-        }
+        this.columns = Expressions.names(output);
+        this.types = output.stream().map(Attribute::dataType).toList();
     }
 
-    public IntoStats stats() {
-        return stats;
+    public synchronized IntoStats stats() {
+        return new IntoStats(total, created);
     }
 
     @Nullable
@@ -89,7 +81,7 @@ public final class IntoPageWriter implements PageConsumer {
 
     @Override
     public synchronized void bind(DriverContext driverContext) {
-        if (this.driverContext != null && this.driverContext != driverContext) {
+        if (this.driverContext != null) {
             throw new IllegalStateException("INTO writes from a single driver");
         }
         this.driverContext = driverContext;
@@ -98,12 +90,11 @@ public final class IntoPageWriter implements PageConsumer {
     @Override
     public void accept(Page page) {
         try {
-            if (failure.get() != null) {
-                return;
-            }
-            BulkRequest bulk = bulkFor(page);
-            if (bulk.numberOfActions() > 0) {
-                send(bulk);
+            if (failure.get() == null) {
+                BulkRequest bulk = bulkFor(page);
+                if (bulk.numberOfActions() > 0) {
+                    send(bulk);
+                }
             }
         } finally {
             page.releaseBlocks();
@@ -112,107 +103,89 @@ public final class IntoPageWriter implements PageConsumer {
 
     private BulkRequest bulkFor(Page page) {
         BulkRequest bulk = new BulkRequest();
-        BytesRef scratch = new BytesRef();
-        for (int position = 0; position < page.getPositionCount(); position++) {
-            Map<String, Object> source = new HashMap<>();
-            for (int column = 0; column < columns.length; column++) {
-                Object value = valueAt(page.getBlock(column), extractors[column], position, scratch);
+        // Render dates in UTC regardless of the query's time zone so the destination parses them unambiguously.
+        Iterator<Iterator<Object>> rows = ResponseValueUtils.pagesToValues(types, List.of(page), ZoneOffset.UTC);
+        while (rows.hasNext()) {
+            Iterator<Object> values = rows.next();
+            Map<String, Object> source = new LinkedHashMap<>();
+            for (String column : columns) {
+                Object value = values.next();
                 if (value != null) {
-                    source.put(columns[column], value);
+                    source.put(column, value);
                 }
             }
             bulk.add(new IndexRequest(destination).opType(DocWriteRequest.OpType.CREATE).source(source));
         }
-        synchronized (this) {
-            stats.countRows(page.getPositionCount());
-        }
         return bulk;
     }
 
-    @Nullable
-    private static Object valueAt(Block block, ResponseValueUtils.BlockValueExtractor extractor, int position, BytesRef scratch) {
-        if (block.isNull(position)) {
-            return null;
-        }
-        int count = block.getValueCount(position);
-        int start = block.getFirstValueIndex(position);
-        if (count == 1) {
-            return extractor.extract(block, start, scratch);
-        }
-        List<Object> values = new ArrayList<>(count);
-        for (int i = start; i < start + count; i++) {
-            values.add(extractor.extract(block, i, scratch));
-        }
-        return values;
-    }
-
     private void send(BulkRequest bulk) {
+        DriverContext context;
         synchronized (this) {
-            inFlight++;
-            if (driverContext != null) {
-                driverContext.addAsyncAction();
+            if (driverContext == null) {
+                throw new IllegalStateException("INTO writer is not bound to a driver");
             }
+            context = driverContext;
+            inFlight++;
+            total += bulk.numberOfActions();
         }
+        context.addAsyncAction();
+        ActionListener<BulkResponse> listener = ActionListener.runAfter(
+            ActionListener.wrap(this::onBulkResponse, this::recordFailure),
+            () -> settled(context)
+        );
         try (ThreadContext.StoredContext ignored = caller.get()) {
-            client.execute(TransportBulkAction.TYPE, bulk, ActionListener.wrap(this::onBulkResponse, this::onBulkFailure));
+            client.execute(TransportBulkAction.TYPE, bulk, listener);
         } catch (Exception e) {
-            onBulkFailure(e);
+            listener.onFailure(e);
         }
     }
 
     private void onBulkResponse(BulkResponse response) {
-        synchronized (this) {
-            for (BulkItemResponse item : response) {
-                if (item.isFailed()) {
-                    BulkItemResponse.Failure itemFailure = item.getFailure();
-                    Throwable cause = itemFailure.getCause();
-                    String reason = cause != null ? cause.getMessage() : itemFailure.getMessage();
-                    recordFailure(
-                        new ElasticsearchStatusException("INTO [{}] failed: {}", itemFailure.getStatus(), cause, destination, reason)
-                    );
-                } else if (item.getResponse().getResult() == DocWriteResponse.Result.CREATED) {
-                    stats.countCreated();
-                }
+        for (BulkItemResponse item : response) {
+            if (item.isFailed()) {
+                Exception cause = item.getFailure().getCause();
+                recordFailure(
+                    new ElasticsearchStatusException(
+                        "INTO [{}] failed: {}",
+                        item.getFailure().getStatus(),
+                        cause,
+                        destination,
+                        cause.getMessage()
+                    )
+                );
+                return;
             }
         }
-        settled();
-    }
-
-    private void onBulkFailure(Exception e) {
-        recordFailure(e);
-        settled();
+        synchronized (this) {
+            created += response.getItems().length;
+        }
     }
 
     private void recordFailure(Exception e) {
         failure.compareAndSet(null, e);
     }
 
-    private void settled() {
-        SubscribableListener<Void> release;
-        synchronized (this) {
-            inFlight--;
-            if (driverContext != null) {
-                driverContext.removeAsyncAction();
-            }
-            if (finished && inFlight == 0) {
-                done = true;
-            }
-            release = mayContinue() ? takeWaiting() : null;
-        }
-        if (release != null) {
-            release.onResponse(null);
-        }
+    // Before waking the driver, so a normally finishing driver never waits on it, and outside the lock, because for a
+    // failed driver removing its last async action completes the driver's listener on this thread.
+    private void settled(DriverContext context) {
+        context.removeAsyncAction();
+        wake(() -> inFlight--);
     }
 
     @Override
     public void finish() {
-        SubscribableListener<Void> release;
+        wake(() -> finished = true);
+    }
+
+    private void wake(Runnable change) {
+        SubscribableListener<Void> release = null;
         synchronized (this) {
-            finished = true;
-            if (inFlight == 0) {
-                done = true;
+            change.run();
+            if (mayContinue()) {
+                release = waiting;
+                waiting = null;
             }
-            release = mayContinue() ? takeWaiting() : null;
         }
         if (release != null) {
             release.onResponse(null);
@@ -230,25 +203,14 @@ public final class IntoPageWriter implements PageConsumer {
         return new IsBlockedResult(waiting, "INTO " + destination);
     }
 
-    // Returning a listener whenever finished == true && done == false keeps a parked driver from spinning while bulks settle.
+    // Blocking until inFlight == 0 once finished keeps a parked driver from spinning while bulks settle.
     private boolean mayContinue() {
         assert Thread.holdsLock(this);
-        return finished ? done : inFlight < MAX_CONCURRENT_BULKS;
-    }
-
-    @Nullable
-    private SubscribableListener<Void> takeWaiting() {
-        assert Thread.holdsLock(this);
-        SubscribableListener<Void> release = waiting;
-        waiting = null;
-        return release;
+        return finished ? inFlight == 0 : inFlight < MAX_CONCURRENT_BULKS;
     }
 
     @Override
     public synchronized boolean isFinished() {
-        return done;
+        return finished && inFlight == 0;
     }
-
-    @Override
-    public void close() {}
 }

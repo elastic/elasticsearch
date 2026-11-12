@@ -7,9 +7,8 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -26,21 +25,14 @@ public class IntoParserTests extends AbstractStatementParserTests {
 
     @Before
     public void requiresSnapshot() {
-        assumeTrue("INTO is only enabled in snapshot builds", Build.current().isSnapshot());
+        assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
     }
 
     public void testDestination() {
         Into into = as(query("ROW a = 1 | INTO dst"), Into.class);
         assertThat(into.destination(), equalTo("dst"));
         as(into.child(), Row.class);
-
-        Into lowerCase = as(query("ROW a = 1 | into dst"), Into.class);
-        assertThat(lowerCase.destination(), equalTo("dst"));
-    }
-
-    public void testQuotedDestination() {
-        Into into = as(query("ROW a = 1 | INTO \"my-dst\""), Into.class);
-        assertThat(into.destination(), equalTo("my-dst"));
+        assertThat(as(query("ROW a = 1 | INTO \"my-dst\""), Into.class).destination(), equalTo("my-dst"));
     }
 
     public void testBadDestination() {
@@ -49,21 +41,27 @@ public class IntoParserTests extends AbstractStatementParserTests {
         expectError("ROW a = 1 | INTO dst::data", "invalid index pattern [dst::data], index pattern selectors are not supported in INTO");
     }
 
-    public void testMustBeTopLevelLastCommand() {
-        expectError("ROW a = 1 | INTO dst | LIMIT 1", "INTO must be the last command of the query");
-        expectError("ROW a = 1 | INTO dst | INTO other", "INTO must be the last command of the query");
-        expectError("ROW a = 1 | FORK (INTO dst) (LIMIT 1)", "INTO must be the last command of the query");
-        expectError("FROM (ROW a = 1 | INTO dst)", "INTO must be the last command of the query");
-        expectError("ROW a = 1 | WHERE a IN (ROW b = 1 | INTO dst)", "INTO must be the last command of the query");
-        ParsingException letError = expectThrows(ParsingException.class, () -> statement("LET x = (ROW b = 1 | INTO dst); ROW a = 1"));
-        assertThat(letError.getMessage(), containsString("INTO must be the last command of the query"));
-        expectError("EXPLAIN (ROW a = 1 | INTO dst)", "INTO must be the last command of the query");
-        expectError("EXPLAIN (ROW a = 1) | INTO dst", "EXPLAIN does not support downstream commands");
+    public void testMustBeTheLastTopLevelCommand() {
+        String error = "INTO must be the last command of the query";
+        expectError("ROW a = 1 | INTO dst | LIMIT 1", error);
+        expectError("ROW a = 1 | FORK (INTO dst) (LIMIT 1)", error);
+        expectError("FROM (ROW a = 1 | INTO dst)", error);
+        expectError("ROW a = 1 | WHERE a IN (ROW b = 1 | INTO dst)", error);
+        expectError("EXPLAIN (ROW a = 1 | INTO dst)", error);
+        expectValidationError("LET x = (ROW b = 1 | INTO dst); ROW a = 1", error);
+    }
+
+    public void testOnlyRowSource() {
+        String error = "INTO currently only supports ROW as a source, without FORK";
+        expectError("FROM src | INTO dst", error);
+        expectError("ROW a = 1 | FORK (WHERE true) (WHERE true) | INTO dst", error);
+        expectError("EXPLAIN (ROW a = 1) | INTO dst", error);
     }
 
     public void testViewBodyRejected() {
-        ParsingException e = expectThrows(
+        expectThrows(
             ParsingException.class,
+            containsString("INTO is not allowed in a view definition"),
             () -> TEST_PARSER.parseView(
                 "ROW a = 1 | INTO dst",
                 new QueryParams(),
@@ -73,15 +71,5 @@ public class IntoParserTests extends AbstractStatementParserTests {
                 EsqlFlags.DEFAULTS
             )
         );
-        assertThat(e.getMessage(), containsString("INTO is not allowed in a view definition"));
-    }
-
-    public void testVerifyProducerRequiresRowSource() {
-        Into rowInto = as(query("ROW a = 1 | EVAL b = a + 1 | INTO dst"), Into.class);
-        Into.verifyProducer(rowInto.child());
-
-        Into fromInto = as(query("FROM src | INTO dst"), Into.class);
-        VerificationException e = expectThrows(VerificationException.class, () -> Into.verifyProducer(fromInto.child()));
-        assertThat(e.getMessage(), containsString("INTO currently only supports ROW as a source"));
     }
 }

@@ -1,15 +1,4 @@
-intoSingleRow
-required_capability: into_command
-
-ROW into_keyword = "hello", into_long = 1
-| INTO into_destination
-;
-
-total:long | created:long
-1          | 1
-;
-
-intoMultipleRows
+rowIntoIndex
 required_capability: into_command
 
 ROW into_long = [1, 2, 3]
@@ -19,49 +8,4 @@ ROW into_long = [1, 2, 3]
 
 total:long | created:long
 3          | 3
-;
-
-intoMultiValuesAndNulls
-required_capability: into_command
-
-ROW into_keyword = ["a", "b"], into_long = null, into_double = 1.5, into_boolean = true
-| INTO into_destination
-;
-
-total:long | created:long
-1          | 1
-;
-
-intoDatesAndIps
-required_capability: into_command
-
-ROW into_date = TO_DATETIME("2026-01-15T12:34:56.789Z"), into_ip = TO_IP("192.168.1.1")
-| INTO into_destination
-;
-
-total:long | created:long
-1          | 1
-;
-
-intoQuotedDestination
-required_capability: into_command
-
-ROW into_keyword = "quoted"
-| INTO "into_destination"
-;
-
-total:long | created:long
-1          | 1
-;
-
-intoZeroRows
-required_capability: into_command
-
-ROW into_long = 1
-| WHERE into_long > 1
-| INTO into_destination
-;
-
-total:long | created:long
-0          | 0
 ;

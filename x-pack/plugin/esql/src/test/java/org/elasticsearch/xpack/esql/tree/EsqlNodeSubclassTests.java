@@ -17,9 +17,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.InsertEmptyBucketsOperator.DefaultValue;
-import org.elasticsearch.compute.operator.IsBlockedResult;
-import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.PageConsumer;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -97,6 +94,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -462,7 +460,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
                 Enum enm = (Enum) makeArg(toBuildClass, pt.getActualTypeArguments()[0]);
                 return EnumSet.of(enm);
             }
-            if (toBuildClass == OutputExec.class && pt.getRawType() == Consumer.class) {
+            if ((toBuildClass == OutputExec.class || toBuildClass == IntoExec.class) && pt.getRawType() == Consumer.class) {
                 // pageConsumer just needs a BiConsumer. But the consumer has to have reasonable
                 // `equals` for randomValueOtherThan, so we just ensure that a new instance is
                 // created each time which uses Object::equals identity.
@@ -483,29 +481,6 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return makeArg(toBuildClass, wt.getUpperBounds()[0]);
         }
         Class<?> argClass = (Class<?>) argType;
-
-        if (argClass == PageConsumer.class) {
-            return new PageConsumer() {
-                @Override
-                public void accept(Page page) {}
-
-                @Override
-                public IsBlockedResult isBlocked() {
-                    return Operator.NOT_BLOCKED;
-                }
-
-                @Override
-                public void finish() {}
-
-                @Override
-                public boolean isFinished() {
-                    return true;
-                }
-
-                @Override
-                public void close() {}
-            };
-        }
 
         /*
          * Sometimes all of the required type information isn't in the ctor

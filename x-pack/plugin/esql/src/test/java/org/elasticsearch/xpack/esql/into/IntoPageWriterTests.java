@@ -20,17 +20,18 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -49,30 +50,34 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class IntoPageWriterTests extends ESTestCase {
+public class IntoPageWriterTests extends ComputeTestCase {
 
     private static final String DESTINATION = "dst";
     private static final ShardId SHARD = new ShardId(DESTINATION, "uuid", 0);
-
     private static final List<Attribute> COLUMNS = List.of(
         new ReferenceAttribute(Source.EMPTY, "host", DataType.KEYWORD),
-        new ReferenceAttribute(Source.EMPTY, "cpu", DataType.DOUBLE),
         new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME)
     );
 
-    private final BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
     private ThreadPool threadPool;
     private CapturingClient client;
+    private BlockFactory blockFactory;
+    private DriverContext driverContext;
+    private IntoPageWriter writer;
 
     @Before
-    public void startThreadPool() {
+    public void setUpWriter() {
         threadPool = new TestThreadPool(getTestName());
         client = new CapturingClient(threadPool);
+        blockFactory = blockFactory();
+        driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
+        writer = new IntoPageWriter(client, DESTINATION, COLUMNS);
+        writer.bind(driverContext);
     }
 
     @After
@@ -87,7 +92,7 @@ public class IntoPageWriterTests extends ESTestCase {
 
     private static class CapturingClient extends NoOpClient {
         final List<BulkRequest> bulks = new ArrayList<>();
-        final List<ActionListener<BulkResponse>> bulkListeners = new ArrayList<>();
+        final List<ActionListener<BulkResponse>> listeners = new ArrayList<>();
 
         CapturingClient(ThreadPool threadPool) {
             super(threadPool);
@@ -102,74 +107,62 @@ public class IntoPageWriterTests extends ESTestCase {
         ) {
             assertThat(action, sameInstance(TransportBulkAction.TYPE));
             bulks.add((BulkRequest) request);
-            bulkListeners.add((ActionListener<BulkResponse>) listener);
+            listeners.add((ActionListener<BulkResponse>) listener);
         }
 
         void answer(Outcome... outcomes) {
             BulkRequest bulk = bulks.remove(0);
-            ActionListener<BulkResponse> listener = bulkListeners.remove(0);
-            assertThat(outcomes.length, equalTo(bulk.numberOfActions()));
+            assertThat(bulk.numberOfActions(), equalTo(outcomes.length));
             BulkItemResponse[] items = new BulkItemResponse[outcomes.length];
             for (int i = 0; i < outcomes.length; i++) {
-                DocWriteRequest<?> request = bulk.requests().get(i);
-                String id = "auto-" + i;
+                DocWriteRequest.OpType opType = bulk.requests().get(i).opType();
                 items[i] = switch (outcomes[i]) {
-                    case CREATED -> BulkItemResponse.success(i, request.opType(), new IndexResponse(SHARD, id, 0, 1, 1, true));
+                    case CREATED -> BulkItemResponse.success(i, opType, new IndexResponse(SHARD, "id-" + i, 0, 1, 1, true));
                     case REFUSED -> BulkItemResponse.failure(
                         i,
-                        request.opType(),
-                        new BulkItemResponse.Failure(DESTINATION, id, new IllegalArgumentException("mapper_parsing_exception: bad value"))
+                        opType,
+                        new BulkItemResponse.Failure(DESTINATION, "id-" + i, new IllegalArgumentException("mapper_parsing_exception"))
                     );
                 };
             }
-            listener.onResponse(new BulkResponse(items, 1));
+            listeners.remove(0).onResponse(new BulkResponse(items, 1));
+        }
+
+        void fail(Exception e) {
+            bulks.remove(0);
+            listeners.remove(0).onFailure(e);
         }
     }
 
     public void testPageToSourceConversion() {
-        IntoPageWriter writer = new IntoPageWriter(client, DESTINATION, COLUMNS);
         try (
             BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(2);
-            DoubleBlock.Builder cpu = blockFactory.newDoubleBlockBuilder(2);
             LongBlock.Builder ts = blockFactory.newLongBlockBuilder(2)
         ) {
-            host.beginPositionEntry();
-            host.appendBytesRef(new BytesRef("h1"));
-            host.appendBytesRef(new BytesRef("h2"));
-            host.endPositionEntry();
-            cpu.appendDouble(1.5);
+            host.beginPositionEntry().appendBytesRef(new BytesRef("h1")).appendBytesRef(new BytesRef("h2")).endPositionEntry();
             ts.appendLong(1_750_000_000_000L);
-
             host.appendNull();
-            cpu.appendNull();
             ts.appendLong(0L);
-
-            writer.accept(new Page(host.build(), cpu.build(), ts.build()));
+            writer.accept(new Page(host.build(), ts.build()));
         }
 
         assertThat(client.bulks, hasSize(1));
-        BulkRequest bulk = client.bulks.get(0);
-        assertThat(bulk.requests(), hasSize(2));
-
-        IndexRequest first = (IndexRequest) bulk.requests().get(0);
-        assertThat(first.index(), equalTo(DESTINATION));
-        assertThat(first.opType(), equalTo(DocWriteRequest.OpType.CREATE));
-        assertThat(first.sourceAsMap(), equalTo(Map.of("host", List.of("h1", "h2"), "cpu", 1.5, "ts", "2025-06-15T15:06:40.000Z")));
-
-        IndexRequest second = (IndexRequest) bulk.requests().get(1);
-        assertThat(second.opType(), equalTo(DocWriteRequest.OpType.CREATE));
-        assertThat(second.sourceAsMap(), equalTo(Map.of("ts", "1970-01-01T00:00:00.000Z")));
+        List<DocWriteRequest<?>> requests = client.bulks.get(0).requests();
+        assertThat(requests.stream().map(DocWriteRequest::opType).toList(), everyItem(equalTo(DocWriteRequest.OpType.CREATE)));
+        assertThat(requests.stream().map(DocWriteRequest::index).toList(), everyItem(equalTo(DESTINATION)));
+        assertThat(
+            requests.stream().map(request -> ((IndexRequest) request).sourceAsMap()).toList(),
+            equalTo(
+                List.of(Map.of("host", List.of("h1", "h2"), "ts", "2025-06-15T15:06:40.000Z"), Map.of("ts", "1970-01-01T00:00:00.000Z"))
+            )
+        );
     }
 
     public void testBackpressureAtMaxConcurrentBulks() {
-        IntoPageWriter writer = new IntoPageWriter(client, DESTINATION, COLUMNS);
-        for (int i = 0; i < IntoPageWriter.MAX_CONCURRENT_BULKS - 1; i++) {
-            writer.accept(singleRowPage("h-" + i));
+        for (int i = 0; i < IntoPageWriter.MAX_CONCURRENT_BULKS; i++) {
             assertThat(writer.isBlocked(), sameInstance(Operator.NOT_BLOCKED));
+            writer.accept(page("h" + i));
         }
-
-        writer.accept(singleRowPage("h-max"));
-        assertThat(client.bulks, hasSize(IntoPageWriter.MAX_CONCURRENT_BULKS));
         IsBlockedResult blocked = writer.isBlocked();
         assertFalse(blocked.listener().isDone());
 
@@ -178,78 +171,62 @@ public class IntoPageWriterTests extends ESTestCase {
         assertThat(writer.isBlocked(), sameInstance(Operator.NOT_BLOCKED));
     }
 
-    public void testIsFinishedWaitsForOutstandingBulks() {
-        IntoPageWriter writer = new IntoPageWriter(client, DESTINATION, COLUMNS);
-        writer.accept(singleRowPage("h1"));
-        writer.accept(singleRowPage("h2"));
-
+    public void testFinishWaitsForOutstandingBulks() {
+        writer.accept(page("h1"));
+        writer.accept(page("h2"));
         writer.finish();
-        assertFalse(writer.isFinished());
         IsBlockedResult blocked = writer.isBlocked();
-        assertFalse(blocked.listener().isDone());
 
         client.answer(Outcome.CREATED);
         assertFalse(writer.isFinished());
         assertFalse(blocked.listener().isDone());
+        assertTrue(driverContext.hasPendingAsyncActions());
 
         client.answer(Outcome.CREATED);
         assertTrue(writer.isFinished());
         assertTrue(blocked.listener().isDone());
+        assertFalse(driverContext.hasPendingAsyncActions());
         assertThat(writer.failure(), nullValue());
-        assertThat(writer.stats().total(), equalTo(2L));
-        assertThat(writer.stats().created(), equalTo(2L));
+        assertThat(writer.stats(), equalTo(new IntoStats(2, 2)));
     }
 
-    public void testRefusedRowSetsFailureAndSkipsLaterPages() {
-        IntoPageWriter writer = new IntoPageWriter(client, DESTINATION, COLUMNS);
-        try (
-            BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(2);
-            DoubleBlock.Builder cpu = blockFactory.newDoubleBlockBuilder(2);
-            LongBlock.Builder ts = blockFactory.newLongBlockBuilder(2)
-        ) {
-            host.appendBytesRef(new BytesRef("ok"));
-            cpu.appendDouble(1.0);
-            ts.appendLong(0L);
-            host.appendBytesRef(new BytesRef("bad"));
-            cpu.appendDouble(2.0);
-            ts.appendLong(0L);
-            writer.accept(new Page(host.build(), cpu.build(), ts.build()));
-        }
-
+    public void testRefusedRowFailsAndLaterPagesAreDropped() {
+        writer.accept(page("ok", "bad"));
         client.answer(Outcome.CREATED, Outcome.REFUSED);
-        assertThat(writer.failure(), instanceOf(ElasticsearchStatusException.class));
-        ElasticsearchStatusException statusException = (ElasticsearchStatusException) writer.failure();
-        assertThat(statusException.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(statusException.getMessage(), containsString("mapper_parsing_exception"));
-        assertThat(writer.stats().created(), equalTo(1L));
+        ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, writer.failure());
+        assertThat(failure.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(failure.getMessage(), containsString("mapper_parsing_exception"));
 
-        writer.accept(singleRowPage("skipped"));
+        writer.accept(page("dropped"));
         assertThat(client.bulks, empty());
     }
 
+    public void testWholeBulkFailureIsRecordedAndSettles() {
+        writer.accept(page("h1"));
+        Exception rejected = new EsRejectedExecutionException("rejected");
+        client.fail(rejected);
+        writer.finish();
+
+        assertTrue(writer.isFinished());
+        assertThat(writer.failure(), sameInstance(rejected));
+        assertFalse(driverContext.hasPendingAsyncActions());
+    }
+
     public void testEmptyPageSendsNothing() {
-        IntoPageWriter writer = new IntoPageWriter(client, DESTINATION, COLUMNS);
-        writer.accept(
-            new Page(blockFactory.newConstantNullBlock(0), blockFactory.newConstantNullBlock(0), blockFactory.newConstantNullBlock(0))
-        );
+        writer.accept(page());
         writer.finish();
 
         assertThat(client.bulks, empty());
         assertTrue(writer.isFinished());
-        assertThat(writer.stats().total(), equalTo(0L));
-        assertThat(writer.stats().created(), equalTo(0L));
+        assertThat(writer.stats(), equalTo(new IntoStats(0, 0)));
     }
 
-    private Page singleRowPage(String hostValue) {
-        try (
-            BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(1);
-            DoubleBlock.Builder cpu = blockFactory.newDoubleBlockBuilder(1);
-            LongBlock.Builder ts = blockFactory.newLongBlockBuilder(1)
-        ) {
-            host.appendBytesRef(new BytesRef(hostValue));
-            cpu.appendDouble(1.0);
-            ts.appendLong(0L);
-            return new Page(host.build(), cpu.build(), ts.build());
+    private Page page(String... hosts) {
+        try (BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(hosts.length)) {
+            for (String value : hosts) {
+                host.appendBytesRef(new BytesRef(value));
+            }
+            return new Page(host.build(), blockFactory.newConstantLongBlockWith(0L, hosts.length));
         }
     }
 }

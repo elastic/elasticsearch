@@ -32,7 +32,7 @@ public class OutputOperator extends SinkOperator {
     }
 
     private final List<String> columns;
-    private final Consumer<Page> pageConsumer;
+    private final PageConsumer pageConsumer;
     private final Function<Page, Page> mapper;
 
     public record OutputOperatorFactory(List<String> columns, Function<Page, Page> mapper, Consumer<Page> pageConsumer)
@@ -63,26 +63,24 @@ public class OutputOperator extends SinkOperator {
     public OutputOperator(List<String> columns, Function<Page, Page> mapper, Consumer<Page> pageConsumer) {
         this.columns = columns;
         this.mapper = mapper;
-        this.pageConsumer = pageConsumer;
+        this.pageConsumer = pageConsumer instanceof PageConsumer consumer ? consumer : pageConsumer::accept;
     }
 
     public List<String> getColumns() {
         return columns;
     }
 
-    private boolean finished = false;
+    boolean finished = false;
 
     @Override
     public boolean isFinished() {
-        return finished && (pageConsumer instanceof PageConsumer consumer ? consumer.isFinished() : true);
+        return finished && pageConsumer.isFinished();
     }
 
     @Override
     public void finish() {
         finished = true;
-        if (pageConsumer instanceof PageConsumer consumer) {
-            consumer.finish();
-        }
+        pageConsumer.finish();
     }
 
     // The driver hands over pages while needsInput() is true and only consults isBlocked() once no page moved.
@@ -93,7 +91,7 @@ public class OutputOperator extends SinkOperator {
 
     @Override
     public IsBlockedResult isBlocked() {
-        return pageConsumer instanceof PageConsumer consumer ? consumer.isBlocked() : NOT_BLOCKED;
+        return pageConsumer.isBlocked();
     }
 
     @Override
@@ -103,9 +101,7 @@ public class OutputOperator extends SinkOperator {
 
     @Override
     public void close() {
-        if (pageConsumer instanceof PageConsumer consumer) {
-            consumer.close();
-        }
+
     }
 
     @Override

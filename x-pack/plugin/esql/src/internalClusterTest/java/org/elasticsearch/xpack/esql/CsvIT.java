@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql;
 
-import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
@@ -26,7 +25,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.metadata.View;
-import org.elasticsearch.common.TestUUIDSourceRule;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -104,8 +102,6 @@ import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -411,28 +407,6 @@ public class CsvIT extends ESTestCase {
     }
 
     public final void test() throws Throwable {
-        // Every parameterized invocation shares the method name "test", so ESTestCase.uuidSource otherwise reseeds
-        // auto-generated document IDs identically on every spec and collides when multiple specs write to one index.
-        long testSeed = randomLong() ^ Objects.hash(groupName, testName);
-        Statement runSpec = new TestUUIDSourceRule().apply(new Statement() {
-            @Override
-            public void evaluate() throws Throwable {
-                doTest();
-            }
-        }, Description.EMPTY);
-        RandomizedContext.current().runWithPrivateRandomness(testSeed, () -> {
-            try {
-                runSpec.evaluate();
-            } catch (Exception | Error e) {
-                throw e;
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-            return null;
-        });
-    }
-
-    private void doTest() throws Throwable {
         assumeTrueLogging("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
         assumeFalseLogging(
             "runs in a single cluster/single node mode",
@@ -578,7 +552,6 @@ public class CsvIT extends ESTestCase {
                         case EsqlQueryAction.NAME -> {
                             loadViews();
                             loadAliases();
-                            loadIntoDestination();
                         }
                         case EsqlResolveFieldsAction.NAME -> loadIndices((EsqlResolveFieldsRequest) request);
                         case GetInferenceModelAction.NAME -> loadInference((GetInferenceModelAction.Request) request);
@@ -675,14 +648,6 @@ public class CsvIT extends ESTestCase {
                 }
                 aliases.maybeLoad(alias.aliasName(), alias);
             });
-        }
-    }
-
-    // INTO targets are not resolved through EsqlResolveFieldsAction, so load the destination before running the group.
-    private static void loadIntoDestination() {
-        if ("into".equals(currentGroupName) && EsqlCapabilities.Cap.INTO_COMMAND.isEnabled()) {
-            var dataset = CSV_DATASET.get("into_destination");
-            indices.maybeLoad(dataset.indexName(), dataset);
         }
     }
 

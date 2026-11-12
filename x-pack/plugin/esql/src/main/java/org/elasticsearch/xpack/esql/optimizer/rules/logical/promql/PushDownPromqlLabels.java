@@ -415,7 +415,9 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
                             // Nothing reads a view of the series above: the series id keys the collapse.
                             Attribute id = seriesId(aggregate.child());
                             child = withSeriesId(aggregate.child(), id);
-                            groupings.add(id);
+                            // Under a name of its own: the time-series aggregation keys every collapse by _tsid already.
+                            String name = Attribute.rawTemporaryName(MetadataAttribute.TSID_FIELD, "series", new NameId().toString());
+                            groupings.add(new Alias(id.source(), name, id));
                             var aliases = new ArrayList<NamedExpression>();
                             columns = columns(shape.withLabels(shape.labels()).withoutRest(), aliases);
                             groupings.addAll(aliases);

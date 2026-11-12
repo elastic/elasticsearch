@@ -64,7 +64,8 @@ public class PushDownPromqlLabelsTests extends ESTestCase {
         LogicalPlan plan = PushDownPromqlLabels.pushDown(new Eval(SOURCE, collapse, List.of(read)), EsqlTestUtils.TEST_CFG);
 
         TimeSeriesAggregate pushed = plan.collect(TimeSeriesAggregate.class).getFirst();
-        assertThat(names(pushed.groupings()), hasItem(MetadataAttribute.TSID_FIELD));
+        var keys = pushed.groupings().stream().map(Alias::unwrap).filter(Attribute.class::isInstance).map(Attribute.class::cast);
+        assertThat(keys.map(Attribute::name).toList(), hasItem(MetadataAttribute.TSID_FIELD));
         assertThat(expressions(plan, TimeSeriesWithout.class), empty());
         assertThat(expressions(plan, AbstractTimeSeriesMetadataFunction.class), empty());
         Eval eval = as(plan, Eval.class);

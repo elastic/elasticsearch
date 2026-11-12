@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDifference;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -142,6 +141,8 @@ public final class GraphExpandDriver {
 
     /** Nodes already admitted (including seeds). */
     private final Set<Object> visited = new HashSet<>();
+    /** closing_edges false: edges onto visited nodes leave in extractRows (the outbound array leg does not remove them in the query). */
+    private boolean dropVisitedAfterFetch;
     /** Nodes the walk never admits; an edge touching one is dropped as soon as the hop returns it. */
     private final Set<Object> excluded;
     /** Nodes to expand on the next hop. */
@@ -227,6 +228,7 @@ public final class GraphExpandDriver {
         this.until = graphExpand.until();
         this.untilSubqueryDone = until == null || untilContainsInSubquery(until) == false;
         this.excluded = excludedNodes(graphExpand, nodeType);
+        this.dropVisitedAfterFetch = closingEdges() == false;
         for (Object seed : seeds) {
             if (excluded.contains(seed)) {
                 continue;
@@ -753,38 +755,36 @@ public final class GraphExpandDriver {
         }
         indexPredicates.add(new IsNotNull(source, pointerField));
         LogicalPlan edges = new Filter(source, graphExpand.edgeRelation(), Predicates.combineAnd(indexPredicates));
-        // Outbound pointer array, rewritten on the matched document before it is exploded.
-        // Skipped targets are taken out first (MV_DIFFERENCE), so what follows only sees edges
-        // the hop can admit. Hub guard: a frontier node with more remaining pointers than
-        // hub_degree is refused after the fetch; counting the array here and slicing it to
-        // hub_degree + 1 values keeps a hub to just enough rows for that refusal to see it,
-        // instead of every pointer it holds being expanded, joined and shipped. The count rides
-        // along in `dropped` so the refusal stub reports it; applyHubDegree clears it on kept rows.
+        // Outbound pointer array, rewritten on the matched document before it is exploded. Hub
+        // guard: a frontier node with more pointers than hub_degree is refused after the fetch;
+        // counting the array here and slicing it to hub_degree + 1 values keeps a hub to just
+        // enough rows for that refusal to see it, instead of every pointer it holds being
+        // expanded, joined and shipped. The count rides along in `dropped` so the refusal stub
+        // reports it; applyHubDegree clears it on kept rows.
+        //
+        // Skipped targets are not taken out of the array here. MV_DIFFERENCE against the skipped
+        // list evaluates a linear search of that list for every pointer of every document, and the
+        // list grows with the walk (the visited set), which on a 30,000-node walk cost two minutes
+        // a hop. Instead extractRows drops the edges onto skipped targets after the fetch, by hash,
+        // and the hub guard then sees the remaining pointers. The count and the slice can only be
+        // applied in the query when nothing is skipped, since a slice taken before the drop could
+        // cut pointers the hop should admit; with a skip list the whole array is expanded and the
+        // refusal counts the rows in Java.
         Integer hubDegree = optionInt("hub_degree");
         Attribute degreeAttr = null;
         Attribute expandSource = pointerField;
         LogicalPlan beforeExpand = edges;
-        if (leg == Leg.OUT && edgeDocuments == false && (hubDegree != null || skipped.isEmpty() == false)) {
-            Expression pointers = skipped.isEmpty()
-                ? pointerField
-                : new MvDifference(source, pointerField, new Literal(source, List.copyOf(skipped), nodeType));
-            List<Alias> rewritten = new ArrayList<>(2);
-            Expression kept = pointers;
-            if (hubDegree != null) {
-                Alias degree = new Alias(source, HUB_DEGREE_COLUMN, new MvCount(source, pointers));
-                rewritten.add(degree);
-                degreeAttr = degree.toAttribute();
-                // MV_SLICE bounds are inclusive: 0..hub_degree is hub_degree + 1 values.
-                kept = new MvSlice(
-                    source,
-                    pointers,
-                    new Literal(source, 0, DataType.INTEGER),
-                    new Literal(source, hubDegree, DataType.INTEGER)
-                );
-            }
-            Alias capped = new Alias(source, pointerField.name(), kept);
-            rewritten.add(capped);
-            beforeExpand = new Eval(source, edges, rewritten);
+        boolean dropsAfterFetch = leg == Leg.OUT && edgeDocuments == false && skipped.isEmpty() == false;
+        if (leg == Leg.OUT && edgeDocuments == false && hubDegree != null && dropsAfterFetch == false) {
+            Alias degree = new Alias(source, HUB_DEGREE_COLUMN, new MvCount(source, pointerField));
+            degreeAttr = degree.toAttribute();
+            // MV_SLICE bounds are inclusive: 0..hub_degree is hub_degree + 1 values.
+            Alias capped = new Alias(
+                source,
+                pointerField.name(),
+                new MvSlice(source, pointerField, new Literal(source, 0, DataType.INTEGER), new Literal(source, hubDegree, DataType.INTEGER))
+            );
+            beforeExpand = new Eval(source, edges, List.of(degree, capped));
             expandSource = capped.toAttribute();
         }
         Attribute expandedPointer;
@@ -942,9 +942,11 @@ public final class GraphExpandDriver {
         }
         LogicalPlan hopPlan = new Project(source, eval, projections);
         // Rows a hop could never admit are not read: the cap is the smaller of max_edges_per_hop
-        // and what the engine would hold anyway, applied per subplan before the rows travel.
+        // and what the engine would hold anyway, applied per subplan before the rows travel. Not
+        // when the edges onto skipped targets leave after the fetch: a limit taken before that
+        // drop would spend the budget on rows the hop then discards; applyCaps still enforces it.
         Integer maxEdgesPerHop = optionInt("max_edges_per_hop");
-        if (maxEdgesPerHop != null) {
+        if (maxEdgesPerHop != null && dropsAfterFetch == false) {
             hopPlan = new Limit(source, new Literal(source, maxEdgesPerHop, DataType.INTEGER), hopPlan);
         }
         return hopPlan;
@@ -1151,6 +1153,12 @@ public final class GraphExpandDriver {
         for (int c = 0; c < resultAttributes.size(); c++) {
             channels[c] = indexOf(schema, resultAttributes.get(c).name());
         }
+        // The outbound array leg with a skip list carries no LIMIT in the query (see buildHopPlan),
+        // so max_edges_per_hop is taken here instead: the first rows per subplan, one subplan per
+        // TO field, as the query's LIMIT would have kept them. Inbound rows were limited there.
+        Integer outboundCap = dropVisitedAfterFetch && relationField == null ? optionInt("max_edges_per_hop") : null;
+        Map<Object, Integer> outboundRowsPerField = outboundCap == null ? null : new HashMap<>();
+        int relationIdx = findNamed(resultAttributes, "relation") == null ? -1 : indexOf(resultAttributes, "relation");
         List<List<Object>> rows = new ArrayList<>();
         for (Page page : hopResult.pages()) {
             int positions = page.getPositionCount();
@@ -1163,6 +1171,18 @@ public final class GraphExpandDriver {
                 // UNTIL see it, so the node is never admitted and nothing is walked beyond it.
                 if (excluded.isEmpty() == false && (excluded.contains(row.get(nodeFromIdx)) || excluded.contains(row.get(nodeToIdx)))) {
                     continue;
+                }
+                // With closing_edges false an edge onto a visited node is not a result either. The
+                // inbound legs and the edge-document form filter these at the index; the outbound
+                // array leg ships them and they leave here (see buildHopPlan).
+                if (dropVisitedAfterFetch && visited.contains(row.get(nodeReachedIdx))) {
+                    continue;
+                }
+                if (outboundCap != null && Objects.equals(row.get(nodeReachedIdx), row.get(nodeToIdx))) {
+                    Object field = relationIdx < 0 ? null : row.get(relationIdx);
+                    if (outboundRowsPerField.merge(field, 1, Integer::sum) > outboundCap) {
+                        continue;
+                    }
                 }
                 rows.add(row);
             }

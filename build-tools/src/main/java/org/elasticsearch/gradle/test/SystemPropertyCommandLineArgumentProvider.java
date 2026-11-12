@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.gradle.test;
 
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Input;
 import org.gradle.process.CommandLineArgumentProvider;
 
@@ -31,13 +32,23 @@ public class SystemPropertyCommandLineArgumentProvider implements CommandLineArg
     public Iterable<String> asArguments() {
         return systemProperties.entrySet()
             .stream()
-            .map(
-                entry -> "-D"
-                    + entry.getKey()
-                    + "="
-                    + (entry.getValue() instanceof Supplier ? ((Supplier) entry.getValue()).get() : entry.getValue())
-            )
+            .map(entry -> "-D" + entry.getKey() + "=" + resolve(entry.getValue()))
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Resolves lazy values when the test JVM is launched. Providers are checked explicitly: Gradle's own providers also
+     * implement {@link Supplier}, but only through an internal interface, so relying on that would break silently and
+     * pass the provider's description instead of its value.
+     */
+    private static Object resolve(Object value) {
+        if (value instanceof Provider<?> provider) {
+            return provider.get();
+        }
+        if (value instanceof Supplier<?> supplier) {
+            return supplier.get();
+        }
+        return value;
     }
 
     // Track system property keys as an input so our build cache key will change if we add properties but values are still ignored

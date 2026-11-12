@@ -295,11 +295,14 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 var outputAttrs = localRelation.output().stream().filter(x -> mergeOutputNames.contains(x.name())).toList();
                 newSubPlan = new LocalRelation(localRelation.source(), outputAttrs, localRelation.supplier());
             } else {
-                var outputAttrs = subPlan.output().stream().filter(x -> mergeOutputNames.contains(x.name())).toList();
+                var subPlanOutput = subPlan.output();
+                var outputAttrs = subPlanOutput.stream().filter(x -> mergeOutputNames.contains(x.name())).toList();
                 usedAttrs.addAll(outputAttrs);
                 // Narrow the branch output before pruning its subtree. Filters and other branch operators may still need columns
                 // that the merge no longer returns.
-                newSubPlan = outputAttrs.size() == subPlan.output().size() ? subPlan : new Project(subPlan.source(), subPlan, outputAttrs);
+                newSubPlan = outputAttrs.size() == subPlanOutput.size() || subPlan instanceof Project
+                    ? subPlan
+                    : new Project(subPlan.source(), subPlan, outputAttrs);
                 newSubPlan = pruneColumns(newSubPlan, usedAttrs, false);
             }
             if (false == newSubPlan.equals(subPlan)) {

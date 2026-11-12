@@ -85,6 +85,19 @@ public class PushDownPromqlLabelsTests extends ESTestCase {
         assertThat(expressions(plan, AbstractTimeSeriesMetadataFunction.class), empty());
     }
 
+    /** A label the source has no field for is in no series: the view leaves out no field for it. */
+    public void testLabelWithoutFieldIsNotLeftOutOfTheView() {
+        Alias labels = sourceLabels();
+        TimeSeriesAggregate collapse = collapse(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
+        Expression without = new TimeSeriesMetadataFilter(SOURCE, labels.toAttribute(), List.of(Literal.keyword(SOURCE, "__name__")), true);
+        Alias rendered = new Alias(SOURCE, MetadataAttribute.TIMESERIES, new ToString(SOURCE, without, EsqlTestUtils.TEST_CFG));
+        LogicalPlan plan = PushDownPromqlLabels.pushDown(new Eval(SOURCE, collapse, List.of(rendered)), EsqlTestUtils.TEST_CFG);
+
+        List<Expression> views = expressions(plan, TimeSeriesWithout.class);
+        assertThat(views, hasSize(1));
+        assertThat(views.getFirst().children(), empty());
+    }
+
     /** An aggregate keyed by labels packs them: a label of several values keys as a whole. */
     public void testAggregateKeysByPackedLabels() {
         Alias labels = sourceLabels();

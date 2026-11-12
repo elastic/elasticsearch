@@ -2115,20 +2115,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         PromqlParser promqlParser = new PromqlParser();
-        LogicalPlan promqlPlan;
-        try {
-            // The existing PromqlParser is used to parse the inner query
-            promqlPlan = promqlParser.createStatement(
-                promqlQuery,
-                params.startLiteral(),
-                params.endLiteral(),
-                promqlStartLine,
-                promqlStartColumn,
-                context.params()
-            );
-        } catch (ParsingException pe) {
-            throw PromqlParserUtils.adjustParsingException(pe, promqlStartLine, promqlStartColumn);
-        }
+        // The existing PromqlParser is used to parse the inner query
+        LogicalPlan promqlPlan = promqlParser.createStatement(
+            promqlQuery,
+            params.startLiteral(),
+            params.endLiteral(),
+            promqlStartLine,
+            promqlStartColumn,
+            context.params()
+        );
 
         String valueColumnName = getValueColumnName(ctx.valueName(), promqlQuery);
 

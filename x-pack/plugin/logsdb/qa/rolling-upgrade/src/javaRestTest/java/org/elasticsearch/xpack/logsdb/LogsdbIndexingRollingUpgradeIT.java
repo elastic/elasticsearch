@@ -88,6 +88,7 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
         Instant time;
         {
             maybeEnableLogsdbByDefault();
+            maybeDisableBatchIndexing();
 
             final String tagKeepMode = columnarEnabled ? "" : ",\"synthetic_source_keep\":\"all\"";
             String template = TEMPLATE.replace("%%tag_keep_mode%%", tagKeepMode);
@@ -177,6 +178,23 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
             if (columnarEnabled) {
                 assertWrittenByColumnarCodec(newBackingIndex);
             }
+        }
+    }
+
+    /**
+     * Columnar indices use batch indexing by default, so randomly turn it off cluster wide (a persistent setting, which survives the
+     * rolling upgrade) to also cover sequential document based indexing for them. {@code indices.batch_indexing} is only a known dynamic
+     * setting on clusters from 9.6.0 on.
+     */
+    private void maybeDisableBatchIndexing() throws IOException {
+        final String oldVersion = System.getProperty("tests.old_cluster_version");
+        if (oldVersion != null && Version.fromString(oldVersion).before(Version.fromString("9.6.0"))) {
+            return;
+        }
+        final boolean disableBatchIndexing = randomBoolean();
+        logger.info("disable batch indexing cluster wide: {}", disableBatchIndexing);
+        if (disableBatchIndexing) {
+            updateClusterSettings(Settings.builder().put("indices.batch_indexing", false).build());
         }
     }
 

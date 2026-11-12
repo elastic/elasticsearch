@@ -14,6 +14,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -22,9 +23,9 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -65,10 +66,7 @@ public class ColumnarExistsNullSemanticsTests extends MapperServiceTestCase {
     }
 
     public void testDateExistsMatchesOnlyDocumentsWithANonNullValue() throws IOException {
-        assertExistsMatchesOnlyDocumentsWithANonNullValue(
-            "date",
-            () -> Instant.ofEpochMilli(randomLongBetween(0, 4_102_444_800_000L)).toString()
-        );
+        assertExistsMatchesOnlyDocumentsWithANonNullValue("date", ColumnarExistsNullSemanticsTests::randomDate);
     }
 
     public void testIpExistsMatchesOnlyDocumentsWithANonNullValue() throws IOException {
@@ -79,11 +77,47 @@ public class ColumnarExistsNullSemanticsTests extends MapperServiceTestCase {
         assertExistsMatchesOnlyDocumentsWithANonNullValue("boolean", () -> randomBoolean());
     }
 
-    private void assertExistsMatchesOnlyDocumentsWithANonNullValue(String type, Supplier<Object> valueSupplier) throws IOException {
-        final List<TestDocument> documents = new ArrayList<>();
-        for (int i = between(8, 40); i > 0; i--) {
-            documents.add(randomDocument(valueSupplier));
+    public void testKeywordSyntheticSourceKeepsEveryNullSlot() throws IOException {
+        assertSyntheticSourceKeepsEveryNullSlot("keyword", () -> randomAlphaOfLengthBetween(1, 8));
+    }
+
+    public void testTextSyntheticSourceKeepsEveryNullSlot() throws IOException {
+        assertSyntheticSourceKeepsEveryNullSlot("text", () -> randomAlphaOfLengthBetween(1, 8));
+    }
+
+    public void testLongSyntheticSourceKeepsEveryNullSlot() throws IOException {
+        assertSyntheticSourceKeepsEveryNullSlot("long", () -> randomLong());
+    }
+
+    public void testDateSyntheticSourceKeepsEveryNullSlot() throws IOException {
+        assertSyntheticSourceKeepsEveryNullSlot("date", ColumnarExistsNullSemanticsTests::randomDate);
+    }
+
+    public void testIpSyntheticSourceKeepsEveryNullSlot() throws IOException {
+        assertSyntheticSourceKeepsEveryNullSlot("ip", () -> NetworkAddress.format(randomIp(randomBoolean())));
+    }
+
+    public void testBooleanSyntheticSourceKeepsEveryNullSlot() throws IOException {
+        assertSyntheticSourceKeepsEveryNullSlot("boolean", () -> randomBoolean());
+    }
+
+    private void assertSyntheticSourceKeepsEveryNullSlot(String type, Supplier<Object> valueSupplier) throws IOException {
+        final List<TestDocument> documents = randomDocuments(valueSupplier);
+        final boolean indexed = randomBoolean();
+        for (final boolean withCodec : new boolean[] { true, false }) {
+            final MapperService mapperService = createColumnarMapperService(type, indexed, withCodec);
+            for (final TestDocument document : documents) {
+                assertEquals(
+                    "codec=" + withCodec + " index=" + indexed + " document=" + document,
+                    expectedSource(document),
+                    syntheticSource(mapperService.documentMapper(), b -> write(b, document))
+                );
+            }
         }
+    }
+
+    private void assertExistsMatchesOnlyDocumentsWithANonNullValue(String type, Supplier<Object> valueSupplier) throws IOException {
+        final List<TestDocument> documents = randomDocuments(valueSupplier);
         final List<Integer> expected = new ArrayList<>();
         for (int i = 0; i < documents.size(); i++) {
             if (documents.get(i).hasValue()) {
@@ -92,11 +126,7 @@ public class ColumnarExistsNullSemanticsTests extends MapperServiceTestCase {
         }
         final boolean indexed = randomBoolean();
         for (final boolean withCodec : new boolean[] { true, false }) {
-            final MapperService mapperService = createMapperService(
-                withCodec ? IndexVersion.current() : IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG),
-                Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
-                mapping(b -> b.startObject(FIELD).field("type", type).field("index", indexed).endObject())
-            );
+            final MapperService mapperService = createColumnarMapperService(type, indexed, withCodec);
             final String message = "codec=" + withCodec + " index=" + indexed + " documents=" + documents;
             withLuceneIndex(mapperService, iw -> {
                 for (int i = 0; i < documents.size(); i++) {
@@ -120,6 +150,38 @@ public class ColumnarExistsNullSemanticsTests extends MapperServiceTestCase {
                 assertEquals(message, expected.size(), searcher.count(exists));
             });
         }
+    }
+
+    private MapperService createColumnarMapperService(String type, boolean indexed, boolean withCodec) throws IOException {
+        return createMapperService(
+            withCodec ? IndexVersion.current() : IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG),
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+            mapping(b -> b.startObject(FIELD).field("type", type).field("index", indexed).endObject())
+        );
+    }
+
+    private static String randomDate() {
+        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomLongBetween(0, 4_102_444_800_000L));
+    }
+
+    private static List<TestDocument> randomDocuments(Supplier<Object> valueSupplier) {
+        final List<TestDocument> documents = new ArrayList<>();
+        for (int i = between(8, 40); i > 0; i--) {
+            documents.add(randomDocument(valueSupplier));
+        }
+        return documents;
+    }
+
+    private static String expectedSource(TestDocument document) throws IOException {
+        final XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        builder.startObject();
+        final List<Object> slots = document.slots();
+        if (slots.size() == 1 && slots.get(0) != null) {
+            builder.field(FIELD, slots.get(0));
+        } else if (slots.isEmpty() == false) {
+            builder.field(FIELD, slots);
+        }
+        return Strings.toString(builder.endObject());
     }
 
     private static TestDocument randomDocument(Supplier<Object> valueSupplier) {

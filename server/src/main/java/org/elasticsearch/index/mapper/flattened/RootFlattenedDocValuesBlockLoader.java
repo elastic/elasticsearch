@@ -15,7 +15,6 @@ import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -27,37 +26,31 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KEYED_FIELD_SUFFIX;
-import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KEYED_IGNORED_VALUES_FIELD_SUFFIX;
 
 /**
- * Block loader for {@link FlattenedFieldMapper.RootFlattenedFieldType} that loads values from doc values, falling back to stored fields
- * when necessary to load ignored values.
+ * Block loader for {@link FlattenedFieldMapper.RootFlattenedFieldType} that loads values from doc values. Like a keyword field, the root
+ * has no value that {@code ignore_above} left out of doc values.
  */
 final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
-    private final Mapper.IgnoreAbove ignoreAbove;
-
     private final BlockFlattenedDocValuesSyntheticFieldLoader fieldLoader;
     private final List<Map.Entry<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader>> storedFieldLoaders;
 
     RootFlattenedDocValuesBlockLoader(
         String name,
-        Mapper.IgnoreAbove ignoreAbove,
         boolean usesBinaryDocValues,
         boolean usesArrayOrderBinaryDocValues,
         List<SourceLoader.SyntheticFieldLoader> mappedSubFieldLoaders,
-        boolean storeIgnoredFieldsInBinaryDocValues,
         FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays
     ) {
-        this.ignoreAbove = ignoreAbove;
         this.fieldLoader = new BlockFlattenedDocValuesSyntheticFieldLoader(
             name,
             name + KEYED_FIELD_SUFFIX,
-            ignoreAbove.valuesPotentiallyIgnored() ? name + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
+            null,
             null,
             usesBinaryDocValues,
             usesArrayOrderBinaryDocValues,
             mappedSubFieldLoaders,
-            storeIgnoredFieldsInBinaryDocValues,
+            false,
             preserveLeafArrays
         );
         this.storedFieldLoaders = fieldLoader.storedFieldLoaders().toList();

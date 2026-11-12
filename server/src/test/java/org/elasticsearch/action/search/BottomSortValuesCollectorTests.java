@@ -110,6 +110,26 @@ public class BottomSortValuesCollectorTests extends ESTestCase {
         }
     }
 
+    public void testBottomThatCannotBeFormattedIsSkipped() {
+        // Descending, so Long.MAX_VALUE (the value the format rejects) is always the best bottom.
+        SortField[] sortFields = new SortField[] { new SortField("foo", SortField.Type.LONG, true) };
+        DocValueFormat[] sortFormats = new DocValueFormat[] { new SearchQueryThenFetchAsyncActionTests.BadRawDocValueFormat() };
+        BottomSortValuesCollector collector = new BottomSortValuesCollector(1, sortFields);
+
+        collector.consumeTopDocs(createTopDocs(sortFields[0], 10, newLongArray(Long.MAX_VALUE)), sortFormats);
+        assertThat(collector.getTotalHits(), equalTo(10L));
+        assertNull(collector.getBottomSortValues());
+
+        collector.consumeTopDocs(createTopDocs(sortFields[0], 10, newLongArray(5L)), sortFormats);
+        assertThat(collector.getBottomSortValues().getRawSortValues()[0], equalTo(5L));
+
+        // A better bottom that cannot be formatted still counts its hits but keeps the previous bottom.
+        collector.consumeTopDocs(createTopDocs(sortFields[0], 10, newLongArray(Long.MAX_VALUE)), sortFormats);
+        assertThat(collector.getTotalHits(), equalTo(30L));
+        assertThat(collector.getBottomSortValues().getRawSortValues()[0], equalTo(5L));
+        assertThat(collector.getBottomSortValues().getFormattedSortValues()[0], equalTo(5L));
+    }
+
     public void testWithDates() {
         for (boolean reverse : new boolean[] { true, false }) {
             SortField[] sortFields = new SortField[] { new SortField("foo", SortField.Type.LONG, reverse) };

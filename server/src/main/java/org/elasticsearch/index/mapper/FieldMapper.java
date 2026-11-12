@@ -148,6 +148,7 @@ public abstract class FieldMapper extends Mapper {
     protected static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
 
     static void warnDocValuesIgnoredInColumnar(String field) {
+        // Fixed key so the logger deduplicates: dynamic templates re-parse their mapping for every new field.
         deprecationLogger.warn(
             DeprecationCategory.MAPPINGS,
             "doc_values_ignored_in_columnar",
@@ -1726,12 +1727,8 @@ public abstract class FieldMapper extends Mapper {
         }
 
         /**
-         * Defines a plain boolean {@code doc_values} parameter.
-         * <p>
-         * In strict-columnar indices created on or after {@link IndexVersions#DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS} doc values are
-         * always enabled, so the value is parsed and then replaced by {@code true} (the default), which keeps it out of the persisted
-         * mapping and prevents merge conflicts. An explicit {@code false} logs a deprecation warning. Mappers that use this parameter
-         * must therefore default to {@code true}; {@link DocValuesParameter} handles the other mappers.
+         * Plain {@code doc_values}. For default-{@code true} mappers in strict-columnar indices since
+         * {@link IndexVersions#DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS} the value is ignored, warning on {@code false}.
          */
         public static Parameter<Boolean> docValuesParam(boolean defaultValue) {
             return new Parameter<>("doc_values", false, defaultValue ? () -> true : () -> false, (n, c, o) -> {
@@ -2090,7 +2087,6 @@ public abstract class FieldMapper extends Mapper {
                 boolean enabled = XContentMapValues.nodeBooleanValue(value, name);
                 if (ignoresDocValuesAttribute) {
                     if (enabled == false) {
-                        // Fixed key so the logger deduplicates: dynamic templates re-parse their mapping for every new field.
                         warnDocValuesIgnoredInColumnar(field);
                     }
                     // Leaving the value unset keeps it out of the persisted mapping.

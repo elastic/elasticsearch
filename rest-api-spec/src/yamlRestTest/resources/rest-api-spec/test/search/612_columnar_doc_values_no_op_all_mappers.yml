@@ -70,7 +70,6 @@ doc_values false is ignored for geo_point, range and flattened in columnar:
             bounds: { geo_bounds: { field: location } }
   - is_true: aggregations.bounds.bounds.top_left
 
-  # doc_values is not stored in the mapping
   - do:
       indices.get_mapping:
         index: test

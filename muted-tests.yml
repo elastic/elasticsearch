@@ -558,3 +558,45 @@ tests:
   - :server:test
   method: testRequiredMultiFieldIsPresentWhenItsParentIs
   issue: https://github.com/elastic/elasticsearch/issues/165673
+- class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
+  tasks:
+  - :x-pack:plugin:transform:yamlRestTest
+  method: test {yaml=multi_cluster/80_transform/Batch transform from local and remote cluster}
+  issue: https://github.com/elastic/elasticsearch/issues/165716
+- class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
+  tasks:
+  - :x-pack:plugin:transform:yamlRestTest
+  method: test {yaml=multi_cluster/80_transform/Batch transform from remote cluster}
+  issue: https://github.com/elastic/elasticsearch/issues/165718
+- class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
+  tasks:
+  - :x-pack:plugin:transform:yamlRestTest
+  method: test {yaml=multi_cluster/80_transform/Batch transform preview from remote cluster}
+  issue: https://github.com/elastic/elasticsearch/issues/165720
+- class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
+  tasks:
+  - :x-pack:plugin:transform:yamlRestTest
+  method: test {yaml=multi_cluster/80_transform/Batch transform local and remote index sharing the same name}
+  issue: https://github.com/elastic/elasticsearch/issues/165722
+- class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
+  tasks:
+  - :x-pack:plugin:esql:qa:security:javaRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/165728
+- class: org.elasticsearch.index.mapper.blockloader.FlattenedFieldRootBlockLoaderTests
+  tasks:
+  - :server:test
+  issue: https://github.com/elastic/elasticsearch/issues/165732
+- class: org.elasticsearch.xpack.esql.EsqlSecurityIT
+  tasks:
+  - :x-pack:plugin:esql:qa:security:javaRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/165735
+- class: org.elasticsearch.xpack.spatial.SpatialDiskUsageIT
+  tasks:
+  - :x-pack:plugin:spatial:internalClusterTest
+  method: testCartesianShape
+  issue: https://github.com/elastic/elasticsearch/issues/165745
+- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/165756

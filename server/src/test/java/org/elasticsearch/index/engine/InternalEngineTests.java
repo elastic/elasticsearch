@@ -190,6 +190,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
@@ -8378,6 +8379,39 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    /**
+     * A replica can be sent a batch holding ops it has already processed, e.g. while a peer recovery replays the same ops. The engine
+     * skips those ops, and the batch must not leave an empty live document in place of each of them.
+     */
+    public void testIndexBatchOnReplicaWritesNoGhostDocsForProcessedOps() throws IOException {
+        final int numOps = between(2, 20);
+        final Set<Integer> processed = new HashSet<>(randomSubsetOf(between(1, numOps - 1), IntStream.range(0, numOps).boxed().toList()));
+        final List<Engine.Index> ops = new ArrayList<>(numOps);
+        for (int seqNo = 0; seqNo < numOps; seqNo++) {
+            final ParsedDocument doc = createParsedDoc(Integer.toString(seqNo), null);
+            if (processed.contains(seqNo)) {
+                indexDoc(engine, replicaIndexForDoc(doc, 1, seqNo, false));
+            }
+            ops.add(replicaIndexForDoc(doc, 1, seqNo, false));
+        }
+
+        final EngineBatch batch = engineBatch(ops, encodeAsEscfBatch(ops));
+        // engineBatch leaves the seq_nos unassigned, as on a primary, but a replica batch carries the ones the primary assigned
+        for (int i = 0; i < numOps; i++) {
+            ByteUtils.writeLongLE(ops.get(i).seqNo(), batch.batch().seqNoBytes().bytes, i * 8);
+        }
+        final List<Engine.IndexResult> results = engine.indexBatch(batch);
+        assertThat(results, hasSize(numOps));
+        for (Engine.IndexResult result : results) {
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        }
+
+        engine.refresh("test");
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)) {
+            assertThat("processed " + processed + " of " + numOps + " ops", searcher.getIndexReader().numDocs(), equalTo(numOps));
+        }
+    }
+
     public void testIndexBatchMixedNewAndExisting() throws IOException {
         // Pre-index doc "0"
         indexDoc(engine, indexForDoc(createParsedDoc("0", null)));
@@ -8661,6 +8695,11 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(results.get(1).getSeqNo(), equalTo(checkpointBefore + 1));
         // processed checkpoint advances by exactly one (the one real op)
         assertThat(engine.getProcessedLocalCheckpoint(), equalTo(checkpointBefore + 1));
+        // the conflicting op leaves no ghost document behind: only "1" and "2" exist
+        engine.refresh("test");
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)) {
+            assertThat(searcher.getIndexReader().numDocs(), equalTo(2));
+        }
     }
 
     public void testBatchIndexRecordsRowIndex() throws IOException {

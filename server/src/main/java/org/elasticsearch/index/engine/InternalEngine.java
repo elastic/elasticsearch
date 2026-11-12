@@ -42,7 +42,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.ExceptionsHelper;
@@ -1549,51 +1548,22 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Returns true if any doc in this sub-batch requires Lucene update or stale-op semantics, which
-     * the columnar {@code addBatch} path cannot express. The entire sub-batch must then fall back to
-     * the row path.
+     * Returns true if any doc in this sub-batch requires Lucene update or stale-op semantics, which the columnar {@code addBatch} path
+     * cannot express, or must not be written at all: a preflight error, or an op that a replica has already processed (e.g. replayed by
+     * a concurrent peer recovery). {@code addBatch} adds exactly {@code ColumnBatch#numDocs} documents and cannot skip one, so a doc left
+     * out of the columns would still be indexed, as an empty live document. The entire sub-batch must then fall back to the row path.
      */
-    private static boolean requiresRowPath(IndexingStrategy[] plans, int subBatchSize) {
+    private static boolean requiresRowPath(IndexingStrategy[] plans, IndexResult[] allResults, int subBatchIdx, int subBatchSize) {
         for (int i = 0; i < subBatchSize; i++) {
+            if (allResults[subBatchIdx + i] != null) {
+                return true;
+            }
             final IndexingStrategy plan = plans[i];
-            if (plan.useLuceneUpdateDocument || plan.addStaleOpToLucene) {
+            if (plan.indexIntoLucene == false || plan.useLuceneUpdateDocument || plan.addStaleOpToLucene) {
                 return true;
             }
         }
         return false;
-    }
-
-    /**
-     * Builds a filter bitset that identifies which docs in this sub-batch should be written to
-     * Lucene via {@code addBatch}. Docs with preflight errors ({@code allResults[i] != null}) and
-     * no-op docs ({@code indexIntoLucene == false}) are excluded. Returns {@code null} when every
-     * doc is eligible and no filter is needed.
-     * <p>
-     * Must only be called when {@link #requiresRowPath} returns false.
-     */
-    // n.b. the discerning eye will notice that this very much echoes the implementation of EscfColumn.windowValidity
-    @Nullable
-    private static FixedBitSet buildColumnBatchFilter(
-        IndexingStrategy[] plans,
-        IndexResult[] allResults,
-        int subBatchIdx,
-        int subBatchSize
-    ) {
-        assert requiresRowPath(plans, subBatchSize) == false;
-        FixedBitSet filter = null; // assume we don't have to allocate by default
-        for (int i = 0; i < subBatchSize; i++) {
-            if (allResults[subBatchIdx + i] == null && plans[i].indexIntoLucene) {
-                if (filter != null) {
-                    filter.set(i);
-                }
-            } else {
-                if (filter == null) { // actually have to allocate
-                    filter = new FixedBitSet(subBatchSize);
-                    filter.set(0, i); // everything was implicitly included, but now we have to be explicit
-                }
-            }
-        }
-        return filter;
     }
 
     private void indexColumnSubBatch(
@@ -1774,30 +1744,11 @@ public class InternalEngine extends Engine {
                     colSlice.setVersion(i, plans[i].versionForIndexing);
                 }
             }
-            if (requiresRowPath(plans, subBatchSize)) {
-                // Sub-batch contains a doc needing update or stale-op semantics; fall back to per-doc row path.
+            if (requiresRowPath(plans, allResults, subBatchIdx, subBatchSize)) {
+                // Sub-batch contains a doc that addBatch cannot add as a new document, or one that must not be written; use the row path.
                 indexColumnRowSubBatch(colSlice, subBatch, plans, subBatchIdx, subBatchSize, assignedSeqNos, allResults);
             } else {
-                final FixedBitSet filter = buildColumnBatchFilter(plans, allResults, subBatchIdx, subBatchSize);
-                if (filter != null && filter.cardinality() == 0) {
-                    // Every doc is excluded (all have preflight errors or indexIntoLucene == false).
-                    // No Lucene write is needed; set any remaining results directly.
-                    for (int i = 0; i < subBatchSize; i++) {
-                        if (allResults[subBatchIdx + i] == null) {
-                            final IndexingStrategy plan = plans[i];
-                            allResults[subBatchIdx + i] = new IndexResult(
-                                plan.versionForIndexing,
-                                subBatch.primaryTerm(),
-                                assignedSeqNos[i],
-                                plan.currentNotFoundOrDeleted,
-                                subBatch.id(i)
-                            );
-                        }
-                    }
-                } else {
-                    final MappedColumns batchSlice = filter != null ? colSlice.withFilter(filter) : colSlice;
-                    indexColumnSubBatch(batchSlice, subBatch, plans, subBatchIdx, subBatchSize, assignedSeqNos, allResults);
-                }
+                indexColumnSubBatch(colSlice, subBatch, plans, subBatchIdx, subBatchSize, assignedSeqNos, allResults);
             }
 
             // Translog

@@ -231,10 +231,27 @@ public class SnapshotDeletionStartBatcherTests extends ESTestCase {
                 assertEquals(repoName, snapshot.getRepository());
                 snapshotAbortNotifications.add(snapshot.getSnapshotId());
             },
-            (entry, ignoredMetadata, ignoredRepositoryData) -> {
-                assertEquals(ProjectId.DEFAULT, entry.projectId());
-                assertEquals(repoName, entry.repository());
-                snapshotEndNotifications.add(entry.snapshot().getSnapshotId());
+            (projectId, repositoryName, repositoryData) -> {
+                assertEquals(ProjectId.DEFAULT, projectId);
+                assertEquals(repoName, repositoryName);
+                assertNotNull(repositoryData);
+                // The callback identifies the repository; ready work is recorded in the published cluster state.
+                final var state = clusterService.state();
+                final var deletes = SnapshotDeletionsInProgress.get(state)
+                    .getEntries()
+                    .stream()
+                    .filter(entry -> entry.projectId().equals(projectId) && entry.repository().equals(repositoryName))
+                    .filter(entry -> entry.state() == SnapshotDeletionsInProgress.State.STARTED)
+                    .toList();
+                if (deletes.isEmpty()) {
+                    SnapshotsInProgress.get(state)
+                        .forRepo(projectId, repositoryName)
+                        .stream()
+                        .filter(entry -> entry.state().completed())
+                        .forEach(entry -> snapshotEndNotifications.add(entry.snapshot().getSnapshotId()));
+                } else {
+                    startedDeletions.addAll(deletes);
+                }
             },
             (deletionUuid, itemListener) -> {
                 if (deletionUuid == null) {
@@ -242,11 +259,6 @@ public class SnapshotDeletionStartBatcherTests extends ESTestCase {
                 } else {
                     completionHandlers.computeIfAbsent(deletionUuid, ignored -> new ArrayList<>()).add(itemListener);
                 }
-            },
-            (projectId, repositoryName, deleteEntry, ignoredRepositoryData, ignoredMinNodeVersion) -> {
-                assertEquals(ProjectId.DEFAULT, projectId);
-                assertEquals(repoName, repositoryName);
-                startedDeletions.add(deleteEntry);
             },
             // indirection so that a test can install its protection after the batcher is constructed
             (state, projectId, repositoryName) -> restoreSourceProtection.protectedSnapshots(state, projectId, repositoryName)
@@ -1422,6 +1434,62 @@ public class SnapshotDeletionStartBatcherTests extends ESTestCase {
             waitingDeletionListener.onResponse(null);
         }
         assertTrue(snapshot1Deletion1.isSuccess());
+    }
+
+    public void testIgnoresStartedDeletionsForOtherRepositories() {
+        // SnapshotDeletionsInProgress permits one STARTED deletion per repository. A STARTED deletion for another project or repository
+        // must not hide the one for this repository, or a delete of snapshots that are already being deleted is not recognized as such.
+        final var snapshot = randomSnapshot();
+        addCompleteSnapshot(snapshot);
+
+        final var otherProjectDeletion = new SnapshotDeletionsInProgress.Entry(
+            randomUniqueProjectId(),
+            repoName,
+            List.of(new SnapshotId(randomIdentifier("other-project-"), randomUUID())),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            STARTED
+        );
+        final var otherRepositoryDeletion = new SnapshotDeletionsInProgress.Entry(
+            ProjectId.DEFAULT,
+            randomValueOtherThan(repoName, ESTestCase::randomRepoName),
+            List.of(new SnapshotId(randomIdentifier("other-repo-"), randomUUID())),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            STARTED
+        );
+        final var thisRepositoryDeletion = new SnapshotDeletionsInProgress.Entry(
+            ProjectId.DEFAULT,
+            repoName,
+            List.of(snapshot.getSnapshotId()),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            STARTED
+        );
+
+        updateClusterState(
+            currentState -> ClusterState.builder(currentState)
+                .putCustom(
+                    SnapshotDeletionsInProgress.TYPE,
+                    SnapshotDeletionsInProgress.of(List.of(otherProjectDeletion, otherRepositoryDeletion, thisRepositoryDeletion))
+                )
+                .build()
+        );
+
+        final var deletionFuture = startDeletion(snapshot.getSnapshotId().getName());
+        deterministicTaskQueue.runAllTasksInTimeOrder();
+        assertFalse(deletionFuture.isDone());
+
+        assertTrue(startedDeletions.isEmpty());
+        final var deletionsInProgress = SnapshotDeletionsInProgress.get(clusterService.state());
+        assertThat(
+            deletionsInProgress.getEntries(),
+            equalTo(List.of(otherProjectDeletion, otherRepositoryDeletion, thisRepositoryDeletion))
+        );
+
+        assertThat(completionHandlers.keySet(), equalTo(Set.of(thisRepositoryDeletion.uuid())));
+        ActionListener.onResponse(completionHandlers.get(thisRepositoryDeletion.uuid()), null);
+        assertTrue(deletionFuture.isSuccess());
     }
 
     public void testSubscribesToAlreadyDeletingSnapshots() {

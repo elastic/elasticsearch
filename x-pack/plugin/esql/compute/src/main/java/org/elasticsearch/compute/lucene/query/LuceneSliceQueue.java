@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.PartialLeafReaderContext;
 import org.elasticsearch.compute.lucene.ShardContext;
@@ -43,6 +44,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -134,6 +136,10 @@ public final class LuceneSliceQueue {
     private final Map<String, PartitioningStrategy> partitioningStrategies;
 
     private final AtomicReferenceArray<LuceneSlice> slices;
+    /** Operators reading this queue and not closed yet. */
+    private final AtomicInteger readers = new AtomicInteger();
+    /** Whether the last reader closed and the slices left were marked as read. Only checked by assertions. */
+    private volatile boolean drained;
     /**
      * Queue of slice IDs that are the primary entry point for a new query.
      * A driver should prioritize polling from this queue after failing to get a sequential
@@ -168,7 +174,9 @@ public final class LuceneSliceQueue {
         this.totalSlices = sliceList.size();
         this.slices = new AtomicReferenceArray<>(sliceList.size());
         for (int i = 0; i < sliceList.size(); i++) {
-            slices.set(i, sliceList.get(i));
+            LuceneSlice slice = sliceList.get(i);
+            slices.set(i, slice);
+            slice.shardContext().addUnfinishedSlices(1);
         }
         this.partitioningStrategies = partitioningStrategies;
         this.queryHeads = ConcurrentCollections.newQueue();
@@ -212,6 +220,7 @@ public final class LuceneSliceQueue {
     @Nullable
     public LuceneSlice nextSlice(LuceneSlice prev) {
         if (prev != null) {
+            finished(prev);
             final int nextId = prev.slicePosition() + 1;
             if (nextId < totalSlices) {
                 var slice = slices.getAndSet(nextId, null);
@@ -230,6 +239,37 @@ public final class LuceneSliceQueue {
             }
         }
         return null;
+    }
+
+    /**
+     * Marks a slice as read. {@link #nextSlice} does it for the slice it is passed, so this is for the last one.
+     */
+    public void finished(LuceneSlice slice) {
+        slice.shardContext().addUnfinishedSlices(-1);
+    }
+
+    /**
+     * Registers an operator reading this queue, before any operator reads it.
+     */
+    void addReader() {
+        assert drained == false : "reader added after the last reader closed";
+        readers.incrementAndGet();
+    }
+
+    /**
+     * Unregisters an operator reading this queue. Once the last one is closed, for example on a limit, the slices left
+     * are never read, so they are taken out and marked as read.
+     */
+    void removeReader() {
+        if (readers.decrementAndGet() == 0) {
+            drained = true;
+            for (int i = 0; i < totalSlices; i++) {
+                LuceneSlice slice = slices.getAndSet(i, null);
+                if (slice != null) {
+                    finished(slice);
+                }
+            }
+        }
     }
 
     public int totalSlices() {
@@ -402,7 +442,7 @@ public final class LuceneSliceQueue {
                  * load attribution.
                  */
                 long now = System.nanoTime();
-                ctx.stats().accumulateSearchLoad(now - startShard, now);
+                TaskLoadAttribution.charge(ctx.stats().searchLoadTarget(), now - startShard, now);
             }
         }
         return new LuceneSliceQueue(contexts::get, slices, partitioningStrategies);

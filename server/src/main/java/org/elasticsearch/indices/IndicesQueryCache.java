@@ -30,7 +30,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.shard.IndexShard;
@@ -82,8 +81,9 @@ public class IndicesQueryCache implements QueryCache, Closeable {
      * participate in the cache, shards whose calculated share is zero will not be contained in the map at all. As a consequence, the
      * correct pattern for using the returned map will be via {@link Map#getOrDefault(Object, Object)} with a {@code defaultValue} of
      * {@code 0L}.
+     *
      * @return an unmodifiable map from {@link ShardId} to the calculated share of the query cache's shared RAM size for each shard,
-     *         omitting shards with a zero share
+     * omitting shards with a zero share
      */
     public static Map<ShardId, Long> getSharedRamSizeForAllShards(IndicesService indicesService) {
         Map<ShardId, Long> shardIdToSharedRam = new HashMap<>();
@@ -133,7 +133,9 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         return cache;
     }
 
-    /** The number of cache populations running right now, across all threads. Visible for testing. */
+    /**
+     * The number of cache populations running right now, across all threads. Visible for testing.
+     */
     int inFlightPopulationCount() {
         return cache.inFlightPopulations.size();
     }
@@ -144,6 +146,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
     /**
      * Computes the total cache size in bytes, and the total shard count in the cache for all shards.
+     *
      * @param indicesService the IndicesService instance to retrieve cache information from
      * @return A CacheTotals object containing the computed total number of items in the cache and the number of shards seen in the cache
      */
@@ -166,7 +169,8 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
     /**
      * This method computes the shared RAM size in bytes for the given indexShard.
-     * @param shardId The shard to compute the shared RAM size for.
+     *
+     * @param shardId     The shard to compute the shared RAM size for.
      * @param cacheTotals Shard totals computed in {@link #getCacheTotalsForAllShards(IndicesService)}.
      * @return the shared RAM size in bytes allocated to the given shard, or 0 if unavailable
      */
@@ -210,7 +214,14 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
     public record CacheTotals(long totalItemsInCache, int shardCount) {}
 
-    /** Get usage statistics for the given shard. */
+    /**
+     * Identifies one cache entry being built: the segment cache key plus the query.
+     */
+    private record SegmentQueryKey(Object segmentKey, Query query) {}
+
+    /**
+     * Get usage statistics for the given shard.
+     */
     public QueryCacheStats getStats(ShardId shard, Supplier<Long> precomputedSharedRamBytesUsed) {
         final QueryCacheStats queryCacheStats = toQueryCacheStatsSafe(shardStats.get(shard));
         queryCacheStats.addRamBytesUsed(precomputedSharedRamBytesUsed.get());
@@ -261,7 +272,9 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
     }
 
-    /** Clear all entries that belong to the given index. */
+    /**
+     * Clear all entries that belong to the given index.
+     */
     public void clearIndex(String index) {
         final Set<Object> coreCacheKeys = shardKeyMap.getCoreKeysForIndex(index);
         for (Object coreKey : coreCacheKeys) {
@@ -359,7 +372,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
          * entry is added when {@link #tryPopulateCache} starts building a doc id set and removed when it returns, so the set never holds
          * more entries than there are threads populating the cache, and is empty on an idle node.
          */
-        private final Set<Tuple<Object, Query>> inFlightPopulations = ConcurrentCollections.newConcurrentSet();
+        private final Set<SegmentQueryKey> inFlightPopulations = ConcurrentCollections.newConcurrentSet();
 
         ElasticsearchLRUQueryCache(int maxSize, long maxRamBytesUsed, Predicate<LeafReaderContext> leavesToCache, float skipFactor) {
             super(maxSize, maxRamBytesUsed, leavesToCache, skipFactor);
@@ -496,7 +509,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             // copy anyway, so letting every concurrent search build its own copy of a popular filter only wastes heap.
             // The loser does not wait for the winner: a blocked search thread holds a search pool slot, the winner may be
             // cancelled or fail.
-            final Tuple<Object, Query> populationKey = Tuple.tuple(cacheKey.getKey(), weight.getQuery());
+            final SegmentQueryKey populationKey = new SegmentQueryKey(cacheKey.getKey(), weight.getQuery());
             if (inFlightPopulations.add(populationKey) == false) {
                 return null;
             }

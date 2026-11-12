@@ -75,13 +75,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class BaseXContentTestCase extends ESTestCase {
 
@@ -96,9 +93,9 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     public void testStartEndObject() throws IOException {
-        expectUnclosedException(() -> BytesReference.bytes(builder().startObject()));
-        expectUnclosedException(() -> builder().startObject().close());
-        expectUnclosedException(() -> Strings.toString(builder().startObject()));
+        expectUnclosedAssertionError(() -> BytesReference.bytes(builder().startObject()));
+        expectUnclosedAssertionError(() -> builder().startObject().close());
+        expectUnclosedAssertionError(() -> Strings.toString(builder().startObject()));
 
         expectObjectException(() -> BytesReference.bytes(builder().endObject()));
         expectObjectException(() -> builder().endObject().close());
@@ -117,9 +114,9 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     public void testStartEndArray() throws IOException {
-        expectUnclosedException(() -> BytesReference.bytes(builder().startArray()));
-        expectUnclosedException(() -> builder().startArray().close());
-        expectUnclosedException(() -> Strings.toString(builder().startArray()));
+        expectUnclosedAssertionError(() -> BytesReference.bytes(builder().startArray()));
+        expectUnclosedAssertionError(() -> builder().startArray().close());
+        expectUnclosedAssertionError(() -> Strings.toString(builder().startArray()));
 
         expectArrayException(() -> BytesReference.bytes(builder().endArray()));
         expectArrayException(() -> builder().endArray().close());
@@ -136,7 +133,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     public void testField() throws IOException {
         expectValueException(() -> BytesReference.bytes(builder().field("foo")));
         expectNonNullFieldException(() -> BytesReference.bytes(builder().field(null)));
-        expectUnclosedException(() -> BytesReference.bytes(builder().startObject().field("foo")));
+        expectUnclosedAssertionError(() -> BytesReference.bytes(builder().startObject().field("foo")));
 
         assertResult("{'foo':'bar'}", () -> builder().startObject().field("foo").value("bar").endObject());
     }
@@ -144,7 +141,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     public void testNullField() throws IOException {
         expectValueException(() -> BytesReference.bytes(builder().nullField("foo")));
         expectNonNullFieldException(() -> BytesReference.bytes(builder().nullField(null)));
-        expectUnclosedException(() -> BytesReference.bytes(builder().startObject().nullField("foo")));
+        expectUnclosedAssertionError(() -> BytesReference.bytes(builder().startObject().nullField("foo")));
 
         assertResult("{'foo':null}", () -> builder().startObject().nullField("foo").endObject());
     }
@@ -822,8 +819,8 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertEquals(xcontentType(), XContentFactory.xContentType(data));
     }
 
-    public void testMissingEndObject() throws IOException {
-        IOException e = expectThrows(IOException.class, () -> {
+    public void testMissingEndObject() {
+        AssertionError e = expectThrows(AssertionError.class, () -> {
             ByteArrayOutputStream os = new ByteArrayOutputStream();
             try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
                 generator.writeStartObject();
@@ -834,8 +831,8 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertEquals(e.getMessage(), "Unclosed object or array found");
     }
 
-    public void testMissingEndArray() throws IOException {
-        IOException e = expectThrows(IOException.class, () -> {
+    public void testMissingEndArray() {
+        AssertionError e = expectThrows(AssertionError.class, () -> {
             ByteArrayOutputStream os = new ByteArrayOutputStream();
             try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
                 generator.writeStartArray();
@@ -1175,11 +1172,9 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
     }
 
-    private static void expectUnclosedException(ThrowingRunnable runnable) {
-        IllegalStateException e = expectThrows(IllegalStateException.class, runnable);
-        assertThat(e.getMessage(), containsString("Failed to close the XContentBuilder"));
-        assertThat(e.getCause(), allOf(notNullValue(), instanceOf(IOException.class)));
-        assertThat(e.getCause().getMessage(), containsString("Unclosed object or array found"));
+    private static void expectUnclosedAssertionError(ThrowingRunnable runnable) {
+        AssertionError e = expectThrows(AssertionError.class, runnable);
+        assertThat(e.getMessage(), containsString("Unclosed object or array found"));
     }
 
     private static void expectValueException(ThrowingRunnable runnable) {

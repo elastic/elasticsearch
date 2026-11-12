@@ -512,11 +512,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         @Nullable ShardRouting currentRouting,
         ClusterState state
     ) {
+        assert Thread.holdsLock(this);
         if (currentRouting == null
             || currentRouting.allocationId().getId().equals(key.allocationId()) == false
             || currentRouting.initializing() == false) {
             logger.debug("{} evicting stale {} ticket: allocation no longer current", key, ticket);
-            pendingAllocationStates.remove(key);
+            pendingAllocationStates.remove(key, ticket);
             return;
         }
         final Optional<IndexMetadata> indexMetadata = state.metadata().findIndex(key.shardId().getIndex());
@@ -530,7 +531,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 ticket.primaryTerm(),
                 currentPrimaryTerm.get()
             );
-            pendingAllocationStates.remove(key);
+            pendingAllocationStates.remove(key, ticket);
         }
     }
 
@@ -541,9 +542,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         ClusterState state,
         DiscoveryNode masterNode
     ) {
+        assert Thread.holdsLock(this);
         if (currentRouting == null || currentRouting.allocationId().getId().equals(key.allocationId()) == false) {
             logger.debug("{} evicting stale {} ticket: allocation no longer current", key, ticket);
-            pendingAllocationStates.remove(key);
+            pendingAllocationStates.remove(key, ticket);
             return;
         }
         final Optional<IndexMetadata> indexMetadata = state.metadata().findIndex(key.shardId().getIndex());
@@ -557,7 +559,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 ticket,
                 indexMetadata.isEmpty() ? "index deleted" : "master already bumped primary term"
             );
-            pendingAllocationStates.remove(key);
+            pendingAllocationStates.remove(key, ticket);
         } else if (masterNode != null) { // TODO: remove this? Is resending shard failures the responsibility of shardStateAction?
             String message = "master " + masterNode + " has not removed previously failed shard. resending shard failure";
             logger.trace("[{}] re-sending failed shard [{}], reason [{}]", key.shardId(), ticket.routing(), message);

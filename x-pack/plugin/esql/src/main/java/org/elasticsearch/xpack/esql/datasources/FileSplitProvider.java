@@ -263,6 +263,35 @@ public class FileSplitProvider implements SplitProvider {
         );
     }
 
+    /**
+     * How many survivors get a footer/probe plan under a filtered LIMIT. The rest become whole-file
+     * splits with no object-store I/O. Wave size is {@code taskConcurrency}: that is how many
+     * drivers the planner will start, so extra footers would not add parallelism.
+     */
+    static int filteredLimitPlanWave(SplitDiscoveryContext context, int survivorCount) {
+        if (context.filteredLimit() == false || survivorCount <= 0) {
+            return survivorCount;
+        }
+        return Math.min(survivorCount, Math.max(1, context.taskConcurrency()));
+    }
+
+    private PlanResult wholeFilePlanResult(SurvivorBatch batch, int slot) {
+        ResolvedFile file = resolveSurvivor(batch, slot);
+        return new PlanResult.Splits(
+            List.of(
+                wholeFileSplit(
+                    file.filePath(),
+                    file.fileLength(),
+                    file.format(),
+                    file.config(),
+                    file.partitionValues(),
+                    file.columnMapping(),
+                    file.readSchema()
+                )
+            )
+        );
+    }
+
     static final String RANGE_SPLIT_KEY = "_range_split";
     static final String FILE_LENGTH_KEY = "_file_length";
     /**
@@ -989,11 +1018,15 @@ public class FileSplitProvider implements SplitProvider {
             // A file is planned only while the rows already covered fall short of what the query asked for; see
             // RowBudget for the three ways that arithmetic fails closed.
             RowBudget budget = RowBudget.of(context, resolveConfiguredReader(fileList.path(0), config));
+            int planWave = filteredLimitPlanWave(context, survivorCount);
             try {
                 if (executor != null && survivorCount > 1) {
                     planResults = BoundedParallelGather.gather(slotList(survivorCount), slot -> {
                         long cpuStart = ThreadCpuTimer.currentNanos();
                         try {
+                            if (slot >= planWave) {
+                                return wholeFilePlanResult(batch, slot);
+                            }
                             if (budget.satisfied()) {
                                 return new PlanResult.Splits(List.of());
                             }
@@ -1007,6 +1040,10 @@ public class FileSplitProvider implements SplitProvider {
                 } else {
                     planResults = new ArrayList<>(survivorCount);
                     for (int slot = 0; slot < survivorCount; slot++) {
+                        if (slot >= planWave) {
+                            planResults.add(wholeFilePlanResult(batch, slot));
+                            continue;
+                        }
                         if (budget.satisfied()) {
                             planResults.add(new PlanResult.Splits(List.of()));
                             continue;
@@ -1881,10 +1918,15 @@ public class FileSplitProvider implements SplitProvider {
             int[] missCount = new int[1];
             FileList fileList = batch.context().fileList();
             Map<String, Object> config = batch.context().config();
+            int planWave = filteredLimitPlanWave(batch.context(), n);
             runRecordingDiscoveryCpu(() -> {
                 for (int i = 0; i < n; i++) {
                     if (isCancelled.getAsBoolean()) {
                         throw new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE);
+                    }
+                    if (i >= planWave) {
+                        slots[i] = wholeFilePlanResult(batch, i);
+                        continue;
                     }
                     int fileIndex = batch.fileIndices()[i];
                     StoragePath path = fileList.path(fileIndex);

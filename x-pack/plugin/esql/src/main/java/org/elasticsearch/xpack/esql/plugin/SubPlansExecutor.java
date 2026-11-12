@@ -408,6 +408,7 @@ final class SubPlansExecutor {
                         parent == null ? null : () -> parent.exchange.exchangeSink(() -> {}),
                         false,
                         null,
+                        null,
                         fetchOperators
                     ),
                     plan,

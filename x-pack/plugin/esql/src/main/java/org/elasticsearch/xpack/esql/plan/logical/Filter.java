@@ -35,8 +35,7 @@ public class Filter extends UnaryPlan
         TelemetryAware,
         SortAgnostic,
         SortPreserving,
-        DocPreserving,
-        CarriesDocOnDataNodes {
+        DocPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Filter", Filter::new);
 
     private final Expression condition;

@@ -215,17 +215,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     }
                 }
             }
-            try {
-                bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
-            } catch (Exception e) {
-                // In case the collecting fails, e.g. because of a formatting error, we log the error and continue
-                logger.debug(
-                    "failed to consume top docs for shard [{}] with sort fields [{}]: {}",
-                    result.getShardIndex(),
-                    Arrays.toString(topDocs.fields),
-                    e
-                );
-            }
+            bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
         }
         super.onShardResult(result);
     }
@@ -781,9 +771,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     dependencies,
                     namedWriteableRegistry
                 );
-                // merging the results of the shards of the request is work for them
+                // merging the results of the shards of the request is work for them, by the docs each matched
                 List<ShardId> shardIds = request.shards.stream().map(ShardToQuery::shardId).toList();
-                state.queryPhaseResultConsumer.mergeLoad(searchService.searchLoad(shardIds));
+                var consumer = state.queryPhaseResultConsumer;
+                consumer.mergeLoad(searchService.searchLoad(shardIds, consumer::docsMatched));
                 // TODO: log activating or otherwise limiting parallelism might be helpful here
                 for (int i = 0; i < workers; i++) {
                     executeShardTasks(state);

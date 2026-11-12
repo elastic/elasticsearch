@@ -1,3 +1,0 @@
-FROM employees
-| LIMIT 2 BY languages
-| KEEP first_name, last_name, languages

@@ -72,7 +72,7 @@ public class FetchPhaseExplainIT extends AbstractEsqlIntegTestCase {
 
     public void testExplainShowsTheFetchPhaseOnEveryNode() {
         List<List<Object>> rows = explain(true);
-        assertThat(plans(rows, "coordinator", "fetchPhase"), contains("APPLIED"));
+        assertThat(plans(rows, "coordinator", "optimizedLogicalPlan"), contains(containsString("Fetch[")));
         List<String> coordinatorPlans = plans(rows, "coordinator", "optimizedPhysicalPlan");
         assertThat(coordinatorPlans, contains(containsString("FetchExec")));
         assertThat("the fetch loads the deferred columns", namesIn(FETCH, coordinatorPlans.getFirst()), equalTo(Set.of("a", "b")));
@@ -96,17 +96,17 @@ public class FetchPhaseExplainIT extends AbstractEsqlIntegTestCase {
 
     public void testExplainShowsAPragmaThatTurnsTheFetchPhaseOff() {
         List<List<Object>> rows = explain(false);
-        assertThat(plans(rows, "coordinator", "fetchPhase"), contains("DISABLED_PRAGMA"));
+        assertThat(plans(rows, "coordinator", "optimizedLogicalPlan"), contains(not(containsString("Fetch["))));
         assertThat(plans(rows, "coordinator", "optimizedPhysicalPlan"), contains(not(containsString("FetchExec"))));
     }
 
     /**
-     * The cluster setting is off by default, so a query without the pragma leaves the fetch phase alone and its
-     * {@code EXPLAIN} output has no fetch phase row.
+     * The cluster setting is off by default, so a query without the pragma leaves the fetch phase alone and loads its
+     * columns on the data nodes.
      */
     public void testExplainIsUnchangedWhenTheQueryLeavesTheFetchPhaseAlone() {
         List<List<Object>> rows = explain(null);
-        assertThat(plans(rows, "coordinator", "fetchPhase"), empty());
+        assertThat(plans(rows, "coordinator", "optimizedLogicalPlan"), contains(not(containsString("Fetch["))));
         assertThat(plans(rows, "coordinator", "optimizedPhysicalPlan"), contains(not(containsString("FetchExec"))));
         assertDataNodesLoadOnlyTheSortKey(rows);
         List<String> nodeReducePlans = plans(rows, "node_reduce", "physicalPlan");

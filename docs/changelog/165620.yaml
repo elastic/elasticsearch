@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 165620
+summary: Leave ignored values out of a flattened root
+type: bug

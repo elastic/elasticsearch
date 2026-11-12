@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhaseOutcomes;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhasePolicy.Outcome;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch.FetchPhaseOutcomes;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch.FetchPhasePolicy.Outcome;
 
 import java.util.List;
 
@@ -23,10 +23,10 @@ public class FetchPhaseStatsTests extends ESTestCase {
     }
 
     /**
-     * The stats read the decisions as the planner records them, and report the one {@code EXPLAIN} shows: a plan that got
+     * The stats read the decisions as the planner records them, and report the one {@link FetchPhaseOutcomes#reported()} gives: a plan that got
      * the fetch phase wins over one that didn't.
      */
-    public void testTheOutcomeIsTheOneExplainShows() {
+    public void testTheOutcomeIsTheReportedOne() {
         FetchPhaseOutcomes outcomes = new FetchPhaseOutcomes();
         FetchPhaseStats stats = new FetchPhaseStats();
         stats.plannedBy(outcomes);

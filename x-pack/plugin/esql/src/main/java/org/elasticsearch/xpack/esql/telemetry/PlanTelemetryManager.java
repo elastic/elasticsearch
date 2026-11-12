@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.telemetry;
 
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhasePolicy.Outcome;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch.FetchPhasePolicy.Outcome;
 
 import java.util.Locale;
 import java.util.Map;
@@ -103,7 +103,7 @@ public class PlanTelemetryManager {
 
     /**
      * Queries by what the planner did with the fetch phase, once per query. Only the queries that used the fetch phase or
-     * asked for it count, the ones {@code EXPLAIN} reports it for.
+     * asked for it count.
      */
     public static final String FETCH_PHASE_METRICS = "es.esql.fetch_phase.queries.total";
 

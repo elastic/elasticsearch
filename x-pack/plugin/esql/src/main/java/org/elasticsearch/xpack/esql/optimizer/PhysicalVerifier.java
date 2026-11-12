@@ -88,6 +88,7 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
 
         if (isLocal == false) {
             checkDocumentsLeaveTheirNodeOnlyForAFetch(optimizedPlan, failures);
+            checkFetchesReadDocumentsThatLeftTheirNode(optimizedPlan, failures);
             if (optimizedPlan.output().stream().anyMatch(EsQueryExec::isDocAttribute)) {
                 failures.add(fail(optimizedPlan, "document identity [_doc] cannot be returned, found {}", optimizedPlan.output()));
             }
@@ -97,41 +98,12 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
     /**
      * Rows carry their {@code _doc} across an exchange only for a {@link FetchExec} above it, which loads the documents
      * from the nodes that own them. The data nodes then keep the readers of those documents open and detach them, so the
-     * documents still name their readers on the coordinator. Without the fetch, nothing would do either.
-     * <p>
-     * The {@code _doc} a fetch reads can come from several exchanges: through a {@code FORK}, whose merge takes the
-     * {@code _doc} of each branch at the same position, and through an aggregation that keeps the first {@code _doc} of
-     * each group.
+     * documents still name their readers on the coordinator. A {@code _doc} that left its node is good for nothing else,
+     * because only the node that read it can load the document.
      */
     private static void checkDocumentsLeaveTheirNodeOnlyForAFetch(PhysicalPlan plan, Failures failures) {
         Set<NameId> fetched = new HashSet<>();
-        // parents come first, so the _doc a node reads is known before the nodes below it
-        plan.forEachDown(node -> {
-            switch (node) {
-                case FetchExec fetch -> fetched.add(fetch.doc().id());
-                case MergeExec merge -> {
-                    for (int position = 0; position < merge.output().size(); position++) {
-                        if (fetched.contains(merge.output().get(position).id())) {
-                            for (PhysicalPlan branch : merge.children()) {
-                                fetched.add(branch.output().get(position).id());
-                            }
-                        }
-                    }
-                }
-                case AggregateExec aggregate -> {
-                    for (NamedExpression expression : aggregate.aggregates()) {
-                        if (fetched.contains(expression.id())
-                            && expression instanceof Alias alias
-                            && alias.child() instanceof FirstDocId firstDoc
-                            && firstDoc.field() instanceof Attribute doc) {
-                            fetched.add(doc.id());
-                        }
-                    }
-                }
-                default -> {
-                }
-            }
-        });
+        plan.forEachDown(FetchExec.class, fetch -> fetched.addAll(documentsReadBy(fetch)));
         plan.forEachDown(ExchangeExec.class, exchange -> {
             for (Attribute attribute : exchange.output()) {
                 if (EsQueryExec.isDocAttribute(attribute) && fetched.contains(attribute.id()) == false) {
@@ -141,5 +113,60 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
                 }
             }
         });
+    }
+
+    /**
+     * A {@link FetchExec} loads the documents of the rows the data nodes sent, so its {@code _doc} crosses an exchange
+     * below it. The logical planner adds the fetch above a cut and relies on the mapper to put that exchange below it.
+     */
+    private static void checkFetchesReadDocumentsThatLeftTheirNode(PhysicalPlan plan, Failures failures) {
+        plan.forEachDown(FetchExec.class, fetch -> {
+            Set<NameId> documents = documentsReadBy(fetch);
+            boolean crossed = fetch.child()
+                .anyMatch(
+                    node -> node instanceof ExchangeExec exchange
+                        && exchange.output().stream().anyMatch(attribute -> documents.contains(attribute.id()))
+                );
+            if (crossed == false) {
+                failures.add(fail(fetch, "[{}] must read a [_doc] that crossed an exchange", fetch.nodeString()));
+            }
+        });
+    }
+
+    /**
+     * The ids of the {@code _doc} columns {@code fetch} reads, below it. A {@code FORK} merges the {@code _doc} of each
+     * branch at the same position, and an aggregation can keep the first {@code _doc} of each group, so one fetch can read
+     * the {@code _doc} of several exchanges.
+     */
+    private static Set<NameId> documentsReadBy(FetchExec fetch) {
+        Set<NameId> documents = new HashSet<>();
+        documents.add(fetch.doc().id());
+        // parents come first, so the _doc a node reads is known before the nodes below it
+        fetch.child().forEachDown(node -> {
+            switch (node) {
+                case MergeExec merge -> {
+                    for (int position = 0; position < merge.output().size(); position++) {
+                        if (documents.contains(merge.output().get(position).id())) {
+                            for (PhysicalPlan branch : merge.children()) {
+                                documents.add(branch.output().get(position).id());
+                            }
+                        }
+                    }
+                }
+                case AggregateExec aggregate -> {
+                    for (NamedExpression expression : aggregate.aggregates()) {
+                        if (documents.contains(expression.id())
+                            && expression instanceof Alias alias
+                            && alias.child() instanceof FirstDocId firstDoc
+                            && firstDoc.field() instanceof Attribute doc) {
+                            documents.add(doc.id());
+                        }
+                    }
+                }
+                default -> {
+                }
+            }
+        });
+        return documents;
     }
 }

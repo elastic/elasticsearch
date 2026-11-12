@@ -14,8 +14,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.fetch.OpenFetchContexts;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhaseOutcomes;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhasePolicy.Outcome;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch.FetchPhaseOutcomes;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch.FetchPhasePolicy.Outcome;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.junit.Before;
 
@@ -52,13 +52,13 @@ public class FetchPhaseMetricsTests extends ESTestCase {
     }
 
     /**
-     * Only the outcomes {@code EXPLAIN} reports have a usage counter, so a cluster that never asked for the fetch phase
+     * Only the reported outcomes have a usage counter, so a cluster that never asked for the fetch phase
      * reports zeros.
      */
-    public void testOnlyTheOutcomesThatExplainReportsHaveAUsageCounter() {
+    public void testOnlyTheReportedOutcomesHaveAUsageCounter() {
         Map<?, ?> fetchPhase = (Map<?, ?>) new Metrics(new EsqlFunctionRegistry(), true, false).stats().toNestedMap().get("fetch_phase");
         String[] expected = Arrays.stream(Outcome.values())
-            .filter(FetchPhaseOutcomes::isExplained)
+            .filter(FetchPhaseOutcomes::isReported)
             .map(outcome -> outcome.name().toLowerCase(Locale.ROOT))
             .toArray(String[]::new);
         assertThat(fetchPhase.keySet(), containsInAnyOrder((Object[]) expected));

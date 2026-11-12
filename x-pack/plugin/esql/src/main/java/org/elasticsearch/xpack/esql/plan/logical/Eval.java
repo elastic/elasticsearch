@@ -45,8 +45,7 @@ public class Eval extends UnaryPlan
         Streaming,
         SortAgnostic,
         SortPreserving,
-        DocPreserving,
-        CarriesDocOnDataNodes {
+        DocPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Eval", Eval::new);
 
     private final List<Alias> fields;

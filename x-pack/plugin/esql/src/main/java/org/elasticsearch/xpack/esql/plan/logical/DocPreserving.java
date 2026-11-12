@@ -17,9 +17,6 @@ package org.elasticsearch.xpack.esql.plan.logical;
  * Commands that synthesize rows or combine inputs, such as {@code FUSE}, {@code FORK}, {@code LOOKUP JOIN}, and
  * {@code FROM} subqueries, are deliberately excluded.
  * Consumers should follow {@link #preservingInput()} instead of maintaining their own command allowlist.
- * <p>
- * Whether the {@code _doc} column itself can pass through a command is a separate question, answered by
- * {@link CarriesDocOnDataNodes}.
  */
 public interface DocPreserving {
 

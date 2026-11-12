@@ -797,7 +797,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
                 .collect(joining(","));
         }
 
-        public boolean isSkipUnavailable() {
+        private boolean isSkipUnavailable() {
             return skipUnavailable;
         }
 

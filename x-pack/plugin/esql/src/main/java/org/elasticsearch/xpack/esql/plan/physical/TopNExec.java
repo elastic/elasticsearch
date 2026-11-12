@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-public class TopNExec extends UnaryExec implements EstimatesRowSize, CarriesDetachedDoc {
+public class TopNExec extends UnaryExec implements EstimatesRowSize {
     private static final TransportVersion ESQL_TOPN_AVOID_RESORTING = TransportVersion.fromName("esql_topn_avoid_resorting");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -284,7 +284,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize, CarriesDeta
                 OBJECT, SCALED_FLOAT, UNSIGNED_LONG -> TopNEncoder.DEFAULT_SORTABLE;
             case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, SOURCE,
                 AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR, GEOHASH, GEOTILE, GEOHEX, EXPONENTIAL_HISTOGRAM, TDIGEST, HISTOGRAM, TSID_DATA_TYPE,
-                DATE_RANGE, DOUBLE_RANGE, PARTIAL_AGG, FLATTENED -> TopNEncoder.DEFAULT_UNSORTABLE;
+                DATE_RANGE, DOUBLE_RANGE, PARTIAL_AGG, FLATTENED, TIME_SERIES_METADATA_DATA_TYPE -> TopNEncoder.DEFAULT_UNSORTABLE;
             case UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
         };
         if (Assertions.ENABLED) {

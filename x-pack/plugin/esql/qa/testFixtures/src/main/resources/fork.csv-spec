@@ -1332,6 +1332,53 @@ c:long
 2
 ;
 
+forkRegressionInlineStatsSortOnGeneratedColumnThenFilterFork
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+required_capability: inline_stats
+
+// Regression test for https://github.com/elastic/elasticsearch/issues/148386
+// The sorted column z is unused after FORK. Filtering on _fork used to fail with a ClassCastException
+// because a BytesRef block was read as an IntBlock. Reproducing it needs the extra columns that URI_PARTS adds.
+// A null first_name puts the row in a null x.fragment group with z != 10001, so the unsorted LIMIT 1 must only see non-null names.
+from employees
+| where first_name is not null
+| eval title = concat("https://example.com/", first_name, "#frag")
+| uri_parts x = title
+| rename gender AS ver
+| inline stats z = min(emp_no) by x.fragment
+| limit 1
+| fork (where z == 10001) (sort z)
+| where _fork == "fork1"
+| stats c = count(*)
+;
+
+c:long
+1
+;
+
+forkRegressionAllColumnsDroppedThenEval
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+
+// Regression test for https://github.com/elastic/elasticsearch/issues/146856
+// Dropping every column after FORK used to fail with "Output has changed from [emp_no] to [_doc]".
+from employees
+| fork (where true)
+| keep emp_no
+| drop emp_no
+| eval x = 1
+| limit 3
+;
+
+x:integer
+1
+1
+1
+;
+
 forkRegressionMvExpandSortAndKeepDropAll
 
 required_capability: fork_v9

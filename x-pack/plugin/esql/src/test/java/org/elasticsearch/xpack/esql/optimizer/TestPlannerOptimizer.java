@@ -13,7 +13,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhaseOutcomes;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -43,34 +42,31 @@ public class TestPlannerOptimizer {
     }
 
     /**
-     * @param flags the flags of the physical optimizer, such as whether the fetch phase is on
+     * @param flags the flags of the logical optimizer, such as whether the fetch phase is on
      */
     public TestPlannerOptimizer(Configuration config, Analyzer analyzer, EsqlFlags flags) {
         this(
             config,
             analyzer,
-            new LogicalPlanOptimizer(logicalOptimizerContext(config, FoldContext.small(), analyzer.context().minimumVersion())),
-            flags
+            new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), analyzer.context().minimumVersion(), flags))
         );
     }
 
     public TestPlannerOptimizer(Configuration config, Analyzer analyzer, LogicalPlanOptimizer logicalOptimizer) {
-        this(config, analyzer, logicalOptimizer, EsqlFlags.DEFAULTS);
-    }
-
-    private TestPlannerOptimizer(Configuration config, Analyzer analyzer, LogicalPlanOptimizer logicalOptimizer, EsqlFlags flags) {
         this.analyzer = analyzer;
         this.config = config;
         this.logicalOptimizer = logicalOptimizer;
 
-        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config, analyzer.context().minimumVersion(), flags));
+        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config, analyzer.context().minimumVersion()));
         mapper = new Mapper();
 
     }
 
-    /** The fetch phase decisions of every plan optimized so far. */
-    public FetchPhaseOutcomes fetchPhaseOutcomes() {
-        return physicalPlanOptimizer.fetchPhaseOutcomes();
+    /**
+     * The optimized logical plan of the query, before the mapper turns it into a physical plan.
+     */
+    public LogicalPlan logicalPlan(String query) {
+        return logicalOptimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query)));
     }
 
     public PhysicalPlan plan(String query) {
@@ -95,20 +91,20 @@ public class TestPlannerOptimizer {
     }
 
     /**
+     * Builds the distributed physical plan before it is split into coordinator and data-node plans.
+     * This exposes the same boundary used by {@link PlannerUtils#breakPlanBetweenCoordinatorAndDataNode} to planner tests.
+     */
+    public PhysicalPlan distributedPlan(String query) {
+        return EstimatesRowSize.estimateRowSize(0, physicalPlanOptimizer.optimize(physicalPlan(query, analyzer)));
+    }
+
+    /**
      * Plans the right side of the first {@code INLINE STATS}, which runs as its own plan before the main one.
      */
     public PhysicalPlan planFirstInlineSubPlan(String query, SearchStats stats, Analyzer analyzer) {
         LogicalPlan logical = logicalOptimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query)));
         LogicalPlan subPlan = InlineJoin.firstSubPlan(logical, new HashSet<>()).stubReplacedSubPlan();
         return optimizedPlan(mapper.map(new Versioned<>(subPlan, analyzer.context().minimumVersion())), stats);
-    }
-
-    /**
-     * Builds the distributed physical plan before it is split into coordinator and data-node plans.
-     * This exposes the same boundary used by {@link PlannerUtils#breakPlanBetweenCoordinatorAndDataNode} to planner tests.
-     */
-    public PhysicalPlan distributedPlan(String query) {
-        return EstimatesRowSize.estimateRowSize(0, physicalPlanOptimizer.optimize(physicalPlan(query, analyzer)));
     }
 
     private PhysicalPlan optimizedPlan(PhysicalPlan plan, SearchStats searchStats) {

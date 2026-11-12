@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhaseOutcomes;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhasePolicy.Outcome;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch.FetchPhaseOutcomes;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch.FetchPhasePolicy.Outcome;
 
 import java.util.Collection;
 import java.util.Set;
@@ -39,13 +39,13 @@ public final class FetchPhaseStats {
     }
 
     /**
-     * What the planner did with the fetch phase for the query, as {@code EXPLAIN} shows it. {@code null} when the query left
+     * What the planner did with the fetch phase for the query, as the telemetry reports it. {@code null} when the query left
      * the fetch phase alone: the build lacks the feature, or the cluster setting is off and the query sets no pragma.
      */
     @Nullable
     public Outcome outcome() {
         FetchPhaseOutcomes planned = outcomes;
-        FetchPhaseOutcomes.Decision decision = planned == null ? null : planned.explained();
+        FetchPhaseOutcomes.Decision decision = planned == null ? null : planned.reported();
         return decision == null ? null : decision.outcome();
     }
 

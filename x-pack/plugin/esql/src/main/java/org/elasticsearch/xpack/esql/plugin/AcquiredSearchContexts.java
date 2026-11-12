@@ -10,11 +10,15 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.esql.fetch.DocOriginResolver;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
@@ -28,6 +32,8 @@ class AcquiredSearchContexts implements Releasable {
     private final DocOriginResolver originResolver;
     private int nextAddIndex = 0;
     private boolean isClosed = false;
+    /** The rows the sources emitted from each shard. */
+    private final Map<ShardId, LongAdder> rowsEmittedByShard = new ConcurrentHashMap<>();
 
     AcquiredSearchContexts(int size) {
         this(size, DocOriginResolver.NONE);
@@ -63,6 +69,7 @@ class AcquiredSearchContexts implements Releasable {
         checkNotClosed();
         var startingIndex = nextAddIndex;
         for (var cse : searchContexts) {
+            ShardId shardId = cse.indexShard().shardId();
             final int idx = nextAddIndex++;
             cse.addReleasable(() -> {
                 synchronized (AcquiredSearchContexts.this) {
@@ -73,7 +80,8 @@ class AcquiredSearchContexts implements Releasable {
                     }
                 }
             });
-            allContexts[idx] = new ComputeSearchContext(idx, cse, originResolver);
+            LongAdder rows = rowsEmittedByShard.computeIfAbsent(shardId, id -> new LongAdder());
+            allContexts[idx] = new ComputeSearchContext(idx, cse, rows, originResolver);
         }
         return new SubRanged<>(allContexts, startingIndex, nextAddIndex);
     }
@@ -119,6 +127,15 @@ class AcquiredSearchContexts implements Releasable {
                 return nextAddIndex;
             }
         }
+    }
+
+    /**
+     * The rows the sources emitted from {@code shardId}, kept once its context is released. Unlike the other accessors, it is
+     * not synchronized and works once closed: the pool reads it when the node reduce completes, after its contexts may be closed.
+     */
+    long rowsEmitted(ShardId shardId) {
+        LongAdder rows = rowsEmittedByShard.get(shardId);
+        return rows == null ? 0 : rows.sum();
     }
 
     private void checkNotClosed() {

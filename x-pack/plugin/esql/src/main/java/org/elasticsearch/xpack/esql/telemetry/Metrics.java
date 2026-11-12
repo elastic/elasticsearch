@@ -13,8 +13,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhaseOutcomes;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhasePolicy.Outcome;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch.FetchPhaseOutcomes;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch.FetchPhasePolicy.Outcome;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
@@ -134,7 +134,7 @@ public class Metrics {
         }
         Map<Outcome, CounterMetric> metrics = new EnumMap<>(Outcome.class);
         for (Outcome outcome : Outcome.values()) {
-            if (FetchPhaseOutcomes.isExplained(outcome)) {
+            if (FetchPhaseOutcomes.isReported(outcome)) {
                 metrics.put(outcome, new CounterMetric());
             }
         }
@@ -254,7 +254,7 @@ public class Metrics {
 
     /**
      * Counts a query whose planner decided {@code outcome} about the fetch phase. Call it once per query, with the outcome
-     * {@code EXPLAIN} shows.
+     * {@link FetchPhaseOutcomes#reported()} gives.
      */
     public void incFetchPhase(Outcome outcome) {
         CounterMetric counter = fetchPhaseMetrics.get(outcome);

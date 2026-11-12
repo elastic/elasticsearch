@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -236,6 +237,7 @@ public class ComputeService {
     private final LookupFromIndexService lookupFromIndexService;
     private final FetchPhaseServices fetchPhaseServices;
     private final InferenceService inferenceService;
+    private final Client client;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
     private final ClusterService clusterService;
@@ -298,6 +300,7 @@ public class ComputeService {
         );
         fetchContextLeases.registerTaskListener();
         this.inferenceService = transportActionServices.inferenceService();
+        this.client = transportActionServices.client();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.ipLocationService = transportActionServices.ipLocationService();
         this.clusterService = transportActionServices.clusterService();
@@ -937,7 +940,8 @@ public class ComputeService {
                         // No reservation reaches the synchronous path, which only tests take.
                         PlanningMemory.NONE,
                         0,
-                        minTransportVersion
+                        minTransportVersion,
+                        guarded.filteredLimit()
                     );
                 }
                 if (result.plan() instanceof ExternalSourceExec withSplits) {
@@ -1039,6 +1043,7 @@ public class ComputeService {
                 discoveryMemory(run),
                 taskConcurrency,
                 minTransportVersion(),
+                work.guarded().filteredLimit(),
                 ioExecutor,
                 ActionListener.wrap(result -> {
                     try {
@@ -1689,6 +1694,7 @@ public class ComputeService {
                             exchangeSinkSupplier,
                             false,
                             null,
+                            null,
                             fetchOperators
                         ),
                         coordinatorPlan,
@@ -1745,7 +1751,11 @@ public class ComputeService {
                     }
                 }
                 // starts computes on remote clusters
-                final var remoteClusters = clusterComputeHandler.getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices);
+                final var remoteClusters = clusterComputeHandler.getRemoteClusters(
+                    clusterToConcreteIndices,
+                    clusterToOriginalIndices,
+                    execInfo
+                );
                 for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
                     String clusterAlias = cluster.clusterAlias();
                     // Check the initial cluster status set by planning phase before executing the data node plan on remote clusters,
@@ -2127,7 +2137,9 @@ public class ComputeService {
     ) {
         QueryWarnings singleValueQueryWarnings = QueryWarnings.EMIT;
         Set<String> unmappedFieldNames = PlannerUtils.unmappedFieldNames(plan);
-        var shardContexts = context.searchContexts().map(csc -> csc.shardContext(singleValueQueryWarnings, unmappedFieldNames));
+        boolean flattenedKeys = context.configuration().flattenedKeys();
+        var shardContexts = context.searchContexts()
+            .map(csc -> csc.shardContext(singleValueQueryWarnings, unmappedFieldNames, flattenedKeys));
         LongSupplier directoryBytesRead = directoryBytesReadSupplier(searchService.getIndicesService());
         // Snapshot per-thread Lucene directory bytes counter so we can attribute planner-time I/O
         // (query rewriting, weight construction, SearchStats lookups, sort builders, etc.) that
@@ -2135,20 +2147,31 @@ public class ComputeService {
         long bytesBefore = directoryBytesRead.getAsLong();
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             context.foldCtx(),
+            context.configuration(),
             shardContexts,
             searchService.getIndicesService().getAnalysis(),
             plannerSettings,
             directoryBytesRead,
             singleValueQueryWarnings
         );
-        // the time its sources do not attribute to a shard goes to all the shards of the compute
-        TaskLoadAttribution.Target computeLoad = context.description().equals(DATA_DESCRIPTION) ? shardsLoad(shardContexts) : null;
+        // the time its sources do not attribute to a shard goes to the shards of the compute, or to its load
+        TaskLoadAttribution.Target computeLoad = context.description().equals(DATA_DESCRIPTION)
+            ? shardsLoad(shardContexts)
+            : context.load();
+        assert context.description().equals(REDUCE_DESCRIPTION) == false || computeLoad != null : "node reduce without a load target";
         Executor parallelWorkers = searchService.queryScheduler().executor(context.queryId(), computeExecutor, List.of());
 
         try {
             var workerThreadPool = transportService.getThreadPool();
             int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();
 
+            // The planner's client is used solely by the coordinator-local EQL source, which delegates one
+            // EqlSearchAction. Assign the compute task as that search's parent so cancelling the ES|QL query
+            // cancels the delegated EQL search instead of orphaning it (and hanging the driver that waits on it).
+            var eqlDelegateClient = new ParentTaskAssigningClient(
+                client,
+                task.taskInfo(transportService.getLocalNode().getId(), false).taskId()
+            );
             // One snapshot of the project for the dataset rebind below and for the planner. The external request handler
             // rebinds under its own snapshot before calling here; the planner does not consult datasets, so the two
             // snapshots cannot disagree on anything that is read.
@@ -2179,7 +2202,8 @@ public class ComputeService {
                 computeLoad == null ? parallelWorkers : TaskLoadAttribution.charging(parallelWorkers, computeLoad),
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
-                clusterService.state().getMinTransportVersion()
+                clusterService.state().getMinTransportVersion(),
+                eqlDelegateClient
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
@@ -2405,6 +2429,7 @@ public class ComputeService {
     ) {
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             foldCtx,
+            configuration,
             shardContexts,
             searchService.getIndicesService().getAnalysis(),
             plannerSettings.get(),
@@ -2412,6 +2437,11 @@ public class ComputeService {
             QueryWarnings.EMIT
         );
         ThreadPool workerThreadPool = transportService.getThreadPool();
+        // a fetch plan has no EQL source, the only reader of the client, but it gets the client of the query phase planners
+        var parentAssigningClient = new ParentTaskAssigningClient(
+            client,
+            task.taskInfo(transportService.getLocalNode().getId(), false).taskId()
+        );
         return new LocalExecutionPlanner(
             sessionId,
             clusterAlias,
@@ -2438,7 +2468,8 @@ public class ComputeService {
             parallelWorkers,
             workerThreadPool.info(EsqlPlugin.computePool()).getMax(),
             grokMatcherWatchdog.get(),
-            clusterService.state().getMinTransportVersion()
+            clusterService.state().getMinTransportVersion(),
+            parentAssigningClient
         );
     }
 

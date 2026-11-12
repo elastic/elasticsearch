@@ -341,7 +341,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                                     || cause instanceof IndexNotFoundException
                                     || cause instanceof AlreadyClosedException) ? FAIL_SILENT : FAIL_SEND;
 
-                            // TODO retries? See RecoveryResponseHandler#handleException
+                            // TODO retries? See RecoveryResponseHandler#handleException.
+                            // Also see IndexShard#markActivelyRelocatingPrimary. A retry will not be able to send the same
+                            // clusterStateVersion: the source needs each attempt having distinct versions to tell attempts apart.
                             onGoingRecoveries.failRecovery(
                                 recoveryId,
                                 new RecoveryFailedException(recoveryState, null, e),

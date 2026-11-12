@@ -1130,6 +1130,7 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
                 ProjectMetadata.builder(randomProjectIdOrDefault()).build(),
                 new EsPhysicalOperationProviders(
                     foldCtx,
+                    configuration,
                     shardContexts,
                     indicesService.getAnalysis(),
                     PlannerSettings.DEFAULTS,
@@ -1142,7 +1143,8 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
                 parallelWorkers,
                 0,
                 MatcherWatchdog.noop(),
-                TransportVersion.current()
+                TransportVersion.current(),
+                null  // client - a fetch plan has no EQL source, its only reader
             );
     }
 

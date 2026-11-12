@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch.FetchPhaseOutcomes;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -19,6 +20,11 @@ public class LogicalOptimizerContext {
     private final FoldContext foldCtx;
     private final TransportVersion minimumVersion;
     private final EsqlFlags flags;
+    /**
+     * Where the fetch phase rule records its decisions. The rules of the optimizer are shared by every query, so the
+     * decisions of one query go to its context. Not part of {@link #equals}: it is an output, not a configuration.
+     */
+    private final FetchPhaseOutcomes fetchPhaseOutcomes = new FetchPhaseOutcomes();
 
     public LogicalOptimizerContext(Configuration configuration, FoldContext foldCtx, TransportVersion minimumVersion, EsqlFlags flags) {
         this.configuration = configuration;
@@ -41,6 +47,11 @@ public class LogicalOptimizerContext {
 
     public EsqlFlags flags() {
         return flags;
+    }
+
+    /** The fetch phase decisions of every plan optimized with this context, in order. */
+    public FetchPhaseOutcomes fetchPhaseOutcomes() {
+        return fetchPhaseOutcomes;
     }
 
     @Override

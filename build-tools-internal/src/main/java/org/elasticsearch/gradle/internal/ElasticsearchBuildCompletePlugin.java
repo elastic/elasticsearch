@@ -13,7 +13,6 @@ import com.gradle.develocity.agent.gradle.DevelocityConfiguration;
 
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
-import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.util.GradleUtils;
@@ -49,6 +48,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.GZIPOutputStream;
 
 import javax.inject.Inject;
 
@@ -88,7 +88,13 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                         System.out.println("Build Finished Action: Skipping archive collection (build was preempted)");
                         return List.<File>of();
                     }
+                    // the archive is for investigating failures; a successful build's results are in its build scan
+                    if (result.getFailure().isEmpty()) {
+                        System.out.println("Build Finished Action: Skipping archive collection (build succeeded)");
+                        return List.<File>of();
+                    }
                     System.out.println("Build Finished Action: Collecting archive files...");
+                    long start = System.nanoTime();
                     List<File> files = new ArrayList<>();
                     files.addAll(resolveProjectLogs(projectDir, preemptionMarker));
                     if (files.isEmpty() == false) {
@@ -96,6 +102,9 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                         files.addAll(getFileOperations().fileTree(gradleWorkersDir).getFiles());
                         files.addAll(getFileOperations().fileTree(new File(projectDir, ".gradle/reaper/")).getFiles());
                     }
+                    System.out.println(
+                        "Build Finished Action: Collected " + files.size() + " archive files in " + secondsSince(start) + "s"
+                    );
                     return files;
                 }));
             });
@@ -103,10 +112,10 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
     }
 
     private File calculateTargetFile(Project target, String buildNumber) {
-        File uploadFile = target.file("build/" + buildNumber + ".tar.bz2");
+        File uploadFile = target.file("build/" + buildNumber + ".tar.gz");
         int artifactIndex = 1;
         while (uploadFile.exists()) {
-            uploadFile = target.file("build/" + buildNumber + "-" + artifactIndex++ + ".tar.bz2");
+            uploadFile = target.file("build/" + buildNumber + "-" + artifactIndex++ + ".tar.gz");
         }
         return uploadFile;
     }
@@ -168,6 +177,10 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
         return projectDirFiles.getFiles().stream().filter(f -> Files.isRegularFile(f.toPath())).toList();
     }
 
+    private static long secondsSince(long startNanos) {
+        return TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startNanos);
+    }
+
     private List<File> resolveDaemonLogs(File daemonsLogDir) {
         var gradleDaemonFileSet = getFileOperations().fileTree(daemonsLogDir);
         gradleDaemonFileSet.include("**/daemon-" + ProcessHandle.current().pid() + "*.log");
@@ -212,7 +225,17 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             }
             uploadFile.getParentFile().mkdirs();
 
+            long start = System.nanoTime();
             createBuildArchiveTar(filesToArchive, parameters.getProjectDir().get(), uploadFile);
+            System.out.println(
+                "Build Finished Action: Wrote "
+                    + uploadFile.getName()
+                    + " ("
+                    + uploadFile.length() / (1024 * 1024)
+                    + " MB) in "
+                    + secondsSince(start)
+                    + "s"
+            );
             if (uploadFile.exists() && "true".equals(System.getenv("BUILDKITE"))) {
                 String uploadFilePath = uploadFile.getName();
                 File uploadFileDir = uploadFile.getParentFile();
@@ -289,12 +312,15 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
 
         }
 
-        private static void createBuildArchiveTar(List<File> files, File projectDir, File uploadFile) {
+        // gzip rather than bzip2: the archive is often well over 1 GB before compression (every test's results and
+        // the test clusters' logs), and bzip2 took about 5 minutes for that at the end of a CI job, against seconds
+        // for gzip, at the cost of an archive about 40% larger
+        static void createBuildArchiveTar(List<File> files, File projectDir, File uploadFile) {
             try (
                 OutputStream fOut = Files.newOutputStream(uploadFile.toPath());
                 BufferedOutputStream buffOut = new BufferedOutputStream(fOut);
-                BZip2CompressorOutputStream bzOut = new BZip2CompressorOutputStream(buffOut);
-                TarArchiveOutputStream tOut = new TarArchiveOutputStream(bzOut)
+                GZIPOutputStream gzOut = new GZIPOutputStream(buffOut, 64 * 1024);
+                TarArchiveOutputStream tOut = new TarArchiveOutputStream(gzOut)
             ) {
                 Path projectPath = projectDir.toPath();
                 tOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_GNU);

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
@@ -24,15 +25,20 @@ import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.WriteableExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.versionfield.Version;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -704,6 +710,34 @@ public final class MultiRowTestCaseSupplier {
         addSuppliers(cases, minRows, maxRows, "object", DataType.FLATTENED, FlattenedCases.OBJECT, transform);
         addSuppliers(cases, minRows, maxRows, "random", DataType.FLATTENED, FlattenedCases.RANDOM, transform);
         return cases;
+    }
+
+    /**
+     * Label containers: the canonical JSON of a label set, labels sorted by name.
+     */
+    public static List<TypedDataSupplier> timeSeriesMetadataCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        DataType type = DataType.TIME_SERIES_METADATA_DATA_TYPE;
+        if (type.supportedVersion().supportedLocally() == false) {
+            return cases;
+        }
+        addSuppliers(cases, minRows, maxRows, "no labels", type, () -> labels(0));
+        addSuppliers(cases, minRows, maxRows, "one label", type, () -> labels(1));
+        addSuppliers(cases, minRows, maxRows, "many labels", type, () -> labels(randomIntBetween(2, 10)));
+        return cases;
+    }
+
+    private static BytesRef labels(int count) {
+        var labels = new TreeMap<String, String>();
+        while (labels.size() < count) {
+            labels.put(ESTestCase.randomAlphaOfLengthBetween(1, 10), ESTestCase.randomRealisticUnicodeOfLengthBetween(1, 20));
+        }
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.map(labels);
+            return BytesReference.bytes(builder).toBytesRef();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     public static List<TypedDataSupplier> tsidCases(int minRows, int maxRows) {

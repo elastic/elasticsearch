@@ -68,6 +68,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
     private CapturingClient client;
     private BlockFactory blockFactory;
     private DriverContext driverContext;
+    private IntoPageWriter.Factory sink;
     private IntoPageWriter writer;
 
     @Before
@@ -76,8 +77,8 @@ public class IntoPageWriterTests extends ComputeTestCase {
         client = new CapturingClient(threadPool);
         blockFactory = blockFactory();
         driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
-        writer = new IntoPageWriter(client, DESTINATION, COLUMNS);
-        writer.bind(driverContext);
+        sink = new IntoPageWriter.Factory(client, DESTINATION, COLUMNS);
+        writer = sink.create(driverContext);
     }
 
     @After
@@ -105,7 +106,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
             Request request,
             ActionListener<Response> listener
         ) {
-            assertThat(action, sameInstance(TransportBulkAction.TYPE));
+            assertThat(action, equalTo(TransportBulkAction.TYPE));
             bulks.add((BulkRequest) request);
             listeners.add((ActionListener<BulkResponse>) listener);
         }
@@ -143,7 +144,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
             ts.appendLong(1_750_000_000_000L);
             host.appendNull();
             ts.appendLong(0L);
-            writer.accept(new Page(host.build(), ts.build()));
+            writer.consume(new Page(host.build(), ts.build()));
         }
 
         assertThat(client.bulks, hasSize(1));
@@ -160,20 +161,20 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
     public void testBackpressureAtMaxConcurrentBulks() {
         for (int i = 0; i < IntoPageWriter.MAX_CONCURRENT_BULKS; i++) {
-            assertThat(writer.isBlocked(), sameInstance(Operator.NOT_BLOCKED));
-            writer.accept(page("h" + i));
+            assertThat(writer.isBlocked(), equalTo(Operator.NOT_BLOCKED));
+            writer.consume(page("h" + i));
         }
         IsBlockedResult blocked = writer.isBlocked();
         assertFalse(blocked.listener().isDone());
 
         client.answer(Outcome.CREATED);
         assertTrue(blocked.listener().isDone());
-        assertThat(writer.isBlocked(), sameInstance(Operator.NOT_BLOCKED));
+        assertThat(writer.isBlocked(), equalTo(Operator.NOT_BLOCKED));
     }
 
     public void testFinishWaitsForOutstandingBulks() {
-        writer.accept(page("h1"));
-        writer.accept(page("h2"));
+        writer.consume(page("h1"));
+        writer.consume(page("h2"));
         writer.finish();
         IsBlockedResult blocked = writer.isBlocked();
 
@@ -186,39 +187,39 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertTrue(writer.isFinished());
         assertTrue(blocked.listener().isDone());
         assertFalse(driverContext.hasPendingAsyncActions());
-        assertThat(writer.failure(), nullValue());
-        assertThat(writer.stats(), equalTo(new IntoStats(2, 2)));
+        assertThat(sink.failure(), nullValue());
+        assertThat(sink.stats(), equalTo(new IntoStats(2, 2)));
     }
 
     public void testRefusedRowFailsAndLaterPagesAreDropped() {
-        writer.accept(page("ok", "bad"));
+        writer.consume(page("ok", "bad"));
         client.answer(Outcome.CREATED, Outcome.REFUSED);
-        ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, writer.failure());
+        ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
         assertThat(failure.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(failure.getMessage(), containsString("mapper_parsing_exception"));
 
-        writer.accept(page("dropped"));
+        writer.consume(page("dropped"));
         assertThat(client.bulks, empty());
     }
 
     public void testWholeBulkFailureIsRecordedAndSettles() {
-        writer.accept(page("h1"));
+        writer.consume(page("h1"));
         Exception rejected = new EsRejectedExecutionException("rejected");
         client.fail(rejected);
         writer.finish();
 
         assertTrue(writer.isFinished());
-        assertThat(writer.failure(), sameInstance(rejected));
+        assertThat(sink.failure(), sameInstance(rejected));
         assertFalse(driverContext.hasPendingAsyncActions());
     }
 
     public void testEmptyPageSendsNothing() {
-        writer.accept(page());
+        writer.consume(page());
         writer.finish();
 
         assertThat(client.bulks, empty());
         assertTrue(writer.isFinished());
-        assertThat(writer.stats(), equalTo(new IntoStats(0, 0)));
+        assertThat(sink.stats(), equalTo(new IntoStats(0, 0)));
     }
 
     private Page page(String... hosts) {

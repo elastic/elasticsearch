@@ -35,9 +35,13 @@ public class OutputOperator extends SinkOperator {
     private final PageConsumer pageConsumer;
     private final Function<Page, Page> mapper;
 
-    public record OutputOperatorFactory(List<String> columns, Function<Page, Page> mapper, Consumer<Page> pageConsumer)
+    public record OutputOperatorFactory(List<String> columns, Function<Page, Page> mapper, PageConsumer.Factory pageConsumerFactory)
         implements
             SinkOperatorFactory {
+
+        public OutputOperatorFactory(List<String> columns, Function<Page, Page> mapper, Consumer<Page> pageConsumer) {
+            this(columns, mapper, PageConsumer.Factory.of(pageConsumer));
+        }
 
         @Override
         public SinkOperator get(DriverContext driverContext) {
@@ -47,10 +51,7 @@ public class OutputOperator extends SinkOperator {
                 return new OutputOperator(columns, mapper, collectedPages::add);
             } else {
                 // Normal execution path: use the provided pageConsumer
-                if (pageConsumer instanceof PageConsumer consumer) {
-                    consumer.bind(driverContext);
-                }
-                return new OutputOperator(columns, mapper, pageConsumer);
+                return new OutputOperator(columns, mapper, pageConsumerFactory.create(driverContext));
             }
         }
 
@@ -61,9 +62,13 @@ public class OutputOperator extends SinkOperator {
     }
 
     public OutputOperator(List<String> columns, Function<Page, Page> mapper, Consumer<Page> pageConsumer) {
+        this(columns, mapper, PageConsumer.of(pageConsumer));
+    }
+
+    public OutputOperator(List<String> columns, Function<Page, Page> mapper, PageConsumer pageConsumer) {
         this.columns = columns;
         this.mapper = mapper;
-        this.pageConsumer = pageConsumer instanceof PageConsumer consumer ? consumer : pageConsumer::accept;
+        this.pageConsumer = pageConsumer;
     }
 
     public List<String> getColumns() {
@@ -83,7 +88,6 @@ public class OutputOperator extends SinkOperator {
         pageConsumer.finish();
     }
 
-    // The driver hands over pages while needsInput() is true and only consults isBlocked() once no page moved.
     @Override
     public boolean needsInput() {
         return finished == false && isBlocked().listener().isDone();
@@ -96,7 +100,7 @@ public class OutputOperator extends SinkOperator {
 
     @Override
     protected void doAddInput(Page page) {
-        pageConsumer.accept(mapper.apply(page));
+        pageConsumer.consume(mapper.apply(page));
     }
 
     @Override

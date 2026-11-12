@@ -34,67 +34,75 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 /**
  * Streams an {@code INTO} query's pages to its destination as bulk {@code create} requests, with at most
- * {@link #MAX_CONCURRENT_BULKS} in flight, restoring the caller's {@link ThreadContext} around each request.
+ * {@link #MAX_CONCURRENT_BULKS} in flight per driver, restoring the caller's {@link ThreadContext} around each request.
  */
 public final class IntoPageWriter implements PageConsumer {
 
     // visible for testing
     static final int MAX_CONCURRENT_BULKS = 3;
 
-    private final Client client;
-    private final Supplier<ThreadContext.StoredContext> caller;
-    private final String destination;
-    private final List<String> columns;
-    private final List<DataType> types;
-    private final AtomicReference<Exception> failure = new AtomicReference<>();
+    /** Holds the query-scoped configuration, counters, and failure state across drivers for one {@code INTO} run. */
+    public static final class Factory implements PageConsumer.Factory {
 
-    @Nullable
-    private DriverContext driverContext;
-    private long total;
-    private long created;
+        private final Client client;
+        private final Supplier<ThreadContext.StoredContext> caller;
+        private final String destination;
+        private final List<String> columns;
+        private final List<DataType> types;
+        private final AtomicLong total = new AtomicLong();
+        private final AtomicLong created = new AtomicLong();
+        private final AtomicReference<Exception> failure = new AtomicReference<>();
+
+        public Factory(Client client, String destination, List<Attribute> output) {
+            this.client = client;
+            this.caller = client.threadPool().getThreadContext().newRestorableContext(false);
+            this.destination = destination;
+            this.columns = Expressions.names(output);
+            this.types = output.stream().map(Attribute::dataType).toList();
+        }
+
+        @Override
+        public IntoPageWriter create(DriverContext driverContext) {
+            return new IntoPageWriter(this, Objects.requireNonNull(driverContext));
+        }
+
+        public IntoStats stats() {
+            return new IntoStats(total.get(), created.get());
+        }
+
+        /** Returns the first bulk or item failure recorded by this run, or {@code null} if every write succeeded. */
+        @Nullable
+        public Exception failure() {
+            return failure.get();
+        }
+    }
+
+    private final Factory sink;
+    private final DriverContext driverContext;
+
     private int inFlight;
     private boolean finished;
+    // Null whenever no driver is blocked on this writer; allocated in isBlocked() and cleared in wake().
     @Nullable
     private SubscribableListener<Void> waiting;
 
-    public IntoPageWriter(Client client, String destination, List<Attribute> output) {
-        this.client = client;
-        this.caller = client.threadPool().getThreadContext().newRestorableContext(false);
-        this.destination = destination;
-        this.columns = Expressions.names(output);
-        this.types = output.stream().map(Attribute::dataType).toList();
-    }
-
-    public synchronized IntoStats stats() {
-        return new IntoStats(total, created);
-    }
-
-    @Nullable
-    public Exception failure() {
-        return failure.get();
-    }
-
-    @Override
-    public synchronized void bind(DriverContext driverContext) {
-        if (this.driverContext != null) {
-            throw new IllegalStateException("INTO writes from a single driver");
-        }
+    private IntoPageWriter(Factory sink, DriverContext driverContext) {
+        this.sink = sink;
         this.driverContext = driverContext;
     }
 
     @Override
-    public void accept(Page page) {
+    public void consume(Page page) {
         try {
-            if (failure.get() == null) {
-                BulkRequest bulk = bulkFor(page);
-                if (bulk.numberOfActions() > 0) {
-                    send(bulk);
-                }
+            if (sink.failure.get() == null) {
+                send(bulkFor(page));
             }
         } finally {
             page.releaseBlocks();
@@ -104,38 +112,37 @@ public final class IntoPageWriter implements PageConsumer {
     private BulkRequest bulkFor(Page page) {
         BulkRequest bulk = new BulkRequest();
         // Render dates in UTC regardless of the query's time zone so the destination parses them unambiguously.
-        Iterator<Iterator<Object>> rows = ResponseValueUtils.pagesToValues(types, List.of(page), ZoneOffset.UTC);
+        Iterator<Iterator<Object>> rows = ResponseValueUtils.pagesToValues(sink.types, List.of(page), ZoneOffset.UTC);
         while (rows.hasNext()) {
             Iterator<Object> values = rows.next();
             Map<String, Object> source = new LinkedHashMap<>();
-            for (String column : columns) {
+            for (String column : sink.columns) {
                 Object value = values.next();
                 if (value != null) {
                     source.put(column, value);
                 }
             }
-            bulk.add(new IndexRequest(destination).opType(DocWriteRequest.OpType.CREATE).source(source));
+            bulk.add(new IndexRequest(sink.destination).opType(DocWriteRequest.OpType.CREATE).source(source));
         }
         return bulk;
     }
 
     private void send(BulkRequest bulk) {
-        DriverContext context;
-        synchronized (this) {
-            if (driverContext == null) {
-                throw new IllegalStateException("INTO writer is not bound to a driver");
-            }
-            context = driverContext;
-            inFlight++;
-            total += bulk.numberOfActions();
+        int actions = bulk.numberOfActions();
+        if (actions == 0) {
+            return;
         }
-        context.addAsyncAction();
+        synchronized (this) {
+            inFlight++;
+        }
+        sink.total.addAndGet(actions);
+        driverContext.addAsyncAction();
         ActionListener<BulkResponse> listener = ActionListener.runAfter(
             ActionListener.wrap(this::onBulkResponse, this::recordFailure),
-            () -> settled(context)
+            this::settled
         );
-        try (ThreadContext.StoredContext ignored = caller.get()) {
-            client.execute(TransportBulkAction.TYPE, bulk, listener);
+        try (ThreadContext.StoredContext ignored = sink.caller.get()) {
+            sink.client.execute(TransportBulkAction.TYPE, bulk, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -150,26 +157,25 @@ public final class IntoPageWriter implements PageConsumer {
                         "INTO [{}] failed: {}",
                         item.getFailure().getStatus(),
                         cause,
-                        destination,
+                        sink.destination,
                         cause.getMessage()
                     )
                 );
                 return;
             }
         }
-        synchronized (this) {
-            created += response.getItems().length;
-        }
+        sink.created.addAndGet(response.getItems().length);
     }
 
     private void recordFailure(Exception e) {
-        failure.compareAndSet(null, e);
+        sink.failure.compareAndSet(null, e);
     }
 
-    // Before waking the driver, so a normally finishing driver never waits on it, and outside the lock, because for a
-    // failed driver removing its last async action completes the driver's listener on this thread.
-    private void settled(DriverContext context) {
-        context.removeAsyncAction();
+    // Complete the async action before unblocking the driver so a finishing driver sees zero pending actions, and do
+    // so outside synchronized (this) because removing the last action on a failed driver runs its completion listener
+    // synchronously on this thread.
+    private void settled() {
+        driverContext.removeAsyncAction();
         wake(() -> inFlight--);
     }
 
@@ -200,12 +206,14 @@ public final class IntoPageWriter implements PageConsumer {
         if (waiting == null) {
             waiting = new SubscribableListener<>();
         }
-        return new IsBlockedResult(waiting, "INTO " + destination);
+        return new IsBlockedResult(waiting, "INTO " + sink.destination);
     }
 
     // Blocking until inFlight == 0 once finished keeps a parked driver from spinning while bulks settle.
     private boolean mayContinue() {
-        assert Thread.holdsLock(this);
+        if (Thread.holdsLock(this) == false) {
+            throw new IllegalStateException("mayContinue() must be called while holding this monitor");
+        }
         return finished ? inFlight == 0 : inFlight < MAX_CONCURRENT_BULKS;
     }
 

@@ -19,7 +19,6 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class OutputOperatorTests extends AnyOperatorTestCase {
     @Override
@@ -62,19 +61,12 @@ public class OutputOperatorTests extends AnyOperatorTestCase {
 
     private static class TrackingConsumer implements PageConsumer {
         @Nullable
-        DriverContext boundTo;
-        @Nullable
         SubscribableListener<Void> blocked;
-        boolean finished;
-        boolean done;
+        boolean finishCalled;
+        int pendingOps;
 
         @Override
-        public void bind(DriverContext driverContext) {
-            boundTo = driverContext;
-        }
-
-        @Override
-        public void accept(Page page) {}
+        public void consume(Page page) {}
 
         @Override
         public IsBlockedResult isBlocked() {
@@ -83,47 +75,42 @@ public class OutputOperatorTests extends AnyOperatorTestCase {
 
         @Override
         public void finish() {
-            finished = true;
+            finishCalled = true;
         }
 
         @Override
         public boolean isFinished() {
-            return done;
+            return finishCalled && pendingOps == 0;
         }
-    }
-
-    public void testPageConsumerIsBoundToTheDriver() {
-        TrackingConsumer consumer = new TrackingConsumer();
-        DriverContext driverContext = driverContext();
-        new OutputOperator.OutputOperatorFactory(List.of("a"), p -> p, consumer).get(driverContext).close();
-        assertThat(consumer.boundTo, sameInstance(driverContext));
     }
 
     public void testNeedsInputFollowsTheConsumer() {
         TrackingConsumer consumer = new TrackingConsumer();
         try (OutputOperator operator = new OutputOperator(List.of("a"), p -> p, consumer)) {
             assertTrue(operator.needsInput());
-            assertThat(operator.isBlocked(), sameInstance(Operator.NOT_BLOCKED));
+            assertThat(operator.isBlocked(), equalTo(Operator.NOT_BLOCKED));
 
             SubscribableListener<Void> listener = new SubscribableListener<>();
             consumer.blocked = listener;
             assertFalse(operator.needsInput());
-            assertThat(operator.isBlocked().listener(), sameInstance(listener));
+            assertFalse(operator.isBlocked().listener().isDone());
 
             listener.onResponse(null);
+            assertTrue(operator.isBlocked().listener().isDone());
             assertTrue(operator.needsInput());
         }
     }
 
     public void testFinishWaitsForTheConsumer() {
         TrackingConsumer consumer = new TrackingConsumer();
+        consumer.pendingOps = 1;
         try (OutputOperator operator = new OutputOperator(List.of("a"), p -> p, consumer)) {
             assertFalse(operator.isFinished());
             operator.finish();
-            assertTrue(consumer.finished);
+            assertTrue(consumer.finishCalled);
             assertFalse(operator.isFinished());
             assertFalse(operator.needsInput());
-            consumer.done = true;
+            consumer.pendingOps = 0;
             assertTrue(operator.isFinished());
         }
     }

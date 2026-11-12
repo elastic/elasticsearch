@@ -94,7 +94,6 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
-import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -460,7 +459,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
                 Enum enm = (Enum) makeArg(toBuildClass, pt.getActualTypeArguments()[0]);
                 return EnumSet.of(enm);
             }
-            if ((toBuildClass == OutputExec.class || toBuildClass == IntoExec.class) && pt.getRawType() == Consumer.class) {
+            if (toBuildClass == OutputExec.class && pt.getRawType() == Consumer.class) {
                 // pageConsumer just needs a BiConsumer. But the consumer has to have reasonable
                 // `equals` for randomValueOtherThan, so we just ensure that a new instance is
                 // created each time which uses Object::equals identity.

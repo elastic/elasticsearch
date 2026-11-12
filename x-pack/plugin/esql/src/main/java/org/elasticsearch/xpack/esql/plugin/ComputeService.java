@@ -108,6 +108,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.into.IntoPageWriter;
+import org.elasticsearch.xpack.esql.into.IntoStats;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
@@ -1165,17 +1166,17 @@ public class ComputeService {
             EsqlPlugin.externalBlobStorePool()
         );
         if (physicalPlan instanceof IntoExec into) {
-            IntoPageWriter writer = new IntoPageWriter(client, into.destination(), into.child().output());
-            physicalPlan = into.withWriter(writer);
+            IntoPageWriter.Factory sink = new IntoPageWriter.Factory(client, into.destination(), into.child().output());
+            physicalPlan = OutputExec.withFactory(into.source(), into.child(), sink);
             listener = listener.delegateFailureAndWrap((l, result) -> {
-                Exception failure = writer.failure();
+                Exception failure = sink.failure();
                 if (failure != null) {
                     throw failure;
                 }
                 l.onResponse(
                     new Result(
-                        result.schema(),
-                        List.of(writer.stats().toPage(blockFactory)),
+                        IntoStats.ATTRIBUTES,
+                        List.of(sink.stats().toPage(blockFactory)),
                         result.attributeMetadata(),
                         result.configuration(),
                         result.completionInfo(),
@@ -1477,12 +1478,9 @@ public class ComputeService {
         final PageStreamPublisher streamPublisher = coordinatorPlan instanceof StreamingOutputExec streaming
             ? streaming.pageStream()
             : null;
-        if (coordinatorPlan instanceof IntoExec into) {
-            if (into.writer() == null) {
-                throw new IllegalStateException("INTO plan executed without a writer");
-            }
-            coordinatorPlan = new OutputExec(into.child(), into.writer());
-        } else if (exchangeSinkSupplier == null && coordinatorPlan instanceof StreamingOutputExec == false) {
+        if (exchangeSinkSupplier == null
+            && coordinatorPlan instanceof StreamingOutputExec == false
+            && coordinatorPlan instanceof OutputExec == false) {
             coordinatorPlan = new OutputExec(coordinatorPlan, collectedPages::add);
         }
 

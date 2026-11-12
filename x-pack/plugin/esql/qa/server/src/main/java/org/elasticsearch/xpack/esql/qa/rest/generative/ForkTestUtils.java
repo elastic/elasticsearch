@@ -54,7 +54,10 @@ public class ForkTestUtils {
             testCase.requiredCapabilities.contains(FORK_V9.capabilityName())
         );
 
-        assumeFalse("INTO must be the last command of the query", testCase.requiredCapabilities.contains(INTO_COMMAND.capabilityName()));
+        assumeFalse(
+            "Tests using INTO are not supported in FORK tests",
+            testCase.requiredCapabilities.contains(INTO_COMMAND.capabilityName())
+        );
 
         assumeFalse(
             "LOAD_ALL fork wrapping of existing csv-specs is not covered yet",

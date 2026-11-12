@@ -49,15 +49,12 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             "ROW k = \"hello\", l = 42, d = 1.5, b = true, dt = TO_DATETIME(\"2026-01-15T12:34:56.789Z\"), ip = TO_IP(\"192.168.1.1\")",
             1
         );
-        assertThat(
-            readBack("KEEP k, l, d, b, dt, ip"),
-            equalTo(List.of(List.of("hello", 42L, 1.5, true, "2026-01-15T12:34:56.789Z", "192.168.1.1")))
-        );
+        assertReadBack(List.of(List.of(true, 1.5, "2026-01-15T12:34:56.789Z", "192.168.1.1", "hello", 42L)));
     }
 
     public void testRowsAndMultiValues() {
         assertInto("ROW k = [\"alpha\", \"beta\"], l = [1, 2] | MV_EXPAND k", 2);
-        assertThat(readBack("KEEP k, l | SORT k"), equalTo(List.of(List.of("alpha", List.of(1L, 2L)), List.of("beta", List.of(1L, 2L)))));
+        assertReadBack("KEEP k, l | SORT k", List.of(List.of("alpha", List.of(1L, 2L)), List.of("beta", List.of(1L, 2L))));
     }
 
     public void testSourceOmitsNullsAndHasDatesInUtc() {
@@ -77,7 +74,7 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
 
     public void testInlineStats() {
         assertInto("ROW k = [\"a\", \"b\"] | MV_EXPAND k | INLINE STATS l = COUNT(*)", 2);
-        assertThat(readBack("KEEP k, l | SORT k"), equalTo(List.of(List.of("a", 2L), List.of("b", 2L))));
+        assertReadBack("KEEP k, l | SORT k", List.of(List.of("a", 2L), List.of("b", 2L)));
     }
 
     public void testZeroRows() {
@@ -101,10 +98,15 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    private List<List<Object>> readBack(String commands) {
+    private void assertReadBack(List<List<Object>> expected) {
+        assertReadBack("", expected);
+    }
+
+    private void assertReadBack(String commands, List<List<Object>> expected) {
         refresh(DESTINATION);
-        try (EsqlQueryResponse response = run("FROM " + DESTINATION + " | " + commands)) {
-            return getValuesList(response);
+        String query = commands.isEmpty() ? "FROM " + DESTINATION : "FROM " + DESTINATION + " | " + commands;
+        try (EsqlQueryResponse response = run(query)) {
+            assertThat(getValuesList(response), equalTo(expected));
         }
     }
 }

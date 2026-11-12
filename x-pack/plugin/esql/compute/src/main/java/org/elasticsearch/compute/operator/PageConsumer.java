@@ -15,17 +15,43 @@ import java.util.function.Consumer;
  * An {@link OutputOperator} consumer that participates in the driver lifecycle: it can hold the driver back while work
  * is in flight and remain unfinished after the last page until outstanding work completes.
  */
-public interface PageConsumer extends Consumer<Page> {
+public interface PageConsumer {
 
-    default void bind(DriverContext driverContext) {}
+    interface Factory {
+        PageConsumer create(DriverContext driverContext);
 
-    default IsBlockedResult isBlocked() {
-        return Operator.NOT_BLOCKED;
+        static Factory of(Consumer<Page> consumer) {
+            return driverContext -> PageConsumer.of(consumer);
+        }
     }
 
-    default void finish() {}
+    static PageConsumer of(Consumer<Page> consumer) {
+        return new PageConsumer() {
+            @Override
+            public void consume(Page page) {
+                consumer.accept(page);
+            }
 
-    default boolean isFinished() {
-        return true;
+            @Override
+            public IsBlockedResult isBlocked() {
+                return Operator.NOT_BLOCKED;
+            }
+
+            @Override
+            public void finish() {}
+
+            @Override
+            public boolean isFinished() {
+                return true;
+            }
+        };
     }
+
+    void consume(Page page);
+
+    IsBlockedResult isBlocked();
+
+    void finish();
+
+    boolean isFinished();
 }

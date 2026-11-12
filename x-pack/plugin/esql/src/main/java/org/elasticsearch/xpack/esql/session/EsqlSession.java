@@ -299,6 +299,7 @@ public class EsqlSession {
      * transport threads.
      */
     private volatile ExplainContext explainContext;
+    // Destination index name when the query ends with INTO; null for all other queries.
     @Nullable
     private volatile String intoDestination;
     private final ProjectMetadata projectMetadata;
@@ -1162,7 +1163,7 @@ public class EsqlSession {
 
     private PhysicalPlan withInto(PhysicalPlan physicalPlan) {
         String destination = intoDestination;
-        return destination == null ? physicalPlan : new IntoExec(physicalPlan.source(), physicalPlan, destination, null);
+        return destination == null ? physicalPlan : new IntoExec(physicalPlan.source(), physicalPlan, destination);
     }
 
     private void executeSubPlans(
@@ -3390,6 +3391,8 @@ public class EsqlSession {
             );
         }
         plan.setAnalyzed();
+        // TODO: when intoDestination != null, validate its mapping in projectMetadata (including column/field type
+        // mismatches against plan.output()) after authorizing write privileges during pre-analysis.
         List<IndexResolution> semanticSources = new ArrayList<>(indexResolutions);
         semanticSources.addAll(r.lookupIndices().values());
         Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(plan, semanticSources);

@@ -303,6 +303,7 @@ public class IndexVersions {
     public static final IndexVersion TSID_PREFIXED_DIMENSIONS_HASH = def(9_128_0_00, Version.LUCENE_10_5_2);
     public static final IndexVersion HAASE_PHONETIK_ANCHORED_VARIATIONS = def(9_129_0_00, Version.LUCENE_10_5_2);
     public static final IndexVersion UNMAPPED_SINK_ON_STRICT_COLUMNAR = def(9_130_0_00, Version.LUCENE_10_5_2);
+    public static final IndexVersion DOC_VALUES_NO_OP_IN_COLUMNAR = def(9_131_0_00, Version.LUCENE_10_5_2);
 
     public static final IndexVersion UPGRADE_TO_LUCENE_10_6_0 = def(9_300_00_0, Version.LUCENE_10_6_0);
     /*

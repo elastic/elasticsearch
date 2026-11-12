@@ -376,6 +376,11 @@ public class IpFieldMapper extends FieldMapper {
             this.docValuesParams = docValuesParams;
         }
 
+        @Override
+        public boolean isStaticallySingleValued() {
+            return scriptValues == null && docValuesParams != null && docValuesParams.multiValue() == false;
+        }
+
         public IpFieldType(String name) {
             this(name, true, true);
         }
@@ -783,7 +788,6 @@ public class IpFieldMapper extends FieldMapper {
     private final boolean writeDimensionRouting;
 
     private final InetAddress nullValue;
-    private final String nullValueAsString;
 
     private final IndexSettings indexSettings;
     private final FieldValues<InetAddress> scriptValues;
@@ -809,7 +813,6 @@ public class IpFieldMapper extends FieldMapper {
         this.stored = builder.stored.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.nullValue = builder.parseNullValue();
-        this.nullValueAsString = builder.nullValue.getValue();
         this.scriptValues = builder.scriptValues();
         this.dimension = builder.dimension.getValue();
         this.writeDimensionRouting = this.dimension
@@ -841,7 +844,7 @@ public class IpFieldMapper extends FieldMapper {
 
     @Override
     public boolean isNullable() {
-        return docValuesParameters.nullability() || nullValueAsString != null;
+        return docValuesParameters.nullability() || nullValue != null;
     }
 
     @Override

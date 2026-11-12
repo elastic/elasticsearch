@@ -49,6 +49,8 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.mapper.StoredValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.GeoGridFromShapeDocValuesBlockLoader;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
@@ -99,22 +101,18 @@ import java.util.function.Function;
 public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry> {
     public static final String CONTENT_TYPE = "geo_shape";
 
-    private static Builder builder(FieldMapper in) {
-        return ((GeoShapeWithDocValuesFieldMapper) in).builder;
-    }
-
     public static final class Builder extends FieldMapper.Builder {
 
-        final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
-        final Parameter<Boolean> stored = Parameter.storeParam(m -> builder(m).stored.get(), false);
+        final Parameter<Boolean> indexed = Parameter.indexParam(true);
+        final Parameter<Boolean> stored = Parameter.storeParam(false);
         final Parameter<Boolean> hasDocValues;
 
         final Parameter<Explicit<Boolean>> ignoreMalformed;
-        final Parameter<Explicit<Boolean>> ignoreZValue = ignoreZValueParam(m -> builder(m).ignoreZValue.get());
+        final Parameter<Explicit<Boolean>> ignoreZValue = ignoreZValueParam();
         final Parameter<Explicit<Boolean>> coerce;
-        final Parameter<Explicit<Orientation>> orientation = orientationParam(m -> builder(m).orientation.get());
-        private final Parameter<Script> script = Parameter.scriptParam(m -> builder(m).script.get());
-        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(m -> builder(m).onScriptError, script);
+        final Parameter<Explicit<Orientation>> orientation = orientationParam();
+        private final Parameter<Script> script = Parameter.scriptParam();
+        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(script);
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final ScriptCompiler scriptCompiler;
         private final IndexVersion version;
@@ -132,9 +130,9 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             this.version = version;
             this.scriptCompiler = scriptCompiler;
             this.geoFormatterFactory = geoFormatterFactory;
-            this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
-            this.coerce = coerceParam(m -> builder(m).coerce.get(), coerceByDefault);
-            this.hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), IndexVersions.V_7_8_0.onOrBefore(version));
+            this.ignoreMalformed = ignoreMalformedParam(ignoreMalformedByDefault);
+            this.coerce = coerceParam(coerceByDefault);
+            this.hasDocValues = Parameter.docValuesParam(IndexVersions.V_7_8_0.onOrBefore(version));
             addScriptValidation(script, indexed, hasDocValues);
         }
 
@@ -362,7 +360,29 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
+        public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
+            // Grid cells are computed from the indexed triangle tree in the doc values, whatever the extract preference asks for
+            // the shape itself.
+            return hasDocValues() && config instanceof BlockLoaderFunctionConfig.GeoGrid;
+        }
+
+        @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            BlockLoaderFunctionConfig config = blContext.blockLoaderFunctionConfig();
+            if (config != null) {
+                // supportsBlockLoaderConfig gates which configs are accepted, so anything else here is a programming error
+                if (hasDocValues() == false) {
+                    throw new UnsupportedOperationException("function fusing only supported for doc values");
+                }
+                return switch (config.function()) {
+                    case ST_GEOHASH, ST_GEOTILE, ST_GEOHEX -> new GeoGridFromShapeDocValuesBlockLoader(
+                        name(),
+                        (BlockLoaderFunctionConfig.GeoGrid) config,
+                        blContext.warnings()
+                    );
+                    default -> throw new UnsupportedOperationException("unknown fusion config [" + config.function() + "]");
+                };
+            }
             if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS) {
                 return new GeoBoundsBlockLoader(name());
             }
@@ -455,7 +475,6 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
     }
 
-    private final Builder builder;
     private final GeoShapeIndexer indexer;
     private final boolean indexed;
 
@@ -477,7 +496,6 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             builder.orientation.get(),
             parser
         );
-        this.builder = builder;
         this.indexer = indexer;
         this.indexed = mappedFieldType.indexType().hasPoints();
     }
@@ -556,30 +574,8 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            builder.version,
-            builder.scriptCompiler,
-            builder.ignoreMalformed.getDefaultValue().value(),
-            builder.coerce.getDefaultValue().value(),
-            builder.geoFormatterFactory
-        ).init(this);
-    }
-
-    @Override
     public GeoShapeWithDocValuesFieldType fieldType() {
         return (GeoShapeWithDocValuesFieldType) super.fieldType();
-    }
-
-    @Override
-    protected void checkIncomingMergeType(FieldMapper mergeWith) {
-        if (mergeWith instanceof GeoShapeWithDocValuesFieldMapper == false && CONTENT_TYPE.equals(mergeWith.typeName())) {
-            throw new IllegalArgumentException(
-                "mapper [" + fullPath() + "] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"
-            );
-        }
-        super.checkIncomingMergeType(mergeWith);
     }
 
     public static class GeoShapeDocValuesField extends AbstractScriptFieldFactory<GeoShapeValues.GeoShapeValue>

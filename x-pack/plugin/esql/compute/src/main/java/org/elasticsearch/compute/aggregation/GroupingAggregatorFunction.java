@@ -240,6 +240,14 @@ public interface GroupingAggregatorFunction extends Releasable {
     int intermediateBlockCount();
 
     /**
+     * Prepares this aggregation for periodic emit and returns whether its current state can be emitted before
+     * {@code incomingPage} is processed.
+     */
+    default boolean prepareForPeriodicEmit(Page incomingPage) {
+        return true;
+    }
+
+    /**
      * Whether this grouping aggregation function supports partitioning
      */
     default boolean supportPartitioning() {

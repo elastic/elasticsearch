@@ -30,6 +30,7 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
             222,
             1000,
             8192,
+            16384,
             100,
             300,
             4096
@@ -44,6 +45,7 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
               },
               "values_loaded" : 1000,
               "bytes_read" : 8192,
+              "bytes_decoded" : 16384,
               "source_docs_loaded" : 100,
               "source_field_reads" : 300,
               "source_bytes_loaded" : 4096,
@@ -79,6 +81,7 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomNonNegativeLong()
         );
     }
@@ -103,10 +106,11 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
         long rowsEmitted = instance.rowsEmitted();
         long valuesLoaded = instance.valuesLoaded();
         long bytesRead = instance.bytesRead();
+        long bytesDecoded = instance.bytesDecoded();
         long sourceDocsLoaded = instance.sourceDocsLoaded();
         long sourceFieldReads = instance.sourceFieldReads();
         long sourceBytesLoaded = instance.sourceBytesLoaded();
-        switch (between(0, 11)) {
+        switch (between(0, 12)) {
             case 0 -> readersBuilt = randomValueOtherThan(readersBuilt, this::randomReadersBuiltOrConvertersUsed);
             case 1 -> convertersUsed = randomValueOtherThan(convertersUsed, this::randomReadersBuiltOrConvertersUsed);
             case 2 -> processNanos = randomValueOtherThan(processNanos, ESTestCase::randomNonNegativeLong);
@@ -116,9 +120,10 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
             case 6 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
             case 7 -> valuesLoaded = randomValueOtherThan(valuesLoaded, ESTestCase::randomNonNegativeLong);
             case 8 -> bytesRead = randomValueOtherThan(bytesRead, ESTestCase::randomNonNegativeLong);
-            case 9 -> sourceDocsLoaded = randomValueOtherThan(sourceDocsLoaded, ESTestCase::randomNonNegativeLong);
-            case 10 -> sourceFieldReads = randomValueOtherThan(sourceFieldReads, ESTestCase::randomNonNegativeLong);
-            case 11 -> sourceBytesLoaded = randomValueOtherThan(sourceBytesLoaded, ESTestCase::randomNonNegativeLong);
+            case 9 -> bytesDecoded = randomValueOtherThan(bytesDecoded, ESTestCase::randomNonNegativeLong);
+            case 10 -> sourceDocsLoaded = randomValueOtherThan(sourceDocsLoaded, ESTestCase::randomNonNegativeLong);
+            case 11 -> sourceFieldReads = randomValueOtherThan(sourceFieldReads, ESTestCase::randomNonNegativeLong);
+            case 12 -> sourceBytesLoaded = randomValueOtherThan(sourceBytesLoaded, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
         return new ValuesSourceReaderOperatorStatus(
@@ -131,6 +136,7 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
             rowsEmitted,
             valuesLoaded,
             bytesRead,
+            bytesDecoded,
             sourceDocsLoaded,
             sourceFieldReads,
             sourceBytesLoaded

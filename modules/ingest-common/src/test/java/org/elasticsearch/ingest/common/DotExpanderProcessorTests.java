@@ -152,11 +152,11 @@ public class DotExpanderProcessorTests extends ESTestCase {
         // hasField returns false since it requires the expanded form, which is not expanded since we did not ask for it to be
         assertFalse(document.hasField("foo.bar"));
         // nothing has changed
-        assertEquals(document.getSourceAndMetadata().get("foo.bar"), "baz1");
+        assertEquals(document.getSource().get("foo.bar"), "baz1");
         // abc.def is not found anywhere
         assertFalse(document.hasField("abc.def"));
-        assertFalse(document.getSourceAndMetadata().containsKey("abc"));
-        assertFalse(document.getSourceAndMetadata().containsKey("abc.def"));
+        assertFalse(document.getSource().containsKey("abc"));
+        assertFalse(document.getSource().containsKey("abc.def"));
 
         // asking to expand a (literal) field that does not exist, but the nested field does exist
         source = new HashMap<>();

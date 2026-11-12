@@ -12,12 +12,14 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.compound.HyphenationCompoundWordTokenFilter;
 import org.apache.lucene.analysis.compound.hyphenation.HyphenationTree;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.Analysis;
 import org.xml.sax.InputSource;
 
-import java.io.InputStream;
+import java.io.ByteArrayInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -31,6 +33,7 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
     private final boolean noSubMatches;
     private final boolean noOverlappingMatches;
     private final HyphenationTree hyphenationTree;
+    private final Object sharingKey;
 
     HyphenationCompoundWordTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, env, name, settings);
@@ -42,15 +45,31 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
 
         Path hyphenationPatternsFile = env.configDir().resolve(hyphenationPatternsPath);
 
+        // Build the tree from the same bytes the sharing key hashes, so the key always matches the loaded
+        // patterns. HyphenationTree has no value equality of its own.
+        final String hyphenationPatternsHash;
         try {
-            InputStream in = Files.newInputStream(hyphenationPatternsFile);
-            hyphenationTree = HyphenationCompoundWordTokenFilter.getHyphenationTree(new InputSource(in));
+            byte[] hyphenationPatterns = Files.readAllBytes(hyphenationPatternsFile);
+            hyphenationPatternsHash = MessageDigests.toHexString(MessageDigests.sha256().digest(hyphenationPatterns));
+            hyphenationTree = HyphenationCompoundWordTokenFilter.getHyphenationTree(
+                new InputSource(new ByteArrayInputStream(hyphenationPatterns))
+            );
         } catch (Exception e) {
             throw new IllegalArgumentException("Exception while reading hyphenation_patterns_path.", e);
         }
 
         noSubMatches = settings.getAsBoolean("no_sub_matches", false);
         noOverlappingMatches = settings.getAsBoolean("no_overlapping_matches", false);
+        this.sharingKey = new Key(
+            minWordSize,
+            minSubwordSize,
+            maxSubwordSize,
+            onlyLongestMatch,
+            wordListKey,
+            noSubMatches,
+            noOverlappingMatches,
+            hyphenationPatternsHash
+        );
     }
 
     @Override
@@ -67,4 +86,20 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
             noOverlappingMatches
         );
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(
+        int minWordSize,
+        int minSubwordSize,
+        int maxSubwordSize,
+        boolean onlyLongestMatch,
+        Analysis.StableCharArraySet wordList,
+        boolean noSubMatches,
+        boolean noOverlappingMatches,
+        String hyphenationPatternsSha256
+    ) {}
 }

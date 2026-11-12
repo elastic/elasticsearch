@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import java.util.Arrays;
 import java.util.List;
@@ -17,7 +16,6 @@ import java.util.Map;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
-import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 /**
@@ -44,6 +42,16 @@ public class EsqlSecurityLogsdbColumnarIT extends EsqlSecurityIT {
     @Override
     protected String mappingPrefix() {
         return "\"_data_stream_timestamp\":{\"enabled\":false},";
+    }
+
+    @Override
+    protected boolean unmappedDynamicFalseFieldsStored() {
+        return false;
+    }
+
+    @Override
+    protected String dropModeSpecificColumns() {
+        return " | DROP @timestamp";
     }
 
     /**
@@ -223,16 +231,16 @@ public class EsqlSecurityLogsdbColumnarIT extends EsqlSecurityIT {
 
     /**
      * Columnar drops the {@code dynamic:false} unmapped fields at index time, so {@code LOAD_ALL} only surfaces the mapped
-     * {@code value} plus the {@code salary} that {@code SORT} references (as null); the default {@code @timestamp} column is dropped.
-     * The FLS-denied {@code value} and {@code org} still never appear for the restricted user.
+     * {@code value}, the {@code salary} that {@code SORT} references and an {@code _unmapped_fields} column, both null; the default
+     * {@code @timestamp} column is dropped. The FLS-denied {@code value} and {@code org} still never appear for the restricted user.
      */
     @Override
     public void testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll() throws Exception {
-        assumeTrue(
-            "Requires unmapped_fields=LOAD_ALL support",
-            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.capabilityName()))
-        );
-        String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM " + INDEX_PARTIAL_MAPPING + " | SORT salary | LIMIT 10 | DROP @timestamp";
+        assumeUnmappedFieldsLoadAll();
+        String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM "
+            + INDEX_PARTIAL_MAPPING
+            + " | SORT salary | LIMIT 10"
+            + dropModeSpecificColumns();
 
         // SORT salary is a no-op on all-null values, so the two admin rows come back in an unspecified order.
         Response adminResp = runESQLCommand("test-admin", query);
@@ -245,21 +253,33 @@ public class EsqlSecurityLogsdbColumnarIT extends EsqlSecurityIT {
                     "columns",
                     List.of(
                         matchesMap().entry("name", "value").entry("type", "double"),
-                        matchesMap().entry("name", "salary").entry("type", "keyword")
+                        matchesMap().entry("name", "salary").entry("type", "keyword"),
+                        matchesMap().entry("name", "_unmapped_fields").entry("type", "_source")
                     )
                 )
         );
         @SuppressWarnings("unchecked")
         List<List<Object>> adminValues = (List<List<Object>>) adminMap.get("values");
-        assertThat(adminValues, containsInAnyOrder(Arrays.asList(10.0, null), Arrays.asList(20.0, null)));
+        assertThat(adminValues, containsInAnyOrder(Arrays.asList(10.0, null, null), Arrays.asList(20.0, null, null)));
 
         Response restrictedResp = runESQLCommand("fls_deny_value_org_user", query);
         assertOK(restrictedResp);
         assertMap(
             entityAsMap(restrictedResp),
             matchesMap().extraOk()
-                .entry("columns", List.of(matchesMap().entry("name", "salary").entry("type", "keyword")))
-                .entry("values", List.of(Arrays.asList((Object) null), Arrays.asList((Object) null)))
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "salary").entry("type", "keyword"),
+                        matchesMap().entry("name", "_unmapped_fields").entry("type", "_source")
+                    )
+                )
+                .entry("values", List.of(Arrays.asList(null, null), Arrays.asList(null, null)))
         );
+    }
+
+    @Override
+    public void testFieldLevelSecurityWithRuntimeMappingTargetingConstantKeyword() {
+        assumeTrue("mapping-level runtime fields are not supported in logsdb_columnar mode", false);
     }
 }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -16,6 +15,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
@@ -140,7 +140,7 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper, A
      * <ul>
      *     <li>It takes an extra parameter - the delimiter</li>
      *     <li>That extra parameter makes it much more likely to be {@code null}</li>
-     *     <li>The actual joining process needs init step per row - {@link BytesRefBuilder#clear()}</li>
+     *     <li>The actual joining process needs init step per row - {@link BreakingBytesRefBuilder#clear()}</li>
      * </ul>
      */
     private static class Evaluator implements ExpressionEvaluator {
@@ -148,11 +148,13 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper, A
         private final DriverContext context;
         private final ExpressionEvaluator field;
         private final ExpressionEvaluator delim;
+        private final BreakingBytesRefBuilder work;
 
         Evaluator(DriverContext context, ExpressionEvaluator field, ExpressionEvaluator delim) {
             this.context = context;
             this.field = field;
             this.delim = delim;
+            this.work = new BreakingBytesRefBuilder(context.breaker(), "mv_concat");
         }
 
         @Override
@@ -160,7 +162,6 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper, A
             try (BytesRefBlock fieldVal = (BytesRefBlock) field.eval(page); BytesRefBlock delimVal = (BytesRefBlock) delim.eval(page)) {
                 int positionCount = page.getPositionCount();
                 try (BytesRefBlock.Builder builder = context.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-                    BytesRefBuilder work = new BytesRefBuilder(); // TODO BreakingBytesRefBuilder so we don’t blow past circuit breakers
                     BytesRef fieldScratch = new BytesRef();
                     BytesRef delimScratch = new BytesRef();
                     for (int p = 0; p < positionCount; p++) {
@@ -186,7 +187,7 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper, A
                             work.append(delim);
                             work.append(fieldVal.getBytesRef(i, fieldScratch));
                         }
-                        builder.appendBytesRef(work.get());
+                        builder.appendBytesRef(work.bytesRefView());
                     }
                     return builder.build();
                 }
@@ -205,7 +206,7 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper, A
 
         @Override
         public void close() {
-            Releasables.close(field, delim);
+            Releasables.close(field, delim, work);
         }
     }
 }

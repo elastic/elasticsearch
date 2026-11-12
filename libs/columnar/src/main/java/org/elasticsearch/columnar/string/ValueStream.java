@@ -12,29 +12,26 @@ package org.elasticsearch.columnar.string;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LongValues;
+import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ChunkIndexMetadata;
 import org.elasticsearch.columnar.substrate.ChunkedBytesReader;
 import org.elasticsearch.columnar.substrate.ChunkedBytesWriter;
+import org.elasticsearch.columnar.substrate.ColumnInputs;
+import org.elasticsearch.columnar.substrate.ColumnOutputs;
 import org.elasticsearch.columnar.substrate.MonotonicReader;
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
 import org.elasticsearch.columnar.substrate.internal.ByteArrayInts;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 
 /**
- * An indexed sequence of byte values, addressed in blocks of {@link #VALUES_PER_BLOCK} values and compressed
- * in chunks of a fixed number of bytes. One offset is recorded per block rather than per value, so reading
+ * An indexed sequence of byte values, addressed in blocks of a fixed number of values and compressed in
+ * chunks bounded by both bytes and values. One offset is recorded per block rather than per value, so reading
  * value {@code i} reads its block and walks the lengths within it — which keeps the offset table a fraction
  * of the size a per-value table would be.
  *
@@ -47,12 +44,15 @@ import java.util.Arrays;
  *
  * <p>Blocks and chunks are separate on purpose. A block of long values and a block of short ones are the same
  * count of values and nothing like the same number of bytes, so the unit that is addressed cannot also be the
- * unit that is compressed. A chunk closes only on a block boundary, so no value spans two of them.
+ * unit that is compressed, and a chunk is cut wherever its own bound falls rather than where a block ends.
  */
 public final class ValueStream {
 
-    /** Values behind one offset. Larger trades a longer walk on random access for a smaller offset table. */
-    public static final int VALUES_PER_BLOCK = 128;
+    /**
+     * What an empty stream reports as its block size. It holds no values, so nothing ever addresses one and
+     * the number only has to be one the reader accepts.
+     */
+    private static final int EMPTY_VALUES_PER_BLOCK = 1;
 
     /**
      * The three on-disk block layouts. The first byte of every block is the {@link BlockLayout#id} of the
@@ -100,7 +100,7 @@ public final class ValueStream {
     public record Metadata(long numValues, long valueBytes, int valuesPerBlock, ChunkIndexMetadata chunks, MonotonicWriter.Table offsets) {
 
         public static Metadata empty() {
-            return new Metadata(0, 0, VALUES_PER_BLOCK, ChunkIndexMetadata.empty(), MonotonicWriter.Table.NONE);
+            return new Metadata(0, 0, EMPTY_VALUES_PER_BLOCK, ChunkIndexMetadata.empty(), MonotonicWriter.Table.NONE);
         }
 
         public void writeTo(DataOutput out) throws IOException {
@@ -132,14 +132,14 @@ public final class ValueStream {
             return new Metadata(numValues, valueBytes, valuesPerBlock, chunks, new MonotonicWriter.Table(dataOffset, dataLength, meta));
         }
 
-        public Reader open(IndexInput data) throws IOException {
+        public Reader open(ColumnInputs inputs) throws IOException {
             if (numValues == 0) {
                 return new Reader(null, null, 0, valuesPerBlock);
             }
             final long blocks = (numValues + valuesPerBlock - 1) / valuesPerBlock;
             return new Reader(
-                chunks.open(data),
-                MonotonicReader.open(data, offsets.meta(), blocks + 1L, offsets.dataOffset(), offsets.dataLength()),
+                chunks.open(inputs),
+                MonotonicReader.open(inputs.navigation(), offsets.meta(), blocks + 1L, offsets.dataOffset(), offsets.dataLength()),
                 numValues,
                 valuesPerBlock
             );
@@ -147,15 +147,13 @@ public final class ValueStream {
     }
 
     /** Appends values in order, closing a chunk only on a block boundary so no block spans two chunks. */
-    public static final class Writer implements Closeable {
+    public static final class Writer {
 
         private final ChunkedBytesWriter chunks;
-        private final IndexOutput data;
         private final MonotonicWriter offsets;
         private final int valuesPerBlock;
         private long count = 0;
         private long valueBytes = 0;
-        private boolean closed = false;
         // A block's lengths are written ahead of its bytes, so the block is buffered until it is full. It
         // holds valuesPerBlock values, which is bounded and independent of the column.
         private final int[] pending;
@@ -163,44 +161,17 @@ public final class ValueStream {
         // Holds a block's length header, or one value's length as a vint, so neither is allocated per block.
         private byte[] scratch = new byte[0];
         // What stageRuns found, read by the sizing and the write that follow it.
-        /** Runs of equal values staged so far, counted per block, so one crossing a boundary counts twice. */
-        private long runs;
         private int[] runStarts = new int[0];
         private int[] runLens = new int[0];
         private int[] runReps = new int[0];
         private int pendingCount = 0;
         private int pendingLength = 0;
 
-        public Writer(
-            ChunkCodec codec,
-            int targetChunkBytes,
-            int valuesPerBlock,
-            long numValues,
-            Directory dir,
-            IOContext ctx,
-            String prefix,
-            IndexOutput data
-        ) throws IOException {
+        public Writer(ChunkCodec codec, ChunkBounds chunkBounds, int valuesPerBlock, ColumnOutputs outputs) {
             this.valuesPerBlock = valuesPerBlock;
-            this.data = data;
             this.pending = new int[valuesPerBlock];
-            // Both hold a temporary file of their own. Whichever opens first is closed here if the one after
-            // it fails, since a writer that never finished being built is one nothing else can close.
-            ChunkedBytesWriter chunks = null;
-            MonotonicWriter offsets = null;
-            boolean success = false;
-            try {
-                chunks = new ChunkedBytesWriter(codec, targetChunkBytes, dir, ctx, prefix, data);
-                final long blocks = (numValues + valuesPerBlock - 1) / valuesPerBlock;
-                offsets = new MonotonicWriter(dir, ctx, prefix, blocks + 1L);
-                success = true;
-            } finally {
-                if (success == false) {
-                    IOUtils.closeWhileHandlingException(chunks, offsets);
-                }
-            }
-            this.chunks = chunks;
-            this.offsets = offsets;
+            this.chunks = new ChunkedBytesWriter(codec, chunkBounds, outputs.data(), outputs.navigation());
+            this.offsets = new MonotonicWriter(outputs.navigation());
         }
 
         public void add(BytesRef value) throws IOException {
@@ -223,15 +194,16 @@ public final class ValueStream {
          * <p><b>Runs</b> stores each distinct value once with how many values in a row hold it. It is taken
          * first and only where it is genuinely smaller, sized against what the stream would otherwise write.
          *
-         * <p><b>Inline</b> keeps each length in front of its own value. It suits short values because the
-         * length and the value then repeat as one pattern that a compressor matches whole — splitting them
-         * apart costs more than the packing saves.
+         * <p><b>Inline</b> keeps each length in front of its own value. It suits short values of differing
+         * lengths, because the length and the value then repeat as one pattern that a compressor matches
+         * whole — splitting them apart costs more than the packing saves.
          *
          * <p><b>Packed</b> bit-packs the lengths at their exact bit width ahead of the bytes, so a block
-         * whose values are long or dissimilar keeps them contiguous and hands a compressor an unbroken run.
+         * whose values are long, or all of one length, keeps them contiguous and hands a compressor an
+         * unbroken run.
          */
         private void flushBlock() throws IOException {
-            chunks.boundary();
+            chunks.boundary(pendingCount);
             offsets.add(chunks.uncompressedLength());
             // A run of equal values is stored once with a repeat, which is what a column sorted on this
             // field is made of. Worth it only where the runs are long enough to pay for the repeats, so the
@@ -239,7 +211,6 @@ public final class ValueStream {
             // Finding the runs is the part that compares bytes, so it is done once and what it found is what
             // the sizing and the write both read.
             final int runCount = stageRuns();
-            runs += runCount;
             if (runsAreSmaller(runCount)) {
                 writeRuns(runCount);
                 pendingCount = 0;
@@ -247,16 +218,19 @@ public final class ValueStream {
                 return;
             }
             // Which layout is smaller is decided after compression, so an uncompressed byte count cannot
-            // choose between them. What separates them is how long the values are: short ones repeat
-            // together with their length as a single pattern, and splitting the two apart costs more than
-            // the walk saves. The threshold is where the measured shapes turn over.
-            if (pendingLength < pendingCount * INLINE_MEAN_LENGTH) {
+            // choose between them. A block of a single length is packed whatever its mean: its lengths
+            // then cost a run a compressor takes out. Lengths that differ stay beside their values, up to
+            // the mean length where the measured shapes turn over.
+            int min = Integer.MAX_VALUE;
+            int max = 0;
+            for (int i = 0; i < pendingCount; i++) {
+                final int length = pending[i];
+                min = Math.min(min, length);
+                max = Math.max(max, length);
+            }
+            if (min != max && pendingLength < pendingCount * INLINE_MEAN_LENGTH) {
                 writeInline();
             } else {
-                int max = 0;
-                for (int i = 0; i < pendingCount; i++) {
-                    max = Math.max(max, pending[i]);
-                }
                 writePacked(ByteArrayInts.bitsRequired(max));
             }
             pendingCount = 0;
@@ -357,14 +331,6 @@ public final class ValueStream {
             chunks.append(scratch, 0, at);
         }
 
-        /**
-         * How many runs of equal values the stream staged, which is what it already found while sizing its blocks.
-         * A column of as many runs as values holds nothing that repeats where a reader would find it.
-         */
-        public long runs() {
-            return runs;
-        }
-
         public Metadata finish() throws IOException {
             if (count == 0) {
                 return Metadata.empty();
@@ -374,21 +340,9 @@ public final class ValueStream {
             }
             offsets.add(chunks.uncompressedLength());
             final ChunkIndexMetadata index = ChunkIndexMetadata.of(chunks.finish());
-            return new Metadata(count, valueBytes, valuesPerBlock, index, offsets.finish(data));
+            return new Metadata(count, valueBytes, valuesPerBlock, index, offsets.finish());
         }
 
-        @Override
-        public void close() throws IOException {
-            if (closed) {
-                return;
-            }
-            closed = true;
-            try {
-                chunks.close();
-            } finally {
-                offsets.close();
-            }
-        }
     }
 
     /** Random access by value address; a block is decoded once and its value bounds kept for the next lookup. */

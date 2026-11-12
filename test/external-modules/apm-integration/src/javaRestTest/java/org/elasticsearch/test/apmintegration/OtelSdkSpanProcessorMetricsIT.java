@@ -26,8 +26,7 @@ import java.util.function.Consumer;
  * {@code OtelSdkExportMeterSupplier#getMeterProvider()}, and the metrics pipeline exports them over OTLP.
  * <p>
  * This is the only test that wires the two real suppliers together exactly as {@code APMTelemetryProvider}
- * does in production, so it requires both {@code telemetry.otel.traces.enabled} and
- * {@code telemetry.otel.metrics.enabled}.
+ * does in production.
  */
 public class OtelSdkSpanProcessorMetricsIT extends AbstractTelemetryIT {
 
@@ -41,8 +40,6 @@ public class OtelSdkSpanProcessorMetricsIT extends AbstractTelemetryIT {
         .module("apm")
         .setting("telemetry.tracing.enabled", "true")
         .setting("telemetry.metrics.enabled", "true")
-        .systemProperty("telemetry.otel.traces.enabled", "true")
-        .systemProperty("telemetry.otel.metrics.enabled", "true")
         .setting("telemetry.export.endpoint", () -> recordingApmServer.getGrpcEndpoint())
         .setting("telemetry.tracing.sample_rate", "1.0")
         .setting("telemetry.export.interval", "1000ms")

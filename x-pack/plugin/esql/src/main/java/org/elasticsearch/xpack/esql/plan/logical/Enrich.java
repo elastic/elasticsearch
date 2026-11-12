@@ -52,7 +52,8 @@ public class Enrich extends UnaryPlan
         Streaming,
         SortAgnostic,
         SortPreserving,
-        ExecutesOn {
+        ExecutesOn,
+        DocPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "Enrich",

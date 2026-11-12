@@ -27,13 +27,14 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedianAbsoluteDeviation;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 
 import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 
-public class MedianAbsoluteDeviation extends NumericAggregate implements SurrogateExpression {
+public class MedianAbsoluteDeviation extends NumericAggregate implements SurrogateExpression, UnitAware.PreservesUnit {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MedianAbsoluteDeviation",
@@ -99,11 +100,6 @@ public class MedianAbsoluteDeviation extends NumericAggregate implements Surroga
     @Override
     public MedianAbsoluteDeviation replaceChildren(List<Expression> newChildren) {
         return new MedianAbsoluteDeviation(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
-    }
-
-    @Override
-    public MedianAbsoluteDeviation withFilter(Expression filter) {
-        return new MedianAbsoluteDeviation(source(), field(), filter, window());
     }
 
     @Override

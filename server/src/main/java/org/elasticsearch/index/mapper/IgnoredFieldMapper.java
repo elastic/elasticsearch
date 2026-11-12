@@ -29,7 +29,6 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlo
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.util.Collections;
 
@@ -163,7 +162,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
             return;
         }
 
-        final EscfColumnData data = acc.finish(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        final EscfColumnData data = acc.finish(context.recycler());
         // One serialization, up to two field-type wrappers, so ownership is registered once.
         context.addResource(data);
         if (context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {

@@ -29,7 +29,6 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -40,7 +39,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -661,14 +659,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             });
             PluginsService pluginsService;
             pluginsService = new MockPluginsService(nodeSettings, env, plugins);
-
             ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            ClusterService clusterService = new ClusterService(
-                Settings.EMPTY,
-                clusterSettings,
-                new DeterministicTaskQueue().getThreadPool(),
-                null
-            );
 
             this.circuitBreakerService = testCase.createCircuitBreakerService(nodeSettings, clusterSettings);
 
@@ -708,7 +699,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             this.bitsetFilterCache = new BitsetFilterCache(idxSettings, BitsetFilterCache.Listener.NOOP);
             MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
             mapperService = new MapperService(
-                clusterService,
+                TransportVersion::current,
+                f -> true,
                 idxSettings,
                 indexAnalyzers,
                 parserConfiguration,

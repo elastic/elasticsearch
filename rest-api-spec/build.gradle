@@ -154,6 +154,22 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("search.vectors/41_knn_search_byte_quantized/KNN Vector similarity search only", "min similarity score changed with Lucene 10.4")
   task.skipTest("search.vectors/42_knn_search_int8_flat/KNN Vector similarity search only", "min similarity score changed with Lucene 10.4")
   task.skipTest(
+    "search.vectors/170_knn_search_hex_encoded_byte_vectors/Knn search with hex string for byte field - cannot decode string",
+    "the error message for undecodable encoded vectors has changed"
+  )
+  task.skipTest(
+    "search.vectors/175_knn_query_hex_encoded_byte_vectors/Knn query with hex string for byte field - cannot decode string",
+    "the error message for undecodable encoded vectors has changed"
+  )
+  task.skipTest(
+    "search.vectors/170_knn_search_hex_encoded_byte_vectors/Fail to index hex-encoded vector on float field",
+    "the error message for base64 vectors of the wrong length has changed"
+  )
+  task.skipTest(
+    "search.vectors/175_knn_query_hex_encoded_byte_vectors/Fail to index hex-encoded vector on float field",
+    "the error message for base64 vectors of the wrong length has changed"
+  )
+  task.skipTest(
     "search.vectors/131_knn_query_nested_inner_hits_score/nested kNN inner_hits are scored like the query phase on a quantized field",
     "confidence_interval handling differs between old/new versions during compat runs"
   )

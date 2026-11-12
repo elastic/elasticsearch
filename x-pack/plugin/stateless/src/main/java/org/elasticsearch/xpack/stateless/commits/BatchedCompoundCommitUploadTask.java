@@ -20,7 +20,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
@@ -77,7 +77,7 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BccUploadRe
             TimeValue.timeValueSeconds(5),
             TimeValue.timeValueMillis(Long.MAX_VALUE),
             listener,
-            threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)
+            threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL)
         );
         assert virtualBcc.isFrozen();
 
@@ -167,6 +167,9 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BccUploadRe
     }
 
     private void uploadBatchedCompoundCommitFile(ActionListener<BccUploadResult> listener) {
+        assert pauseUploadSupplier.apply(generation) == false
+            : shardId + " uploading batched compound commit generation [" + generation + "] whose upload is paused";
+
         final long generationQueueWaitMs = threadPool.relativeTimeInMillis() - attemptStartMillis;
         final int attempt = uploadTryNumber;
         final long enqueuedAtNanos = threadPool.relativeTimeInNanos();

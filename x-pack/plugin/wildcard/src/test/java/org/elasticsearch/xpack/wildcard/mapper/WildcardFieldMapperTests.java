@@ -59,6 +59,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
@@ -91,7 +92,6 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -237,13 +237,17 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         iw.close();
 
         // The real trip path (child breaker -> parent real-heap sampling) cannot be triggered deterministically from a unit test, so we
-        // substitute a breaker that always trips to verify the confirmation query consults the request breaker and passes 0 bytes.
+        // substitute a breaker that trips on the confirmation query's doc-values checkpoint to verify it consults the request breaker
+        // and passes 0 bytes. Non-zero calls (e.g. the guarded wildcard automaton build) are let through: they are covered elsewhere and
+        // would otherwise trip before the checkpoint under test ever runs.
         AtomicLong checkpointedBytes = new AtomicLong(-1);
         CircuitBreaker breaker = new NoopCircuitBreaker("test") {
             @Override
             public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-                checkpointedBytes.set(bytes);
-                throw new CircuitBreakingException("test trip", Durability.TRANSIENT);
+                if ("binary_doc_values_decode".equals(label)) {
+                    checkpointedBytes.set(bytes);
+                    throw new CircuitBreakingException("test trip", Durability.TRANSIENT);
+                }
             }
         };
 
@@ -319,6 +323,19 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     // Test long query strings don't cause exceptions
+    /** With a request breaker in the context, the pattern is built step by step on it before any approximation is made. */
+    public void testRegexpQueryIsChargedToTheBreaker() {
+        // A mock context, because the field type reads only the breaker from it before the pattern trips.
+        SearchExecutionContext context = mock(SearchExecutionContext.class);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        when(context.getCircuitBreaker()).thenReturn(breaker);
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> wildcardFieldType.fieldType().regexpQuery("x?{500}{2}", RegExp.ALL, 0, 20000, null, context)
+        );
+        assertEquals(0L, breaker.getUsed());
+    }
+
     public void testTooBigQueryField() throws IOException {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER_7_10);
@@ -375,6 +392,32 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         expectPrefixMatch(searcher, "f*o", 1);
         expectPrefixMatch(searcher, "f*oo?", 1);
         expectPrefixMatch(searcher, "f??o", 0);
+
+        reader.close();
+        dir.close();
+    }
+
+    public void testCaseInsensitiveTermQueryOnEmptyString() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER_7_10);
+        iwc.setMergePolicy(newTieredMergePolicy(random()));
+        RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
+
+        for (String value : List.of("", "a")) {
+            Document doc = new Document();
+            LuceneDocument parseDoc = new LuceneDocument();
+            addFields(parseDoc, doc, value);
+            indexDoc(parseDoc, doc, iw);
+        }
+
+        iw.forceMerge(1);
+        DirectoryReader reader = iw.getReader();
+        IndexSearcher searcher = newSearcher(reader);
+        iw.close();
+
+        expectTermMatch(searcher, "", 1);
+        Query q = wildcardFieldType.fieldType().termQueryCaseInsensitive("", MOCK_CONTEXT);
+        assertThat(searcher.count(q), equalTo(1));
 
         reader.close();
         dir.close();
@@ -440,7 +483,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
                 }
                 case 1 -> {
                     pattern = getRandomRegexPattern(values);
-                    int matchFlags = randomBoolean() ? 0 : RegExp.ASCII_CASE_INSENSITIVE;
+                    int matchFlags = randomBoolean() ? 0 : RegExp.CASE_INSENSITIVE;
                     wildcardFieldQuery = wildcardFieldType.fieldType()
                         .regexpQuery(pattern, RegExp.ALL, matchFlags, 20000, null, MOCK_CONTEXT);
                     keywordFieldQuery = keywordFieldType.fieldType()
@@ -754,18 +797,46 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     public void testQueryCachingEqualityFromAutomaton() {
         String pattern = "A*b*B?a";
         // Case sensitivity matters when it comes to caching
-        Query csQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false, false);
-        Query ciQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, true, false);
+        Query csQ = BinaryDvConfirmedQuery.fromWildcardQuery(
+            Queries.ALL_DOCS_INSTANCE,
+            "field",
+            pattern,
+            false,
+            false,
+            NoopCircuitBreaker.INSTANCE
+        );
+        Query ciQ = BinaryDvConfirmedQuery.fromWildcardQuery(
+            Queries.ALL_DOCS_INSTANCE,
+            "field",
+            pattern,
+            true,
+            false,
+            NoopCircuitBreaker.INSTANCE
+        );
         assertNotEquals(csQ, ciQ);
         assertNotEquals(csQ.hashCode(), ciQ.hashCode());
 
         // Same query should be equal
-        Query csQ2 = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false, false);
+        Query csQ2 = BinaryDvConfirmedQuery.fromWildcardQuery(
+            Queries.ALL_DOCS_INSTANCE,
+            "field",
+            pattern,
+            false,
+            false,
+            NoopCircuitBreaker.INSTANCE
+        );
         assertEquals(csQ, csQ2);
         assertEquals(csQ.hashCode(), csQ2.hashCode());
 
         // Different arrayOrder should not be equal
-        Query arrayOrderQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false, true);
+        Query arrayOrderQ = BinaryDvConfirmedQuery.fromWildcardQuery(
+            Queries.ALL_DOCS_INSTANCE,
+            "field",
+            pattern,
+            false,
+            true,
+            NoopCircuitBreaker.INSTANCE
+        );
         assertNotEquals(csQ, arrayOrderQ);
         assertNotEquals(csQ.hashCode(), arrayOrderQ.hashCode());
     }
@@ -1251,7 +1322,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         if (field != null) {
             doc.add(field);
             // SeparateCount format stores the value count in a companion numeric doc values field (".counts").
-            // It must be copied alongside the main binary field for MultiValuedSortedBinaryDocValues to decode values.
+            // It must be copied alongside the main binary field for MultiValuedSortableBinaryDocValues to decode values.
             if (field instanceof MultiValuedBinaryDocValuesField.SeparateCount separateCount) {
                 doc.add(separateCount.countField());
             } else {
@@ -1370,8 +1441,9 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             List<String> in = values.stream().map(Tuple::v1).toList();
             List<String> docValuesValues = new ArrayList<>();
             List<String> ignoredValues = new ArrayList<>();
+            boolean ignoreAboveIsNoOp = isColumnar;
             values.stream().map(Tuple::v2).forEach(v -> {
-                if (ignoreAbove != null && v.length() > ignoreAbove) {
+                if (ignoreAboveIsNoOp == false && ignoreAbove != null && v.length() > ignoreAbove) {
                     ignoredValues.add(v);
                 } else {
                     docValuesValues.add(v);
@@ -1586,10 +1658,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     public void testColumnBatchNgramWrappingShape() throws Exception {
-        Settings columnarSettings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        Settings columnarSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService ms = createMapperService(columnarSettings, fieldMapping(b -> b.field("type", "wildcard")));
 
         final String value = "hello";
@@ -1631,10 +1700,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     public void testColumnBatchMultiValueArrayOrderShape() throws Exception {
-        Settings columnarSettings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        Settings columnarSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService ms = createMapperService(columnarSettings, fieldMapping(b -> b.field("type", "wildcard")));
 
         withColumnBatch(ms, "field", columns -> {

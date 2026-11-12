@@ -35,6 +35,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -96,8 +97,8 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
  *         of the {@code switch} statements that required the new type. You'll remove
  *         those as part of this process. But it's important that the code can compile.</li>
  *     <li>
- *         New tests using the type will require a new {@code EsqlCapabilities} entry,
- *         otherwise bwc tests will fail (even in SNAPSHOT builds) because old nodes don't
+ *         New yaml or csv-spec tests using the type will require a new {@code EsqlCapabilities}
+ *         entry, otherwise bwc tests will fail (even in SNAPSHOT builds) because old nodes don't
  *         know about the new type. This capability needs to be SNAPSHOT-only as long as
  *         the type is under construction.</li>
  *     <li>
@@ -118,11 +119,6 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
  *         At this point, the CSV tests should fail with a sensible ES|QL error
  *         message. Make sure they're failing in ES|QL, not in the test
  *         framework.</li>
- *     <li>
- *         Add the new data type to this enum. This will cause a bunch of
- *         compile errors for switch statements throughout the code.  Resolve those
- *         as appropriate. That is the main way in which the new type will be tied
- *         into the framework.</li>
  *     <li>
  *         Add typed data generators to TestCaseSupplier, and make sure all
  *         functions that support the new type have tests for it.</li>
@@ -159,6 +155,17 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
  *         {@link EsqlDataTypeConverter#commonType}, individual function type checking,
  *         the verifier rules, or other places. We suggest starting with CSV tests and
  *         seeing where they fail.</li>
+ *     <li> Consider how the type will interact with
+ *         {@link org.elasticsearch.xpack.esql.plan.QuerySettings#UNMAPPED_FIELDS}.
+ *         The {@code LOAD} and {@code LOAD_ALL} modes lode unmapped fields from
+ *         {@code _source} as keyword fields, and this must not be broken (which
+ *         generally shouldn't be a problem). The important case is that of partially
+ *         unmapped non-keyword fields (PUNKs), where values loaded from {@code _source}
+ *         get autocast to the mapped type (from their keyword representation).
+ *         This needs good testing to ensure the right behavior of PUNKs. If
+ *         autocasting is not possible or sensible, we can keep emitting nulls for
+ *         indices where the field is unmapped, but should also emit a warning;
+ *         like for {@link DataType#AGGREGATE_METRIC_DOUBLE}.</li>
  *     <li>
  *         Ensure the new type doesn't break {@code FROM idx | KEEP *} queries by
  *         updating AllSupportedFieldsTestCase. Make sure to run this test in bwc
@@ -246,7 +253,12 @@ public enum DataType implements Writeable {
         builder().esType("integer").estimatedSize(Integer.BYTES).wholeNumber().docValues().counter(COUNTER_INTEGER).supportedOnAllNodes()
     ),
     /**
-     * 64-bit unsigned numbers packed into a java {@code long}.
+     * 64-bit unsigned numbers packed into a java {@code long}. ESQL stores {@code unsigned_long} inside a signed {@code LongBlock}
+     * with the sign bit flipped. This allows signed-long ordering to match unsigned ordering. The
+     * {@link org.elasticsearch.xpack.esql.core.util.NumericUtils}
+     * class provides conversion and calculation utilities for this encoding.
+     *
+     * @see org.elasticsearch.xpack.esql.core.util.NumericUtils#unsignedLongAsNumber(long)
      */
     UNSIGNED_LONG(builder().esType("unsigned_long").estimatedSize(Long.BYTES).wholeNumber().docValues().supportedOnAllNodes()),
     /**
@@ -415,6 +427,13 @@ public enum DataType implements Writeable {
             .estimatedSize(Long.BYTES * 2)
             .docValues()
             .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
+    ),
+    /**
+     * Dynamically loaded label container: a label dictionary that PromQL manipulates internally. Never reaches a response: PromQL
+     * hands the user its keyword JSON form.
+     */
+    TIME_SERIES_METADATA_DATA_TYPE(
+        builder().typeName("_tsmd").estimatedSize(1024).underConstruction(TransportVersion.fromName("tsmd_data_type"))
     ),
     PARTIAL_AGG(
         builder().esType("partial_agg")
@@ -814,22 +833,40 @@ public enum DataType implements Writeable {
         }
     }
 
+    private static final EnumSet<DataType> NON_REPRESENTABLE_OUTPUT_TYPES = EnumSet.of(
+        OBJECT,
+        DATE_PERIOD,
+        TIME_DURATION,
+        BYTE,
+        SHORT,
+        FLOAT,
+        SCALED_FLOAT,
+        HALF_FLOAT,
+        PARTIAL_AGG,
+        DOC_DATA_TYPE,
+        TIME_SERIES_METADATA_DATA_TYPE
+    );
+
     /**
-     * Supported types that can be contained in a block.
+     * Types that can appear in user-visible result columns and therefore require an output formatter.
+     * Includes counters and {@code _source}. Internal types such as Lucene document IDs and types promoted before
+     * execution must not escape into responses.
      */
-    public static boolean isRepresentable(DataType t) {
-        return t != OBJECT
-            && t != UNSUPPORTED
-            && t != DATE_PERIOD
-            && t != TIME_DURATION
-            && t != BYTE
-            && t != SHORT
-            && t != FLOAT
-            && t != SCALED_FLOAT
+    public static boolean isRepresentableInOutput(DataType t) {
+        return NON_REPRESENTABLE_OUTPUT_TYPES.contains(t) == false;
+    }
+
+    /**
+     * Types permitted as general-purpose values by expression validation. Individual functions may impose further
+     * restrictions. Counters and {@code _source} require special handling in expressions rather than being accepted
+     * wherever a representable value is expected. A typed label container never reaches a response but is an ordinary
+     * value inside the plan.
+     */
+    public static boolean isRepresentableInExpression(DataType t) {
+        return (isRepresentableInOutput(t) || t == TIME_SERIES_METADATA_DATA_TYPE)
+            && t.isCounter() == false
             && t != SOURCE
-            && t != HALF_FLOAT
-            && t != PARTIAL_AGG
-            && t.isCounter() == false;
+            && t != UNSUPPORTED;
     }
 
     public static boolean isCounter(DataType t) {
@@ -869,7 +906,8 @@ public enum DataType implements Writeable {
     }
 
     public static boolean isSortable(DataType t) {
-        return false == (t == SOURCE
+        return false == (t == TIME_SERIES_METADATA_DATA_TYPE
+            || t == SOURCE
             || isCounter(t)
             || isSpatialOrGrid(t)
             || t == AGGREGATE_METRIC_DOUBLE

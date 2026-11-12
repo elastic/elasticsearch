@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
@@ -203,7 +203,7 @@ public interface SourceLoader {
             private final SyntheticFieldLoader.DocValuesLoader docValuesLoader;
             private final Map<String, SyntheticFieldLoader.StoredFieldLoader> storedFieldLoaders;
             private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
-            private final MultiValuedSortedBinaryDocValues ignoredSourcedocValues;
+            private final MultiValuedSortableBinaryDocValues ignoredSourcedocValues;
 
             private SyntheticLeaf(
                 SourceFilter filter,
@@ -221,7 +221,7 @@ public interface SourceLoader {
                 this.ignoredSourceFormat = ignoredSourceFormat;
                 if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE) {
                     this.ignoredSourcedocValues = Objects.requireNonNull(
-                        MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, IgnoredSourceFieldMapper.NAME)
+                        MultiValuedSortableBinaryDocValues.fromMultiValued(leafReader, IgnoredSourceFieldMapper.NAME)
                     );
                 } else {
                     this.ignoredSourcedocValues = null;

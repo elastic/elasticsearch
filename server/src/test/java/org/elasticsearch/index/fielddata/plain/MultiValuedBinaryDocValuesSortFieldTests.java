@@ -21,6 +21,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.Directory;
@@ -353,6 +354,66 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
         }
     }
 
+    /**
+     * An index sorted by this field, flushed with a document that holds only nulls among multi-valued ones. That document writes its
+     * {@code .counts} but no binary value, so the counts are dense where the binary values are sparse; the flush-time sort has to keep
+     * the two in step by document rather than by position, or every document after the gap is decoded with its neighbour's count.
+     */
+    public void testArrayOrder_indexSortAtFlush_documentWithoutValue() throws IOException {
+        for (boolean maxMode : new boolean[] { false, true }) {
+            final SortField sortField = new MultiValuedBinaryDocValuesSortField(
+                "name",
+                false,
+                SortField.STRING_LAST,
+                maxMode,
+                ARRAY_ORDER_INLINE_NULL
+            );
+            try (
+                Directory dir = newDirectory();
+                IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null).setIndexSort(new Sort(sortField)))
+            ) {
+                addArrayOrderDoc(w, "zebra", "bob");
+                addArrayOrderDoc(w, (String) null);
+                addArrayOrderDoc(w, "mango", "apple", "orange");
+                addArrayOrderDoc(w, "delta", "charlie");
+                try (DirectoryReader reader = DirectoryReader.open(w)) {
+                    LeafReader leaf = getOnlyLeafReader(reader);
+                    BinaryDocValues dvs = new MultiValuedBinaryDocValuesSortField(
+                        "name",
+                        false,
+                        SortField.STRING_LAST,
+                        maxMode,
+                        ARRAY_ORDER_INLINE_NULL
+                    ).getSortKeyDocValues(leaf);
+                    final String[] expected = maxMode
+                        ? new String[] { "delta", "orange", "zebra", null }
+                        : new String[] { "apple", "bob", "charlie", null };
+                    for (int doc = 0; doc < expected.length; doc++) {
+                        if (expected[doc] == null) {
+                            assertFalse("maxMode=" + maxMode + " doc=" + doc, dvs.advanceExact(doc));
+                        } else {
+                            assertTrue("maxMode=" + maxMode + " doc=" + doc, dvs.advanceExact(doc));
+                            assertEquals("maxMode=" + maxMode + " doc=" + doc, new BytesRef(expected[doc]), dvs.binaryValue());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Adds a document whose {@code name} holds {@code values} in document order, a {@code null} element being a null slot. */
+    private static void addArrayOrderDoc(IndexWriter w, String... values) throws IOException {
+        LuceneDocument doc = new LuceneDocument();
+        for (String value : values) {
+            if (value == null) {
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(doc, "name");
+            } else {
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(doc, "name", new BytesRef(value));
+            }
+        }
+        w.addDocument(doc);
+    }
+
     // =========================================================================
     // getSortKeyDocValues — ColumnarPayload format (slot count carried in the blob)
     // =========================================================================
@@ -398,7 +459,7 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
     public void testColumnarPayload_withInlineNull_skipsNullSlot() throws IOException {
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
             LuceneDocument doc = new LuceneDocument();
-            ColumnarBinaryDocValuesField.recordNull(doc, "name");
+            ColumnarBinaryDocValuesField.recordNull(doc, "name", null);
             ColumnarBinaryDocValuesField.recordValue(doc, "name", new BytesRef("zebra"), ValueOrdering.UNSORTED);
             ColumnarBinaryDocValuesField.recordValue(doc, "name", new BytesRef("bob"), ValueOrdering.UNSORTED);
             w.addDocument(doc);
@@ -422,12 +483,12 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
     public void testColumnarPayload_noNonNullSlot_readsAsMissing() throws IOException {
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
             LuceneDocument allNull = new LuceneDocument();
-            ColumnarBinaryDocValuesField.recordNull(allNull, "name");
-            ColumnarBinaryDocValuesField.recordNull(allNull, "name");
+            ColumnarBinaryDocValuesField.recordNull(allNull, "name", null);
+            ColumnarBinaryDocValuesField.recordNull(allNull, "name", null);
             w.addDocument(allNull);
 
             LuceneDocument emptyArray = new LuceneDocument();
-            ColumnarBinaryDocValuesField.recordEmptyArray(emptyArray, "name");
+            ColumnarBinaryDocValuesField.recordEmptyArray(emptyArray, "name", null);
             w.addDocument(emptyArray);
 
             try (DirectoryReader reader = DirectoryReader.open(w)) {
@@ -453,7 +514,7 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
             w.addDocument(first);
 
             LuceneDocument allNull = new LuceneDocument();
-            ColumnarBinaryDocValuesField.recordNull(allNull, "name");
+            ColumnarBinaryDocValuesField.recordNull(allNull, "name", null);
             w.addDocument(allNull);
 
             w.addDocument(new LuceneDocument()); // field absent entirely
@@ -504,11 +565,11 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
                 final LuceneDocument doc = new LuceneDocument();
                 if (slots != null) {
                     if (slots.length == 0) {
-                        ColumnarBinaryDocValuesField.recordEmptyArray(doc, "name");
+                        ColumnarBinaryDocValuesField.recordEmptyArray(doc, "name", null);
                     }
                     for (String slot : slots) {
                         if (slot == null) {
-                            ColumnarBinaryDocValuesField.recordNull(doc, "name");
+                            ColumnarBinaryDocValuesField.recordNull(doc, "name", null);
                         } else {
                             ColumnarBinaryDocValuesField.recordValue(doc, "name", new BytesRef(slot), ValueOrdering.UNSORTED);
                         }
@@ -585,6 +646,111 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
         return new MultiValuedBinaryDocValuesSortField("name", false, SortField.STRING_LAST, maxMode, COLUMNAR_PAYLOAD).getSortKeyDocValues(
             leaf
         );
+    }
+
+    // =========================================================================
+    // isMaybeMultiValued — whether the segment's order by this field is the order of every value it holds
+    // =========================================================================
+
+    public void testIsMaybeMultiValued_separateCount() throws IOException {
+        final MultiValuedBinaryDocValuesSortField sortField = new MultiValuedBinaryDocValuesSortField(
+            "name",
+            false,
+            SortField.STRING_LAST,
+            false,
+            SEPARATE_COUNT
+        );
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
+            w.addDocument(new LuceneDocument());
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                assertFalse("no document holds the field", sortField.isMaybeMultiValued(getOnlyLeafReader(reader)));
+            }
+            addSingleValueDoc(w, "alice");
+            addSingleValueDoc(w, "bob");
+            w.forceMerge(1);
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                assertFalse(sortField.isMaybeMultiValued(getOnlyLeafReader(reader)));
+            }
+            LuceneDocument multiValueDoc = new LuceneDocument();
+            MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(multiValueDoc, "name", new BytesRef("zebra"));
+            MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(multiValueDoc, "name", new BytesRef("carol"));
+            w.addDocument(multiValueDoc);
+            w.forceMerge(1);
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                assertTrue(sortField.isMaybeMultiValued(getOnlyLeafReader(reader)));
+            }
+        }
+    }
+
+    public void testIsMaybeMultiValued_arrayOrderInlineNull() throws IOException {
+        final MultiValuedBinaryDocValuesSortField sortField = new MultiValuedBinaryDocValuesSortField(
+            "name",
+            false,
+            SortField.STRING_LAST,
+            false,
+            ARRAY_ORDER_INLINE_NULL
+        );
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
+            addArrayOrderDoc(w, "alice");
+            addArrayOrderDoc(w, "bob");
+            w.forceMerge(1);
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                assertFalse(sortField.isMaybeMultiValued(getOnlyLeafReader(reader)));
+            }
+            addArrayOrderDoc(w, "zebra", "carol");
+            w.forceMerge(1);
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                assertTrue(sortField.isMaybeMultiValued(getOnlyLeafReader(reader)));
+            }
+        }
+    }
+
+    public void testIsMaybeMultiValued_columnarPayload() throws IOException {
+        final MultiValuedBinaryDocValuesSortField sortField = new MultiValuedBinaryDocValuesSortField(
+            "name",
+            false,
+            SortField.STRING_LAST,
+            false,
+            COLUMNAR_PAYLOAD
+        );
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null).setCodec(columnarCodec()))) {
+            w.addDocument(new LuceneDocument());
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                assertFalse("no document holds the field", sortField.isMaybeMultiValued(getOnlyLeafReader(reader)));
+            }
+            for (String value : new String[] { "alice", "bob" }) {
+                LuceneDocument doc = new LuceneDocument();
+                ColumnarBinaryDocValuesField.recordSingleValue(doc, "name", new BytesRef(value), ValueOrdering.UNSORTED);
+                w.addDocument(doc);
+            }
+            w.forceMerge(1);
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                assertFalse(sortField.isMaybeMultiValued(getOnlyLeafReader(reader)));
+            }
+            LuceneDocument multiValueDoc = new LuceneDocument();
+            ColumnarBinaryDocValuesField.recordValue(multiValueDoc, "name", new BytesRef("zebra"), ValueOrdering.UNSORTED);
+            ColumnarBinaryDocValuesField.recordValue(multiValueDoc, "name", new BytesRef("carol"), ValueOrdering.UNSORTED);
+            w.addDocument(multiValueDoc);
+            w.forceMerge(1);
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                assertTrue(sortField.isMaybeMultiValued(getOnlyLeafReader(reader)));
+            }
+        }
+    }
+
+    /** Payloads that are not a column, such as those of the default codec, say nothing of the segment, so it may be multi-valued. */
+    public void testIsMaybeMultiValued_columnarPayloadWithoutAColumn() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
+            LuceneDocument doc = new LuceneDocument();
+            ColumnarBinaryDocValuesField.recordSingleValue(doc, "name", new BytesRef("alice"), ValueOrdering.UNSORTED);
+            w.addDocument(doc);
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                assertTrue(
+                    new MultiValuedBinaryDocValuesSortField("name", false, SortField.STRING_LAST, false, COLUMNAR_PAYLOAD)
+                        .isMaybeMultiValued(getOnlyLeafReader(reader))
+                );
+            }
+        }
     }
 
     public void testEqualsIsReflexive() {

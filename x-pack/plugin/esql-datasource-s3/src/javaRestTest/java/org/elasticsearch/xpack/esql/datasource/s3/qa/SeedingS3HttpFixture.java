@@ -12,6 +12,7 @@ import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 import fixture.s3.S3HttpHandler;
 
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.ExceptionsHelper;
@@ -19,6 +20,14 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiPredicate;
 
 import static fixture.aws.AwsCredentialsUtils.checkAuthorization;
@@ -43,9 +52,13 @@ import static fixture.aws.AwsFixtureUtils.sendError;
 @SuppressForbidden(reason = "test fixture seeds blobs directly into the S3 handler's in-memory store")
 public class SeedingS3HttpFixture extends S3HttpFixture {
 
+    /** Storage classes whose objects S3 refuses to GET until they are restored. */
+    private static final Set<String> ARCHIVE_STORAGE_CLASSES = Set.of("GLACIER", "DEEP_ARCHIVE");
+
     private final String bucket;
     private final BiPredicate<String, String> authorizationPredicate;
     private S3HttpHandler handler;
+    private final List<String> requestLog = Collections.synchronizedList(new ArrayList<>());
 
     /**
      * When non-null, requests signed for a different region receive 400 AuthorizationHeaderMalformed
@@ -76,11 +89,32 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
         this.correctRegion = region;
     }
 
+    /** Object paths ({@code /bucket/key}) that answer 403 AccessDenied, mapped to the S3 error message to send. */
+    private final Map<String, String> deniedKeys = new ConcurrentHashMap<>();
+
+    /**
+     * Makes every request for {@code key} answer 403 {@code AccessDenied} with {@code message} as the S3 error message,
+     * the way S3 answers a read an IAM policy refuses: its message names the principal and the resource ARNs.
+     */
+    public void denyKey(String key, String message) {
+        deniedKeys.put("/" + bucket + "/" + key, message);
+    }
+
+    /** Every request the fixture received, as {@code "<METHOD> <path>"}, in arrival order. */
+    public List<String> requestLog() {
+        return List.copyOf(requestLog);
+    }
+
+    public void clearRequestLog() {
+        requestLog.clear();
+    }
+
     @Override
     protected HttpHandler createHandler() {
         handler = new S3HttpHandler(bucket, "", S3ConsistencyModel.STRONG_MPUS);
         return exchange -> {
             try {
+                requestLog.add(exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath());
                 // Region-validating mode: simulate a custom endpoint that rejects wrong-region signing.
                 final String cr = correctRegion;
                 if (cr != null) {
@@ -103,6 +137,18 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
                     }
                 }
                 if (checkAuthorization(authorizationPredicate, exchange)) {
+                    String denial = deniedKeys.get(exchange.getRequestURI().getPath());
+                    if (denial != null) {
+                        sendError(exchange, RestStatus.FORBIDDEN, "AccessDenied", denial);
+                        return;
+                    }
+                    if ("GET".equals(exchange.getRequestMethod())) {
+                        BlobEntry blob = handler.blobs().get(exchange.getRequestURI().getPath());
+                        if (blob != null && ARCHIVE_STORAGE_CLASSES.contains(blob.storageClass())) {
+                            sendArchived(exchange, blob.storageClass());
+                            return;
+                        }
+                    }
                     if (addressesAnotherBucket(exchange.getRequestURI().getPath())) {
                         // S3 answers a request for a bucket that does not exist with 404 NoSuchBucket;
                         // the shared handler answers 500, which would make a probe measure the fixture.
@@ -124,10 +170,34 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
      * fixture is wrapped in a {@link org.junit.rules.RuleChain}).
      */
     public void seedBlob(String key, byte[] content) {
+        seedBlob(key, content, "STANDARD");
+    }
+
+    /**
+     * Like {@link #seedBlob(String, byte[])}, in the given storage class. A blob in an archive class
+     * ({@code GLACIER}, {@code DEEP_ARCHIVE}) answers GET the way S3 answers an unrestored archived object, with 403
+     * {@code InvalidObjectState}; HEAD and listings still report it, as S3 does.
+     */
+    public void seedBlob(String key, byte[] content, String storageClass) {
         if (handler == null) {
             throw new IllegalStateException("S3 fixture has not been started yet; call seedBlob from @BeforeClass");
         }
-        handler.blobs().put("/" + bucket + "/" + key, new BlobEntry(new BytesArray(content), "STANDARD"));
+        handler.blobs().put("/" + bucket + "/" + key, new BlobEntry(new BytesArray(content), storageClass));
+    }
+
+    /** S3's refusal of a GET on an unrestored archived object; unlike {@code sendError}'s, its body carries the storage class. */
+    private static void sendArchived(HttpExchange exchange, String storageClass) throws IOException {
+        byte[] body = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Error>"
+            + "<Code>InvalidObjectState</Code>"
+            + "<Message>The operation is not valid for the object's storage class</Message>"
+            + "<StorageClass>"
+            + storageClass
+            + "</StorageClass>"
+            + "</Error>").getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().add("Content-Type", "application/xml");
+        exchange.sendResponseHeaders(RestStatus.FORBIDDEN.getStatus(), body.length);
+        exchange.getResponseBody().write(body);
+        exchange.close();
     }
 
     /**

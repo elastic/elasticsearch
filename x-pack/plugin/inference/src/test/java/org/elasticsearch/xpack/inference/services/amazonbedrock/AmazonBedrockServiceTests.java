@@ -26,6 +26,7 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -278,7 +279,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                      }
                     """
             );
-            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+            InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON
             );
@@ -1432,9 +1433,25 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
         );
     }
 
-    @Override
-    public SimilarityMeasure getDefaultSimilarity() {
-        return SimilarityMeasure.COSINE;
+    public void testUpdateModelWithEmbeddingDetails_NullSimilarityInCohereModel_UsesDefaultCosineSimilarity() throws IOException {
+        try (var service = createAmazonBedrockService()) {
+            var embeddingSize = randomNonNegativeInt();
+            var model = AmazonBedrockEmbeddingsModelTests.createModel(
+                randomAlphaOfLength(8),
+                randomAlphaOfLength(8),
+                randomAlphaOfLength(8),
+                AmazonBedrockProvider.COHERE,
+                null,
+                false,
+                null,
+                null,
+                null,
+                randomAlphaOfLength(8),
+                randomAlphaOfLength(8)
+            );
+            var updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
+            assertThat(updatedModel.getServiceSettings().similarity(), is(SimilarityMeasure.COSINE));
+        }
     }
 
     private Map<String, Object> getRequestConfigMap(

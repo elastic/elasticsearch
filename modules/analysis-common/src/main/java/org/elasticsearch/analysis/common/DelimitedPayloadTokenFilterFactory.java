@@ -30,6 +30,7 @@ public class DelimitedPayloadTokenFilterFactory extends AbstractTokenFilterFacto
 
     private final char delimiter;
     private final PayloadEncoder encoder;
+    private final Object sharingKey;
 
     DelimitedPayloadTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
@@ -53,6 +54,9 @@ public class DelimitedPayloadTokenFilterFactory extends AbstractTokenFilterFacto
         } else {
             encoder = DEFAULT_ENCODER;
         }
+        // The encoders are stateless and have identity equality, so key on the encoder class: an unset or
+        // unrecognized encoding falls back to a FloatEncoder and keys the same as an explicit "float".
+        this.sharingKey = new Key(delimiter, encoder.getClass());
     }
 
     @Override
@@ -60,4 +64,10 @@ public class DelimitedPayloadTokenFilterFactory extends AbstractTokenFilterFacto
         return new DelimitedPayloadTokenFilter(tokenStream, delimiter, encoder);
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(char delimiter, Class<? extends PayloadEncoder> encoder) {}
 }

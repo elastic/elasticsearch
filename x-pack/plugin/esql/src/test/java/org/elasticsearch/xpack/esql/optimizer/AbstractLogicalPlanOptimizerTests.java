@@ -56,6 +56,8 @@ import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -115,10 +117,10 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected AbstractLogicalPlanOptimizerTests(VersionMode versionMode) {
         this.versionMode = versionMode;
         minimumVersion = versionMode.version.get();
-        logicalOptimizerCtx = new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), minimumVersion);
+        logicalOptimizerCtx = logicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), minimumVersion);
         logicalOptimizer = new LogicalPlanOptimizer(logicalOptimizerCtx);
         logicalOptimizerWithLatestVersion = new LogicalPlanOptimizer(
-            new LogicalOptimizerContext(logicalOptimizerCtx.configuration(), logicalOptimizerCtx.foldCtx(), TransportVersion.current())
+            logicalOptimizerContext(logicalOptimizerCtx.configuration(), logicalOptimizerCtx.foldCtx(), TransportVersion.current())
         );
     }
 
@@ -319,6 +321,11 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
      * for the golden-test equivalent of this same pattern).
      */
     protected LogicalPlan datasetPlan(String query, String datasetName, String resource, List<Attribute> schema) {
+        return optimize(analyzedDatasetPlan(query, datasetName, resource, schema));
+    }
+
+    /** Like {@link #datasetPlan} but stops after analysis, for tests that apply a single rule to the plan. */
+    protected LogicalPlan analyzedDatasetPlan(String query, String datasetName, String resource, List<Attribute> schema) {
         assumeTrue("requires FROM <dataset> capability", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
         String dataSourceName = datasetName + "_ds";
         ProjectMetadata datasetMetadata = ProjectMetadata.builder(ProjectId.DEFAULT)
@@ -328,12 +335,14 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             )
             .datasets(Map.of(datasetName, new Dataset(datasetName, new DataSourceReference(dataSourceName), resource, null, Map.of())))
             .build();
-        LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
+        LogicalPlan rewritten = rewriteDatasetsUnsecured(
             TEST_PARSER.parseQuery(query),
             datasetMetadata,
-            TestIndexNameExpressionResolver.newInstance()
+            TestIndexNameExpressionResolver.newInstance(),
+            // These cases name their datasets exactly, which reaches them at the wildcards_match_datasets default.
+            false
         );
-        return optimize(analyzer().externalSourceResolution(resource, schema, FileList.UNRESOLVED).buildAnalyzer().analyze(rewritten));
+        return analyzer().externalSourceResolution(resource, schema, FileList.UNRESOLVED).buildAnalyzer().analyze(rewritten);
     }
 
     /**
@@ -378,7 +387,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         List<Expression> dims = new ArrayList<>();
         for (NamedExpression aggregate : aggregates) {
             aggregate.forEachDown(DimensionValues.class, values -> dims.add(values.field()));
-            aggregate.forEachDown(PackDimsAgg.class, packed -> dims.addAll(packed.dims()));
+            aggregate.forEachDown(PackDimsAgg.class, packed -> dims.addAll(packed.fields()));
         }
         return dims;
     }

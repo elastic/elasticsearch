@@ -275,14 +275,14 @@ public final class DatasetRegistry {
      * here is treated as a broken survival invariant and fails teardown rather than being swallowed.
      */
     public static synchronized void cleanup(RestClient client) throws IOException {
-        for (String name : datasets.keySet()) {
-            deleteRegistered(client, "/_query/dataset/" + name);
+        if (datasets.isEmpty() == false) {
+            deleteRegistered(client, "/_query/dataset/" + String.join(",", datasets.keySet()));
+            datasets.clear();
         }
-        datasets.clear();
-        for (String name : dataSources.keySet()) {
-            deleteRegistered(client, "/_query/data_source/" + name);
+        if (dataSources.isEmpty() == false) {
+            deleteRegistered(client, "/_query/data_source/" + String.join(",", dataSources.keySet()));
+            dataSources.clear();
         }
-        dataSources.clear();
     }
 
     /**

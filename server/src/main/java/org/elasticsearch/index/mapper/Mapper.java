@@ -11,9 +11,9 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -30,9 +30,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
+public abstract class Mapper implements Iterable<Mapper> {
 
     public static final String SYNTHETIC_SOURCE_KEEP_PARAM = "synthetic_source_keep";
 
@@ -126,7 +127,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         Setting.Property.ServerlessPublic
     );
 
-    public abstract static class Builder {
+    public abstract static class Builder implements ToXContentFragment {
 
         private String leafName;
 
@@ -140,6 +141,43 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         /** Returns a newly built mapper. */
         public abstract Mapper build(MapperBuilderContext context);
+
+        /**
+         * Rewrites the builder into a normalized form - merges duplicate mapper definitions,
+         * collapses object mappers with subobjects:false, propagates nested include directives, etc.
+         * <p>
+         * Normalizing is idempotent but cannot be undone: it resolves settings that were declared elsewhere, such as an
+         * {@code include_in_root} that an ancestor suppresses or a dimension inherited from a passthrough parent, so they can
+         * no longer be told apart from explicit ones. Merge into a builder before normalizing it, never after. Building and
+         * serializing a {@code MappingBuilder} both normalize it.
+         */
+        public void normalize(MapperBuilderContext context) {}
+
+        /**
+         * Writes this builder as {@code "<leafName>": {...}}
+         * <p>
+         * Serializing a child on its own does not normalize it. Serialize through {@link MappingBuilder}, which does.
+         */
+        @Override
+        public abstract XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException;
+
+        /**
+         * Collect all leaf Builders under this Builder and pass them to a consumer.
+         * <p>
+         * Like serializing, it expects a normalized tree.
+         *
+         * @param parentPath the full path of the object or field this builder is in, or null if it is a child of the root
+         * @param consumer   receives each field builder with its full path
+         */
+        public abstract void collectFieldBuilders(@Nullable String parentPath, BiConsumer<String, Mapper.Builder> consumer);
+
+        /**
+         * The full path of this builder given the full path of its container
+         * @see MapperBuilderContext#buildFullName(String)
+         */
+        protected final String fullPath(@Nullable String parentPath) {
+            return parentPath == null ? leafName() : parentPath + "." + leafName();
+        }
 
         /**
          * Returns the total number of fields that this builder will create.
@@ -181,6 +219,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         private final Integer value;
         private final Integer defaultValue;
+        private final int limit;
 
         public IgnoreAbove(Integer value) {
             this(Objects.requireNonNull(value), IndexMode.STANDARD, IndexVersion.current());
@@ -188,6 +227,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         public IgnoreAbove(Integer value, IndexMode indexMode) {
             this(value, indexMode, IndexVersion.current());
+            assert indexMode == null || indexMode.isStrictColumnar() == false;
         }
 
         public IgnoreAbove(Integer value, IndexMode indexMode, IndexVersion indexCreatedVersion) {
@@ -197,6 +237,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             this.value = value;
             this.defaultValue = getIgnoreAboveDefaultValue(indexMode, indexCreatedVersion);
+            this.limit = isNoOp(indexMode, indexCreatedVersion) ? Integer.MAX_VALUE : (value != null ? value : this.defaultValue);
         }
 
         public int get() {
@@ -211,13 +252,18 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             return Integer.valueOf(get()).equals(defaultValue) == false;
         }
 
+        /** Returns {@link Integer#MAX_VALUE} when {@code ignore_above} is inert (strictly columnar at or after the gate), else the limit.*/
+        public int limit() {
+            return limit;
+        }
+
         /**
          * Returns whether values are potentially ignored, either by an explicitly configured ignore_above or by the default value.
          */
         public boolean valuesPotentiallyIgnored() {
             // We use Integer.MAX_VALUE to represent accepting all values. If the value is anything else, then either we have an
             // explicitly configured ignore_above, or we have a non no-op default.
-            return get() != Integer.MAX_VALUE;
+            return limit != Integer.MAX_VALUE;
         }
 
         /**
@@ -256,7 +302,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
 
         private boolean lengthExceedsIgnoreAbove(int strLength) {
-            return strLength > get();
+            return strLength > limit;
         }
 
         public static int getIgnoreAboveDefaultValue(final IndexMode indexMode, final IndexVersion indexCreatedVersion) {
@@ -265,6 +311,17 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             } else {
                 return IGNORE_ABOVE_DEFAULT_VALUE;
             }
+        }
+
+        /**
+         * Returns {@code true} when {@code ignore_above} is inert: strictly columnar indices at or after
+         * {@link IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR} store only binary doc values, so no value may be dropped.
+         */
+        public static boolean isNoOp(final IndexMode indexMode, final IndexVersion indexCreatedVersion) {
+            return indexMode != null
+                && indexMode.isStrictColumnar()
+                && indexCreatedVersion != null
+                && indexCreatedVersion.onOrAfter(IndexVersions.IGNORE_ABOVE_NO_OP_IN_COLUMNAR);
         }
 
         private static boolean diffIgnoreAboveDefaultForLogs(final IndexMode indexMode, final IndexVersion indexCreatedVersion) {
@@ -307,7 +364,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return getClass().getSimpleName() + "[" + fullPath() + "]";
     }
 
     private static final StringLiteralDeduplicator fieldNameStringDeduplicator = new StringLiteralDeduplicator();

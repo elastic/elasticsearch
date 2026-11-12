@@ -1,0 +1,8 @@
+Limit[1000[INTEGER],false,false]
+\_Project[[emp_no{r}#0, language_code{r}#1, does_not_exist{r}#2]]
+  \_BranchPlan[[null=INDEX, unnamed_view_1=SUBQUERY]]
+    |_Eval[[TO_INTEGER(language_code{f(PotentiallyUnmappedKeywordEsField)}#3) AS language_code#4]]
+    | \_EsRelation[employees][avg_worked_seconds{f}#5, birth_date{f}#6, emp_no{f}#7, first_name{f}#8, gender{f}#9, height{f}#10, height.float{f}#11, height.half_float{f}#12, height.scaled_float{f}#13, hire_date{f}#14, is_rehired{f}#15, job_positions{f}#16, languages{f}#17, languages.byte{f}#18, languages.long{f}#19, languages.short{f}#20, last_name{f}#21, salary{f}#22, salary_change{f}#23, salary_change.int{f}#24, salary_change.keyword{f}#25, salary_change.long{f}#26, still_hired{f}#27, language_code{f(PotentiallyUnmappedKeywordEsField)}#3, does_not_exist{f(PotentiallyUnmappedKeywordEsField)}#28]
+    \_Project[[language_code{f}#29, does_not_exist{f(PotentiallyUnmappedKeywordEsField)}#30]]
+      \_Filter[TOLONG(does_not_exist{f(PotentiallyUnmappedKeywordEsField)}#30) > 1[INTEGER]]
+        \_EsRelation[languages][language_code{f}#29, language_name{f}#31, does_not_exist{f(PotentiallyUnmappedKeywordEsField)}#30]

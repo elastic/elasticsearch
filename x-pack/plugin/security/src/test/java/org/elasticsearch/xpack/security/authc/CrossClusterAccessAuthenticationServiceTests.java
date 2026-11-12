@@ -42,6 +42,8 @@ import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
+import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -86,18 +88,17 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
     }
 
     public void testAuthenticationSuccessOnSuccessfulAuthentication() throws IOException, ExecutionException, InterruptedException {
-        final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
-            CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader(),
-            AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo()
-        );
+        final String apiKeyHeader = CrossClusterAccessRequestHeadersTests.randomEncodedApiKeyHeader();
+        final var subjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo();
+        final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(apiKeyHeader, subjectInfo);
         crossClusterAccessHeaders.writeToContext(threadContext, null);
         final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
         final ArgumentCaptor<Authentication> authenticationCapture = ArgumentCaptor.forClass(Authentication.class);
         doNothing().when(auditableRequest).authenticationSuccess(authenticationCapture.capture());
         doAnswer(invocationOnMock -> {
             AuthenticationToken authenticationToken = (AuthenticationToken) invocationOnMock.getArguments()[2];
-            assertThat(authenticationToken.principal(), is(crossClusterAccessHeaders.credentials().principal()));
-            assertThat(authenticationToken.credentials(), is(crossClusterAccessHeaders.credentials().credentials()));
+            assertThat(authenticationToken.principal(), is(apiKeyCredentials(apiKeyHeader).principal()));
+            assertThat(authenticationToken.credentials(), is(apiKeyCredentials(apiKeyHeader).credentials()));
             return new Authenticator.Context(
                 threadContext,
                 auditableRequest,
@@ -115,24 +116,21 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         listenerCaptor.getValue().onResponse(apiKeyAuthentication);
         future.get();
 
-        final Authentication expectedAuthentication = apiKeyAuthentication.toCrossClusterAccess(
-            crossClusterAccessHeaders.getCleanAndValidatedSubjectInfo()
-        );
+        final Authentication expectedAuthentication = apiKeyAuthentication.toCrossClusterAccess(subjectInfo.cleanAndValidate());
         verify(auditableRequest).authenticationSuccess(expectedAuthentication);
         verifyNoMoreInteractions(auditableRequest);
     }
 
     public void testExceptionProcessingRequestOnInvalidCrossClusterAccessSubjectInfo() throws IOException {
-        final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
-            CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader(),
-            new CrossClusterAccessSubjectInfo(
-                // Invalid internal user
-                AuthenticationTestHelper.builder().internal(InternalUsers.XPACK_USER).build(),
-                new RoleDescriptorsIntersection(
-                    new RoleDescriptor("invalid_role", new String[] { "all" }, null, null, null, null, null, null, null, null, null, null)
-                )
+        final String apiKeyHeader = CrossClusterAccessRequestHeadersTests.randomEncodedApiKeyHeader();
+        final var subjectInfo = new CrossClusterAccessSubjectInfo(
+            // Invalid internal user
+            AuthenticationTestHelper.builder().internal(InternalUsers.XPACK_USER).build(),
+            new RoleDescriptorsIntersection(
+                new RoleDescriptor("invalid_role", new String[] { "all" }, null, null, null, null, null, null, null, null, null, null)
             )
         );
+        final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(apiKeyHeader, subjectInfo);
         crossClusterAccessHeaders.writeToContext(threadContext, null);
         final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
         final ArgumentCaptor<Authentication> authenticationCapture = ArgumentCaptor.forClass(Authentication.class);
@@ -142,8 +140,8 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         );
         doAnswer(invocationOnMock -> {
             AuthenticationToken authenticationToken = (AuthenticationToken) invocationOnMock.getArguments()[2];
-            assertThat(authenticationToken.principal(), is(crossClusterAccessHeaders.credentials().principal()));
-            assertThat(authenticationToken.credentials(), is(crossClusterAccessHeaders.credentials().credentials()));
+            assertThat(authenticationToken.principal(), is(apiKeyCredentials(apiKeyHeader).principal()));
+            assertThat(authenticationToken.credentials(), is(apiKeyCredentials(apiKeyHeader).credentials()));
             return new Authenticator.Context(
                 threadContext,
                 auditableRequest,
@@ -167,17 +165,14 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
             actual.getCause().getCause().getMessage(),
             containsString("received cross cluster request from an unexpected internal user [" + InternalUsers.XPACK_USER.principal() + "]")
         );
-        verify(auditableRequest).exceptionProcessingRequest(
-            any(Exception.class),
-            credentialsArgMatches(crossClusterAccessHeaders.credentials())
-        );
+        verify(auditableRequest).exceptionProcessingRequest(any(Exception.class), credentialsArgMatches(apiKeyCredentials(apiKeyHeader)));
         verifyNoMoreInteractions(auditableRequest);
     }
 
     public void testAuthenticationSuccessfulCrossClusterApiKeySignature() throws IOException, GeneralSecurityException, ExecutionException,
         InterruptedException {
         var subjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo();
-        var apiKeyHeader = CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader();
+        var apiKeyHeader = CrossClusterAccessRequestHeadersTests.randomEncodedApiKeyHeader();
         var certs = PemUtils.readCertificates(List.of(getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.crt")))
             .stream()
             .map(cert -> (X509Certificate) cert)
@@ -193,12 +188,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         final ArgumentCaptor<Authentication> authenticationCapture = ArgumentCaptor.forClass(Authentication.class);
         doNothing().when(auditableRequest).authenticationSuccess(authenticationCapture.capture());
 
-        var authContext = new Authenticator.Context(
-            threadContext,
-            auditableRequest,
-            mock(Realms.class),
-            crossClusterAccessHeaders.credentials()
-        );
+        var authContext = new Authenticator.Context(threadContext, auditableRequest, mock(Realms.class), apiKeyCredentials(apiKeyHeader));
         var action = "action";
         var request = mock(TransportRequest.class);
         when(authenticationService.newContext(anyString(), any(TransportRequest.class), any(ApiKeyCredentials.class))).thenReturn(
@@ -216,16 +206,14 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         listenerCaptor.getValue().onResponse(apiKeyAuthentication);
         future.get();
 
-        final Authentication expectedAuthentication = apiKeyAuthentication.toCrossClusterAccess(
-            crossClusterAccessHeaders.getCleanAndValidatedSubjectInfo()
-        );
+        final Authentication expectedAuthentication = apiKeyAuthentication.toCrossClusterAccess(subjectInfo.cleanAndValidate());
         verify(auditableRequest).authenticationSuccess(expectedAuthentication);
         verifyNoMoreInteractions(auditableRequest);
     }
 
     public void testAuthenticationExceptionOnBadCrossClusterApiKeySignature() throws IOException, GeneralSecurityException {
         var subjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo();
-        var apiKeyHeader = CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader();
+        var apiKeyHeader = CrossClusterAccessRequestHeadersTests.randomEncodedApiKeyHeader();
         var certs = PemUtils.readCertificates(List.of(getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.crt")))
             .stream()
             .map(cert -> (X509Certificate) cert)
@@ -247,12 +235,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         var auditableRequest = mock(AuthenticationService.AuditableRequest.class);
         doAnswer(invocationOnMock -> invocationOnMock.getArguments()[0]).when(auditableRequest).exceptionProcessingRequest(any(), any());
 
-        var authContext = new Authenticator.Context(
-            threadContext,
-            auditableRequest,
-            mock(Realms.class),
-            crossClusterAccessHeaders.credentials()
-        );
+        var authContext = new Authenticator.Context(threadContext, auditableRequest, mock(Realms.class), apiKeyCredentials(apiKeyHeader));
         var action = "action";
         var request = mock(TransportRequest.class);
         when(authenticationService.newContext(anyString(), any(TransportRequest.class), any(ApiKeyCredentials.class))).thenReturn(
@@ -276,16 +259,15 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
     }
 
     public void testNoInteractionWithAuditableRequestOnInitialAuthenticationFailure() throws IOException {
-        final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
-            CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader(),
-            AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo()
-        );
+        final String apiKeyHeader = CrossClusterAccessRequestHeadersTests.randomEncodedApiKeyHeader();
+        final var subjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo();
+        final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(apiKeyHeader, subjectInfo);
         crossClusterAccessHeaders.writeToContext(threadContext, null);
         final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
         doAnswer(invocationOnMock -> {
             AuthenticationToken authenticationToken = (AuthenticationToken) invocationOnMock.getArguments()[2];
-            assertThat(authenticationToken.principal(), is(crossClusterAccessHeaders.credentials().principal()));
-            assertThat(authenticationToken.credentials(), is(crossClusterAccessHeaders.credentials().credentials()));
+            assertThat(authenticationToken.principal(), is(apiKeyCredentials(apiKeyHeader).principal()));
+            assertThat(authenticationToken.credentials(), is(apiKeyCredentials(apiKeyHeader).credentials()));
             return new Authenticator.Context(
                 threadContext,
                 auditableRequest,
@@ -307,6 +289,60 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         verifyNoInteractions(auditableRequest);
     }
 
+    /** Ensures unauthenticated requests cannot reach the subject-info decoder. */
+    public void testMalformedSubjectInfoIsNotDecodedOnAuthenticationFailure() {
+        doTestMalformedSubjectInfo(false);
+    }
+
+    /** Ensures decoding failures after authentication are audited with the API key credentials. */
+    public void testMalformedSubjectInfoIsDecodedAfterAuthenticationSuccess() {
+        doTestMalformedSubjectInfo(true);
+    }
+
+    private void doTestMalformedSubjectInfo(boolean authenticationSucceeds) {
+        final String credentialsHeader = CrossClusterAccessRequestHeadersTests.randomEncodedApiKeyHeader();
+        threadContext.putHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, credentialsHeader);
+        // Invalid base64 fails immediately if any code attempts to decode the subject info.
+        threadContext.putHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY, "not base64");
+        // Mock the authentication pipeline so the test controls when asynchronous API key verification completes.
+        final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
+        when(auditableRequest.exceptionProcessingRequest(any(), any())).thenAnswer(
+            i -> new ElasticsearchSecurityException("subject info decoding failed", i.getArgument(0, Exception.class))
+        );
+        when(authenticationService.newContext(anyString(), any(), any())).thenAnswer(
+            i -> new Authenticator.Context(threadContext, auditableRequest, mock(Realms.class), i.getArgument(2))
+        );
+        @SuppressWarnings("unchecked")
+        final ArgumentCaptor<ActionListener<Authentication>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
+        doAnswer(i -> null).when(authenticationService).authenticate(any(Authenticator.Context.class), listenerCaptor.capture());
+
+        final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+        crossClusterAccessAuthenticationService.authenticate("action", mock(TransportRequest.class), future);
+
+        assertFalse(future.isDone());
+        verifyNoInteractions(auditableRequest);
+        final ActionListener<Authentication> authenticationListener = listenerCaptor.getValue();
+        // The callback must use the captured header, even if the original request context is no longer present.
+        try (var ignored = threadContext.stashContext()) {
+            if (authenticationSucceeds) {
+                authenticationListener.onResponse(AuthenticationTestHelper.builder().apiKey().build(false));
+                final ExecutionException actual = expectThrows(ExecutionException.class, future::get);
+                assertThat(actual.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+                verify(auditableRequest).exceptionProcessingRequest(
+                    any(IllegalArgumentException.class),
+                    credentialsArgMatches(apiKeyCredentials(credentialsHeader))
+                );
+                verifyNoMoreInteractions(auditableRequest);
+            } else {
+                final ElasticsearchSecurityException authenticationFailure = new ElasticsearchSecurityException("authentication failure");
+                authenticationListener.onFailure(authenticationFailure);
+                final ExecutionException actual = expectThrows(ExecutionException.class, future::get);
+                assertSame(authenticationFailure, actual.getCause());
+                verifyNoInteractions(auditableRequest);
+            }
+        }
+    }
+
     public void testTerminateExceptionBubblesUpWithAuthenticateHeaders() {
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<ActionListener<AuthenticationResult<User>>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
@@ -322,6 +358,10 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
 
         final ExecutionException actual = expectThrows(ExecutionException.class, future::get);
         assertThat(actual.getCause(), equalTo(ex));
+    }
+
+    private static ApiKeyCredentials apiKeyCredentials(String apiKeyHeader) {
+        return CrossClusterAccessRequestHeaders.parseCredentials(apiKeyHeader, null);
     }
 
     private static AuthenticationToken credentialsArgMatches(AuthenticationToken credentials) {

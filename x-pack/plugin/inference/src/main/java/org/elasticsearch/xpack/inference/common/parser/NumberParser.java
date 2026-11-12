@@ -36,6 +36,27 @@ public final class NumberParser {
     }
 
     /**
+     * Extract an optional integer from the map. JSON may produce Integer or Long, so a Long is accepted as long as it fits in an int.
+     */
+    public static Integer extractInteger(Map<String, Object> map, String key, String root) {
+        var number = ObjectParserUtils.removeAsType(map, key, root, Number.class);
+
+        if (number == null) {
+            return null;
+        }
+
+        if (number instanceof Integer integer) {
+            return integer;
+        }
+
+        if (number instanceof Long longValue && longValue >= Integer.MIN_VALUE && longValue <= Integer.MAX_VALUE) {
+            return longValue.intValue();
+        }
+
+        throw new IllegalArgumentException(invalidTypeErrorMsg(key, root, number, Integer.class.getSimpleName()));
+    }
+
+    /**
      * Validates that an optional integer service setting, when present, is strictly positive, throwing an
      * {@link IllegalArgumentException} otherwise.
      */

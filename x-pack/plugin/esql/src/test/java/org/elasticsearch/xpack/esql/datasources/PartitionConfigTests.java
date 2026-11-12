@@ -296,4 +296,33 @@ public class PartitionConfigTests extends ESTestCase {
         assertEquals(PartitionConfig.Strategy.TEMPLATE, stored.strategy());
         assertEquals("{year}/junk/{year}", stored.pathTemplate());
     }
+
+    public void testSampleSizeDefaultsWhenAbsent() {
+        assertEquals(PartitionConfig.DEFAULT_PARTITION_SAMPLE_SIZE, PartitionConfig.sampleSize(null));
+        assertEquals(PartitionConfig.DEFAULT_PARTITION_SAMPLE_SIZE, PartitionConfig.sampleSize(Map.of()));
+    }
+
+    public void testSampleSizeAcceptsItsBounds() {
+        assertEquals(1, PartitionConfig.sampleSize(Map.of(PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE, 1)));
+        assertEquals(10_000_000, PartitionConfig.sampleSize(Map.of(PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE, 10_000_000)));
+        assertEquals(500, PartitionConfig.sampleSize(Map.of(PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE, " 500 ")));
+    }
+
+    public void testSampleSizeRejectsValuesOutsideItsRange() {
+        for (Object bad : List.of(0, -1, 10_000_001)) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> PartitionConfig.sampleSize(Map.of(PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE, bad))
+            );
+            assertThat(e.getMessage(), containsString("must be between 1 and 10000000"));
+        }
+    }
+
+    public void testSampleSizeRejectsANonInteger() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionConfig.sampleSize(Map.of(PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE, "many"))
+        );
+        assertThat(e.getMessage(), containsString("must be a positive integer, got [many]"));
+    }
 }

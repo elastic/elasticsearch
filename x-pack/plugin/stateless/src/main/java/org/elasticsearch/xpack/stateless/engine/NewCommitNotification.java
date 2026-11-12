@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.engine;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 
 /**
@@ -48,5 +49,18 @@ public record NewCommitNotification(
             + nodeId
             + '\''
             + '}';
+    }
+
+    public String toShortDescription() {
+        return '['
+            + BatchedCompoundCommit.blobNameFromGeneration(batchedCompoundCommitGeneration)
+            + ']'
+            + compoundCommit.toShortDescription()
+            + '['
+            + nodeId
+            + "]["
+            + clusterStateVersion
+            + ']'
+            + (isBatchedCompoundCommitUploaded() ? "[u]" : "[i]");
     }
 }

@@ -21,8 +21,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.DoubleAsyncMeasurement;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -101,96 +100,90 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 return;
             }
             metrics.add(
-                meterRegistry.registerLongsAsyncGauge(
+                meterRegistry.registerLongAsyncGauge(
                     "es.ml.trained_models.adaptive_allocations.actual_number_of_allocations.current",
                     "the actual number of allocations",
                     "",
-                    this::observeAllocationCount
+                    this::recordAllocationCount
                 )
             );
             metrics.add(
-                meterRegistry.registerLongsAsyncGauge(
+                meterRegistry.registerLongAsyncGauge(
                     "es.ml.trained_models.adaptive_allocations.needed_number_of_allocations.current",
                     "the number of allocations needed according to the adaptive allocations scaler",
                     "",
-                    () -> observeLong(AdaptiveAllocationsScaler::getNeededNumberOfAllocations)
+                    measurement -> recordLong(AdaptiveAllocationsScaler::getNeededNumberOfAllocations, measurement)
                 )
             );
             metrics.add(
-                meterRegistry.registerDoublesAsyncGauge(
+                meterRegistry.registerDoubleAsyncGauge(
                     "es.ml.trained_models.adaptive_allocations.measured_request_rate.current",
                     "the request rate reported by the stats API",
                     "1/s",
-                    () -> observeDouble(AdaptiveAllocationsScaler::getLastMeasuredRequestRate)
+                    measurement -> recordDouble(AdaptiveAllocationsScaler::getLastMeasuredRequestRate, measurement)
                 )
             );
             metrics.add(
-                meterRegistry.registerDoublesAsyncGauge(
+                meterRegistry.registerDoubleAsyncGauge(
                     "es.ml.trained_models.adaptive_allocations.estimated_request_rate.current",
                     "the request rate estimated by the adaptive allocations scaler",
                     "1/s",
-                    () -> observeDouble(AdaptiveAllocationsScaler::getRequestRateEstimate)
+                    measurement -> recordDouble(AdaptiveAllocationsScaler::getRequestRateEstimate, measurement)
                 )
             );
             metrics.add(
-                meterRegistry.registerDoublesAsyncGauge(
+                meterRegistry.registerDoubleAsyncGauge(
                     "es.ml.trained_models.adaptive_allocations.measured_inference_time.current",
                     "the inference time reported by the stats API",
                     "s",
-                    () -> observeDouble(AdaptiveAllocationsScaler::getLastMeasuredInferenceTime)
+                    measurement -> recordDouble(AdaptiveAllocationsScaler::getLastMeasuredInferenceTime, measurement)
                 )
             );
             metrics.add(
-                meterRegistry.registerDoublesAsyncGauge(
+                meterRegistry.registerDoubleAsyncGauge(
                     "es.ml.trained_models.adaptive_allocations.estimated_inference_time.current",
                     "the inference time estimated by the adaptive allocations scaler",
                     "s",
-                    () -> observeDouble(AdaptiveAllocationsScaler::getInferenceTimeEstimate)
+                    measurement -> recordDouble(AdaptiveAllocationsScaler::getInferenceTimeEstimate, measurement)
                 )
             );
             metrics.add(
-                meterRegistry.registerLongsAsyncGauge(
+                meterRegistry.registerLongAsyncGauge(
                     "es.ml.trained_models.adaptive_allocations.queue_size.current",
                     "the queue size reported by the stats API",
                     "s",
-                    () -> observeLong(AdaptiveAllocationsScaler::getLastMeasuredQueueSize)
+                    measurement -> recordLong(AdaptiveAllocationsScaler::getLastMeasuredQueueSize, measurement)
                 )
             );
         }
 
-        Collection<LongWithAttributes> observeLong(Function<AdaptiveAllocationsScaler, Long> getValue) {
-            List<LongWithAttributes> observations = new ArrayList<>();
+        void recordLong(Function<AdaptiveAllocationsScaler, Long> getValue, LongAsyncMeasurement measurement) {
             for (AdaptiveAllocationsScaler scaler : scalers.values()) {
                 Long value = getValue.apply(scaler);
                 if (value != null) {
-                    observations.add(new LongWithAttributes(value, Map.of("deployment_id", scaler.getDeploymentId())));
+                    measurement.record(value, Map.of("deployment_id", scaler.getDeploymentId()));
                 }
             }
-            return observations;
         }
 
-        Collection<DoubleWithAttributes> observeDouble(Function<AdaptiveAllocationsScaler, Double> getValue) {
-            List<DoubleWithAttributes> observations = new ArrayList<>();
+        void recordDouble(Function<AdaptiveAllocationsScaler, Double> getValue, DoubleAsyncMeasurement measurement) {
             for (AdaptiveAllocationsScaler scaler : scalers.values()) {
                 Double value = getValue.apply(scaler);
                 if (value != null) {
-                    observations.add(new DoubleWithAttributes(value, Map.of("deployment_id", scaler.getDeploymentId())));
+                    measurement.record(value, Map.of("deployment_id", scaler.getDeploymentId()));
                 }
             }
-            return observations;
         }
 
-        Collection<LongWithAttributes> observeAllocationCount() {
-            return scalers.values().stream().map(scaler -> {
-                var value = scaler.getNumberOfAllocations();
+        void recordAllocationCount(LongAsyncMeasurement measurement) {
+            for (AdaptiveAllocationsScaler scaler : scalers.values()) {
                 var min = scaler.getMinNumberOfAllocations();
                 var scalesToZero = min == null || min == 0;
-
-                return new LongWithAttributes(
-                    value,
+                measurement.record(
+                    scaler.getNumberOfAllocations(),
                     Map.ofEntries(Map.entry("deployment_id", scaler.getDeploymentId()), Map.entry("scales_to_zero", scalesToZero))
                 );
-            }).toList();
+            }
         }
     }
 

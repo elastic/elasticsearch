@@ -587,15 +587,11 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             )
         );
 
-        if (stage == 0) {
-            assertEquals("Concurrent multipart operation failed", e.getMessage());
-            assertThat(e.getCause(), instanceOf(AwsServiceException.class));
-        } else if (stage == 1) {
+        if (stage == 2) {
+            assertSame(providerException, e);
+        } else {
             assertEquals("Unable to upload object [" + blobName + "] using multipart upload", e.getMessage());
             assertThat(e.getCause(), instanceOf(AwsServiceException.class));
-        } else {
-            assertEquals("Concurrent multipart operation failed", e.getMessage());
-            assertSame(providerException, e.getCause());
         }
 
         verify(client, times(1)).createMultipartUpload(any(CreateMultipartUploadRequest.class));
@@ -865,13 +861,8 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             () -> blobContainer.executeMultipartCopy(randomPurpose(), sourceContainer, sourceBlobName, blobName, blobSize, Runnable::run)
         );
 
-        if (stage == 0) {
-            assertEquals("Concurrent multipart operation failed", e.getMessage());
-            assertThat(e.getCause(), instanceOf(AwsServiceException.class));
-        } else {
-            assertEquals("Unable to copy object [" + blobName + "] using multipart upload", e.getMessage());
-            assertThat(e.getCause(), instanceOf(AwsServiceException.class));
-        }
+        assertEquals("Unable to copy object [" + blobName + "] using multipart upload", e.getMessage());
+        assertThat(e.getCause(), instanceOf(AwsServiceException.class));
 
         verify(client, times(1)).createMultipartUpload(any(CreateMultipartUploadRequest.class));
         verify(client, times(1)).abortMultipartUpload(any(AbortMultipartUploadRequest.class));

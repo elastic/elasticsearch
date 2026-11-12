@@ -96,7 +96,12 @@ public class InferenceService {
                 GetInferenceModelAction.INSTANCE,
                 new GetInferenceModelAction.Request(inferenceId, TaskType.ANY),
                 new ThreadedActionListener<>(threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION), ActionListener.wrap(r -> {
-                    ResolvedInference resolvedInference = new ResolvedInference(inferenceId, r.getEndpoints().getFirst().getTaskType());
+                    var endpoint = r.getEndpoints().getFirst();
+                    ResolvedInference resolvedInference = new ResolvedInference(
+                        inferenceId,
+                        endpoint.getTaskType(),
+                        endpoint.getServiceSettings().similarity()
+                    );
                     inferenceResolutionBuilder.withResolvedInference(resolvedInference);
                     countdownListener.onResponse(null);
                 }, e -> {

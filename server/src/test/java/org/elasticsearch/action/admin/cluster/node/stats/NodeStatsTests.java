@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -600,6 +601,7 @@ public class NodeStatsTests extends ESTestCase {
             ++iota,
             ++iota,
             ++iota,
+            ++iota,
             false,
             ++iota,
             ++iota,
@@ -613,6 +615,7 @@ public class NodeStatsTests extends ESTestCase {
         indicesCommonStats.getRequestCache().add(new RequestCacheStats(++iota, ++iota, ++iota, ++iota));
 
         final SearchStats.Stats searchStats = new SearchStats.Stats(
+            ++iota,
             ++iota,
             ++iota,
             ++iota,
@@ -682,7 +685,7 @@ public class NodeStatsTests extends ESTestCase {
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message"),
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+            RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         Path path = createTempDir().resolve("indices")
             .resolve(shardRouting.shardId().getIndex().getUUID())
@@ -1058,6 +1061,9 @@ public class NodeStatsTests extends ESTestCase {
         if (frequently()) {
             long maxStatValue = Long.MAX_VALUE / 5;
             indexingPressureStats = new IndexingPressureStats(
+                randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),

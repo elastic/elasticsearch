@@ -45,9 +45,9 @@ public interface RowPositionStrategy {
 
     /**
      * Human-readable reason why this strategy emits the shape it does, available to wrapping
-     * iterators for their {@code describe()} output (the null-splice iterator embeds it) so
-     * {@code _id} composition against a null-splice reader is attributable rather than silently
-     * null. The default returns the simple class name; the null-splice strategy overrides to
+     * iterators for their {@code describe()} output (the null-splice iterator embeds it) so a
+     * {@code _file.record_ref} read against a null-splice reader is attributable rather than
+     * silently null. The default returns the simple class name; the null-splice strategy overrides to
      * expose its constructor reason.
      */
     default String reason() {

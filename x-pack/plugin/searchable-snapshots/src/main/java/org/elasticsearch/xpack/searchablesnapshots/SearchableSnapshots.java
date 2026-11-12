@@ -160,7 +160,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         Setting.Property.NotCopyableOnResize
     );
     public static final Setting<String> SNAPSHOT_INDEX_ID_SETTING = Setting.simpleString(
-        "index.store.snapshot.index_uuid",
+        SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_ID_SETTING_KEY,
         Setting.Property.IndexScope,
         Setting.Property.PrivateIndex,
         Setting.Property.NotCopyableOnResize
@@ -318,7 +318,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         if (DiscoveryNode.canContainData(settings)) {
             final CacheService cacheService = new CacheService(settings, clusterService, threadPool, new PersistentCache(nodeEnvironment));
             this.cacheService.set(cacheService);
-            final BlobCacheMetrics blobCacheMetrics = new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry());
+            final BlobCacheMetrics blobCacheMetrics = new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry(), threadPool);
             final SharedBlobCacheService<CacheKey> sharedBlobCacheService = createSharedBlobCacheService(
                 settings,
                 threadPool,

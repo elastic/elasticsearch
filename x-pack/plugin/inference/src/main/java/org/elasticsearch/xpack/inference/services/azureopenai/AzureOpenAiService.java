@@ -23,6 +23,8 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.InferenceServiceFeatures;
+import org.elasticsearch.inference.configuration.NonStreamingChatFeature;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
@@ -214,7 +216,7 @@ public class AzureOpenAiService extends SenderService<AzureOpenAiModel> {
         if (model instanceof AzureOpenAiEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
             var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+            var similarityToUse = SimilarityMeasure.similarityOrDefault(similarityFromModel);
 
             var updatedServiceSettings = new AzureOpenAiEmbeddingsServiceSettings(
                 serviceSettings.resourceName(),
@@ -318,6 +320,7 @@ public class AzureOpenAiService extends SenderService<AzureOpenAiModel> {
                     .setName(SERVICE_NAME)
                     .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
+                    .setFeatures(InferenceServiceFeatures.of(NonStreamingChatFeature.SUPPORTED_INSTANCE))
                     .build();
             }
         );

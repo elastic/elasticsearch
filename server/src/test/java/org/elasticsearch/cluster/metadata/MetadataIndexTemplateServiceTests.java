@@ -2584,10 +2584,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testPrivateSettingFromIndexSettingsProviderSucceeds() {
         AtomicBoolean invoked = new AtomicBoolean(false);
-        MetadataIndexTemplateService service = getMetadataIndexTemplateService(IndexSettingProviders.of((additionalSettings) -> {
-            additionalSettings.put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey(), "private_setting");
-            invoked.set(true);
-        }));
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService(
+            IndexSettingProviders.of(Set.of(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()), (additionalSettings) -> {
+                additionalSettings.put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey(), "private_setting");
+                invoked.set(true);
+            })
+        );
         ComposableIndexTemplate template = ComposableIndexTemplate.builder()
             .indexPatterns(List.of("foo-*"))
             .priority(1L)
@@ -2599,11 +2601,13 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testPrivateSettingFromTemplateFails() {
         AtomicBoolean invoked = new AtomicBoolean(false);
-        MetadataIndexTemplateService service = getMetadataIndexTemplateService(IndexSettingProviders.of((additionalSettings) -> {
-            // just because the provider adds the setting, user-provided settings in the template should still cause a failure
-            additionalSettings.put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey(), "private_setting_from_provider");
-            invoked.set(true);
-        }));
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService(
+            IndexSettingProviders.of(Set.of(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()), (additionalSettings) -> {
+                // just because the provider adds the setting, user-provided settings in the template should still cause a failure
+                additionalSettings.put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey(), "private_setting_from_provider");
+                invoked.set(true);
+            })
+        );
         ComposableIndexTemplate template = ComposableIndexTemplate.builder()
             .indexPatterns(List.of("foo-*"))
             .priority(1L)
@@ -2653,7 +2657,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             xContentRegistry,
             EmptySystemIndices.INSTANCE,
             new IndexSettingProviders(Set.of()),
-            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
+            DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings())
         );
 
         final List<Throwable> throwables = new ArrayList<>();
@@ -2723,7 +2727,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             xContentRegistry(),
             EmptySystemIndices.INSTANCE,
             indexSettingProviders,
-            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+            DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings()),
             instantSource
         );
     }

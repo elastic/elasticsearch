@@ -49,7 +49,7 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
             RestUtils.getMasterNodeTimeout(request),
             Strings.splitStringByCommaToArray(request.param("index"))
         );
-        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
+        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseParamRoutingOrSliceWithProvenance(request);
         clusterSearchShardsRequest.local(request.paramAsBoolean("local", clusterSearchShardsRequest.local()));
         clusterSearchShardsRequest.routing(parsedRouting.routing()).setRoutingFromSlice(parsedRouting.fromSlice());
         clusterSearchShardsRequest.preference(request.param("preference"));

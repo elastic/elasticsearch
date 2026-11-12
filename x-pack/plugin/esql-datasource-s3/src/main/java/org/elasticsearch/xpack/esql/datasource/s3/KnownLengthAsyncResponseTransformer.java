@@ -11,7 +11,7 @@ import software.amazon.awssdk.core.SdkResponse;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.async.SdkPublisher;
 
-import org.elasticsearch.xpack.esql.datasources.DirectByteBufferCopies;
+import org.elasticsearch.xpack.esql.datasources.KnownLengthBodyFill;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
@@ -21,6 +21,7 @@ import org.reactivestreams.Subscription;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -82,6 +83,7 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
 
     private final CompletableFuture<DirectReadBuffer> resultFuture = new CompletableFuture<>();
     private final AtomicBoolean prepared = new AtomicBoolean();
+    private final AtomicBoolean discarded = new AtomicBoolean();
 
     private volatile R response;
     // Kept so exceptionOccurred() can release the buffer even if the subscriber's onError
@@ -148,6 +150,35 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
         publisher.subscribe(chunkCopyingSubscriber);
     }
 
+    /**
+     * Releases a buffer this attempt will not deliver. Idempotent: a second call returns without
+     * throwing and without refunding the breaker charge again.
+     *
+     * <p>The future {@code getObject} returns is not {@link #resultFuture}. Cancelling or failing
+     * that future does not complete this one, and {@link #exceptionOccurred} returns immediately
+     * once {@code resultFuture} is done — including when it already holds a buffer the SDK never
+     * forwarded. {@code whenComplete} closes that parked buffer. When the future is still open,
+     * {@link #exceptionOccurred} closes a buffer the subscriber still holds, the same hook a
+     * superseded cross-region attempt uses.
+     */
+    void discard() {
+        if (discarded.compareAndSet(false, true) == false) {
+            return;
+        }
+        resultFuture.whenComplete((buffer, error) -> {
+            if (buffer != null) {
+                buffer.close();
+            }
+        });
+        // whenComplete above closes a successful result. This check only skips a redundant
+        // exceptionOccurred: once the future is done that method returns immediately and would not
+        // close the buffer. The contract is the method javadoc — call discard() only when this
+        // attempt will not deliver. Do not skip whenComplete to "protect" a delivered buffer.
+        if (resultFuture.isDone() == false) {
+            exceptionOccurred(new CancellationException("read cancelled"));
+        }
+    }
+
     @Override
     public void exceptionOccurred(Throwable error) {
         // Late duplicate notifications are expected: after the subscriber handles its terminal
@@ -191,15 +222,14 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
         private final CompletableFuture<DirectReadBuffer> resultFuture;
         private final int expectedLength;
         private final DirectBufferFactory factory;
-        private final StoragePath path;
+        private final KnownLengthBodyFill fill;
         private final Object destinationLock = new Object();
-        // All four fields below are guarded by destinationLock, with no unsynchronized reads. A
+        // All three fields below are guarded by destinationLock, with no unsynchronized reads. A
         // published owner may leave destinationBuf only through a claim under that lock. Failure
         // claimants close before unlocking and completing failure; a successful claimant either
         // transfers ownership or closes if completion loses. An unpublished owner belongs to
         // onSubscribe, and a successfully transferred owner belongs to the consumer.
         private DirectReadBuffer destinationBuf;
-        private int offset;
         private boolean failed;
         private boolean successClaimed;
 
@@ -214,7 +244,7 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
             this.resultFuture = resultFuture;
             this.expectedLength = expectedLength;
             this.factory = factory;
-            this.path = path;
+            this.fill = new KnownLengthBodyFill("S3", path.objectName(), expectedLength);
         }
 
         @Override
@@ -281,27 +311,17 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
 
         @Override
         public void onNext(ByteBuffer chunk) {
-            int remaining = chunk.remaining();
             ExternalUnavailableException overflow = null;
             synchronized (destinationLock) {
                 DirectReadBuffer drb = destinationBuf;
                 if (drb == null || failed || successClaimed) {
                     return;
                 }
-                // Overflow-safe because offset remains in [0, expectedLength].
-                if (remaining > expectedLength - offset) {
+                overflow = fill.copyOrOverflow(drb, chunk);
+                if (overflow != null) {
                     failed = true;
-                    overflow = new ExternalUnavailableException(
-                        "S3 response body exceeded expected length reading [{}]: cumulative={}, expected={}",
-                        path,
-                        (long) offset + remaining,
-                        expectedLength
-                    );
                     destinationBuf = null;
                     drb.close();
-                } else {
-                    DirectByteBufferCopies.copyChunkIntoDestination(drb.buffer(), offset, chunk);
-                    offset += remaining;
                 }
             }
             if (overflow != null) {
@@ -328,14 +348,9 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
                     return;
                 }
                 destinationBuf = null;
-                if (offset != expectedLength) {
+                shortRead = fill.shortReadOrNull();
+                if (shortRead != null) {
                     failed = true;
-                    shortRead = new ExternalUnavailableException(
-                        "S3 response body shorter than expected reading [{}]: received={}, expected={}",
-                        path,
-                        offset,
-                        expectedLength
-                    );
                     transferred.close();
                 } else {
                     successClaimed = true;
@@ -345,7 +360,7 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
                 resultFuture.completeExceptionally(shortRead);
                 return;
             }
-            transferred.buffer().position(0).limit(offset);
+            transferred.buffer().position(0).limit(fill.offset());
             // Completion can run downstream listeners, so keep it outside destinationLock. If the
             // future was independently completed or cancelled, retain ownership and close here.
             if (resultFuture.complete(transferred) == false) {

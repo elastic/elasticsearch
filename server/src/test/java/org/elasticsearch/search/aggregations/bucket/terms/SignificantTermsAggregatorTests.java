@@ -26,7 +26,9 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -65,6 +67,7 @@ import java.util.TreeSet;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
 import static org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorTests.doc;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SignificantTermsAggregatorTests extends AggregatorTestCase {
@@ -186,6 +189,38 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 assertNull(terms.getBucketByKey("even"));
                 assertNull(terms.getBucketByKey("regular"));
 
+            }
+        }
+    }
+
+    /**
+     * The include/exclude regex is bounded by {@code index.max_regex_length}, like the regexp query, on an unmapped field
+     * too: that one builds no filter, so the pattern is checked before the aggregator is built.
+     */
+    public void testIncludeExcludeRegexLengthLimit() throws IOException {
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean(), false);
+        textFieldType.setFielddata(true);
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()))) {
+            addMixedTextDocs(w);
+            int maxRegexLength = IndexSettings.MAX_REGEX_LENGTH_SETTING.getDefault(Settings.EMPTY);
+            String tooLong = "a".repeat(maxRegexLength + 1);
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                for (String field : List.of("text", "unmapped_field")) {
+                    SignificantTermsAggregationBuilder sigAgg = new SignificantTermsAggregationBuilder("sig_text").field(field)
+                        .executionHint(randomExecutionHint())
+                        .includeExclude(
+                            randomBoolean() ? new IncludeExclude(tooLong, null, null, null) : new IncludeExclude(null, tooLong, null, null)
+                        );
+                    IllegalArgumentException e = expectThrows(
+                        IllegalArgumentException.class,
+                        () -> searchAndReduce(
+                            reader,
+                            new AggTestConfig(sigAgg, textFieldType).withQuery(new TermQuery(new Term("text", "odd")))
+                        )
+                    );
+                    assertThat(e.getMessage(), containsString("allowed maximum of [" + maxRegexLength + "]"));
+                    assertThat(e.getMessage(), containsString(IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()));
+                }
             }
         }
     }
@@ -365,6 +400,27 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
 
             try (DirectoryReader reader = DirectoryReader.open(w)) {
                 expectThrows(IllegalArgumentException.class, () -> searchAndReduce(reader, new AggTestConfig(sigAgg, fieldType)));
+            }
+        }
+    }
+
+    /**
+     * significant_terms rejects floating point fields as a bad request (400) rather than an internal error (500).
+     */
+    public void testFloatingPointFieldRejected() throws IOException {
+        NumberType numberType = randomFrom(NumberType.DOUBLE, NumberType.FLOAT, NumberType.HALF_FLOAT);
+        NumberFieldType fieldType = new NumberFieldMapper.NumberFieldType("float_field", numberType);
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+            LuceneDocument doc = new LuceneDocument();
+            numberType.addFields(doc, "float_field", 1.5, IndexType.points(true, true), false);
+            w.addDocument(doc);
+            SignificantTermsAggregationBuilder sigAgg = new SignificantTermsAggregationBuilder("sig_float").field("float_field");
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> searchAndReduce(reader, new AggTestConfig(sigAgg, fieldType))
+                );
+                assertThat(e.getMessage(), equalTo("Aggregation [sig_float] does not support floating point values"));
             }
         }
     }

@@ -10,7 +10,11 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -20,6 +24,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
@@ -27,7 +32,6 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
@@ -44,6 +48,7 @@ import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -52,8 +57,8 @@ import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataNodeRequestSerializationTests extends AbstractWireSerializingTestCase<DataNodeRequest> {
@@ -101,6 +106,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         );
         DataNodeRequest request = new DataNodeRequest(
             sessionId,
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             randomConfiguration(query, randomTables()),
             randomAlphaOfLength(10),
             shards,
@@ -111,40 +117,79 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            randomBoolean()
+            List.of(),
+            randomNonNegativeLong()
         );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
         return request;
     }
 
-    public void testRetainSearchContextsRoundTrips() throws IOException {
+    /**
+     * An old coordinator sends no cluster state version, and the worker then consults none; one between the two readiness
+     * versions sends it after the dropped decline flag.
+     */
+    public void testClusterStateVersionAcrossTheReadinessVersions() throws IOException {
         DataNodeRequest request = createTestInstance();
-        request = new DataNodeRequest(
-            request.sessionId(),
-            request.configuration(),
-            request.clusterAlias(),
-            request.shards(),
-            request.aliasFilters(),
-            request.plan(),
-            request.indices(),
-            request.indicesOptions(),
-            request.runNodeLevelReduction(),
-            request.reductionLateMaterialization(),
-            true,
-            randomBoolean()
-        );
-        request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
-
-        DataNodeRequest copy = copyInstance(request, TransportVersion.current());
-
-        assertTrue(copy.retainSearchContexts());
-        assertThat(copy.getDescription(), containsString("retainSearchContexts=true"));
-
-        DataNodeRequest downgraded = copyInstance(
+        DataNodeRequest old = copyInstance(
             request,
-            TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_REMOTE_FETCH_RETAINED_CONTEXTS)
+            TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_EXTERNAL_WORKER_READINESS)
         );
-        assertFalse(downgraded.retainSearchContexts());
+        assertThat(old.requiredClusterStateVersion(), equalTo(0L));
+
+        DataNodeRequest withFlag = copyInstance(
+            request,
+            TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_EXTERNAL_WORKER_GATING)
+        );
+        assertThat(withFlag.requiredClusterStateVersion(), equalTo(request.requiredClusterStateVersion()));
+
+        DataNodeRequest current = copyInstance(request, TransportVersion.current());
+        assertThat(current.requiredClusterStateVersion(), equalTo(request.requiredClusterStateVersion()));
+    }
+
+    /**
+     * The format of the readiness version, which the reader only skips, so that a round trip cannot tell what was written:
+     * the decline flag, {@code false}, right ahead of the version, which both formats end with. And a {@code true} from an
+     * older coordinator is ignored.
+     */
+    public void testTheDeclineFlagIsWrittenFalseAndIgnoredAtTheReadinessVersion() throws IOException {
+        DataNodeRequest request = createTestInstance();
+        TransportVersion withFlag = TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_EXTERNAL_WORKER_GATING);
+        byte[] flagged = serialize(request, withFlag);
+        byte[] current = serialize(request, DataNodeRequest.ESQL_EXTERNAL_WORKER_GATING);
+        byte[] version = vlong(request.requiredClusterStateVersion());
+
+        assertThat(flagged.length, equalTo(current.length + 1));
+        int flagAt = flagged.length - 1 - version.length;
+        assertThat("written false", flagged[flagAt], equalTo((byte) 0));
+        assertArrayEquals(Arrays.copyOfRange(flagged, 0, flagAt), Arrays.copyOfRange(current, 0, flagAt));
+        assertArrayEquals(Arrays.copyOfRange(flagged, flagAt + 1, flagged.length), version);
+        assertArrayEquals(Arrays.copyOfRange(current, flagAt, current.length), version);
+
+        flagged[flagAt] = 1;
+        DataNodeRequest askedToDecline = deserialize(flagged, withFlag);
+        assertThat(askedToDecline.requiredClusterStateVersion(), equalTo(request.requiredClusterStateVersion()));
+    }
+
+    private static byte[] serialize(DataNodeRequest request, TransportVersion version) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(version);
+            request.writeTo(out);
+            return BytesReference.toBytes(out.bytes());
+        }
+    }
+
+    private DataNodeRequest deserialize(byte[] bytes, TransportVersion version) throws IOException {
+        try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), getNamedWriteableRegistry())) {
+            in.setTransportVersion(version);
+            return instanceReader().read(in);
+        }
+    }
+
+    private static byte[] vlong(long value) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeVLong(value);
+            return BytesReference.toBytes(out.bytes());
+        }
     }
 
     public void testLoadAllUnmappedFieldsAttributeRoundTripsInPhysicalPlan() throws IOException {
@@ -165,6 +210,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
 
         DataNodeRequest request = new DataNodeRequest(
             "load-all-session",
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             configuration,
             "",
             List.of(new DataNodeRequest.Shard(new ShardId("test", "n/a", 0), SplitShardCountSummary.fromInt(0))),
@@ -172,7 +218,6 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             dataNodePlan,
             new String[] { "test" },
             IndicesOptions.STRICT_EXPAND_OPEN,
-            false,
             false,
             false,
             randomBoolean()
@@ -199,6 +244,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
     @Override
     protected DataNodeRequest mutateInstance(DataNodeRequest in) throws IOException {
         var sessionId = in.sessionId();
+        var queryId = in.queryId();
         var configuration = in.configuration();
         var clusterAlias = in.clusterAlias();
         var shards = in.shards();
@@ -208,11 +254,11 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         var indicesOptions = in.indicesOptions();
         var runNodeLevelReduction = in.runNodeLevelReduction();
         var reductionLateMaterialization = in.reductionLateMaterialization();
-        var retainSearchContexts = in.retainSearchContexts();
         var singleNodeOptimizations = in.singleNodeOptimizations();
+        var requiredClusterStateVersion = in.requiredClusterStateVersion();
         TaskId parentTask = in.getParentTask();
 
-        switch (between(0, 11)) {
+        switch (between(0, 12)) {
             case 0 -> sessionId = randomValueOtherThan(sessionId, () -> randomAlphaOfLength(20));
             case 1 -> configuration = randomValueOtherThan(configuration, () -> randomConfiguration());
             case 2 -> shards = randomValueOtherThan(
@@ -260,13 +306,18 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                 runNodeLevelReduction = runNodeLevelReduction == false;
                 reductionLateMaterialization = reductionLateMaterialization == false;
             }
-            case 10 -> retainSearchContexts = retainSearchContexts == false;
-            case 11 -> singleNodeOptimizations = singleNodeOptimizations == false;
+            case 10 -> singleNodeOptimizations = singleNodeOptimizations == false;
+            case 11 -> requiredClusterStateVersion = randomValueOtherThan(requiredClusterStateVersion, ESTestCase::randomNonNegativeLong);
+            case 12 -> queryId = new TaskId(
+                randomValueOtherThan(queryId.getNodeId(), () -> randomAlphaOfLength(10)),
+                randomNonNegativeLong()
+            );
             default -> throw new AssertionError("invalid value");
         }
 
         var request = new DataNodeRequest(
             sessionId,
+            queryId,
             configuration,
             clusterAlias,
             shards,
@@ -276,8 +327,9 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             indicesOptions,
             runNodeLevelReduction,
             reductionLateMaterialization,
-            retainSearchContexts,
-            singleNodeOptimizations
+            singleNodeOptimizations,
+            List.of(),
+            requiredClusterStateVersion
         );
         request.setParentTask(parentTask);
         return request;
@@ -290,7 +342,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
     static Versioned<LogicalPlan> parse(String query, UnmappedResolution unmappedResolution) {
         var analyzer = analyzer().addIndex("test", "mapping-basic.json").unmappedResolution(unmappedResolution).buildAnalyzer();
         TransportVersion minimumVersion = analyzer.context().minimumVersion();
-        var logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(TEST_CFG, FoldContext.small(), minimumVersion));
+        var logicalOptimizer = new LogicalPlanOptimizer(logicalOptimizerContext(TEST_CFG, FoldContext.small(), minimumVersion));
         return new Versioned<>(logicalOptimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query))), minimumVersion);
     }
 

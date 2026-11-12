@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -29,22 +30,29 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.view.ViewBoundaryPreservation;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings.WildcardsStop;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 /**
  * Rewrites {@code FROM <dataset>} into the same {@link UnresolvedExternalRelation} the
@@ -58,6 +66,11 @@ import java.util.Set;
  * client-side). {@link #resolve} returns, per relation, the authorized concrete dataset names plus whether the
  * relation also targets non-dataset abstractions. {@link #rewrite}/{@link #rewriteOne} then consume that
  * {@link DatasetResolution} to build the plan — they no longer resolve, expand, or gate on authorization.
+ *
+ * <p>Whether a wildcard may resolve to a dataset is governed by the {@code wildcards_match_datasets} query setting, resolved
+ * on the coordinator and threaded in by the caller: when it is off (the default) a dataset is reachable only by an
+ * exact name, so a wildcard resolves exactly as it did before datasets existed. Index expressions are
+ * otherwise untouched.
  */
 public final class DatasetRewriter {
 
@@ -79,15 +92,20 @@ public final class DatasetRewriter {
     /**
      * Per-relation engine-side resolution, run from the {@code EsqlResolveDatasetAction} body. Returns the authorized
      * dataset names, the concrete non-dataset names resolved from the same pattern (used in heterogeneous-FROM
-     * {@link UnionAll} building), and the explicitly-named-but-unauthorized datasets — which {@link #rewriteOne}
+     * {@link BranchPlan} building), and the explicitly-named-but-unauthorized datasets — which {@link #rewriteOne}
      * surfaces as {@code Unknown index} (400), the same error a missing index gives, so an unauthorized dataset
      * can't be told apart from a missing name.
+     *
+     * @param wildcardsMatchDatasets the resolved {@code wildcards_match_datasets} query setting. When {@code false} (the default)
+     *                         a dataset is kept only if it was named exactly; a wildcard that also matched it drops it,
+     *                         so a wildcard does not match a dataset; what else it matches is unaffected.
      */
     public static DatasetResolution resolve(
         String[] authorizedIndices,
         String[] rawPatterns,
         ProjectMetadata projectMetadata,
-        IndexNameExpressionResolver iner
+        IndexNameExpressionResolver iner,
+        boolean wildcardsMatchDatasets
     ) {
         // (a) resolved external datasets: request.indices(), which the security filter already narrowed to the
         // read-privileged subset on a secured cluster (and equals rawPatterns without security). Empty short-circuits,
@@ -122,14 +140,15 @@ public final class DatasetRewriter {
             }
         }
 
-        // Explicit (non-wildcard) dataset names absent from the authorized set — rewriteOne rejects these as Unknown
-        // index rather than silently dropping them from a multi-target FROM.
+        // The exact (non-wildcard) FROM names, date-math resolved: the only names that reach a dataset when
+        // wildcard-dataset matching is off, and the set an explicitly-named dataset must come from to be flagged
+        // unauthorized. Computed once and shared by both uses below.
+        Set<String> exact = exactNames(Arrays.asList(rawPatterns));
+
+        // Explicitly-named datasets absent from the authorized set — rewriteOne rejects these as Unknown index rather
+        // than silently dropping them from a multi-target FROM.
         Set<String> explicitUnauthorized = new LinkedHashSet<>();
-        for (String pattern : rawPatterns) {
-            if (pattern.isEmpty() || pattern.charAt(0) == '-' || Regex.isSimpleMatchPattern(pattern)) {
-                continue;
-            }
-            String name = IndexNameExpressionResolver.resolveDateMathExpression(pattern);
+        for (String name : exact) {
             if (rawDatasetNames.contains(name) && resolvedExternalDatasets.contains(name) == false) {
                 explicitUnauthorized.add(name);
             }
@@ -137,6 +156,12 @@ public final class DatasetRewriter {
 
         Set<String> result = new LinkedHashSet<>(rawDatasetNames);
         result.retainAll(resolvedExternalDatasets);
+        // Enforce the one thing wildcards_match_datasets controls: with it off, a dataset survives only if it was named
+        // exactly. The security filter replaces indices() but keeps rawPatterns, so the exact names computed above are
+        // the user's explicit set even on a secured cluster where wildcards were already expanded to concrete names.
+        if (wildcardsMatchDatasets == false) {
+            result.retainAll(exact);
+        }
         return new DatasetResolution(result, nonDatasetNames, explicitUnauthorized);
     }
 
@@ -160,8 +185,39 @@ public final class DatasetRewriter {
      * relation with the full authorized set and {@link #rewrite}s — the in-process equivalent of
      * {@link DatasetResolver}'s dispatch, minus the {@code EsqlResolveDatasetAction} round-trip. {@code null} or
      * dataset-free project is a no-op.
+     *
+     * @param pragmas the request query pragmas. A set {@code max_branch_count_per_merge} pragma overrides {@code flags}.
+     * @param flags the coordinator's live {@link EsqlFlags}, including {@code esql.query.max_branch_count_per_merge}.
      */
-    public static LogicalPlan rewriteUnsecured(LogicalPlan parsed, ProjectMetadata projectMetadata, IndexNameExpressionResolver iner) {
+    public static LogicalPlan rewriteUnsecured(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        IndexNameExpressionResolver iner,
+        boolean wildcardsMatchDatasets,
+        Map<String, ViewQuerySettings> viewSettings,
+        QueryPragmas pragmas,
+        EsqlFlags flags
+    ) {
+        return rewriteUnsecured(
+            parsed,
+            projectMetadata,
+            iner,
+            wildcardsMatchDatasets,
+            viewSettings,
+            maxBranchCountPerMerge(pragmas, flags),
+            maxBranchCountPerMergeSource(pragmas)
+        );
+    }
+
+    static LogicalPlan rewriteUnsecured(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        IndexNameExpressionResolver iner,
+        boolean wildcardsMatchDatasets,
+        Map<String, ViewQuerySettings> viewSettings,
+        int maxBranchCountPerMerge,
+        String maxBranchCountPerMergeSource
+    ) {
         if (projectMetadata == null) {
             return parsed;
         }
@@ -170,21 +226,85 @@ public final class DatasetRewriter {
             return parsed;
         }
         Map<UnresolvedRelation, DatasetResolution> resolutions = new IdentityHashMap<>();
-        parsed.forEachUp(UnresolvedRelation.class, r -> {
+        forEachRelation(parsed, wildcardsMatchDatasets, viewSettings, (r, relationWildcards) -> {
             if (resolutions.containsKey(r)) {
                 return;
             }
             List<String> patterns = patternsOf(r);
-            if (hasRemotePattern(patterns) || anyPatternCouldMatchDataset(patterns, datasetNames) == false) {
+            if (hasRemotePattern(patterns) || anyPatternCouldMatchDataset(patterns, datasetNames, relationWildcards) == false) {
                 return;
             }
             // Unsecured: the (un-narrowed) raw patterns are the authorized indices — every registered dataset matched
             // by the pattern is authorized, so resolve() returns it.
             String[] raw = patterns.toArray(String[]::new);
-            resolutions.put(r, resolve(raw, raw, projectMetadata, iner));
+            resolutions.put(r, resolve(raw, raw, projectMetadata, iner, relationWildcards));
         });
         // Unsecured/test path runs without CPS (single local project): never preserve a wildcard for remote resolution.
-        return rewrite(parsed, projectMetadata, resolutions, false);
+        return rewrite(parsed, projectMetadata, resolutions, false, maxBranchCountPerMerge, maxBranchCountPerMergeSource);
+    }
+
+    /**
+     * Visits every {@link UnresolvedRelation} in {@code plan} together with its effective {@code wildcards_match_datasets}:
+     * the caller's setting, except inside a view body, where only the view definition's own {@code SET} enables it — the
+     * caller's SET must not change which sources a stored view definition resolves to. A dataset named exactly inside a
+     * view body is unaffected — exact reachability is not what the setting controls.
+     * <p>
+     * A view body is a view branch of a {@link BranchPlan}. Every view is one while the setting is on anywhere (the
+     * caller's SET or a view definition's), because {@code EsqlSession} then resolves views with
+     * {@link ViewBoundaryPreservation#KEEP_VIEW_IDENTITY}: otherwise a pass-through view's relation could merge with a
+     * sibling relation of the caller, and nothing in the merged relation would tell the view's patterns apart from the
+     * caller's. A nested view branch is its own scope, governed by its own definition, exactly like the caller's scope.
+     */
+    static void forEachRelation(
+        LogicalPlan plan,
+        boolean wildcardsMatchDatasets,
+        Map<String, ViewQuerySettings> viewSettings,
+        BiConsumer<UnresolvedRelation, Boolean> action
+    ) {
+        forEachRelation(plan, wildcardsMatchDatasets, null, null, viewSettings, (relation, wildcards, stop) -> {
+            action.accept(relation, wildcards);
+        });
+    }
+
+    /** Receives a relation from {@link #forEachRelation}. */
+    @FunctionalInterface
+    interface ScopedRelationVisitor {
+        /**
+         * @param wildcardsMatchDatasets the relation's effective {@code wildcards_match_datasets}
+         * @param stop where the enclosing scope's {@code true} stopped for this relation, or {@code null} if it was not stopped
+         */
+        void accept(UnresolvedRelation relation, boolean wildcardsMatchDatasets, @Nullable WildcardsStop stop);
+    }
+
+    /**
+     * Like {@link #forEachRelation(LogicalPlan, boolean, Map, BiConsumer)}, also telling the visitor where, if anywhere, the
+     * enclosing scope's {@code wildcards_match_datasets=true} stopped before reaching the relation. {@code settingView} is the
+     * view whose definition {@code SET} {@code wildcardsMatchDatasets}, or {@code null} for the caller's query.
+     */
+    static void forEachRelation(
+        LogicalPlan plan,
+        boolean wildcardsMatchDatasets,
+        @Nullable String settingView,
+        @Nullable WildcardsStop stop,
+        Map<String, ViewQuerySettings> viewSettings,
+        ScopedRelationVisitor visitor
+    ) {
+        if (plan instanceof UnresolvedRelation relation) {
+            visitor.accept(relation, wildcardsMatchDatasets, stop);
+        }
+        List<LogicalPlan> children = plan.children();
+        for (int i = 0; i < children.size(); i++) {
+            boolean effective = wildcardsMatchDatasets;
+            String childSettingView = settingView;
+            WildcardsStop childStop = stop;
+            if (plan instanceof BranchPlan branchPlan && branchPlan.isViewBranch(i)) {
+                String viewName = branchPlan.branchIdentity(i).settingsViewName();
+                effective = ViewQuerySettings.forView(viewName, viewSettings).wildcardsMatchDatasets();
+                childSettingView = effective ? viewName : null;
+                childStop = wildcardsMatchDatasets && effective == false ? new WildcardsStop(settingView, viewName) : null;
+            }
+            forEachRelation(children.get(i), effective, childSettingView, childStop, viewSettings, visitor);
+        }
     }
 
     static boolean hasRemotePattern(List<String> patterns) {
@@ -198,12 +318,13 @@ public final class DatasetRewriter {
 
     /**
      * Walks {@code parsed} and rewrites every {@link UnresolvedRelation} that resolved to external dataset(s) into
-     * {@link UnresolvedExternalRelation} (single dataset) or {@link UnionAll} of such (multi), using the per-relation
-     * {@link DatasetResolution} computed engine-side by {@link #resolve}. All other relations are left untouched. The
-     * {@code projectMetadata == null} / no-datasets-registered short-circuits avoid touching the common path.
+     * {@link UnresolvedExternalRelation} (single dataset) or a {@link BranchPlan} of such (multi) carrying a
+     * {@link BranchIdentity} per branch, using the per-relation {@link DatasetResolution} computed engine-side by
+     * {@link #resolve}. All other relations are left untouched. The {@code projectMetadata == null} /
+     * no-datasets-registered short-circuits avoid touching the common path.
      *
      * <p>Throws {@link VerificationException} for: non-{@code STANDARD} {@link IndexMode} on a dataset, or
-     * {@code UnionAll} branch-cap exceeded. Designed
+     * branch-cap exceeded. Designed
      * to run once on the parsed plan before pre-analysis (so the analyzer sees a uniform
      * {@code UnresolvedExternalRelation} tree regardless of whether the user wrote {@code FROM <dataset>} or inline
      * {@code EXTERNAL}).
@@ -214,12 +335,34 @@ public final class DatasetRewriter {
      * @param crossProjectEnabled whether cross-project search (CPS) is active; when {@code true}, a wildcard that
      *                    matched a dataset is kept alongside the dataset so the remote (linked-project) half still
      *                    resolves — see {@link #rewriteOne}.
+     * @param pragmas the request query pragmas. A set {@code max_branch_count_per_merge} pragma overrides {@code flags}.
+     * @param flags the coordinator's live {@link EsqlFlags}, including {@code esql.query.max_branch_count_per_merge}.
      */
     public static LogicalPlan rewrite(
         LogicalPlan parsed,
         ProjectMetadata projectMetadata,
         Map<UnresolvedRelation, DatasetResolution> resolutions,
-        boolean crossProjectEnabled
+        boolean crossProjectEnabled,
+        QueryPragmas pragmas,
+        EsqlFlags flags
+    ) {
+        return rewrite(
+            parsed,
+            projectMetadata,
+            resolutions,
+            crossProjectEnabled,
+            maxBranchCountPerMerge(pragmas, flags),
+            maxBranchCountPerMergeSource(pragmas)
+        );
+    }
+
+    static LogicalPlan rewrite(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        Map<UnresolvedRelation, DatasetResolution> resolutions,
+        boolean crossProjectEnabled,
+        int maxBranchCountPerMerge,
+        String maxBranchCountPerMergeSource
     ) {
         if (projectMetadata == null) {
             return parsed;
@@ -234,8 +377,26 @@ public final class DatasetRewriter {
             if (resolution == null) {
                 return r;
             }
-            return rewriteOne(r, datasetMetadata, dataSourceMetadata, resolution, crossProjectEnabled);
+            return rewriteOne(
+                r,
+                datasetMetadata,
+                dataSourceMetadata,
+                resolution,
+                crossProjectEnabled,
+                maxBranchCountPerMerge,
+                maxBranchCountPerMergeSource
+            );
         });
+    }
+
+    /** Resolved {@code max_branch_count_per_merge}: a set query pragma overrides {@link EsqlFlags#maxBranchCountPerMerge()}. */
+    private static int maxBranchCountPerMerge(QueryPragmas pragmas, EsqlFlags flags) {
+        return pragmas.maxBranchCountPerMerge(flags.maxBranchCountPerMerge());
+    }
+
+    /** Label for whichever knob supplied {@link #maxBranchCountPerMerge(QueryPragmas, EsqlFlags)}. */
+    private static String maxBranchCountPerMergeSource(QueryPragmas pragmas) {
+        return pragmas.maxBranchCountPerMergeLimitSource(EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE.getKey());
     }
 
     private static LogicalPlan rewriteOne(
@@ -243,7 +404,9 @@ public final class DatasetRewriter {
         DatasetMetadata datasets,
         DataSourceMetadata dataSources,
         DatasetResolution resolution,
-        boolean crossProjectEnabled
+        boolean crossProjectEnabled,
+        int maxBranchCountPerMerge,
+        String maxBranchCountPerMergeSource
     ) {
         if (resolution.explicitUnauthorized().isEmpty() == false) {
             // An explicitly-named dataset the caller can't read — same error (and 400) a missing index gives, so an
@@ -277,9 +440,11 @@ public final class DatasetRewriter {
         // CPS rule (a remote view is invisible, a remote dataset is invisible, and a remote index of the same name reads) must
         // hold uniformly, so the cross-project siblings below are appended regardless of whether the FROM also names
         // local indices. Keeping the two shapes on one path is what stops them drifting.
-        List<LogicalPlan> children = new ArrayList<>();
+        LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
+        LinkedHashMap<String, BranchIdentity> identities = new LinkedHashMap<>();
         for (String name : datasetNames) {
-            children.add(buildDatasetBranch(name, datasets, dataSources, relation.source(), relation.metadataFields()));
+            branches.put(name, buildDatasetBranch(name, datasets, dataSources, relation.source(), relation.metadataFields()));
+            identities.put(name, BranchIdentity.dataset(name));
         }
 
         // Index branch: the concrete local non-dataset names plus, under cross-project, any preserved positive
@@ -292,7 +457,9 @@ public final class DatasetRewriter {
             indexBranch.addAll(crossProjectPatternsToPreserve(patternsOf(relation)));
         }
         if (indexBranch.isEmpty() == false) {
-            children.add(
+            // The null key marks the bare-plan branch, matching the ViewResolver/ViewCompaction convention.
+            branches.put(
+                null,
                 new UnresolvedRelation(
                     relation.source(),
                     new IndexPattern(relation.source(), String.join(",", indexBranch)),
@@ -302,36 +469,53 @@ public final class DatasetRewriter {
                     relation.unresolvedMessage()
                 )
             );
+            identities.put(null, BranchIdentity.INDEX);
         }
 
         // Cap the real-read branches (datasets + the index branch) here, BEFORE the speculative shadows. A shadow
         // strips when its name has no remote namesake, so it must not consume the rewrite-time budget; a matched
-        // shadow is a real read bounded post-analysis by MergePlan.checkBranchCount.
-        if (MergePlan.exceedsMaxBranches(children.size())) {
+        // shadow is a real read bounded by logical verifier.
+        if (branches.size() > maxBranchCountPerMerge) {
             throw new VerificationException(
                 "FROM ["
                     + relation.indexPattern().indexPattern()
                     + "] resolved to "
-                    + children.size()
-                    + " branches, exceeding the current limit of "
-                    + MergePlan.MAX_BRANCHES
-                    + " per FROM. Narrow the pattern, exclude some datasets, or split into multiple queries."
+                    + branches.size()
+                    + " branches, exceeding the limit of "
+                    + maxBranchCountPerMerge
+                    + " set by the "
+                    + maxBranchCountPerMergeSource
+                    + ". Narrow the pattern, exclude some datasets, or split into multiple queries."
             );
         }
 
         // CPS: an exact (non-wildcard) dataset name has no wildcard to re-emit, so its remote half rides a
         // DatasetShadowRelation — a remote index of the same name federates in, a remote view of the same name is ignored,
-        // and a remote dataset of the same name is invisible. See DatasetShadowRelation for the full lifecycle. This stays inert until
-        // datasets exist: datasetNames is non-empty only once datasets are registered, which the upstream
-        // esql_external_datasources feature flag controls — this method enforces no flag check of its own.
+        // and a remote dataset of the same name is invisible. See DatasetShadowRelation for the full lifecycle. This
+        // stays inert until datasets exist: datasetNames is non-empty only once datasets are registered, which dataset
+        // registration gating controls (see Federation) — this method enforces no flag check of its own.
         if (crossProjectEnabled) {
-            children.addAll(crossProjectExactNameShadows(relation, datasetNames));
+            for (DatasetShadowRelation shadow : crossProjectExactNameShadows(relation, datasetNames)) {
+                // A shadow's name is its dataset's name, which already keys the dataset branch — uniquify. A resolved
+                // shadow is a plain remote-index read, so it carries INDEX identity, like ViewResolver's view shadows.
+                branches.put(uniqueKey(branches, shadow.datasetName()), shadow);
+            }
         }
 
-        if (children.size() == 1) {
-            return children.get(0);
+        if (branches.size() == 1) {
+            return branches.values().iterator().next();
         }
-        return new UnionAll(relation.source(), children, List.of());
+        return new BranchPlan(relation.source(), branches, identities, List.of());
+    }
+
+    /** Uniquifies {@code key} against the branch map ({@code "ds"} → {@code "ds~2"}), like {@code ViewCompaction.makeUniqueKey}. */
+    private static String uniqueKey(Map<String, LogicalPlan> branches, String key) {
+        String candidate = key;
+        int counter = 2;
+        while (branches.containsKey(candidate)) {
+            candidate = key + "~" + counter++;
+        }
+        return candidate;
     }
 
     /**
@@ -339,8 +523,18 @@ public final class DatasetRewriter {
      * name. False positives are fine (slow path runs); false negatives would miss datasets, so this
      * must be at least as permissive as the full resolver.
      */
-    static boolean anyPatternCouldMatchDataset(List<String> patterns, Set<String> datasetNames) {
+    static boolean anyPatternCouldMatchDataset(List<String> patterns, Set<String> datasetNames, boolean wildcardsMatchDatasets) {
         if (datasetNames.isEmpty()) {
+            return false;
+        }
+        if (wildcardsMatchDatasets == false) {
+            // Datasets match only exact names — reuse the same exact-name notion resolve() applies (single source of
+            // truth), so the pre-check and the real resolution can't drift.
+            for (String name : exactNames(patterns)) {
+                if (datasetNames.contains(name)) {
+                    return true;
+                }
+            }
             return false;
         }
         for (String pattern : patterns) {
@@ -358,6 +552,42 @@ public final class DatasetRewriter {
             }
         }
         return false;
+    }
+
+    /** The exact (non-wildcard, non-exclusion) names in {@code patterns}, with date math evaluated. */
+    static Set<String> exactNames(List<String> patterns) {
+        Set<String> exact = new LinkedHashSet<>();
+        for (String pattern : patterns) {
+            if (isWildcardOrExclusion(pattern)) {
+                continue;
+            }
+            exact.add(IndexNameExpressionResolver.resolveDateMathExpression(pattern));
+        }
+        return exact;
+    }
+
+    /**
+     * The FROM parts that name something exactly — no wildcard, no exclusion — in their original text, date math
+     * left unresolved so the resolver and the security filter evaluate it as they would for any other request.
+     * <p>
+     * With {@code wildcards_match_datasets} off these are the only parts that can reach a dataset, so they are also the
+     * only parts that should reach the security filter: expanding a wildcard there lets
+     * {@code ViewAndDatasetDlsFlsRequestInterceptor} reject the whole request over a DLS/FLS dataset this request
+     * will never read.
+     */
+    public static String[] exactPatterns(String[] patterns) {
+        List<String> exact = new ArrayList<>(patterns.length);
+        for (String pattern : patterns) {
+            if (isWildcardOrExclusion(pattern) == false) {
+                exact.add(pattern);
+            }
+        }
+        return exact.toArray(String[]::new);
+    }
+
+    /** A FROM part that contributes no exact name: empty, an exclusion ({@code -x}), or a wildcard. */
+    private static boolean isWildcardOrExclusion(String pattern) {
+        return pattern.isEmpty() || pattern.charAt(0) == '-' || Regex.isSimpleMatchPattern(pattern);
     }
 
     /** Splits a relation's FROM pattern string into its comma-separated parts. */
@@ -405,9 +635,25 @@ public final class DatasetRewriter {
                 "dataset [" + name + "] references unknown data source [" + dataset.dataSource().getName() + "]"
             );
         }
-        Map<String, Object> merged = mergeSettings(parent, dataset);
         Literal path = Literal.keyword(source, dataset.resource());
-        return new UnresolvedExternalRelation(source, path, merged, metadataFields, name, dataset.mapping());
+        return new UnresolvedExternalRelation(source, path, datasetConfig(parent, dataset), metadataFields, name, dataset.mapping());
+    }
+
+    /**
+     * The query-time config a dataset is read under: its own settings, its data source's settings under
+     * {@link ExternalSourceResolver#DATASOURCE_CONFIG_KEY}, the dataset context, and the
+     * {@link DefinitionVersion} of the two definitions. The single builder for both the coordinator, which
+     * puts it on the relation here, and the executing node, which rebuilds it from its own cluster state
+     * ({@link DatasetConfigResolver}) instead of trusting the copy that arrived with the plan. One builder,
+     * so the two cannot diverge.
+     */
+    public static Map<String, Object> datasetConfig(DataSource parent, Dataset dataset) {
+        Map<String, Object> merged = mergeSettings(parent, dataset);
+        // Everything cached about this dataset's files is derived from these two definitions, so it is
+        // addressed by a version of them. An edit to either takes the derived entries out of reach
+        // without anything having to notice the edit and invalidate them.
+        merged.put(DefinitionVersion.CONFIG_KEY, DefinitionVersion.of(dataset, parent));
+        return merged;
     }
 
     /**
@@ -427,7 +673,7 @@ public final class DatasetRewriter {
         Set<String> seen = new LinkedHashSet<>();
         for (int i = 0; i < patterns.size(); i++) {
             String pattern = patterns.get(i);
-            if (pattern.isEmpty() || pattern.charAt(0) == '-' || Regex.isSimpleMatchPattern(pattern)) {
+            if (isWildcardOrExclusion(pattern)) {
                 continue;
             }
             // Resolve date-math so a literal-named dataset with a date suffix matches its authorized name.
@@ -490,13 +736,19 @@ public final class DatasetRewriter {
             dsSettings.remove("region");
             merged.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsSettings);
         }
+        // Attach dataset context so operators can annotate classified failures without the full path.
+        // Stripped from storageConfig() before reaching any provider; never sent to the object store.
+        merged.put(
+            ExternalSourceResolver.DATASET_CONTEXT_KEY,
+            Map.of("dataset", dataset.name(), "datasource", parent.name(), "type", parent.type())
+        );
         return merged;
     }
 
     /**
      * Per-relation result of {@link #resolve}: the external dataset names the relation resolved to (security-filtered
      * to those the caller may read), the concrete non-dataset names resolved from the same pattern (drives
-     * heterogeneous-FROM {@link UnionAll} building), and the explicitly-named datasets absent from the resolved set
+     * heterogeneous-FROM {@link BranchPlan} building), and the explicitly-named datasets absent from the resolved set
      * (surfaced by {@link #rewriteOne} as {@code Unknown index}).
      */
     public record DatasetResolution(Set<String> resolvedExternalDatasets, Set<String> nonDatasetNames, Set<String> explicitUnauthorized) {}

@@ -13,8 +13,17 @@
 * [`DATE_TRUNC`](../../functions-operators/date-time-functions/date_trunc.md)
   :::{include} ../generated/x-pack-esql/functions/briefSummary/date_trunc.md
   :::
+* [`DAY`](../../functions-operators/date-time-functions/day.md) {applies_to}`stack: ga 9.6`
+  :::{include} ../generated/x-pack-esql/functions/briefSummary/day.md
+  :::
 * [`DAY_NAME`](../../functions-operators/date-time-functions/day_name.md) {applies_to}`stack: ga 9.2`
   :::{include} ../generated/x-pack-esql/functions/briefSummary/day_name.md
+  :::
+* [`HOUR`](../../functions-operators/date-time-functions/hour.md) {applies_to}`stack: ga 9.6`
+  :::{include} ../generated/x-pack-esql/functions/briefSummary/hour.md
+  :::
+* [`MONTH`](../../functions-operators/date-time-functions/month.md) {applies_to}`stack: ga 9.6`
+  :::{include} ../generated/x-pack-esql/functions/briefSummary/month.md
   :::
 * [`MONTH_NAME`](../../functions-operators/date-time-functions/month_name.md) {applies_to}`stack: ga 9.2`
   :::{include} ../generated/x-pack-esql/functions/briefSummary/month_name.md
@@ -39,4 +48,7 @@
   :::
 * [`TRANGE`](../../functions-operators/date-time-functions/trange.md) {applies_to}`stack: ga 9.3`
   :::{include} ../generated/x-pack-esql/functions/briefSummary/trange.md
+  :::
+* [`YEAR`](../../functions-operators/date-time-functions/year.md) {applies_to}`stack: ga 9.6`
+  :::{include} ../generated/x-pack-esql/functions/briefSummary/year.md
   :::

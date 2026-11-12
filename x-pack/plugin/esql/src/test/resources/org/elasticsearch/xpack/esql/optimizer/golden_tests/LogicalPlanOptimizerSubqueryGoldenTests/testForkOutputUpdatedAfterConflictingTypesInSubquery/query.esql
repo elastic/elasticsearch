@@ -1,0 +1,3 @@
+FROM (ROW x = 1), (ROW x = "abc")
+| FORK (WHERE true) (WHERE true)
+| KEEP x

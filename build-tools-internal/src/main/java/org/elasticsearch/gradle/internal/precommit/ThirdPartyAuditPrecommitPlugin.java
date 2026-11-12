@@ -33,12 +33,11 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
 
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
-        project.getRootProject().getPlugins().apply(CompileOnlyResolvePlugin.class);
         var buildParams = loadBuildParams(project);
 
         project.getPlugins().apply(CompileOnlyResolvePlugin.class);
         project.getConfigurations().create("forbiddenApisCliJar");
-        project.getDependencies().add("forbiddenApisCliJar", "de.thetaphi:forbiddenapis:3.10");
+        project.getDependencies().add("forbiddenApisCliJar", "de.thetaphi:forbiddenapis:3.11");
         Configuration jdkJarHellConfig = project.getConfigurations().create(JDK_JAR_HELL_CONFIG_NAME);
 
         if (project.getPath().equals(LIBS_ELASTICSEARCH_CORE_PROJECT_PATH) == false) {

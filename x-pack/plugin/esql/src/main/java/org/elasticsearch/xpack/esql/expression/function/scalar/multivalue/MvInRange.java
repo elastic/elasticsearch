@@ -425,6 +425,20 @@ public class MvInRange extends EsqlScalarFunction implements OptionalArgument, T
     }
 
     /**
+     * Whether {@code lower} itself is in range, resolved from {@code include_lower} (inclusive when absent). Public so a
+     * caller evaluating this function by other means reads the same answer the evaluator does rather than re-parsing the
+     * options.
+     */
+    public boolean includeLower() {
+        return (boolean) optionsMap().getOrDefault(INCLUDE_LOWER, Boolean.TRUE);
+    }
+
+    /** The {@code include_upper} counterpart of {@link #includeLower}. */
+    public boolean includeUpper() {
+        return (boolean) optionsMap().getOrDefault(INCLUDE_UPPER, Boolean.TRUE);
+    }
+
+    /**
      * Parses the options map once (callers read both flags with {@code getOrDefault(key, true)}). Returns an empty map
      * when there are no options. Resolved lazily (never in the constructor) so {@code resolveType} reports a friendly
      * error before this runs.

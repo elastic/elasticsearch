@@ -27,6 +27,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentType;
 
 import static org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction.performMappingUpdate;
 
@@ -87,6 +88,7 @@ public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNo
     ) {
         final Index[] concreteIndices = new Index[] { request.getConcreteIndex() };
 
+        assert request.xContentType() == XContentType.JSON;
         final String message = TransportPutMappingAction.checkForSystemIndexViolations(systemIndices, concreteIndices, request);
         if (message != null) {
             logger.warn(message);

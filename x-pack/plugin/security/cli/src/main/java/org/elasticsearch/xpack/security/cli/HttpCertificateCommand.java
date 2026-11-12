@@ -10,17 +10,6 @@ package org.elasticsearch.xpack.security.cli;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 
-import org.bouncycastle.asn1.DERIA5String;
-import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
-import org.bouncycastle.asn1.x509.GeneralNames;
-import org.bouncycastle.asn1.x509.KeyPurposeId;
-import org.bouncycastle.cert.CertIOException;
-import org.bouncycastle.openssl.jcajce.JcaMiscPEMGenerator;
-import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
-import org.bouncycastle.operator.OperatorCreationException;
-import org.bouncycastle.operator.OperatorException;
-import org.bouncycastle.pkcs.PKCS10CertificationRequest;
-import org.bouncycastle.util.io.pem.PemObjectGenerator;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.ExitCodes;
@@ -34,10 +23,16 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
+import org.elasticsearch.xpack.security.cli.bc.CertGenUtils;
+import org.elasticsearch.xpack.security.cli.bc.CertificateSigningRequest;
+import org.elasticsearch.xpack.security.cli.bc.KeyPurpose;
+import org.elasticsearch.xpack.security.cli.bc.PemWriter;
+import org.elasticsearch.xpack.security.cli.bc.SubjectAlternativeNames;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -82,9 +77,9 @@ import java.util.zip.ZipOutputStream;
 
 import javax.security.auth.x500.X500Principal;
 
-import static org.elasticsearch.xpack.security.cli.CertGenUtils.buildKeyUsage;
-import static org.elasticsearch.xpack.security.cli.CertGenUtils.generateSignedCertificate;
-import static org.elasticsearch.xpack.security.cli.CertGenUtils.isValidKeyUsage;
+import static org.elasticsearch.xpack.security.cli.bc.CertGenUtils.buildKeyUsage;
+import static org.elasticsearch.xpack.security.cli.bc.CertGenUtils.generateSignedCertificate;
+import static org.elasticsearch.xpack.security.cli.bc.CertGenUtils.isValidKeyUsage;
 
 /**
  * This command is the "elasticsearch-certutil http" command. It provides a guided process for creating
@@ -345,18 +340,18 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         // TODO : Should we add support for configuring PKI in ES?
         try {
             final KeyPair keyPair = CertGenUtils.generateKeyPair(cert.keySize);
-            final GeneralNames sanList = CertificateTool.getSubjectAlternativeNamesValue(cert.ipNames, cert.dnsNames, List.of());
+            final SubjectAlternativeNames sanList = CertGenUtils.getSubjectAlternativeNamesValue(cert.ipNames, cert.dnsNames, List.of());
             final boolean hasPassword = password != null && password.length > 0;
             // TODO Add info to the READMEs so that the user could regenerate these certs if needed.
             // (i.e. show them the certutil cert command that they would need).
             if (ca == null) {
                 // No local CA, generate a CSR instead
-                final PKCS10CertificationRequest csr = CertGenUtils.generateCSR(
+                final CertificateSigningRequest csr = CertGenUtils.generateCSR(
                     keyPair,
                     cert.subject,
                     sanList,
                     buildKeyUsage(cert.keyUsage),
-                    Set.of(new ExtendedKeyUsage(KeyPurposeId.id_kp_serverAuth))
+                    Set.of(KeyPurpose.SERVER_AUTH)
                 );
                 final String csrFile = "http-" + cert.name + ".csr";
                 final String keyFile = "http-" + cert.name + ".key";
@@ -373,8 +368,14 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                     )
                 );
                 writeTextFile(zip, dirName + "/README.txt", ES_README_CSR, substitutions);
-                writePemEntry(zip, dirName + "/" + csrFile, new JcaMiscPEMGenerator(csr));
-                writePemEntry(zip, dirName + "/" + keyFile, generator(keyPair.getPrivate(), password));
+                writePemEntry(zip, dirName + "/" + csrFile, pem -> pem.writeObject(csr));
+                writePemEntry(zip, dirName + "/" + keyFile, pem -> {
+                    if (password == null || password.length == 0) {
+                        pem.writeObject(keyPair.getPrivate());
+                    } else {
+                        pem.writeObject(keyPair.getPrivate(), CertificateTool.getEncrypter(password));
+                    }
+                });
                 writeTextFile(zip, dirName + "/" + ymlFile, ES_YML_CSR, substitutions);
             } else {
                 final ZonedDateTime notBefore = ZonedDateTime.now(ZoneOffset.UTC);
@@ -390,7 +391,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                     notAfter,
                     null,
                     buildKeyUsage(cert.keyUsage),
-                    Set.of(new ExtendedKeyUsage(KeyPurposeId.id_kp_serverAuth))
+                    Set.of(KeyPurpose.SERVER_AUTH)
                 );
 
                 final String p12Name = "http.p12";
@@ -403,7 +404,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                 writeKeyStore(zip, dirName + "/" + p12Name, certificate, keyPair.getPrivate(), password, ca.certAndKey.cert);
                 writeTextFile(zip, dirName + "/" + ymlFile, ES_YML_P12, substitutions);
             }
-        } catch (OperatorException | IOException | GeneralSecurityException e) {
+        } catch (IOException | GeneralSecurityException e) {
             throw new ElasticsearchException("Failed to write certificate to ZIP file", e);
         }
     }
@@ -455,7 +456,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         try {
             writeTextFile(zip, dirName + "/README.txt", KIBANA_README, substitutions);
             if (ca != null) {
-                writePemEntry(zip, dirName + "/" + caCert, new JcaMiscPEMGenerator(ca.certAndKey.cert));
+                writePemEntry(zip, dirName + "/" + caCert, pem -> pem.writeObject(ca.certAndKey.cert));
             }
             writeTextFile(zip, dirName + "/" + ymlFile, KIBANA_YML, substitutions);
         } catch (IOException e) {
@@ -550,21 +551,14 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         }
     }
 
-    private void writePemEntry(ZipOutputStream zip, String name, PemObjectGenerator generator) throws IOException {
+    private void writePemEntry(ZipOutputStream zip, String name, CheckedConsumer<PemWriter, IOException> writer) throws IOException {
         try (
             ZipEntryStream entry = new ZipEntryStream(zip, name);
-            JcaPEMWriter pem = new JcaPEMWriter(new OutputStreamWriter(entry, StandardCharsets.UTF_8))
+            PemWriter pem = new PemWriter(new OutputStreamWriter(entry, StandardCharsets.UTF_8))
         ) {
-            pem.writeObject(generator);
+            writer.accept(pem);
             pem.flush();
         }
-    }
-
-    private static JcaMiscPEMGenerator generator(PrivateKey privateKey, char[] password) throws IOException {
-        if (password == null || password.length == 0) {
-            return new JcaMiscPEMGenerator(privateKey);
-        }
-        return new JcaMiscPEMGenerator(privateKey, CertificateTool.getEncrypter(password));
     }
 
     private static Period getCertificateValidityPeriod(Terminal terminal) {
@@ -775,7 +769,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
     }
 
     private static String validateHostname(String name) {
-        if (DERIA5String.isIA5String(name)) {
+        if (CertGenUtils.isIA5String(name)) {
             return null;
         } else {
             return name + " is not a valid DNS name";
@@ -982,7 +976,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
             terminal.println("");
             final char[] password = readPassword(terminal, "CA password: ", true);
             return new CertificateTool.CAInfo(caCert, keyPair.getPrivate(), true, password);
-        } catch (GeneralSecurityException | CertIOException | OperatorCreationException e) {
+        } catch (GeneralSecurityException | IOException e) {
             throw new IllegalArgumentException("Cannot generate CA key pair", e);
         }
     }

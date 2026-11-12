@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.IndexRoutingTestHelper;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -396,7 +397,7 @@ public class ReshardSearchFiltersTests extends ESTestCase {
         // Place a document in every shard.
         // Later when we test with PIT that uses two shards, there should be two documents per shard.
         for (int i = 0; i < 4; i++) {
-            var id = ReshardingTestHelpers.makeIdThatRoutesToShard(latestRouting, i);
+            var id = IndexRoutingTestHelper.makeIdThatRoutesToShard(latestRouting, i);
             var document = new Document();
             document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.NO));
             iw.addDocument(document);

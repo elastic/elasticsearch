@@ -117,7 +117,7 @@ fls_cross_index:
     - names: [ 'index' ]
       privileges: [ 'read' ]
       field_security:
-        grant: [ value, org ]
+        grant: [ value, org, test_constant ]
     - names: [ 'index-user1' ]
       privileges: [ 'read' ]
       field_security:
@@ -129,11 +129,19 @@ fls_user:
     - names: [ 'index' ]
       privileges: [ 'read' ]
       field_security:
-        grant: [ value, partial ]
+        grant: [ value, partial, constant_values_count ]
     - names: [ 'indexpartial' ]
       privileges: [ 'read' ]
       field_security:
         grant: [ value ]
+
+fls_alias_user:
+  cluster: []
+  indices:
+    - names: [ 'index' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ constant_value_alias ]
 
 # Reads all mapped fields from doc values on index-partial-mapping, but field-level security disables
 # access to stored _source. Used (alone) to verify that unmapped_fields="load" cannot leak _source
@@ -249,6 +257,28 @@ dls_user:
       privileges: [ 'read' ]
       query: '{"match": {"org": "marketing"}}'
 
+# Reads eql-events, but document-level security exposes only its process events. Used to prove the EQL source command's
+# delegated search runs in the caller's security context (its DLS filter applies to the delegated EQL search).
+eql_dls_user:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names: [ 'eql-events' ]
+      privileges: [ 'read' ]
+      query: '{"term": {"event.category": "process"}}'
+
+# Reads eql-events, but field-level security hides the message field. Used to prove the EQL source command's delegated
+# search honors the caller's FLS: the hidden field never appears in the response _source it converts to rows.
+eql_fls_user:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names: [ 'eql-events-fls' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ 'message' ]
+
 dls_user2:
   cluster: []
   indices:
@@ -256,6 +286,93 @@ dls_user2:
       privileges: [ 'read' ]
       query: '{"match": {"org": "sales"}}'
 
+dls_partial_mapping:
+  cluster: []
+  indices:
+    - names: [ 'index-partial-mapping' ]
+      privileges: [ 'read' ]
+      query: '{"range": {"value": {"lt": 15}}}'
+
+dls_fls_partial_mapping:
+  cluster: []
+  indices:
+    - names: [ 'index-partial-mapping' ]
+      privileges: [ 'read' ]
+      query: '{"range": {"value": {"lt": 15}}}'
+      field_security:
+        grant: [ '*' ]
+        except: [ 'org' ]
+
+dls_unmapped_load_all:
+  cluster: []
+  indices:
+    - names: [ 'index-dynamic-disabled' ]
+      privileges: [ 'read' ]
+      query: '{"range": {"value": {"lt": 15}}}'
+
+fls_unmapped_load_all_grant_value:
+  cluster: []
+  indices:
+    - names: [ 'index-dynamic-disabled' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ 'value' ]
+
+fls_unmapped_load_all_grant_value_org:
+  cluster: []
+  indices:
+    - names: [ 'index-dynamic-disabled' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ 'value', 'org' ]
+
+fls_unmapped_load_all_except_ssn:
+  cluster: []
+  indices:
+    - names: [ 'index-dynamic-disabled' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ 'profile.ssn' ]
+
+fls_unmapped_load_all_except_org:
+  cluster: []
+  indices:
+    - names: [ 'index-dynamic-disabled' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ 'org' ]
+
+fls_unmapped_load_all_no_source:
+  cluster: []
+  indices:
+    - names: [ 'index-dynamic-disabled' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ '_source' ]
+
+read_unmapped_load_all:
+  cluster: []
+  indices:
+    - names: [ 'index-dynamic-disabled' ]
+      privileges: [ 'read' ]
+
+read_lookup_unmapped_load_all:
+  cluster: []
+  indices:
+    - names: [ 'lookup-index-dynamic-disabled' ]
+      privileges: [ 'read' ]
+
+fls_lookup_unmapped_load_all_deny_secret:
+  cluster: []
+  indices:
+    - names: [ 'lookup-index-dynamic-disabled' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ 'lookup_secret' ]
 
 logs_foo_all:
   cluster: []
@@ -472,6 +589,18 @@ ds_dataset_query_fls:
       field_security:
         grant: [ 'value' ]
 
+# Plain read on one dataset name, and a DLS-carrying read on a wildcard that matches a different dataset. With
+# wildcards_match_datasets off the wildcard reaches no dataset, so the DLS grant must not reject the query: the request
+# should reach the exactly-named dataset only. See testMixedExactAndDlsWildcardIsNotRejectedWhenWildcardsMatchDatasetsOff.
+ds_dataset_query_ok_plus_dls:
+  cluster: []
+  indices:
+    - names: [ 'security_it_ds_ok_*' ]
+      privileges: [ 'read' ]
+    - names: [ 'security_it_ds_dls_*' ]
+      privileges: [ 'read' ]
+      query: '{"match_all": {}}'
+
 # read on security_it_ds_keep_* only — used to test partial wildcard authorization and an explicitly-unauthorized
 # dataset (security_it_ds_drop_*) in the same FROM.
 ds_dataset_query_partial:
@@ -479,3 +608,22 @@ ds_dataset_query_partial:
   indices:
     - names: [ 'security_it_ds_keep_*' ]
       privileges: [ 'read' ]
+
+fls_unmapped_container_except_k:
+  cluster: []
+  indices:
+    - names: [ 'index-unmapped-container', 'index-unmapped-source' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ 'k' ]
+
+# Hides one key of a flattened field and keeps the others.
+fls_flattened_except_key:
+  cluster: []
+  indices:
+    - names: [ 'index-flattened-keys*' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ 'attrs.bar' ]

@@ -54,6 +54,8 @@ public class Configuration implements Writeable {
 
     private static final TransportVersion ESQL_RESOLVED_SETTINGS = TransportVersion.fromName("esql_resolved_settings");
 
+    static final TransportVersion ESQL_FLATTENED_KEYS = TransportVersion.fromName("esql_flattened_keys");
+
     /**
      * Reserved transport version id from the GROK watchdog work (#152170), which was reverted before release.
      * Intentionally unused: the id is boxed in between released version markers, so it cannot be removed without
@@ -81,6 +83,7 @@ public class Configuration implements Writeable {
     private final boolean profile;
     private final boolean allowPartialResults;
     private final boolean explainOnly;
+    private final boolean flattenedKeys;
 
     private final Map<String, Map<String, Column>> tables;
     private final long queryStartTimeNanos;
@@ -134,14 +137,14 @@ public class Configuration implements Writeable {
             resultTruncationDefaultSizeTimeseries,
             resolvedSettings,
             viewQueries,
+            false,
             false
         );
     }
 
     /**
-     * Canonical constructor — every field is a parameter (the {@code explainOnly} flag is the only difference
-     * from the 16-arg constructor above). {@link ConfigurationBuilder#build()} calls this directly, so any new
-     * field added here must also be added to {@link ConfigurationBuilder}.
+     * Canonical constructor — every field is a parameter. {@link ConfigurationBuilder#build()} calls this
+     * directly, so any new field added here must also be added to {@link ConfigurationBuilder}.
      */
     public Configuration(
         Instant now,
@@ -160,7 +163,8 @@ public class Configuration implements Writeable {
         int resultTruncationDefaultSizeTimeseries,
         ResolvedSettings resolvedSettings,
         Map<String, String> viewQueries,
-        boolean explainOnly
+        boolean explainOnly,
+        boolean flattenedKeys
     ) {
         this.now = now;
         this.username = username;
@@ -181,6 +185,7 @@ public class Configuration implements Writeable {
         this.viewQueries = viewQueries;
         assert viewQueries != null;
         this.explainOnly = explainOnly;
+        this.flattenedKeys = flattenedKeys;
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
@@ -229,6 +234,7 @@ public class Configuration implements Writeable {
         } else {
             this.explainOnly = false;
         }
+        this.flattenedKeys = in.getTransportVersion().supports(ESQL_FLATTENED_KEYS) && in.readBoolean();
         if (readLegacySettings) {
             // project_routing is intentionally not synthesized here — data nodes never had it on the wire.
             this.resolvedSettings = synthesizeResolvedFromLegacy(zi, legacyApproximation);
@@ -286,6 +292,9 @@ public class Configuration implements Writeable {
         }
         if (out.getTransportVersion().supports(ESQL_EXPLAIN_ONLY)) {
             out.writeBoolean(explainOnly);
+        }
+        if (out.getTransportVersion().supports(ESQL_FLATTENED_KEYS)) {
+            out.writeBoolean(flattenedKeys);
         }
         if (writeLegacySettings == false) {
             resolvedSettings.writeTo(out);
@@ -405,6 +414,28 @@ public class Configuration implements Writeable {
     }
 
     /**
+     * Whether a name under a {@code flattened} field is a field: the key of that name.
+     */
+    public boolean flattenedKeys() {
+        return flattenedKeys;
+    }
+
+    /**
+     * Whether a name under a {@code flattened} field is a field on every node of a query whose oldest node is on
+     * {@code minimumVersion}. A node that predates it reads no key.
+     */
+    public boolean flattenedKeys(TransportVersion minimumVersion) {
+        return flattenedKeys && minimumVersion.supports(ESQL_FLATTENED_KEYS);
+    }
+
+    /**
+     * Returns a new Configuration that reads the keys of {@code flattened} fields or not.
+     */
+    public Configuration withFlattenedKeys(boolean flattenedKeys) {
+        return new ConfigurationBuilder(this).flattenedKeys(flattenedKeys).build();
+    }
+
+    /**
      * Returns the map of view names to their query strings.
      */
     public Map<String, String> viewQueries() {
@@ -469,7 +500,8 @@ public class Configuration implements Writeable {
             && allowPartialResults == that.allowPartialResults
             && Objects.equals(resolvedSettings, that.resolvedSettings)
             && viewQueries.equals(that.viewQueries)
-            && explainOnly == that.explainOnly;
+            && explainOnly == that.explainOnly
+            && flattenedKeys == that.flattenedKeys;
     }
 
     @Override
@@ -490,7 +522,8 @@ public class Configuration implements Writeable {
             resultTruncationDefaultSizeTimeseries,
             resolvedSettings,
             viewQueries,
-            explainOnly
+            explainOnly,
+            flattenedKeys
         );
     }
 
@@ -526,6 +559,8 @@ public class Configuration implements Writeable {
             + allowPartialResults
             + ", explainOnly="
             + explainOnly
+            + ", flattenedKeys="
+            + flattenedKeys
             + '}';
     }
 

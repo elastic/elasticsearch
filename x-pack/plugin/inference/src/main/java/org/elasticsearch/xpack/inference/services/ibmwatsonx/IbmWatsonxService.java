@@ -25,6 +25,8 @@ import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.InferenceServiceFeatures;
+import org.elasticsearch.inference.configuration.NonStreamingChatFeature;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
@@ -150,7 +152,7 @@ public class IbmWatsonxService extends SenderService<IbmWatsonxModel> implements
         if (model instanceof IbmWatsonxEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
             var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+            var similarityToUse = SimilarityMeasure.similarityOrDefault(similarityFromModel);
 
             var updatedServiceSettings = new IbmWatsonxEmbeddingsServiceSettings(
                 serviceSettings.modelId(),
@@ -343,6 +345,7 @@ public class IbmWatsonxService extends SenderService<IbmWatsonxModel> implements
                     .setName(SERVICE_NAME)
                     .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
+                    .setFeatures(InferenceServiceFeatures.of(NonStreamingChatFeature.SUPPORTED_INSTANCE))
                     .build();
             }
         );

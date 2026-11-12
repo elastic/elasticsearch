@@ -95,15 +95,17 @@ EXPORT void vec_doti7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims
     call_i8_bulk<int8_t, sequential_mapper, doti7u_inner>(a, b, dims, dims, NULL, count, results);
 }
 
-EXPORT void vec_doti7u_bulk_offsets(
+EXPORT void vec_doti7u_bulk_masked(
     const int8_t* a,
     const int8_t* b,
     const int32_t dims,
     const int32_t pitch,
-    const int32_t* offsets,
+    const int32_t mask,
     const int32_t count,
     f32_t* results) {
-    call_i8_bulk<int8_t, offsets_mapper, doti7u_inner>(a, b, dims, pitch, offsets, count, results);
+    const int32_t block_mask = clamp_mask(mask, count);
+    call_i8_bulk<int8_t, masked_mapper, doti7u_inner, 2, masked_output>(
+        a, b, dims, pitch, &block_mask, __builtin_popcount((uint32_t)block_mask), results);
 }
 
 EXPORT void vec_doti7u_bulk_sparse(
@@ -188,17 +190,6 @@ EXPORT int32_t vec_sqri7u(const int8_t* a, const int8_t* b, const int32_t dims) 
 
 EXPORT void vec_sqri7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
     call_i8_bulk<int8_t, sequential_mapper, sqri7u_inner>(a, b, dims, dims, NULL, count, results);
-}
-
-EXPORT void vec_sqri7u_bulk_offsets(
-    const int8_t* a,
-    const int8_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    call_i8_bulk<int8_t, offsets_mapper, sqri7u_inner>(a, b, dims, pitch, offsets, count, results);
 }
 
 EXPORT void vec_sqri7u_bulk_sparse(

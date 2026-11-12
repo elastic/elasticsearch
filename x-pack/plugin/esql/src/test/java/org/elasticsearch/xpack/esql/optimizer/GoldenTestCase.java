@@ -14,11 +14,14 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -32,6 +35,7 @@ import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
+import org.elasticsearch.xpack.esql.analysis.LetResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
@@ -45,6 +49,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
+import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -62,7 +67,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
-import org.elasticsearch.xpack.esql.plugin.ComputeServiceTestUtils;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.ReductionPlan;
@@ -70,6 +75,10 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.elasticsearch.xpack.esql.view.ViewCompaction;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
+import org.junit.AfterClass;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunListener;
@@ -103,8 +112,10 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.WILDCARDS_MATCH_DATASETS;
 
 /** See GoldenTestsReadme.md for more information about these tests. */
 @Listeners({ GoldenTestCase.GoldenTestReproduceInfoPrinter.class })
@@ -154,9 +165,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
         this.goldenMode = goldenMode;
         try {
-            String path = PathUtils.get(getClass().getResource(".").toURI()).toAbsolutePath().normalize().toString();
-            var inSrc = path.replace('\\', '/').replaceFirst("build/classes/java/test", "src/test/resources");
-            baseFile = PathUtils.get(Strings.format("%s/golden_tests/%s/", inSrc, getClass().getSimpleName()));
+            baseFile = goldenRoot(getClass());
             List<Path> sources = new ArrayList<>();
             for (Class<?> c = getClass(); c != GoldenTestCase.class; c = c.getSuperclass()) {
                 var classDir = PathUtils.get(c.getResource(".").toURI()).toAbsolutePath().normalize().toString();
@@ -168,6 +177,37 @@ public abstract class GoldenTestCase extends ESTestCase {
             throw new RuntimeException(e);
         }
 
+    }
+
+    /** {@code src/test/resources/<package>/golden_tests/<SimpleName>/}, found from where the class was compiled to. */
+    private static Path goldenRoot(Class<?> testClass) throws URISyntaxException {
+        String path = PathUtils.get(testClass.getResource(".").toURI()).toAbsolutePath().normalize().toString();
+        var inSrc = path.replace('\\', '/').replaceFirst("build/classes/java/test", "src/test/resources");
+        return PathUtils.get(Strings.format("%s/golden_tests/%s/", inSrc, testClass.getSimpleName()));
+    }
+
+    /** A renamed or deleted test leaves its directory behind: the runner only ever looks at the directory of the test it is running. */
+    @AfterClass
+    public static void noStaleTestDirectories() throws IOException, URISyntaxException {
+        Class<?> testClass = getTestClass();
+        Path root = goldenRoot(testClass);
+        List<Path> stale = GoldenGc.staleTestDirectories(root, testClass);
+        if (stale.isEmpty()) {
+            return;
+        }
+        String message = Strings.format(
+            "golden directories %s under [%s] name no test method of [%s]: a test was renamed or removed. "
+                + "Delete them, or run [%s] to do it. See GoldenTestsReadme.MD.",
+            stale.stream().map(dir -> dir.getFileName().toString()).toList(),
+            root,
+            testClass.getSimpleName(),
+            GC_TASK
+        );
+        if (GoldenGc.fixMode() == false) {
+            fail(message);
+        }
+        IOUtils.rm(stale.toArray(Path[]::new));
+        logger.info("repaired: {}", message);
     }
 
     protected void runGoldenTest(String esqlQuery, EnumSet<Stage> stages, String... nestedPath) {
@@ -219,8 +259,10 @@ public abstract class GoldenTestCase extends ESTestCase {
         private AliasFilter aliasFilter;
         private ProjectMetadata datasetMetadata;
         private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
+        private QueryBuilder requestFilter;
         private Map<String, String> views = Map.of();
-        private EsqlFlags flags = EsqlFlags.withRemoteFetchTopN(false);
+        private boolean singleConcreteIndex;
+        private EsqlFlags flags = EsqlFlags.withFetchPhase(EsqlFlags.FetchPhaseMode.DISABLED);
 
         private TestBuilder(
             String esqlQuery,
@@ -371,8 +413,23 @@ public abstract class GoldenTestCase extends ESTestCase {
             return externalSourceResolution;
         }
 
+        /**
+         * An out-of-band Query DSL filter, applied to the analyzed plan by {@link RequestFilterRewriter} exactly as
+         * {@code EsqlSession} applies a request's {@code filter}. It rewrites only dataset leaves, so pair it with
+         * {@link #datasetMetadata}.
+         */
+        public TestBuilder requestFilter(QueryBuilder requestFilter) {
+            this.requestFilter = requestFilter;
+            return this;
+        }
+
         public TestBuilder views(Map<String, String> views) {
             this.views = views;
+            return this;
+        }
+
+        public TestBuilder singleConcreteIndex() {
+            this.singleConcreteIndex = true;
             return this;
         }
 
@@ -578,7 +635,9 @@ public abstract class GoldenTestCase extends ESTestCase {
                 aliasFilter,
                 datasetMetadata,
                 externalSourceResolution,
+                requestFilter,
                 views,
+                singleConcreteIndex,
                 flags
             );
         }
@@ -726,28 +785,54 @@ public abstract class GoldenTestCase extends ESTestCase {
         AliasFilter aliasFilter,
         ProjectMetadata datasetMetadata,
         ExternalSourceResolution externalSourceResolution,
+        QueryBuilder requestFilter,
         Map<String, String> views,
+        boolean singleConcreteIndex,
         EsqlFlags flags
     ) {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
             EsqlStatement statement = TEST_PARSER.createStatement(esqlQuery);
-            // Mirror EsqlSession#execute: expand views and rewrite IN subqueries into SemiJoin/AntiJoin/MarkJoin before
-            // running pre-analysis and analysis, so inner subquery indices are discovered and verifier checks (e.g. unbounded
-            // SORT inside an IN subquery) fire. When the query references views, register them and run the iterative
-            // view/IN-subquery resolution; otherwise resolve IN subqueries only.
+            // Mirror EsqlSession#execute: resolve LET bindings first (synchronous, local), then expand views and rewrite
+            // IN subqueries into SemiJoin/AntiJoin/MarkJoin before running pre-analysis and analysis, so inner subquery
+            // indices are discovered and verifier checks (e.g. unbounded SORT inside an IN subquery) fire.
+            // When the query references views, register them and run the iterative view/IN-subquery resolution; otherwise
+            // resolve IN subqueries only.
+            LogicalPlan planAfterLet = LetResolver.resolve(
+                statement.plan(),
+                statement.letBindings(),
+                ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT
+            );
             LogicalPlan parsedPlan;
+            Map<String, ViewQuerySettings> viewSettings = Map.of();
             if (views.isEmpty()) {
-                parsedPlan = InSubqueryResolver.resolve(statement.plan());
+                parsedPlan = InSubqueryResolver.resolve(planAfterLet);
             } else {
-                TestAnalyzer viewAnalyzer = analyzer();
+                // The unmapped_fields and wildcards_match_datasets settings decide how much view structure resolution keeps, as in
+                // EsqlSession.
+                TestAnalyzer viewAnalyzer = analyzer().unmappedResolution(statement.setting(UNMAPPED_FIELDS))
+                    .wildcardsMatchDatasets(statement.setting(WILDCARDS_MATCH_DATASETS));
                 views.forEach(viewAnalyzer::addView);
-                parsedPlan = viewAnalyzer.resolveViewsAndInSubqueries(statement.plan());
+                parsedPlan = viewAnalyzer.resolveViewsAndInSubqueries(planAfterLet);
+                viewSettings = viewAnalyzer.viewSettings();
             }
             // Then turn FROM <dataset> targets into UnresolvedExternalRelation, exactly as EsqlSession does. A
             // null datasetMetadata (the default) makes this a no-op, so plain golden tests are unaffected; when a
             // test registers datasets, external relations are excluded from CSV index discovery below.
-            parsedPlan = DatasetRewriter.rewriteUnsecured(parsedPlan, datasetMetadata, TestIndexNameExpressionResolver.newInstance());
+            // Golden tests name their datasets exactly, which reaches them at the wildcards_match_datasets default; tests that SET
+            // wildcards_match_datasets get it applied here, as in EsqlSession.
+            // Mirror EsqlSession: reshape user-written Subquery/UnionAll structures into BranchPlan before dataset
+            // resolution and analysis. Rules that read the pre-analysis shape depend on it — the _class/_name metadata
+            // freeze (ResolveSubqueryRelationColumns) answers "subquery" from the Subquery branch wrapper this pass
+            // preserves, and without it a subquery branch beside an index silently null-fills _class.
+            parsedPlan = ViewCompaction.preIndexResolution(parsedPlan);
+            parsedPlan = rewriteDatasetsUnsecured(
+                parsedPlan,
+                datasetMetadata,
+                TestIndexNameExpressionResolver.newInstance(),
+                statement.setting(WILDCARDS_MATCH_DATASETS),
+                viewSettings
+            );
             String[] queryPathParts = new String[nestedPath.length + 2];
             queryPathParts[0] = testName;
             System.arraycopy(nestedPath, 0, queryPathParts, 1, nestedPath.length);
@@ -766,22 +851,31 @@ public abstract class GoldenTestCase extends ESTestCase {
                 .addAnalysisTestsInferenceResolution()
                 .minimumTransportVersion(transportVersion)
                 .externalSourceResolution(externalSourceResolution)
-                .unmappedResolution(unmappedResolution);
+                .unmappedResolution(unmappedResolution)
+                .wildcardsMatchDatasets(statement.setting(WILDCARDS_MATCH_DATASETS))
+                .viewSettings(viewSettings);
             boolean trackUnmappedFieldIndices = unmappedResolution.loadsUnmappedFields();
             loadIndexResolution(testDatasets(parsedPlan), trackUnmappedFieldIndices).forEach(
-                (pattern, resolution) -> testAnalyzer.addIndex(pattern.indexPattern(), resolution)
+                (pattern, resolution) -> testAnalyzer.addIndex(
+                    pattern.indexPattern(),
+                    singleConcreteIndex ? singleIndex(resolution) : resolution
+                )
             );
             Analyzer analyzer = testAnalyzer.buildAnalyzer();
             List<Tuple<Stage, TestResult>> result = new ArrayList<>();
+            var configuration = EsqlTestUtils.configuration(QueryPragmas.EMPTY, esqlQuery, statement);
             var analyzed = analyzer.analyze(parsedPlan);
+            if (requestFilter != null) {
+                // Mirror EsqlSession: the request filter is installed on the analyzed plan, before optimization.
+                analyzed = RequestFilterRewriter.rewrite(analyzed, requestFilter, configuration, transportVersion, true);
+            }
             if (stages.contains(Stage.ANALYSIS)) {
                 result.add(Tuple.tuple(Stage.ANALYSIS, verifyOrWrite(analyzed, Stage.ANALYSIS)));
             }
             if (stages.equals(EnumSet.of(Stage.ANALYSIS))) {
                 return result;
             }
-            var configuration = EsqlTestUtils.configuration(QueryPragmas.EMPTY, esqlQuery, statement);
-            var optimizerContext = new LogicalOptimizerContext(configuration, FoldContext.small(), transportVersion);
+            var optimizerContext = new LogicalOptimizerContext(configuration, FoldContext.small(), transportVersion, flags);
             var optimizer = optimizerFactory != null
                 ? optimizerFactory.apply(optimizerContext)
                 : new LogicalPlanOptimizer(optimizerContext);
@@ -801,7 +895,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                 // optimization. Since subplan execution is not done in the golden tests,
                 // manually replace the placeholders instead by a fixed value.
                 logicallyOptimized = ApproximationPlan.substituteSampleProbability(logicallyOptimized, SAMPLE_PROBABILITY);
-                var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, transportVersion, flags));
+                var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, transportVersion));
                 PhysicalPlan physicalPlan = physicalPlanOptimizer.optimize(
                     new Mapper().map(new Versioned<>(logicallyOptimized, transportVersion))
                 );
@@ -849,7 +943,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                     if (exchanges.isEmpty() == false) {
                         ExchangeExec exec = EsqlTestUtils.singleValue(exchanges);
                         var sink = new ExchangeSinkExec(exec.source(), exec.output(), false, exec.child());
-                        var reductionPlan = ComputeServiceTestUtils.reductionPlan(
+                        var reductionPlan = ComputeService.reductionPlan(
                             PlannerSettings.DEFAULTS,
                             new EsqlFlags(false),
                             configuration,
@@ -1185,8 +1279,8 @@ public abstract class GoldenTestCase extends ESTestCase {
          */
         LOOKUP_PHYSICAL_OPTIMIZATION(new SingleFileOutput("lookup_physical_optimization")),
         /**
-         * See {@link ComputeServiceTestUtils#reductionPlan}. Actually results in <b>two</b> plans: one for the node reduce driver and one
-         * for the data nodes.
+         * See {@link ComputeService#reductionPlan}. Actually results in <b>two</b> plans: one for the node reduce driver and one for the
+         * data nodes.
          */
         NODE_REDUCE(new DualFileOutput("local_reduce_planned_reduce_driver", "local_reduce_planned_data_driver")),
 
@@ -1328,7 +1422,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             .stream()
             .collect(Collectors.toMap(CsvTestsDataLoader.TestDataset::indexName, ds -> {
                 IndexMode m = indexModeOf(ds);
-                return new IndexProperties(m, 0);
+                return new IndexProperties(m, 0, 0);
             }));
         List<MappingPerIndex> mappings = datasets.datasets()
             .stream()
@@ -1336,6 +1430,24 @@ public abstract class GoldenTestCase extends ESTestCase {
             .toList();
         var mergedMappings = mergeMappings(mappings, trackUnmappedFieldIndices);
         return IndexResolution.valid(new EsIndex(datasets.indexPattern(), mergedMappings.mapping, indexModes, Map.of(), Map.of()));
+    }
+
+    private static IndexResolution singleIndex(IndexResolution resolution) {
+        EsIndex index = resolution.get();
+        Map<String, IndexProperties> indexProperties = new HashMap<>();
+        index.indexProperties()
+            .forEach(
+                (key, v) -> indexProperties.put(key, new IndexProperties(v.indexMode(), v.numberOfShards(), IndexVersion.current().id()))
+            );
+        return IndexResolution.valid(
+            new EsIndex(
+                index.name(),
+                index.mapping(),
+                indexProperties,
+                index.originalIndices(),
+                Map.of("", List.copyOf(indexProperties.keySet()))
+            )
+        );
     }
 
     /**

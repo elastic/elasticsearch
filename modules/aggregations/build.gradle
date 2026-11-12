@@ -18,7 +18,7 @@ esplugin {
 
 restResources {
   restApi {
-    include 'capabilities', '_common', 'indices', 'cluster', 'index', 'search', 'nodes', 'bulk', 'scripts_painless_execute', 'put_script'
+    include 'capabilities', '_common', 'indices', 'cluster', 'index', 'search', 'search_shards', 'nodes', 'bulk', 'scripts_painless_execute', 'put_script'
   }
   restTests {
     // Pulls in all aggregation tests from core AND the forwards v7's core for forwards compatibility
@@ -55,4 +55,6 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("aggregations/time_series/Configure with no synthetic source", "temporary until backport")
   task.skipTest("aggregations/percentiles_hdr_metric/Negative values test", "returned exception has changed")
   task.skipTest("aggregations/moving_fn/linearWeightedAvg", "math was wrong in previous versions")
+  // Expected deprecation warning to compat yaml tests:
+  task.addAllowedWarningRegex("The \\[time_series\\] aggregation, and the aggregations that rely on it .*")
 })

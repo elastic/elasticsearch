@@ -9,9 +9,9 @@
 
 package org.elasticsearch.columnar.string;
 
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.columnar.numeric.LongBlocks;
+import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.MonotonicReader;
 
 import java.io.IOException;
@@ -36,8 +36,8 @@ final class SlotAddressReader {
 
     private long cachedBlock = -1;
 
-    SlotAddressReader(SlotAddressing addressing, int numDocsWithField, IndexInput data) throws IOException {
-        this.counts = new LongBlocks.Reader(addressing.counts(), data);
+    SlotAddressReader(SlotAddressing addressing, int numDocsWithField, ColumnInputs inputs) throws IOException {
+        this.counts = new LongBlocks.Reader(addressing.counts(), inputs.addressing(), inputs.navigation());
         this.numDocsWithField = numDocsWithField;
         this.blockSize = addressing.counts().blockSize();
         assert (blockSize & (blockSize - 1)) == 0 : "counts per block must be a power of two, got " + blockSize;
@@ -45,7 +45,7 @@ final class SlotAddressReader {
         this.blockMask = blockSize - 1;
         this.addresses = new long[blockSize + 1];
         this.bases = MonotonicReader.open(
-            data,
+            inputs.navigation(),
             addressing.bases().meta(),
             SlotAddressing.numBlocks(numDocsWithField, blockSize),
             addressing.bases().dataOffset(),

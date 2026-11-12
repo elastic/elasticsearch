@@ -8,6 +8,9 @@
 | boolean | | long |
 | cartesian_point | | long |
 | cartesian_shape | | long |
+| counter_double {applies_to}`stack: ga 9.7.0` | | long |
+| counter_integer {applies_to}`stack: ga 9.7.0` | | long |
+| counter_long {applies_to}`stack: ga 9.7.0` | | long |
 | date | | long |
 | date_nanos | | long |
 | date_range {applies_to}`stack: preview 9.5.0` | | long |
@@ -16,7 +19,7 @@
 | double_range {applies_to}`stack: preview 9.6.0` | | long |
 | exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | | long |
 | exponential_histogram {applies_to}`stack: preview 9.6.0` | double_range {applies_to}`stack: preview 9.6.0` | long |
-| flattened {applies_to}`stack: preview 9.5.0` | | long |
+| flattened {applies_to}`stack: preview 9.5.0, ga 9.6.0` | | long |
 | geo_point | | long |
 | geo_shape | | long |
 | geohash | | long |

@@ -44,9 +44,11 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.time.DateMathParser;
@@ -113,7 +115,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 import static org.elasticsearch.index.mapper.Mapper.IgnoreAbove.getIgnoreAboveDefaultValue;
 
 /**
@@ -223,15 +224,11 @@ public class WildcardFieldMapper extends FieldMapper {
         );
     }
 
-    private static WildcardFieldMapper toType(FieldMapper in) {
-        return (WildcardFieldMapper) in;
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
         final int ignoreAboveDefault;
         final Parameter<Integer> ignoreAbove;
-        final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null).acceptsNull();
+        final Parameter<String> nullValue = Parameter.stringParam("null_value", false, null).acceptsNull();
 
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -246,7 +243,7 @@ public class WildcardFieldMapper extends FieldMapper {
         private Builder(String name, MappingParserContext mappingParserContext) {
             this(
                 name,
-                IGNORE_ABOVE_SETTING.get(mappingParserContext.getSettings()),
+                mappingParserContext.getIndexSettings().getIgnoreAbove(),
                 mappingParserContext.getIndexSettings().getMode(),
                 mappingParserContext.indexVersionCreated(),
                 mappingParserContext.getIndexSettings()
@@ -268,7 +265,7 @@ public class WildcardFieldMapper extends FieldMapper {
             this.indexMode = indexMode;
             this.indexCreatedVersion = indexCreatedVersion;
             this.storeIgnoredFieldsInBinaryDocValues = storeIgnoredFieldsInBinaryDocValues;
-            this.ignoreAbove = Parameter.ignoreAboveParam(m -> toType(m).ignoreAbove.get(), ignoreAboveDefault);
+            this.ignoreAbove = Parameter.ignoreAboveParam(ignoreAboveDefault);
         }
 
         @Override
@@ -353,6 +350,20 @@ public class WildcardFieldMapper extends FieldMapper {
             return arrayOrderBinaryDocValues ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT;
         }
 
+        /**
+         * The field is there if the document wrote at least one slot for it, null slots included. A document whose slots are all
+         * null has no binary doc value, only the companion count, so the count is what says so. See
+         * {@link org.elasticsearch.index.mapper.TextFamilyFieldType#existsQuery}, which reaches the same answer for the string
+         * types that share a base with each other; wildcard does not, so it states it here.
+         */
+        @Override
+        public Query existsQuery(SearchExecutionContext context) {
+            if (binaryFormat() == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
+                return new FieldExistsQuery(name() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
+            }
+            return super.existsQuery(context);
+        }
+
         @Override
         public boolean mayExistInIndex(SearchExecutionContext context) {
             return context.fieldExistsInIndex(name());
@@ -384,7 +395,8 @@ public class WildcardFieldMapper extends FieldMapper {
                     name(),
                     wildcardPattern,
                     caseInsensitive,
-                    arrayOrderBinaryDocValues
+                    arrayOrderBinaryDocValues,
+                    breakerOf(context)
                 );
             } else {
                 return BinaryDvConfirmedQuery.fromWildcardQuery(
@@ -392,9 +404,15 @@ public class WildcardFieldMapper extends FieldMapper {
                     name(),
                     wildcardPattern,
                     caseInsensitive,
-                    arrayOrderBinaryDocValues
+                    arrayOrderBinaryDocValues,
+                    breakerOf(context)
                 );
             }
+        }
+
+        /** Callers such as the field type tests build queries without a context, and so without a breaker. */
+        private static CircuitBreaker breakerOf(@Nullable SearchExecutionContext context) {
+            return context == null ? null : context.getCircuitBreaker();
         }
 
         private Integer getApproxWildCardQuery(String wildcardPattern, BooleanQuery.Builder rewritten) {
@@ -481,7 +499,8 @@ public class WildcardFieldMapper extends FieldMapper {
                 name(),
                 automatonSupplier,
                 description,
-                arrayOrderBinaryDocValues
+                arrayOrderBinaryDocValues,
+                breakerOf(context)
             );
         }
 
@@ -499,9 +518,13 @@ public class WildcardFieldMapper extends FieldMapper {
             }
 
             // Check for simple "match all expressions e.g. .*
-            RegExp regExp = new RegExp(value, syntaxFlags, matchFlags);
-            Automaton a = regExp.toAutomaton();
-            a = Operations.determinize(a, maxDeterminizedStates);
+            Automaton a = AutomatonQueries.toRegexpAutomaton(
+                new Term(name(), value),
+                syntaxFlags,
+                matchFlags,
+                maxDeterminizedStates,
+                breakerOf(context)
+            );
             if (Operations.isTotal(a)) { // Will match all
                 return existsQuery(context);
             }
@@ -519,7 +542,8 @@ public class WildcardFieldMapper extends FieldMapper {
                 syntaxFlags,
                 matchFlags,
                 maxDeterminizedStates,
-                arrayOrderBinaryDocValues
+                arrayOrderBinaryDocValues,
+                breakerOf(context)
             );
         }
 
@@ -858,7 +882,8 @@ public class WildcardFieldMapper extends FieldMapper {
                     upper,
                     includeLower,
                     includeUpper,
-                    arrayOrderBinaryDocValues
+                    arrayOrderBinaryDocValues,
+                    breakerOf(context)
                 );
             }
             return BinaryDvConfirmedQuery.fromRangeQuery(
@@ -868,7 +893,8 @@ public class WildcardFieldMapper extends FieldMapper {
                 upper,
                 includeLower,
                 includeUpper,
-                arrayOrderBinaryDocValues
+                arrayOrderBinaryDocValues,
+                breakerOf(context)
             );
         }
 
@@ -957,10 +983,11 @@ public class WildcardFieldMapper extends FieldMapper {
                         name(),
                         searchTerm,
                         fq,
-                        arrayOrderBinaryDocValues
+                        arrayOrderBinaryDocValues,
+                        breakerOf(context)
                     );
                 }
-                return BinaryDvConfirmedQuery.fromFuzzyQuery(ngramQ, name(), searchTerm, fq, arrayOrderBinaryDocValues);
+                return BinaryDvConfirmedQuery.fromFuzzyQuery(ngramQ, name(), searchTerm, fq, arrayOrderBinaryDocValues, breakerOf(context));
             } catch (IOException ioe) {
                 throw new ElasticsearchParseException("Error parsing wildcard field fuzzy string [" + searchTerm + "]");
             }
@@ -1069,6 +1096,10 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
             String searchTerm = BytesRefs.toString(value);
+            // an empty pattern builds an automaton that matches nothing, but an empty string has no case to fold
+            if (searchTerm.isEmpty()) {
+                return termQuery(value, context);
+            }
             return wildcardQuery(escapeWildcardSyntax(searchTerm), MultiTermQuery.CONSTANT_SCORE_REWRITE, true, context);
         }
 
@@ -1136,7 +1167,6 @@ public class WildcardFieldMapper extends FieldMapper {
     private final String nullValue;
     private final IndexMode indexMode;
     private final IndexVersion indexVersionCreated;
-    private final int ignoreAboveDefault;
     private final IgnoreAbove ignoreAbove;
     private final boolean storeIgnored;
     private final String originalName;
@@ -1154,7 +1184,6 @@ public class WildcardFieldMapper extends FieldMapper {
         this.storeIgnored = storeIgnored;
         this.indexMode = builder.indexMode;
         this.indexVersionCreated = builder.indexCreatedVersion;
-        this.ignoreAboveDefault = builder.ignoreAboveDefault;
         this.ignoreAbove = new IgnoreAbove(builder.ignoreAbove.getValue(), builder.indexMode, builder.indexCreatedVersion);
         this.originalName = storeIgnored ? fullPath() + TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX : null;
         this.storeIgnoredFieldsInBinaryDocValues = builder.storeIgnoredFieldsInBinaryDocValues;
@@ -1208,9 +1237,10 @@ public class WildcardFieldMapper extends FieldMapper {
             } else {
                 createFields(value, parseDoc, fields);
             }
-        } else if (fieldType().usesArrayOrderBinaryDocValues()) {
+        } else if (fieldType().usesArrayOrderBinaryDocValues() && MultiValuedBinaryDocValuesField.keepsNullSlot(context, indexMode)) {
             // In-order path: preserve the null's position. A value that tripped ignore_above (value != null) records no slot,
-            // matching the legacy sort-and-dedup path where ignored values are simply dropped.
+            // matching the legacy sort-and-dedup path where ignored values are simply dropped. A null that is not an element of
+            // the field's own array has no position to preserve and is the field being absent; see keepsNullSlot.
             MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(parseDoc, fieldType().name());
         }
         parseDoc.addAll(fields);
@@ -1249,11 +1279,6 @@ public class WildcardFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreAboveDefault, indexMode, indexVersionCreated, storeIgnoredFieldsInBinaryDocValues).init(this);
     }
 
     @Override
@@ -1316,15 +1341,21 @@ public class WildcardFieldMapper extends FieldMapper {
             int docSlotCount = 0;
             int lastValueLength = 0;
             boolean hasNonNull = false;
+            final boolean strictColumnar = indexMode.isStrictColumnar();
 
             while (true) {
                 final int nextDoc = cursor.nextDoc();
                 if (nextDoc != currentDoc) {
                     if (docSlotCount > 0) {
-                        dvCounts.setLong(currentDoc, docSlotCount);
-                        if (hasNonNull) {
-                            final int length = docSlotCount == 1 ? lastValueLength : pos;
-                            binaryDvs.setString(currentDoc, docBlob.bytes(), pos - length, length);
+                        // A bare null is the field being absent, matching the row path: the document keeps no slot for it. Only a
+                        // null written inside the field's own array keeps its place. See keepsNullSlot.
+                        final boolean bareNull = strictColumnar && hasNonNull == false && source.isNull(currentDoc);
+                        if (bareNull == false) {
+                            dvCounts.setLong(currentDoc, docSlotCount);
+                            if (hasNonNull) {
+                                final int length = docSlotCount == 1 ? lastValueLength : pos;
+                                binaryDvs.setString(currentDoc, docBlob.bytes(), pos - length, length);
+                            }
                         }
                         pos = 0;
                         docSlotCount = 0;

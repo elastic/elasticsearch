@@ -18,15 +18,16 @@ import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfColumn;
@@ -68,7 +70,6 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlo
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.versionfield.VersionEncoder.EncodedVersion;
 
@@ -81,7 +82,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
-import static org.apache.lucene.search.RegexpQuery.DEFAULT_PROVIDER;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.xpack.versionfield.VersionEncoder.encodeVersion;
 
@@ -204,15 +204,20 @@ public class VersionStringFieldMapper extends FieldMapper {
                     "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
                 );
             }
-            return new RegexpQuery(
-                new Term(name(), new BytesRef(value)),
+            Term term = new Term(name(), new BytesRef(value));
+            Automaton automaton = AutomatonQueries.toRegexpAutomaton(
+                term,
                 syntaxFlags,
                 matchFlags,
-                DEFAULT_PROVIDER,
                 maxDeterminizedStates,
-                method == null ? CONSTANT_SCORE_REWRITE : method,
-                true
-            ) {
+                context.getCircuitBreaker()
+            );
+            return new AutomatonQuery(term, automaton, false, method == null ? CONSTANT_SCORE_REWRITE : method) {
+
+                @Override
+                public String toString(String field) {
+                    return (term.field().equals(field) ? "" : term.field() + ":") + "/" + term.text() + "/";
+                }
 
                 @Override
                 protected TermsEnum getTermsEnum(Terms terms, AttributeSource atts) throws IOException {
@@ -462,8 +467,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         final int docCount = ctx.docCount();
         // retainValues=false: every value is encoded within one loop iteration, before the cursor advances.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
-        // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
-        try (EscfColumnBuilder encoded = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+        try (EscfColumnBuilder encoded = new EscfColumnBuilder(CollisionPolicy.MERGE, ctx.recycler())) {
             encoded.lockScalar(EscfColumnKind.STRING);
 
             int doc;
@@ -545,11 +549,6 @@ public class VersionStringFieldMapper extends FieldMapper {
             return getWriteableName();
         }
     };
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
-    }
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {

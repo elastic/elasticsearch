@@ -165,3 +165,6 @@ org.elasticsearch.cluster.SnapshotDeletionsInProgress$Entry#<init>(org.elasticse
 @defaultMessage Use a Thread constructor with a name, anonymous threads are more difficult to debug
 java.lang.Thread#<init>(java.lang.Runnable)
 java.lang.Thread#<init>(java.lang.ThreadGroup, java.lang.Runnable)
+
+@defaultMessage Do not catch StackOverflowError: after the stack unwinds, we cannot be certain all invariants still hold. Track recursion depth manually instead.
+java.lang.StackOverflowError

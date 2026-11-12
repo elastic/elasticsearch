@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
@@ -31,6 +32,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
@@ -42,6 +44,68 @@ import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
  * queryable.
  */
 public class NumericColumnMergeTests extends ESTestCase {
+
+    /** A numeric column is written without a temporary file, on flush and on merge alike. */
+    public void testANumericColumnWritesNoTemporaryFile() throws IOException {
+        final int numDocs = 3000;
+        final FieldType type = columnarBinaryFieldType();
+        final BytesRefBuilder builder = new BytesRefBuilder();
+        try (Directory real = newDirectory()) {
+            final ColumnarTestUtils.TempOutputRecorder dir = new ColumnarTestUtils.TempOutputRecorder(real);
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.LONG))
+                .setMergePolicy(new LogDocMergePolicy());
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                for (int d = 0; d < numDocs; d++) {
+                    final Document doc = new Document();
+                    final long[] values = d % 3 == 0 ? new long[] { d, d * 7L } : new long[] { randomLong() };
+                    doc.add(new Field(FIELD, BytesRef.deepCopyOf(NumericBinaryPayload.encode(values, values.length, builder)), type));
+                    writer.addDocument(doc);
+                    if ((d + 1) % 1000 == 0) {
+                        writer.commit();
+                    }
+                }
+                writer.forceMerge(1);
+            }
+            assertEquals("temporary files asked for", Set.of(), dir.columnarSuffixes);
+            try (DirectoryReader reader = DirectoryReader.open(real)) {
+                assertEquals(1, reader.leaves().size());
+                assertEquals(numDocs, reader.leaves().get(0).reader().getBinaryDocValues(FIELD).cost());
+            }
+        }
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165522")
+    public void testADocumentWithNoValuesWhenValuesEqualDocuments() throws IOException {
+        assertPayloadsRoundTrip(new long[][] { {}, { 7, 9 } });
+    }
+
+    public void testADocumentWithNoValuesWhenValuesExceedDocuments() throws IOException {
+        assertPayloadsRoundTrip(new long[][] { {}, { 7, 9, 11 } });
+    }
+
+    private static void assertPayloadsRoundTrip(long[][] values) throws IOException {
+        final FieldType type = columnarBinaryFieldType();
+        final BytesRefBuilder builder = new BytesRefBuilder();
+        try (Directory dir = newDirectory()) {
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.LONG));
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                for (long[] docValues : values) {
+                    final Document doc = new Document();
+                    doc.add(new Field(FIELD, BytesRef.deepCopyOf(NumericBinaryPayload.encode(docValues, docValues.length, builder)), type));
+                    writer.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final BinaryDocValues dv = reader.leaves().get(0).reader().getBinaryDocValues(FIELD);
+                final long[][] decoded = { new long[8] };
+                for (int doc = 0; doc < values.length; doc++) {
+                    assertTrue("document " + doc + " has a payload", dv.advanceExact(doc));
+                    final int count = NumericBinaryPayload.decode(dv.binaryValue(), decoded);
+                    assertArrayEquals("values of document " + doc, values[doc], ArrayUtil.copyOfSubArray(decoded[0], 0, count));
+                }
+            }
+        }
+    }
 
     private static final String FIELD = "value";
     private static final String ID = "id";

@@ -12,7 +12,7 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 
 @Aggregator({ @IntermediateState(name = "min", type = "FLOAT"), @IntermediateState(name = "seen", type = "BOOLEAN") })
-@GroupingAggregator
+@GroupingAggregator(supportsPartitioning = true)
 class MinFloatAggregator {
 
     public static float init() {

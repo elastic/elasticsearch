@@ -26,13 +26,15 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLocalPhysicalPlanOptimizerTests;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
@@ -54,7 +56,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.test.TransportVersionUtils.randomVersionSupporting;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -95,7 +99,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         tsPlannerOptimizer = new TestPlannerOptimizer(
             config,
             tsAnalyzer,
-            new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), TransportVersion.current()))
+            new LogicalPlanOptimizer(logicalOptimizerContext(config, FoldContext.small(), TransportVersion.current()))
         );
     }
 
@@ -880,6 +884,67 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         assertTrue("MATCH_PHRASE over a fused field_extract must run at runtime, not be pushed", matchPhrase.isRuntimeSearch());
     }
 
+    public void testFieldExtractIntoKnnFusesButStaysRuntime() {
+        assumeTrue("field_extract must be part of this build", FieldExtract.isFnFieldExtractCapabilityMet());
+        // KNN over an inline TO_DENSE_VECTOR of a flattened field_extract: the field_extract fuses into a keyed sub-field
+        // load whose FieldAttribute has a synthetic name with no indexed field behind it. KNN must run at runtime; a
+        // Lucene knn query on that name would silently match nothing. See https://github.com/elastic/elasticsearch/issues/163402
+        // Runtime KNN is rejected when a participating node predates it, so pin the minimum version to one that supports it.
+        Analyzer analyzer = EsqlTestUtils.analyzer()
+            .configuration(config)
+            .addIndex("test", "mapping-flattened_keyed.json")
+            .minimumTransportVersion(randomVersionSupporting(Knn.ESQL_KNN_RUNTIME_FIELD))
+            .buildAnalyzer();
+        PhysicalPlan plan = new TestPlannerOptimizer(config, analyzer).plan("""
+            FROM test
+            | WHERE KNN(TO_DENSE_VECTOR(field_extract(data, "h")), [64, 0, 0], {"similarity": 0.9})
+            | SORT id
+            | LIMIT 10
+            | KEEP id
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "data", BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD);
+        assertThat("field_extract feeding KNN should fuse", pushed, hasSize(1));
+
+        List<Knn> knns = new ArrayList<>();
+        plan.forEachExpressionDown(Knn.class, knns::add);
+        assertThat("KNN must survive as a runtime expression, not be pushed to Lucene", knns, hasSize(1));
+        Knn knn = knns.get(0);
+
+        // Its field argument is TO_DENSE_VECTOR over the fused field_extract.
+        ToDenseVector toDenseVector = as(knn.field(), ToDenseVector.class);
+        FieldAttribute field = as(toDenseVector.field(), FieldAttribute.class);
+        assertThat(
+            as(field.field(), FunctionEsField.class).functionConfig().function(),
+            is(BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD)
+        );
+        assertTrue("KNN over TO_DENSE_VECTOR of a fused field_extract must run at runtime, not be pushed", knn.isRuntimeSearch());
+    }
+
+    public void testLengthIntoMatchFusesButStaysRuntime() {
+        // LENGTH fuses into the field load like field_extract above, and the fused value has no indexed Lucene field
+        // behind it either, so MATCH must still run at runtime.
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            FROM test
+            | WHERE MATCH(LENGTH(last_name), 5)
+            | SORT emp_no
+            | LIMIT 10
+            | KEEP emp_no
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.LENGTH);
+        assertThat("LENGTH feeding MATCH should fuse", pushed, hasSize(1));
+
+        List<Match> matches = new ArrayList<>();
+        plan.forEachExpressionDown(Match.class, matches::add);
+        assertThat("MATCH must survive as a runtime expression, not be pushed to Lucene", matches, hasSize(1));
+
+        Match match = matches.get(0);
+        FieldAttribute field = as(match.field(), FieldAttribute.class);
+        assertThat(as(field.field(), FunctionEsField.class).functionConfig().function(), is(BlockLoaderFunctionConfig.Function.LENGTH));
+        assertTrue("MATCH over a fused LENGTH must run at runtime, not be pushed", match.isRuntimeSearch());
+    }
+
     // ---- field_extract into a function that requires an exact string argument ----
 
     public void testFieldExtractIntoExactStringArgumentIsFused() {
@@ -900,7 +965,80 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         assertThat("both field_extract invocations feeding DATE_UNIT_COUNT should fuse", pushed, hasSize(2));
 
         // The whole point of decoupling: fusion must not invalidate an expression that resolved during analysis.
-        plan.forEachExpressionDown(Expression.class, e -> assertThat("plan must stay resolved after fusion", e.resolved(), is(true)));
+        assertResolved(plan);
+    }
+
+    // ---- MV_MAX / MV_MIN fused into an argument that is type-checked as exact ----
+
+    public void testMvMaxIntoIpPrefixIsFused() {
+        // IP_PREFIX type-checks its address with isIPAndExact. The fused MV_MAX(ip) is backed by a FunctionEsField, which
+        // reports itself as exact, so x stays resolved and the WHERE that reads it still finds it.
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan("""
+            FROM test_all
+            | EVAL x = IP_PREFIX(MV_MAX(ip), 13, 70)
+            | WHERE x IS NOT NULL
+            | SORT long
+            | KEEP x
+            """);
+
+        assertThat(findPushedFields(plan, "ip", BlockLoaderFunctionConfig.Function.MV_MAX), hasSize(1));
+        assertResolved(plan);
+    }
+
+    public void testMvMaxInWhereIntoIpPrefixIsFused() {
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan("""
+            FROM test_all
+            | WHERE IP_PREFIX(MV_MAX(ip), 13, 70) IS NOT NULL
+            | SORT long
+            | KEEP long
+            """);
+
+        assertThat(findPushedFields(plan, "ip", BlockLoaderFunctionConfig.Function.MV_MAX), hasSize(1));
+        assertResolved(plan);
+    }
+
+    public void testMvMaxAndMvMinIntoNetworkDirectionAreFused() {
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan("""
+            FROM test_all
+            | EVAL d = NETWORK_DIRECTION(MV_MAX(ip), MV_MIN(ip), "10.0.0.0/8")
+            | WHERE d == "internal"
+            | SORT long
+            | KEEP d
+            """);
+
+        assertThat(findPushedFields(plan, "ip", BlockLoaderFunctionConfig.Function.MV_MAX), hasSize(1));
+        assertThat(findPushedFields(plan, "ip", BlockLoaderFunctionConfig.Function.MV_MIN), hasSize(1));
+        assertResolved(plan);
+    }
+
+    public void testMvMaxIntoInOverLongIsFused() {
+        // IN checks a non-string value with EsqlTypeResolutions.isExact, which reads the same exactness as the IP functions.
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan("""
+            FROM test_all
+            | EVAL x = MV_MAX(long) IN (1, 2)
+            | WHERE x
+            | SORT integer
+            | KEEP x
+            """);
+
+        assertThat(findPushedFields(plan, "long", BlockLoaderFunctionConfig.Function.MV_MAX), hasSize(1));
+        assertResolved(plan);
+    }
+
+    public void testMvMaxThroughUserAgentAndLimitByIsFused() {
+        assumeTrue("USER_AGENT must be enabled", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        assumeTrue("LIMIT BY must be enabled", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        // The shape this was first reported with: USER_AGENT reads the alias over the fused MV_MAX.
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan("""
+            FROM test_all
+            | EVAL t = TO_STRING(NETWORK_DIRECTION(MV_MAX(ip), IP_PREFIX(ip, 13, 70), "10.0.0.0/8"))
+            | USER_AGENT ua = t
+            | LIMIT 3 BY ua.name, ua.os.version
+            | KEEP ua.name, ua.os.version
+            """);
+
+        assertThat(findPushedFields(plan, "ip", BlockLoaderFunctionConfig.Function.MV_MAX), hasSize(1));
+        assertResolved(plan);
     }
 
     // ---- Lookup join test (Primaries check) ----
@@ -999,6 +1137,10 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             });
         });
         return result;
+    }
+
+    private static void assertResolved(PhysicalPlan plan) {
+        plan.forEachExpressionDown(Expression.class, e -> assertThat("plan must stay resolved after fusion", e.resolved(), is(true)));
     }
 
     private List<FieldAttribute> findAllPushedFields(PhysicalPlan plan) {

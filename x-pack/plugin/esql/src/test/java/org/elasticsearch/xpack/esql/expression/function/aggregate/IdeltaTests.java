@@ -57,7 +57,7 @@ public class IdeltaTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Idelta(source, args.get(0), Literal.TRUE, AggregateFunction.NO_WINDOW, args.get(1));
+        return new Idelta(source, args.get(0), args.get(1), Literal.TRUE, AggregateFunction.NO_WINDOW);
     }
 
     @Override

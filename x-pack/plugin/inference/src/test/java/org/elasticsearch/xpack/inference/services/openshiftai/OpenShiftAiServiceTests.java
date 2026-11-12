@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.openshiftai;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -22,6 +22,7 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
@@ -405,10 +406,7 @@ public class OpenShiftAiServiceTests extends InferenceServiceTestCase {
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().getFirst().getUri().getQuery());
-            assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
-                equalTo(XContentType.JSON.mediaTypeWithoutParameters())
-            );
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is(Strings.format("Bearer %s", TEST_API_KEY)));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
@@ -587,10 +585,7 @@ public class OpenShiftAiServiceTests extends InferenceServiceTestCase {
 
             assertThat(webServer.requests(), hasSize(1));
             assertThat(webServer.requests().getFirst().getUri().getQuery(), is(nullValue()));
-            assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
-                equalTo(XContentType.JSON.mediaTypeWithoutParameters())
-            );
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
             assertThat(
                 webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION),
                 is(Strings.format("Bearer %s", API_KEY_VALUE))
@@ -610,6 +605,11 @@ public class OpenShiftAiServiceTests extends InferenceServiceTestCase {
                        "service": "openshift_ai",
                        "name": "OpenShift AI",
                        "task_types": ["text_embedding", "rerank", "completion", "chat_completion"],
+                       "features": {
+                           "non_streaming_chat": {
+                               "supported": true
+                           }
+                       },
                        "configurations": {
                            "api_key": {
                                "description": "API Key for the provider you're connecting to.",
@@ -650,7 +650,7 @@ public class OpenShiftAiServiceTests extends InferenceServiceTestCase {
                        }
                    }
                 """);
-            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+            InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON
             );

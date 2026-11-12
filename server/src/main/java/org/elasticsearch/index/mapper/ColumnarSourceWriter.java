@@ -65,13 +65,25 @@ final class ColumnarSourceWriter {
         this.cachedColumnarPerThread = new ThreadLocal<>();
     }
 
-    void write(DocumentParserContext context, XContentBuilder builder) throws IOException {
+    /**
+     * Reconstructs the {@code _source} of one document from the fields of {@code doc}. Shared by the row path, which parses {@code doc}
+     * from the original source, and the columnar batch path, which reassembles it from the mapped columns of one row.
+     *
+     * @param allDocs the full in-memory document tree (root plus nested children), so that nested loaders can select their children.
+     *                Shard-index order places each child before its parent, matching the order in which the synthetic source loader
+     *                reads them from a real segment; this is what preserves array order across nested documents, including the deeper
+     *                documents that subobjects:false creates for object sub-fields and arrays inside a nested field. Without nested
+     *                fields it is just {@code [doc]} and nothing downstream looks at it.
+     */
+    void write(MappingLookup mappingLookup, List<LuceneDocument> allDocs, LuceneDocument doc, XContentBuilder builder) throws IOException {
         // It is safe to reuse synthetic loader and leaf loader for each thread per index.
         // Because a new mapping will result into a new instance of this class and otherwise materialized mappings stay immutable.
+        // The loader is reset when the leaf is built below, and not for each document: as when reading a segment, writing a document
+        // clears what it wrote and advancing to the next one replaces the rest, and a reset walks every field loader of the mapping.
         PerThreadResources perThread = cachedColumnarPerThread.get();
         if (perThread == null) {
-            final Mapping mapping = context.mappingLookup().getMapping();
-            final SourceFilter blobFilter = blobSourceFilter(context.mappingLookup());
+            final Mapping mapping = mappingLookup.getMapping();
+            final SourceFilter blobFilter = blobSourceFilter(mappingLookup);
             SourceLoader.SyntheticFieldLoader fieldLoader = mapping.syntheticFieldLoader(blobFilter);
             final SourceLoader.Synthetic sourceLoader = new SourceLoader.Synthetic(blobFilter, () -> {
                 fieldLoader.reset();
@@ -80,28 +92,35 @@ final class ColumnarSourceWriter {
 
             ReusableColumnarStoredLeafReader leafReader = new ReusableColumnarStoredLeafReader();
             SourceLoader.Leaf leaf = sourceLoader.leaf(leafReader.getContext(), DOC_IDS);
-            perThread = new PerThreadResources(sourceLoader, fieldLoader, leaf, leafReader);
+            // The required stored fields only depend on the mapping, so the factory is built once. Columnar_stored documents
+            // normally need none, and then nothing has to be visited at all.
+            final Set<String> requiredStoredFields = sourceLoader.requiredStoredFields();
+            final StoredFieldLoader storedFieldLoader = requiredStoredFields.isEmpty()
+                ? StoredFieldLoader.empty()
+                : StoredFieldLoader.create(false, requiredStoredFields);
+            perThread = new PerThreadResources(sourceLoader, fieldLoader, leaf, leafReader, storedFieldLoader);
             cachedColumnarPerThread.set(perThread);
         }
 
-        // Make the full in-memory document tree (root + nested children) available to the reconstruction so nested
-        // loaders can select their children. Shard-index order places each child before its parent, matching the order
-        // in which the synthetic source loader reads them from a real segment; this is what preserves array order across
-        // nested documents, including the deeper documents that subobjects:false creates for object sub-fields and
-        // arrays inside a nested field. For a document with no nested fields this is just the single root document and
-        // nothing downstream looks at it.
-        List<LuceneDocument> allDocs = context.luceneDocumentsInShardIndexOrder();
         perThread.leafReader().setAllDocs(allDocs);
-        perThread.leafReader().repopulate(context.doc());
-        perThread.fieldLoader().reset();
+        perThread.leafReader().repopulate(doc);
         final SourceLoader.Synthetic sourceLoader = perThread.sourceLoader;
         final SourceLoader.Leaf leaf = perThread.sourceLoaderLeaf();
         final LeafReaderContext leafCtx = perThread.leafReader.getContext();
 
-        // TODO: in columnar there shouldn't exist any store fields and so we can use StoredFieldLoader.empty() here.
-        var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields()).getLoader(leafCtx, DOC_IDS);
+        // A new leaf loader per document: it remembers the last doc it read, and every document reuses DOC_ID.
+        var storedFieldLoader = perThread.storedFieldLoader().getLoader(leafCtx, DOC_IDS);
         storedFieldLoader.advanceTo(DOC_ID);
-        leaf.write(storedFieldLoader, DOC_ID, builder);
+        boolean written = false;
+        try {
+            leaf.write(storedFieldLoader, DOC_ID, builder);
+            written = true;
+        } finally {
+            if (written == false) {
+                // A document that failed half way leaves values in the loaders, which the next document must not pick up.
+                perThread.fieldLoader().reset();
+            }
+        }
     }
 
     /**
@@ -127,7 +146,8 @@ final class ColumnarSourceWriter {
         SourceLoader.Synthetic sourceLoader,
         SourceLoader.SyntheticFieldLoader fieldLoader,
         SourceLoader.Leaf sourceLoaderLeaf,
-        ReusableColumnarStoredLeafReader leafReader
+        ReusableColumnarStoredLeafReader leafReader,
+        StoredFieldLoader storedFieldLoader
     ) {}
 
     static class ReusableColumnarStoredLeafReader extends LeafReader {
@@ -168,6 +188,9 @@ final class ColumnarSourceWriter {
 
         private final List<IndexableField> storedFields = new ArrayList<>();
 
+        /** The slots the current document filled, so that {@link #repopulate} only has to clear those for the next one. */
+        private final List<Slot> dirtySlots = new ArrayList<>();
+
         // -------------------------------------------------------------------------
         // Nested reconstruction state
         // -------------------------------------------------------------------------
@@ -207,25 +230,12 @@ final class ColumnarSourceWriter {
          */
         void repopulate(LuceneDocument doc) {
             this.currentDoc = doc;
-            // Clear all registered slots from the previous document.
-            for (NumericSlot slot : numericSlots.values()) {
-                slot.present = false;
+            // Clear the slots the previous document filled. Only those can hold state, and there are typically far fewer of them
+            // than registered slots, so this avoids visiting every slot of the mapping for every document.
+            for (int i = 0; i < dirtySlots.size(); i++) {
+                dirtySlots.get(i).clear();
             }
-            for (CountsCompanionSlot slot : countsSlots.values()) {
-                slot.present = false;
-            }
-            for (BinarySlot slot : binarySlots.values()) {
-                slot.present = false;
-            }
-            for (SortedSlot slot : sortedSlots.values()) {
-                slot.present = false;
-            }
-            for (SortedSetSlot slot : sortedSetSlots.values()) {
-                slot.count = 0;
-            }
-            for (SortedNumericSlot slot : sortedNumericSlots.values()) {
-                slot.count = 0;
-            }
+            dirtySlots.clear();
             storedFields.clear();
 
             // Fill slots from this document's fields.
@@ -239,12 +249,14 @@ final class ColumnarSourceWriter {
                             if (slot != null && slot.present == false) {
                                 slot.value = field.numericValue().longValue();
                                 slot.present = true;
+                                dirtySlots.add(slot);
                             }
                         } else {
                             NumericSlot slot = numericSlots.get(name);
                             if (slot != null && slot.present == false) {
                                 slot.value = field.numericValue().longValue();
                                 slot.present = true;
+                                dirtySlots.add(slot);
                             }
                         }
                     }
@@ -253,6 +265,7 @@ final class ColumnarSourceWriter {
                         if (slot != null && slot.present == false) {
                             slot.value = field.binaryValue();
                             slot.present = true;
+                            dirtySlots.add(slot);
                         }
                     }
                     case SORTED -> {
@@ -261,23 +274,33 @@ final class ColumnarSourceWriter {
                         // (when accessed directly via getSortedDocValues).
                         SortedSetSlot ss = sortedSetSlots.get(field.name());
                         if (ss != null) {
+                            if (ss.count == 0) {
+                                dirtySlots.add(ss);
+                            }
                             ss.add(field.binaryValue());
                         }
                         SortedSlot s = sortedSlots.get(field.name());
                         if (s != null && s.present == false) {
                             s.value = field.binaryValue();
                             s.present = true;
+                            dirtySlots.add(s);
                         }
                     }
                     case SORTED_NUMERIC -> {
                         SortedNumericSlot slot = sortedNumericSlots.get(field.name());
                         if (slot != null) {
+                            if (slot.count == 0) {
+                                dirtySlots.add(slot);
+                            }
                             slot.add(field.numericValue().longValue());
                         }
                     }
                     case SORTED_SET -> {
                         SortedSetSlot slot = sortedSetSlots.get(field.name());
                         if (slot != null) {
+                            if (slot.count == 0) {
+                                dirtySlots.add(slot);
+                            }
                             slot.add(field.binaryValue());
                         }
                     }
@@ -493,12 +516,22 @@ final class ColumnarSourceWriter {
         // Inner slot classes — one per doc-values type
         // -------------------------------------------------------------------------
 
+        /** A slot that holds the value(s) of one field for the current document and can be emptied for the next one. */
+        private interface Slot {
+            void clear();
+        }
+
         /**
          * A stable, reusable numeric doc-values iterator backed by a single mutable slot.
          */
-        private static final class NumericSlot extends NumericDocValues {
+        private static final class NumericSlot extends NumericDocValues implements Slot {
             boolean present;
             long value;
+
+            @Override
+            public void clear() {
+                present = false;
+            }
 
             @Override
             public long longValue() {
@@ -513,7 +546,9 @@ final class ColumnarSourceWriter {
 
             @Override
             public int docID() {
-                return DocIdSetIterator.NO_MORE_DOCS;
+                // Like every slot below: after a successful advanceExact the iterator is positioned on the target, as it is for a real
+                // segment, and loaders may assert on it, for example the pattern_text one before it reads a value.
+                return present ? DOC_ID : DocIdSetIterator.NO_MORE_DOCS;
             }
 
             @Override
@@ -534,17 +569,22 @@ final class ColumnarSourceWriter {
 
         /**
          * A companion numeric slot for {@code "field.counts"} fields used by
-         * {@link org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues}.
+         * {@link org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues}.
          *
          * <p>When the counts field is absent from the document but the binary payload is present,
          * {@link #advanceExact} returns {@code true} and {@link #longValue} returns {@code 1},
-         * causing {@link org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues.SeparateCounts}
+         * causing {@link org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues.SeparateCounts}
          * to behave identically to {@code PlainBinary} for single-valued fields.
          */
-        private static final class CountsCompanionSlot extends NumericDocValues {
+        private static final class CountsCompanionSlot extends NumericDocValues implements Slot {
             boolean present;
             long value;
             final BinarySlot binarySlot;
+
+            @Override
+            public void clear() {
+                present = false;
+            }
 
             CountsCompanionSlot(BinarySlot binarySlot) {
                 this.binarySlot = binarySlot;
@@ -563,7 +603,7 @@ final class ColumnarSourceWriter {
 
             @Override
             public int docID() {
-                return DocIdSetIterator.NO_MORE_DOCS;
+                return present || binarySlot.present ? DOC_ID : DocIdSetIterator.NO_MORE_DOCS;
             }
 
             @Override
@@ -585,9 +625,14 @@ final class ColumnarSourceWriter {
         /**
          * A stable, reusable binary doc-values iterator backed by a single mutable slot.
          */
-        private static final class BinarySlot extends BinaryDocValues {
+        private static final class BinarySlot extends BinaryDocValues implements Slot {
             boolean present;
             BytesRef value;
+
+            @Override
+            public void clear() {
+                present = false;
+            }
 
             @Override
             public BytesRef binaryValue() {
@@ -602,7 +647,7 @@ final class ColumnarSourceWriter {
 
             @Override
             public int docID() {
-                return DocIdSetIterator.NO_MORE_DOCS;
+                return present ? DOC_ID : DocIdSetIterator.NO_MORE_DOCS;
             }
 
             @Override
@@ -627,9 +672,14 @@ final class ColumnarSourceWriter {
          * vocabulary at build time (e.g. via {@link org.apache.lucene.index.DocValues#getSortedSet})
          * do not permanently bind to {@code NO_VALUES}.
          */
-        private static final class SortedSlot extends SortedDocValues {
+        private static final class SortedSlot extends SortedDocValues implements Slot {
             boolean present;
             BytesRef value;
+
+            @Override
+            public void clear() {
+                present = false;
+            }
 
             @Override
             public int ordValue() {
@@ -655,7 +705,7 @@ final class ColumnarSourceWriter {
 
             @Override
             public int docID() {
-                return DocIdSetIterator.NO_MORE_DOCS;
+                return present ? DOC_ID : DocIdSetIterator.NO_MORE_DOCS;
             }
 
             @Override
@@ -679,10 +729,15 @@ final class ColumnarSourceWriter {
          * Values are inserted in sorted ascending order by {@link #add}, maintaining Lucene's invariant
          * without a separate post-population sort pass.
          */
-        private static final class SortedNumericSlot extends SortedNumericDocValues {
+        private static final class SortedNumericSlot extends SortedNumericDocValues implements Slot {
             long[] values = new long[4];
             int count;
             private int cursor;
+
+            @Override
+            public void clear() {
+                count = 0;
+            }
 
             void add(long v) {
                 if (count == values.length) {
@@ -715,7 +770,7 @@ final class ColumnarSourceWriter {
 
             @Override
             public int docID() {
-                return DocIdSetIterator.NO_MORE_DOCS;
+                return count > 0 ? DOC_ID : DocIdSetIterator.NO_MORE_DOCS;
             }
 
             @Override
@@ -742,10 +797,15 @@ final class ColumnarSourceWriter {
          * (e.g. {@link SortedSetDocValuesSyntheticFieldLoaderLayer#docValuesLoader}) do not
          * permanently bind to {@code NO_VALUES}.
          */
-        private static final class SortedSetSlot extends SortedSetDocValues {
+        private static final class SortedSetSlot extends SortedSetDocValues implements Slot {
             BytesRef[] values = new BytesRef[4];
             int count;
             private int cursor;
+
+            @Override
+            public void clear() {
+                count = 0;
+            }
 
             void add(BytesRef v) {
                 if (count == values.length) {
@@ -795,7 +855,7 @@ final class ColumnarSourceWriter {
 
             @Override
             public int docID() {
-                return DocIdSetIterator.NO_MORE_DOCS;
+                return count > 0 ? DOC_ID : DocIdSetIterator.NO_MORE_DOCS;
             }
 
             @Override

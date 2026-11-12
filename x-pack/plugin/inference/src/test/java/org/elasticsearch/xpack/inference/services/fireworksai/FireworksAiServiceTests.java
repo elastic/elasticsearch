@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.fireworksai;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -96,7 +97,7 @@ public class FireworksAiServiceTests extends InferenceServiceTestCase {
             assertThat(result.asMap(), Matchers.is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo(Strings.format("Bearer %s", API_KEY)));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
@@ -184,7 +185,7 @@ public class FireworksAiServiceTests extends InferenceServiceTestCase {
 
             // Verify the request was sent
             assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo(Strings.format("Bearer %s", API_KEY)));
 
             var requestBody = webServer.requests().getFirst().getBody();
@@ -222,6 +223,11 @@ public class FireworksAiServiceTests extends InferenceServiceTestCase {
                          "completion",
                          "chat_completion"
                      ],
+                     "features": {
+                         "non_streaming_chat": {
+                             "supported": true
+                         }
+                     },
                      "configurations": {
                          "api_key": {
                              "description": "API Key for the provider you're connecting to.",
@@ -289,7 +295,7 @@ public class FireworksAiServiceTests extends InferenceServiceTestCase {
                      }
                  }
                 """, dimensionsDescription));
-            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+            InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON
             );
@@ -330,8 +336,4 @@ public class FireworksAiServiceTests extends InferenceServiceTestCase {
         );
     }
 
-    @Override
-    public SimilarityMeasure getDefaultSimilarity() {
-        return SimilarityMeasure.COSINE;
-    }
 }

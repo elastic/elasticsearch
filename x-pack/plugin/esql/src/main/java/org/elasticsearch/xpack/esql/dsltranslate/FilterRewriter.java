@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.dsltranslate;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -75,12 +76,16 @@ public final class FilterRewriter {
      * @param filter        the Query DSL to translate; must not be null.
      * @param configuration the query configuration, carrying the {@code now} anchor for date math and the locale
      *                      for case-folding.
+     * @param minimumVersion the minimum transport version across the nodes this plan targets, consulted per
+     *                       emitted function. Supplying {@link org.elasticsearch.TransportVersion#current()}
+     *                       disables that gate, which is correct only where every node is known current.
      */
     public static RewriteResult rewrite(
         LogicalPlan plan,
         Predicate<? super LogicalPlan> target,
         QueryBuilder filter,
-        Configuration configuration
+        Configuration configuration,
+        TransportVersion minimumVersion
     ) {
         Objects.requireNonNull(filter, "filter must not be null");
         List<NodeFailure> allFailures = new ArrayList<>();
@@ -95,7 +100,7 @@ public final class FilterRewriter {
             QueryDslTranslator translator = new QueryDslTranslator(name -> {
                 Attribute a = byName.get(name);
                 return a != null ? a : Literal.NULL;
-            }, byName.keySet(), configuration);
+            }, byName.keySet(), configuration, minimumVersion);
             QueryDslTranslator.TranslationResult result = translator.translate(filter);
             for (QueryDslTranslator.UnsupportedClause u : result.unsupported()) {
                 allFailures.add(new NodeFailure(node, u));

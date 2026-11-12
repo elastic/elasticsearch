@@ -40,7 +40,7 @@ The default value is the empty array, which means that nothing will be loaded in
 
 A wildcard can be used in order to indicate that all files should be preloaded: `index.store.preload: ["*"]`. Note however that it is generally not useful to load all files into memory, in particular those for stored fields and term vectors, so a better option might be to set it to `["nvd", "dvd", "tim", "doc", "dim"]`, which will preload norms, doc values, terms dictionaries, postings lists and points, which are the most important parts of the index for search and aggregations.
 
-For vector search, you use [approximate k-nearest neighbor search](docs-content://solutions/search/vector/knn.md#approximate-knn), you might want to set the setting to vector search files. See [vector preloading](docs-content://deploy-manage/production-guidance/optimize-performance/approximate-knn-search.md#dense-vector-preloading) for a detailed list of the files.
+For vector search, you use [approximate k-nearest neighbor search](docs-content://solutions/search/vector/knn/approximate-knn.md), you might want to set the setting to vector search files. See [vector preloading](docs-content://deploy-manage/production-guidance/optimize-performance/approximate-knn-search.md#dense-vector-preloading) for a detailed list of the files.
 
 Note that this setting can be dangerous on indices that are larger than the size of the main memory of the host, as it would cause the filesystem cache to be trashed upon reopens after large merges, which would make indexing and searching *slower*.
 

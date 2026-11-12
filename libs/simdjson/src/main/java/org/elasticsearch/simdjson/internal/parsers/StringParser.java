@@ -68,6 +68,19 @@ public final class StringParser {
     private static final int MIN_LOW_SURROGATE = 0xDC00;
     private static final int MAX_LOW_SURROGATE = 0xDFFF;
 
+    /**
+     * Slack, in bytes, that a destination buffer must have beyond the longest result
+     * {@link #parseString} can write into it. The copy loop stores a whole vector at a time even
+     * when only part of it belongs to the string, so a destination sized exactly to the result
+     * would be overrun on the final chunk.
+     */
+    public static final int DESTINATION_PADDING = BYTES_PROCESSED;
+
+    /**
+     * Unescapes the JSON string opening at {@code idx} into {@code stringBuffer}, returning the
+     * number of bytes written. {@code stringBuffer} must have room for the raw byte length of the
+     * string plus {@link #DESTINATION_PADDING}.
+     */
     public int parseString(byte[] buffer, int idx, byte[] stringBuffer) {
         return doParseString(buffer, idx, stringBuffer, 0);
     }

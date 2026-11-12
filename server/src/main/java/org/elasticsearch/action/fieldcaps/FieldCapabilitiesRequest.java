@@ -20,6 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.tasks.CancellableTask;
@@ -421,5 +422,17 @@ public final class FieldCapabilitiesRequest extends UntypedActionRequest impleme
                 return FieldCapabilitiesRequest.this.getDescription();
             }
         };
+    }
+
+    boolean cacheable() {
+        return fields.length <= FieldCapsCache.MAX_FIELDS
+            && filters.length <= FieldCapsCache.MAX_FILTERS
+            && types.length == 0
+            && includeEmptyFields
+            && (indexFilter == null || indexFilter instanceof MatchAllQueryBuilder)
+            && runtimeFields.isEmpty()
+            // This cache targets low-latency local requests. Requests that are part of a cross-cluster request
+            // already pay a remote round trip, so the saving is negligible; keep the slots for local requests.
+            && Strings.isEmpty(clusterAlias);
     }
 }

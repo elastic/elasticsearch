@@ -304,7 +304,6 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTimeSerializationTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTimeErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.RateErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.SparklineErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroidErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtentErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.StdDevErrorTests is missing")
@@ -337,8 +336,6 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersectionErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.nulls.CoalesceErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.string.ContainsErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.util.DelayErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.util.DelayTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.vector.MagnitudeErrorTests is missing")
         );
     }

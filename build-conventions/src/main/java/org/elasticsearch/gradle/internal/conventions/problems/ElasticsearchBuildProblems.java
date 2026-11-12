@@ -26,6 +26,7 @@ public final class ElasticsearchBuildProblems {
 
     // Second-level groups
     public static final ProblemGroup PRECOMMIT = ProblemGroup.create("precommit", "Precommit Checks", ROOT);
+    public static final ProblemGroup BUILD_LOGIC = ProblemGroup.create("build-logic", "Build Logic", ROOT);
 
     // Leaf groups under PRECOMMIT
     public static final ProblemGroup FORBIDDEN_PATTERNS = ProblemGroup.create("forbidden-patterns", "Forbidden Patterns", PRECOMMIT);
@@ -47,4 +48,11 @@ public final class ElasticsearchBuildProblems {
     public static final ProblemGroup JAVA_MODULE = ProblemGroup.create("java-module", "Java Module", PRECOMMIT);
     public static final ProblemGroup POM_VALIDATION = ProblemGroup.create("pom-validation", "POM Validation", PRECOMMIT);
     public static final ProblemGroup JSON_VALIDATION = ProblemGroup.create("json-validation", "JSON Validation", PRECOMMIT);
+
+    // Leaf groups under BUILD_LOGIC
+    public static final ProblemGroup BUILD_GRADLE_SCRIPTS = ProblemGroup.create(
+        "build-gradle-scripts",
+        "Build Gradle Scripts",
+        BUILD_LOGIC
+    );
 }

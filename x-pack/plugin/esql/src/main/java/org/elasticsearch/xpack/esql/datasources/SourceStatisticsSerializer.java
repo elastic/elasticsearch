@@ -864,9 +864,7 @@ public final class SourceStatisticsSerializer {
         boolean allLicensed = true;
         boolean first = true;
         for (Map<String, Object> stats : splitStats) {
-            String fingerprint = stats.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY) instanceof String s && s.isEmpty() == false
-                ? s
-                : null;
+            String fingerprint = readConfigFingerprint(stats);
             if (first) {
                 agreed = fingerprint;
                 first = false;
@@ -875,6 +873,24 @@ public final class SourceStatisticsSerializer {
             }
             allLicensed &= Boolean.TRUE.equals(stats.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
         }
+        attachFoldedReadConfigIdentity(mixed, agreed, allLicensed, merged);
+    }
+
+    /** One file's stamped read configuration, or null when this harvest did not record one. */
+    @Nullable
+    static String readConfigFingerprint(@Nullable Map<String, Object> stats) {
+        if (stats == null) {
+            return null;
+        }
+        return stats.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY) instanceof String s && s.isEmpty() == false ? s : null;
+    }
+
+    /**
+     * Writes the folded serve-identity onto {@code merged}. {@code mixed} means the inputs did not share one
+     * fingerprint; {@code agreed} is that fingerprint when they did (null when none of them stamped one).
+     * {@code allLicensed} is the AND of the per-file count licence.
+     */
+    static void attachFoldedReadConfigIdentity(boolean mixed, @Nullable String agreed, boolean allLicensed, Map<String, Object> merged) {
         if (mixed) {
             merged.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, ReadConfigFingerprint.MIXED);
         } else if (agreed != null) {

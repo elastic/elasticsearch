@@ -30,6 +30,7 @@ import static org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResult
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -70,7 +71,7 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         processor.process(
             mockNativeProcess(
                 List.of(
-                    new PyTorchResult("a", true, 1000L, inferenceResult, new InferenceProcessStats(12L), null, null, null),
+                    new PyTorchResult("a", true, 1000L, inferenceResult, new InferenceProcessStats(12L, 12L), null, null, null),
                     new PyTorchResult("b", null, null, null, null, threadSettings, null, null),
                     new PyTorchResult("c", null, null, null, null, null, ack, null),
                     new PyTorchResult("d", null, null, null, null, null, null, errorResult)
@@ -235,7 +236,7 @@ public class PyTorchResultProcessorTests extends ESTestCase {
             isCacheHit,
             timeMs,
             new PyTorchInferenceResult(null),
-            new InferenceProcessStats(memoryStat),
+            new InferenceProcessStats(memoryStat, memoryStat),
             null,
             null,
             null
@@ -295,6 +296,49 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         assertThat(stats.timingStatsExcludingCacheHits().getCount(), equalTo(2L));
         assertThat(stats.timingStatsExcludingCacheHits().getSum(), equalTo(1900L));
         assertThat(Math.round(stats.inferenceProcessMemoryRssBytesStats().getAverage()), equalTo(222L)); // (111+222+333)/3
+    }
+
+    public void testPeakMemoryRssUsesReportedOsMax() {
+        var processor = new PyTorchResultProcessor("foo", s -> {});
+
+        // Standalone process-stats reports: current RSS drives the average, the reported OS peak drives the peak.
+        processor.updateProcessStats(standaloneProcessStats(100L, 500L));
+        processor.updateProcessStats(standaloneProcessStats(200L, 300L));
+
+        var stats = processor.getResultStats();
+        assertThat(Math.round(stats.inferenceProcessMemoryRssBytesStats().getAverage()), equalTo(150L)); // (100+200)/2
+        // Peak is the largest OS high-water mark (500), not the max of the current-RSS samples (200).
+        assertThat(stats.peakMemoryRssBytes(), equalTo(500L));
+    }
+
+    public void testPeakMemoryRssFallsBackToCurrentWhenNoOsMaxReported() {
+        var processor = new PyTorchResultProcessor("foo", s -> {});
+
+        // An older native process reports only the current RSS (memory_max_rss absent -> 0); the peak must then fall
+        // back to the current RSS rather than collapsing to zero.
+        processor.updateProcessStats(standaloneProcessStats(100L, 0L));
+        processor.updateProcessStats(standaloneProcessStats(250L, 0L));
+
+        var stats = processor.getResultStats();
+        assertThat(stats.peakMemoryRssBytes(), equalTo(250L));
+    }
+
+    public void testPeakMemoryRssShouldStayAtLeastAsHighAsObservedCurrentRss() {
+        var processor = new PyTorchResultProcessor("foo", s -> {});
+
+        // Linux can report memory_rss above memory_max_rss on the same sample; peak must not ignore the larger current.
+        processor.updateProcessStats(standaloneProcessStats(200L, 150L));
+        processor.updateProcessStats(standaloneProcessStats(180L, 160L));
+
+        var stats = processor.getResultStats();
+        long roundedAverage = Math.round(stats.inferenceProcessMemoryRssBytesStats().getAverage());
+        assertThat(roundedAverage, equalTo(190L));
+        assertThat(stats.peakMemoryRssBytes(), equalTo(200L));
+        assertThat(stats.peakMemoryRssBytes(), greaterThanOrEqualTo(roundedAverage));
+    }
+
+    private PyTorchResult standaloneProcessStats(long memoryRss, long memoryMaxRss) {
+        return new PyTorchResult("ignore", null, null, null, new InferenceProcessStats(memoryRss, memoryMaxRss), null, null, null);
     }
 
     public void testsTimeDependentStats() {

@@ -12,6 +12,7 @@ import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
@@ -32,6 +33,9 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -47,11 +51,15 @@ import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -76,24 +84,29 @@ public class HighlightOperatorTests extends OperatorTestCase {
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
         Analyzer analyzer = new StandardAnalyzer();
-        HighlightConfig config = config("fox", 5, 0, 0).withExecutionContext(analyzer, contentTerm("fox"), CONTENT);
-        return new HighlightOperator.Factory(config, List.of(new LoadFromPageEvaluator.Factory(0)));
+        HighlightConfig config = config("fox", 5, 0, 0).withExecutionContext(
+            namedAnalyzers(analyzer, CONTENT.size()),
+            contentTerm("fox"),
+            CONTENT
+        );
+        return new HighlightOperator.Factory(config, List.of(new LoadFromPageEvaluator.Factory(0)), null);
     }
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
         return equalTo(
             "HighlightOperator[query=fox, pre_tag=<em>, post_tag=</em>, encoder=default, number_of_fragments=5, fragment_size=0, "
-                + "no_match_size=0, word_boundary=false, locale=, order_by_score=false, analyzer=null, max_analyzed_offset=-1, fields=1]"
+                + "no_match_size=0, word_boundary=false, locale=, order_by_score=false, analyzer=StandardAnalyzer, "
+                + "max_analyzed_offset=-1, fields=1]"
         );
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
         return equalTo(
-            "HighlightOperator[query=content:fox, query=fox, pre_tag=<em>, post_tag=</em>, encoder=default, number_of_fragments=5, "
-                + "fragment_size=0, no_match_size=0, word_boundary=false, locale=, order_by_score=false, analyzer=null, "
-                + "max_analyzed_offset=-1, fields=[Attribute[channel=0]]]"
+            "HighlightOperator[lucene_queries=[content:fox], query=fox, pre_tag=<em>, post_tag=</em>, encoder=default, "
+                + "number_of_fragments=5, fragment_size=0, no_match_size=0, word_boundary=false, locale=, order_by_score=false, "
+                + "analyzer=StandardAnalyzer, max_analyzed_offset=-1, fields=[Attribute[channel=0]]]"
         );
     }
 
@@ -330,6 +343,28 @@ public class HighlightOperatorTests extends OperatorTestCase {
         }
     }
 
+    /**
+     * Every snippet costs objects and array headers on top of its characters, so many tiny snippets with empty tags
+     * must trip the breaker even though their text is small.
+     */
+    public void testManySmallSnippetsTripBreaker() {
+        HighlightConfig config = new HighlightConfig("fox", "", "", DEFAULT_ENCODER, 0, 0, 0, false, Locale.ROOT, false, null, -1)
+            .withExecutionContext(namedAnalyzers(new StandardAnalyzer(), CONTENT.size()), contentTerm("fox"), CONTENT);
+        Page page = new Page(bytesRefs(List.of(Collections.nCopies(10_000, "fox"))));
+        try (
+            HighlightOperator operator = new HighlightOperator(
+                blockFactory(ByteSizeValue.ofMb(1)),
+                config,
+                new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) },
+                null
+            )
+        ) {
+            expectThrows(CircuitBreakingException.class, () -> operator.process(page));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
     public void testWordBoundaryFragments() {
         String text = "Elasticsearch powers fast search across very many documents and shards in a single cluster.";
         BytesRefBlock result = highlight(config("elasticsearch", 5, 20, 0, true, false), bytesRefs(List.of(List.of(text))));
@@ -391,8 +426,9 @@ public class HighlightOperatorTests extends OperatorTestCase {
         try (
             HighlightOperator operator = new HighlightOperator(
                 blockFactory(),
-                config("fox", 5, 0, 0).withExecutionContext(analyzer, contentTerm("fox"), CONTENT),
-                new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) }
+                config("fox", 5, 0, 0).withExecutionContext(namedAnalyzers(analyzer, CONTENT.size()), contentTerm("fox"), CONTENT),
+                new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) },
+                null
             )
         ) {
             IntBlock intBlock = blockFactory().newConstantIntBlockWith(1, 1);
@@ -427,6 +463,27 @@ public class HighlightOperatorTests extends OperatorTestCase {
             BytesRefBlock highlightTitle = result.getBlock(2);
             BytesRefBlock highlightBody = result.getBlock(3);
             assertThat(value(highlightTitle, 0), equalTo("the quick <em>fox</em>"));
+            assertThat(highlightBody.isNull(0), equalTo(true));
+        } finally {
+            result.releaseBlocks();
+        }
+    }
+
+    public void testPerFieldAnalyzersStemOnlyTheFieldTheyAreAssignedTo() {
+        Query query = new BooleanQuery.Builder().add(termQuery("title", "run"), BooleanClause.Occur.SHOULD)
+            .add(termQuery("body", "run"), BooleanClause.Occur.SHOULD)
+            .build();
+        BytesRefBlock title = bytesRefs(List.of(List.of("she runs fast")));
+        BytesRefBlock body = bytesRefs(List.of(List.of("she runs fast")));
+        List<NamedAnalyzer> fieldAnalyzers = List.of(
+            new NamedAnalyzer("english", AnalyzerScope.GLOBAL, new EnglishAnalyzer()),
+            new NamedAnalyzer("keyword", AnalyzerScope.GLOBAL, new KeywordAnalyzer())
+        );
+        Page result = highlightFields(config("run", 5, 0, 0), query, TITLE_BODY, fieldAnalyzers, title, body);
+        try {
+            BytesRefBlock highlightTitle = result.getBlock(2);
+            BytesRefBlock highlightBody = result.getBlock(3);
+            assertThat(value(highlightTitle, 0), equalTo("she <em>runs</em> fast"));
             assertThat(highlightBody.isNull(0), equalTo(true));
         } finally {
             result.releaseBlocks();
@@ -615,6 +672,17 @@ public class HighlightOperatorTests extends OperatorTestCase {
         assertKeepSetDiscriminates(TermRangeQuery.newStringRange(CONTENT_FIELD, "fo", "fp", true, false), "fox", "zebra");
     }
 
+    public void testMatchNoneClauseDoesNotDisableKeepSet() {
+        Query query = new BooleanQuery.Builder().add(contentTerm("fox"), BooleanClause.Occur.SHOULD)
+            .add(new MatchNoDocsQuery("unmapped field"), BooleanClause.Occur.SHOULD)
+            .build();
+
+        HighlightOperator.TokenKeepSet keepSet = HighlightOperator.buildKeepSet(query);
+        assertThat("a match-none SHOULD clause must not disable the keep set", keepSet, notNullValue());
+        assertThat(keeps(keepSet, "fox"), equalTo(true));
+        assertThat(keeps(keepSet, "bar"), equalTo(false));
+    }
+
     private static void assertKeepSetDiscriminates(Query query, String keptToken, String droppedToken) {
         HighlightOperator.TokenKeepSet keepSet = HighlightOperator.buildKeepSet(query);
         assertThat("query [" + query + "] must keep filtering on", keepSet, notNullValue());
@@ -679,6 +747,88 @@ public class HighlightOperatorTests extends OperatorTestCase {
         }
     }
 
+    /**
+     * Each row is analyzed and searched the way its own index does: the english group stems {@code Ring} and
+     * carries the query translated with that analyzer ({@code ring}), the standard one keeps {@code Ring} and queries
+     * {@code rings}. Rows with a null or unknown {@code _index} use the first group.
+     */
+    public void testPerIndexAnalysisGroups() {
+        HighlightConfig config = perIndexConfig();
+        assertThat(config.describe(), containsString("analyzer=StandardAnalyzer, per_index_analyzer=[EnglishAnalyzer=[books_english]]"));
+        BytesRefBlock content = bytesRefs(
+            List.of(List.of("Lord of the Ring"), List.of("Lord of the Ring"), List.of("Lord of the Ring"), List.of("Lord of the Rings"))
+        );
+        BytesRefBlock index = bytesRefsOrNull(Arrays.asList("books", "books_english", null, "unknown"));
+        try (
+            HighlightOperator operator = new HighlightOperator(
+                blockFactory(),
+                config,
+                new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) },
+                new LoadFromPageEvaluator(1)
+            )
+        ) {
+            Page result = operator.process(new Page(content, index));
+            try {
+                BytesRefBlock highlighted = result.getBlock(2);
+                assertThat(highlighted.isNull(0), equalTo(true));
+                assertThat(value(highlighted, 1), equalTo("Lord of the <em>Ring</em>"));
+                assertThat(highlighted.isNull(2), equalTo(true));
+                assertThat(value(highlighted, 3), equalTo("Lord of the <em>Rings</em>"));
+            } finally {
+                result.releaseBlocks();
+            }
+        }
+    }
+
+    /** The operator the factory builds reads each row's group off the {@code _index} evaluator, and releases it on close. */
+    public void testFactoryWiresAndClosesIndexEvaluator() {
+        AtomicBoolean indexEvaluatorClosed = new AtomicBoolean();
+        ExpressionEvaluator.Factory indexEvaluatorFactory = context -> new ExpressionEvaluator() {
+            @Override
+            public Block eval(Page page) {
+                return new LoadFromPageEvaluator(1).eval(page);
+            }
+
+            @Override
+            public long baseRamBytesUsed() {
+                return 0;
+            }
+
+            @Override
+            public void close() {
+                indexEvaluatorClosed.set(true);
+            }
+        };
+        HighlightOperator.Factory factory = new HighlightOperator.Factory(
+            perIndexConfig(),
+            List.of(new LoadFromPageEvaluator.Factory(0)),
+            indexEvaluatorFactory
+        );
+        BytesRefBlock content = bytesRefs(List.of(List.of("Lord of the Ring")));
+        BytesRefBlock index = bytesRefsOrNull(List.of("books_english"));
+        try (HighlightOperator operator = (HighlightOperator) factory.get(driverContext())) {
+            Page result = operator.process(new Page(content, index));
+            try {
+                assertThat(value(result.getBlock(2), 0), equalTo("Lord of the <em>Ring</em>"));
+            } finally {
+                result.releaseBlocks();
+            }
+        }
+        assertTrue(indexEvaluatorClosed.get());
+    }
+
+    /** {@code books_english} rows use an english analyzer and query, every other row the standard ones. */
+    private static HighlightConfig perIndexConfig() {
+        return config("rings", 5, 0, 0).withExecutionContext(
+            List.of(
+                new HighlightConfig.AnalysisGroup(namedAnalyzers(new StandardAnalyzer(), 1), contentTerm("rings")),
+                new HighlightConfig.AnalysisGroup(namedAnalyzers(new EnglishAnalyzer(), 1), contentTerm("ring"))
+            ),
+            Map.of("books_english", 1),
+            CONTENT
+        );
+    }
+
     private static Query contentTerm(String term) {
         return termQuery(CONTENT_FIELD, term);
     }
@@ -734,8 +884,9 @@ public class HighlightOperatorTests extends OperatorTestCase {
         try (
             HighlightOperator operator = new HighlightOperator(
                 blockFactory(),
-                config.withExecutionContext(analyzer, query, CONTENT),
-                new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) }
+                config.withExecutionContext(namedAnalyzers(analyzer, CONTENT.size()), query, CONTENT),
+                new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) },
+                null
             )
         ) {
             Page result = operator.process(new Page(input));
@@ -748,18 +899,36 @@ public class HighlightOperatorTests extends OperatorTestCase {
 
     // Runs the operator with one input block per ON field.
     private Page highlightFields(HighlightConfig config, Query query, List<String> fieldNames, BytesRefBlock... fields) {
+        return highlightFields(config, query, fieldNames, namedAnalyzers(new StandardAnalyzer(), fieldNames.size()), fields);
+    }
+
+    private Page highlightFields(
+        HighlightConfig config,
+        Query query,
+        List<String> fieldNames,
+        List<NamedAnalyzer> fieldAnalyzers,
+        BytesRefBlock... fields
+    ) {
         ExpressionEvaluator[] evaluators = IntStream.range(0, fields.length)
             .mapToObj(LoadFromPageEvaluator::new)
             .toArray(ExpressionEvaluator[]::new);
         try (
             HighlightOperator operator = new HighlightOperator(
                 blockFactory(),
-                config.withExecutionContext(new StandardAnalyzer(), query, fieldNames),
-                evaluators
+                config.withExecutionContext(fieldAnalyzers, query, fieldNames),
+                evaluators,
+                null
             )
         ) {
             return operator.process(new Page(fields));
         }
+    }
+
+    private static List<NamedAnalyzer> namedAnalyzers(Analyzer analyzer, int count) {
+        NamedAnalyzer named = analyzer instanceof NamedAnalyzer na
+            ? na
+            : new NamedAnalyzer(analyzer.getClass().getSimpleName(), AnalyzerScope.GLOBAL, analyzer);
+        return Collections.nCopies(count, named);
     }
 
     private static String value(BytesRefBlock block, int position) {

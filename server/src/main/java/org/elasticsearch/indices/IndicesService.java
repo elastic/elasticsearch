@@ -31,6 +31,8 @@ import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.RefCountAwareThreadedActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -46,9 +48,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -70,6 +74,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -87,6 +92,7 @@ import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
@@ -124,6 +130,7 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -167,7 +174,6 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -196,6 +202,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -258,6 +265,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
+    private final FeatureService featureService;
     private final ProjectResolver projectResolver;
     private final Client client;
     private volatile Map<String, IndexService> indices = Map.of();
@@ -335,6 +343,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.bigArrays = builder.bigArrays;
         this.scriptService = builder.scriptService;
         this.clusterService = builder.clusterService;
+        this.featureService = builder.featureService;
         this.threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
             threadPool,
             clusterService.getClusterSettings(),
@@ -633,6 +642,50 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
+     * Charges the time of tasks equally to those of {@code shardIds} on this node.
+     */
+    public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds) {
+        return searchLoad(shardIds, shardId -> 0L);
+    }
+
+    /**
+     * Charges the time of tasks to those of {@code shardIds} on this node by how much their {@code total} grew since the previous
+     * task, the same way as the previous task when none grew, and equally until one grows. With {@code total} counting the results
+     * of each shard so far, a task is charged to the shards whose results it took in.
+     */
+    public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds, ToLongFunction<ShardId> total) {
+        List<ShardId> ids = new ArrayList<>(shardIds.size());
+        List<ShardSearchStats> shards = new ArrayList<>(shardIds.size());
+        for (ShardId shardId : shardIds) {
+            IndexService indexService = indexService(shardId.getIndex());
+            IndexShard shard = indexService == null ? null : indexService.getShardOrNull(shardId.id());
+            if (shard != null) {
+                ids.add(shardId);
+                shards.add(shard.shardSearchStats());
+            }
+        }
+        long[] totals = new long[ids.size()];
+        long[] charged = new long[ids.size()];
+        long[] weights = new long[ids.size()];
+        return (nanos, finishNanos) -> {
+            synchronized (charged) {
+                boolean grew = false;
+                for (int i = 0; i < totals.length; i++) {
+                    totals[i] = total.applyAsLong(ids.get(i));
+                    grew |= totals[i] > charged[i];
+                }
+                if (grew) {
+                    for (int i = 0; i < totals.length; i++) {
+                        weights[i] = Math.max(0L, totals[i] - charged[i]);
+                        charged[i] = Math.max(charged[i], totals[i]);
+                    }
+                }
+                ShardSearchStats.charge(shards, weights, nanos, finishNanos);
+            }
+        };
+    }
+
+    /**
      * Returns an IndexService for the specified index if exists otherwise returns <code>null</code>.
      */
     @Override
@@ -860,6 +913,7 @@ public class IndicesService extends AbstractLifecycleComponent
             threadPoolMergeExecutorService,
             scriptService,
             clusterService,
+            featureService,
             client,
             indicesQueryCache,
             mapperRegistry,
@@ -953,7 +1007,14 @@ public class IndicesService extends AbstractLifecycleComponent
             // optimization, we only do so when we are sure they are the same.
             .filter(dm -> indexMetadata.mapping() != null && dm.mappingSource() == indexMetadata.mapping().source())
             .orElse(null);
-        return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService, documentMapper);
+        return indexModule.newIndexMapperService(
+            clusterService,
+            featureService,
+            parserConfig,
+            mapperRegistry,
+            scriptService,
+            documentMapper
+        );
     }
 
     /**
@@ -1004,13 +1065,21 @@ public class IndicesService extends AbstractLifecycleComponent
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final DiscoveryNode localNode,
         @Nullable final DiscoveryNode sourceNode,
-        long clusterStateVersion
+        long clusterStateVersion,
+        int localRecoveryRetries
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());
         assert indexService != null;
-        IndexShard indexShard = indexService.createShard(shardRouting, localNode, sourceNode, globalCheckpointSyncer, retentionLeaseSyncer);
+        IndexShard indexShard = indexService.createShard(
+            shardRouting,
+            localNode,
+            sourceNode,
+            globalCheckpointSyncer,
+            retentionLeaseSyncer,
+            localRecoveryRetries
+        );
         indexShard.addShardFailureCallback(onShardFailure);
 
         throttlingRecoveryService.enqueue(projectId, recoveryListener, indexShard, indexService.getMetadata(), listener -> {
@@ -1020,7 +1089,11 @@ public class IndicesService extends AbstractLifecycleComponent
             final var store = indexShard.store();
             if (store.tryIncRef() == false) {
                 assert indexShard.state() == IndexShardState.CLOSED : indexShard.state();
-                listener.onRecoveryFailure(new RecoveryFailedException(indexShard.recoveryState(), "index shard closed", null), ABORT);
+                listener.onRecoveryFailure(
+                    indexShard.recoveryState(),
+                    new RecoveryFailedException(indexShard.recoveryState(), "index shard closed", null),
+                    ABORT
+                );
                 return;
             }
             final var releaseStoreRef = Releasables.assertOnce(Releasables.releaseOnce(store::decRef));
@@ -1039,7 +1112,7 @@ public class IndicesService extends AbstractLifecycleComponent
                         AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
                             // concrete index - no name clash, it uses uuid
                             .setConcreteIndex(shardRouting.index())
-                            .source(mapping.source().string(), XContentType.JSON);
+                            .source(mapping.source().string());
                         client.execute(
                             TransportAutoPutMappingAction.TYPE,
                             putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
@@ -1278,6 +1351,66 @@ public class IndicesService extends AbstractLifecycleComponent
             indexSettings,
             paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths, reason)
         );
+    }
+
+    /**
+     * Cleans up stores of shards removed by a restore, after the old shards have closed. This runs on the generic thread pool because
+     * directory scans, filesystem locks, deletion listeners, and recursive deletion could be expensive, and we don't want to block the
+     * cluster applier thread. The applier only checks current metadata while the shard lock is held. Keeping that lock until deletion
+     * finishes prevents a newly introduced shard from creating a store we might delete.
+     */
+    @Override
+    public void deleteShardsOutsideIndexRange(IndexMetadata metadata, ActionListener<Void> listener) {
+        threadPool.generic().execute(ActionRunnable.wrap(listener, delegate -> {
+            final var shardIds = nodeEnv.findAllShardIds(metadata.getIndex());
+            try (var listeners = new RefCountingListener(delegate)) {
+                for (ShardId shardId : shardIds) {
+                    if (shardId.id() >= metadata.getNumberOfShards()) {
+                        final var shardListener = listeners.acquire();
+                        try {
+                            deleteRemovedShardStore(metadata, shardId, shardListener);
+                        } catch (Exception e) {
+                            shardListener.onFailure(e);
+                        }
+                    }
+                }
+            }
+        }));
+    }
+
+    private void deleteRemovedShardStore(IndexMetadata metadata, ShardId shardId, ActionListener<Void> listener)
+        throws ShardLockObtainFailedException {
+        final ShardLock lock = nodeEnv.shardLock(shardId, "deleting shard removed by restore");
+        SubscribableListener.<IndexMetadata>newForked(
+            validation -> clusterService.getClusterApplierService()
+                .runOnApplierThread(
+                    "validate store deletion for removed shard [" + shardId + "]",
+                    Priority.NORMAL,
+                    state -> ActionListener.completeWith(validation, () -> {
+                        if (state.blocks().disableStatePersistence()) {
+                            throw new IllegalStateException("cannot clean removed shard stores while state persistence is disabled");
+                        }
+                        final var project = state.metadata().lookupProject(metadata.getIndex());
+                        final var current = project.map(p -> p.index(metadata.getIndex())).orElse(null);
+                        if (current == null
+                            || shardId.id() < current.getNumberOfShards()
+                            || Objects.equals(
+                                current.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID),
+                                metadata.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID)
+                            ) == false) {
+                            return null;
+                        }
+                        return current;
+                    }),
+                    validation.delegateFailure((ignored, response) -> {})
+                )
+        ).<Void>andThen(threadPool.generic(), threadPool.getThreadContext(), (completion, current) -> {
+            assert ClusterApplierService.assertNotClusterStateUpdateThread("deleting removed shard stores");
+            if (current != null) {
+                deleteShardStore("removed by restore", lock, buildIndexSettings(current), IndexRemovalReason.NO_LONGER_ASSIGNED);
+            }
+            completion.onResponse(null);
+        }).addListener(ActionListener.runBefore(listener, lock::close));
     }
 
     /**

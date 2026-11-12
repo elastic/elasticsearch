@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.Extract
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -57,7 +58,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 /**
  * Sum all values of a field in matching documents.
  */
-public class Sum extends NumericAggregate implements SurrogateExpression, TransportVersionAware, AggregateMetricDoubleNativeSupport {
+public class Sum extends NumericAggregate
+    implements
+        SurrogateExpression,
+        TransportVersionAware,
+        AggregateMetricDoubleNativeSupport,
+        UnitAware.PreservesUnit {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sum", Sum::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sum.class).unary(Sum::new).name("sum");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
@@ -189,11 +195,6 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
     @Override
     public Sum replaceChildren(List<Expression> newChildren) {
         return new Sum(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3), newChildren.get(4));
-    }
-
-    @Override
-    public Sum withFilter(Expression filter) {
-        return new Sum(source(), field(), filter, window(), summationMode, longOverflowMode);
     }
 
     /** Returns a new {@code Sum} with the field replaced, preserving all other properties. */

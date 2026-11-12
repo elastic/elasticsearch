@@ -68,6 +68,29 @@ public class LinkerHelper {
         return LINKER.downcallHandle(functionAddress, functionDescriptor, options);
     }
 
+    public static void assertRawAddressNative(MemorySegment segment) {
+        // null is left to the downcall, which rejects it the same way with or without -ea
+        assert segment == null || segment.isNative() : "raw address requires a native memory segment";
+    }
+
+    public static void assertNative(MemorySegment segment) {
+        // null is left to the downcall, which rejects it the same way with or without -ea
+        assert segment == null || segment.isNative() : "non-critical bindings require native memory segments";
+    }
+
+    /**
+     * Returns a segment's native address for a binding that passes raw pointers to native code.
+     */
+    public static long rawAddress(MemorySegment segment) {
+        assert segment.scope().isAlive() : "raw address requires a live memory segment";
+        return segment.address();
+    }
+
+    public static void assertLive(MemorySegment segment) {
+        assert segment.scope().isAlive()
+            : "raw address requires its memory segment to be kept alive. Avoid closing or dropping references to its Arena";
+    }
+
     /**
      * Shared capture-state buffer for {@code @CaptureSystemError} calls. A single segment is enough on
      * any platform: {@link Linker.Option#captureStateLayout()} spans every capture state the platform

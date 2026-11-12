@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.datasources.FileSplitProvider;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
+import org.elasticsearch.xpack.esql.datasources.PartitionSpec;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
@@ -106,8 +107,12 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * {@code FileDataSourceValidatorSampleSizeBoundTests} pins it against the reader constant so the two cannot
      * drift apart again. Whether values ABOVE the default should be accepted is a separate question this does not
      * settle — it only makes the default reachable.
+     * <p>
+     * Raised from {@code 20_000} to {@code 40_000} alongside {@code CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE}:
+     * CSV/TSV merged a second, separate {@code 20_000}-row "widening window" into this one setting, so a user
+     * who wants the row depth type inference already effectively sampled must be able to configure it directly.
      */
-    private static final int SCHEMA_SAMPLE_SIZE_MAX = 20_000;
+    private static final int SCHEMA_SAMPLE_SIZE_MAX = 40_000;
 
     /**
      * Upper bound accepted for {@code skip_rows} at registration. Preambles are a handful of lines;
@@ -133,6 +138,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         fields.add(FormatNameResolver.CONFIG_FORMAT);
         fields.addAll(ErrorPolicy.CONFIG_KEYS);
         fields.addAll(PartitionConfig.CONFIG_KEYS);
+        fields.addAll(PartitionSpec.CONFIG_KEYS);
         fields.addAll(ExclusionConfig.CONFIG_KEYS);
         fields.addAll(FileOrderConfig.CONFIG_KEYS);
         fields.addAll(FileSplitProvider.CONFIG_KEYS);
@@ -179,6 +185,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
     @Nullable
     private final FileDataSourceConfiguration.AuthMode fixedAuthMode;
     private final BiConsumer<String, ValidationException> resourceCheck;
+    /** Per-type settings policy, run on a PUT only. A no-op unless the plugin supplies one. */
+    private final BiConsumer<DataSourceConfiguration, ValidationException> datasourceCheck;
     /**
      * Storage-provider-specific keys accepted on a dataset PUT, beyond the shared {@link #DATASET_FIELDS}. Supplied
      * by the plugin via {@link #withAdditionalDatasetKeys} so that provider-specific keys (e.g. S3's {@code region})
@@ -196,7 +204,20 @@ public class FileDataSourceValidator implements DataSourceValidator {
         BiFunction<Map<String, Object>, Set<String>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes
     ) {
-        this(type, configFactory, supportedSchemes, null, () -> false, () -> false, null, null, (r, e) -> {}, Set.of(), Map.of());
+        this(
+            type,
+            configFactory,
+            supportedSchemes,
+            null,
+            () -> false,
+            () -> false,
+            null,
+            null,
+            (r, e) -> {},
+            (c, e) -> {},
+            Set.of(),
+            Map.of()
+        );
     }
 
     private FileDataSourceValidator(
@@ -209,6 +230,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         @Nullable FormatReaderRegistry formatReaderRegistry,
         @Nullable FileDataSourceConfiguration.AuthMode fixedAuthMode,
         BiConsumer<String, ValidationException> resourceCheck,
+        BiConsumer<DataSourceConfiguration, ValidationException> datasourceCheck,
         Set<String> additionalDatasetKeys,
         Map<String, String> deprecatedDatasourceKeys
     ) {
@@ -221,6 +243,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         this.formatReaderRegistry = formatReaderRegistry;
         this.fixedAuthMode = fixedAuthMode;
         this.resourceCheck = resourceCheck;
+        this.datasourceCheck = datasourceCheck;
         this.additionalDatasetKeys = additionalDatasetKeys;
         this.deprecatedDatasourceKeys = deprecatedDatasourceKeys;
     }
@@ -243,6 +266,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             formatReaderRegistry,
             fixedAuthMode,
             resourceCheck,
+            datasourceCheck,
             additionalDatasetKeys,
             deprecatedDatasourceKeys
         );
@@ -264,6 +288,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             registry,
             fixedAuthMode,
             resourceCheck,
+            datasourceCheck,
             additionalDatasetKeys,
             deprecatedDatasourceKeys
         );
@@ -287,6 +312,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             formatReaderRegistry,
             fixedAuthMode,
             resourceCheck,
+            datasourceCheck,
             additionalDatasetKeys,
             deprecatedDatasourceKeys
         );
@@ -308,6 +334,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             formatReaderRegistry,
             fixedAuthMode,
             resourceCheck,
+            datasourceCheck,
             additionalDatasetKeys,
             deprecatedDatasourceKeys
         );
@@ -328,6 +355,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             formatReaderRegistry,
             mode,
             resourceCheck,
+            datasourceCheck,
             additionalDatasetKeys,
             deprecatedDatasourceKeys
         );
@@ -350,6 +378,32 @@ public class FileDataSourceValidator implements DataSourceValidator {
             formatReaderRegistry,
             fixedAuthMode,
             check,
+            datasourceCheck,
+            additionalDatasetKeys,
+            deprecatedDatasourceKeys
+        );
+    }
+
+    /**
+     * Runs {@code check} against the parsed configuration on a PUT. The same rule in {@code validateSettings}
+     * would run inside the constructor and so refuse a stored configuration on every read.
+     *
+     * <p>Connectors that must also enforce the same rule at read time (for example, to honour an operator
+     * allowlist that was narrowed after registration) should apply the same check directly in their
+     * {@link StorageProviderFactory} implementation.
+     */
+    public FileDataSourceValidator withDatasourceCheck(BiConsumer<DataSourceConfiguration, ValidationException> check) {
+        return new FileDataSourceValidator(
+            type,
+            configFactory,
+            supportedSchemes,
+            formatConfigKeyResolver,
+            managedIdentityEnabled,
+            federatedIdentityEnabled,
+            formatReaderRegistry,
+            fixedAuthMode,
+            resourceCheck,
+            check,
             additionalDatasetKeys,
             deprecatedDatasourceKeys
         );
@@ -371,6 +425,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             formatReaderRegistry,
             fixedAuthMode,
             resourceCheck,
+            datasourceCheck,
             Set.copyOf(keys),
             deprecatedDatasourceKeys
         );
@@ -394,6 +449,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             formatReaderRegistry,
             fixedAuthMode,
             resourceCheck,
+            datasourceCheck,
             additionalDatasetKeys,
             Map.copyOf(merged)
         );
@@ -477,6 +533,11 @@ public class FileDataSourceValidator implements DataSourceValidator {
         if (isFederatedIdentityUsed(config) && federatedIdentityEnabled.getAsBoolean() == false) {
             throw new ValidationException().addValidationError(FEDERATED_IDENTITY_DISABLED_MESSAGE);
         }
+        if (config != null) {
+            ValidationException errors = new ValidationException();
+            datasourceCheck.accept(config, errors);
+            errors.throwIfValidationErrorsExist();
+        }
         warnDeprecatedDatasourceKeys(datasourceSettings);
         return config != null ? config.toStoredSettings() : Map.of();
     }
@@ -497,7 +558,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
     ) {
         ValidationException errors = new ValidationException();
 
-        validateResource(resource, errors);
+        boolean schemeCheckFailed = validateResource(resource, errors);
 
         if (datasetSettings == null) {
             datasetSettings = Map.of();
@@ -505,7 +566,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
         Map<String, Object> settings = datasetSettings;
 
-        Set<String> acceptedFields = resolveAcceptedFields(resource, settings, errors);
+        Set<String> acceptedFields = resolveAcceptedFields(resource, settings, errors, schemeCheckFailed);
         if (acceptedFields == null) {
             // Bad explicit format: a single "unknown format" error is already recorded. Skip field
             // rejection, per-key parsing and storage so the PUT fails on that one clear reason.
@@ -557,6 +618,9 @@ public class FileDataSourceValidator implements DataSourceValidator {
             errors
         );
         validate(() -> PartitionConfig.validate(settings), errors);
+        // partition_spec grammar plus none+spec / template-key contradictions.
+        // Reads partition_detection and partition_path itself.
+        validate(() -> PartitionSpec.validate(settings), errors);
         // hive_partitioning is accepted but ignored (deprecated no-op). Two warning sites:
         // (1) here, at CRUD time for stored datasets; (2) FileSourceFactory.validateConfig, at schema-resolution
         // time for inline FROM "..." WITH {...} queries that have no CRUD path (fires only on schema-cache misses,
@@ -728,7 +792,12 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * messages.
      */
     @Nullable
-    private Set<String> resolveAcceptedFields(@Nullable String resource, Map<String, Object> settings, ValidationException errors) {
+    private Set<String> resolveAcceptedFields(
+        @Nullable String resource,
+        Map<String, Object> settings,
+        ValidationException errors,
+        boolean schemeCheckFailed
+    ) {
         if (formatConfigKeyResolver == null) {
             // No registry to validate formats against: reject `format` and every format-specific key.
             Set<String> effective = effectiveDatasetKeys(DATASET_FIELDS_WITHOUT_FORMAT);
@@ -751,12 +820,28 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
         // No usable explicit format: the pattern must imply exactly one format. A missing resource
         // already recorded "[resource] is required"; do not pile on a format error naming null.
-        // A resource that failed the scheme/URI check is the same: the URI is already rejected, and
-        // a second "cannot determine format" error would collapse distinct addressing failures onto
-        // the format message.
-        if (resource == null || errors.validationErrors().isEmpty() == false) {
+        if (resource == null) {
             Set<String> effective = effectiveDatasetKeys(COORDINATOR_DATASET_KEYS);
             rejectUnknownFields(settings, effective, errors);
+            return effective;
+        }
+        // A resource whose URI scheme is not recognised cannot have its format inferred, so
+        // format-specific keys must not be reported as unknown — they are only unresolvable because
+        // the resource failed, and the scheme error is the one the user should act on. Genuinely
+        // independent coordinator-level faults (e.g. a malformed error_mode) still accumulate.
+        // Resources that pass the scheme check but fail the provider-level resourceCheck (empty
+        // S3 authority, ARN, MRAP) are not suppressed here: their scheme is valid so the format
+        // can still be inferred from the file extension.
+        if (schemeCheckFailed) {
+            Set<String> effective = effectiveDatasetKeys(COORDINATOR_DATASET_KEYS);
+            Set<String> allFormatKeys = allFormatConfigKeys();
+            Map<String, Object> nonFormatSettings = new HashMap<>();
+            for (Map.Entry<String, Object> entry : settings.entrySet()) {
+                if (allFormatKeys.contains(entry.getKey()) == false) {
+                    nonFormatSettings.put(entry.getKey(), entry.getValue());
+                }
+            }
+            rejectUnknownFields(nonFormatSettings, effective, errors);
             return effective;
         }
         try {
@@ -764,7 +849,13 @@ public class FileDataSourceValidator implements DataSourceValidator {
             Set<String> formatKeys = formatConfigKeyResolver.configKeysForFormat(impliedFormat);
             return acceptForFormat(settings, impliedFormat, formatKeys != null ? formatKeys : Set.of(), errors);
         } catch (IllegalArgumentException e) {
-            errors.addValidationError(e.getMessage());
+            if (errors.validationErrors().isEmpty()) {
+                // No prior error: the format-inference message stands alone and is informative.
+                errors.addValidationError(e.getMessage());
+            }
+            // If prior errors exist (e.g. a resourceCheck failure already recorded), suppress the
+            // format-inference error: "cannot determine format" is a consequence of the broken
+            // resource, not an independent finding. The PUT fails on the already-recorded reason.
             return null;
         }
     }
@@ -779,7 +870,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             return FormatNameResolver.datasetFormat(settings, resource, formatReaderRegistry);
         }
         if (formatConfigKeyResolver == null) {
-            throw new IllegalArgumentException(FormatNameResolver.ambiguousDatasetFormatMessage(resource));
+            throw new IllegalArgumentException(FormatNameResolver.ambiguousDatasetFormatMessage());
         }
         return FormatNameResolver.datasetFormat(settings, resource, candidate -> {
             String ext = FormatNameResolver.extractCleanExtension(candidate);
@@ -832,7 +923,10 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * is sorted for a deterministic message.
      */
     public static String cannotDetermineFormatError(String resource, Set<String> formatSpecificKeys) {
-        return "cannot determine format for [" + resource + "]; set \"format\" to use settings like " + new TreeSet<>(formatSpecificKeys);
+        return "cannot determine the format of ["
+            + resource
+            + "] from its extension; set [format] to use "
+            + new TreeSet<>(formatSpecificKeys);
     }
 
     /**
@@ -971,10 +1065,16 @@ public class FileDataSourceValidator implements DataSourceValidator {
         return name != null ? name : "uncompressed";
     }
 
-    private void validateResource(String resource, ValidationException errors) {
+    /**
+     * Validates the resource field. Returns {@code true} if and only if the resource was
+     * non-null/non-blank and the scheme check specifically failed (no registered scheme prefix
+     * matched). Returns {@code false} in all other cases: missing resource, or a resource whose
+     * scheme matched but whose provider-level check ({@link #resourceCheck}) recorded an error.
+     */
+    private boolean validateResource(String resource, ValidationException errors) {
         if (resource == null || resource.isBlank()) {
             errors.addValidationError("[resource] is required");
-            return;
+            return false;
         }
         // Case-insensitive scheme match. Each plugin declares scheme names without "://" via supportedSchemes();
         // we append "://" here to ensure prefix matching is unambiguous (so e.g. "s3foo://" doesn't match "s3").
@@ -998,9 +1098,10 @@ public class FileDataSourceValidator implements DataSourceValidator {
             }
             sb.append(']');
             errors.addValidationError("[resource] must use one of the supported URI schemes " + sb + " but was [" + resource + "]");
-        } else {
-            resourceCheck.accept(resource, errors);
+            return true;
         }
+        resourceCheck.accept(resource, errors);
+        return false;
     }
 
     /**

@@ -88,6 +88,41 @@ public class PromqlHistogramQuantileRestIT extends AbstractPrometheusRestIT {
         assertThat(response.evaluate("data.result"), empty());
     }
 
+    public void testHistogramQuantileWithoutInfBucketIsNaN() throws Exception {
+        ingestClassicHistogram();
+        assertSingleSeriesOfNaN("histogram_quantile(0.5, sum by (job, le) (rate(" + METRIC + "{le!=\"+Inf\"}[1m])))");
+    }
+
+    public void testHistogramQuantileOfEmptyHistogramIsNaN() throws Exception {
+        ingestClassicHistogram();
+        assertSingleSeriesOfNaN("histogram_quantile(0.5, sum by (job, le) (rate(" + METRIC + "[1m]) * 0))");
+    }
+
+    public void testHistogramFractionWithoutInfBucketIsNaN() throws Exception {
+        ingestClassicHistogram();
+        assertSingleSeriesOfNaN("histogram_fraction(0.5, 1.5, sum by (job, le) (rate(" + METRIC + "{le!=\"+Inf\"}[1m])))");
+    }
+
+    public void testHistogramFractionOfEmptyHistogramIsNaN() throws Exception {
+        ingestClassicHistogram();
+        assertSingleSeriesOfNaN("histogram_fraction(0.5, 1.5, sum by (job, le) (rate(" + METRIC + "[1m]) * 0))");
+    }
+
+    /**
+     * Asserts that a histogram estimate that Prometheus defines as {@code NaN} is returned as a {@code NaN} series,
+     * rather than the series being dropped.
+     */
+    private void assertSingleSeriesOfNaN(String query) throws IOException {
+        ObjectPath response = executeQueryRange(query);
+        List<Map<String, Object>> results = response.evaluate("data.result");
+        assertThat("unexpected series: " + results, results, hasSize(1));
+        List<List<Object>> values = response.evaluate("data.result.0.values");
+        assertThat(values, not(empty()));
+        for (List<Object> value : values) {
+            assertEquals("NaN", value.get(1));
+        }
+    }
+
     private ObjectPath executeQueryRange(String query) throws IOException {
         return executeQueryRangeOnIndex("/_prometheus/" + DEFAULT_DATA_STREAM + "/api/v1/query_range", query);
     }

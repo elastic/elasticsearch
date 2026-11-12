@@ -59,7 +59,7 @@ public class RestOpenPointInTimeAction extends BaseRestHandler {
         } else {
             openRequest.indicesOptions(IndicesOptions.fromRequest(request, OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS));
         }
-        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
+        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseParamRoutingOrSliceWithProvenance(request);
         openRequest.routing(parsedRouting.routing()).setRoutingFromSlice(parsedRouting.fromSlice());
         openRequest.preference(request.param("preference"));
         openRequest.keepAlive(TimeValue.parseTimeValue(request.param("keep_alive"), null, "keep_alive"));

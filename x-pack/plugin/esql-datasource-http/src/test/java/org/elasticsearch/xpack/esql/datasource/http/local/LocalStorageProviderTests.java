@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.http.local;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
@@ -14,6 +15,8 @@ import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -26,6 +29,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -33,13 +38,21 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Tests for LocalStorageProvider and LocalStorageObject.
+ * <p>
+ * Every listing test here asserts exactly which files come back from a directory it populated itself, so the
+ * directory has to hold exactly what the test wrote. {@code ExtrasFS} injects an {@code extra0} file into
+ * directories as they are created, which is a real file the provider is right to return - and under a prefix that
+ * spans a folder it is selected along with the file the test wrote. That makes the counts depend on the seed
+ * rather than on the provider, so the randomization is suppressed and the fixtures mean what they say.
  */
+@LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class LocalStorageProviderTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
 
     public void testReadFullFile() throws IOException {
         // Create a temporary file
@@ -101,6 +114,151 @@ public class LocalStorageProviderTests extends ESTestCase {
         assertNotNull(object.lastModified());
     }
 
+    /** A listed file's version is the modification time its listing reads, which is what an unseeded object reads too. */
+    public void testListedVersionIsTheFilesModificationTime() throws IOException {
+        Path dir = createTempDir();
+        Path file = dir.resolve("data.parquet");
+        Files.writeString(file, "content");
+        LocalStorageProvider provider = new LocalStorageProvider();
+
+        List<StorageEntry> entries = new ArrayList<>();
+        try (StorageIterator iterator = provider.listObjects(StoragePath.of(StoragePath.fileUri(dir)), false)) {
+            while (iterator.hasNext()) {
+                entries.add(iterator.next());
+            }
+        }
+        StorageEntry entry = entries.stream().filter(e -> e.path().objectName().equals("data.parquet")).findFirst().orElseThrow();
+        assertNotNull(entry.version());
+        assertEquals(entry.version(), provider.newObject(entry.path()).version());
+    }
+
+    /** A rewrite that moves the modification time moves the version, so the footer of the old contents is not reused. */
+    public void testVersionChangesWhenTheFileIsRewritten() throws IOException {
+        Path file = createTempFile("rewrite", ".parquet");
+        Files.writeString(file, "first");
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(file));
+        String before = provider.newObject(path).version();
+
+        Files.writeString(file, "second");
+        Files.setLastModifiedTime(file, FileTime.fromMillis(System.currentTimeMillis() + 10_000));
+
+        assertNotEquals(before, provider.newObject(path).version());
+    }
+
+    /** A listed file rewritten since its listing is refused, so its bytes are never read under the listed version's footer. */
+    public void testReadOfAListedFileRewrittenSinceTheListingIsRefused() throws IOException {
+        Path file = createTempFile("listed", ".parquet");
+        Files.writeString(file, "first");
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(file));
+        String listed = provider.newObject(path).version();
+        StorageObject object = provider.newObject(path, 5L, Instant.EPOCH, listed);
+
+        Files.writeString(file, "second");
+        Files.setLastModifiedTime(file, FileTime.fromMillis(System.currentTimeMillis() + 10_000));
+
+        expectThrows(ExternalObjectChangedException.class, () -> object.newStream());
+    }
+
+    /** The positional read a footer load uses is refused for a rewritten listed file too, as the stream reads are. */
+    public void testPositionalReadOfAListedFileRewrittenSinceTheListingIsRefused() throws IOException {
+        Path file = createTempFile("positional", ".parquet");
+        Files.writeString(file, "first");
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(file));
+        String listed = provider.newObject(path).version();
+        StorageObject object = provider.newObject(path, 5L, Instant.EPOCH, listed);
+
+        Files.writeString(file, "second");
+        Files.setLastModifiedTime(file, FileTime.fromMillis(System.currentTimeMillis() + 10_000));
+
+        expectThrows(ExternalObjectChangedException.class, () -> object.readBytes(0, ByteBuffer.allocate(5)));
+    }
+
+    /** A version the listing supplied is the one the object reports, not a fresh reading of the file. */
+    public void testSeededVersionIsKept() throws IOException {
+        Path file = createTempFile("seeded", ".parquet");
+        Files.writeString(file, "content");
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StorageObject object = provider.newObject(StoragePath.of(StoragePath.fileUri(file)), 7L, Instant.EPOCH, "listed");
+        assertEquals("listed", object.version());
+    }
+
+    /**
+     * The name-prefix listing must select the same files whichever way its directory is spelled.
+     * <p>
+     * One directory has several legitimate URI spellings, and the walk reports files under the canonical one. An
+     * implementation that selected by comparing the caller's spelling against those paths dropped every file for
+     * any spelling but one — and an empty listing is indistinguishable from an empty dataset, so nothing
+     * downstream could tell. Each spelling below must return the two matching files and not the third.
+     */
+    public void testNamePrefixSelectsTheSameFilesForEverySpellingOfTheDirectory() throws IOException {
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("part-0000.csv"), "a\n");
+        Files.writeString(dir.resolve("part-0001.csv"), "b\n");
+        Files.writeString(dir.resolve("other-0000.csv"), "c\n");
+        // Built from fileUri, not from toAbsolutePath: a Windows path is C:\... , so "file://localhost" + path
+        // spells file://localhostC:\... , whose authority StoragePath.of rejects. fileUri normalises the
+        // separators and the leading slash, which is why every other test in this file goes through it.
+        String uri = StoragePath.fileUri(dir);
+        String abs = uri.substring("file://".length());
+
+        List<String> spellings = List.of(uri, uri + "/", "file://localhost" + abs, "file://localhost" + abs + "/", uri + "//");
+
+        try (LocalStorageProvider provider = new LocalStorageProvider()) {
+            for (String spelling : spellings) {
+                List<String> names = new ArrayList<>();
+                try (StorageIterator it = provider.listObjects(StoragePath.of(spelling), "part-", false)) {
+                    while (it.hasNext()) {
+                        names.add(it.next().path().objectName());
+                    }
+                }
+                names.sort(String::compareTo);
+                assertEquals("spelling [" + spelling + "] must select the matching files", 2, names.size());
+                assertEquals(List.of("part-0000.csv", "part-0001.csv"), names);
+            }
+        }
+    }
+
+    /** An empty name prefix selects everything, which is what the two-argument form delegates to. */
+    public void testAnEmptyNamePrefixSelectsEveryFile() throws IOException {
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("a.csv"), "a\n");
+        Files.writeString(dir.resolve("b.csv"), "b\n");
+
+        try (LocalStorageProvider provider = new LocalStorageProvider()) {
+            int seen = 0;
+            try (StorageIterator it = provider.listObjects(StoragePath.of(StoragePath.fileUri(dir)), "", false)) {
+                while (it.hasNext()) {
+                    it.next();
+                    seen++;
+                }
+            }
+            assertEquals(2, seen);
+        }
+    }
+
+    /** A name prefix spanning a directory selects under it, so a recursive listing can be narrowed by folder. */
+    public void testANamePrefixCanSpanADirectory() throws IOException {
+        Path dir = createTempDir();
+        Files.createDirectories(dir.resolve("date=2024-01-05"));
+        Files.createDirectories(dir.resolve("date=2023-07-01"));
+        Files.writeString(dir.resolve("date=2024-01-05").resolve("part.csv"), "a\n");
+        Files.writeString(dir.resolve("date=2023-07-01").resolve("part.csv"), "b\n");
+
+        try (LocalStorageProvider provider = new LocalStorageProvider()) {
+            List<String> kept = new ArrayList<>();
+            try (StorageIterator it = provider.listObjects(StoragePath.of(StoragePath.fileUri(dir)), "date=2024-01-0", true)) {
+                while (it.hasNext()) {
+                    kept.add(it.next().path().toString());
+                }
+            }
+            assertEquals("only the matching date folder", 1, kept.size());
+            assertTrue(kept.get(0), kept.get(0).contains("date=2024-01-05"));
+        }
+    }
+
     public void testListDirectory() throws IOException {
         // Create a temporary directory with some files
         Path tempDir = createTempDir();
@@ -130,6 +288,121 @@ public class LocalStorageProviderTests extends ESTestCase {
         assertEquals(List.of("file1.txt", "file2.csv"), fileNames);
     }
 
+    public void testListChildrenSeparatesFilesFromDirectories() throws IOException {
+        Path tempDir = createTempDir();
+        Files.writeString(tempDir.resolve("file1.txt"), "content1");
+        Files.createDirectories(tempDir.resolve("year=2024"));
+        Files.createDirectories(tempDir.resolve("year=2025"));
+        Files.writeString(tempDir.resolve("year=2024").resolve("nested.txt"), "nested");
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StorageChildren children = provider.listChildren(StoragePath.of(StoragePath.fileUri(tempDir)), 10_000);
+
+        // Filter out hidden files (like .DS_Store on macOS) and ExtraFS files/dirs for the assertions
+        List<String> fileNames = children.files()
+            .stream()
+            .map(e -> e.path().objectName())
+            .filter(name -> name.startsWith(".") == false && name.startsWith("extra") == false)
+            .sorted()
+            .toList();
+        List<String> dirNames = children.directories()
+            .stream()
+            .map(StoragePath::objectName)
+            .filter(name -> name.startsWith(".") == false && name.startsWith("extra") == false)
+            .sorted()
+            .toList();
+        assertEquals("only immediate files, not nested ones", List.of("file1.txt"), fileNames);
+        assertEquals(List.of("year=2024", "year=2025"), dirNames);
+    }
+
+    /**
+     * The walk feeds provider-produced child directory names back into the listing calls, so a directory whose name
+     * merely contains glob metacharacters must list fine — it is a path, not a pattern.
+     */
+    public void testListingToleratesGlobMetacharacterNames() throws IOException {
+        Path tempDir = createTempDir();
+        Path weird = tempDir.resolve("_tmp[0]");
+        Files.createDirectories(weird);
+        Files.writeString(weird.resolve("f.txt"), "x");
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StorageChildren children = provider.listChildren(StoragePath.of(StoragePath.fileUri(tempDir)), 10_000);
+        StoragePath weirdPath = children.directories()
+            .stream()
+            .filter(d -> d.objectName().equals("_tmp[0]"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("bracket directory not listed"));
+
+        StorageChildren inside = provider.listChildren(weirdPath, 10_000);
+        assertTrue(inside.files().stream().anyMatch(e -> e.path().objectName().equals("f.txt")));
+
+        List<String> names = new ArrayList<>();
+        try (StorageIterator it = provider.listObjects(weirdPath, true)) {
+            while (it.hasNext()) {
+                names.add(it.next().path().objectName());
+            }
+        }
+        assertTrue(names.contains("f.txt"));
+    }
+
+    /** Exactly {@code limit} children are allowed; one over withdraws to {@code null} (the flat-listing fallback). */
+    public void testListChildrenPastLimitReturnsNull() throws IOException {
+        Path tempDir = createTempDir();
+        for (int i = 0; i < 5; i++) {
+            Files.writeString(tempDir.resolve("f" + i + ".txt"), "x");
+        }
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath dir = StoragePath.of(StoragePath.fileUri(tempDir));
+
+        // Count via an unbounded call first: the test framework's ExtraFS may add files of its own.
+        StorageChildren all = provider.listChildren(dir, 10_000);
+        int count = all.files().size() + all.directories().size();
+
+        assertNotNull("exactly the child count must be allowed", provider.listChildren(dir, count));
+        assertNull("one child over the limit must withdraw", provider.listChildren(dir, count - 1));
+    }
+
+    /**
+     * The recursive flat listing (two-arg walkFileTree) does not follow symlinks, and a walked listing must return
+     * the same files, or the same dataset yields different rows depending on whether a partition filter was present.
+     */
+    public void testListChildrenDoesNotFollowSymlinks() throws IOException {
+        Path tempDir = createTempDir();
+        Files.writeString(tempDir.resolve("real.txt"), "x");
+        Path linkTarget = createTempDir();
+        Files.writeString(linkTarget.resolve("hidden.txt"), "y");
+        try {
+            Files.createSymbolicLink(tempDir.resolve("filelink.txt"), tempDir.resolve("real.txt"));
+            Files.createSymbolicLink(tempDir.resolve("dirlink"), linkTarget);
+        } catch (UnsupportedOperationException | IOException e) {
+            assumeNoException("filesystem without symlink support", e);
+        }
+
+        StorageChildren children = new LocalStorageProvider().listChildren(StoragePath.of(StoragePath.fileUri(tempDir)), 10_000);
+        List<String> fileNames = children.files()
+            .stream()
+            .map(e -> e.path().objectName())
+            .filter(name -> name.startsWith(".") == false && name.startsWith("extra") == false)
+            .sorted()
+            .toList();
+        List<String> dirNames = children.directories()
+            .stream()
+            .map(StoragePath::objectName)
+            .filter(name -> name.startsWith(".") == false && name.startsWith("extra") == false)
+            .toList();
+        assertEquals("symlinked files are skipped, as the recursive flat walk skips them", List.of("real.txt"), fileNames);
+        assertEquals("symlinked directories are not descended", List.of(), dirNames);
+    }
+
+    public void testListChildrenOnMissingDirectoryThrows() {
+        Path tempDir = createTempDir();
+        LocalStorageProvider provider = new LocalStorageProvider();
+        expectThrows(
+            IOException.class,
+            () -> provider.listChildren(StoragePath.of(StoragePath.fileUri(tempDir.resolve("missing"))), 10_000)
+        );
+    }
+
     public void testFileNotFound() throws IOException {
         Path tempDir = createTempDir();
         Path nonExistentFile = tempDir.resolve("nonexistent_file.txt");
@@ -152,6 +425,17 @@ public class LocalStorageProviderTests extends ESTestCase {
 
         NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> object.length());
         assertThat(e.getMessage(), containsString("nonexistent_file.txt"));
+        assertThat("the local directory is the location and is never quoted", e.getMessage(), not(containsString(tempDir.toString())));
+    }
+
+    public void testListingAMissingDirectoryNamesOnlyTheDirectory() throws IOException {
+        Path missing = createTempDir().resolve("missing_dir");
+        LocalStorageProvider provider = new LocalStorageProvider();
+
+        IOException e = expectThrows(IOException.class, () -> provider.listObjects(StoragePath.of(StoragePath.fileUri(missing)), false));
+
+        assertThat(e.getMessage(), containsString("missing_dir"));
+        assertThat(e.getMessage(), not(containsString(missing.getParent().toString())));
     }
 
     public void testLastModifiedOnNonExistentFileThrows() throws IOException {

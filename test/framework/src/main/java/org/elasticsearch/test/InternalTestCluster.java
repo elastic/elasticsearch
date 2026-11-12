@@ -2212,6 +2212,23 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
+     * Blocks until {@code vacatingNode} has applied a cluster state in which no shard of {@code index} is assigned to it, and additionally
+     * has finished closing the shards.
+     * Unlike {@link #awaitNodeVacated(String, String)}, this method observes the cluster state applied by the vacating node itself.
+     */
+    public void awaitNodeVacatedAndShardsClosed(String index, String vacatingNode) {
+        safeAwait(
+            ClusterServiceUtils.addTemporaryStateListener(
+                clusterService(vacatingNode),
+                clusterState -> nodesInclude(clusterState, index).contains(vacatingNode) == false
+            )
+        );
+        final var shardsClosed = new CountDownLatch(1);
+        getInstance(IndicesClusterStateService.class, vacatingNode).onClusterStateShardsClosed(shardsClosed::countDown);
+        safeAwait(shardsClosed);
+    }
+
+    /**
      * Performs cluster bootstrap when node with index {@link #bootstrapMasterNodeIndex} is started
      * with the names of all existing and new master-eligible nodes.
      * Indexing starts from 0.
@@ -2680,9 +2697,28 @@ public final class InternalTestCluster extends TestCluster {
                 try {
                     env.shardLock(id, "InternalTestCluster assert after test", TimeUnit.SECONDS.toMillis(5)).close();
                 } catch (ShardLockObtainFailedException ex) {
-                    throw new AssertionError("Shard " + id + " is still locked after 5 sec waiting", ex);
+                    throw new AssertionError(
+                        "Shard " + id + " is still locked after 5 sec waiting" + describeShardRoutingForDiagnostics(id, ex),
+                        ex
+                    );
                 }
             }
+        }
+    }
+
+    /**
+     * Best-effort description of where a shard is currently allocated, for the assertion message in
+     * {@link #assertAfterTest()}. Any failure gathering it is attached to {@code lockFailure} as suppressed.
+     */
+    private String describeShardRoutingForDiagnostics(ShardId shardId, ShardLockObtainFailedException lockFailure) {
+        try {
+            ClusterState state = clusterService().state();
+            var projectId = state.metadata().projectFor(shardId.getIndex()).id();
+            var shardRouting = state.routingTable(projectId).shardRoutingTable(shardId);
+            return "; " + numDataNodes() + " data node(s), routing: " + shardRouting.assignedShards();
+        } catch (Exception e) {
+            lockFailure.addSuppressed(e);
+            return "; routing unavailable, see suppressed exception";
         }
     }
 

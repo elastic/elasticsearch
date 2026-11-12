@@ -16,12 +16,21 @@ dependencies {
   javaRestTestImplementation project(':x-pack:plugin:core')
   javaRestTestImplementation project(':x-pack:plugin:security')
   javaRestTestImplementation project(':x-pack:plugin:ccr')
+  // builds real ES|QL lookup transport requests for RemoteClusterSecurityFcActionAuthorizationIT and ES|QL compute
+  // requests for RemoteClusterSecurityEsqlExternalSourceIT
+  javaRestTestImplementation project(':x-pack:plugin:esql')
+  javaRestTestImplementation project(':x-pack:plugin:esql:compute')
+  javaRestTestImplementation project(':x-pack:plugin:esql-core')
   clusterModules(project(":modules:analysis-common"))
   clusterModules project(':x-pack:plugin:ccr')
   clusterModules(project(":modules:reindex")) // need for deleting transform jobs
   clusterModules(project(":x-pack:plugin:transform"))
   // esql with enrich
   clusterModules project(':x-pack:plugin:esql')
+  // x-pack-esql extends x-pack-eql (-> x-pack-ql -> mapper-version); stage that chain so the cluster can load esql.
+  clusterModules project(':x-pack:plugin:eql')
+  clusterModules project(':x-pack:plugin:ql')
+  clusterModules project(':x-pack:plugin:mapper-version')
   clusterModules project(':x-pack:plugin:enrich')
   clusterModules project(':x-pack:plugin:autoscaling')
   clusterModules project(':x-pack:plugin:ml')
@@ -34,6 +43,8 @@ dependencies {
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
   // exposes /_flush_telemetry for RemoteClusterSecurityWithApmTracingRestIT
   clusterModules project(':test:external-modules:test-apm-integration')
+  // RemoteClusterSecurityWithApmTracingRestIT reuses RecordingApmServer to receive spans over OTLP/gRPC
+  javaRestTestImplementation(testArtifact(project(':test:external-modules:test-apm-integration'), 'javaRestTest'))
 }
 
 // Tests that consume a BWC distribution. Run only in BWC-aware tasks; excluded from regular javaRestTest.

@@ -9,9 +9,11 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
@@ -24,6 +26,7 @@ import java.util.Map;
 
 import static org.elasticsearch.ingest.common.RemoveProcessor.shouldKeep;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class RemoveProcessorTests extends ESTestCase {
@@ -162,6 +165,39 @@ public class RemoveProcessorTests extends ESTestCase {
         assertThat(document.hasField("some.array.path"), is(false));
     }
 
+    /**
+     * An empty field is treated as one that is missing rather than as an invalid path. That matters for a template that renders as
+     * nothing when the document doesn't have something that it refers to, combined with ignore_missing: the processor does nothing if
+     * ignore_missing is set, and otherwise it fails because the field doesn't exist. A field that is empty for every document is
+     * treated the same way. This is the same for the kv, rename and remove processors.
+     */
+    public void testEmptyFieldIsTreatedAsMissing() throws Exception {
+        TemplateScript.Factory constantEmpty = ConfigurationUtils.compileTemplate(
+            RemoveProcessor.TYPE,
+            "tag",
+            "field",
+            "",
+            TestTemplateService.instance()
+        );
+        // a constant template, which is empty for every document, and one that really is rendered for every document
+        for (TemplateScript.Factory emptyField : List.of(constantEmpty, new TestTemplateService.MockTemplateScript.Factory(""))) {
+            IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+            ingestDocument.setFieldValue("foo", "bar");
+            new RemoveProcessor("tag", null, List.of(emptyField), List.of(), true).execute(ingestDocument);
+            assertThat(ingestDocument.getSource(), equalTo(Map.of("foo", "bar")));
+
+            // and it doesn't get in the way of the other fields to remove, just like a field that is missing doesn't
+            ingestDocument.setFieldValue("baz", "qux");
+            List<TemplateScript.Factory> fields = List.of(emptyField, new TestTemplateService.MockTemplateScript.Factory("foo"));
+            new RemoveProcessor("tag", null, fields, List.of(), true).execute(ingestDocument);
+            assertThat(ingestDocument.getSource(), equalTo(Map.of("baz", "qux")));
+
+            RemoveProcessor notIgnoringMissing = new RemoveProcessor("tag", null, List.of(emptyField), List.of(), false);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> notIgnoringMissing.execute(ingestDocument));
+            assertThat(e.getMessage(), equalTo("field [] doesn't exist"));
+        }
+    }
+
     public void testKeepFields() throws Exception {
         Map<String, Object> address = new HashMap<>();
         address.put("street", "Ipiranga Street");
@@ -186,6 +222,16 @@ public class RemoveProcessorTests extends ESTestCase {
         assertTrue(document.hasField("_version"));
         assertTrue(document.hasField("_id"));
         assertTrue(document.hasField("_version_type"));
+    }
+
+    public void testKeepFieldsLeavesDynamicTemplatesMetadataIntact() throws Exception {
+        IngestDocument document = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(Map.of("name", "eric clapton")));
+        document.getMetadata().put("_dynamic_templates", new HashMap<>(Map.of("foo", "bar")));
+
+        Processor processor = new RemoveProcessor(null, null, List.of(), templates("name"), false);
+        processor.execute(document);
+
+        assertThat(document.getMetadata().getDynamicTemplates(), equalTo(Map.of("foo", "bar")));
     }
 
     public void testShouldKeep() {

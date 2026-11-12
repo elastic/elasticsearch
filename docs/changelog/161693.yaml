@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 161378
+pr: 161693
+summary: ES|QL KNN support for one dimensional arrays
+type: bug

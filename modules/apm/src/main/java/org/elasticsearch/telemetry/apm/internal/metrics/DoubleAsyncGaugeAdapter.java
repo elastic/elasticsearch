@@ -13,12 +13,10 @@ import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.ObservableDoubleGauge;
 
 import org.elasticsearch.telemetry.metric.DoubleAsyncGauge;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
+import org.elasticsearch.telemetry.metric.DoubleAsyncMeasurement;
 
-import java.util.Collection;
 import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 class DoubleAsyncGaugeAdapter extends AbstractAsyncInstrument<ObservableDoubleGauge> implements DoubleAsyncGauge {
 
@@ -27,18 +25,18 @@ class DoubleAsyncGaugeAdapter extends AbstractAsyncInstrument<ObservableDoubleGa
         String name,
         String description,
         String unit,
-        Supplier<Collection<DoubleWithAttributes>> observer,
+        Consumer<DoubleAsyncMeasurement> callback,
         Consumer<AbstractInstrument<?>> deregisterFunc
     ) {
-        super(meter, new Builder(name, description, unit, observer), deregisterFunc);
+        super(meter, new Builder(name, description, unit, callback), deregisterFunc);
     }
 
     private static class Builder extends AbstractInstrument.Builder<ObservableDoubleGauge> {
-        private final Supplier<Collection<DoubleWithAttributes>> observer;
+        private final Consumer<DoubleAsyncMeasurement> callback;
 
-        private Builder(String name, String description, String unit, Supplier<Collection<DoubleWithAttributes>> observer) {
+        private Builder(String name, String description, String unit, Consumer<DoubleAsyncMeasurement> callback) {
             super(name, description, unit);
-            this.observer = Objects.requireNonNull(observer);
+            this.callback = Objects.requireNonNull(callback);
         }
 
         @Override
@@ -47,7 +45,7 @@ class DoubleAsyncGaugeAdapter extends AbstractAsyncInstrument<ObservableDoubleGa
                 .gaugeBuilder(name)
                 .setDescription(description)
                 .setUnit(unit)
-                .buildWithCallback(OtelHelper.doubleMeasurementCallback(name, observer));
+                .buildWithCallback(OtelHelper.doubleMeasurementCallback(name, callback));
         }
     }
 }

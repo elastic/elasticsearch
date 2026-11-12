@@ -757,6 +757,18 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public CentroidInformation<?> calculateCentroids(FieldInfo fieldInfo, ClusteringVectorValues<?> vectorValues, MergeState mergeState)
         throws IOException {
+        return calculateCentroids(fieldInfo, vectorValues, mergeState, null);
+    }
+
+    @Override
+    @SuppressForbidden(reason = "require usage of Lucene's IOUtils#closeWhileHandlingException(...)")
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    public CentroidInformation<?> calculateCentroids(
+        FieldInfo fieldInfo,
+        ClusteringVectorValues<?> vectorValues,
+        MergeState mergeState,
+        Preconditioner mergePreconditioner
+    ) throws IOException {
         // Sliced indices treat each slice as an independent partition that must be clustered on its
         // own. The tiered merge strategy operates on the merged segment as a flat whole, which would
         // silently collapse slice boundaries, so always fall back to the sliced full rebuild here.
@@ -846,6 +858,13 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                     }
                     segmentCentroidData[i] = ivfReader.readCentroidData(fieldInfo.name);
                     segmentCentroidCounts[i] = segmentCentroidData[i] != null ? segmentCentroidData[i].numCentroids() : 0;
+                    // The merged vectors were rotated with mergePreconditioner, but a segment that is not preconditioned
+                    // stored its centroids in the original space. Rotate them so they are valid seeds for the merged vectors.
+                    if (mergePreconditioner != null
+                        && segmentCentroidData[i] != null
+                        && (ivfReader instanceof VectorPreconditioner vp && vp.getPreconditioner(fieldInfo) != null) == false) {
+                        segmentCentroidData[i] = rotateCentroidData(segmentCentroidData[i], mergePreconditioner);
+                    }
                 } else {
                     segmentSizes[i] = 0;
                     segmentCentroidCounts[i] = 0;
@@ -910,6 +929,39 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             // CentroidData owns the IndexInput backing the streaming centroid view; close once
             // the clustering pass has consumed it (and on any failure mid-way).
             org.apache.lucene.util.IOUtils.closeWhileHandlingException(segmentCentroidData);
+        }
+    }
+
+    /**
+     * Returns a copy of {@code data} whose float centroids (and global centroid) are rotated with {@code preconditioner}.
+     * Rotation is linear, so the rotated centroid is exactly the centroid of the rotated cluster. Closes {@code data}.
+     */
+    @SuppressWarnings("unchecked")
+    private static IVFVectorsReader.CentroidData<?> rotateCentroidData(IVFVectorsReader.CentroidData<?> data, Preconditioner preconditioner)
+        throws IOException {
+        try {
+            ClusteringVectorValues<float[]> source = (ClusteringVectorValues<float[]>) data.centroids();
+            int dim = source.dimension();
+            List<float[]> rotated = new ArrayList<>(data.numCentroids());
+            for (int c = 0; c < data.numCentroids(); c++) {
+                float[] out = new float[dim];
+                preconditioner.applyTransform(source.vectorValue(c), out);
+                rotated.add(out);
+            }
+            float[] globalCentroid = data.globalCentroid();
+            if (globalCentroid != null) {
+                float[] rotatedGlobal = new float[globalCentroid.length];
+                preconditioner.applyTransform(globalCentroid, rotatedGlobal);
+                globalCentroid = rotatedGlobal;
+            }
+            return new IVFVectorsReader.CentroidData<>(
+                KMeansFloatVectorValues.build(rotated, null, dim),
+                data.clusterSizes(),
+                globalCentroid,
+                null
+            );
+        } finally {
+            data.close();
         }
     }
 

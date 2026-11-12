@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 161543
+summary: Merge preconditioner should rotate the prior centroids before seeding clustering
+type: enhancement

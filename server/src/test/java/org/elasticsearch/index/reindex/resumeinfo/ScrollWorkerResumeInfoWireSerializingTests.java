@@ -64,8 +64,7 @@ public class ScrollWorkerResumeInfoWireSerializingTests extends AbstractWireSeri
     @Override
     protected ResumeInfo.ScrollWorkerResumeInfo mutateInstance(ResumeInfo.ScrollWorkerResumeInfo scrollWorkerResumeInfo)
         throws IOException {
-        // ScrollWorkerResumeInfo is a record; no need to verify equality via mutations
-        return null;
+        throw new AssertionError("No need to check instance equality for records");
     }
 
     public static ResumeInfo.ScrollWorkerResumeInfo randomScrollWorkerResumeInfo() {

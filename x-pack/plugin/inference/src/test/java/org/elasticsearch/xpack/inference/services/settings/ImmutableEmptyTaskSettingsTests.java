@@ -45,8 +45,7 @@ public class ImmutableEmptyTaskSettingsTests extends AbstractBWCSerializationTes
 
     @Override
     protected ImmutableEmptyTaskSettings mutateInstance(ImmutableEmptyTaskSettings instance) {
-        // All instances are the same and have no fields, nothing to mutate
-        return null;
+        throw new AssertionError("No need to check instance equality for records");
     }
 
     @Override

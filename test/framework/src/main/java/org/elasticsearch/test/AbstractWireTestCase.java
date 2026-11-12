@@ -14,9 +14,12 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -55,8 +58,9 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * achieve this goal, since {@code randomValueOtherThan} only ever returns values
      * which aren't {@code equals()} to the original anyway.
      * <p>
-     * Additionally, since Java automatically implements {@code equals()} for records,
-     * for these classes, {@link #mutateInstance} can return null
+     * {@link #testEqualsAndHashcode} does not call this method for a record that keeps the
+     * compiler-generated {@code equals} and {@code hashCode}. A record that declares either
+     * {@code equals} or {@code hashCode} must still return a mutation.
      */
     protected abstract T mutateInstance(T instance) throws IOException;
 
@@ -68,10 +72,32 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             T testInstance = createTestInstance();
             try {
-                EqualsHashCodeTestUtils.checkEqualsAndHashCode(testInstance, this::copyInstance, this::mutateInstance, this::dispose);
+                EqualsHashCodeTestUtils.MutateFunction<T> mutateFunction = usesGeneratedRecordEquality(testInstance.getClass())
+                    ? null
+                    : this::mutateInstance;
+                EqualsHashCodeTestUtils.checkEqualsAndHashCode(testInstance, this::copyInstance, mutateFunction, this::dispose);
             } finally {
                 dispose(testInstance);
             }
+        }
+    }
+
+    /**
+     * A record's generated {@code equals} and {@code hashCode} already compare every component, so
+     * there is nothing for {@link #mutateInstance} to prove. javac still emits those methods, and
+     * marks them {@code final}; an explicit declaration is not final.
+     */
+    @SuppressForbidden(reason = "Class.getDeclaredMethod to see if this record declares equals or hashCode")
+    private static boolean usesGeneratedRecordEquality(Class<?> clazz) {
+        if (clazz.isRecord() == false) {
+            return false;
+        }
+        try {
+            Method equals = clazz.getDeclaredMethod("equals", Object.class);
+            Method hashCode = clazz.getDeclaredMethod("hashCode");
+            return Modifier.isFinal(equals.getModifiers()) && Modifier.isFinal(hashCode.getModifiers());
+        } catch (NoSuchMethodException e) {
+            return false;
         }
     }
 

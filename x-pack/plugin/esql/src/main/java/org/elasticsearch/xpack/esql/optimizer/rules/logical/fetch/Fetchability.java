@@ -21,7 +21,9 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 
 import java.util.Set;
@@ -52,16 +54,19 @@ public final class Fetchability {
     );
 
     /**
-     * Field implementations that need nothing but the shard's mapping to load. Fields that may be unmapped do not
-     * qualify: a per-node rule chooses between doc values and {@code _source} for them, and the fetch side does not run
-     * it. Union types, {@code MultiTypeEsField} and {@code CompactMultiTypeEsField}, convert per index from the shard's
+     * Field implementations that need nothing but the shard's mapping to load. So does a keyword that may be unmapped:
+     * the loader of each shard reads it like a mapped keyword where the shard maps it and from {@code _source} where it
+     * doesn't. The data node rule that turns it into a mapped keyword when every shard of the node maps it changes what
+     * the node pushes to Lucene, not what a load returns, so the fetch side gets the same values without running it.
+     * Union types, {@code MultiTypeEsField} and {@code CompactMultiTypeEsField}, convert per index from the shard's
      * mapping, so they should load the same way. They stay eager until tests cover that conversion on the fetch side.
      */
     private static final Set<Class<? extends EsField>> FETCHABLE_FIELDS = Set.of(
         EsField.class,
         KeywordEsField.class,
         TextEsField.class,
-        DateEsField.class
+        DateEsField.class,
+        PotentiallyUnmappedKeywordEsField.class
     );
 
     private Fetchability() {}
@@ -76,6 +81,10 @@ public final class Fetchability {
         }
         if (attribute instanceof MetadataAttribute metadata) {
             return FETCHABLE_METADATA.contains(metadata.name());
+        }
+        // each shard reads the unmapped fields its pattern includes from _source, and the pattern travels with the attribute
+        if (attribute instanceof UnmappedFieldsAttribute) {
+            return true;
         }
         // the exact class: subclasses such as the time series metadata attribute are not plain mapped fields
         if (attribute.getClass() == FieldAttribute.class) {

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTests;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightIndexKey;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fetch;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -565,16 +567,44 @@ public class PlanFetchTests extends ESTestCase {
     }
 
     /**
-     * A field that may be unmapped is read through a rule that runs on the data node and that the fetch side does not
-     * run, so it keeps crossing the exchange while the other columns are fetched.
+     * A field that may be unmapped is fetched like a mapped one. The loader of each shard reads it from the shard's
+     * mapping or from {@code _source}, as the data node would.
      */
-    public void testPotentiallyUnmappedFieldStaysEager() {
+    public void testAPotentiallyUnmappedFieldIsFetched() {
         Attribute unmapped = new FieldAttribute(Source.EMPTY, "unmapped_kw", new PotentiallyUnmappedKeywordEsField("unmapped_kw"));
         Attribute mapped = field("first_name", DataType.KEYWORD);
         LogicalPlan rewritten = applyTo(topNPlan(List.of(mapped, unmapped), Map.of("", List.of("idx"))));
         Fetch fetch = single(rewritten, Fetch.class);
-        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
-        assertThat(names(fetch.child().output()), equalTo(List.of("_doc", "unmapped_kw", "sort")));
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name", "unmapped_kw")));
+        assertThat(names(fetch.child().output()), equalTo(List.of("_doc", "sort")));
+    }
+
+    /** With {@code unmapped_fields="load"}, a field no index maps is fetched with the others. */
+    public void testAFieldNoIndexMapsIsFetched() {
+        PhysicalPlan plan = plan(
+            employees(TransportVersion.current()).unmappedResolution(UnmappedResolution.LOAD),
+            "FROM employees | SORT hire_date | LIMIT 10 | KEEP first_name, does_not_exist"
+        );
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), containsInAnyOrder("first_name", "does_not_exist"));
+        FieldAttribute unmapped = (FieldAttribute) fetch.fetchedAttributes()
+            .stream()
+            .filter(attribute -> attribute.name().equals("does_not_exist"))
+            .findFirst()
+            .orElseThrow();
+        assertThat(unmapped.field(), instanceOf(PotentiallyUnmappedKeywordEsField.class));
+        assertThat(names(narrowed(fetch).output()), equalTo(List.of("_doc", "hire_date")));
+    }
+
+    /** The unmapped fields of {@code unmapped_fields="load_all"} are one {@code _source} shaped column, fetched like {@code _source}. */
+    public void testTheUnmappedFieldsOfLoadAllAreFetched() {
+        PhysicalPlan plan = plan(
+            employees(TransportVersion.current()).unmappedResolution(UnmappedResolution.LOAD_ALL),
+            "FROM employees | SORT hire_date | LIMIT 10 | KEEP first_name*, hire_date"
+        );
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), containsInAnyOrder("first_name", UnmappedFieldsAttribute.ATTRIBUTE_NAME));
+        assertThat(names(narrowed(fetch).output()), equalTo(List.of("_doc", "hire_date")));
     }
 
     /**

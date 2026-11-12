@@ -29,6 +29,26 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class PromqlQueryPlanBuilderTests extends ESTestCase {
 
+    public void testLookbackOverrideForBothQueryModes() {
+        var at = Instant.parse("2026-01-01T00:00:00Z");
+        var instant = PromqlQueryPlanBuilder.buildStatement("up", "metrics-*", at, Duration.ofMinutes(2), QueryMode.INSTANT);
+        var range = PromqlQueryPlanBuilder.buildStatement(
+            "up",
+            "metrics-*",
+            at.toString(),
+            at.toString(),
+            "30s",
+            0,
+            Duration.ofMinutes(2),
+            QueryMode.RANGE
+        );
+        for (var statement : List.of(instant, range)) {
+            var command = statement.esqlStatement().plan().collect(PromqlCommand.class).getFirst();
+            assertThat(command.lookback(), equalTo(Duration.ofMinutes(2)));
+            assertThat(command.sourceFilterWindow(), equalTo(Duration.ofMinutes(2)));
+        }
+    }
+
     public void testBuildStatementPlanStructure() {
         PromqlStatementResult result = PromqlQueryPlanBuilder.buildStatement(
             "up",
@@ -190,14 +210,14 @@ public class PromqlQueryPlanBuilderTests extends ESTestCase {
         assertThat(promqlCommand.sourceFilterWindow(), equalTo(Duration.ofMinutes(10)));
     }
 
-    public void testSourceFilterWindowFloorsShortRangeSelectorToDefaultLookback() {
+    public void testExplicitRangeDoesNotReadTheSelectorLookback() {
         Instant evaluationTime = Instant.parse("2025-01-01T00:05:00Z");
         PromqlStatementResult result = PromqlQueryPlanBuilder.buildStatement("rate(up[1m])", "*", evaluationTime, QueryMode.INSTANT);
         assertThat(result.resultType(), equalTo("vector"));
         Eval eval = (Eval) result.esqlStatement().plan();
         PromqlCommand promqlCommand = (PromqlCommand) ((TimeSeriesCollapse) eval.child()).child();
-        // sourceFilterWindow floors up to DEFAULT_LOOKBACK (5m) even when the explicit range is shorter
-        assertThat(promqlCommand.sourceFilterWindow(), equalTo(PromqlCommand.DEFAULT_LOOKBACK));
+        // An explicit range only needs its own window, even when the configured selector lookback is larger.
+        assertThat(promqlCommand.sourceFilterWindow(), equalTo(Duration.ofMinutes(1)));
         // resolveInstantQueryWindow respects the explicit 1m window without flooring
         assertThat(promqlCommand.resolveInstantQueryWindow(), equalTo(Duration.ofMinutes(1)));
     }

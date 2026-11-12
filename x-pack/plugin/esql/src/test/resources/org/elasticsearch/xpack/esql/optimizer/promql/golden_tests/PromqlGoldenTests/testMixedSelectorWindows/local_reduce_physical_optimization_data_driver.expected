@@ -1,0 +1,34 @@
+ExchangeSinkExec[[_tsid{m}#0, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#2, $$LASTOVERTIME_$1$values{r}#3, $$LASTOVERTIME_$2$partial$timestamps{r}#4, $$LASTOVERTIME_$3$partial$values{r}#5, $$LASTOVERTIME_$4$timestamps{r}#6, $$LASTOVERTIME_$5$values{r}#7],false]
+\_TimeSeriesAggregateExec[[_tsid{m}#0, step{r}#1],[LASTOVERTIME(network.eth0.tx{f}#8,@timestamp{f}#9,true[BOOLEAN],PT2M30S[TIME_DURATION]) AS LASTOVERTIME_$1#10, LASTOVERTIME(network.eth0.tx{f}#8,@timestamp{f}#9,WINDOWFILTER(PT30S[TIME_DURATION],@timestamp{f}#9),PT0S[TIME_DURATION]) AS $$LASTOVERTIME_$6$partial#11, LASTOVERTIME(network.eth0.tx{f}#8,@timestamp{f}#9,true[BOOLEAN],PT10M[TIME_DURATION]) AS LASTOVERTIME_$2#12, step{r}#1],INITIAL,[_tsid{m}#0, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#13, $$LASTOVERTIME_$1$values{r}#14, $$LASTOVERTIME_$2$partial$timestamps{r}#15, $$LASTOVERTIME_$3$partial$values{r}#16, $$LASTOVERTIME_$4$timestamps{r}#17, $$LASTOVERTIME_$5$values{r}#18],20,BUCKET(@timestamp{f}#9,PT1M[TIME_DURATION],1715300580000[DATETIME],1715301000000[DATETIME])]
+  \_FieldExtractExec[[_tsid{m}#0, network.eth0.tx{f}#8]<[],[],[]>,_doc{f}#19]
+    \_EvalExec[[BUCKET(@timestamp{f}#9,PT1M[TIME_DURATION],1715300580000[DATETIME],1715301000000[DATETIME]) AS step#1]]
+      \_FieldExtractExec[[@timestamp{f}#9]<[],[],[]>,_doc{f}#19]
+        \_EsQueryExec[k8s], indexMode[standard], [_doc{f}#19], limit[], sort[] estimatedRowSize[40] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "bool" : {
+    "must" : [
+      {
+        "exists" : {
+          "field" : "network.eth0.tx",
+          "boost" : 0.0
+        }
+      },
+      {
+        "esql_single_value" : {
+          "field" : "@timestamp",
+          "next" : {
+            "range" : {
+              "@timestamp" : {
+                "gte" : "2024-05-10T00:13:00.000Z",
+                "lte" : "2024-05-10T00:30:00.000Z",
+                "format" : "strict_date_optional_time",
+                "boost" : 0.0
+              }
+            }
+          },
+          "source" : "PROMQL index=k8s start=\"2024-05-10T00:23:00Z\" end=\"2024-05-10T00:30:00Z\" step=1m lookback_delta=150s result=(sum(network.eth0.tx) + sum(last_over_time(network.eth0.tx[10m])))@1:1"
+        }
+      }
+    ],
+    "boost" : 1.0
+  }
+}, tags=[]]]]

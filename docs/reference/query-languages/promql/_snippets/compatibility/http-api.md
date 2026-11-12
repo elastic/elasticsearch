@@ -37,7 +37,7 @@ They apply only to the [{{prom}}-compatible HTTP API](/reference/query-languages
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 60 | Query parameters that the [{{promql}} HTTP API](/reference/query-languages/promql/promql-http-api.md) doesn't list | `lookback_delta=1m`, `stats=all` | Configure clients to omit them. {{es}} returns `400 Bad Request` | [#149939]({{es-issue}}149939) |
+| 60 | Query parameters that the [{{promql}} HTTP API](/reference/query-languages/promql/promql-http-api.md) doesn't list | `stats=all` | Configure clients to omit them. {{es}} returns `400 Bad Request` | - |
 :::
 
 ### Querying metric metadata [prometheus-compatibility-querying-metric-metadata]

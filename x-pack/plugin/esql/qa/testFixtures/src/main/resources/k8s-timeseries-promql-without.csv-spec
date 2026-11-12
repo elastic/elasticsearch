@@ -1,3 +1,4 @@
+// These aggregation fixtures retain their one-hour source window explicitly.
 // Tests for PromQL `without` grouping.
 // https://prometheus.io/docs/prometheus/latest/querying/operators/#group-modifiers
 
@@ -59,7 +60,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
-PROMQL index=k8s step=1h result=(sum without (pod) (network.cost))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum without (pod) (network.cost))
 | SORT result;
 
 result:double | step:datetime            | _timeseries:keyword
@@ -75,7 +77,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
-PROMQL index=k8s step=1h result=(sum without (pod, region) (network.cost{cluster!="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum without (pod, region) (network.cost{cluster!="prod"}))
 | SORT result;
 
 result:double | step:datetime            | _timeseries:keyword
@@ -214,7 +217,8 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 required_capability: fix_promql_without_output
-PROMQL index=k8s step=1h result=(sum without (pod) (sum by (cluster, region, pod) (network.cost)))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum without (pod) (sum by (cluster, region, pod) (network.cost)))
 | SORT result;
 
 result:double | step:datetime            | cluster:keyword | region:keyword
@@ -230,7 +234,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
-PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (region) (sum by (cluster, region, pod) (network.cost))))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum by (cluster) (sum without (region) (sum by (cluster, region, pod) (network.cost))))
 | SORT result;
 
 result:double | step:datetime            | cluster:keyword
@@ -246,7 +251,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
-PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (pod) (sum by (cluster, region, pod) (network.cost))))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum by (cluster) (sum without (pod) (sum by (cluster, region, pod) (network.cost))))
 | SORT result;
 
 result:double | step:datetime            | cluster:keyword
@@ -266,7 +272,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
-PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (pod) (network.cost)))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum by (cluster) (sum without (pod) (network.cost)))
 | SORT result;
 
 result:double | step:datetime            | cluster:keyword
@@ -282,7 +289,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
-PROMQL index=k8s step=1h result=(sum by (region) (sum without (region) (network.cost)));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum by (region) (sum without (region) (network.cost)));
 
 result:double | step:datetime            | region:keyword
 61.0          | 2024-05-10T01:00:00.000Z | null
@@ -331,7 +339,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
-PROMQL index=k8s step=1h result=(sum without (pod) (network.cost{cluster="staging"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum without (pod) (network.cost{cluster="staging"}))
 | EVAL has_pod = _timeseries LIKE "*pod*"
 | KEEP result, _timeseries, has_pod;
 
@@ -346,7 +355,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
-PROMQL index=k8s step=1h result=(sum without (pod, region) (network.cost{cluster="staging"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum without (pod, region) (network.cost{cluster="staging"}))
 | EVAL has_pod = _timeseries LIKE "*pod*", has_region = _timeseries LIKE "*region*"
 | KEEP result, _timeseries, has_pod, has_region;
 

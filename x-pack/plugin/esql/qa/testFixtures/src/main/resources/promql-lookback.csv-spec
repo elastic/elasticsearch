@@ -1,0 +1,164 @@
+short_step_first_sample
+required_capability: promql_lookback_delta
+PROMQL index=k8s start="2024-05-10T00:10:00Z" end="2024-05-10T00:10:00Z" step=30s result=(sum(network.eth0.tx{cluster="qa",pod="one"}))
+| SORT step;
+
+result:double | step:datetime
+506.0 | 2024-05-10T00:10:00.000Z
+;
+
+large_step_excludes_expired
+required_capability: promql_lookback_delta
+PROMQL index=k8s start="2024-05-10T00:30:00Z" end="2024-05-10T00:30:00Z" step=10m result=(sum(network.eth0.tx{cluster="qa",pod="one"}))
+| STATS n=COUNT(*);
+
+n:long
+0
+;
+
+default_carries_until_expiry
+required_capability: promql_lookback_delta
+PROMQL index=k8s start="2024-05-10T00:23:00Z" end="2024-05-10T00:28:00Z" step=1m result=(sum(network.eth0.tx{cluster="qa",pod="one"}))
+| SORT step;
+
+result:double | step:datetime
+1380.0 | 2024-05-10T00:23:00.000Z
+1380.0 | 2024-05-10T00:24:00.000Z
+1380.0 | 2024-05-10T00:25:00.000Z
+1380.0 | 2024-05-10T00:26:00.000Z
+1380.0 | 2024-05-10T00:27:00.000Z
+;
+
+custom_carries_until_expiry
+required_capability: promql_lookback_delta
+PROMQL index=k8s start="2024-05-10T00:23:00Z" end="2024-05-10T00:25:00Z" step=1m lookback_delta=2m result=(sum(network.eth0.tx{cluster="qa",pod="one"}))
+| SORT step;
+
+result:double | step:datetime
+1380.0 | 2024-05-10T00:23:00.000Z
+1380.0 | 2024-05-10T00:24:00.000Z
+;
+
+lookback_longer_than_large_step
+required_capability: promql_lookback_delta
+PROMQL index=k8s start="2024-05-10T00:30:00Z" end="2024-05-10T00:30:00Z" step=7m lookback_delta=10m result=(sum(network.eth0.tx{cluster="qa",pod="one"}))
+| SORT step;
+
+result:double | step:datetime
+1380.0 | 2024-05-10T00:30:00.000Z
+;
+
+exclusive_left_boundary
+required_capability: promql_lookback_delta
+PROMQL index=k8s start="2024-05-10T00:24:00Z" end="2024-05-10T00:24:00Z" step=1m lookback_delta=61s result=(sum(network.eth0.tx{cluster="qa",pod="one"}))
+| STATS n=COUNT(*);
+
+n:long
+0
+;
+
+instant_custom_lookback
+required_capability: promql_lookback_delta
+PROMQL index=k8s time="2024-05-10T00:24:00Z" lookback_delta=2m result=(sum(network.eth0.tx{cluster="qa",pod="one"}))
+| SORT step;
+
+result:double | step:datetime
+1380.0 | 2024-05-10T00:24:00.000Z
+;
+
+explicit_window_is_independent
+required_capability: promql_lookback_delta
+PROMQL index=k8s start="2024-05-10T00:30:00Z" end="2024-05-10T00:30:00Z" step=7m lookback_delta=1s result=(sum(last_over_time(network.eth0.tx{cluster="qa",pod="one"}[10m])))
+| SORT step;
+
+result:double | step:datetime
+1380.0 | 2024-05-10T00:30:00.000Z
+;
+
+offset_uses_shifted_lookback
+required_capability: promql_lookback_delta
+PROMQL index=k8s start="2024-05-10T00:24:00Z" end="2024-05-10T00:24:00Z" step=30s lookback_delta=2m result=(sum(network.eth0.tx{cluster="qa",pod="one"} offset 1m))
+| SORT step;
+
+result:double | step:datetime
+1380.0 | 2024-05-10T00:24:00.000Z
+;
+
+query_setting_default
+required_capability: promql_lookback_delta
+SET promql_lookback_delta="2m"\;
+PROMQL index=k8s start="2024-05-10T00:23:00Z" end="2024-05-10T00:25:00Z" step=1m result=(sum(network.eth0.tx{cluster="qa",pod="one"}))
+| SORT step;
+
+result:double | step:datetime
+1380.0 | 2024-05-10T00:23:00.000Z
+1380.0 | 2024-05-10T00:24:00.000Z
+;
+
+original_timestamp_is_carried
+required_capability: promql_lookback_delta
+PROMQL index=k8s start="2024-05-10T00:23:00Z" end="2024-05-10T00:24:00Z" step=1m lookback_delta=2m result=(sum(timestamp(network.eth0.tx{cluster="qa",pod="one"})))
+| SORT step;
+
+result:double | step:datetime
+1715300579.0 | 2024-05-10T00:23:00.000Z
+1715300579.0 | 2024-05-10T00:24:00.000Z
+;
+
+mixed_windows_drop_expired_operand
+required_capability: promql_lookback_delta
+PROMQL index=k8s start="2024-05-10T00:23:00Z" end="2024-05-10T00:30:00Z" step=1m lookback_delta=2m result=(sum(network.eth0.tx{cluster="qa",pod="one"}) + sum(last_over_time(network.eth0.tx{cluster="qa",pod="one"}[10m])))
+| SORT step;
+
+result:double | step:datetime
+2760.0 | 2024-05-10T00:23:00.000Z
+2760.0 | 2024-05-10T00:24:00.000Z
+;
+
+zero_sum_is_present
+required_capability: promql_lookback_delta
+PROMQL index=k8s start="2024-05-10T00:23:00Z" end="2024-05-10T00:24:00Z" step=1m lookback_delta=2m result=(sum(network.eth0.tx{cluster="qa",pod="one"} - network.eth0.tx{cluster="qa",pod="one"}))
+| SORT step;
+
+result:double | step:datetime
+0.0 | 2024-05-10T00:23:00.000Z
+0.0 | 2024-05-10T00:24:00.000Z
+;
+
+original_timestamp_date_nanos_is_carried
+required_capability: promql_lookback_delta
+PROMQL index=datenanos-k8s start="2024-05-10T00:23:00Z" end="2024-05-10T00:24:00Z" step=1m lookback_delta=2m result=(sum(timestamp(network.eth0.tx{cluster="qa",pod="one"})))
+| SORT step;
+
+result:double | step:datetime
+1715300579.0 | 2024-05-10T00:23:00.000Z
+1715300579.0 | 2024-05-10T00:24:00.000Z
+;
+
+mixed_partial_windows_drop_expired_operand
+required_capability: promql_lookback_delta
+PROMQL index=k8s start="2024-05-10T00:23:00Z" end="2024-05-10T00:30:00Z" step=1m lookback_delta=150s result=(sum(network.eth0.tx{cluster="qa",pod="one"}) + sum(last_over_time(network.eth0.tx{cluster="qa",pod="one"}[10m])))
+| SORT step;
+
+result:double | step:datetime
+2760.0 | 2024-05-10T00:23:00.000Z
+2760.0 | 2024-05-10T00:24:00.000Z
+2760.0 | 2024-05-10T00:25:00.000Z
+;
+
+submillisecond_lookback_is_empty
+required_capability: promql_lookback_delta
+PROMQL index=k8s time="2024-05-10T00:22:59Z" lookback_delta="0.0005" result=(sum(network.eth0.tx{cluster="qa",pod="one"}))
+| SORT step;
+
+result:double | step:datetime
+;
+
+submillisecond_plain_selector_is_empty
+required_capability: promql_lookback_delta
+PROMQL index=k8s time="2024-05-10T00:22:59Z" lookback_delta="0.0005" result=(network.eth0.tx{cluster="qa",pod="one"})
+| KEEP result, step
+| SORT step;
+
+result:double | step:datetime
+;

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
@@ -40,6 +41,26 @@ public class PromqlParserUtils {
     }
 
     private PromqlParserUtils() {}
+
+    /** Parse a selector lookback as a Prometheus duration or a number of seconds. */
+    public static Duration parseLookbackDelta(Source source, String value) {
+        Duration duration;
+        try {
+            BigDecimal nanos = new BigDecimal(value).movePointRight(9);
+            if (nanos.compareTo(BigDecimal.valueOf(Long.MAX_VALUE)) > 0 || nanos.compareTo(BigDecimal.valueOf(Long.MIN_VALUE)) < 0) {
+                throw new ArithmeticException("duration is out of range");
+            }
+            duration = Duration.ofNanos(nanos.longValue());
+        } catch (NumberFormatException e) {
+            duration = parseDuration(source, value);
+        } catch (ArithmeticException e) {
+            throw new ParsingException(source, "Invalid value [{}] for parameter [lookback_delta]: duration is out of range", value);
+        }
+        if (duration.compareTo(Duration.ofNanos(Long.MAX_VALUE)) > 0 || duration.compareTo(Duration.ofNanos(Long.MIN_VALUE)) < 0) {
+            throw new ParsingException(source, "Invalid value [{}] for parameter [lookback_delta]: duration is out of range", value);
+        }
+        return duration;
+    }
 
     public static Duration parseDuration(Source source, String string) {
         char[] chars = string.toCharArray();
@@ -108,7 +129,11 @@ public class PromqlParserUtils {
             }
             lastUnit = new Tuple<>(token, msMultiplier);
 
-            millis += number * msMultiplier;
+            try {
+                millis = Math.addExact(millis, Math.multiplyExact(number, msMultiplier));
+            } catch (ArithmeticException e) {
+                throw new ParsingException(source, errorPrefix + "duration is out of range", string);
+            }
         }
 
         return Duration.ofMillis(millis);

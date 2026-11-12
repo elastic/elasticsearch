@@ -259,8 +259,13 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         Instant eval = Instant.parse("2024-05-10T14:30:00Z");
         Expression timestamp = Literal.dateTime(Source.EMPTY, eval);
         Expression metric = Literal.fromDouble(Source.EMPTY, 42.0);
-        LastOverTime lastOverTime = new LastOverTime(Source.EMPTY, metric, AggregateFunction.NO_WINDOW, timestamp);
-        var ctx = new PromqlFunctionRegistry.PromqlContext(timestamp, Literal.NULL, timestamp, EsqlTestUtils.TEST_CFG);
+        LastOverTime lastOverTime = new LastOverTime(
+            Source.EMPTY,
+            metric,
+            Literal.timeDuration(Source.EMPTY, java.time.Duration.ofMinutes(5)),
+            timestamp
+        );
+        var ctx = new PromqlFunctionRegistry.PromqlContext(timestamp, Literal.NULL, timestamp, EsqlTestUtils.TEST_CFG, timestamp, true);
 
         Expression built = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction("timestamp", Source.EMPTY, lastOverTime, ctx, List.of());
         Div div = as(built, Div.class);
@@ -268,7 +273,7 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         LastOverTime sampleTs = as(toDouble.field(), LastOverTime.class);
         assertThat(sampleTs.field(), equalTo(timestamp));
         assertThat(sampleTs.timestamp(), equalTo(timestamp));
-        assertThat(sampleTs.hasWindow(), equalTo(false));
+        assertThat(sampleTs.hasWindow(), equalTo(true));
         assertThat(as(sampleTs.filter(), IsNotNull.class).field(), equalTo(metric));
     }
 
@@ -470,11 +475,17 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertThat(unpack.dims(), hasSize(1));
         assertThat(Expressions.name(unpack.dims().getFirst()), equalTo("cluster"));
 
-        var sumAgg = as(unpack.child(), Aggregate.class);
+        // The sum is guarded by an outer Eval so an empty group remains absent.
+        var sumAgg = unpack.child()
+            .collect(Aggregate.class)
+            .stream()
+            .filter(a -> a instanceof TimeSeriesAggregate == false)
+            .findFirst()
+            .orElseThrow();
         assertThat(sumAgg.groupings(), hasSize(2));
-        assertThat(sumAgg.aggregates().getFirst().collect(Sum.class), not(empty()));
+        assertThat(sumAgg.aggregates().stream().flatMap(a -> a.collect(Sum.class).stream()).toList(), hasSize(1));
 
-        var tsAgg = packedTimeSeriesAggregate(sumAgg.child(), 1);
+        var tsAgg = packedTimeSeriesAggregate(as(sumAgg.child(), Eval.class).child(), 1);
         assertThat(Expressions.names(packedDims(tsAgg.aggregates())), contains("cluster"));
         assertThat(tsAgg.aggregates().getFirst().collect(LastOverTime.class), not(empty()));
     }

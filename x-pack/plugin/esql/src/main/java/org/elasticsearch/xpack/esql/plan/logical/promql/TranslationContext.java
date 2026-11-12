@@ -25,8 +25,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
@@ -361,7 +363,7 @@ public record TranslationContext(
         // Mul(LastOverTime(m), 8) -> Mul(ref, 8) -- not an agg, needs Values(Mul(ref,8))
         // Guarded by groupsBySeries because without any series grouping (e.g. constants like vector(5))
         // TranslateTimeSeriesAggregate passes Literals straight to phase 1.
-        boolean wrapWithValues = (agg instanceof AggregateFunction == false) || (agg instanceof TimeSeriesAggregateFunction);
+        boolean wrapWithValues = needsValuesWrapping(agg);
         if (groupsBySeries && wrapWithValues) {
             value = value.replaceChild(new Values(agg.source(), agg));
         }
@@ -409,7 +411,7 @@ public record TranslationContext(
         Source source = cmd.source();
         Attribute step = input.step();
         LogicalPlan plan = input.plan();
-        if (value.child() instanceof AggregateFunction == false) {
+        if (needsValuesWrapping(value.child())) {
             value = value.replaceChild(new Values(value.child().source(), value.child()));
         }
         List<Attribute> available = plan.output();
@@ -573,7 +575,7 @@ public record TranslationContext(
             end = cmd.end().value() != null ? cmd.end() : Literal.dateTime(cmd.source(), EPOCH_MAX);
         }
         var tstep = new TStep(size.source(), size, start, end, time, configuration());
-        return new Alias(tstep.source(), cmd.stepColumnName(), tstep, stepId);
+        return new Alias(tstep.source(), cmd.stepColumnName(), cmd.hasTimeRange() ? tstep : tstep.surrogate(false), stepId);
     }
 
     private boolean canCreateStepBucket() {
@@ -736,6 +738,19 @@ public record TranslationContext(
             }
         }
         return bareMatch;
+    }
+
+    private static boolean needsValuesWrapping(Expression value) {
+        return value.anyMatch(e -> e instanceof AggregateFunction && e instanceof TimeSeriesAggregateFunction == false) == false;
+    }
+
+    /** A PromQL sum over an empty vector is absent, including groups created by another operand's longer window. */
+    public static Expression emptySumAsNull(Sum sum) {
+        var source = sum.source();
+        Expression present = new Case(source, new IsNotNull(source, sum.field()), List.of(Literal.TRUE, Literal.NULL));
+        Expression count = new Count(source, present);
+        Expression empty = new Equals(source, count, new Literal(source, 0L, DataType.LONG));
+        return new Case(source, empty, List.of(Literal.NULL, sum));
     }
 
     /**

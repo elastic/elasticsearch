@@ -37,7 +37,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
 
-PROMQL index=prometheus-k8s step=1h network.cost
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h network.cost
 | SORT network.cost DESC
 ;
 ignoreOrder:true
@@ -81,7 +82,8 @@ bare_metric_with_tbucket_outputs_dimensions_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h network.cost
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h network.cost
 | SORT network.cost DESC
 ;
 ignoreOrder:true

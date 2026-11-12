@@ -53,6 +53,16 @@ import static org.hamcrest.Matchers.not;
 
 public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
 
+    public void testLookbackOverrideAndConfiguredDefault() {
+        var configuration = new org.elasticsearch.xpack.esql.session.ConfigurationBuilder(
+            org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG
+        ).setting(org.elasticsearch.xpack.esql.plan.QuerySettings.PROMQL_LOOKBACK_DELTA, Duration.ofMinutes(2)).build();
+        var plan = tsAnalyzer().configuration(configuration).query("PROMQL index=k8s step=17s result=(network.bytes_in)");
+        assertThat(collectInnerLastOverTimes(plan).getFirst().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(2)));
+        plan = tsAnalyzer().configuration(configuration).query("PROMQL index=k8s step=17s lookback_delta=3m result=(network.bytes_in)");
+        assertThat(collectInnerLastOverTimes(plan).getFirst().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(3)));
+    }
+
     public PromqlPlanSelectorTests(VersionMode versionMode) {
         super(versionMode);
     }

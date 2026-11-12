@@ -195,8 +195,20 @@ public class PromqlFunctionRegistry {
         Expression window,
         Expression step,
         Configuration configuration,
-        Expression originalTimestamp
+        Expression originalTimestamp,
+        boolean preservesSampleTimestamp
     ) {
+        /** Contexts without selector provenance use evaluation timestamps for computed vector elements. */
+        public PromqlContext(
+            Expression timestamp,
+            Expression window,
+            Expression step,
+            Configuration configuration,
+            Expression originalTimestamp
+        ) {
+            this(timestamp, window, step, configuration, originalTimestamp, false);
+        }
+
         public PromqlContext(Expression timestamp, Expression window, Expression step, Configuration configuration) {
             this(timestamp, window, step, configuration, timestamp);
         }

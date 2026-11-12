@@ -239,7 +239,9 @@ public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTes
         );
         List<HistogramPercentile> percentiles = new ArrayList<>();
         translated.forEachExpressionDown(HistogramPercentile.class, percentiles::add);
-        assertThat(percentiles, hasSize(1));
+        // The empty-sum presence check and the sum share the same percentile expression.
+        assertThat(percentiles, hasSize(2));
+        assertThat(percentiles.get(0), equalTo(percentiles.get(1)));
         assertThat(percentiles.getFirst().dataType(), equalTo(DataType.DOUBLE));
 
         assertThat(outputColumns(translated), equalTo(List.of("result", "step")));

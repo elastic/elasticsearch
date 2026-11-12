@@ -1,0 +1,84 @@
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 17}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 17, "lookback_delta": "120"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 17, "lookback_delta": "2m"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 17, "lookback_delta": "5m"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 17, "lookback_delta": "7m30s"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 17, "lookback_delta": "0"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 17, "lookback_delta": "-1"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 30}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 30, "lookback_delta": "120"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 30, "lookback_delta": "2m"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 30, "lookback_delta": "5m"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 30, "lookback_delta": "7m30s"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 30, "lookback_delta": "0"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 30, "lookback_delta": "-1"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 60}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 60, "lookback_delta": "120"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 60, "lookback_delta": "2m"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 60, "lookback_delta": "5m"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 60, "lookback_delta": "7m30s"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 60, "lookback_delta": "0"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 60, "lookback_delta": "-1"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 120}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 120, "lookback_delta": "120"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 120, "lookback_delta": "2m"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 120, "lookback_delta": "5m"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 120, "lookback_delta": "7m30s"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 120, "lookback_delta": "0"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 120, "lookback_delta": "-1"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 420}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 420, "lookback_delta": "120"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 420, "lookback_delta": "2m"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 420, "lookback_delta": "5m"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 420, "lookback_delta": "7m30s"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 420, "lookback_delta": "0"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 420, "lookback_delta": "-1"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 600}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 600, "lookback_delta": "120"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 600, "lookback_delta": "2m"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 600, "lookback_delta": "5m"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 600, "lookback_delta": "7m30s"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 600, "lookback_delta": "0"}
+{"query": "lookback_gauge", "start": 0, "end": 900, "step": 600, "lookback_delta": "-1"}
+{"query": "lookback_gauge", "time": 0}
+{"query": "lookback_gauge", "time": 0, "lookback_delta": "2m"}
+{"query": "lookback_gauge", "time": 0, "lookback_delta": "450"}
+{"query": "lookback_gauge", "time": 119}
+{"query": "lookback_gauge", "time": 119, "lookback_delta": "2m"}
+{"query": "lookback_gauge", "time": 119, "lookback_delta": "450"}
+{"query": "lookback_gauge", "time": 120}
+{"query": "lookback_gauge", "time": 120, "lookback_delta": "2m"}
+{"query": "lookback_gauge", "time": 120, "lookback_delta": "450"}
+{"query": "lookback_gauge", "time": 299}
+{"query": "lookback_gauge", "time": 299, "lookback_delta": "2m"}
+{"query": "lookback_gauge", "time": 299, "lookback_delta": "450"}
+{"query": "lookback_gauge", "time": 300}
+{"query": "lookback_gauge", "time": 300, "lookback_delta": "2m"}
+{"query": "lookback_gauge", "time": 300, "lookback_delta": "450"}
+{"query": "lookback_gauge", "time": 301}
+{"query": "lookback_gauge", "time": 301, "lookback_delta": "2m"}
+{"query": "lookback_gauge", "time": 301, "lookback_delta": "450"}
+{"query": "lookback_gauge", "time": 450}
+{"query": "lookback_gauge", "time": 450, "lookback_delta": "2m"}
+{"query": "lookback_gauge", "time": 450, "lookback_delta": "450"}
+{"query": "sum(lookback_gauge)", "start": 0, "end": 900, "step": 60, "lookback_delta": "150s"}
+{"query": "sum by (host) (lookback_gauge)", "start": 0, "end": 900, "step": 60, "lookback_delta": "150s"}
+{"query": "sum(lookback_gauge * 2)", "start": 0, "end": 900, "step": 60, "lookback_delta": "150s"}
+{"query": "sum(lookback_gauge) + sum(last_over_time(lookback_gauge[10m]))", "start": 0, "end": 900, "step": 60, "lookback_delta": "150s"}
+{"query": "last_over_time(lookback_gauge[2m])", "start": 0, "end": 900, "step": 60, "lookback_delta": "150s"}
+{"query": "lookback_gauge offset 1m", "start": 0, "end": 900, "step": 60, "lookback_delta": "150s"}
+{"query": "lookback_gauge or vector(0)", "start": 0, "end": 900, "step": 60, "lookback_delta": "150s"}
+{"query": "sum(timestamp(lookback_gauge))", "start": 0, "end": 900, "step": 60, "lookback_delta": "150s"}
+{"query": "timestamp(sum(lookback_gauge))", "start": 0, "end": 900, "step": 60, "lookback_delta": "150s"}
+{"query": "sum(timestamp(lookback_gauge offset 1m))", "start": 0, "end": 900, "step": 60, "lookback_delta": "150s"}
+{"query": "timestamp(sum(last_over_time(lookback_gauge[10m])))", "start": 0, "end": 900, "step": 60, "lookback_delta": "150s"}
+{"query": "lookback_gauge", "time": 0, "lookback_delta": "0.0005"}
+{"query": "lookback_gauge", "time": 0, "lookback_delta": "1e-12"}
+{"query": "lookback_gauge", "time": 1, "lookback_delta": "0.0005"}
+{"query": "lookback_gauge", "time": 1, "lookback_delta": "1e-12"}
+{"query": "lookback_changing", "start": -90, "end": 360, "step": 30, "lookback_delta": "150s"}
+{"query": "sum(timestamp(lookback_changing))", "start": -90, "end": 360, "step": 30, "lookback_delta": "150s"}
+{"query": "sum(lookback_hosts)", "start": -90, "end": 360, "step": 30, "lookback_delta": "150s"}
+{"query": "sum by (host) (lookback_hosts)", "start": -90, "end": 360, "step": 30, "lookback_delta": "150s"}
+{"query": "sum(lookback_hosts) + sum(last_over_time(lookback_hosts[10m]))", "start": -90, "end": 360, "step": 30, "lookback_delta": "150s"}
+{"query": "lookback_hosts", "start": -90, "end": 360, "step": 30, "lookback_delta": "150s"}

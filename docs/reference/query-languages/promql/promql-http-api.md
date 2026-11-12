@@ -51,7 +51,11 @@ This endpoint evaluates a {{promql}} expression over a time window and returns m
 | `limit` | No (default: `0`) | Maximum number of series returned, [`limit`](#promql-http-api-limit) |
 | `timeout` | No (default: [`xpack.prometheus.query.timeout`](#promql-http-api-timeout)) | Evaluation timeout, [Duration](#promql-http-api-timeout). Capped by `xpack.prometheus.query.timeout` |
 
-The `lookback_delta` and `stats` parameters are not supported yet (refer to [Differences from {{prom}}](#promql-http-api-differences)).
+The optional `lookback_delta` parameter overrides the selector lookback for this request, independently of `step`.
+It accepts a {{promql}} duration or a number of seconds, including fractional seconds, at millisecond resolution.
+A missing or non-positive value uses the cluster default `esql.query.settings.promql_lookback_delta`, or `5m`
+when the setting is not configured. The same default applies to the {{esql}} `PROMQL` command.
+The `stats` parameter is not supported yet (refer to [Differences from {{prom}}](#promql-http-api-differences)).
 
 ### Instant query [promql-http-api-query-instant]
 
@@ -65,11 +69,15 @@ This endpoint evaluates at a single instant and returns vector data (`resultType
 | Parameter | Required | Description |
 | --- | --- | --- |
 | `query` | Yes | {{promql}} expression |
-| `time` | No (default: now) | Evaluation instant, [Timestamp](#promql-http-api-param-timestamp). Selectors look back five minutes for the latest sample (refer to [Staleness](prometheus-compatibility.md#prometheus-compatibility-staleness)) |
+| `time` | No (default: now) | Evaluation instant, [Timestamp](#promql-http-api-param-timestamp). Selectors use `lookback_delta` or its default to select the latest sample (refer to [Staleness](prometheus-compatibility.md#prometheus-compatibility-staleness)) |
 | `limit` | No (default: `0`) | Maximum number of series returned, [`limit`](#promql-http-api-limit) |
 | `timeout` | No (default: [`xpack.prometheus.query.timeout`](#promql-http-api-timeout)) | Evaluation timeout, [Duration](#promql-http-api-timeout). Capped by `xpack.prometheus.query.timeout` |
 
-The `lookback_delta` and `stats` parameters are not supported yet (refer to [Differences from {{prom}}](#promql-http-api-differences)).
+The optional `lookback_delta` parameter overrides the selector lookback for this request.
+It accepts a {{promql}} duration or a number of seconds, including fractional seconds, at millisecond resolution.
+A missing or non-positive value uses the cluster default `esql.query.settings.promql_lookback_delta`, or `5m`
+when the setting is not configured. The same default applies to the {{esql}} `PROMQL` command.
+The `stats` parameter is not supported yet (refer to [Differences from {{prom}}](#promql-http-api-differences)).
 
 ## Metadata and discovery endpoints [promql-http-api-metadata]
 

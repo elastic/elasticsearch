@@ -815,7 +815,8 @@ instant_selector_dimensions_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 
-PROMQL index=k8s step=1h network.cost
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h network.cost
 | SORT network.cost DESC
 ;
 ignoreOrder:true
@@ -926,7 +927,8 @@ network.cost:double | _timeseries:keyword                                       
 bare_metric_with_tbucket_outputs_dimensions_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h network.cost
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h network.cost
 | SORT network.cost DESC
 ;
 ignoreOrder:true

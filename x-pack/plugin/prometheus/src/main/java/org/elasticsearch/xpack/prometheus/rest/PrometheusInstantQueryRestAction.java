@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.prometheus.rest.PromqlQueryPlanBuilder.PromqlStatementResult;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.function.Supplier;
@@ -91,6 +92,13 @@ public class PrometheusInstantQueryRestAction extends BaseRestHandler {
 
     private RestChannelConsumer prepareQuery(RestRequest request, NodeClient client) {
         String query = getRequiredParam(request, QUERY_PARAM);
+        String lookback = request.param("lookback_delta");
+        Duration lookbackDelta = lookback == null || lookback.isEmpty()
+            ? null
+            : PromqlParserUtils.parseLookbackDelta(Source.EMPTY, lookback);
+        if (lookbackDelta != null && lookbackDelta.isPositive() == false) {
+            lookbackDelta = null;
+        }
         String index = request.param(INDEX_PARAM, DEFAULT_PROMQL_INDEX_PATTERN);
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
         TimeValue timeout = PromqlQueryExecutor.resolveTimeout(request, maxQueryTimeout.get());
@@ -104,6 +112,7 @@ public class PrometheusInstantQueryRestAction extends BaseRestHandler {
             query,
             index,
             evaluationTime,
+            lookbackDelta,
             PrometheusQueryResponseListener.QueryMode.INSTANT
         );
         if (result.stringValue() != null) {

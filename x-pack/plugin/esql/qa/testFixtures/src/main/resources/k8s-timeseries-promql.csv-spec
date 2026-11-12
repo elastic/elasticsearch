@@ -1,3 +1,4 @@
+// Hourly selector fixtures explicitly retain the hour of data their assertions exercise.
 // Contains tests for functionality that's PromQL specific.
 // Otherwise, PromQL tests go alongside TS tests grouped by functionality k8s-timeseries-<function>.csv-spec.
 // This makes it easy to verify that PromQL and TS produce the same results for the same functionality where applicable
@@ -102,7 +103,8 @@ step:datetime
 not_equals_filter
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!="prod"}))
 | SORT cluster;
 
 cost:double | step:datetime            | cluster:keyword
@@ -114,7 +116,8 @@ not_equals_filter_collapsed
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: ts_collapse
-PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" cost=(max by (cluster) (network.total_bytes_in{cluster!="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" cost=(max by (cluster) (network.total_bytes_in{cluster!="prod"}))
 | TS_COLLAPSE
 | SORT cluster;
 
@@ -126,7 +129,8 @@ cost:double | step:datetime              | cluster:keyword
 equals_filter
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster="prod"}))
 | SORT cluster;
 
 cost:double | step:datetime            | cluster:keyword
@@ -136,7 +140,8 @@ cost:double | step:datetime            | cluster:keyword
 equals_filter_case_sensitive
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster="PROD"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster="PROD"}))
 | SORT cluster;
 
 cost:double | step:datetime            | cluster:keyword
@@ -145,7 +150,8 @@ cost:double | step:datetime            | cluster:keyword
 not_regex_filter
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!~"pr.d"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!~"pr.d"}))
 | SORT cluster;
 
 cost:double | step:datetime            | cluster:keyword
@@ -156,7 +162,8 @@ cost:double | step:datetime            | cluster:keyword
 regex_filter
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster=~"pr.d"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster=~"pr.d"}))
 | SORT cluster;
 
 cost:double | step:datetime            | cluster:keyword
@@ -167,7 +174,8 @@ regex_filter_collapsed
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: ts_collapse
-PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" cost=(max by (cluster) (network.total_bytes_in{cluster=~"pr.d"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" cost=(max by (cluster) (network.total_bytes_in{cluster=~"pr.d"}))
 | TS_COLLAPSE
 | SORT cluster;
 
@@ -178,7 +186,8 @@ cost:double | step:datetime              | cluster:keyword
 filter_same_label_multiple_times
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!="prod",cluster!="qa"}));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!="prod",cluster!="qa"}));
 
 cost:double | step:datetime            | cluster:keyword
 7403.0      | 2024-05-10T01:00:00.000Z | staging
@@ -188,7 +197,8 @@ filter_same_label_multiple_times_collapsed
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: ts_collapse
-PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" cost=(max by (cluster) (network.total_bytes_in{cluster!="prod",cluster!="qa"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" cost=(max by (cluster) (network.total_bytes_in{cluster!="prod",cluster!="qa"}))
 | TS_COLLAPSE;
 
 cost:double | step:datetime              | cluster:keyword
@@ -651,7 +661,8 @@ clamp_min_greater_than_max_drops_series
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(clamp(sum by (cluster) (network.cost), 100, 0)) | SORT cluster;
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(clamp(sum by (cluster) (network.cost), 100, 0)) | SORT cluster;
 
 result:double | step:datetime | cluster:keyword
 ;
@@ -697,7 +708,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: fix_promql_quantile_scale
-PROMQL index=k8s step=1h result=(quantile(1.0, max by (cluster) (network.bytes_in)));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(quantile(1.0, max by (cluster) (network.bytes_in)));
 
 result:double | step:datetime
 972.0         | 2024-05-10T01:00:00.000Z
@@ -707,7 +719,8 @@ max_across_series_matches_quantile_phi_one
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
-PROMQL index=k8s step=1h result=(max(max by (cluster) (network.bytes_in)));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(max(max by (cluster) (network.bytes_in)));
 
 result:double | step:datetime
 972.0         | 2024-05-10T01:00:00.000Z
@@ -1036,7 +1049,8 @@ time_minus_raw_field-Ignore
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_time
-PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(time() - network.cost);
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(time() - network.cost);
 
 result:double          | step:datetime            | cluster:keyword | pod:keyword
 0.0                    | 2024-05-10T00:00:00.000Z | prod             | one
@@ -1046,7 +1060,8 @@ post_processing_stats_global
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_post_processing_stats
-PROMQL index=k8s step=1h bytes=(max by (cluster) (network.bytes_in))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h bytes=(max by (cluster) (network.bytes_in))
 | STATS max_bytes=MAX(bytes);
 
 max_bytes:double
@@ -1057,7 +1072,8 @@ post_processing_stats_by_cluster
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_post_processing_stats
-PROMQL index=k8s step=1h bytes=(max by (cluster) (network.bytes_in))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h bytes=(max by (cluster) (network.bytes_in))
 | STATS max_bytes=MAX(bytes) BY cluster
 | SORT cluster;
 
@@ -1072,7 +1088,8 @@ max_bytes_per_cluster
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_binary_comparison_v0
-PROMQL index=k8s step=1h bytes=(max by (cluster) (network.bytes_in))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h bytes=(max by (cluster) (network.bytes_in))
 | SORT cluster;
 
 bytes:double | step:datetime            | cluster:keyword
@@ -1085,7 +1102,8 @@ comparison_filtering_lt
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_binary_comparison_v0
-PROMQL index=k8s step=1h bytes=(max by (cluster) (network.bytes_in) < 900)
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h bytes=(max by (cluster) (network.bytes_in) < 900)
 | SORT cluster;
 
 bytes:double | step:datetime            | cluster:keyword
@@ -1097,7 +1115,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_binary_comparison_v0
 required_capability: ts_collapse
-PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" bytes=(max by (cluster) (network.bytes_in) < 900)
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" bytes=(max by (cluster) (network.bytes_in) < 900)
 | TS_COLLAPSE
 | SORT cluster;
 
@@ -1109,7 +1128,8 @@ comparison_filtering_gt
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_binary_comparison_v0
-PROMQL index=k8s step=1h bytes=(max by (cluster) (network.bytes_in) > 900)
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h bytes=(max by (cluster) (network.bytes_in) > 900)
 | SORT cluster;
 
 bytes:double | step:datetime            | cluster:keyword
@@ -1122,7 +1142,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_binary_comparison_v0
 required_capability: ts_collapse
-PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" bytes=(max by (cluster) (network.bytes_in) > 900)
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" bytes=(max by (cluster) (network.bytes_in) > 900)
 | TS_COLLAPSE
 | SORT cluster;
 
@@ -1144,7 +1165,8 @@ unmapped_label
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_unmapped_fields_filter_nulls
-PROMQL index=k8s step=1h result=(network.cost{unmapped.label="value"}) | SORT result;
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(network.cost{unmapped.label="value"}) | SORT result;
 
 result:double | step:datetime | _timeseries:keyword
 ;
@@ -1162,7 +1184,8 @@ cross_series_grouping_on_unmapped_label
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_unmapped_fields_filter_nulls
-PROMQL index=k8s step=1h result=(sum by (unmapped.label) (network.cost)) | SORT result;
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum by (unmapped.label) (network.cost)) | SORT result;
 
 result:double | step:datetime
 61.0          | 2024-05-10T01:00:00.000Z
@@ -1173,7 +1196,8 @@ cross_series_no_grouping
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_unmapped_fields_filter_nulls
-PROMQL index=k8s step=1h result=(sum (network.cost)) | SORT result;
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum (network.cost)) | SORT result;
 
 result:double | step:datetime
 61.0          | 2024-05-10T01:00:00.000Z
@@ -1184,7 +1208,8 @@ cross_series_grouping_on_mapped_and_unmapped_label
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_unmapped_fields_filter_nulls
-PROMQL index=k8s step=1h result=(sum by (cluster, unmapped.label) (network.cost)) | SORT result;
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum by (cluster, unmapped.label) (network.cost)) | SORT result;
 
 result:double | step:datetime            | cluster:keyword
 15.875        | 2024-05-10T01:00:00.000Z | staging
@@ -1197,7 +1222,8 @@ cross_series_grouping_on_mapped_label
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_unmapped_fields_filter_nulls
-PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost)) | SORT result;
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum by (cluster) (network.cost)) | SORT result;
 
 result:double | step:datetime            | cluster:keyword
 15.875        | 2024-05-10T01:00:00.000Z | staging
@@ -1231,7 +1257,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_unmapped_fields_filter_nulls
 SET unmapped_fields="nullify"\;
-PROMQL index=k8s step=1h result=(sum by (unmapped.label) (network.cost)) | SORT result
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum by (unmapped.label) (network.cost)) | SORT result
 ;
 
 result:double | step:datetime
@@ -1244,7 +1271,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: optional_fields_nullify_tech_preview
 SET unmapped_fields="nullify"\;
-PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost)) | SORT result
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum by (cluster) (network.cost)) | SORT result
 ;
 
 result:double | step:datetime            | cluster:keyword
@@ -1260,7 +1288,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_unmapped_fields_filter_nulls
 required_capability: promql_absent_label_matching
-PROMQL index=k8s step=1h result=(sum(network.cost{unmapped.label=""}));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum(network.cost{unmapped.label=""}));
 
 result:double | step:datetime
 61.0          | 2024-05-10T01:00:00.000Z
@@ -1272,7 +1301,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_unmapped_fields_filter_nulls
 required_capability: promql_absent_label_matching
-PROMQL index=k8s step=1h result=(sum(network.cost{unmapped.label!="foo"}));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum(network.cost{unmapped.label!="foo"}));
 
 result:double | step:datetime
 61.0          | 2024-05-10T01:00:00.000Z
@@ -1284,7 +1314,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_unmapped_fields_filter_nulls
 required_capability: promql_absent_label_matching
-PROMQL index=k8s step=1h result=(sum(network.cost{unmapped.label!=""}));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum(network.cost{unmapped.label!=""}));
 
 result:double | step:datetime
 ;
@@ -1313,7 +1344,8 @@ scalar_sum_global
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_scalar
-PROMQL index=k8s step=1h result=(scalar(sum(network.bytes_in)));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(scalar(sum(network.bytes_in)));
 
 result:double | step:datetime
 4852.0        | 2024-05-10T01:00:00.000Z
@@ -1324,7 +1356,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_scalar
 // produces 3 results, scalar returns NaN
-PROMQL index=k8s step=1h result=(scalar(sum by (cluster) (network.bytes_in)));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(scalar(sum by (cluster) (network.bytes_in)));
 
 result:double | step:datetime
 NaN           | 2024-05-10T01:00:00.000Z
@@ -1335,7 +1368,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_scalar
 // counter field produces 3 results, scalar returns NaN
-PROMQL index=k8s step=1h result=(scalar(sum by (cluster) (network.total_bytes_in)));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(scalar(sum by (cluster) (network.total_bytes_in)));
 
 result:double | step:datetime
 NaN           | 2024-05-10T01:00:00.000Z
@@ -1346,7 +1380,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_scalar
 // counter field produces exactly 1 result
-PROMQL index=k8s step=1h result=(scalar(sum by (cluster) (network.total_bytes_in{cluster="prod"})));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(scalar(sum by (cluster) (network.total_bytes_in{cluster="prod"})));
 
 result:double | step:datetime
 21193.0       | 2024-05-10T01:00:00.000Z
@@ -1357,7 +1392,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_scalar
 // produces exactly 1 result
-PROMQL index=k8s step=1h result=(scalar(sum by (cluster) (network.bytes_in{cluster="prod"})));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(scalar(sum by (cluster) (network.bytes_in{cluster="prod"})));
 
 result:double | step:datetime
 2517.0        | 2024-05-10T01:00:00.000Z
@@ -1368,7 +1404,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_scalar
 // raw instant vector has multiple time series, scalar returns NaN
-PROMQL index=k8s step=1h result=(scalar(network.cost));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(scalar(network.cost));
 
 result:double | step:datetime
 NaN           | 2024-05-10T01:00:00.000Z
@@ -1402,7 +1439,8 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_scalar
 required_capability: promql_nested_aggregates
 // count of 3 grouped sums produces 1 result, scalar returns it
-PROMQL index=k8s step=1h result=(scalar(count(sum by (cluster) (network.cost))));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(scalar(count(sum by (cluster) (network.cost))));
 
 result:double | step:datetime
 3.0           | 2024-05-10T01:00:00.000Z
@@ -1412,7 +1450,8 @@ scalar_in_binary_arithmetic
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_scalar
-PROMQL index=k8s step=1h result=(scalar(sum(network.cost)) + 1);
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(scalar(sum(network.cost)) + 1);
 
 result:double | step:datetime
 62.0          | 2024-05-10T01:00:00.000Z
@@ -1597,7 +1636,8 @@ nonfinite_sqrt_negative_runtime
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(sqrt(0 - sum by (cluster) (network.cost))) | SORT cluster;
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sqrt(0 - sum by (cluster) (network.cost))) | SORT cluster;
 
 result:double | step:datetime            | cluster:keyword
 NaN           | 2024-05-10T01:00:00.000Z | prod
@@ -1706,7 +1746,8 @@ nonfinite_mul_inf_runtime
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost) * Inf) | SORT cluster;
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum by (cluster) (network.cost) * Inf) | SORT cluster;
 
 result:double | step:datetime            | cluster:keyword
 Infinity      | 2024-05-10T01:00:00.000Z | prod
@@ -1719,7 +1760,8 @@ nonfinite_mul_nan_runtime
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost) * NaN) | SORT cluster;
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum by (cluster) (network.cost) * NaN) | SORT cluster;
 
 result:double | step:datetime            | cluster:keyword
 NaN           | 2024-05-10T01:00:00.000Z | prod
@@ -1731,7 +1773,8 @@ nonfinite_div_by_zero_runtime
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost) / 0) | SORT cluster;
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum by (cluster) (network.cost) / 0) | SORT cluster;
 
 result:double | step:datetime            | cluster:keyword
 Infinity      | 2024-05-10T01:00:00.000Z | prod
@@ -1743,7 +1786,8 @@ nonfinite_mod_by_zero_runtime
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost) % 0) | SORT cluster;
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum by (cluster) (network.cost) % 0) | SORT cluster;
 
 result:double | step:datetime            | cluster:keyword
 NaN           | 2024-05-10T01:00:00.000Z | prod
@@ -1756,7 +1800,8 @@ nonfinite_mul_inf_long_runtime
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(max by (cluster) (network.bytes_in) * Inf) | SORT cluster;
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(max by (cluster) (network.bytes_in) * Inf) | SORT cluster;
 
 result:double | step:datetime            | cluster:keyword
 Infinity      | 2024-05-10T01:00:00.000Z | prod
@@ -1772,7 +1817,8 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_scalar
 required_capability: promql_nested_aggregates
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(scalar(count(sum by (cluster) (network.cost) * Inf)));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(scalar(count(sum by (cluster) (network.cost) * Inf)));
 
 result:double | step:datetime
 3.0           | 2024-05-10T01:00:00.000Z
@@ -1802,7 +1848,8 @@ nonfinite_crosses_pipe_into_strict_where
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost) * Inf)
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum by (cluster) (network.cost) * Inf)
 | WHERE result > 0
 | SORT cluster;
 
@@ -1818,7 +1865,8 @@ nonfinite_crosses_pipe_into_strict_stats_sum
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost) * Inf)
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum by (cluster) (network.cost) * Inf)
 | STATS s = SUM(result);
 
 s:double
@@ -1837,7 +1885,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(avg(sum by (cluster) (network.cost) * Inf));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(avg(sum by (cluster) (network.cost) * Inf));
 
 result:double | step:datetime
 Infinity      | 2024-05-10T01:00:00.000Z
@@ -1849,7 +1898,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(sum(sum by (cluster) (network.cost) * Inf));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum(sum by (cluster) (network.cost) * Inf));
 
 result:double | step:datetime
 Infinity      | 2024-05-10T01:00:00.000Z
@@ -1861,7 +1911,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(sum(sum by (cluster) (network.cost) * NaN));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum(sum by (cluster) (network.cost) * NaN));
 
 result:double | step:datetime
 NaN           | 2024-05-10T01:00:00.000Z
@@ -1873,7 +1924,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(sum by (cluster) (sum by (cluster) (network.cost) * Inf)) | SORT cluster;
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(sum by (cluster) (sum by (cluster) (network.cost) * Inf)) | SORT cluster;
 
 result:double | step:datetime            | cluster:keyword
 Infinity      | 2024-05-10T01:00:00.000Z | prod
@@ -1887,7 +1939,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(stddev(sum by (cluster) (network.cost) * Inf));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(stddev(sum by (cluster) (network.cost) * Inf));
 
 result:double | step:datetime
 NaN           | 2024-05-10T01:00:00.000Z
@@ -1899,7 +1952,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(stdvar(sum by (cluster) (network.cost) * Inf));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(stdvar(sum by (cluster) (network.cost) * Inf));
 
 result:double | step:datetime
 NaN           | 2024-05-10T01:00:00.000Z
@@ -1911,7 +1965,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(max(0 - (sum by (cluster) (network.cost) * Inf)));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(max(0 - (sum by (cluster) (network.cost) * Inf)));
 
 result:double | step:datetime
 -Infinity     | 2024-05-10T01:00:00.000Z
@@ -1923,7 +1978,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(max(sum by (cluster) (network.cost) * Inf));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(max(sum by (cluster) (network.cost) * Inf));
 
 result:double | step:datetime
 Infinity      | 2024-05-10T01:00:00.000Z
@@ -1935,7 +1991,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(min(0 - (sum by (cluster) (network.cost) * Inf)));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(min(0 - (sum by (cluster) (network.cost) * Inf)));
 
 result:double | step:datetime
 -Infinity     | 2024-05-10T01:00:00.000Z
@@ -1947,7 +2004,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(min(sum by (cluster) (network.cost) * Inf));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(min(sum by (cluster) (network.cost) * Inf));
 
 result:double | step:datetime
 Infinity      | 2024-05-10T01:00:00.000Z
@@ -1962,7 +2020,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(quantile(0.5, sum by (cluster) (network.cost) * Inf));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(quantile(0.5, sum by (cluster) (network.cost) * Inf));
 
 result:double | step:datetime
 Infinity      | 2024-05-10T01:00:00.000Z
@@ -1974,7 +2033,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(quantile(0.5, sum by (cluster) (network.cost) * NaN));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(quantile(0.5, sum by (cluster) (network.cost) * NaN));
 
 result:double | step:datetime
 NaN           | 2024-05-10T01:00:00.000Z
@@ -1988,7 +2048,8 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_bottomk
 required_capability: promql_nested_aggregates
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(bottomk(1,(sum by (cluster) (network.cost) - 18.625) / (sum by (cluster) (network.cost) - 18.625) * sum by (cluster) (network.cost)));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(bottomk(1,(sum by (cluster) (network.cost) - 18.625) / (sum by (cluster) (network.cost) - 18.625) * sum by (cluster) (network.cost)));
 
 result:double | step:datetime            | cluster:keyword
 15.875        | 2024-05-10T01:00:00.000Z | staging
@@ -2002,7 +2063,8 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_topk
 required_capability: promql_nested_aggregates
 required_capability: promql_non_finite_math
-PROMQL index=k8s step=1h result=(topk(3,(sum by (cluster) (network.cost) - 18.625) / (sum by (cluster) (network.cost) - 18.625) * sum by (cluster) (network.cost)))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(topk(3,(sum by (cluster) (network.cost) - 18.625) / (sum by (cluster) (network.cost) - 18.625) * sum by (cluster) (network.cost)))
 | SORT cluster;
 
 result:double | step:datetime            | cluster:keyword
@@ -2339,7 +2401,8 @@ set_operator_union_combines_series
 required_capability: promql_command_v0
 required_capability: promql_set_operator_union
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (cluster) (network.total_bytes_in))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (cluster) (network.total_bytes_in))
 | SORT cluster;
 
 set_union:double | step:datetime            | cluster:keyword
@@ -2354,7 +2417,8 @@ set_operator_union_combines_series_date_nanos
 required_capability: promql_command_v0
 required_capability: promql_set_operator_union
 required_capability: fix_promql_date_nanos_step
-PROMQL index=datenanos-k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (cluster) (network.total_bytes_in))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=datenanos-k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (cluster) (network.total_bytes_in))
 | SORT cluster;
 
 set_union:double | step:datetime            | cluster:keyword
@@ -2369,7 +2433,8 @@ set_operator_union_left_precedence
 required_capability: promql_command_v0
 required_capability: promql_set_operator_union
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or sum by (cluster) (network.total_bytes_in{cluster="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or sum by (cluster) (network.total_bytes_in{cluster="prod"}))
 | SORT cluster;
 
 set_union:double | step:datetime            | cluster:keyword
@@ -2381,7 +2446,8 @@ set_operator_union_vector_zero_fallback
 required_capability: promql_command_v0
 required_capability: promql_set_operator_union
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="does_not_exist"}) or vector(0));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="does_not_exist"}) or vector(0));
 
 set_union:double | step:datetime            | cluster:keyword
 0.0              | 2024-05-10T01:00:00.000Z | null
@@ -2424,7 +2490,8 @@ set_operator_union_heterogeneous_groupings
 required_capability: promql_command_v0
 required_capability: promql_set_operator_union
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (pod) (network.total_bytes_in{cluster="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (pod) (network.total_bytes_in{cluster="prod"}))
 | SORT cluster, pod;
 
 set_union:double | step:datetime            | cluster:keyword | pod:keyword
@@ -2440,7 +2507,8 @@ set_operator_union_three_branch_chain
 required_capability: promql_command_v0
 required_capability: promql_set_operator_union
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (cluster) (network.total_bytes_in{cluster="qa"}) or sum by (cluster) (network.total_bytes_in))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (cluster) (network.total_bytes_in{cluster="qa"}) or sum by (cluster) (network.total_bytes_in))
 | SORT cluster;
 
 set_union:double | step:datetime            | cluster:keyword
@@ -2457,7 +2525,8 @@ required_capability: promql_command_v0
 required_capability: promql_set_operator_union
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h set_union=(topk(2, max by (cluster) (network.total_bytes_in)) or max by (cluster) (network.total_bytes_in))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h set_union=(topk(2, max by (cluster) (network.total_bytes_in)) or max by (cluster) (network.total_bytes_in))
 | SORT cluster;
 
 set_union:double | step:datetime            | cluster:keyword
@@ -2477,7 +2546,8 @@ topk_bare
 required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h result=(topk(2, network.total_bytes_in{cluster="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(topk(2, network.total_bytes_in{cluster="prod"}))
 | SORT result DESC;
 
 result:double | step:datetime            | _timeseries:keyword
@@ -2490,7 +2560,8 @@ topk_k_exceeds_series_count
 required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h result=(topk(5, network.total_bytes_in{cluster="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(topk(5, network.total_bytes_in{cluster="prod"}))
 | SORT result DESC;
 
 result:double | step:datetime            | _timeseries:keyword
@@ -2520,7 +2591,8 @@ topk_k_zero
 required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h result=(topk(0, network.total_bytes_in{cluster="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(topk(0, network.total_bytes_in{cluster="prod"}))
 | SORT result DESC;
 
 result:double | step:datetime            | _timeseries:keyword
@@ -2533,7 +2605,8 @@ topk_k_very_large
 required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h result=(topk(100000, network.total_bytes_in{cluster="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(topk(100000, network.total_bytes_in{cluster="prod"}))
 | SORT result DESC;
 
 result:double | step:datetime            | _timeseries:keyword
@@ -2549,7 +2622,8 @@ topk_by_grouping
 required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h result=(topk(2, network.total_bytes_in) by (pod));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(topk(2, network.total_bytes_in) by (pod));
 
 result:double | step:datetime            | _timeseries:keyword
 10797.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
@@ -2567,7 +2641,8 @@ required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_topk_over_aggregate
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h result=(topk(2, sum by (pod) (network.total_bytes_in{cluster="prod"})))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(topk(2, sum by (pod) (network.total_bytes_in{cluster="prod"})))
 | SORT result DESC;
 
 result:double | step:datetime            | pod:keyword
@@ -2580,7 +2655,8 @@ bottomk_bare
 required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h result=(bottomk(2, network.total_bytes_in{cluster="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(bottomk(2, network.total_bytes_in{cluster="prod"}))
 | SORT result ASC;
 
 result:double | step:datetime            | _timeseries:keyword
@@ -2593,7 +2669,8 @@ bottomk_k_exceeds_series_count
 required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h result=(bottomk(5, network.total_bytes_in{cluster="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(bottomk(5, network.total_bytes_in{cluster="prod"}))
 | SORT result ASC;
 
 result:double | step:datetime            | _timeseries:keyword
@@ -2610,11 +2687,12 @@ required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: promql_lookback_delta
 PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" result=(bottomk(1, network.total_bytes_in{cluster="prod"}))
 | SORT step, result ASC;
 
 result:double | step:datetime            | _timeseries:keyword
-9969.0        | 2024-05-10T00:20:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+8031.0        | 2024-05-10T00:20:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
 947.0         | 2024-05-10T00:25:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
 ;
 
@@ -2623,7 +2701,8 @@ bottomk_k_zero
 required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h result=(bottomk(0, network.total_bytes_in{cluster="prod"}))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(bottomk(0, network.total_bytes_in{cluster="prod"}))
 | SORT result ASC;
 
 result:double | step:datetime            | _timeseries:keyword
@@ -2634,7 +2713,8 @@ bottomk_by_grouping
 required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h result=(bottomk(2, network.total_bytes_in) by (pod));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(bottomk(2, network.total_bytes_in) by (pod));
 
 result:double | step:datetime            | _timeseries:keyword
 947.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
@@ -2652,7 +2732,8 @@ required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_topk_over_aggregate
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h result=(bottomk(2, sum by (pod) (network.total_bytes_in{cluster="prod"})))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=k8s step=1h result=(bottomk(2, sum by (pod) (network.total_bytes_in{cluster="prod"})))
 | SORT result ASC;
 
 result:double | step:datetime            | pod:keyword

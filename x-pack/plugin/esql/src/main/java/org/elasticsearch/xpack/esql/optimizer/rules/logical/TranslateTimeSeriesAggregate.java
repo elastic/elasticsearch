@@ -207,8 +207,24 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                 } else {
                     inlineFilter = null;
                 }
+                // A composed outer expression, such as the empty-vector guard around a PromQL sum, can contain
+                // several ordinary aggregates. Their source filters have already propagated to the inner time-series
+                // aggregates, just as for the root aggregate above; do not carry source attributes into phase two.
+                Expression prepared = function.transformDown(AggregateFunction.class, af -> {
+                    if (af instanceof TimeSeriesAggregateFunction == false
+                        && af.hasFilter()
+                        && af.anyMatch(e -> e instanceof TimeSeriesAggregateFunction)) {
+                        af.forEachDown(TimeSeriesAggregateFunction.class, inner -> {
+                            if (inner.hasFilter() == false) {
+                                throw new IllegalStateException("inline filter isn't propagated to time-series aggregation");
+                            }
+                        });
+                        return af.withFilter(Literal.TRUE);
+                    }
+                    return af;
+                });
                 // due to InsertDefaultInnerTimeSeriesAggregate, we'll always have a TimeSeriesAggregateFunction here
-                Expression outerAgg = function.transformDown(TimeSeriesAggregateFunction.class, tsAgg -> {
+                Expression outerAgg = prepared.transformDown(TimeSeriesAggregateFunction.class, tsAgg -> {
                     if (inlineFilter != null) {
                         if (tsAgg.hasFilter() == false) {
                             throw new IllegalStateException("inline filter isn't propagated to time-series aggregation");

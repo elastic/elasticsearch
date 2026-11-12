@@ -20,13 +20,16 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.ExemplarsSettings;
 
+import java.time.Duration;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -60,6 +63,26 @@ import java.util.function.Supplier;
  * {@code MY_SETTING.get(resolvedSettings)}.
  */
 public final class QuerySettings {
+
+    @Param(name = "promql_lookback_delta", type = { "keyword" }, since = "9.7+", description = """
+        Default lookback for plain selectors in instant and range PROMQL queries. Accepts a PromQL duration or a number
+        of seconds, with a minimum of 1ms. Defaults to 5m. The dynamic cluster setting
+        `esql.query.settings.promql_lookback_delta` sets the default for both the PROMQL command and the Prometheus HTTP API.
+        A query's `lookback_delta` option overrides this setting. Explicit range selectors keep their own windows.
+        """)
+    public static final QuerySettingDef<Duration> PROMQL_LOOKBACK_DELTA = QuerySettingDef.string(
+        "promql_lookback_delta",
+        value -> PromqlParserUtils.parseLookbackDelta(Source.EMPTY, value)
+    )
+        .withDefault(Duration.ofMinutes(5))
+        .withClusterDefault("5m")
+        .withRequestBody()
+        .withValidator((value, ctx) -> value.toMillis() > 0 ? null : "lookback must be at least 1ms")
+        .streamFormat((out, value) -> {
+            out.writeLong(value.getSeconds());
+            out.writeInt(value.getNano());
+        }, in -> Duration.ofSeconds(in.readLong(), in.readInt()))
+        .build();
 
     private static final Logger logger = LogManager.getLogger(QuerySettings.class);
 
@@ -337,6 +360,7 @@ public final class QuerySettings {
         WILDCARDS_MATCH_DATASETS,
         WILDCARDS_MATCH_VIEWS,
         PROJECT_ROUTING,
+        PROMQL_LOOKBACK_DELTA,
         TIME_ZONE,
         TIME_SERIES_REDUCE_PER_INDEX,
         UNMAPPED_FIELDS

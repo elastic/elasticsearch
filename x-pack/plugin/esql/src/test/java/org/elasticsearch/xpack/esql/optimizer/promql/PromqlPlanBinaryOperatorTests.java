@@ -845,11 +845,14 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     private static List<Case> zeroCountGuards(LogicalPlan plan) {
         List<Case> guards = new ArrayList<>();
         plan.forEachExpressionDown(Case.class, c -> {
-            if (c.children().getFirst() instanceof Equals eq && eq.right() instanceof Literal l && Long.valueOf(0L).equals(l.value())) {
+            if (c.children().getFirst() instanceof Equals eq
+                && eq.right() instanceof Literal l
+                && Long.valueOf(0L).equals(l.value())
+                && eq.left().equals(c.children().get(2))) {
                 guards.add(c);
             }
         });
-        return guards;
+        return guards.stream().distinct().toList();
     }
 
     private static void assertNoIndexBackedPromqlPlan(LogicalPlan plan) {

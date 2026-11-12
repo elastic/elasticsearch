@@ -15,8 +15,11 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.prometheus.rest.PromqlQueryPlanBuilder.PromqlStatementResult;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -86,6 +89,13 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
 
     private RestChannelConsumer prepareQuery(RestRequest request, NodeClient client) {
         String query = getRequiredParam(request, QUERY_PARAM);
+        String lookback = request.param("lookback_delta");
+        Duration lookbackDelta = lookback == null || lookback.isEmpty()
+            ? null
+            : PromqlParserUtils.parseLookbackDelta(Source.EMPTY, lookback);
+        if (lookbackDelta != null && lookbackDelta.isPositive() == false) {
+            lookbackDelta = null;
+        }
         String start = getRequiredParam(request, START_PARAM);
         String end = getRequiredParam(request, END_PARAM);
         String step = getRequiredParam(request, PrometheusQueryResponseListener.STEP_PARAM);
@@ -100,6 +110,7 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
             end,
             step,
             limit,
+            lookbackDelta,
             PrometheusQueryResponseListener.QueryMode.RANGE
         );
         var esqlRequest = new PromqlQueryRequest(

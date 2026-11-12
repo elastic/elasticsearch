@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 
 import java.io.IOException;
@@ -168,7 +169,14 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
         if (child() instanceof RangeSelector rangeSelector) {
             window = context.cmd().resolveRangeWindow(rangeSelector.range());
         }
-        var promqlCtx = new PromqlContext(context.time(), window, child.step(), context.configuration(), context.cmd().timestamp());
+        var promqlCtx = new PromqlContext(
+            context.time(),
+            window,
+            child.step(),
+            context.configuration(),
+            context.cmd().timestamp(),
+            child() instanceof InstantSelector
+        );
         return context.eval(child, TranslationContext.emptyRangeAsNull(buildEsqlFunction(child.value(), promqlCtx), context.time()));
     }
 }

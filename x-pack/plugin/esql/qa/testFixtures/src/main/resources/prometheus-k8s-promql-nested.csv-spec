@@ -1,3 +1,4 @@
+// These aggregation fixtures retain their one-hour source window explicitly.
 // The PromQL tests of `k8s-timeseries-promql-nested.csv-spec` over `index=k8s`, run on `prometheus-k8s`: the same samples in the Prometheus
 // remote-write layout (one document per sample, `labels.*` dimensions including `__name__`, one
 // `metrics.<name>` field per metric). Queries are identical up to the index name; `_timeseries` carries
@@ -67,7 +68,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(sum by (cluster) (avg by (cluster) (network.cost)))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(sum by (cluster) (avg by (cluster) (network.cost)))
 | SORT cluster;
 
 result:double     | step:datetime            | cluster:keyword
@@ -81,7 +83,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(max by (pod) (min by (pod) (network.cost)))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(max by (pod) (min by (pod) (network.cost)))
 | SORT pod;
 
 result:double | step:datetime            | pod:keyword
@@ -96,7 +99,8 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: ts_collapse
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(max by (pod) (min by (pod) (network.cost)))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(max by (pod) (min by (pod) (network.cost)))
 | TS_COLLAPSE
 | SORT pod;
 
@@ -111,7 +115,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(count(sum by (cluster) (network.cost)));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(count(sum by (cluster) (network.cost)));
 
 result:double | step:datetime
 3.0           | 2024-05-10T01:00:00.000Z
@@ -122,7 +127,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(count by (cluster) (sum by (cluster, pod) (network.cost)))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(count by (cluster) (sum by (cluster, pod) (network.cost)))
 | SORT cluster;
 
 result:double | step:datetime            | cluster:keyword
@@ -137,7 +143,8 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: ts_collapse
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(count by (cluster) (sum by (cluster, pod) (network.cost)))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(count by (cluster) (sum by (cluster, pod) (network.cost)))
 | TS_COLLAPSE
 | SORT cluster;
 
@@ -154,7 +161,8 @@ required_capability: promql_nested_aggregates
 required_capability: fix_promql_quantile_scale
 required_capability: fix_ts_block_loader_passthrough_aliasing
 // avg by (cluster) (network.cost) = {staging:5.2917, prod:6.2083, qa:8.8333}; φ=0.5 selects the median (prod).
-PROMQL index=prometheus-k8s step=1h result=(quantile(0.5, avg by (cluster) (network.cost)));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(quantile(0.5, avg by (cluster) (network.cost)));
 
 result:double     | step:datetime
 6.208333333333333 | 2024-05-10T01:00:00.000Z
@@ -176,7 +184,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(max(avg by (cluster) (network.cost)));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(max(avg by (cluster) (network.cost)));
 
 result:double     | step:datetime
 8.833333333333334 | 2024-05-10T01:00:00.000Z
@@ -187,7 +196,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(min(sum by (pod) (network.cost)));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(min(sum by (pod) (network.cost)));
 
 result:double | step:datetime
 18.75         | 2024-05-10T01:00:00.000Z
@@ -198,7 +208,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(avg by (cluster) (sum by (cluster, pod) (network.cost)))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(avg by (cluster) (sum by (cluster, pod) (network.cost)))
 | SORT cluster;
 
 result:double     | step:datetime            | cluster:keyword
@@ -213,7 +224,8 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: ts_collapse
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(avg by (cluster) (sum by (cluster, pod) (network.cost)))
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(avg by (cluster) (sum by (cluster, pod) (network.cost)))
 | TS_COLLAPSE
 | SORT cluster;
 
@@ -228,7 +240,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(max(avg by (cluster) (sum by (cluster, pod) (network.cost))));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(max(avg by (cluster) (sum by (cluster, pod) (network.cost))));
 
 result:double     | step:datetime
 8.833333333333334 | 2024-05-10T01:00:00.000Z
@@ -250,7 +263,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(sum(max by (cluster) (min by (pod) (network.cost))));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(sum(max by (cluster) (min by (pod) (network.cost))));
 
 result:double | step:datetime
 4.625         | 2024-05-10T01:00:00.000Z
@@ -274,7 +288,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(avg(ceil(sum by (cluster) (network.cost))));
+required_capability: promql_lookback_delta
+PROMQL lookback_delta=1h index=prometheus-k8s step=1h result=(avg(ceil(sum by (cluster) (network.cost))));
 
 result:double      | step:datetime
 20.666666666666668 | 2024-05-10T01:00:00.000Z

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 149939
+pr: 165402
+summary: Add configurable PromQL selector lookback independent of the evaluation step
+type: enhancement

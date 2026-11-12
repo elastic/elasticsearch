@@ -1449,7 +1449,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return tsc;
             }
             if (plan instanceof PromqlCommand promql) {
-                return resolvePromql(promql, childrenOutput).transformDown(PromqlCommand.class, p -> {
+                return resolvePromql(
+                    promql.withDefaultLookback(QuerySettings.PROMQL_LOOKBACK_DELTA.get(context.configuration().resolvedSettings())),
+                    childrenOutput
+                ).transformDown(PromqlCommand.class, p -> {
                     Failures failures = new Failures();
                     p.verify(failures, context.maxBranchCountPerMerge(), context.maxBranchCountPerMergeLimitSource());
                     if (failures.hasFailures()) {

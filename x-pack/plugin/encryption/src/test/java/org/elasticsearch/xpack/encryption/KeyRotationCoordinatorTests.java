@@ -268,7 +268,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
 
     /** Makes this node's {@link #pekEncryption} use {@code delegate}, after it persisted {@code keys} to its disk. */
     private void onNodeThatPersisted(Map<String, KeyEntry> keys, String activeKeyId, ProjectEncryptionKeyMetadata.PekEncryption delegate) {
-        pekEncryption = TestPekEncryption.onNode(delegate, new ProjectEncryptionKeyMetadata.OnDiskKeys());
+        pekEncryption = TestPekEncryption.onNode(delegate, new ProjectEncryptionKeyMetadata.GatewayKeys());
         TestPekEncryption.persist(new ProjectEncryptionKeyMetadata(keys, activeKeyId, PASSWORD_ID, Map.of(), pekEncryption));
     }
 

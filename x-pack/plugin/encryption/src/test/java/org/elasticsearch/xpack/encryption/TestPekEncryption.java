@@ -10,7 +10,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.OnDiskKeys;
+import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.GatewayKeys;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.PekEncryption;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.PekEncryption.WrappedKey;
 
@@ -47,8 +47,8 @@ class TestPekEncryption {
         }
     };
 
-    /** Returns {@code delegate} using {@code onDiskKeys}, the way one node's {@link PasswordPekEncryption} owns its {@link OnDiskKeys}. */
-    static PekEncryption onNode(PekEncryption delegate, OnDiskKeys onDiskKeys) {
+    /** Returns {@code delegate} with its own {@link GatewayKeys}, like one node's {@link PasswordPekEncryption}. */
+    static PekEncryption onNode(PekEncryption delegate, GatewayKeys gatewayKeys) {
         return new PekEncryption() {
             @Override
             public String activePasswordId() {
@@ -71,13 +71,13 @@ class TestPekEncryption {
             }
 
             @Override
-            public OnDiskKeys onDiskKeys() {
-                return onDiskKeys;
+            public GatewayKeys gatewayKeys() {
+                return gatewayKeys;
             }
         };
     }
 
-    /** Writes {@code metadata} the way a node persists it, which records the wrapped keys in that node's {@link OnDiskKeys}. */
+    /** Writes {@code metadata} the way a node persists it, which records the wrapped keys in that node's {@link GatewayKeys}. */
     static void persist(ProjectEncryptionKeyMetadata metadata) {
         ToXContent.Params params = new ToXContent.MapParams(Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY));
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {

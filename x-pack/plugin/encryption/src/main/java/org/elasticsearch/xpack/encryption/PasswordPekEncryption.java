@@ -31,8 +31,8 @@ final class PasswordPekEncryption implements ProjectEncryptionKeyMetadata.PekEnc
 
     private final Supplier<Settings> settingsSupplier;
     private final AtomicReference<String> lastWrapFailure = new AtomicReference<>();
-    private final ProjectEncryptionKeyMetadata.OnDiskKeys onDiskKeys = new ProjectEncryptionKeyMetadata.OnDiskKeys();
-    private volatile boolean keyMissingOnDisk;
+    private final ProjectEncryptionKeyMetadata.GatewayKeys gatewayKeys = new ProjectEncryptionKeyMetadata.GatewayKeys();
+    private volatile boolean keyMissingFromGateway;
 
     PasswordPekEncryption(Supplier<Settings> settingsSupplier) {
         this.settingsSupplier = settingsSupplier;
@@ -88,7 +88,7 @@ final class PasswordPekEncryption implements ProjectEncryptionKeyMetadata.PekEnc
 
     @Override
     public void onGatewayWrite(@Nullable Exception wrapFailure, boolean keysWritten) {
-        keyMissingOnDisk = keysWritten == false;
+        keyMissingFromGateway = keysWritten == false;
         String failure = wrapFailure == null ? null : Objects.requireNonNullElse(wrapFailure.getMessage(), wrapFailure.toString());
         String previous = lastWrapFailure.getAndSet(failure);
         if (failure != null && failure.equals(previous) == false) {
@@ -105,17 +105,17 @@ final class PasswordPekEncryption implements ProjectEncryptionKeyMetadata.PekEnc
     }
 
     @Override
-    public ProjectEncryptionKeyMetadata.OnDiskKeys onDiskKeys() {
-        return onDiskKeys;
+    public ProjectEncryptionKeyMetadata.GatewayKeys gatewayKeys() {
+        return gatewayKeys;
     }
 
     @Nullable
-    String onDiskPasswordId() {
-        return onDiskKeys.passwordId();
+    String gatewayPasswordId() {
+        return gatewayKeys.passwordId();
     }
 
-    /** Returns whether this node's last on-disk write of the project encryption key carried no key material. */
-    boolean isKeyMissingOnDisk() {
-        return keyMissingOnDisk;
+    /** Returns whether the cluster state this node last persisted carried no project encryption key material. */
+    boolean isKeyMissingFromGateway() {
+        return keyMissingFromGateway;
     }
 }

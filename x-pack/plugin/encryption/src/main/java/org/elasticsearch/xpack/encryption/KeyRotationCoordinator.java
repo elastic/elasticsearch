@@ -487,19 +487,19 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         }
         try {
             // unwrapping derives a key from the password, which is too slow for the cluster applier thread
-            threadPool.generic().execute(() -> restoreFromDisk(degraded));
+            threadPool.generic().execute(() -> restoreGatewayKeys(degraded));
         } catch (Exception e) {
             logger.debug("could not fork project encryption key restore", e);
         }
     }
 
-    private void restoreFromDisk(ProjectEncryptionKeyMetadata degraded) {
+    private void restoreGatewayKeys(ProjectEncryptionKeyMetadata degraded) {
         try {
-            ProjectEncryptionKeyMetadata onDisk = degraded.unwrapOnDiskKeys();
-            if (onDisk == null) {
+            ProjectEncryptionKeyMetadata restored = degraded.unwrapGatewayKeys();
+            if (restored == null) {
                 logger.debug("project encryption key: cluster state is degraded and this node's disk holds no copy of the active key");
             } else {
-                submitTaskIfOpen("restore-project-encryption-keys", new RestoreKeysTask(onDisk));
+                submitTaskIfOpen("restore-project-encryption-keys", new RestoreKeysTask(restored));
             }
         } catch (Exception e) {
             logger.warn(
@@ -709,19 +709,19 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             ProjectEncryptionKeyMetadata existing,
             RestoreKeysTask task
         ) {
-            ProjectEncryptionKeyMetadata onDisk = task.keys();
+            ProjectEncryptionKeyMetadata restored = task.keys();
             // never undo a reset or a newer key: only replace the degraded instance for the same active key
             if (existing == null
                 || existing.isUnwrapFailed() == false
-                || onDisk.getActiveKeyId().equals(existing.getActiveKeyId()) == false) {
+                || restored.getActiveKeyId().equals(existing.getActiveKeyId()) == false) {
                 logger.debug("dropping restore task: project encryption key metadata changed to [{}]", existing);
                 return Tuple.tuple(clusterState, null);
             }
             logger.info(
                 "restoring project encryption keys from this node's on-disk copy of active key [{}]; cluster state held no key material",
-                onDisk.getActiveKeyId()
+                restored.getActiveKeyId()
             );
-            return Tuple.tuple(putMetadata(clusterState, projectState, onDisk), null);
+            return Tuple.tuple(putMetadata(clusterState, projectState, restored), null);
         }
 
         private Tuple<ClusterState, Void> executeInstallInitial(

@@ -19,8 +19,8 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.GatewayKeys;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.KeyEntry;
-import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.OnDiskKeys;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.PekEncryption;
 
 import java.io.IOException;
@@ -339,17 +339,17 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
     /** Records what {@link #onGatewayWrite} was told; if {@code canWrap} is false, it behaves like a node without a password. */
     private static final class RecordingEncryption implements PekEncryption {
         private final boolean canWrap;
-        private final OnDiskKeys onDiskKeys;
+        private final GatewayKeys gatewayKeys;
         private Exception lastFailure;
         private Boolean lastKeysWritten;
 
-        RecordingEncryption(boolean canWrap, OnDiskKeys onDiskKeys) {
+        RecordingEncryption(boolean canWrap, GatewayKeys gatewayKeys) {
             this.canWrap = canWrap;
-            this.onDiskKeys = onDiskKeys;
+            this.gatewayKeys = gatewayKeys;
         }
 
-        static RecordingEncryption cannotWrap(OnDiskKeys onDiskKeys) {
-            return new RecordingEncryption(false, onDiskKeys);
+        static RecordingEncryption cannotWrap(GatewayKeys gatewayKeys) {
+            return new RecordingEncryption(false, gatewayKeys);
         }
 
         private void checkCanWrap() {
@@ -359,8 +359,8 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
         }
 
         @Override
-        public OnDiskKeys onDiskKeys() {
-            return onDiskKeys;
+        public GatewayKeys gatewayKeys() {
+            return gatewayKeys;
         }
 
         @Override
@@ -389,7 +389,7 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
     }
 
     public void testGatewaySerializationReportsSuccessfulWrap() throws IOException {
-        RecordingEncryption recording = new RecordingEncryption(true, new OnDiskKeys());
+        RecordingEncryption recording = new RecordingEncryption(true, new GatewayKeys());
         ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
             Map.of("k1", new KeyEntry(randomPlaintextBytes(), 0L)),
             "k1",
@@ -405,7 +405,7 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
     }
 
     public void testGatewaySerializationWritesNoKeysWhenWrapFailsWithoutPreviousCopy() throws IOException {
-        RecordingEncryption cannotWrap = RecordingEncryption.cannotWrap(new OnDiskKeys());
+        RecordingEncryption cannotWrap = RecordingEncryption.cannotWrap(new GatewayKeys());
         ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
             Map.of("k1", new KeyEntry(randomPlaintextBytes(), 0L)),
             "k1",
@@ -426,7 +426,7 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
     public void testGatewaySerializationKeepsPreviousCopyOfSameKeysWhenWrapFails() throws IOException {
         byte[] keyBytes = randomPlaintextBytes();
         RecordingEncryption cannotWrap = RecordingEncryption.cannotWrap(
-            nodeWithDiskCopyOf(Map.of("k1", new KeyEntry(keyBytes, 10L)), "k1")
+            nodeWithGatewayCopyOf(Map.of("k1", new KeyEntry(keyBytes, 10L)), "k1")
         );
         ProjectEncryptionKeyMetadata received = receivedFromMaster(
             new ProjectEncryptionKeyMetadata(
@@ -454,7 +454,9 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
 
     public void testGatewaySerializationDropsPreviousCopyMissingCurrentKeysWhenWrapFails() throws IOException {
         byte[] k1Bytes = randomPlaintextBytes();
-        RecordingEncryption cannotWrap = RecordingEncryption.cannotWrap(nodeWithDiskCopyOf(Map.of("k1", new KeyEntry(k1Bytes, 10L)), "k1"));
+        RecordingEncryption cannotWrap = RecordingEncryption.cannotWrap(
+            nodeWithGatewayCopyOf(Map.of("k1", new KeyEntry(k1Bytes, 10L)), "k1")
+        );
         ProjectEncryptionKeyMetadata received = receivedFromMaster(
             new ProjectEncryptionKeyMetadata(
                 Map.of("k1", new KeyEntry(k1Bytes, 10L), "k2", new KeyEntry(randomPlaintextBytes(), 20L)),
@@ -474,7 +476,7 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
     }
 
     public void testGatewaySerializationFallsBackToLastWrittenCopyNotStartupCopy() throws IOException {
-        OnDiskKeys local = nodeWithDiskCopyOf(Map.of("k1", new KeyEntry(randomPlaintextBytes(), 10L)), "k1");
+        GatewayKeys local = nodeWithGatewayCopyOf(Map.of("k1", new KeyEntry(randomPlaintextBytes(), 10L)), "k1");
         byte[] k2Bytes = randomPlaintextBytes();
         ProjectEncryptionKeyMetadata rotated = receivedFromMaster(
             new ProjectEncryptionKeyMetadata(
@@ -495,19 +497,19 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
         assertTrue(cannotWrap.lastKeysWritten);
     }
 
-    /** Returns a node's {@link OnDiskKeys} as populated at startup, by reading its own on-disk copy of the keys. */
-    private OnDiskKeys nodeWithDiskCopyOf(Map<String, KeyEntry> keys, String activeKeyId) throws IOException {
-        OnDiskKeys onDisk = new OnDiskKeys();
+    /** Returns a node's {@link GatewayKeys} as populated at startup, by reading its own on-disk copy of the keys. */
+    private GatewayKeys nodeWithGatewayCopyOf(Map<String, KeyEntry> keys, String activeKeyId) throws IOException {
+        GatewayKeys gatewayKeys = new GatewayKeys();
         String diskJson = chunkedToXContent(
             new ProjectEncryptionKeyMetadata(keys, activeKeyId, TestPekEncryption.PASSWORD_ID, Map.of(), NO_OP_ENCRYPTION),
             getToXContentParams()
         );
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, diskJson)) {
             assertFalse(
-                ProjectEncryptionKeyMetadata.fromXContent(parser, TestPekEncryption.onNode(NO_OP_ENCRYPTION, onDisk)).isUnwrapFailed()
+                ProjectEncryptionKeyMetadata.fromXContent(parser, TestPekEncryption.onNode(NO_OP_ENCRYPTION, gatewayKeys)).isUnwrapFailed()
             );
         }
-        return onDisk;
+        return gatewayKeys;
     }
 
     private static ProjectEncryptionKeyMetadata receivedFromMaster(ProjectEncryptionKeyMetadata published, PekEncryption localEncryption)
@@ -559,7 +561,7 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
 
         ProjectEncryptionKeyMetadata degraded;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, originalBlob)) {
-            degraded = ProjectEncryptionKeyMetadata.fromXContent(parser, TestPekEncryption.onNode(wrongPassword, new OnDiskKeys()));
+            degraded = ProjectEncryptionKeyMetadata.fromXContent(parser, TestPekEncryption.onNode(wrongPassword, new GatewayKeys()));
         }
         assertTrue("instance must be degraded after unwrap failure", degraded.isUnwrapFailed());
 
@@ -570,9 +572,9 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
         assertThat("re-persisted degraded blob must retain wrapped bytes, not empty keys", repersisted, containsString("\"bytes\""));
         assertThat("re-persisted degraded blob must not be empty keys", repersisted, not(containsString("\"keys\":{}")));
 
-        expectThrows(IllegalStateException.class, degraded::unwrapOnDiskKeys);
+        expectThrows(IllegalStateException.class, degraded::unwrapGatewayKeys);
         passwordFixed.set(true);
-        assertArrayEquals("restorable once the password is fixed", keyBytes, degraded.unwrapOnDiskKeys().getKeys().get("k1").bytes());
+        assertArrayEquals("restorable once the password is fixed", keyBytes, degraded.unwrapGatewayKeys().getKeys().get("k1").bytes());
     }
 
     public void testDegradedTransportCarriesNoCiphertextAndPeerWithoutBlobWritesEmpty() throws IOException {
@@ -607,7 +609,7 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
         // Degrade on the master node.
         ProjectEncryptionKeyMetadata degraded;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, chunkedToXContent(healthy, gatewayParams))) {
-            degraded = ProjectEncryptionKeyMetadata.fromXContent(parser, TestPekEncryption.onNode(wrongPassword, new OnDiskKeys()));
+            degraded = ProjectEncryptionKeyMetadata.fromXContent(parser, TestPekEncryption.onNode(wrongPassword, new GatewayKeys()));
         }
         assertTrue(degraded.isUnwrapFailed());
 
@@ -620,7 +622,7 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
         in.setTransportVersion(ProjectEncryptionKeyMetadata.PRIMARY_ENCRYPTION_KEY_CLEARTEXT_TRANSPORT);
         ProjectEncryptionKeyMetadata received = new ProjectEncryptionKeyMetadata(
             in,
-            TestPekEncryption.onNode(wrongPassword, new OnDiskKeys())
+            TestPekEncryption.onNode(wrongPassword, new GatewayKeys())
         );
 
         assertTrue("degraded flag must survive transport round-trip", received.isUnwrapFailed());
@@ -628,12 +630,12 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
         // Peer has no local blob — writes empty keys (no data loss, just no material to preserve).
         String peerBlob = chunkedToXContent(received, gatewayParams);
         assertThat("peer without local blob writes empty keys", peerBlob, containsString("\"keys\":{}"));
-        assertNull(received.unwrapOnDiskKeys());
+        assertNull(received.unwrapGatewayKeys());
     }
 
     public void testPeerReemitsOwnCopyWhenDegradedMasterHasSameActiveKey() throws IOException {
         byte[] keyBytes = randomPlaintextBytes();
-        OnDiskKeys peer = nodeWithDiskCopyOf(Map.of("k1", new KeyEntry(keyBytes, 10L)), "k1");
+        GatewayKeys peer = nodeWithGatewayCopyOf(Map.of("k1", new KeyEntry(keyBytes, 10L)), "k1");
 
         ProjectEncryptionKeyMetadata received = receivedFromMaster(
             ProjectEncryptionKeyMetadata.degraded("k1", "master-pw", NO_OP_ENCRYPTION, "no key on master"),
@@ -644,14 +646,14 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
         String persisted = chunkedToXContent(received, getToXContentParams());
         assertThat(persisted, containsString(Base64.getEncoder().encodeToString(keyBytes)));
 
-        ProjectEncryptionKeyMetadata restored = received.unwrapOnDiskKeys();
+        ProjectEncryptionKeyMetadata restored = received.unwrapGatewayKeys();
         assertFalse(restored.isUnwrapFailed());
         assertEquals("password id of the copy on disk", TestPekEncryption.PASSWORD_ID, restored.getPasswordId());
         assertArrayEquals(keyBytes, restored.getKeys().get("k1").bytes());
     }
 
     public void testPeerDropsOwnCopyWhenDegradedMasterHasDifferentActiveKey() throws IOException {
-        OnDiskKeys peer = nodeWithDiskCopyOf(Map.of("pk1", new KeyEntry(randomPlaintextBytes(), 10L)), "pk1");
+        GatewayKeys peer = nodeWithGatewayCopyOf(Map.of("pk1", new KeyEntry(randomPlaintextBytes(), 10L)), "pk1");
 
         ProjectEncryptionKeyMetadata received = receivedFromMaster(
             ProjectEncryptionKeyMetadata.degraded("mk1", TestPekEncryption.PASSWORD_ID, NO_OP_ENCRYPTION, "wrong password on master"),
@@ -662,7 +664,7 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
         String persisted = chunkedToXContent(received, getToXContentParams());
         assertThat(persisted, containsString("\"keys\":{}"));
         assertThat(persisted, not(containsString("\"pk1\"")));
-        assertNull(received.unwrapOnDiskKeys());
+        assertNull(received.unwrapGatewayKeys());
     }
 
     public void testDegradedWithoutMaterialWritesEmptyKeys() throws IOException {

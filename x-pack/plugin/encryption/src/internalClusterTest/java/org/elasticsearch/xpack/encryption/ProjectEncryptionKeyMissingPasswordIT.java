@@ -172,7 +172,7 @@ public class ProjectEncryptionKeyMissingPasswordIT extends ESIntegTestCase {
      * on disk, and a later master must restore them from its disk.
      */
     public void testElectedMasterWithoutKeysDoesNotLoseKeys() throws Exception {
-        KeyLessMaster cluster = electMasterWithoutKeysFromDisk();
+        KeyLessMaster cluster = electMasterWithoutGatewayKeys();
 
         for (String node : internalCluster().getNodeNames()) {
             assertEquals(
@@ -232,7 +232,7 @@ public class ProjectEncryptionKeyMissingPasswordIT extends ESIntegTestCase {
      * Starts two master-eligible nodes and a data node with a password and one master-eligible node without, installs the key, makes the
      * node without a password the only voter and restarts it, so it is elected from its key-less on-disk state.
      */
-    private KeyLessMaster electMasterWithoutKeysFromDisk() throws Exception {
+    private KeyLessMaster electMasterWithoutGatewayKeys() throws Exception {
         List<String> nodesWithKeys = new ArrayList<>(internalCluster().startMasterOnlyNodes(2, passwordSettings()));
         String withoutPassword = internalCluster().startMasterOnlyNode();
         nodesWithKeys.add(internalCluster().startNode(Settings.builder().put(passwordSettings()).put(NodeRoles.dataOnlyNode())));

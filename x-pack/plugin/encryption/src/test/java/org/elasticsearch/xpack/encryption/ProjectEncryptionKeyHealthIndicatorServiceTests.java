@@ -89,13 +89,13 @@ public class ProjectEncryptionKeyHealthIndicatorServiceTests extends ESTestCase 
     private static ProjectEncryptionKeyHealthIndicatorService indicator(
         ClusterState state,
         ProjectEncryptionKeyService pekService,
-        boolean keyMissingOnDisk
+        boolean keyMissingFromGateway
     ) {
         return new ProjectEncryptionKeyHealthIndicatorService(
             mockClusterService(state),
             DefaultProjectResolver.INSTANCE,
             pekService,
-            () -> keyMissingOnDisk,
+            () -> keyMissingFromGateway,
             new EncryptedDataHandlerRegistry(List.of(HANDLER))
         );
     }

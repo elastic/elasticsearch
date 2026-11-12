@@ -163,20 +163,20 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final ProjectEncryptionKeyService pekService;
-    private final BooleanSupplier keyMissingOnDisk;
+    private final BooleanSupplier keyMissingFromGateway;
     private final EncryptedDataHandlerRegistry handlerRegistry;
 
     ProjectEncryptionKeyHealthIndicatorService(
         ClusterService clusterService,
         ProjectResolver projectResolver,
         ProjectEncryptionKeyService pekService,
-        BooleanSupplier keyMissingOnDisk,
+        BooleanSupplier keyMissingFromGateway,
         EncryptedDataHandlerRegistry handlerRegistry
     ) {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
         this.pekService = pekService;
-        this.keyMissingOnDisk = keyMissingOnDisk;
+        this.keyMissingFromGateway = keyMissingFromGateway;
         this.handlerRegistry = handlerRegistry;
     }
 
@@ -221,7 +221,7 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
                         List.of(new Diagnosis(MISSING_WRAP_CREDENTIALS_DEFINITION, List.of()))
                     );
                 }
-                if (keyMissingOnDisk.getAsBoolean()) {
+                if (keyMissingFromGateway.getAsBoolean()) {
                     yield createIndicator(
                         YELLOW,
                         YELLOW_NOT_YET_PERSISTED,

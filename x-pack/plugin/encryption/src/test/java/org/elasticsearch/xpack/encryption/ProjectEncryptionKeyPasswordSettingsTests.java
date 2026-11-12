@@ -87,7 +87,7 @@ public class ProjectEncryptionKeyPasswordSettingsTests extends ESTestCase {
         ProjectEncryptionKeyPasswordSettings.validateReload(settings("v2", "v1", "v2"), settings("v2", "v2"), "v2");
     }
 
-    public void testValidateReloadAllowsNodeWithoutKeyOnDiskOrThatCouldNotWrapBefore() {
+    public void testValidateReloadAllowsNodeWithoutGatewayKeysOrThatCouldNotWrapBefore() {
         ProjectEncryptionKeyPasswordSettings.validateReload(settings("v1", "v1"), Settings.EMPTY, null);
         ProjectEncryptionKeyPasswordSettings.validateReload(settings("v1"), settings("v1", "v1"), "v1");
         ProjectEncryptionKeyPasswordSettings.validateReload(settings("v2", "v2"), settings("v2", "v2"), "v1");

@@ -121,7 +121,7 @@ public class PasswordPekEncryptionTests extends ESTestCase {
 
     public void testOnGatewayWriteWarnsOncePerCauseAndTracksMissingKey() {
         PasswordPekEncryption enc = new PasswordPekEncryption(() -> Settings.EMPTY);
-        assertFalse(enc.isKeyMissingOnDisk());
+        assertFalse(enc.isKeyMissingFromGateway());
 
         MockLog.assertThatLogger(
             () -> enc.onGatewayWrite(new ElasticsearchException("cannot wrap PEK for disk: missing"), false),
@@ -133,7 +133,7 @@ public class PasswordPekEncryptionTests extends ESTestCase {
                 "cannot wrap PEK for disk: missing; cluster state was persisted without the project encryption key*"
             )
         );
-        assertTrue(enc.isKeyMissingOnDisk());
+        assertTrue(enc.isKeyMissingFromGateway());
 
         MockLog.assertThatLogger(
             () -> enc.onGatewayWrite(new ElasticsearchException("cannot wrap PEK for disk: missing"), false),
@@ -151,13 +151,13 @@ public class PasswordPekEncryptionTests extends ESTestCase {
                 "*with this node's previous copy of the project encryption key*"
             )
         );
-        assertFalse("previous copy was written", enc.isKeyMissingOnDisk());
+        assertFalse("previous copy was written", enc.isKeyMissingFromGateway());
 
         MockLog.assertThatLogger(
             () -> enc.onGatewayWrite(null, true),
             PasswordPekEncryption.class,
             new MockLog.SeenEventExpectation("recovered", LOGGER, Level.INFO, "*persisted to this node's disk again*")
         );
-        assertFalse(enc.isKeyMissingOnDisk());
+        assertFalse(enc.isKeyMissingFromGateway());
     }
 }

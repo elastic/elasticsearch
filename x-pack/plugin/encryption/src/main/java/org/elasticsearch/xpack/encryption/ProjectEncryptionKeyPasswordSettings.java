@@ -87,12 +87,12 @@ final class ProjectEncryptionKeyPasswordSettings {
     }
 
     /**
-     * Rejects a reload that removes a password a node holding the key on disk still needs: the active one, which it wraps the key with,
-     * or the one its on-disk copy is wrapped with, which it needs to read the key back after a restart.
+     * Rejects a reload that removes a password still needed by a node that has persisted the key: the active one, which it wraps the
+     * key with, or the one its gateway copy is wrapped with, which it needs to read the key back after a restart.
      */
-    static void validateReload(Settings current, Settings updated, @Nullable String onDiskPasswordId) {
-        if (onDiskPasswordId == null) {
-            // nothing on disk that removing a password could make unreadable
+    static void validateReload(Settings current, Settings updated, @Nullable String gatewayPasswordId) {
+        if (gatewayPasswordId == null) {
+            // nothing persisted that removing a password could make unreadable
             return;
         }
         if (canWrapForDisk(current) && canWrapForDisk(updated) == false) {
@@ -105,8 +105,8 @@ final class ProjectEncryptionKeyPasswordSettings {
                     + " keeping the previous settings until this node restarts. Add the setting to the keystore before restarting this node"
             );
         }
-        if (hasPassword(current, onDiskPasswordId) && hasPassword(updated, onDiskPasswordId) == false) {
-            String missing = PASSWORD_PREFIX + onDiskPasswordId;
+        if (hasPassword(current, gatewayPasswordId) && hasPassword(updated, gatewayPasswordId) == false) {
+            String missing = PASSWORD_PREFIX + gatewayPasswordId;
             throw new IllegalArgumentException(
                 "cannot reload cluster state encryption settings: this node's on-disk copy of the project encryption key is wrapped with ["
                     + missing

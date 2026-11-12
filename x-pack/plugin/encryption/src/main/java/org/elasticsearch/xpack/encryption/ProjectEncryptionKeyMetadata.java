@@ -60,7 +60,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * or calls {@code POST /_encryption/_reset?accept_data_loss=true}.
  *
  * <p>GATEWAY serialization never fails, since that would make the node reject every publication. A node that cannot wrap the keys, or
- * that receives a degraded instance, persists its {@link OnDiskKeys} for the same active key instead, or no key material.
+ * that receives a degraded instance, persists its {@link GatewayKeys} for the same active key instead, or no key material.
  */
 class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
     static final String TYPE = "primary_encryption_key";
@@ -98,9 +98,9 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         /** Called on GATEWAY serialization, before the on-disk write commits. {@code keysWritten} is false if no key was written. */
         default void onGatewayWrite(@Nullable Exception wrapFailure, boolean keysWritten) {}
 
-        /** Returns this node's {@link OnDiskKeys}, or {@code null} if this implementation does not track them. */
+        /** Returns this node's {@link GatewayKeys}, or {@code null} if this implementation does not track them. */
         @Nullable
-        default OnDiskKeys onDiskKeys() {
+        default GatewayKeys gatewayKeys() {
             return null;
         }
     }
@@ -154,19 +154,24 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
 
     private record GatewayBytes(String passwordId, Map<String, byte[]> wrappedByKeyId) {}
 
-    private record DiskCopy(String activeKeyId, String passwordId, Map<String, KeyEntry> wrappedKeys, Map<String, String> handlerKeyIds) {}
+    private record GatewayCopy(
+        String activeKeyId,
+        String passwordId,
+        Map<String, KeyEntry> wrappedKeys,
+        Map<String, String> handlerKeyIds
+    ) {}
 
     /**
-     * The wrapped keys this node last read from or wrote to its own disk, used only for the same active key. Since only a rotation adds
-     * keys, they include every current key, but may still hold retired keys and stale handler key ids and password id.
+     * The wrapped keys in the cluster state this node last read or persisted, used only for the same active key. Since only a rotation
+     * adds keys, they include every current key, but may still hold retired keys and stale handler key ids and password id.
      */
-    static final class OnDiskKeys {
-        private volatile DiskCopy diskCopy;
+    static final class GatewayKeys {
+        private volatile GatewayCopy gatewayCopy;
 
-        /** Returns the id of the password that wraps this node's on-disk keys, or {@code null} if none are on disk. */
+        /** Returns the id of the password that wraps this node's gateway keys, or {@code null} if it has none. */
         @Nullable
         String passwordId() {
-            DiskCopy copy = diskCopy;
+            GatewayCopy copy = gatewayCopy;
             return copy == null || copy.wrappedKeys().isEmpty() ? null : copy.passwordId();
         }
     }
@@ -252,7 +257,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
 
     /**
      * Creates a degraded instance that carries the failure reason but no usable key material. Used by {@link #fromXContent} when the
-     * on-disk blob cannot be unwrapped or has no key material. In GATEWAY context it re-emits this node's {@link OnDiskKeys} if
+     * persisted blob cannot be unwrapped or has no key material. In GATEWAY context it re-emits this node's {@link GatewayKeys} if
      * that has the same active key, so recovery remains possible once the correct password is supplied.
      */
     static ProjectEncryptionKeyMetadata degraded(
@@ -278,13 +283,13 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
     }
 
     /**
-     * Returns a usable instance unwrapped from this node's {@link OnDiskKeys} for the active key of this degraded instance, or
+     * Returns a usable instance unwrapped from this node's {@link GatewayKeys} for the active key of this degraded instance, or
      * {@code null} if this node has no such copy. Throws if this node's password cannot unwrap it.
      */
     @Nullable
-    ProjectEncryptionKeyMetadata unwrapOnDiskKeys() {
+    ProjectEncryptionKeyMetadata unwrapGatewayKeys() {
         assert isUnwrapFailed();
-        DiskCopy copy = diskCopy();
+        GatewayCopy copy = gatewayCopy();
         if (copy == null || copy.wrappedKeys().isEmpty() || copy.activeKeyId().equals(activeKeyId) == false) {
             return null;
         }
@@ -391,7 +396,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         }
 
         if (unwrapFailureReason != null) {
-            DiskCopy copy = diskCopy();
+            GatewayCopy copy = gatewayCopy();
             if (copy == null || copy.wrappedKeys().isEmpty() || copy.activeKeyId().equals(activeKeyId) == false) {
                 return writeNoKeys();
             }
@@ -409,43 +414,43 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         for (Map.Entry<String, KeyEntry> e : keys.entrySet()) {
             wrappedEntries.put(e.getKey(), new KeyEntry(gw.wrappedByKeyId().get(e.getKey()), e.getValue().generatedAt()));
         }
-        return writeDiskCopy(new DiskCopy(activeKeyId, gw.passwordId(), Map.copyOf(wrappedEntries), handlerKeyIds));
+        return writeGatewayCopy(new GatewayCopy(activeKeyId, gw.passwordId(), Map.copyOf(wrappedEntries), handlerKeyIds));
     }
 
     private Iterator<? extends ToXContent> gatewayChunkWithoutWrapping(Exception wrapFailure) {
-        DiskCopy copy = diskCopy();
+        GatewayCopy copy = gatewayCopy();
         if (copy != null && copy.wrappedKeys().keySet().containsAll(keys.keySet())) {
             Map<String, KeyEntry> previouslyWrapped = HashMap.newHashMap(keys.size());
             for (String keyId : keys.keySet()) {
                 previouslyWrapped.put(keyId, copy.wrappedKeys().get(keyId));
             }
             pekEncryption.onGatewayWrite(wrapFailure, true);
-            return writeDiskCopy(new DiskCopy(activeKeyId, copy.passwordId(), Map.copyOf(previouslyWrapped), handlerKeyIds));
+            return writeGatewayCopy(new GatewayCopy(activeKeyId, copy.passwordId(), Map.copyOf(previouslyWrapped), handlerKeyIds));
         }
         pekEncryption.onGatewayWrite(wrapFailure, false);
         return writeNoKeys();
     }
 
     @Nullable
-    private DiskCopy diskCopy() {
-        OnDiskKeys onDisk = pekEncryption.onDiskKeys();
-        return onDisk == null ? null : onDisk.diskCopy;
+    private GatewayCopy gatewayCopy() {
+        GatewayKeys gatewayKeys = pekEncryption.gatewayKeys();
+        return gatewayKeys == null ? null : gatewayKeys.gatewayCopy;
     }
 
-    private Iterator<? extends ToXContent> writeDiskCopy(DiskCopy copy) {
-        setDiskCopy(pekEncryption, copy);
+    private Iterator<? extends ToXContent> writeGatewayCopy(GatewayCopy copy) {
+        setGatewayCopy(pekEncryption, copy);
         return gatewayChunk(copy);
     }
 
     private Iterator<? extends ToXContent> writeNoKeys() {
-        setDiskCopy(pekEncryption, null);
+        setGatewayCopy(pekEncryption, null);
         return emptyGatewayChunk();
     }
 
-    private static void setDiskCopy(PekEncryption pekEncryption, @Nullable DiskCopy copy) {
-        OnDiskKeys onDisk = pekEncryption.onDiskKeys();
-        if (onDisk != null) {
-            onDisk.diskCopy = copy;
+    private static void setGatewayCopy(PekEncryption pekEncryption, @Nullable GatewayCopy copy) {
+        GatewayKeys gatewayKeys = pekEncryption.gatewayKeys();
+        if (gatewayKeys != null) {
+            gatewayKeys.gatewayCopy = copy;
         }
     }
 
@@ -469,7 +474,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         });
     }
 
-    private static Iterator<? extends ToXContent> gatewayChunk(DiskCopy copy) {
+    private static Iterator<? extends ToXContent> gatewayChunk(GatewayCopy copy) {
         return chunk((builder, p) -> {
             builder.field(ACTIVE_KEY_ID_FIELD.getPreferredName(), copy.activeKeyId());
             builder.field(PASSWORD_ID_FIELD.getPreferredName(), copy.passwordId());
@@ -557,8 +562,8 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         if (parsed.isUnwrapFailed()) {
             return parsed;
         }
-        DiskCopy copy = new DiskCopy(parsed.activeKeyId, parsed.passwordId, parsed.keys, parsed.handlerKeyIds);
-        setDiskCopy(pekEncryption, copy);
+        GatewayCopy copy = new GatewayCopy(parsed.activeKeyId, parsed.passwordId, parsed.keys, parsed.handlerKeyIds);
+        setGatewayCopy(pekEncryption, copy);
         try {
             return unwrap(copy, pekEncryption);
         } catch (RuntimeException e) {
@@ -574,7 +579,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         }
     }
 
-    private static ProjectEncryptionKeyMetadata unwrap(DiskCopy copy, PekEncryption pekEncryption) {
+    private static ProjectEncryptionKeyMetadata unwrap(GatewayCopy copy, PekEncryption pekEncryption) {
         Map<String, KeyEntry> plaintextKeys = HashMap.newHashMap(copy.wrappedKeys().size());
         for (Map.Entry<String, KeyEntry> entry : copy.wrappedKeys().entrySet()) {
             byte[] plaintext = pekEncryption.unwrap(entry.getValue().bytes(), copy.passwordId());

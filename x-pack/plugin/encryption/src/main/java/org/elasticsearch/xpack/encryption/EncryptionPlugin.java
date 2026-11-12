@@ -100,7 +100,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
             services.clusterService(),
             services.projectResolver(),
             pekService,
-            pekEncryption::isKeyMissingOnDisk,
+            pekEncryption::isKeyMissingFromGateway,
             handlerRegistry
         );
 
@@ -129,7 +129,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
     @Override
     public synchronized void reload(Settings settings) {
         Settings updated = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);
-        ProjectEncryptionKeyPasswordSettings.validateReload(this.pekSettings, updated, pekEncryption.onDiskPasswordId());
+        ProjectEncryptionKeyPasswordSettings.validateReload(this.pekSettings, updated, pekEncryption.gatewayPasswordId());
         this.pekSettings = updated;
         KeyRotationCoordinator localCoordinator = this.coordinator.get();
         if (localCoordinator != null) {

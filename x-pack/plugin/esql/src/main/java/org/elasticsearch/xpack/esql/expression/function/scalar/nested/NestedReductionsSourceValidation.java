@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 
@@ -38,7 +39,7 @@ public final class NestedReductionsSourceValidation {
             throw unsupported(index, "requires stored, unfiltered _source");
         }
         if (mapping.get("_source") instanceof Map<?, ?> source) {
-            if ((source.containsKey("enabled") && Boolean.parseBoolean(source.get("enabled").toString()) == false)
+            if ((source.containsKey("enabled") && Booleans.parseBoolean(source.get("enabled").toString()) == false)
                 || (source.containsKey("mode") && "stored".equals(source.get("mode")) == false)
                 || nonempty(source.get("includes"))
                 || nonempty(source.get("excludes"))) {

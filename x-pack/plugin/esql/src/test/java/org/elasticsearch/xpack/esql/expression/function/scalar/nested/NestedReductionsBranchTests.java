@@ -75,7 +75,8 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
             List.of(row("alpha", 26L, 8L, false), row("beta", null, 7L, true)),
             run(
                 "FROM (FROM alpha), (FROM beta) | EVAL total = NESTED(SUM(items.price * items.quantity)), "
-                    + "price = NESTED(SUM(items.price)), missing = NESTED(items.quantity IS NULL) | KEEP id, total, price, missing | SORT id",
+                    + "price = NESTED(SUM(items.price)), missing = NESTED(items.quantity IS NULL) "
+                    + "| KEEP id, total, price, missing | SORT id",
                 List.of(alpha(), beta(false, "long"))
             )
         );

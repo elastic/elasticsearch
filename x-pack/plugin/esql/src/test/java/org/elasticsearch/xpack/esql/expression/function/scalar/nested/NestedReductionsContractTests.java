@@ -44,7 +44,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Reuses REST inputs and expected results with real compute drivers; HTTP, indexing and stored-field loading remain outside its coverage. */
+/**
+ * Reuses REST inputs and expected results with real compute drivers. HTTP, indexing, and stored-field loading
+ * remain outside its coverage.
+ */
 @SuppressWarnings("unchecked")
 public class NestedReductionsContractTests extends LuceneTestCase {
     private record Contract(String name, List<Map<String, Object>> setup, List<Map<String, Object>> steps) {

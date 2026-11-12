@@ -48,36 +48,15 @@ final class EscfRow implements SourceRow {
         return true;
     }
 
-    // TODO: Remove this and switch the callsites to batch oriented processing. Summing each row size is inexact and expensive.
+    // TODO: Remove this once the row-major path (RowSource) is also batch oriented. The batch path sizes all rows in one
+    // column sweep through EscfBatch#rowSizesInBytes, which applies the same per-column formula (EscfColumn#sizeInBytes).
+    // Summing each row size is inexact.
     @Override
     public int sizeInBytes() {
         int size = 0;
         int columnCount = batch.columnCount();
         for (int col = 0; col < columnCount; col++) {
-            size += valueSizeInBytes(getTypeByte(col), col);
-        }
-        return size;
-    }
-
-    private int valueSizeInBytes(byte type, int col) {
-        if (type == SourceValueType.STRING
-            || type == SourceValueType.BINARY
-            || type == SourceValueType.UNION_ARRAY
-            || type == SourceValueType.KEY_VALUE) {
-            return getBinaryValue(col).length;
-        }
-        if (type == SourceValueType.FIXED_ARRAY) {
-            return batch.column(col).kind() == EscfColumnKind.ARRAY ? arraySizeInBytes(getArrayValue(col)) : getBinaryValue(col).length;
-        }
-        // ABSENT/NULL are 0 bytes; TRUE/FALSE are 1 bit (rounded to 0); LONG/DOUBLE are the only remaining (8-byte) kinds.
-        return Math.max(SourceValueType.elemDataSize(type), 0);
-    }
-
-    private static int arraySizeInBytes(ArrayReader array) {
-        int size = 0;
-        while (array.next()) {
-            byte type = array.type();
-            size += type == SourceValueType.STRING ? array.textValue().bytes().length() : Math.max(SourceValueType.elemDataSize(type), 0);
+            size += batch.column(col).sizeInBytes(docIndex);
         }
         return size;
     }

@@ -21,8 +21,8 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.telemetry.RecordingMeterRegistry.measures;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.PREWARM_THREAD_POOL;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.SHARD_READ_THREAD_POOL;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.PREWARM_THREAD_POOL;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.SHARD_READ_THREAD_POOL;
 import static org.elasticsearch.xpack.stateless.commits.BCCHeaderReadExecutor.MAX_CONCURRENCY_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.BCCHeaderReadExecutor.maxConcurrency;
 import static org.hamcrest.Matchers.equalTo;

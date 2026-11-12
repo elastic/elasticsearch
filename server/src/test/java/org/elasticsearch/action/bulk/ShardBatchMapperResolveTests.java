@@ -9,8 +9,10 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -27,29 +29,37 @@ import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.sourcebatch.SourceSchema;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolveTestCase {
 
-    /** Enables the implicit flattened {@code _unmapped} sink, which makes the resolved root dynamic FLATTENED. */
-    private static Settings unmappedSinkEnabled() {
-        return Settings.builder().put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true).build();
+    /** A mapping whose root sets {@code dynamic: flattened}, so unmapped leaves are absorbed by the {@code _unmapped} sink. */
+    private static XContentBuilder dynamicFlattened(CheckedConsumer<XContentBuilder, IOException> properties) throws IOException {
+        return topMapping(b -> {
+            b.field("dynamic", "flattened");
+            b.startObject("properties");
+            properties.accept(b);
+            b.endObject();
+        });
     }
 
     public void testHappyPath() throws IOException {
@@ -143,18 +153,98 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
         assertTrue(resolution.columnMappers()[0] instanceof NumberFieldMapper);
     }
 
-    public void testMissingLeafUnderDynamicFalseIsIgnored() throws IOException {
-        MapperService ms = columnarMapperService(topMapping(b -> {
+    /**
+     * Under {@code dynamic: false} an unmapped leaf makes the batch fall back rather than be dropped. The encoder packs an array of
+     * objects into one column named after the array, so {@code {"obj":[{"field":1}]}} arrives as the unmapped leaf {@code obj} and a
+     * mapped {@code obj.field} inside it would be lost with it. Each shape below lost such a value before.
+     */
+    @TestLogging(reason = "asserts the fallback reason", value = "org.elasticsearch.index.mapper.ShardBatchMapper:DEBUG")
+    public void testUnmappedLeafUnderDynamicFalseFallsBack() throws IOException {
+        final String value = Long.toString(randomLong());
+        final MapperService rootFalse = columnarMapperService(topMapping(b -> {
             b.field("dynamic", "false");
             b.startObject("properties");
-            b.startObject("known").field("type", "keyword").endObject();
+            b.startObject("obj").startObject("properties");
+            b.startObject("field").field("type", "long").endObject();
+            b.startObject("inner").startObject("properties").startObject("field").field("type", "long").endObject().endObject().endObject();
+            b.endObject().endObject();
+            b.startObject("flat").field("subobjects", false);
+            b.startObject("properties").startObject("field").field("type", "long").endObject().endObject();
+            b.endObject();
+            b.startObject("dotted.field").field("type", "long").endObject();
             b.endObject();
         }));
-        SourceSchema schema = schemaOf("known", "unknown");
-        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
-        assertNotNull(resolution);
-        assertNotNull(resolution.columnMappers()[schema.findLeaf("known", 0)]);
-        assertNull(resolution.columnMappers()[schema.findLeaf("unknown", 0)]);
+        final List<String> shapes = List.of(
+            "{\"obj\":[{\"field\":" + value + "}]}",
+            "{\"obj\":[[{\"field\":" + value + "}]]}",
+            "{\"obj\":[{\"inner\":{\"field\":" + value + "}}]}",
+            "{\"obj\":{\"inner\":[{\"field\":" + value + "}]}}",
+            "{\"flat\":[{\"field\":" + value + "}]}",
+            "{\"dotted\":[{\"field\":" + value + "}]}",
+            // Nothing is mapped under these, so dropping them would be correct, but the batch path does not tell the cases apart.
+            "{\"unknown\":[{\"field\":" + value + "}]}",
+            "{\"unknown\":" + value + "}"
+        );
+        for (String json : shapes) {
+            assertFallsBackForUnmappedLeafUnderDynamicFalse(json, rootFalse);
+        }
+        // The fallback is for the unmapped leaf alone: the mapped leaves on their own still resolve.
+        assertNotNull(
+            ShardBatchMapper.resolveMappers(
+                schemaOfJson("{\"obj\":{\"field\":" + value + ",\"inner\":{\"field\":" + value + "}}}"),
+                rootFalse.mappingLookup(),
+                indexSettings
+            )
+        );
+
+        // dynamic: false on the object only, with the root left at its default.
+        final MapperService objectFalse = columnarMapperService(mapping(b -> {
+            b.startObject("obj").field("dynamic", "false");
+            b.startObject("properties").startObject("field").field("type", "long").endObject().endObject();
+            b.endObject();
+        }));
+        assertFallsBackForUnmappedLeafUnderDynamicFalse(shapes.get(0), objectFalse);
+    }
+
+    /** Asserts that the batch falls back because of an unmapped leaf under {@code dynamic: false}, not for some other reason. */
+    private void assertFallsBackForUnmappedLeafUnderDynamicFalse(String json, MapperService ms) throws IOException {
+        final SourceSchema schema = schemaOfJson(json);
+        MockLog.assertThatLogger(
+            () -> assertNull(json, ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), ms.getIndexSettings())),
+            ShardBatchMapper.class,
+            new MockLog.SeenEventExpectation(
+                json,
+                ShardBatchMapper.class.getCanonicalName(),
+                Level.DEBUG,
+                "batch indexing disabled: unmapped leaf [*] under dynamic=false"
+            )
+        );
+    }
+
+    /**
+     * An {@code enabled: false} object resolves to {@code dynamic: false}, so its unmapped leaves fall back too, whatever their shape and
+     * whatever the root {@code dynamic}: the sequential path can still map them through an object-matching dynamic template.
+     */
+    @TestLogging(reason = "asserts the fallback reason", value = "org.elasticsearch.index.mapper.ShardBatchMapper:DEBUG")
+    public void testUnmappedLeafUnderEnabledFalseFallsBack() throws IOException {
+        final boolean rootFalse = randomBoolean();
+        final MapperService ms = columnarMapperService(topMapping(b -> {
+            if (rootFalse) {
+                b.field("dynamic", "false");
+            }
+            b.startObject("properties");
+            b.startObject("known").field("type", "keyword").endObject();
+            b.startObject("off").field("type", "object").field("enabled", false).endObject();
+            b.endObject();
+        }));
+        final String value = randomAlphanumericOfLength(5);
+        for (String json : List.of(
+            "{\"known\":\"" + value + "\",\"off\":{\"x\":\"" + value + "\",\"y\":{\"z\":\"" + value + "\"}}}",
+            "{\"known\":\"" + value + "\",\"off\":[{\"x\":\"" + value + "\"}]}",
+            "{\"known\":\"" + value + "\",\"off\":\"" + value + "\"}"
+        )) {
+            assertFallsBackForUnmappedLeafUnderDynamicFalse(json, ms);
+        }
     }
 
     /**
@@ -187,13 +277,6 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
         assertNotNull(ShardBatchMapper.resolveMappers(schemaOf("known", "obj.known"), ms.mappingLookup(), ms.getIndexSettings()));
     }
 
-    /** As above, when only a parent object sets {@code dynamic: false} and the root does not. */
-    public void testMissingLeafUnderDynamicFalseParentObjectFallsBackWithSyntheticSource() throws IOException {
-        final MapperService ms = tsdbMapperService(Settings.EMPTY, tsdbMapping("true", "false"));
-        assertNull(ShardBatchMapper.resolveMappers(schemaOf("known", "obj.unknown"), ms.mappingLookup(), ms.getIndexSettings()));
-        assertNotNull(ShardBatchMapper.resolveMappers(schemaOf("known", "obj.known"), ms.mappingLookup(), ms.getIndexSettings()));
-    }
-
     /**
      * When the sequential path does not write {@code _ignored_source} (here the escape-hatch setting that skips the write), nothing
      * is captured, so dropping an unmapped leaf under {@code dynamic: false} is correct and the batch stays on the batch path.
@@ -207,6 +290,13 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
         final BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), ms.getIndexSettings());
         assertNotNull(resolution);
         assertNull(resolution.columnMappers()[schema.findLeaf("unknown", 0)]);
+    }
+
+    /** As above, when only a parent object sets {@code dynamic: false} and the root does not. */
+    public void testMissingLeafUnderDynamicFalseParentObjectFallsBackWithSyntheticSource() throws IOException {
+        final MapperService ms = tsdbMapperService(Settings.EMPTY, tsdbMapping("true", "false"));
+        assertNull(ShardBatchMapper.resolveMappers(schemaOf("known", "obj.unknown"), ms.mappingLookup(), ms.getIndexSettings()));
+        assertNotNull(ShardBatchMapper.resolveMappers(schemaOf("known", "obj.known"), ms.mappingLookup(), ms.getIndexSettings()));
     }
 
     public void testMissingLeafUnderDynamicTrueFallsBack() throws IOException {
@@ -329,8 +419,8 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
 
     /**
      * A group mapper used as a multi-field sub-mapper is rejected: {@code FieldMapper#supportsColumnarParse}
-     * requires {@code builderParams.multiFields.mappers.length == 0} for any mapper that returns
-     * {@code true} from {@link org.elasticsearch.index.mapper.FieldMapper#resolvesColumnGroup}. This pin
+     * requires {@code builderParams.multiFields.mappers.length == 0} for any mapper whose
+     * {@link org.elasticsearch.index.mapper.FieldMapper#resolvesColumnGroup} is not {@code NONE}. This pin
      * covers the geo_point case now that it is a group mapper.
      */
     public void testGroupMapperMultiFieldSubMapperFallsBack() throws IOException {
@@ -381,14 +471,18 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
 
     /** A sub-field configuration its own mapper cannot do columnar (no doc values) disqualifies the leaf. */
     public void testSubFieldWithoutDocValuesFallsBack() throws IOException {
-        MapperService ms = columnarMapperService(mapping(b -> {
-            b.startObject("host");
-            b.field("type", "keyword");
-            b.startObject("fields");
-            b.startObject("nd").field("type", "keyword").field("doc_values", false).endObject();
-            b.endObject();
-            b.endObject();
-        }));
+        MapperService ms = createMapperService(
+            randomVersionBeforeDocValuesNoOp(),
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+            mapping(b -> {
+                b.startObject("host");
+                b.field("type", "keyword");
+                b.startObject("fields");
+                b.startObject("nd").field("type", "keyword").field("doc_values", false).endObject();
+                b.endObject();
+                b.endObject();
+            })
+        );
         assertNull(ShardBatchMapper.resolveMappers(schemaOf("host"), ms.mappingLookup(), indexSettings));
     }
 
@@ -479,7 +573,7 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
         assertTrue(resolution.columnMappers()[0] instanceof KeywordFieldMapper);
     }
 
-    public void testNestedLeafUnderNestedDynamicFalseIsIgnored() throws IOException {
+    public void testNestedLeafUnderNestedDynamicFalseFallsBack() throws IOException {
         MapperService ms = columnarMapperService(mapping(b -> {
             b.startObject("outer");
             b.field("dynamic", "false");
@@ -488,11 +582,11 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
             b.endObject();
             b.endObject();
         }));
-        SourceSchema schema = schemaOfNested("outer.known", "outer.unknown");
+        assertNull(ShardBatchMapper.resolveMappers(schemaOfNested("outer.known", "outer.unknown"), ms.mappingLookup(), indexSettings));
+        SourceSchema schema = schemaOfNested("outer.known");
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
         assertNotNull(resolution);
         assertNotNull(resolution.columnMappers()[schema.findLeaf("known", schema.findNonLeaf("outer", 0))]);
-        assertNull(resolution.columnMappers()[schema.findLeaf("unknown", schema.findNonLeaf("outer", 0))]);
     }
 
     /**
@@ -609,23 +703,18 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
     }
 
     /**
-     * Regression: the conflict must be detected <em>before</em> the {@code dynamic=false} branch. Both
-     * outcomes leave the leaf without a mapper, but a conflict means the sequential path rejects the
-     * document, whereas {@code dynamic=false} means it silently drops the value. Classifying a conflict
-     * as merely unmapped would index the document while the sequential path errors on it.
+     * Regression: the conflict must be detected <em>before</em> the empty-object skip. Both outcomes leave the leaf without a mapper,
+     * but on a conflict the sequential path rejects the document or, with subobjects disabled, flattens the object into dotted fields,
+     * and the batch path reproduces neither, so it falls back rather than skip the leaf.
      */
-    public void testNonGroupFieldMapperAncestorFallsBackUnderDynamicFalse() throws IOException {
-        MapperService ms = columnarMapperService(topMapping(b -> {
-            b.field("dynamic", "false");
-            b.startObject("properties");
-            b.startObject("a").field("type", "keyword").endObject();
-            b.endObject();
-        }));
-        SourceSchema schema = schemaOfJson("{\"a\":{\"b\":\"v\"}}");
-        assertNull(
-            "a leaf conflicting with a field mapper must fall back, not be dropped as unmapped",
-            ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings)
-        );
+    public void testNonGroupFieldMapperAncestorFallsBackForEmptyObject() throws IOException {
+        MapperService ms = columnarMapperService(mapping(b -> b.startObject("a").field("type", "keyword").endObject()));
+        try (EscfBatch batch = batchOfJson("{\"a\":{\"b\":{}}}")) {
+            assertNull(
+                "a leaf conflicting with a field mapper must fall back, not be skipped",
+                ShardBatchMapper.resolveMappers(batch, ms.mappingLookup(), indexSettings)
+            );
+        }
     }
 
     /** A leaf whose dotted ancestors have no mapper at all is {@link ColumnGroupLookup.NotOwned}, not a conflict. */
@@ -637,30 +726,10 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
     }
 
     /**
-     * A leaf under a {@code dynamic=false} parent that has no group owner should still be silently
-     * ignored — the group check must not accidentally swallow the dynamic=false branch.
-     */
-    public void testUnmappedLeafUnderDynamicFalseIsStillIgnoredWithNoGroup() throws IOException {
-        MapperService ms = columnarMapperService(topMapping(b -> {
-            b.field("dynamic", "false");
-            b.startObject("properties");
-            b.startObject("known").field("type", "keyword").endObject();
-            b.endObject();
-        }));
-        // "unknown" has no mapper and no group owner; under dynamic=false it is silently ignored.
-        SourceSchema schema = schemaOfJson("{\"known\":\"v\",\"unknown\":\"x\"}");
-        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
-        assertNotNull(resolution);
-        assertNotNull(resolution.columnMappers()[schema.findLeaf("known", 0)]);
-        assertNull(resolution.columnMappers()[schema.findLeaf("unknown", 0)]);
-        assertEquals(0, resolution.columnGroups().length);
-    }
-
-    /**
      * A field with a literal dot in the source key (e.g. {@code {"flat.k":"v"}}) is treated by the
      * ESCF encoder as a leaf directly under root with the dotted name. The dotted-path walk must still
-     * find the {@code flat} group mapper and produce relative key {@code k}, matching the row path
-     * ({@code DotExpandingXContentParser} collapses {@code flat.k} → {@code flat.k} under {@code flat}).
+     * find the {@code flat} group mapper and produce relative key {@code k}: flattened accepts any
+     * shape of its column group, so it is not held to a single object at its path.
      *
      * <p>A tree-pointer walk would miss this case: the leaf's schema parent is root (not {@code flat}).
      */
@@ -825,22 +894,13 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
     }
 
     /**
-     * With the implicit {@code _unmapped} sink present and no explicit root dynamic, the resolved root dynamic is
-     * {@link org.elasticsearch.index.mapper.ObjectMapper.Dynamic#FLATTENED} rather than {@code TRUE}, so an unmapped
-     * leaf is absorbed by the sink instead of forcing a fallback.
+     * With root {@code dynamic: flattened}, an unmapped leaf is absorbed by the {@code _unmapped} sink instead of forcing a fallback.
      */
     public void testUnmappedLeafIsAbsorbedByTheSink() throws IOException {
         assumeUnmappedSinkAvailable();
-        MapperService ms = columnarMapperService(
-            unmappedSinkEnabled(),
-            mapping(b -> b.startObject("host").field("type", "keyword").endObject())
-        );
+        MapperService ms = columnarMapperService(dynamicFlattened(b -> b.startObject("host").field("type", "keyword").endObject()));
         SourceSchema schema = schemaOfJson("{\"host\":\"srv\",\"unknown\":\"x\"}");
-        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
-            schema,
-            ms.mappingLookup(),
-            columnarIndexSettings(unmappedSinkEnabled())
-        );
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
         assertNotNull("an unmapped leaf should be sunk, not force a fallback", resolution);
 
         assertThat(resolution.columnMappers()[schema.findLeaf("host", 0)], instanceOf(KeywordFieldMapper.class));
@@ -858,16 +918,9 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
      */
     public void testSinkKeysUnmappedLeafByFullDottedPath() throws IOException {
         assumeUnmappedSinkAvailable();
-        MapperService ms = columnarMapperService(
-            unmappedSinkEnabled(),
-            mapping(b -> b.startObject("host").field("type", "keyword").endObject())
-        );
+        MapperService ms = columnarMapperService(dynamicFlattened(b -> b.startObject("host").field("type", "keyword").endObject()));
         SourceSchema schema = schemaOfJson("{\"a\":{\"b\":\"x\"}}");
-        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
-            schema,
-            ms.mappingLookup(),
-            columnarIndexSettings(unmappedSinkEnabled())
-        );
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
         assertNotNull(resolution);
         assertEquals(1, resolution.columnGroups().length);
         assertArrayEquals(new String[] { "a.b" }, resolution.columnGroups()[0].relativeKeys());
@@ -880,10 +933,10 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
      */
     public void testLeafUnderSinkNameFallsBack() throws IOException {
         assumeUnmappedSinkAvailable();
-        MapperService ms = columnarMapperService(unmappedSinkEnabled(), mapping(b -> {}));
+        MapperService ms = columnarMapperService(dynamicFlattened(b -> {}));
         String key = randomAlphaOfLength(5);
         String json = randomBoolean() ? "{\"_unmapped\":{\"" + key + "\":\"x\"}}" : "{\"_unmapped." + key + "\":\"x\"}";
-        assertNull(ShardBatchMapper.resolveMappers(schemaOfJson(json), ms.mappingLookup(), columnarIndexSettings(unmappedSinkEnabled())));
+        assertNull(ShardBatchMapper.resolveMappers(schemaOfJson(json), ms.mappingLookup(), indexSettings));
     }
 
     /**
@@ -893,10 +946,10 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
      */
     public void testSinkNameAsLeafFallsBack() throws IOException {
         assumeUnmappedSinkAvailable();
-        MapperService ms = columnarMapperService(unmappedSinkEnabled(), mapping(b -> {}));
+        MapperService ms = columnarMapperService(dynamicFlattened(b -> {}));
         String value = randomAlphaOfLength(5);
         String json = randomBoolean() ? "{\"_unmapped\":\"" + value + "\"}" : "{\"_unmapped\":[\"" + value + "\"]}";
-        assertNull(ShardBatchMapper.resolveMappers(schemaOfJson(json), ms.mappingLookup(), columnarIndexSettings(unmappedSinkEnabled())));
+        assertNull(ShardBatchMapper.resolveMappers(schemaOfJson(json), ms.mappingLookup(), indexSettings));
     }
 
     /**
@@ -905,7 +958,8 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
      */
     public void testDynamicTemplatesPreEmptTheSink() throws IOException {
         assumeUnmappedSinkAvailable();
-        MapperService ms = columnarMapperService(unmappedSinkEnabled(), topMapping(b -> {
+        MapperService ms = columnarMapperService(topMapping(b -> {
+            b.field("dynamic", "flattened");
             b.startArray("dynamic_templates");
             b.startObject();
             b.startObject("strings_as_keyword");
@@ -921,95 +975,143 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
         SourceSchema schema = schemaOfJson("{\"host\":\"srv\",\"unknown\":\"x\"}");
         assertNull(
             "a dynamic template may claim the leaf before the sink does",
-            ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), columnarIndexSettings(unmappedSinkEnabled()))
+            ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings)
         );
     }
 
-    /** An explicit root {@code dynamic: false} still wins over the sink, so the leaf is dropped rather than absorbed. */
-    public void testExplicitRootDynamicFalseWinsOverTheSink() throws IOException {
+    /** The sink exists on every new strict columnar index, but a root {@code dynamic: false} falls back rather than absorbing the leaf. */
+    public void testRootDynamicFalseDoesNotAbsorb() throws IOException {
         assumeUnmappedSinkAvailable();
-        MapperService ms = columnarMapperService(unmappedSinkEnabled(), topMapping(b -> {
+        MapperService ms = columnarMapperService(topMapping(b -> {
             b.field("dynamic", "false");
             b.startObject("properties");
             b.startObject("host").field("type", "keyword").endObject();
             b.endObject();
         }));
-        SourceSchema schema = schemaOfJson("{\"host\":\"srv\",\"unknown\":\"x\"}");
-        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
-            schema,
-            ms.mappingLookup(),
-            columnarIndexSettings(unmappedSinkEnabled())
+        assertNull(
+            "an explicitly disabled dynamic must not sink",
+            ShardBatchMapper.resolveMappers(schemaOfJson("{\"host\":\"srv\",\"unknown\":\"x\"}"), ms.mappingLookup(), indexSettings)
         );
-        assertNotNull(resolution);
-        assertNull(resolution.columnMappers()[schema.findLeaf("unknown", 0)]);
-        assertEquals("an explicitly disabled dynamic must not sink", 0, resolution.columnGroups().length);
     }
 
     /**
-     * The sequential path rejects an unmapped field matching {@code routing_path} rather than dropping it
-     * ({@code DocumentParser#failIfMatchesRoutingPath}), so the batch must fall back and let it raise the error.
+     * The sink is on every new strict columnar index, so a sink whose wrapped flattened mapper cannot batch (here because
+     * {@code index.mapping.index_disabled_by_default: false} turns the inverted index on) must not turn off the batch path for the whole
+     * index: a batch with no unmapped leaf still batches, and only a batch that would absorb a leaf falls back.
+     */
+    public void testSinkThatCannotBatchFallsBackOnlyWhenAbsorbing() throws IOException {
+        assumeUnmappedSinkAvailable();
+        Settings indexEnabled = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), false).build();
+        MapperService ms = columnarMapperService(
+            indexEnabled,
+            dynamicFlattened(b -> b.startObject("host").field("type", "keyword").endObject())
+        );
+        IndexSettings settings = columnarIndexSettings(indexEnabled);
+        assertNotNull(ShardBatchMapper.resolveMappers(schemaOfJson("{\"host\":\"srv\"}"), ms.mappingLookup(), settings));
+        assertNull(ShardBatchMapper.resolveMappers(schemaOfJson("{\"host\":\"srv\",\"unknown\":\"x\"}"), ms.mappingLookup(), settings));
+    }
+
+    /**
+     * With subobjects disabled the sequential path still applies object-matching dynamic templates to an unmapped object under
+     * {@code dynamic: false} or an {@code enabled: false} prefix ({@code DocumentParser#parseObjectDynamic}), so a template can map and
+     * index a value there. The batch path cannot evaluate templates, and falls back for every unmapped leaf under {@code dynamic: false}.
+     */
+    @TestLogging(reason = "asserts the fallback reason", value = "org.elasticsearch.index.mapper.ShardBatchMapper:DEBUG")
+    public void testUnmappedObjectMatchingDynamicTemplateFallsBack() throws IOException {
+        for (boolean disabledObject : new boolean[] { true, false }) {
+            final MapperService ms = columnarMapperService(
+                Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName()).build(),
+                topMapping(b -> {
+                    if (disabledObject == false) {
+                        b.field("dynamic", "false");
+                    }
+                    b.startArray("dynamic_templates").startObject().startObject("objects_under_off_as_flattened");
+                    b.field("path_match", "off.*").field("match_mapping_type", "object");
+                    b.startObject("mapping").field("type", "flattened").endObject();
+                    b.endObject().endObject().endArray();
+                    b.startObject("properties");
+                    if (disabledObject) {
+                        b.startObject("off").field("type", "object").field("enabled", false).endObject();
+                    }
+                    b.endObject();
+                })
+            );
+            assertTrue(ms.getIndexSettings().getMode().isStrictColumnar());
+            final String object = randomAlphaOfLength(5);
+            final String json = "{\"@timestamp\":"
+                + randomNonNegativeLong() % 4_000_000_000_000L
+                + ",\"off\":{\""
+                + object
+                + "\":{\""
+                + randomAlphaOfLength(5)
+                + "\":\""
+                + randomAlphanumericOfLength(8)
+                + "\"}}}";
+
+            // The premise: the sequential path maps off.<object> as flattened through the template and indexes the value.
+            final ParsedDocument doc = ms.documentMapper().parse(source(json));
+            assertNotNull("the template must add a mapping", doc.dynamicMappingsUpdate());
+            final Mapping update = ms.parseMapping("_doc", MapperService.MergeReason.MAPPING_UPDATE, doc.dynamicMappingsUpdate());
+            assertThat(update.getRoot().getMapper("off." + object), instanceOf(FlattenedFieldMapper.class));
+            assertTrue(
+                "the value must be indexed under off." + object,
+                doc.rootDoc().getFields().stream().anyMatch(f -> f.name().startsWith("off." + object))
+            );
+
+            assertFallsBackForUnmappedLeafUnderDynamicFalse(json, ms);
+        }
+    }
+
+    /**
+     * Outside strict-columnar modes an unmapped leaf under {@code dynamic: false} is dropped where the sequential path keeps nothing, but
+     * the sequential path rejects one that matches {@code routing_path} ({@code DocumentParser#failIfMatchesRoutingPath}) rather than
+     * dropping it, so the batch must fall back and let it raise the error.
      */
     public void testUnmappedLeafMatchingRoutingPathFallsBack() throws IOException {
-        // COLUMNAR rejects index.routing_path outright (IndexMode#validateRoutingPathSettings), so the only strict
-        // columnar mode that can carry one is LOGSDB_COLUMNAR with routing on sort fields.
-        Settings routingPathSettings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
-            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
-            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim.*")
-            .build();
-        MapperService ms = columnarMapperService(routingPathSettings, topMapping(b -> {
-            b.field("dynamic", "false");
-            b.startObject("properties");
-            b.startObject("known").field("type", "keyword").endObject();
-            b.endObject();
-        }));
-        IndexSettings withRoutingPath = columnarIndexSettings(routingPathSettings);
-
-        // An unmapped leaf outside routing_path is still silently dropped.
-        SourceSchema unrelated = schemaOfJson("{\"known\":\"v\",\"other\":\"x\"}");
-        assertNotNull(ShardBatchMapper.resolveMappers(unrelated, ms.mappingLookup(), withRoutingPath));
-
-        SourceSchema matching = schemaOfJson("{\"known\":\"v\",\"dim\":{\"host\":\"x\"}}");
+        final MapperService ms = tsdbMapperService(
+            Settings.builder()
+                .put(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING.getKey(), true)
+                .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "labels.*")
+                .build(),
+            tsdbMapping("false", "false")
+        );
+        assertFalse(ms.getIndexSettings().getMode().isStrictColumnar());
+        assertNotNull(ShardBatchMapper.resolveMappers(schemaOf("known", "unknown"), ms.mappingLookup(), ms.getIndexSettings()));
         assertNull(
             "an unmapped leaf matching routing_path must fall back, not be dropped",
-            ShardBatchMapper.resolveMappers(matching, ms.mappingLookup(), withRoutingPath)
+            ShardBatchMapper.resolveMappers(
+                schemaOfJson("{\"known\":" + randomLong() + ",\"labels\":{\"host\":\"" + randomAlphanumericOfLength(5) + "\"}}"),
+                ms.mappingLookup(),
+                ms.getIndexSettings()
+            )
         );
     }
 
     /**
      * {@code DotExpandingXContentParser} rejects dotted names with blank segments, but the columnar encoder keeps them
-     * verbatim. Under {@code dynamic: false} they would otherwise resolve to nothing and be silently dropped.
+     * verbatim. As empty objects they would otherwise be skipped like any other empty-object column while the sequential path rejects them.
      */
     public void testMalformedDottedFieldNameFallsBack() throws IOException {
-        MapperService ms = columnarMapperService(topMapping(b -> {
-            b.field("dynamic", "false");
-            b.startObject("properties");
-            b.startObject("known").field("type", "keyword").endObject();
-            b.endObject();
-        }));
+        MapperService ms = columnarMapperService(mapping(b -> b.startObject("known").field("type", "keyword").endObject()));
         // Empty segments and all-whitespace segments. Note "a. b" and "a .b" are NOT malformed: their segments
         // are " b" and "a ", which are not blank, and the sequential path accepts them too.
-        for (String json : List.of("{\"a..b\":1}", "{\".a\":1}", "{\"a. .b\":1}", "{\"a.\\t.b\":1}")) {
-            assertNull(
-                "expected fallback for " + json,
-                ShardBatchMapper.resolveMappers(schemaOfJson(json), ms.mappingLookup(), indexSettings)
-            );
+        for (String json : List.of("{\"a..b\":{}}", "{\".a\":{}}", "{\"a. .b\":{}}", "{\"a.\\t.b\":{}}")) {
+            try (EscfBatch batch = batchOfJson(json)) {
+                assertNull("expected fallback for " + json, ShardBatchMapper.resolveMappers(batch, ms.mappingLookup(), indexSettings));
+            }
         }
     }
 
     /** Names the sequential path tolerates around blank segments must not trigger the malformed-name fallback. */
     public void testDottedNameWithNonBlankSegmentsIsNotMalformed() throws IOException {
-        MapperService ms = columnarMapperService(topMapping(b -> {
-            b.field("dynamic", "false");
-            b.startObject("properties");
-            b.startObject("known").field("type", "keyword").endObject();
-            b.endObject();
-        }));
-        for (String json : List.of("{\"a. b\":1}", "{\"a .b\":1}")) {
-            assertNotNull(
-                "expected no fallback for " + json,
-                ShardBatchMapper.resolveMappers(schemaOfJson(json), ms.mappingLookup(), indexSettings)
-            );
+        MapperService ms = columnarMapperService(mapping(b -> b.startObject("known").field("type", "keyword").endObject()));
+        for (String json : List.of("{\"a. b\":{}}", "{\"a .b\":{}}")) {
+            try (EscfBatch batch = batchOfJson(json)) {
+                assertNotNull(
+                    "expected no fallback for " + json,
+                    ShardBatchMapper.resolveMappers(batch, ms.mappingLookup(), indexSettings)
+                );
+            }
         }
     }
 
@@ -1021,13 +1123,10 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
     public void testTrailingDotFallsBackEvenThoughRowPathTrimsIt() throws IOException {
         // "a" is deliberately left unmapped: a mapper there would make "a." a ColumnGroupLookup.Conflict and the
         // batch would fall back for that reason instead, leaving the blank-segment check untested.
-        MapperService ms = columnarMapperService(topMapping(b -> {
-            b.field("dynamic", "false");
-            b.startObject("properties");
-            b.startObject("known").field("type", "keyword").endObject();
-            b.endObject();
-        }));
-        assertNull(ShardBatchMapper.resolveMappers(schemaOfJson("{\"a.\":1}"), ms.mappingLookup(), indexSettings));
+        MapperService ms = columnarMapperService(mapping(b -> b.startObject("known").field("type", "keyword").endObject()));
+        try (EscfBatch batch = batchOfJson("{\"a.\":{}}")) {
+            assertNull(ShardBatchMapper.resolveMappers(batch, ms.mappingLookup(), indexSettings));
+        }
     }
 
     /**
@@ -1035,16 +1134,12 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
      * treated as malformed here, otherwise the batch would fall back where the sequential path indexes normally.
      */
     public void testDotlessBlankFieldNameIsNotMalformed() throws IOException {
-        MapperService ms = columnarMapperService(topMapping(b -> {
-            b.field("dynamic", "false");
-            b.startObject("properties");
-            b.startObject("known").field("type", "keyword").endObject();
-            b.endObject();
-        }));
-        SourceSchema schema = schemaOfJson("{\"known\":\"v\",\" \":\"x\"}");
-        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
-        assertNotNull("a dotless blank name is not malformed; it is simply unmapped", resolution);
-        assertNull(resolution.columnMappers()[schema.findLeaf(" ", 0)]);
+        MapperService ms = columnarMapperService(mapping(b -> b.startObject("known").field("type", "keyword").endObject()));
+        try (EscfBatch batch = batchOfJson("{\"known\":\"" + randomAlphanumericOfLength(5) + "\",\" \":{}}")) {
+            BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(batch, ms.mappingLookup(), indexSettings);
+            assertNotNull("a dotless blank name is not malformed; it is simply unmapped", resolution);
+            assertNull(resolution.columnMappers()[batch.schema().findLeaf(" ", 0)]);
+        }
     }
 
     /** Control for the two tests above: the same mapping without the nested object resolves normally. */
@@ -1128,17 +1223,55 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
     }
 
     /**
-     * The dotted spelling {@code {"loc.lat":…,"loc.lon":…}} (literal dots in source keys) is treated
-     * by the ESCF encoder as two root-level leaves with full paths {@code loc.lat} and {@code loc.lon}.
-     * The resolver's ancestor walk must still find the {@code geo_point} group mapper.
+     * The dotted spelling {@code {"loc.lat":…,"loc.lon":…}} gives the row path no object at {@code loc} for the
+     * {@code geo_point} mapper to parse, so the batch falls back.
      */
-    public void testGeoPointDottedSpellingResolvesToGroup() throws IOException {
+    public void testGeoPointDottedSpellingFallsBack() throws IOException {
         MapperService ms = columnarMapperService(mapping(b -> b.startObject("loc").field("type", "geo_point").endObject()));
         SourceSchema schema = schemaOfJson("{\"loc.lat\":51.5,\"loc.lon\":-0.1}");
-        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
-        assertNotNull("geo_point dotted spelling should resolve to the group", resolution);
-        assertEquals(1, resolution.columnGroups().length);
-        assertThat(List.of(resolution.columnGroups()[0].relativeKeys()), containsInAnyOrder("lat", "lon"));
+        assertNull(ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings));
+    }
+
+    /** One dotted document is enough to send a batch that otherwise spells the geo_point as an object to the row path. */
+    public void testGeoPointDottedAndObjectSpellingsInOneBatchFallBack() throws IOException {
+        MapperService ms = columnarMapperService(mapping(b -> b.startObject("loc").field("type", "geo_point").endObject()));
+        SourceSchema schema = schemaOfJson("{\"loc\":{\"lat\":51.5,\"lon\":-0.1}}", "{\"loc.lat\":52.0,\"loc.lon\":0.1}");
+        assertNull(ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings));
+    }
+
+    /** A dotted key below an object still runs through the geo_point's path when the field itself is nested. */
+    public void testGeoPointDottedSpellingUnderObjectFallsBack() throws IOException {
+        MapperService ms = columnarMapperService(mapping(b -> b.startObject("a.loc").field("type", "geo_point").endObject()));
+        SourceSchema schema = schemaOfJson("{\"a\":{\"loc.lat\":51.5,\"loc.lon\":-0.1}}");
+        assertNull(ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings));
+    }
+
+    /** Dots above the geo_point's path leave its object intact, so either spelling on its own resolves to the group. */
+    public void testGeoPointDottedKeyAbovePathResolvesToGroup() throws IOException {
+        MapperService ms = columnarMapperService(mapping(b -> b.startObject("a.loc").field("type", "geo_point").endObject()));
+        for (String source : List.of("{\"a.loc\":{\"lat\":51.5,\"lon\":-0.1}}", "{\"a\":{\"loc\":{\"lat\":51.5,\"lon\":-0.1}}}")) {
+            BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOfJson(source), ms.mappingLookup(), indexSettings);
+            assertNotNull(source, resolution);
+            assertEquals(source, 1, resolution.columnGroups().length);
+            assertEquals(source, "a.loc", resolution.columnGroups()[0].mapper().fullPath());
+        }
+    }
+
+    /**
+     * Two objects at the geo_point's path, each holding half of the point. The row path parses each object on its own and
+     * rejects both halves, so the batch must not combine them into one point.
+     */
+    public void testGeoPointSplitAcrossTwoObjectsFallsBack() throws IOException {
+        MapperService ms = columnarMapperService(mapping(b -> b.startObject("a.loc").field("type", "geo_point").endObject()));
+        SourceSchema schema = schemaOfJson("{\"a.loc\":{\"lat\":51.5},\"a\":{\"loc\":{\"lon\":-0.1}}}");
+        assertNull(ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings));
+    }
+
+    /** The single-object check covers the whole batch, so two documents spelling the path differently fall back too. */
+    public void testGeoPointObjectsSpelledDifferentlyAcrossDocumentsFallBack() throws IOException {
+        MapperService ms = columnarMapperService(mapping(b -> b.startObject("a.loc").field("type", "geo_point").endObject()));
+        SourceSchema schema = schemaOfJson("{\"a.loc\":{\"lat\":51.5,\"lon\":-0.1}}", "{\"a\":{\"loc\":{\"lat\":52.0,\"lon\":0.1}}}");
+        assertNull(ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings));
     }
 
     /** A geo_point with multi-fields cannot use the columnar path (group mapper requires no multi-fields). */
@@ -1272,17 +1405,12 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
     }
 
     /**
-     * Aliasing ({@code {"loc":{"lat":1,"lon":2},"loc.lat":3}}) produces a duplicate {@code lat}
-     * relative key in the group. Resolution succeeds — group mappers are exempt from the per-leaf
-     * dedupe check — but {@link org.elasticsearch.index.mapper.GeoPointFieldMapper#mapColumnGroupBatch}
-     * throws {@link UnsupportedOperationException} at map time, causing a clean fallback.
+     * Aliasing ({@code {"loc":{"lat":1,"lon":2},"loc.lat":3}}) would produce a duplicate {@code lat} relative key in the
+     * group. The dotted {@code loc.lat} is not in an object at {@code loc}, so resolution already refuses the batch.
      */
-    public void testGeoPointAliasedKeysResolveButTriggerMapTimeFallback() throws IOException {
+    public void testGeoPointAliasedKeysFallBack() throws IOException {
         MapperService ms = columnarMapperService(mapping(b -> b.startObject("loc").field("type", "geo_point").endObject()));
         SourceSchema schema = schemaOfJson("{\"loc\":{\"lat\":51.5,\"lon\":-0.1},\"loc.lat\":52.0}");
-        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
-        assertNotNull("resolution should succeed; the duplicate-key check fires at map time", resolution);
-        assertEquals(1, resolution.columnGroups().length);
-        assertArrayEquals(new String[] { "lat", "lon", "lat" }, resolution.columnGroups()[0].relativeKeys());
+        assertNull(ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings));
     }
 }

@@ -35,6 +35,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -421,6 +422,13 @@ public enum DataType implements Writeable {
             .estimatedSize(Long.BYTES * 2)
             .docValues()
             .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
+    ),
+    /**
+     * Dynamically loaded label container: a label dictionary that PromQL manipulates internally. Never reaches a response: PromQL
+     * hands the user its keyword JSON form.
+     */
+    TIME_SERIES_METADATA_DATA_TYPE(
+        builder().typeName("_tsmd").estimatedSize(1024).underConstruction(TransportVersion.fromName("tsmd_data_type"))
     ),
     PARTIAL_AGG(
         builder().esType("partial_agg")
@@ -820,22 +828,40 @@ public enum DataType implements Writeable {
         }
     }
 
+    private static final EnumSet<DataType> NON_REPRESENTABLE_OUTPUT_TYPES = EnumSet.of(
+        OBJECT,
+        DATE_PERIOD,
+        TIME_DURATION,
+        BYTE,
+        SHORT,
+        FLOAT,
+        SCALED_FLOAT,
+        HALF_FLOAT,
+        PARTIAL_AGG,
+        DOC_DATA_TYPE,
+        TIME_SERIES_METADATA_DATA_TYPE
+    );
+
     /**
-     * Supported types that can be contained in a block.
+     * Types that can appear in user-visible result columns and therefore require an output formatter.
+     * Includes counters and {@code _source}. Internal types such as Lucene document IDs and types promoted before
+     * execution must not escape into responses.
      */
-    public static boolean isRepresentable(DataType t) {
-        return t != OBJECT
-            && t != UNSUPPORTED
-            && t != DATE_PERIOD
-            && t != TIME_DURATION
-            && t != BYTE
-            && t != SHORT
-            && t != FLOAT
-            && t != SCALED_FLOAT
+    public static boolean isRepresentableInOutput(DataType t) {
+        return NON_REPRESENTABLE_OUTPUT_TYPES.contains(t) == false;
+    }
+
+    /**
+     * Types permitted as general-purpose values by expression validation. Individual functions may impose further
+     * restrictions. Counters and {@code _source} require special handling in expressions rather than being accepted
+     * wherever a representable value is expected. A typed label container never reaches a response but is an ordinary
+     * value inside the plan.
+     */
+    public static boolean isRepresentableInExpression(DataType t) {
+        return (isRepresentableInOutput(t) || t == TIME_SERIES_METADATA_DATA_TYPE)
+            && t.isCounter() == false
             && t != SOURCE
-            && t != HALF_FLOAT
-            && t != PARTIAL_AGG
-            && t.isCounter() == false;
+            && t != UNSUPPORTED;
     }
 
     public static boolean isCounter(DataType t) {
@@ -875,7 +901,8 @@ public enum DataType implements Writeable {
     }
 
     public static boolean isSortable(DataType t) {
-        return false == (t == SOURCE
+        return false == (t == TIME_SERIES_METADATA_DATA_TYPE
+            || t == SOURCE
             || isCounter(t)
             || isSpatialOrGrid(t)
             || t == AGGREGATE_METRIC_DOUBLE

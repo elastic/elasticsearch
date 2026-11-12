@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -407,7 +408,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             unassignedInfo,
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+            RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
 
         final ShardStats mockShardStats = mock(ShardStats.class);
@@ -740,7 +741,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         "coordinating_in_bytes": 0,
                         "primary_in_bytes": 0,
                         "replica_in_bytes": 0,
-                        "all_in_bytes": 0
+                        "all_in_bytes": 0,
+                        "ingest_expansion_in_bytes": 0
                       },
                       "total": {
                         "combined_coordinating_and_primary_in_bytes": 0,
@@ -748,11 +750,13 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         "primary_in_bytes": 0,
                         "replica_in_bytes": 0,
                         "all_in_bytes": 0,
+                        "ingest_expansion_in_bytes": 0,
                         "coordinating_rejections": 0,
                         "primary_rejections": 0,
                         "replica_rejections": 0,
                         "primary_document_rejections": 0,
-                        "large_operation_rejections": 0
+                        "large_operation_rejections": 0,
+                        "ingest_expansion_rejections": 0
                       },
                       "limit_in_bytes": 0
                     }

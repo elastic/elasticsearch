@@ -18,9 +18,9 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2.Int
  * order itself is applied around the command; the series pass through, and the command reads the labels it orders by from the
  * label container.
  */
-final class SortLabelTranslation {
+final class SortFunctionV2 {
 
-    private SortLabelTranslation() {}
+    private SortFunctionV2() {}
 
     /** {@code sort} and {@code sort_desc} pass the series through; over native histograms they return nothing. */
     static IntermediateResult translate(SortFunction sort, TranslationContextV2 context) {

@@ -25,11 +25,11 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 /** {@code sort} and {@code sort_by_label} translated over a label container. */
-public class PromqlPlanSortLabelTests extends AbstractPromqlPlanOptimizerTests {
+public class PromqlPlanSortFunctionV2Tests extends AbstractPromqlPlanOptimizerTests {
 
     private static final String INSTANT = "PROMQL index=k8s time=\"2024-05-10T00:03:00.000Z\" ";
 
-    public PromqlPlanSortLabelTests(VersionMode versionMode) {
+    public PromqlPlanSortFunctionV2Tests(VersionMode versionMode) {
         super(versionMode);
     }
 

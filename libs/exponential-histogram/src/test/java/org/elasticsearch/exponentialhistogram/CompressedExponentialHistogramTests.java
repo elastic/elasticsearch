@@ -39,7 +39,29 @@ public class CompressedExponentialHistogramTests extends ExponentialHistogramTes
         assertThat(decoded, equalTo(input));
     }
 
+    public void testBucketCountAfterReset() throws IOException {
+        CompressedExponentialHistogram compressed = new CompressedExponentialHistogram();
+        int numResets = randomIntBetween(1, 5);
+        for (int i = 0; i < numResets; i++) {
+            ReleasableExponentialHistogram input = randomHistogramWithDoubleZeroThreshold();
+            resetToHistogram(compressed, input);
+            if (randomBoolean()) {
+                // populate the cached data via another accessor first
+                compressed.positiveBuckets().valueCount();
+                compressed.negativeBuckets().valueCount();
+            }
+            assertThat(compressed.positiveBuckets().bucketCount(), equalTo(input.positiveBuckets().bucketCount()));
+            assertThat(compressed.negativeBuckets().bucketCount(), equalTo(input.negativeBuckets().bucketCount()));
+        }
+    }
+
     private static CompressedExponentialHistogram toCompressedHistogram(ReleasableExponentialHistogram input) throws IOException {
+        CompressedExponentialHistogram decoded = new CompressedExponentialHistogram();
+        resetToHistogram(decoded, input);
+        return decoded;
+    }
+
+    private static void resetToHistogram(CompressedExponentialHistogram target, ReleasableExponentialHistogram input) throws IOException {
         ByteArrayOutputStream encodedStream = new ByteArrayOutputStream();
         if (randomBoolean()) {
             CompressedExponentialHistogram.writeHistogramBytes(
@@ -51,9 +73,8 @@ public class CompressedExponentialHistogramTests extends ExponentialHistogramTes
         } else {
             CompressedExponentialHistogram.writeHistogramBytes(encodedStream, input);
         }
-        CompressedExponentialHistogram decoded = new CompressedExponentialHistogram();
         byte[] encodedBytes = encodedStream.toByteArray();
-        decoded.reset(
+        target.reset(
             input.zeroBucket().zeroThreshold(),
             input.valueCount(),
             input.sum(),
@@ -61,7 +82,6 @@ public class CompressedExponentialHistogramTests extends ExponentialHistogramTes
             input.max(),
             newBytesRef(encodedBytes)
         );
-        return decoded;
     }
 
     private ReleasableExponentialHistogram randomHistogramWithDoubleZeroThreshold() {

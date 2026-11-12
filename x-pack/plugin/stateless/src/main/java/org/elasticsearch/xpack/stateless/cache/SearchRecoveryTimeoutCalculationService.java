@@ -40,7 +40,7 @@ public class SearchRecoveryTimeoutCalculationService {
     /// opening a shard. Enabling this setting should reduce blob store cache misses after shard relocations.
     public static final Setting<Boolean> OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING = Setting.boolSetting(
         OFFLINE_WARMING_TIMEOUT_REEVALUATION_PREFIX + ".enabled",
-        false,
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

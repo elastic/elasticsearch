@@ -77,7 +77,10 @@ public class StatelessRestoringShardSearchIT extends AbstractStatelessRestoringS
                 prepareSearch(RESTORED_INDEX).setAllowPartialSearchResults(true)
             );
             assertServiceUnavailableException(e);
-            assertThat(ExceptionsHelper.unwrapCause(e.shardFailures()[0].getCause()), instanceOf(NoShardAvailableActionException.class));
+            assertThat(
+                ExceptionsHelper.unwrapCause(e.shardFailures().getFirst().getCause()),
+                instanceOf(NoShardAvailableActionException.class)
+            );
         });
     }
 

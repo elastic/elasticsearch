@@ -68,6 +68,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
@@ -632,7 +633,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-            ShardSearchFailure[] shardFailures = e.shardFailures();
+            List<ShardSearchFailure> shardFailures = e.shardFailures();
             for (ShardSearchFailure shardSearchFailure : shardFailures) {
                 assertThat(shardSearchFailure.status(), equalTo(RestStatus.BAD_REQUEST));
                 assertThat(shardSearchFailure.reason(), reasonMatcher);

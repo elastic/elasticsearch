@@ -60,7 +60,9 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class SearchAfterIT extends ESIntegTestCase {
     private static final String INDEX_NAME = "test";
@@ -94,7 +96,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                 SearchPhaseExecutionException.class,
                 prepareSearch("test").setQuery(matchAllQuery()).searchAfter(new Object[] { 0.75f })
             );
-            assertTrue(e.shardFailures().length > 0);
+            assertThat(e.shardFailures(), not(empty()));
             for (ShardSearchFailure failure : e.shardFailures()) {
                 assertThat(failure.toString(), containsString("Sort must contain at least one field."));
             }
@@ -108,7 +110,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                     .setQuery(matchAllQuery())
                     .searchAfter(new Object[] { 1 })
             );
-            assertTrue(e.shardFailures().length > 0);
+            assertThat(e.shardFailures(), not(empty()));
             for (ShardSearchFailure failure : e.shardFailures()) {
                 assertThat(failure.toString(), containsString("search_after has 1 value(s) but sort has 2."));
             }
@@ -120,7 +122,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                 prepareSearch("test").setQuery(matchAllQuery()).addSort("field1", SortOrder.ASC).searchAfter(new Object[] { 1, 2 })
             );
             for (ShardSearchFailure failure : e.shardFailures()) {
-                assertTrue(e.shardFailures().length > 0);
+                assertThat(e.shardFailures(), not(empty()));
                 assertThat(failure.toString(), containsString("search_after has 2 value(s) but sort has 1."));
             }
         }
@@ -130,7 +132,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                 SearchPhaseExecutionException.class,
                 prepareSearch("test").setQuery(matchAllQuery()).addSort("field1", SortOrder.ASC).searchAfter(new Object[] { "toto" })
             );
-            assertTrue(e.shardFailures().length > 0);
+            assertThat(e.shardFailures(), not(empty()));
             for (ShardSearchFailure failure : e.shardFailures()) {
                 assertThat(failure.toString(), containsString("Failed to parse search_after value for field [field1]."));
             }
@@ -141,7 +143,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                 SearchPhaseExecutionException.class,
                 prepareSearch("test").setQuery(matchAllQuery()).addSort("field1", SortOrder.ASC).searchAfter(new Object[] { null })
             );
-            assertTrue(e.shardFailures().length > 0);
+            assertThat(e.shardFailures(), not(empty()));
             for (ShardSearchFailure failure : e.shardFailures()) {
                 assertThat(failure.toString(), containsString("cannot be null for sort field [field1]"));
             }

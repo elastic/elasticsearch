@@ -188,7 +188,7 @@ public class SecurityPointInTimeTests extends SecurityIntegTestCase {
                     .setPointInTime(new PointInTimeBuilder(forged))
             );
             assertThat(failure, not(instanceOf(ElasticsearchSecurityException.class)));
-            Throwable cause = ExceptionsHelper.unwrapCause(failure.shardFailures()[0].getCause());
+            Throwable cause = ExceptionsHelper.unwrapCause(failure.shardFailures().getFirst().getCause());
             assertThat(cause, instanceOf(IllegalArgumentException.class));
             assertThat(cause.getMessage(), equalTo("search context id is not valid"));
             assertThat(failure.toString(), not(containsString("pit-private")));

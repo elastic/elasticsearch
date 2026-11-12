@@ -101,7 +101,7 @@ public class HighCompressionAggsCircuitBreakerIT extends AggregationIntegTestCas
         } catch (SearchPhaseExecutionException e) {
             String fullStack = ExceptionsHelper.stackTrace(e);
             // If a shard failed (e.g. due to data-node memory pressure) we can't make claims about the coordinator-side reduction.
-            assumeTrue(fullStack, e.shardFailures().length == 0);
+            assumeTrue(fullStack, e.shardFailures().isEmpty());
             assertThat(e.getCause(), instanceOf(CircuitBreakingException.class));
             assertThat(fullStack, containsString("[request] Data too large"));
             assertThat(fullStack, containsString("org.elasticsearch.action.search.QueryPhaseResultConsumer"));

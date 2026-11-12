@@ -11,17 +11,14 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -65,6 +62,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Performs a series of elasticsearch queries and aggregations to explore
@@ -119,7 +117,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
         private final ActionListener<GraphExploreResponse> listener;
 
         private final long startTime;
-        private volatile ShardOperationFailedException[] shardFailures;
+        private final List<ShardOperationFailedException> shardFailures = new CopyOnWriteArrayList<>();
         private Map<VertexId, Vertex> vertices = new HashMap<>();
         private Map<ConnectionId, Connection> connections = new HashMap<>();
 
@@ -131,7 +129,6 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             this.request = request;
             this.listener = listener;
             this.startTime = threadPool.relativeTimeInMillis();
-            this.shardFailures = ShardSearchFailure.EMPTY_ARRAY;
         }
 
         private Vertex getVertex(String field, String term) {
@@ -333,7 +330,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             client.search(searchRequest, new DelegatingActionListener<>(listener) {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
-                    addShardFailures(searchResponse.getShardFailures());
+                    addShardFailures(searchResponse.shardFailuresList());
 
                     ArrayList<Connection> newConnections = new ArrayList<Connection>();
                     ArrayList<Vertex> newVertices = new ArrayList<Vertex>();
@@ -685,7 +682,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 client.search(searchRequest, new DelegatingActionListener<>(listener) {
                     @Override
                     public void onResponse(SearchResponse searchResponse) {
-                        addShardFailures(searchResponse.getShardFailures());
+                        addShardFailures(searchResponse.shardFailuresList());
                         SingleBucketAggregation sample = searchResponse.getAggregations().get("sample");
 
                         // Determine the total scores for all interesting terms
@@ -778,18 +775,20 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             }
         }
 
-        void addShardFailures(ShardOperationFailedException[] failures) {
-            if (CollectionUtils.isEmpty(failures) == false) {
-                ShardOperationFailedException[] duplicates = new ShardOperationFailedException[shardFailures.length + failures.length];
-                System.arraycopy(shardFailures, 0, duplicates, 0, shardFailures.length);
-                System.arraycopy(failures, 0, duplicates, shardFailures.length, failures.length);
-                shardFailures = ExceptionsHelper.groupBy(duplicates);
-            }
+        void addShardFailures(List<? extends ShardOperationFailedException> failures) {
+            shardFailures.addAll(failures);
         }
 
         protected GraphExploreResponse buildResponse(boolean timedOut) {
             long took = threadPool.relativeTimeInMillis() - startTime;
-            return new GraphExploreResponse(took, timedOut, shardFailures, vertices, connections, request.returnDetailedInfo());
+            return new GraphExploreResponse(
+                took,
+                timedOut,
+                List.copyOf(shardFailures),
+                vertices,
+                connections,
+                request.returnDetailedInfo()
+            );
         }
 
     }

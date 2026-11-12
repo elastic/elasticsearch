@@ -24,7 +24,6 @@ import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -153,7 +152,7 @@ public class CCSUsage {
             if (e instanceof SearchPhaseExecutionException spe) {
                 // If this is a failure that happened because of remote failures only
                 var groupedFails = ExceptionsHelper.groupBy(spe.shardFailures());
-                if (Arrays.stream(groupedFails).allMatch(Builder::isRemoteFailure)) {
+                if (groupedFails.stream().allMatch(Builder::isRemoteFailure)) {
                     return Result.REMOTES_UNAVAILABLE;
                 }
             }

@@ -4701,8 +4701,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                     fail("Search should throw stale request exception");
                 } catch (ExecutionException e) {
                     var searchPhaseException = (SearchPhaseExecutionException) e.getCause();
-                    assertEquals(1, searchPhaseException.shardFailures().length);
-                    assertTrue(searchPhaseException.shardFailures()[0].getCause() instanceof StaleRequestException);
+                    assertEquals(1, searchPhaseException.shardFailures().size());
+                    assertTrue(searchPhaseException.shardFailures().getFirst().getCause() instanceof StaleRequestException);
                 } catch (TimeoutException e) {
                     throw new RuntimeException(e);
                 }

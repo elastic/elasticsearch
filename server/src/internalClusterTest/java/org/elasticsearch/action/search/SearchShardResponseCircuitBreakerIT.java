@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -201,7 +201,7 @@ public class SearchShardResponseCircuitBreakerIT extends ESIntegTestCase {
         assertThat(e, instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException failure = (SearchPhaseExecutionException) e;
         assertThat(failure.getPhaseName(), equalTo(phase));
-        assertThat(failure.shardFailures(), emptyArray());
+        assertThat(failure.shardFailures(), empty());
         assertThat(failure.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
         CircuitBreakingException trip = (CircuitBreakingException) ExceptionsHelper.unwrap(e, CircuitBreakingException.class);
         assertThat(trip, notNullValue());

@@ -76,7 +76,7 @@ public class AsyncSearchSingleNodeTests extends ESSingleNodeTestCase {
                 .getCause();
             assertEquals("fetch", phaseExecutionException.getPhaseName());
             assertEquals("boom", phaseExecutionException.getCause().getMessage());
-            assertEquals(10, phaseExecutionException.shardFailures().length);
+            assertEquals(10, phaseExecutionException.shardFailures().size());
             for (ShardSearchFailure shardSearchFailure : phaseExecutionException.shardFailures()) {
                 assertEquals("boom", shardSearchFailure.getCause().getMessage());
             }

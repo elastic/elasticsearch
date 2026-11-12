@@ -116,9 +116,9 @@ public class Dedup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryA
     }
 
     /**
-     * Whether the column has different types in the indices or subqueries DEDUP reads. Its values are real but can't be read until
-     * converted, so leaving it out of the comparison would collapse rows that differ only in it. Such a column carries all of its
-     * types, while a column of a type ES|QL doesn't support carries the single type it is mapped as and is always {@code null}.
+     * {@code originalTypes()} has one entry per distinct type, not per index, so more than one entry is a type conflict.
+     * Types ES|QL already combines, such as {@code date} and {@code date_nanos}, are a single type before this check.
+     * Exactly one entry is a type ES|QL does not support.
      */
     private static boolean isUnionType(UnsupportedAttribute attr) {
         return attr.originalTypes().size() > 1;

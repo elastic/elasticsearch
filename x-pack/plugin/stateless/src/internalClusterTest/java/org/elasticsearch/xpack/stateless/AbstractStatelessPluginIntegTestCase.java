@@ -200,9 +200,12 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             hollowIndexShardsZeroTtl = true;
         }
         if (MERGE_BLOBS_ENABLED) {
-            MergeBlobInjector.reset();
-            mergeBlobLogCapture = MockLog.capture("");
-            mergeBlobLogCapture.addExpectation(new NoMergeBlobWarningExpectation());
+            final boolean injectMergeBlobs = randomBoolean();
+            MergeBlobInjector.reset(injectMergeBlobs);
+            if (injectMergeBlobs) {
+                mergeBlobLogCapture = MockLog.capture("");
+                mergeBlobLogCapture.addExpectation(new NoMergeBlobWarningExpectation());
+            }
         }
     }
 

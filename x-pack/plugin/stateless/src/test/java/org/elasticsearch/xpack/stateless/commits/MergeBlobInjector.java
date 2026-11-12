@@ -34,11 +34,12 @@ import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.ME
 
 /// Writes fake `stateless_merge_*` blobs into the shard containers of indexing shards in integration tests, before anything writes such
 /// blobs for real. Nodes must ignore them and must never delete them; [#injected()] exposes what was written so tests can check both.
-/// Blobs are written when a shard starts, right after a BCC upload, and a few milliseconds after a BCC upload (by which point the shard
-/// may be closed or the index deleted, deliberately).
+/// Blobs are written when a shard is created (before its recovery lists blobs, usually), when it starts, right after a BCC upload, and a
+/// few milliseconds after a BCC upload (by which point the shard may be closed or the index deleted, deliberately).
 ///
-/// State is static and cleared by [#reset()] before each test. With a cluster shared across tests (`Scope.SUITE`), a blob of an earlier
-/// test is either cleared by the reset or, if written after it, skipped by the presence check because its index has been deleted.
+/// State is static and cleared by [#reset(boolean)] before each test, which also decides whether that test injects at all. With a
+/// cluster shared across tests (`Scope.SUITE`), a blob of an earlier test is either cleared by the reset or, if written after it, skipped
+/// by the presence check because its index has been deleted.
 ///
 /// TODO(szybia): remove once merge blobs are uploaded for real
 public class MergeBlobInjector implements IndexEventListener {
@@ -56,6 +57,7 @@ public class MergeBlobInjector implements IndexEventListener {
     }
 
     private enum Moment {
+        AFTER_SHARD_CREATED('c'),
         AFTER_SHARD_STARTED('s'),
         AFTER_BCC_UPLOAD('u'),
         LATER('l');
@@ -72,13 +74,16 @@ public class MergeBlobInjector implements IndexEventListener {
     // Primary term of each shard removed by a restore to fewer shards, at the time it was removed
     private static final Map<ShardId, Long> REMOVED_SHARDS = new ConcurrentHashMap<>();
 
-    public static void reset() {
+    private static volatile boolean enabled;
+
+    public static void reset(boolean enabled) {
         INJECTED.clear();
         REMOVED_SHARDS.clear();
+        MergeBlobInjector.enabled = enabled;
     }
 
-    /// Blobs injected since the last [#reset()]. A blob is registered before its write and unregistered if the write throws, so every
-    /// entry was written and must still be in the object store. Blobs of removed shards are left out.
+    /// Blobs injected since the last [#reset(boolean)]. A blob is registered before its write and unregistered if the write throws, so
+    /// every entry was written and must still be in the object store. Blobs of removed shards are left out.
     public static Set<InjectedBlob> injected() {
         return INJECTED.stream()
             .filter(blob -> blob.primaryTerm() > REMOVED_SHARDS.getOrDefault(blob.shardId(), 0L))
@@ -118,9 +123,26 @@ public class MergeBlobInjector implements IndexEventListener {
         this.threadPool = Objects.requireNonNull(threadPool);
     }
 
+    /// Recovery is only queued once shard creation returns, so this usually lands before the recovery lists the shard's blobs. Written
+    /// asynchronously: this runs on the cluster applier thread, and some tests block blob writes.
+    @Override
+    public void afterIndexShardCreated(IndexShard indexShard) {
+        if (enabled == false || indexShard.routingEntry().isPromotableToPrimary() == false) {
+            return;
+        }
+        final ShardId shardId = indexShard.shardId();
+        final long primaryTerm = indexShard.getPendingPrimaryTerm();
+        final long startGeneration = Randomness.get().nextLong(1, 1000);
+        try {
+            threadPool.generic().execute(() -> inject(shardId, primaryTerm, Moment.AFTER_SHARD_CREATED, startGeneration));
+        } catch (Exception e) {
+            logger.debug(() -> "failed to schedule merge blob injection for " + shardId, e);
+        }
+    }
+
     @Override
     public void afterIndexShardStarted(IndexShard indexShard) {
-        if (indexShard.routingEntry().isPromotableToPrimary() == false) {
+        if (enabled == false || indexShard.routingEntry().isPromotableToPrimary() == false) {
             return;
         }
         final ShardId shardId = indexShard.shardId();
@@ -138,6 +160,9 @@ public class MergeBlobInjector implements IndexEventListener {
     }
 
     private void onBccUploaded(ShardId shardId, StatelessCommitService.UploadedBccInfo info) {
+        if (enabled == false) {
+            return;
+        }
         // Upload consumers must not throw, see StatelessCommitService.ShardCommitState
         try {
             final var termAndGeneration = info.uploadedBcc().primaryTermAndGeneration();
@@ -160,6 +185,9 @@ public class MergeBlobInjector implements IndexEventListener {
     }
 
     private void inject(ShardId shardId, long primaryTerm, Moment moment, long startGeneration) {
+        if (enabled == false) {
+            return;
+        }
         final Random random = Randomness.get();
         // stateless_merge_<gen>_<segment>_<discriminator>: the segment is the moment letter plus the generation in base 36, never a '_'
         final String blobName = MERGE_BLOB_PREFIX + startGeneration + '_' + moment.letter + Long.toString(startGeneration, 36) + '_'

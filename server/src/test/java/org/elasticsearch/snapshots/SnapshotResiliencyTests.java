@@ -142,6 +142,16 @@ public class SnapshotResiliencyTests extends ESTestCase {
         return new DeterministicTaskQueue();
     }
 
+    /**
+     * Fail-over tests call this before setting up the cluster. Half of their runs then use
+     * {@link DeterministicTaskQueue.SelectionPolicy#RANDOM_PRIORITY}, which often lets one task, such as a publication completion
+     * listener, stay pending while hundreds of other tasks run. Uniform selection practically never explores those orders, and
+     * they are the ones in which a node acts on a state long after it changed.
+     */
+    protected void randomizeSelectionPolicy() {
+        deterministicTaskQueue.setSelectionPolicy(randomFrom(DeterministicTaskQueue.SelectionPolicy.values()));
+    }
+
     @After
     public void verifyReposThenStopServices() throws ExecutionException {
         try {
@@ -281,6 +291,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     public void testSnapshotWithNodeDisconnects() {
+        randomizeSelectionPolicy();
         final int dataNodes = randomIntBetween(2, 10);
         final int masterNodes = randomFrom(1, 3, 5);
         setupTestCluster(masterNodes, dataNodes);
@@ -368,6 +379,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     public void testCloneAbortedByDifferentMaster() {
+        randomizeSelectionPolicy();
         setupTestCluster(randomFrom(3, 5), randomIntBetween(1, 3), ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR, false);
 
         final var repoName = "repo";
@@ -469,6 +481,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     public void testSnapshotDeleteWithMasterFailover() {
+        randomizeSelectionPolicy();
         final int dataNodes = randomIntBetween(2, 10);
         final int masterNodes = randomFrom(3, 5);
         setupTestCluster(masterNodes, dataNodes);

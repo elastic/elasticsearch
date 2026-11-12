@@ -54,6 +54,41 @@ public class DeterministicTaskQueue {
     public static final String NODE_ID_LOG_CONTEXT_KEY = "nodeId";
 
     private final List<Runnable> runnableTasks = new ArrayList<>();
+
+    /**
+     * How {@link #runRandomTask()} chooses among the runnable tasks.
+     */
+    public enum SelectionPolicy {
+        /**
+         * Pick a runnable task uniformly at random. A task stays pending while a causal chain of {@code m} other tasks runs only
+         * if it loses {@code m} fair coin flips, with probability {@code 2^-m}, so orders in which one task lags far behind are
+         * practically never explored.
+         */
+        UNIFORM,
+        /**
+         * Each task draws a random priority when it becomes runnable, and the highest-priority runnable task runs next. A task
+         * stays pending while a causal chain of {@code m} other tasks runs if its priority is the lowest of {@code m+1} draws,
+         * with probability {@code 1/(m+1)}. This is BasicPOS from Yuan, Yang and Gu, "Partial Order Aware Concurrency Sampling"
+         * (CAV 2018, Sect. 4.1), without the priority reassignment of full POS. It reaches only orders that {@link #UNIFORM} can
+         * also reach.
+         */
+        RANDOM_PRIORITY
+    }
+
+    /**
+     * Under {@link SelectionPolicy#RANDOM_PRIORITY}, a task passed over more than this many times fails the test rather than
+     * being released quietly: reaching it means a zero-delay livelock or starvation by the policy, and either needs a look.
+     */
+    static final long PRIORITY_AGE_CAP = 10_000L;
+
+    private SelectionPolicy selectionPolicy = SelectionPolicy.UNIFORM;
+    // Separate generator so that priority draws neither shift the uniform policy's draws nor trip the test Random's thread check
+    // when a task is submitted from outside the test thread.
+    private Random priorityRandom;
+    private final List<Double> runnablePriorities = new ArrayList<>();
+    private final List<Long> runnableSincePick = new ArrayList<>();
+    private long picks;
+
     private final Random random;
     private List<DeferredTask> deferredTasks = new ArrayList<>();
     private long currentTimeMillis;
@@ -150,11 +185,74 @@ public class DeterministicTaskQueue {
      */
     public void runRandomTask() {
         assert hasRunnableTasks();
-        runTask(RandomNumbers.randomIntBetween(random, 0, runnableTasks.size() - 1));
+        switch (selectionPolicy) {
+            case UNIFORM -> runTask(RandomNumbers.randomIntBetween(random, 0, runnableTasks.size() - 1));
+            case RANDOM_PRIORITY -> runTask(pickByPriority());
+        }
+    }
+
+    /**
+     * Opt in to a different {@link SelectionPolicy}. Call it before any task is runnable, typically at the start of a test that
+     * exercises fail-overs; tests that never call it keep {@link SelectionPolicy#UNIFORM} and their existing random sequences.
+     */
+    public void setSelectionPolicy(SelectionPolicy selectionPolicy) {
+        assert runnableTasks.isEmpty() : "selection policy must be chosen before any task is runnable";
+        this.selectionPolicy = selectionPolicy;
+        this.priorityRandom = switch (selectionPolicy) {
+            case UNIFORM -> null;
+            case RANDOM_PRIORITY -> new Random(random.nextLong());
+        };
+    }
+
+    private int pickByPriority() {
+        int best = 0;
+        int oldest = 0;
+        for (int i = 1; i < runnableTasks.size(); i++) {
+            if (runnablePriorities.get(i) > runnablePriorities.get(best)) {
+                best = i;
+            }
+            if (runnableSincePick.get(i) < runnableSincePick.get(oldest)) {
+                oldest = i;
+            }
+        }
+        final long passedOver = picks - runnableSincePick.get(oldest);
+        if (passedOver > PRIORITY_AGE_CAP) {
+            throw new AssertionError(
+                "priority policy: task passed over ["
+                    + passedOver
+                    + "] times, more than the cap ["
+                    + PRIORITY_AGE_CAP
+                    + "]: "
+                    + runnableTasks.get(oldest)
+            );
+        }
+        return best;
+    }
+
+    private void addRunnable(final Runnable task) {
+        switch (selectionPolicy) {
+            case UNIFORM -> runnableTasks.add(task);
+            case RANDOM_PRIORITY -> {
+                // draw first, so the three lists cannot get out of step
+                final double priority = priorityRandom.nextDouble();
+                runnableTasks.add(task);
+                runnablePriorities.add(priority);
+                runnableSincePick.add(picks);
+            }
+        }
     }
 
     private void runTask(final int index) {
         final Runnable task = runnableTasks.remove(index);
+        switch (selectionPolicy) {
+            case UNIFORM -> {
+            }
+            case RANDOM_PRIORITY -> {
+                runnablePriorities.remove(index);
+                runnableSincePick.remove(index);
+                picks++;
+            }
+        }
         logger.trace("running task {} of {}: {}", index, runnableTasks.size() + 1, task);
         task.run();
     }
@@ -170,7 +268,7 @@ public class DeterministicTaskQueue {
             scheduleDeferredTask(deferredTask);
         } else {
             logger.trace("scheduleNow: adding runnable {}", task);
-            runnableTasks.add(task);
+            addRunnable(task);
         }
     }
 
@@ -182,7 +280,7 @@ public class DeterministicTaskQueue {
         final long actualExecutionTimeMillis = executionTimeMillis + extraDelayMillis;
         if (actualExecutionTimeMillis <= currentTimeMillis) {
             logger.trace("scheduleAt: [{}ms] is not in the future, adding runnable {}", executionTimeMillis, task);
-            runnableTasks.add(task);
+            addRunnable(task);
         } else {
             final DeferredTask deferredTask = new DeferredTask(actualExecutionTimeMillis, task);
             logger.trace("scheduleAt: adding {} with extra delay of [{}ms]", deferredTask, extraDelayMillis);
@@ -221,7 +319,7 @@ public class DeterministicTaskQueue {
             assert currentTimeMillis <= deferredTask.executionTimeMillis();
             if (deferredTask.executionTimeMillis() == currentTimeMillis) {
                 logger.trace("advanceTime: no longer deferred: {}", deferredTask);
-                runnableTasks.add(deferredTask.task());
+                addRunnable(deferredTask.task());
             } else {
                 remainingDeferredTasks.add(deferredTask);
                 nextDeferredTaskExecutionTimeMillis = Math.min(nextDeferredTaskExecutionTimeMillis, deferredTask.executionTimeMillis());

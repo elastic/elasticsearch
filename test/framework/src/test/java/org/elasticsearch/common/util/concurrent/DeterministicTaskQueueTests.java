@@ -85,6 +85,78 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         return strings;
     }
 
+    public void testRandomPriorityRunsEveryTask() {
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        taskQueue.setSelectionPolicy(DeterministicTaskQueue.SelectionPolicy.RANDOM_PRIORITY);
+        final Set<String> strings = new HashSet<>();
+
+        taskQueue.scheduleNow(() -> {
+            strings.add("foo");
+            taskQueue.scheduleNow(() -> strings.add("foo-child"));
+        });
+        taskQueue.scheduleNow(() -> strings.add("bar"));
+        taskQueue.scheduleAt(randomLongBetween(1, 100), () -> strings.add("baz"));
+
+        taskQueue.runAllTasks();
+        assertThat(strings, containsInAnyOrder("foo", "foo-child", "bar", "baz"));
+        assertFalse(taskQueue.hasRunnableTasks());
+        assertFalse(taskQueue.hasDeferredTasks());
+    }
+
+    public void testRandomPriorityIsDeterministic() {
+        final long seed = randomLong();
+        assertThat(getResultsOfRunningByPriority(new Random(seed)), equalTo(getResultsOfRunningByPriority(new Random(seed))));
+    }
+
+    private List<String> getResultsOfRunningByPriority(Random random) {
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(random);
+        taskQueue.setSelectionPolicy(DeterministicTaskQueue.SelectionPolicy.RANDOM_PRIORITY);
+        final List<String> strings = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            final String s = Integer.toString(i);
+            taskQueue.scheduleNow(() -> strings.add(s));
+        }
+        taskQueue.runAllRunnableTasks();
+        return strings;
+    }
+
+    /**
+     * A task stays pending while a chain of {@code m} tasks, each submitted by the one before, runs to completion with probability
+     * {@code 2^-m} under uniform selection but {@code 1/(m+1)} under random priorities. Over many queues the priority policy should
+     * therefore hold the task back at least once, which uniform selection practically never does for a chain this long.
+     */
+    public void testRandomPriorityHoldsTaskBackAcrossLongChain() {
+        final int chainLength = 20;
+        final int queues = 500; // expect about 24 holds; the chance of none is about e^-24
+        int holds = 0;
+        for (int q = 0; q < queues; q++) {
+            final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(new Random(randomLong()));
+            taskQueue.setSelectionPolicy(DeterministicTaskQueue.SelectionPolicy.RANDOM_PRIORITY);
+            final AtomicInteger chainRun = new AtomicInteger();
+            final AtomicBoolean heldUntilChainEnd = new AtomicBoolean();
+            taskQueue.scheduleNow(() -> heldUntilChainEnd.set(chainRun.get() == chainLength));
+            taskQueue.scheduleNow(new Runnable() {
+                @Override
+                public void run() {
+                    if (chainRun.incrementAndGet() < chainLength) {
+                        taskQueue.scheduleNow(this);
+                    }
+                }
+            });
+            taskQueue.runAllRunnableTasks();
+            if (heldUntilChainEnd.get()) {
+                holds++;
+            }
+        }
+        assertThat(holds, greaterThan(0));
+    }
+
+    public void testSelectionPolicyMustBeSetBeforeTasksAreRunnable() {
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        taskQueue.scheduleNow(() -> {});
+        expectThrows(AssertionError.class, () -> taskQueue.setSelectionPolicy(randomFrom(DeterministicTaskQueue.SelectionPolicy.values())));
+    }
+
     public void testStartsAtTimeZero() {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         assertThat(taskQueue.getCurrentTimeMillis(), is(0L));

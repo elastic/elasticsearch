@@ -4432,7 +4432,7 @@ public class FileSplitProviderTests extends ESTestCase {
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
         try {
-            expectThrows(
+            TaskCancelledException thrown = expectThrows(
                 TaskCancelledException.class,
                 () -> discoverPlainCsvSplits(
                     Map.of("cancelled.csv", payload),
@@ -4443,6 +4443,7 @@ public class FileSplitProviderTests extends ESTestCase {
                     cancelOnFirstRead
                 )
             );
+            assertEquals(RecordBoundaryProbe.CANCELLED_MESSAGE, thrown.getMessage());
         } finally {
             executor.shutdown();
         }
@@ -5743,7 +5744,7 @@ public class FileSplitProviderTests extends ESTestCase {
         AtomicInteger checks = new AtomicInteger();
         BooleanSupplier cancelAfterTheScan = () -> checks.getAndIncrement() > 0;
 
-        expectThrows(
+        TaskCancelledException thrown = expectThrows(
             TaskCancelledException.class,
             () -> RecordBoundaryProbe.probeAt(
                 stridedSplitter(),
@@ -5756,6 +5757,7 @@ public class FileSplitProviderTests extends ESTestCase {
                 cancelAfterTheScan
             )
         );
+        assertEquals(RecordBoundaryProbe.CANCELLED_MESSAGE, thrown.getMessage());
 
         assertEquals("a cancelled probe aborts its stream", 1, tracking.abortCalls.get());
         assertThat("and does not drain its window first", tracking.bytesConsumed.get(), lessThan(RecordBoundaryProbe.MAX_DRAIN_BYTES));
@@ -5812,7 +5814,7 @@ public class FileSplitProviderTests extends ESTestCase {
             }
         };
 
-        expectThrows(
+        TaskCancelledException thrown = expectThrows(
             TaskCancelledException.class,
             () -> RecordBoundaryProbe.probeAt(
                 stridedSplitter(),
@@ -5825,6 +5827,7 @@ public class FileSplitProviderTests extends ESTestCase {
                 () -> true
             )
         );
+        assertEquals(RecordBoundaryProbe.CANCELLED_MESSAGE, thrown.getMessage());
         assertEquals("a cancelled probe must not read", 0, streamsOpened.get());
     }
 

@@ -70,7 +70,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMa
  * translate as independent pipelines joined on the step and their signature, the labels they match on, after which the result
  * labels are the many side's, as Prometheus' {@code resultMetric}.
  */
-public final class BinaryOperatorLabelTranslation {
+public final class VectorBinaryOperatorV2 {
 
     /** The join key column: the labels two series match on. */
     private static final String SIGNATURE = "$prom_sig";
@@ -79,13 +79,13 @@ public final class BinaryOperatorLabelTranslation {
 
     private final VectorBinaryOperator op;
 
-    private BinaryOperatorLabelTranslation(VectorBinaryOperator op) {
+    private VectorBinaryOperatorV2(VectorBinaryOperator op) {
         this.op = op;
     }
 
     /** Translates {@code op} under {@code context}'s frame. */
     public static IntermediateResult translate(VectorBinaryOperator op, TranslationContextV2 context) {
-        return new BinaryOperatorLabelTranslation(op).translate(context);
+        return new VectorBinaryOperatorV2(op).translate(context);
     }
 
     /**
@@ -93,7 +93,7 @@ public final class BinaryOperatorLabelTranslation {
      * {@code on}, {@code ignoring} and {@code group_*}.
      */
     public static IntermediateResult translateAsLeftJoin(VectorBinaryOperator op, TranslationContextV2 context) {
-        return new BinaryOperatorLabelTranslation(op).translateAsLeftJoin(context);
+        return new VectorBinaryOperatorV2(op).translateAsLeftJoin(context);
     }
 
     private record JoinSide(LogicalPlan plan, List<Attribute> fields, Attribute step, Attribute valueColumn, @Nullable Attribute labels) {}

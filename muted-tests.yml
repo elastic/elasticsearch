@@ -594,3 +594,8 @@ tests:
   - :x-pack:plugin:logsdb:qa:rolling-upgrade:bcUpgradeTest
   method: testIndexingLogsdbColumnar
   issue: https://github.com/elastic/elasticsearch/issues/165787
+- class: org.elasticsearch.index.codec.postings.ES812PostingsFormatTests
+  tasks:
+  - :server:test
+  method: testDocsOnly
+  issue: https://github.com/elastic/elasticsearch/issues/165819

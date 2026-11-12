@@ -30,8 +30,12 @@ import java.util.Map;
 import static io.opentelemetry.api.common.AttributeKey.longKey;
 import static io.opentelemetry.api.common.AttributeKey.stringKey;
 import static java.util.Map.entry;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -40,41 +44,35 @@ public class HttpServerTracingTests extends ESTestCase {
     final SpanStatusBuilder spanStatusBuilder = mock(SpanStatusBuilder.class);
     final APMTracer tracer = mock(APMTracer.class);
     final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-    final HttpServerTracing instrumentation = new HttpServerTracing(threadContext, tracer);
+    final HttpServerTracing instrumentation = new HttpServerTracing(tracer);
 
-    public void test_start_copiesRemoteTraceContextToThreadContext() {
+    public void test_start_doesNotChangeTheThreadContext() {
         final String traceParent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
-        final String traceState = "vendor=value";
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/my-index/_search")
-            .withHeaders(Map.of(Task.TRACE_PARENT_HTTP_HEADER, List.of(traceParent), Task.TRACE_STATE, List.of(traceState)))
-            .build();
-
-        instrumentation.start(request, "/{index}/_search");
-
-        assertEquals(traceParent, threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER));
-        assertEquals(traceState, threadContext.getHeader(Task.TRACE_STATE));
-    }
-
-    public void test_start_withoutRemoteTraceContext_doesNotSetTraceHeaders() {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
-            .withPath("/my-index/_search")
+            .withHeaders(Map.of(Task.TRACE_PARENT_HTTP_HEADER, List.of(traceParent), Task.TRACE_STATE, List.of("vendor=value")))
             .build();
 
         instrumentation.start(request, "/{index}/_search");
 
         assertNull(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER));
         assertNull(threadContext.getHeader(Task.TRACE_STATE));
+        verify(tracer, never()).storeSpanInThreadContext(any());
     }
 
-    public void test_start_returnsTheStoredContextOfTheSpan() {
+    public void test_storeInThreadContext_storesTheSpanOfTheRequestAndReturnsItsStoredContext() {
         final ThreadContext.StoredContext storedContext = mock(ThreadContext.StoredContext.class);
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/my-index/_search")
             .build();
         when(tracer.storeSpanInThreadContext(request)).thenReturn(storedContext);
 
-        assertSame(storedContext, instrumentation.start(request, "/{index}/_search"));
+        final var operation = instrumentation.start(request, "/{index}/_search");
+
+        assertSame(storedContext, operation.storeInThreadContext());
+        // it can be stored any number of times: it is done by whoever dispatches the request, and by whoever sends the response
+        assertSame(storedContext, operation.storeInThreadContext());
+        verify(tracer, times(2)).storeSpanInThreadContext(request);
     }
 
     public void test_start_setsRequestAttributes_minimal() {
@@ -112,7 +110,6 @@ public class HttpServerTracingTests extends ESTestCase {
                     .put(stringKey("url.path"), "/my-index/_search")
                     .build()
             );
-        inOrder.verify(tracer).storeSpanInThreadContext(request);
         inOrder.verifyNoMoreInteractions();
     }
 
@@ -170,7 +167,6 @@ public class HttpServerTracingTests extends ESTestCase {
                     .put(stringKey("user_agent.original"), "Firefox")
                     .build()
             );
-        inOrder.verify(tracer).storeSpanInThreadContext(request);
         inOrder.verifyNoMoreInteractions();
     }
 

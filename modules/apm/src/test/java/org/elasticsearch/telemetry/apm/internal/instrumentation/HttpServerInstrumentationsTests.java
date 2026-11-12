@@ -15,6 +15,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation.InstrumentedHttpOperation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
@@ -46,19 +47,59 @@ public class HttpServerInstrumentationsTests extends ESTestCase {
         inOrder.verifyNoMoreInteractions();
     }
 
-    /**
-     * Each instrumentation restores what it found, which includes what the ones before it set up, so the contexts are closed backwards.
-     */
-    public void testStartReturnsAContextThatRestoresTheContextsInReverseOrder() {
-        final List<String> closed = new ArrayList<>();
-        when(first.start(request, "route")).thenReturn(() -> closed.add("first"));
-        when(second.start(request, "route")).thenReturn(() -> closed.add("second"));
+    public void testStartDoesNotStoreTheOperations() {
+        final List<String> stored = new ArrayList<>();
+        when(first.start(request, "route")).thenReturn(operation("first", stored, new ArrayList<>()));
+        when(second.start(request, "route")).thenReturn(operation("second", stored, new ArrayList<>()));
 
-        try (var ignored = instrumentations.start(request, "route")) {
+        instrumentations.start(request, "route");
+
+        assertThat(stored, empty());
+    }
+
+    public void testStoreInThreadContextStoresInOrderAndReturnsAContextThatRestoresInReverseOrder() {
+        final List<String> stored = new ArrayList<>();
+        final List<String> closed = new ArrayList<>();
+        when(first.start(request, "route")).thenReturn(operation("first", stored, closed));
+        when(second.start(request, "route")).thenReturn(operation("second", stored, closed));
+        final var operation = instrumentations.start(request, "route");
+
+        try (var ignored = operation.storeInThreadContext()) {
+            assertThat(stored, contains("first", "second"));
             assertThat(closed, empty());
         }
 
         assertThat(closed, contains("second", "first"));
+    }
+
+    public void testOperationCanBeStoredAgain() {
+        final List<String> stored = new ArrayList<>();
+        final List<String> closed = new ArrayList<>();
+        when(first.start(request, "route")).thenReturn(operation("first", stored, closed));
+        when(second.start(request, "route")).thenReturn(operation("second", stored, closed));
+        final var operation = instrumentations.start(request, "route");
+
+        try (var ignored = operation.storeInThreadContext()) {
+            try (var ignored2 = operation.storeInThreadContext()) {
+                assertThat(stored, contains("first", "second", "first", "second"));
+            }
+            assertThat(closed, contains("second", "first"));
+        }
+
+        assertThat(closed, contains("second", "first", "second", "first"));
+    }
+
+    public void testFailureToStoreAnOperationRestoresWhatWasStoredBefore() {
+        final List<String> stored = new ArrayList<>();
+        final List<String> closed = new ArrayList<>();
+        when(first.start(request, "route")).thenReturn(operation("first", stored, closed));
+        when(second.start(request, "route")).thenReturn(() -> { throw new IllegalStateException("test"); });
+        final var operation = instrumentations.start(request, "route");
+
+        expectThrows(IllegalStateException.class, operation::storeInThreadContext);
+
+        assertThat(stored, contains("first"));
+        assertThat(closed, contains("first"));
     }
 
     public void testRecordExceptionDelegatesToAllInOrder() {
@@ -88,5 +129,12 @@ public class HttpServerInstrumentationsTests extends ESTestCase {
         inOrder.verify(secondReleasable).close();
         inOrder.verify(firstReleasable).close();
         inOrder.verifyNoMoreInteractions();
+    }
+
+    private static InstrumentedHttpOperation operation(String name, List<String> stored, List<String> closed) {
+        return () -> {
+            stored.add(name);
+            return () -> closed.add(name);
+        };
     }
 }

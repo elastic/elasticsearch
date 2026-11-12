@@ -57,10 +57,7 @@ public class APMTelemetryProvider implements TelemetryProvider {
             apmMeterService::getHealthMeterProvider
         );
         httpServerInstrumentation = new HttpServerInstrumentations(
-            List.of(
-                new HttpServerTracing(threadContext, apmTracer),
-                new RestRequestMetrics(threadContext, apmMeterService.getMeterRegistry())
-            )
+            List.of(new HttpServerTracing(apmTracer), new RestRequestMetrics(threadContext, apmMeterService.getMeterRegistry()))
         );
     }
 

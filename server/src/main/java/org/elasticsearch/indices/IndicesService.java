@@ -645,7 +645,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * Charges the time of tasks equally to those of {@code shardIds} still on this node when a task completes.
      */
     public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds) {
-        return searchLoad(shardIds, shardId -> 0);
+        return searchLoad(shardIds, shardId -> 0L);
     }
 
     /**

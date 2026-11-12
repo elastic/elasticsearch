@@ -88,6 +88,9 @@ public abstract class SourceOperator implements Operator {
      * autoscaling signal, not billing. That time is attributed to shards according to the
      * load snapshot returned by {@link #shardLoadDelta(long)} for the same interval.</p>
      *
+     * <p>It also adds the rows each shard emitted to its {@link ShardContext#addRowsEmitted(long)}, which splits the time of the
+     * node reduce between the shards.</p>
+     *
      * <p>Attribution rules:
      * <ul>
      *   <li>If exactly one shard contributed load, the full {@code extraDriverNanos} is

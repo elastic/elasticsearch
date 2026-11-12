@@ -850,9 +850,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             this(index, releasable, ctx, aliasFilter, new LongAdder());
         }
 
-        /**
-         * @param rowsEmitted where the rows the sources emitted from the shard are counted
-         */
         public DefaultShardContext(
             int index,
             Releasable releasable,

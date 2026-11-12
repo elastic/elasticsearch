@@ -683,9 +683,6 @@ public class MatchVsDslBenchmark {
         }
 
         @Override
-        public void addRowsEmitted(long rows) {}
-
-        @Override
         public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sorts) {
             throw new UnsupportedOperationException("no sort in a filter-context scan");
         }

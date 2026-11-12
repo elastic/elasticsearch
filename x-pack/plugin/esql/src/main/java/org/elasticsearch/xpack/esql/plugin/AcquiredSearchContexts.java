@@ -31,7 +31,7 @@ class AcquiredSearchContexts implements Releasable {
     private int nextAddIndex = 0;
     private boolean isClosed = false;
     /** The rows the sources emitted from each shard. */
-    private final Map<ShardId, LongAdder> rowsEmitted = new ConcurrentHashMap<>();
+    private final Map<ShardId, LongAdder> rowsEmittedByShard = new ConcurrentHashMap<>();
 
     AcquiredSearchContexts(int size) {
         this.allContexts = new ComputeSearchContext[size];
@@ -59,6 +59,7 @@ class AcquiredSearchContexts implements Releasable {
         checkNotClosed();
         var startingIndex = nextAddIndex;
         for (var cse : searchContexts) {
+            ShardId shardId = cse.indexShard().shardId();
             final int idx = nextAddIndex++;
             cse.addReleasable(() -> {
                 synchronized (AcquiredSearchContexts.this) {
@@ -69,7 +70,7 @@ class AcquiredSearchContexts implements Releasable {
                     }
                 }
             });
-            LongAdder rows = rowsEmitted.computeIfAbsent(cse.indexShard().shardId(), shardId -> new LongAdder());
+            LongAdder rows = rowsEmittedByShard.computeIfAbsent(shardId, id -> new LongAdder());
             allContexts[idx] = new ComputeSearchContext(idx, cse, rows);
         }
         return new SubRanged<>(allContexts, startingIndex, nextAddIndex);
@@ -119,10 +120,11 @@ class AcquiredSearchContexts implements Releasable {
     }
 
     /**
-     * The rows the sources emitted from {@code shardId}, kept once its context is released.
+     * The rows the sources emitted from {@code shardId}, kept once its context is released. Unlike the other accessors, it is
+     * not synchronized and works once closed: the pool reads it when the node reduce completes, after its contexts may be closed.
      */
     long rowsEmitted(ShardId shardId) {
-        LongAdder rows = rowsEmitted.get(shardId);
+        LongAdder rows = rowsEmittedByShard.get(shardId);
         return rows == null ? 0 : rows.sum();
     }
 

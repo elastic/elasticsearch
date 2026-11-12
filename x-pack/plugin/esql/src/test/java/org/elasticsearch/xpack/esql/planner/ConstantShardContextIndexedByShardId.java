@@ -108,9 +108,6 @@ public class ConstantShardContextIndexedByShardId implements IndexedByShardId<Es
         }
 
         @Override
-        public void addRowsEmitted(long rows) {}
-
-        @Override
         public void close() {}
     };
 

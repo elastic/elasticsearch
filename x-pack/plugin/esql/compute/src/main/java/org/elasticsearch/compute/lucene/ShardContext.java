@@ -82,9 +82,9 @@ public interface ShardContext extends RefCounted {
 
     /**
      * Counts {@code rows} the sources emitted from this shard, to charge the work shared by several shards in proportion to
-     * their rows.
+     * their rows. The drivers that read this shard share its context, so this is called from several threads at once.
      */
-    void addRowsEmitted(long rows);
+    default void addRowsEmitted(long rows) {}
 
     /**
      * Whether this shard has the {@code _tsid} prefix partitions

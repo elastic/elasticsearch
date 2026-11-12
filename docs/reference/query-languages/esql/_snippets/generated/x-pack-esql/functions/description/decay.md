@@ -11,7 +11,8 @@ The distance can be a numeric distance, spatial distance or temporal distance de
 for the decay function.
 
 For spatial queries, scale and offset for geo points use distance units (e.g., "10km", "5mi"),
-while cartesian points use numeric values. For date queries, scale and offset use time_duration values.
+while cartesian points use numeric values. For date queries, scale and offset use time_duration values,
+or date_period values made only of days and weeks.
 For numeric queries you also use numeric values.
 
 :::{tip}

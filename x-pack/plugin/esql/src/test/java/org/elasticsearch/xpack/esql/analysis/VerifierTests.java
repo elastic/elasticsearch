@@ -4185,7 +4185,7 @@ public class VerifierTests extends AnalyzerTestCase {
         defaultAnalyzer().error(
             "row value =  TO_DATETIME(\"2023-01-01T00:00:00Z\"), origin =  TO_DATETIME(\"2023-01-01T00:00:00Z\")"
                 + "| eval decay_result = decay(value, origin, 24 hours, {\"offset\": \"aaa\", \"decay\": 0.5, \"type\": \"linear\"})",
-            equalTo("1:118: offset option has invalid type, expected [time_duration], found [keyword]")
+            equalTo("1:118: offset option has invalid type, expected [time_duration or date_period], found [keyword]")
         );
 
         defaultAnalyzer().error(

@@ -1350,14 +1350,14 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             List.of(probeKey),
             LocalSupplier.of(new Page(blockFactory.newLongArrayVector(new long[] { 10, 20, 10 }, 3).asBlock()))
         );
-        PhysicalPlan innerJoin = innerJoinPhysical(false, probe, build, List.of(probeKey), List.of(buildKey), List.of(buildValue));
+        PhysicalPlan hashJoin = hashJoinPhysical(false, probe, build, List.of(probeKey), List.of(buildKey), List.of(buildValue));
 
-        var plan = planInnerJoin(innerJoin);
+        var plan = planHashJoin(hashJoin);
         assertThat(gets.get(), equalTo(0));
         assertThat(peeks.get(), equalTo(1));
 
         List<Page> results = runPlanned(plan.driverFactories.get(0).driverSupplier().physicalOperation());
-        assertInnerJoinOutput(results, List.of(100L, 200L, 100L), List.of(10L, 20L, 10L));
+        assertHashJoinOutput(results, List.of(100L, 200L, 100L), List.of(10L, 20L, 10L));
         assertThat(gets.get(), equalTo(0));
     }
 

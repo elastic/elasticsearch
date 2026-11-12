@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
-import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -76,25 +75,6 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
      */
     public Attribute destination() {
         return destination;
-    }
-
-    /**
-     * The labels the derivation reads, which the operand must expose as columns: {@code label_replace}'s source label,
-     * {@code label_join}'s source labels, plus the destination itself - {@code label_replace} falls back to its existing
-     * value on no-match, and exposing it lets the derived column shadow a stored label of the same name.
-     */
-    public List<String> sourceLabels() {
-        List<Expression> params = parameters();
-        List<String> labels = new ArrayList<>();
-        if (definition() == PromqlBuiltinFunctionDefinitions.LABEL_REPLACE) {
-            labels.add(literalString(params.get(2)));
-        } else {
-            for (int i = 2; i < params.size(); i++) {
-                labels.add(literalString(params.get(i)));
-            }
-        }
-        labels.add(PromqlLabels.labelName(destination));
-        return labels;
     }
 
     /** The destination label name, taken from the first keyword-literal argument ({@code dst}). */

@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 164142
+pr: 164144
+summary: Fix wrapping queries that charge the breaker multiple times
+type: bug

@@ -50,6 +50,12 @@ setup:
           - '{ "kwd": [], "kwd_indexed": [], "txt": [], "lng": [], "dt": [] }'
           - '{ "index": { "_id": "missing" } }'
           - '{ "other": "c" }'
+          - '{ "index": { "_id": "leading_null" } }'
+          - '{ "kwd": [ null, "a" ], "kwd_indexed": [ null, "a" ], "txt": [ null, "a" ], "lng": [ null, 1 ], "dt": [ null, "2026-01-01T00:00:00.000Z" ] }'
+          - '{ "index": { "_id": "trailing_null" } }'
+          - '{ "kwd": [ "a", null ], "kwd_indexed": [ "a", null ], "txt": [ "a", null ], "lng": [ 1, null ], "dt": [ "2026-01-01T00:00:00.000Z", null ] }'
+          - '{ "index": { "_id": "both_ends_null" } }'
+          - '{ "kwd": [ null, "a", null ], "kwd_indexed": [ null, "a", null ], "txt": [ null, "a", null ], "lng": [ null, 1, null ], "dt": [ null, "2026-01-01T00:00:00.000Z", null ] }'
 
 ---
 exists in the default index mode matches only documents with a non-null value:
@@ -85,6 +91,12 @@ exists in the default index mode matches only documents with a non-null value:
           - '{ "kwd": [], "lng": [] }'
           - '{ "index": { "_id": "missing" } }'
           - '{ "other": "c" }'
+          - '{ "index": { "_id": "leading_null" } }'
+          - '{ "kwd": [ null, "a" ], "lng": [ null, 1 ] }'
+          - '{ "index": { "_id": "trailing_null" } }'
+          - '{ "kwd": [ "a", null ], "lng": [ 1, null ] }'
+          - '{ "index": { "_id": "both_ends_null" } }'
+          - '{ "kwd": [ null, "a", null ], "lng": [ null, 1, null ] }'
 
   - do:
       search:
@@ -95,10 +107,13 @@ exists in the default index mode matches only documents with a non-null value:
           track_total_hits: true
           _source: false
 
-  - match: { hits.total.value: 2 }
-  - length: { hits.hits: 2 }
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
   - match: { hits.hits.0._id: value }
   - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
 
   - do:
       search:
@@ -109,10 +124,13 @@ exists in the default index mode matches only documents with a non-null value:
           track_total_hits: true
           _source: false
 
-  - match: { hits.total.value: 2 }
-  - length: { hits.hits: 2 }
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
   - match: { hits.hits.0._id: value }
   - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
 
   - do:
       count:
@@ -120,7 +138,7 @@ exists in the default index mode matches only documents with a non-null value:
         body:
           query: { exists: { field: kwd } }
 
-  - match: { count: 2 }
+  - match: { count: 5 }
 
   - do:
       count:
@@ -128,7 +146,7 @@ exists in the default index mode matches only documents with a non-null value:
         body:
           query: { exists: { field: lng } }
 
-  - match: { count: 2 }
+  - match: { count: 5 }
 
 ---
 exists matches only documents with a non-null value on a keyword field without an index:
@@ -145,10 +163,13 @@ exists matches only documents with a non-null value on a keyword field without a
           track_total_hits: true
           _source: false
 
-  - match: { hits.total.value: 2 }
-  - length: { hits.hits: 2 }
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
   - match: { hits.hits.0._id: value }
   - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
 
   - do:
       count:
@@ -156,7 +177,7 @@ exists matches only documents with a non-null value on a keyword field without a
         body:
           query: { exists: { field: kwd } }
 
-  - match: { count: 2 }
+  - match: { count: 5 }
 
   - do:
       count:
@@ -181,10 +202,13 @@ exists matches only documents with a non-null value on an indexed keyword field:
           track_total_hits: true
           _source: false
 
-  - match: { hits.total.value: 2 }
-  - length: { hits.hits: 2 }
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
   - match: { hits.hits.0._id: value }
   - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
 
   - do:
       count:
@@ -192,7 +216,7 @@ exists matches only documents with a non-null value on an indexed keyword field:
         body:
           query: { exists: { field: kwd_indexed } }
 
-  - match: { count: 2 }
+  - match: { count: 5 }
 
   - do:
       count:
@@ -217,10 +241,13 @@ exists matches only documents with a non-null value on a text field:
           track_total_hits: true
           _source: false
 
-  - match: { hits.total.value: 2 }
-  - length: { hits.hits: 2 }
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
   - match: { hits.hits.0._id: value }
   - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
 
   - do:
       count:
@@ -228,7 +255,7 @@ exists matches only documents with a non-null value on a text field:
         body:
           query: { exists: { field: txt } }
 
-  - match: { count: 2 }
+  - match: { count: 5 }
 
   - do:
       count:
@@ -249,10 +276,13 @@ exists matches only documents with a non-null value on a long field:
           track_total_hits: true
           _source: false
 
-  - match: { hits.total.value: 2 }
-  - length: { hits.hits: 2 }
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
   - match: { hits.hits.0._id: value }
   - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
 
   - do:
       count:
@@ -260,7 +290,7 @@ exists matches only documents with a non-null value on a long field:
         body:
           query: { exists: { field: lng } }
 
-  - match: { count: 2 }
+  - match: { count: 5 }
 
   - do:
       count:
@@ -281,10 +311,13 @@ exists matches only documents with a non-null value on a date field:
           track_total_hits: true
           _source: false
 
-  - match: { hits.total.value: 2 }
-  - length: { hits.hits: 2 }
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
   - match: { hits.hits.0._id: value }
   - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
 
   - do:
       count:
@@ -292,7 +325,7 @@ exists matches only documents with a non-null value on a date field:
         body:
           query: { exists: { field: dt } }
 
-  - match: { count: 2 }
+  - match: { count: 5 }
 
   - do:
       count:
@@ -314,7 +347,7 @@ exists count stays the same after a deletion and a merge on string fields:
         body:
           query: { exists: { field: kwd_indexed } }
 
-  - match: { count: 2 }
+  - match: { count: 5 }
 
   - do:
       count:
@@ -322,7 +355,7 @@ exists count stays the same after a deletion and a merge on string fields:
         body:
           query: { exists: { field: txt } }
 
-  - match: { count: 2 }
+  - match: { count: 5 }
 
   - do:
       delete:
@@ -336,7 +369,7 @@ exists count stays the same after a deletion and a merge on string fields:
         body:
           query: { exists: { field: kwd_indexed } }
 
-  - match: { count: 2 }
+  - match: { count: 5 }
 
   - do:
       count:
@@ -344,7 +377,7 @@ exists count stays the same after a deletion and a merge on string fields:
         body:
           query: { exists: { field: txt } }
 
-  - match: { count: 2 }
+  - match: { count: 5 }
 
   - do:
       indices.forcemerge:
@@ -357,7 +390,7 @@ exists count stays the same after a deletion and a merge on string fields:
         body:
           query: { exists: { field: kwd_indexed } }
 
-  - match: { count: 2 }
+  - match: { count: 5 }
 
   - do:
       count:
@@ -365,7 +398,7 @@ exists count stays the same after a deletion and a merge on string fields:
         body:
           query: { exists: { field: txt } }
 
-  - match: { count: 2 }
+  - match: { count: 5 }
 
 ---
 sort puts documents with only nulls among the documents with no keyword value:
@@ -384,6 +417,9 @@ sort puts documents with only nulls among the documents with no keyword value:
   - match: { hits.hits.4._id: missing }
   - match: { hits.hits.5._id: value }
   - match: { hits.hits.6._id: mixed }
+  - match: { hits.hits.7._id: leading_null }
+  - match: { hits.hits.8._id: trailing_null }
+  - match: { hits.hits.9._id: both_ends_null }
 
 ---
 sort puts documents with only nulls among the documents with no long value:
@@ -402,6 +438,9 @@ sort puts documents with only nulls among the documents with no long value:
   - match: { hits.hits.4._id: missing }
   - match: { hits.hits.5._id: value }
   - match: { hits.hits.6._id: mixed }
+  - match: { hits.hits.7._id: leading_null }
+  - match: { hits.hits.8._id: trailing_null }
+  - match: { hits.hits.9._id: both_ends_null }
 
 ---
 value_count and missing aggregations treat documents with only nulls as having no keyword value:
@@ -414,7 +453,7 @@ value_count and missing aggregations treat documents with only nulls as having n
             values: { value_count: { field: kwd } }
             without: { missing: { field: kwd } }
 
-  - match: { aggregations.values.value: 3 }
+  - match: { aggregations.values.value: 6 }
   - match: { aggregations.without.doc_count: 5 }
 
 ---
@@ -428,7 +467,7 @@ value_count and missing aggregations treat documents with only nulls as having n
             values: { value_count: { field: lng } }
             without: { missing: { field: lng } }
 
-  - match: { aggregations.values.value: 3 }
+  - match: { aggregations.values.value: 6 }
   - match: { aggregations.without.doc_count: 5 }
 
 ---
@@ -441,7 +480,7 @@ synthetic source keeps every null slot of a keyword field without an index:
           sort: [ _doc ]
           _source: kwd
 
-  - length: { hits.hits: 7 }
+  - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.kwd: a }
   - match: { hits.hits.1._source.kwd: [ null ] }
   - match: { hits.hits.2._source.kwd: [ null, null ] }
@@ -449,6 +488,9 @@ synthetic source keeps every null slot of a keyword field without an index:
   - match: { hits.hits.4._source: {} }
   - match: { hits.hits.5._source: {} }
   - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.kwd: [ null, a ] }
+  - match: { hits.hits.8._source.kwd: [ a, null ] }
+  - match: { hits.hits.9._source.kwd: [ null, a, null ] }
 
 ---
 synthetic source keeps every null slot of an indexed keyword field:
@@ -460,7 +502,7 @@ synthetic source keeps every null slot of an indexed keyword field:
           sort: [ _doc ]
           _source: kwd_indexed
 
-  - length: { hits.hits: 7 }
+  - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.kwd_indexed: a }
   - match: { hits.hits.1._source.kwd_indexed: [ null ] }
   - match: { hits.hits.2._source.kwd_indexed: [ null, null ] }
@@ -468,6 +510,9 @@ synthetic source keeps every null slot of an indexed keyword field:
   - match: { hits.hits.4._source: {} }
   - match: { hits.hits.5._source: {} }
   - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.kwd_indexed: [ null, a ] }
+  - match: { hits.hits.8._source.kwd_indexed: [ a, null ] }
+  - match: { hits.hits.9._source.kwd_indexed: [ null, a, null ] }
 
 ---
 synthetic source keeps every null slot of a text field:
@@ -479,7 +524,7 @@ synthetic source keeps every null slot of a text field:
           sort: [ _doc ]
           _source: txt
 
-  - length: { hits.hits: 7 }
+  - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.txt: a }
   - match: { hits.hits.1._source.txt: [ null ] }
   - match: { hits.hits.2._source.txt: [ null, null ] }
@@ -487,6 +532,9 @@ synthetic source keeps every null slot of a text field:
   - match: { hits.hits.4._source: {} }
   - match: { hits.hits.5._source: {} }
   - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.txt: [ null, a ] }
+  - match: { hits.hits.8._source.txt: [ a, null ] }
+  - match: { hits.hits.9._source.txt: [ null, a, null ] }
 
 ---
 synthetic source keeps every null slot of a long field:
@@ -498,7 +546,7 @@ synthetic source keeps every null slot of a long field:
           sort: [ _doc ]
           _source: lng
 
-  - length: { hits.hits: 7 }
+  - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.lng: 1 }
   - match: { hits.hits.1._source.lng: [ null ] }
   - match: { hits.hits.2._source.lng: [ null, null ] }
@@ -506,6 +554,9 @@ synthetic source keeps every null slot of a long field:
   - match: { hits.hits.4._source: {} }
   - match: { hits.hits.5._source: {} }
   - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.lng: [ null, 1 ] }
+  - match: { hits.hits.8._source.lng: [ 1, null ] }
+  - match: { hits.hits.9._source.lng: [ null, 1, null ] }
 
 ---
 synthetic source keeps every null slot of a date field:
@@ -517,7 +568,7 @@ synthetic source keeps every null slot of a date field:
           sort: [ _doc ]
           _source: dt
 
-  - length: { hits.hits: 7 }
+  - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.dt: "2026-01-01T00:00:00.000Z" }
   - match: { hits.hits.1._source.dt: [ null ] }
   - match: { hits.hits.2._source.dt: [ null, null ] }
@@ -525,3 +576,6 @@ synthetic source keeps every null slot of a date field:
   - match: { hits.hits.4._source: {} }
   - match: { hits.hits.5._source: {} }
   - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.dt: [ null, "2026-01-01T00:00:00.000Z" ] }
+  - match: { hits.hits.8._source.dt: [ "2026-01-01T00:00:00.000Z", null ] }
+  - match: { hits.hits.9._source.dt: [ null, "2026-01-01T00:00:00.000Z", null ] }

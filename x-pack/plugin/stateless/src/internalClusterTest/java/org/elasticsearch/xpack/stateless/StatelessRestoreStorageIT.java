@@ -13,9 +13,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.allocation.SnapshotRestoreAllocationSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
@@ -33,11 +31,6 @@ public class StatelessRestoreStorageIT extends AbstractStatelessPluginIntegTestC
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Stream.concat(super.nodePlugins().stream(), Stream.of(MockInternalClusterInfoService.TestPlugin.class)).toList();
-    }
-
-    @Override
-    protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED.getKey(), true);
     }
 
     public void testRestoreResumesAfterDiskCapacityAppears() throws Exception {

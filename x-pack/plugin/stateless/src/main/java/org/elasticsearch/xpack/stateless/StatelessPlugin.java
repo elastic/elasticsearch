@@ -616,6 +616,7 @@ public class StatelessPlugin extends Plugin
         var settings = Settings.builder()
             .put(super.additionalSettings())
             .put(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+            .put(SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED.getKey(), true)
             .put(DATA_STREAMS_LIFECYCLE_ONLY_MODE.getKey(), true)
             .put(BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED.getKey(), true)
             .put(FAILURE_STORE_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(30));

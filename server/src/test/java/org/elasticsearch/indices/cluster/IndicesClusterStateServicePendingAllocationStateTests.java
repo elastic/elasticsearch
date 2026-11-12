@@ -685,6 +685,26 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
     }
 
+    public void testLockWaitRetryBodyFailureReleasesTicketAndReportsToMaster() {
+        ClusterState initial = ClusterStateCreationUtils.state(randomIndexName(), true, ShardRoutingState.INITIALIZING);
+        ShardRouting shardRouting = initial.getRoutingNodes().node(initial.nodes().getLocalNodeId()).iterator().next();
+        indicesService.failNextCreateShard = new ShardLockObtainFailedException(shardRouting.shardId(), "test lock held");
+
+        applyState(initial);
+        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
+        assertTrue(deterministicTaskQueue.hasDeferredTasks());
+
+        // Simulate an unexpected exception partway through the retry's own body (the kind of thing
+        // findSourceNode could in principle throw). Without a catch around this body, this would leave
+        // the InFlight ticket owned forever with nothing left to ever release or recreate it.
+        indicesService.failNextIndexServiceLookup = new IllegalStateException("simulated");
+
+        deterministicTaskQueue.runAllTasksInTimeOrder();
+
+        assertTrue(isFailureReported(shardRouting));
+        verify(shardStateAction).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
+    }
+
     // --- helpers ---
 
     private IndicesClusterStateService createService() {
@@ -854,6 +874,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
     private class RecordingIndicesService extends MockIndicesService {
         final AtomicInteger createShardCalls = new AtomicInteger();
         volatile RuntimeException failNextCreateShard;
+        volatile RuntimeException failNextIndexServiceLookup;
         volatile RecoveryListener lastRecoveryListener;
         volatile ShardId lastCreatedShardId;
 
@@ -861,6 +882,16 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         protected boolean autoCompleteRecovery() {
             // This test drives recovery completion/failure manually via lastRecoveryListener/failRecoveryViaListener.
             return false;
+        }
+
+        @Override
+        public MockIndexService indexService(Index index) {
+            RuntimeException toFail = failNextIndexServiceLookup;
+            if (toFail != null) {
+                failNextIndexServiceLookup = null;
+                throw toFail;
+            }
+            return super.indexService(index);
         }
 
         @Override

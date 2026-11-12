@@ -1244,88 +1244,94 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         // delay cluster state application any more than applyClusterState (also synchronized, on the same thread) already
                         // does.
                         synchronized (this) {
-                            assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
-                            if (lifecycle.started() == false) {
-                                logger.debug("{} giving up on shard lock retry: node is shutting down", key);
-                                listener.onResponse(false);
-                                return;
-                            }
-                            if (pendingAllocationStates.get(key) != inFlightTicket) {
-                                // Not my claim anymore. Either the allocation went stale and was removed
-                                // when new cluster state applied or the shard has been failed and master has been notified.
-                                logger.debug("{} giving up on shard lock retry: no longer own the InFlight ticket", key);
-                                listener.onResponse(false);
-                                return;
-                            }
+                            try {
+                                assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
+                                if (lifecycle.started() == false) {
+                                    logger.debug("{} giving up on shard lock retry: node is shutting down", key);
+                                    listener.onResponse(false);
+                                    return;
+                                }
+                                if (pendingAllocationStates.get(key) != inFlightTicket) {
+                                    // Not my claim anymore. Either the allocation went stale and was removed
+                                    // when new cluster state applied or the shard has been failed and master has been notified.
+                                    logger.debug("{} giving up on shard lock retry: no longer own the InFlight ticket", key);
+                                    listener.onResponse(false);
+                                    return;
+                                }
 
-                            final var newDelayMillis = threadPool.relativeTimeInMillis() - inFlightTicket.startTimeMillis();
-                            if (newDelayMillis > shardLockRetryTimeout.millis()) {
-                                logger.warn(
-                                    "timed out after [{}={}/{}ms] while waiting to acquire shard lock for {}",
-                                    SHARD_LOCK_RETRY_TIMEOUT_SETTING.getKey(),
-                                    shardLockRetryTimeout,
-                                    shardLockRetryTimeout.millis(),
-                                    shardRouting
+                                final var newDelayMillis = threadPool.relativeTimeInMillis() - inFlightTicket.startTimeMillis();
+                                if (newDelayMillis > shardLockRetryTimeout.millis()) {
+                                    logger.warn(
+                                        "timed out after [{}={}/{}ms] while waiting to acquire shard lock for {}",
+                                        SHARD_LOCK_RETRY_TIMEOUT_SETTING.getKey(),
+                                        shardLockRetryTimeout,
+                                        shardLockRetryTimeout.millis(),
+                                        shardRouting
+                                    );
+                                    dumpHotThreads.run();
+                                    listener.onFailure(
+                                        new ElasticsearchTimeoutException(
+                                            "timed out while waiting to acquire shard lock for " + shardRouting
+                                        )
+                                    );
+                                    return;
+                                }
+
+                                final var indexService = indicesService.indexService(shardRouting.index());
+                                if (indexService == null) {
+                                    final var message = "index service unexpectedly not found for " + shardRouting;
+                                    assert false : message;
+                                    listener.onFailure(new ElasticsearchException(message));
+                                    return;
+                                }
+
+                                if (indexService.getShardOrNull(shardRouting.shardId().id()) != null) {
+                                    final var message = "index shard unexpectedly found for " + shardRouting;
+                                    assert false : message;
+                                    listener.onFailure(new ElasticsearchException(message));
+                                    return;
+                                }
+
+                                // Use the current routing from cluster state: some ShardRouting fields can change
+                                // without the allocation id changing (e.g. relocatingNodeId is cleared after a failed
+                                // replica relocation source).
+                                final ShardRouting currentRouting = getCurrentRouting(key, currentState);
+                                if (currentRouting == null) {
+                                    final var message = "shard routing unexpectedly not found for " + key;
+                                    assert false : message;
+                                    listener.onFailure(new ElasticsearchException(message));
+                                    return;
+                                }
+
+                                // Recompute the source node too: it can go stale the same way (e.g. the peer/split
+                                // source relocates or leaves) across a retry loop that can span cluster state updates.
+                                final ProjectMetadata currentProject = currentState.metadata()
+                                    .lookupProject(currentRouting.index())
+                                    .orElse(null);
+                                assert currentProject != null : "null index project but non-null shard routing " + currentRouting;
+                                final DiscoveryNode currentSourceNode = findSourceNode(currentState, currentProject, currentRouting);
+                                if (currentSourceNode == null && requiresSourceNode(currentRouting)) {
+                                    logger.debug("{} giving up on shard lock retry: no source node can currently be found", key);
+                                    pendingAllocationStates.remove(key, inFlightTicket);
+                                    listener.onResponse(false);
+                                    return;
+                                }
+
+                                createShardWhenLockAvailable(
+                                    currentRouting,
+                                    currentState,
+                                    currentSourceNode,
+                                    primaryTerm,
+                                    key,
+                                    inFlightTicket,
+                                    iteration + 1,
+                                    newDelayMillis,
+                                    dumpHotThreads,
+                                    listener
                                 );
-                                dumpHotThreads.run();
-                                listener.onFailure(
-                                    new ElasticsearchTimeoutException("timed out while waiting to acquire shard lock for " + shardRouting)
-                                );
-                                return;
+                            } catch (Exception ex) {
+                                listener.onFailure(ex);
                             }
-
-                            final var indexService = indicesService.indexService(shardRouting.index());
-                            if (indexService == null) {
-                                final var message = "index service unexpectedly not found for " + shardRouting;
-                                assert false : message;
-                                listener.onFailure(new ElasticsearchException(message));
-                                return;
-                            }
-
-                            if (indexService.getShardOrNull(shardRouting.shardId().id()) != null) {
-                                final var message = "index shard unexpectedly found for " + shardRouting;
-                                assert false : message;
-                                listener.onFailure(new ElasticsearchException(message));
-                                return;
-                            }
-
-                            // Use the current routing from cluster state: some ShardRouting fields can change
-                            // without the allocation id changing (e.g. relocatingNodeId is cleared after a failed
-                            // replica relocation source).
-                            final ShardRouting currentRouting = getCurrentRouting(key, currentState);
-                            if (currentRouting == null) {
-                                final var message = "shard routing unexpectedly not found for " + key;
-                                assert false : message;
-                                listener.onFailure(new ElasticsearchException(message));
-                                return;
-                            }
-
-                            // Recompute the source node too: it can go stale the same way (e.g. the peer/split
-                            // source relocates or leaves) across a retry loop that can span cluster state updates.
-                            final ProjectMetadata currentProject = currentState.metadata()
-                                .lookupProject(currentRouting.index())
-                                .orElse(null);
-                            assert currentProject != null : "null index project but non-null shard routing " + currentRouting;
-                            final DiscoveryNode currentSourceNode = findSourceNode(currentState, currentProject, currentRouting);
-                            if (currentSourceNode == null && requiresSourceNode(currentRouting)) {
-                                logger.debug("{} giving up on shard lock retry: no source node can currently be found", key);
-                                pendingAllocationStates.remove(key, inFlightTicket);
-                                listener.onResponse(false);
-                                return;
-                            }
-
-                            createShardWhenLockAvailable(
-                                currentRouting,
-                                currentState,
-                                currentSourceNode,
-                                primaryTerm,
-                                key,
-                                inFlightTicket,
-                                iteration + 1,
-                                newDelayMillis,
-                                dumpHotThreads,
-                                listener
-                            );
                         }
                     }, ActionListener.noop())
             );

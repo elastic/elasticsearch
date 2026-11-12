@@ -11,7 +11,11 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.elasticsearch.core.Nullable;
 
+import java.util.Collections;
+import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * Per-segment (per-field) IVF configuration persisted in {@code mivf}. It has four parts:
@@ -80,30 +84,40 @@ public record IvfSegmentConfig(
         public static final int DEFAULT_TRAINING_ITERATIONS = 0;
         public static final int DEFAULT_TRAINING_FACTOR = 10;
 
-        /*
-         * The tier constants below, together with forDims, decide what new segments of existing indices look like when
-         * the user leaves the bits unset, because those are not stored in the mapping. Once ASH ships, changing any of
-         * them requires selecting the table by IndexVersion. IvfSegmentConfigTests#testAshForDimsDerivesBitsAndProjectedDims
-         * pins the current table.
+        /**
+         * A size tier of {@link #forDims}: the bits per projected dimension and the fraction of the dimensions projected
+         * to. The two are chosen together, so that every tier spends about one bit per original dimension, the size of
+         * 1-bit OSQ.
          */
+        record DimsTier(int bitsPerDim, float projectedDimsFraction) {}
 
         /**
-         * Vector dimension below which {@link #forDims} does not reduce the dimension at all and encodes each dimension
-         * with {@link #LOW_DIMS_BITS_PER_DIM} bit. There is little to gain from projecting such small vectors.
+         * The tiers {@link #forDims} picks from, keyed by the largest vector dimension each one applies to, so that the
+         * tier for a dimension is its {@link NavigableMap#ceilingEntry}:
+         * <ul>
+         *     <li>up to 511 dimensions: 1 bit, without reducing the dimension. There is little to gain from projecting
+         *     such small vectors.</li>
+         *     <li>up to 2048 dimensions: 2 bits over half of the dimensions. At 2048 that half reaches
+         *     {@link #DEFAULT_MAX_PROJECTED_DIMS}.</li>
+         *     <li>above that: 4 bits over a quarter of the dimensions. At these sizes building and applying the
+         *     projection dominates indexing cost.</li>
+         * </ul>
+         * Because bits left unset are not stored in the mapping, this table decides what new segments of existing indices
+         * look like. Once ASH ships, changing it requires selecting the table by {@code IndexVersion}.
+         * {@code IvfSegmentConfigTests#testAshForDimsDerivesBitsAndProjectedDims} pins the current table.
          */
-        public static final int LOW_DIMS_THRESHOLD = 512;
-        public static final int LOW_DIMS_BITS_PER_DIM = 1;
-
-        /**
-         * Vector dimension above which {@link #forDims} projects more aggressively and spends more bits on each
-         * projected dimension. At these sizes building and applying the projection dominates indexing cost, and
-         * {@link #HIGH_DIMS_BITS_PER_DIM} bits over {@link #HIGH_DIMS_PROJECTED_DIMS_FRACTION} of the dimensions keeps
-         * the per-vector size of 1-bit OSQ while projecting to fewer dimensions. At exactly this dimension the default
-         * fraction reaches {@link #DEFAULT_MAX_PROJECTED_DIMS}, so it stays in the middle tier.
-         */
-        public static final int HIGH_DIMS_THRESHOLD = 2048;
-        public static final int HIGH_DIMS_BITS_PER_DIM = 4;
-        public static final float HIGH_DIMS_PROJECTED_DIMS_FRACTION = 0.25f;
+        static final NavigableMap<Integer, DimsTier> DIMS_TIERS = Collections.unmodifiableNavigableMap(
+            new TreeMap<>(
+                Map.of(
+                    511,
+                    new DimsTier(1, 1.0f),
+                    2048,
+                    new DimsTier(DEFAULT_BITS_PER_DIM, DEFAULT_PROJECTED_DIMS_FRACTION),
+                    Integer.MAX_VALUE,
+                    new DimsTier(4, 0.25f)
+                )
+            )
+        );
 
         /**
          * {@link #forDims} rounds the number of projected dimensions to a multiple of this, so that the packed codes
@@ -176,14 +190,7 @@ public record IvfSegmentConfig(
 
         /**
          * Returns the ASH configuration for a field with {@code dims} dimensions, deriving whatever the user left unset
-         * from the dimension. Each of the three size tiers spends about one bit per original dimension:
-         * <ul>
-         *     <li>below {@link #LOW_DIMS_THRESHOLD}: {@link #LOW_DIMS_BITS_PER_DIM} bit, no reduction</li>
-         *     <li>from {@link #LOW_DIMS_THRESHOLD} up to and including {@link #HIGH_DIMS_THRESHOLD}:
-         *     {@link #DEFAULT_BITS_PER_DIM} bits over {@link #DEFAULT_PROJECTED_DIMS_FRACTION} of the dimensions</li>
-         *     <li>above {@link #HIGH_DIMS_THRESHOLD}: {@link #HIGH_DIMS_BITS_PER_DIM} bits over
-         *     {@link #HIGH_DIMS_PROJECTED_DIMS_FRACTION} of the dimensions</li>
-         * </ul>
+         * from the size tier of the dimension, see {@link #DIMS_TIERS}.
          * The number of projected dimensions always follows from {@code dims} alone, so that changing {@code bitsPerDim}
          * on a field never changes the shape of its projection.
          * <p>
@@ -207,22 +214,19 @@ public record IvfSegmentConfig(
 
         /** Returns the bits per projected dimension {@link #forDims} uses when the user did not configure them. */
         public static int defaultBitsPerDim(int dims) {
-            if (dims < LOW_DIMS_THRESHOLD) {
-                return LOW_DIMS_BITS_PER_DIM;
-            }
-            return dims > HIGH_DIMS_THRESHOLD ? HIGH_DIMS_BITS_PER_DIM : DEFAULT_BITS_PER_DIM;
+            return DIMS_TIERS.ceilingEntry(dims).getValue().bitsPerDim();
         }
 
         /**
-         * Returns the number of projected dimensions {@link #forDims} uses: all of {@code dims} below
-         * {@link #LOW_DIMS_THRESHOLD}, otherwise the default fraction of {@code dims} for its size, capped at
-         * {@link #DEFAULT_MAX_PROJECTED_DIMS} and rounded to the nearest multiple of {@link #PROJECTED_DIMS_ALIGNMENT}.
+         * Returns the number of projected dimensions {@link #forDims} uses: all of {@code dims} when its tier does not
+         * reduce the dimension, otherwise the tier's fraction of {@code dims}, capped at {@link #DEFAULT_MAX_PROJECTED_DIMS}
+         * and rounded to the nearest multiple of {@link #PROJECTED_DIMS_ALIGNMENT}.
          */
         static int defaultProjectedDims(int dims) {
-            if (dims < LOW_DIMS_THRESHOLD) {
+            float fraction = DIMS_TIERS.ceilingEntry(dims).getValue().projectedDimsFraction();
+            if (fraction == 1.0f) {
                 return dims;
             }
-            float fraction = dims > HIGH_DIMS_THRESHOLD ? HIGH_DIMS_PROJECTED_DIMS_FRACTION : DEFAULT_PROJECTED_DIMS_FRACTION;
             int target = Math.min(DEFAULT_MAX_PROJECTED_DIMS, (int) (dims * fraction));
             int aligned = Math.max(
                 PROJECTED_DIMS_ALIGNMENT,

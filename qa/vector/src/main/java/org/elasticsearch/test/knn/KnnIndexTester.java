@@ -904,8 +904,9 @@ public class KnnIndexTester {
         switch (args.indexType()) {
             case IVF:
                 if (QuantizationType.fromString(args.quantizationType()) == QuantizationType.ASH) {
-                    // resolving validates bitsPerDim, queryBitsPerDim and, when configured, the projection
-                    ashConfigResolver(args).resolve(IvfSegmentConfig.AshConfig.LOW_DIMS_THRESHOLD);
+                    // resolving validates bitsPerDim, queryBitsPerDim and, when configured, the projection; the dimension may
+                    // only be known from the vector file (-1), and any dimension validates the bits
+                    ashConfigResolver(args).resolve(Math.max(1, args.dimensions()));
                 } else {
                     if (args.quantizeBits() == null) {
                         throw new IllegalArgumentException("IVF index type requires quantize_bits to be set");

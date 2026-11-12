@@ -124,6 +124,19 @@ public class IvfSegmentConfigTests extends ESTestCase {
         }
     }
 
+    public void testAshDimsTiersSpendOneBitPerDimension() {
+        for (var tier : IvfSegmentConfig.AshConfig.DIMS_TIERS.entrySet()) {
+            assertEquals(
+                "tier up to [" + tier.getKey() + "]",
+                1f,
+                tier.getValue().bitsPerDim() * tier.getValue().projectedDimsFraction(),
+                0f
+            );
+        }
+        // every dimension falls into a tier
+        assertEquals(Integer.MAX_VALUE, (int) IvfSegmentConfig.AshConfig.DIMS_TIERS.lastKey());
+    }
+
     public void testAshForDimsRespectsConfiguredBits() {
         for (int dims : new int[] { 384, 1024, 3072 }) {
             int bits = randomFrom(1, 2, 3, 4, 8);
@@ -142,7 +155,7 @@ public class IvfSegmentConfigTests extends ESTestCase {
         assertTrue(projectedDims > 0);
         assertTrue(projectedDims <= dims);
         assertTrue(projectedDims <= IvfSegmentConfig.AshConfig.DEFAULT_MAX_PROJECTED_DIMS);
-        if (dims >= IvfSegmentConfig.AshConfig.LOW_DIMS_THRESHOLD) {
+        if (IvfSegmentConfig.AshConfig.DIMS_TIERS.ceilingEntry(dims).getValue().projectedDimsFraction() < 1.0f) {
             assertEquals(0, projectedDims % IvfSegmentConfig.AshConfig.PROJECTED_DIMS_ALIGNMENT);
         } else {
             // small vectors are not reduced at all

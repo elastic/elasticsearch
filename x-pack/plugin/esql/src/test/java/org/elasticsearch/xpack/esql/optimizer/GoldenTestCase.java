@@ -112,7 +112,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
@@ -263,6 +262,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         private QueryBuilder requestFilter;
         private Map<String, String> views = Map.of();
         private boolean singleConcreteIndex;
+        private EsqlFlags flags = EsqlFlags.withFetchPhase(EsqlFlags.FetchPhaseMode.DISABLED);
 
         private TestBuilder(
             String esqlQuery,
@@ -296,6 +296,11 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         public EnumSet<Stage> stages() {
             return stages;
+        }
+
+        public TestBuilder flags(EsqlFlags flags) {
+            this.flags = flags;
+            return this;
         }
 
         public TestBuilder searchStats(SearchStats searchStats) {
@@ -632,7 +637,8 @@ public abstract class GoldenTestCase extends ESTestCase {
                 externalSourceResolution,
                 requestFilter,
                 views,
-                singleConcreteIndex
+                singleConcreteIndex,
+                flags
             );
         }
 
@@ -781,7 +787,8 @@ public abstract class GoldenTestCase extends ESTestCase {
         ExternalSourceResolution externalSourceResolution,
         QueryBuilder requestFilter,
         Map<String, String> views,
-        boolean singleConcreteIndex
+        boolean singleConcreteIndex,
+        EsqlFlags flags
     ) {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
@@ -868,7 +875,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             if (stages.equals(EnumSet.of(Stage.ANALYSIS))) {
                 return result;
             }
-            var optimizerContext = logicalOptimizerContext(configuration, FoldContext.small(), transportVersion);
+            var optimizerContext = new LogicalOptimizerContext(configuration, FoldContext.small(), transportVersion, flags);
             var optimizer = optimizerFactory != null
                 ? optimizerFactory.apply(optimizerContext)
                 : new LogicalPlanOptimizer(optimizerContext);

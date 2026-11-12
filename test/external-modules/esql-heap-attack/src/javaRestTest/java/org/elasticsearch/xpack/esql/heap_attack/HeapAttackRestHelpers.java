@@ -283,11 +283,10 @@ public abstract class HeapAttackRestHelpers extends ESRestTestCase {
     ) {}
 
     @SuppressWarnings("unchecked")
-    protected StreamSummary streamQuery(String esqlQuery, int batchSize) throws IOException {
+    protected StreamSummary streamQuery(String esqlQuery) throws IOException {
         Request request = new Request("POST", "/_query");
         request.addParameter("streaming", "true");
         request.addParameter("format", "ndjson");
-        request.addParameter("batch_size", Integer.toString(batchSize));
         request.addParameter("error_trace", "");
         String body = "{\"query\":\"" + esqlQuery.replace("\n", "\\n") + "\"}";
         request.setJsonEntity(body);

@@ -191,6 +191,11 @@ tests:
   tasks:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v8.15.5#javaRestTest
   issue: https://github.com/elastic/elasticsearch/issues/165675
+- class: org.elasticsearch.xpack.esql.CsvTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: test {null.FoldNullArgumentsInManyFunctions}
+  issue: https://github.com/elastic/elasticsearch/issues/165678
 
 # Examples:
 #

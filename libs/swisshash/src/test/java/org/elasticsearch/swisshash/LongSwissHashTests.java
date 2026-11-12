@@ -78,6 +78,20 @@ public class LongSwissHashTests extends ESTestCase {
         this.expectedIdPageCount = expectedIdPageCount;
     }
 
+    public void testKeyOffsets() {
+        assertEquals(2_147_483_640L, LongSwissHash.keyOffset(268_435_455));
+        assertEquals(2_147_483_648L, LongSwissHash.keyOffset(268_435_456));
+        assertEquals(4_294_967_288L, LongSwissHash.keyOffset(536_870_911));
+        assertEquals(4_294_967_296L, LongSwissHash.keyOffset(536_870_912));
+        assertEquals(7_516_192_760L, LongSwissHash.keyOffset(939_524_095));
+    }
+
+    public void testIdOffsets() {
+        assertEquals(2_147_483_644L, LongSwissHash.BigCore.idOffset(536_870_911));
+        assertEquals(2_147_483_648L, LongSwissHash.BigCore.idOffset(536_870_912));
+        assertEquals(4_294_967_292L, LongSwissHash.BigCore.idOffset(1_073_741_823));
+    }
+
     public void testValues() {
         Set<Long> values = randomValues(count);
         long[] v = values.stream().mapToLong(Long::longValue).toArray();
@@ -309,6 +323,14 @@ public class LongSwissHashTests extends ESTestCase {
         try (LongSwissHash hash = new LongSwissHash(recycler, breaker)) {
             assertThat(hash.size(), equalTo(0L));
             assertFalse(hash.iterator().next());
+        }
+    }
+
+    public void testExceedsMaxSize() {
+        try (var hash = new LongSwissHash(new TestRecycler(), NoopCircuitBreaker.INSTANCE)) {
+            int requested = randomIntBetween(LongSwissHash.MAX_SIZE + 1, Integer.MAX_VALUE);
+            var error = expectThrows(IllegalArgumentException.class, () -> hash.ensureCapacity(requested));
+            assertThat(error.getMessage(), equalTo("maximum hash size [939524096] exceeded: requested [" + requested + "]"));
         }
     }
 

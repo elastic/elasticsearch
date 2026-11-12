@@ -32,11 +32,9 @@ class LoggingArchUnitSpec extends AbstractArchUnitSpec {
     private static final Set<String> KNOWN_CONSOLE_LOGGING = [
         "org.elasticsearch.gradle.internal.ElasticsearchBuildCompletePlugin",
         "org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin",
-        "org.elasticsearch.gradle.internal.InternalDistributionArchiveCheckPlugin",
         "org.elasticsearch.gradle.internal.dependencies.patches.azurecore.AzureCoreClassPatcher",
         "org.elasticsearch.gradle.internal.dependencies.patches.hdfs.HdfsClassPatcher",
         "org.elasticsearch.gradle.internal.doc.DocsTestPlugin",
-        "org.elasticsearch.gradle.internal.packer.CacheCacheableTestFixtures",
         "org.elasticsearch.gradle.internal.test.ErrorReportingTestListener",
     ] as Set
 

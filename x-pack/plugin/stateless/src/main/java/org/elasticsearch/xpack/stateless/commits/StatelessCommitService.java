@@ -72,7 +72,7 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.recovery.HollowShardRecoveryState;
 import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
 import org.elasticsearch.xpack.stateless.utils.WaitForVersion;
 
@@ -239,6 +240,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     );
 
     public static final String BCC_NOTIFICATION_TIME_HISTOGRAM_METRIC = "es.bcc.notification_time.histogram";
+    public static final String NOTIFICATION_UPLOADED_ATTRIBUTE_KEY = "es_notification_uploaded";
 
     private final ClusterService clusterService;
     private final ObjectStoreService objectStoreService;
@@ -364,8 +366,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.bccNotificationTimeHistogram = telemetryProvider.getMeterRegistry()
             .registerLongHistogram(
                 BCC_NOTIFICATION_TIME_HISTOGRAM_METRIC,
-                "Histogram for time in milliseconds from sending a new-uploaded-commit notification until the search tier responds "
-                    + "(or the notification timeout fires), broken down by the ["
+                "Histogram for time in milliseconds from sending a new-commit notification until the search tier responds (or the "
+                    + "notification timeout fires for uploaded commits), broken down by whether the commit was uploaded ["
+                    + NOTIFICATION_UPLOADED_ATTRIBUTE_KEY
+                    + "] and, for uploaded commits, by the ["
                     + BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY
                     + "] size bucket",
                 "ms"
@@ -449,18 +453,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     /// completes it.
     ///
     /// @throws AlreadyClosedException if the shard commit state is already closed
-    public void installUploadBoundListener(ShardId shardId, SubscribableListener<Long> uploadBoundListener) {
-        assert assertIndexingBlocked(shardId);
-        getSafe(shardsCommitsStates, shardId).installUploadBoundListener(uploadBoundListener);
+    public void installUploadBoundListener(IndexShard shard, SubscribableListener<Long> uploadBoundListener) {
+        assert assertIndexingBlocked(shard);
+        getSafe(shardsCommitsStates, shard.shardId()).installUploadBoundListener(uploadBoundListener);
     }
 
-    private boolean assertIndexingBlocked(ShardId shardId) {
-        final var indexService = indicesService.indexService(shardId.getIndex());
-        assert indexService != null : shardId + " index service expected to be non-null";
-        final var shard = indexService.getShardOrNull(shardId.id());
-        assert shard != null : shardId + " shard expected to be non-null";
+    private boolean assertIndexingBlocked(IndexShard shard) {
+        assert shard != null : "shard expected to be non-null";
         assert shard.getActiveOperationsCount() == IndexShard.OPERATIONS_BLOCKED
-            : shardId + " installUploadBoundListener must be called while holding all operation permits";
+            : shard.shardId() + " installUploadBoundListener must be called while holding all operation permits";
         return true;
     }
 
@@ -1124,7 +1125,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         gen,
                         () -> bccNotificationTimeHistogram.record(
                             threadPool.relativeTimeInMillis() - notificationSentAt,
-                            Map.of(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY, BccUploadMetrics.bccSizeBucket(bccBlobLength))
+                            Map.of(
+                                NOTIFICATION_UPLOADED_ATTRIBUTE_KEY,
+                                true,
+                                BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY,
+                                BccUploadMetrics.bccSizeBucket(bccBlobLength)
+                            )
                         )
                     );
                     if (commitState.isClosed()) {
@@ -1459,7 +1465,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         @Nullable SourceBlobsInfo sourceBlobsInfo,
         Set<BlobFile> lastCommitBlobs,
         boolean lastCommitIsHollow,
-        boolean hasRecentIdLookup
+        boolean hasRecentIdLookup,
+        @Nullable HollowShardRecoveryState hollowRecoveryState
     ) {}
 
     public record SourceBlobsInfo(BlobFile latestBlobFile, long latestBlobFileLength, Set<BlobFile> otherBlobs) {}
@@ -1655,7 +1662,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             this.splitTargetCopyExecutor = new ThrottledTaskRunner(
                 "copy-to-split-targets[" + shardId + "]",
                 1,
-                threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)
+                threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL)
             ).asExecutor();
             this.allocationPrimaryTerm = allocationPrimaryTerm;
             this.inititalizingNoSearchSupplier = inititalizingNoSearchSupplier;
@@ -2590,7 +2597,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     + " state="
                     + state;
 
-            lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
+            final long sentAt = threadPool.relativeTimeInMillis();
+            lastNewCommitNotificationSentTimestamp = sentAt;
             statelessCommitNotificationPublisher.sendNewCommitNotification(
                 shardRoutingTable,
                 lastCompoundCommit,
@@ -2598,12 +2606,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 maxUploadedBccTermAndGen,
                 clusterService.state().version(),
                 clusterService.localNode().getId(),
-                ActionListener.wrap(Void -> {
+                ActionListener.runBefore(ActionListener.wrap(Void -> {
                     // Do NOT update uploadedGenerationNotified since it is used for file deleting tracking
                     // TODO: Process the response for old commits that are no-longer-in-use similar to how it is done on upload
                     // notification
                     notifyCommitNotificationSuccessListeners(lastCompoundCommit.generation());
-                }, e -> logNotificationException(lastCompoundCommit.generation(), batchedCompoundCommitGeneration, "create", e))
+                }, e -> logNotificationException(lastCompoundCommit.generation(), batchedCompoundCommitGeneration, "create", e)),
+                    () -> bccNotificationTimeHistogram.record(
+                        threadPool.relativeTimeInMillis() - sentAt,
+                        Map.of(NOTIFICATION_UPLOADED_ATTRIBUTE_KEY, false)
+                    )
+                )
             );
         }
 

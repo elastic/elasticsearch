@@ -73,6 +73,7 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
         }
         assert docBlock != null : "LuceneQueryExpressionEvaluator expects a DocBlock";
         DocVector docs = (DocVector) docBlock.asVector();
+        docs.ensureAttached("LuceneQueryEvaluator");
         try {
             if (docs.singleSegmentNonDecreasing()) {
                 return evalSingleSegmentNonDecreasing(docs);

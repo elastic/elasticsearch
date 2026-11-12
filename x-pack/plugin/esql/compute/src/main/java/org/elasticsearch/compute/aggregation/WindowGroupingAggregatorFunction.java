@@ -327,6 +327,11 @@ public record WindowGroupingAggregatorFunction(
     }
 
     @Override
+    public boolean prepareForPeriodicEmit(Page incomingPage) {
+        return next.prepareForPeriodicEmit(incomingPage) && (partialNext == null || partialNext.prepareForPeriodicEmit(incomingPage));
+    }
+
+    @Override
     public int intermediateBlockCount() {
         // with a partial side this is the consumed input width (full state plus partial state); the wrapper never
         // emits intermediate state in that shape - see prepareEvaluateIntermediate

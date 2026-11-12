@@ -291,40 +291,28 @@ public final class TextFieldMapper extends FieldMapper {
 
         final DocValuesParameter docValuesParameters;
 
-        final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> ((TextFieldMapper) m).similarity);
+        final Parameter<SimilarityProvider> similarity = TextParams.similarity();
 
         final Parameter<String> indexOptions;
-        final Parameter<String> termVectors = TextParams.termVectors(m -> ((TextFieldMapper) m).termVectors);
+        final Parameter<String> termVectors = TextParams.termVectors();
 
-        final Parameter<Boolean> fieldData = Parameter.boolParam("fielddata", true, m -> ((TextFieldMapper) m).fieldData, false);
+        final Parameter<Boolean> fieldData = Parameter.boolParam("fielddata", true, false);
         final Parameter<FielddataFrequencyFilter> freqFilter = new Parameter<>(
             "fielddata_frequency_filter",
             true,
             () -> DEFAULT_FILTER,
             TextFieldMapper::parseFrequencyFilter,
-            m -> ((TextFieldMapper) m).freqFilter,
             XContentBuilder::field,
             Objects::toString
         );
-        final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam(
-            "eager_global_ordinals",
-            true,
-            m -> ((TextFieldMapper) m).fieldType().eagerGlobalOrdinals,
-            false
-        );
+        final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam("eager_global_ordinals", true, false);
 
-        final Parameter<Boolean> indexPhrases = Parameter.boolParam(
-            "index_phrases",
-            false,
-            m -> ((TextFieldMapper) m).fieldType().indexPhrases,
-            false
-        );
+        final Parameter<Boolean> indexPhrases = Parameter.boolParam("index_phrases", false, false);
         final Parameter<PrefixConfig> indexPrefixes = new Parameter<>(
             "index_prefixes",
             false,
             () -> null,
             TextFieldMapper::parsePrefixConfig,
-            m -> ((TextFieldMapper) m).indexPrefixes,
             XContentBuilder::field,
             Objects::toString
         ).acceptsNull();
@@ -343,16 +331,10 @@ public final class TextFieldMapper extends FieldMapper {
                     DocValuesParameter.Values.DISABLED_HIGH_CARDINALITY,
                     DocValuesParameter.Values.Cardinality.HIGH
                 ),
-                m -> ((TextFieldMapper) m).docValuesParameters,
                 indexSettings
             );
-            this.index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
-            this.analyzers = new TextParams.Analyzers(
-                indexAnalyzers,
-                m -> ((TextFieldMapper) m).indexAnalyzer,
-                m -> (((TextFieldMapper) m).positionIncrementGap),
-                indexSettings.getIndexVersionCreated()
-            );
+            this.index = Parameter.indexParam(true);
+            this.analyzers = new TextParams.Analyzers(indexAnalyzers, indexSettings.getIndexVersionCreated());
             // Strictly columnar indices default index_options to "docs": positions and freqs are not needed since values are read from
             // doc values and norms are off by default, so there is nothing for freqs to feed. The default is resolved lazily because it
             // depends on index_phrases and position_increment_gap, whose values are only known once parsing has finished:
@@ -362,7 +344,7 @@ public final class TextFieldMapper extends FieldMapper {
             // pattern, so they keep "positions";
             // - index_phrases and position_increment_gap require positions, so when either is set without an explicit index_options we
             // keep the "positions" default (mirroring standard mode, where they work out of the box).
-            this.indexOptions = TextParams.textIndexOptions(m -> ((TextFieldMapper) m).indexOptions, () -> {
+            this.indexOptions = TextParams.textIndexOptions(() -> {
                 boolean docsByDefault = indexSettings.getIndexVersionCreated()
                     .onOrAfter(IndexVersions.TEXT_INDEX_OPTIONS_DOCS_BY_DEFAULT_IN_COLUMNAR)
                     && indexSettings.getMode().isStrictColumnar()
@@ -373,7 +355,7 @@ public final class TextFieldMapper extends FieldMapper {
             });
 
             IndexMode indexMode = indexSettings.getMode();
-            this.norms = Parameter.normsParam(m -> ((TextFieldMapper) m).norms, () -> {
+            this.norms = Parameter.normsParam(() -> {
                 if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DISABLE_NORMS_BY_DEFAULT_FOR_LOGSDB_AND_TSDB)) {
                     // Columnar modes disable norms by default, except the ones where text relevance scoring is important.
                     return indexMode == null || indexMode.isColumnar() == false || indexMode.isSearchOptimizedColumnar();
@@ -382,22 +364,38 @@ public final class TextFieldMapper extends FieldMapper {
                 return true;
             });
 
-            this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, () -> {
-                // ideally and for simplicity, store should be set to false by default
-                if (keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(indexSettings.getIndexVersionCreated())) {
-                    return false;
-                }
+            this.store = Parameter.storeParam(
+                () -> defaultStore(indexSettings, isWithinMultiField, multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField())
+            )
+                // mappings written before a normalizer that skips storing the original value counted as a synthetic source
+                // compatible keyword have an explicit "store": false, and serialization must keep writing it
+                .setSerializerCheck(
+                    (includeDefaults, isConfigured, value) -> includeDefaults
+                        || value != defaultStore(
+                            indexSettings,
+                            isWithinMultiField,
+                            multiFieldsBuilder.hasLegacySyntheticSourceCompatibleKeywordField()
+                        )
+                );
+        }
 
-                boolean isSyntheticSourceEnabled = SourceFieldMapper.isSynthetic(indexSettings);
-                // however, because historically we set store to true to support synthetic source, we must also keep that logic:
-                if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexSettings.getIndexVersionCreated())) {
-                    return isSyntheticSourceEnabled
-                        && isWithinMultiField == false
-                        && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
-                } else {
-                    return isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
-                }
-            });
+        private static boolean defaultStore(
+            IndexSettings indexSettings,
+            boolean isWithinMultiField,
+            boolean hasSyntheticSourceCompatibleKeywordField
+        ) {
+            // ideally and for simplicity, store should be set to false by default
+            if (keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(indexSettings.getIndexVersionCreated())) {
+                return false;
+            }
+
+            boolean isSyntheticSourceEnabled = SourceFieldMapper.isSynthetic(indexSettings);
+            // however, because historically we set store to true to support synthetic source, we must also keep that logic:
+            if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexSettings.getIndexVersionCreated())) {
+                return isSyntheticSourceEnabled && isWithinMultiField == false && hasSyntheticSourceCompatibleKeywordField == false;
+            } else {
+                return isSyntheticSourceEnabled && hasSyntheticSourceCompatibleKeywordField == false;
+            }
         }
 
         private Builder(String name, MappingParserContext context) {
@@ -584,6 +582,47 @@ public final class TextFieldMapper extends FieldMapper {
         @Override
         public String contentType() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public void normalize(MapperBuilderContext context) {
+            super.normalize(context);
+            if (indexCreatedVersion().isLegacyIndexVersion()) {
+                // Legacy indexes do not have eager global ordinals
+                eagerGlobalOrdinals.setValue(false);
+            }
+        }
+
+        /**
+         * Writes the named parameters interleaved with multi-fields, {@code copy_to} and {@code synthetic_source_keep} in an order
+         * that has to be kept for BWC, so it is not derived from {@link #getParameters()}.
+         */
+        @Override
+        protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+            builder.field("type", contentType());
+            index.toXContent(builder, includeDefaults);
+            store.toXContent(builder, includeDefaults);
+            docValuesParameters.toXContent(builder, includeDefaults);
+            multiFieldsBuilder.toXContent(builder, params);
+            copyTo.toXContent(builder);
+            if (sourceKeepMode.isPresent()) {
+                sourceKeepMode.get().toXContent(builder);
+            }
+            meta.toXContent(builder, includeDefaults);
+            indexOptions.toXContent(builder, includeDefaults);
+            termVectors.toXContent(builder, includeDefaults);
+            norms.toXContent(builder, includeDefaults);
+            analyzers.indexAnalyzer.toXContent(builder, includeDefaults);
+            analyzers.searchAnalyzer.toXContent(builder, includeDefaults);
+            analyzers.searchQuoteAnalyzer.toXContent(builder, includeDefaults);
+            similarity.toXContent(builder, includeDefaults);
+            eagerGlobalOrdinals.toXContent(builder, includeDefaults);
+            analyzers.positionIncrementGap.toXContent(builder, includeDefaults);
+            fieldData.toXContent(builder, includeDefaults);
+            freqFilter.toXContent(builder, includeDefaults);
+            indexPrefixes.toXContent(builder, includeDefaults);
+            indexPhrases.toXContent(builder, includeDefaults);
         }
 
         @Override
@@ -1938,20 +1977,10 @@ public final class TextFieldMapper extends FieldMapper {
 
     }
 
-    private final boolean index;
     private final boolean store;
     private final DocValuesParameter.Values docValuesParameters;
     private final DocValuesFieldFactory dvFactory;
-    private final String indexOptions;
-    private final boolean norms;
-    private final String termVectors;
-    private final SimilarityProvider similarity;
     private final NamedAnalyzer indexAnalyzer;
-    private final IndexAnalyzers indexAnalyzers;
-    private final int positionIncrementGap;
-    private final PrefixConfig indexPrefixes;
-    private final FielddataFrequencyFilter freqFilter;
-    private final boolean fieldData;
     private final FieldType fieldType;
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
@@ -1986,19 +2015,9 @@ public final class TextFieldMapper extends FieldMapper {
         this.prefixFieldInfo = prefixFieldInfo;
         this.phraseFieldInfo = phraseFieldInfo;
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
-        this.indexAnalyzers = builder.analyzers.indexAnalyzers;
-        this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
-        this.index = builder.index.getValue();
         this.store = builder.store.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
         this.dvFactory = new DocValuesFieldFactory(docValuesParameters.multiValue(), false, indexSettings.getIndexVersionCreated());
-        this.similarity = builder.similarity.getValue();
-        this.indexOptions = builder.indexOptions.getValue();
-        this.norms = builder.norms.getValue();
-        this.termVectors = builder.termVectors.getValue();
-        this.indexPrefixes = builder.indexPrefixes.getValue();
-        this.freqFilter = builder.freqFilter.getValue();
-        this.fieldData = builder.fieldData.get();
         this.usesBinaryDocValuesForFallbackFields = useBinaryDocValuesForFallbackFields(builder.indexSettings);
         this.offsetsFieldName = builder.offsetsFieldName;
         this.payloadTypeWhenValueless = isIndexed ? ColumnarBinaryDocValuesField.typeWhenValueless(this.fieldType) : null;
@@ -2049,11 +2068,6 @@ public final class TextFieldMapper extends FieldMapper {
             );
         }
         return analyzersMap;
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexSettings, indexAnalyzers, fieldType().isWithinMultiField()).init(this);
     }
 
     @Override
@@ -2207,7 +2221,7 @@ public final class TextFieldMapper extends FieldMapper {
                 }
             }
 
-            if (terms != null && terms.isEmpty() == false) {
+            if (ColumnarPayloadColumn.shouldEmitTermsColumn(terms, valuelessDocs)) {
                 final EscfColumnData termsData = terms.finish(docCount);
                 ctx.addColumn(LuceneBinaryColumn.of(termsData, fieldType().name(), fieldType), termsData);
             }
@@ -2309,7 +2323,7 @@ public final class TextFieldMapper extends FieldMapper {
                     MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
                 }
             } else if (recordOffsets) {
-                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
+                context.getOffSetContext().recordNull(context, offsetsFieldName, OFFSETS_FALLBACK);
             }
             return;
         }
@@ -2550,36 +2564,6 @@ public final class TextFieldMapper extends FieldMapper {
             }
         }
         return spanQuery.build();
-    }
-
-    @Override
-    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        // this is a pain, but we have to do this to maintain BWC
-        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-        builder.field("type", contentType());
-        final Builder b = (Builder) getMergeBuilder();
-        b.index.toXContent(builder, includeDefaults);
-        b.store.toXContent(builder, includeDefaults);
-        b.docValuesParameters.toXContent(builder, includeDefaults);
-        multiFields().toXContent(builder, params);
-        copyTo().toXContent(builder);
-        if (sourceKeepMode().isPresent()) {
-            sourceKeepMode().get().toXContent(builder);
-        }
-        b.meta.toXContent(builder, includeDefaults);
-        b.indexOptions.toXContent(builder, includeDefaults);
-        b.termVectors.toXContent(builder, includeDefaults);
-        b.norms.toXContent(builder, includeDefaults);
-        b.analyzers.indexAnalyzer.toXContent(builder, includeDefaults);
-        b.analyzers.searchAnalyzer.toXContent(builder, includeDefaults);
-        b.analyzers.searchQuoteAnalyzer.toXContent(builder, includeDefaults);
-        b.similarity.toXContent(builder, includeDefaults);
-        b.eagerGlobalOrdinals.toXContent(builder, includeDefaults);
-        b.analyzers.positionIncrementGap.toXContent(builder, includeDefaults);
-        b.fieldData.toXContent(builder, includeDefaults);
-        b.freqFilter.toXContent(builder, includeDefaults);
-        b.indexPrefixes.toXContent(builder, includeDefaults);
-        b.indexPhrases.toXContent(builder, includeDefaults);
     }
 
     private boolean isIndexed() {

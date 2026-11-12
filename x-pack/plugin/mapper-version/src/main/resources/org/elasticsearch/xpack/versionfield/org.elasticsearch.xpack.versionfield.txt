@@ -10,6 +10,8 @@
 class org.elasticsearch.xpack.versionfield.VersionScriptDocValues {
     String get(int) @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionReadBytes"]
     String getValue() @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionReadBytes"]
+    Iterator iterator() @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionIteratorBytes"]
+    Stream stream() @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionIteratorBytes"]
 }
 
 class org.elasticsearch.xpack.versionfield.Version {
@@ -22,4 +24,5 @@ class org.elasticsearch.xpack.versionfield.VersionStringDocValuesField @dynamic_
     List asStrings() @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionStringsBytes"]
     Version get(Version) @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionObjectBytes"]
     Version get(int, Version) @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionObjectBytes"]
+    Iterator iterator() @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionIteratorBytes"]
 }

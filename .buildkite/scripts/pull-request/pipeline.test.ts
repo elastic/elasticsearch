@@ -125,6 +125,36 @@ describe("generatePipelines", () => {
     expect(usingDefaults!.pipeline.env?.["CUSTOM_ENV_VAR"]).toBe("value");
   });
 
+  describe("env defaults", () => {
+    const envDefaultsPipeline = (name: string) =>
+      generatePipelines(`${import.meta.dirname}/mocks/pipelines-env-defaults`, ["build.gradle"]).find(
+        (pipeline) => pipeline.name === name,
+      );
+
+    test("should apply env from .defaults.yml to pipelines that do not define env", () => {
+      expect(envDefaultsPipeline("inheriting-env")?.pipeline.env).toEqual({
+        DEFAULT_ENV_VAR: "default",
+        OVERRIDDEN_ENV_VAR: "default",
+      });
+    });
+
+    test("should let pipeline env override and extend env from .defaults.yml", () => {
+      expect(envDefaultsPipeline("overriding-env")?.pipeline.env).toEqual({
+        DEFAULT_ENV_VAR: "default",
+        OVERRIDDEN_ENV_VAR: "pipeline",
+        PIPELINE_ENV_VAR: "pipeline",
+      });
+    });
+
+    test("should not add env to pipelines when .defaults.yml defines none", () => {
+      const pipelines = generatePipelines(`${import.meta.dirname}/mocks/pipelines`, ["build.gradle"]);
+      const noAutoRetry = pipelines.find((p) => p.name === "no-auto-retry");
+
+      expect(noAutoRetry).toBeDefined();
+      expect(noAutoRetry!.pipeline.env).toBeUndefined();
+    });
+  });
+
   const laterBranchBwcSteps = (targetBranch: string) => {
     process.env["GITHUB_PR_TARGET_BRANCH"] = targetBranch;
 

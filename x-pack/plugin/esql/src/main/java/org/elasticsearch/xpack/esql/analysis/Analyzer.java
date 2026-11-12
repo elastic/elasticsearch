@@ -455,7 +455,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<IndexResolution> resolutions = new ArrayList<>(context.indexResolution().values());
             resolutions.addAll(context.lookupResolution().values());
             Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(describe.child(), resolutions);
-            return describe.describe(semantics, ColumnSemantics.datasetColumns(describe.child()));
+            return describe.describe(
+                semantics,
+                ColumnSemantics.datasetColumns(describe.child()),
+                ColumnUnits.collect(describe.child(), semantics)
+            );
         }
 
         @Override
@@ -2283,29 +2287,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * The implicit cast that surfaces {@code loaded}, an unmapped field read from {@code _source} and therefore always keyword, as
-         * {@code targetType}. Returns {@code null} when no such cast exists (e.g., {@code text}, {@code aggregate_metric_double}); a
-         * keyword target needs no cast, so the returned function is a {@link ConvertFunction#isNoop() no-op} there.
-         */
-        private static @Nullable AbstractConvertFunction implicitCastFromKeyword(
-            DataType targetType,
-            FieldAttribute loaded,
-            Configuration configuration
-        ) {
-            // ToDenseVector reads hexadecimal strings, but an unmapped dense_vector arrives from _source as an array of numbers
-            // (#152184), so the implicit cast would yield garbage. Same carve-out as ResolveTwoLeggedPunksInEsRelation.
-            if (targetType == DENSE_VECTOR) {
-                return null;
-            }
-            var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(targetType);
-            if (convertFactory == null) {
-                return null;
-            }
-            AbstractConvertFunction convert = convertFactory.apply(loaded.source(), loaded, configuration);
-            return convert.supportedTypes().contains(KEYWORD) ? convert : null;
-        }
-
-        /**
          * Names of unmapped fields materialized by any branch's {@link EsRelation}: {@link PotentiallyUnmappedKeywordEsField} under
          * {@code load}, {@link MissingEsField} under {@code nullify}. Scans the relations, not branch outputs, so a referencing generating
          * command (EVAL/MV_EXPAND/...) can't hide the origin.
@@ -2427,7 +2408,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 && unmappedResolution.loadsAllUnmappedFields()
                 && branchCanSurfaceLoadedField(branch, attr.name())) {
                 FieldAttribute loaded = unmappedKeyword(attr);
-                AbstractConvertFunction cast = implicitCastFromKeyword(mapped.dataType(), loaded, context.configuration());
+                AbstractConvertFunction cast = EsqlDataTypeConverter.castFromKeyword(mapped.dataType(), loaded, context.configuration());
                 if (cast != null) {
                     toLoad.add(loaded);
                     if (cast.isNoop() == false) {

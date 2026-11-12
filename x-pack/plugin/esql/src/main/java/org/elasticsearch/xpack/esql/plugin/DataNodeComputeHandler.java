@@ -905,6 +905,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             if (lastBatchIndex < shards.size() && exchangeFinished() == false) {
                 runBatch(lastBatchIndex);
             } else {
+                // No later batch can use the tables, so release them now rather than once every page has been consumed
+                hashJoinTables.close();
                 // don't return until all pages have been consumed
                 if (internalExchange != null) {
                     internalExchange.addCompletionListener(computeListener.acquireAvoid());
@@ -949,7 +951,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         final int sortKeys = ShardTimestampOrder.sharedSortKeys(request.plan());
         final SharedSortBound sortBound = sortKeys > 0 ? new SharedSortBound(sortKeys) : null;
         // Every batch of shards plans the same request plan, so they can share the tables it joins against. Released
-        // before responding, so the memory is back by the time the coordinator learns this node is done.
+        // once the last batch is done, and in any case before responding, so the memory is back by the time the
+        // coordinator learns this node is done.
         final HashJoinTables hashJoinTables = new HashJoinTables();
         try (
             ComputeListener computeListener = new ComputeListener(

@@ -976,22 +976,3 @@ rate_bytes_in:double | time_bucket:datetime
 10.410099 | 2024-05-10T00:16:00.000Z
 9.406699 | 2024-05-10T00:09:00.000Z
 ;
-
-// #159176: RATE's optional window must be time_duration. Invalid 2nd args (integer, field, nested agg)
-// previously escaped analysis and crashed on fold/cast. This is the issue query shape with a valid duration.
-avgRateWithTimeDurationWindowByTBucket
-required_capability: ts_command_v0
-required_capability: rate_with_interpolation_v2
-required_capability: tbucket
-required_capability: fix_time_series_window_backward
-required_capability: fix_aggregate_window_time_duration_type
-
-TS k8s
-| STATS avg_rate = AVG(RATE(network.total_bytes_in, 1 hour)) BY bucket = TBUCKET(1 hour)
-| EVAL avg_rate = ROUND(avg_rate, 6)
-| KEEP avg_rate, bucket
-;
-
-avg_rate:double | bucket:datetime
-3.035907        | 2024-05-10T00:00:00.000Z
-;

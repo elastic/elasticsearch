@@ -121,9 +121,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         final ClusterState clusterState = clusterService.state();
         TransformNodes.warnIfNoTransformNodes(projectResolver.getProjectMetadata(clusterState), clusterState.getNodes());
 
-        // -1, in any unit, means no timeout, as in other APIs
-        TimeValue timeout = request.timeout().duration() == -1 ? TimeValue.MAX_VALUE : request.timeout();
-        RemainingTime remainingTime = RemainingTime.from(Instant::now, timeout);
+        RemainingTime remainingTime = RemainingTime.from(Instant::now, request.timeout());
 
         // When CPS is enabled and there are linked projects, unmigrated transforms (no credentialId, no explicit
         // project_routing) display a default of LOCAL_ONLY so users understand their effective search scope.
@@ -153,7 +151,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
                     r,
                     cancellableTask,
                     parentTaskId,
-                    timeout,
+                    request.timeout(),
                     remainingTime,
                     respondWithDanglingTasks(request.getId(), cancellableTask, unverifiedTaskIds, configs, r.count(), l)
                 );

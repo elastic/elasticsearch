@@ -269,14 +269,12 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         // size=0 must still page through every transform id to find the dangling task, and terminate
         verifyGetResponse(getTransformEndpoint() + "_all?size=0", 2, expectedErrors);
         verifyGetResponse(getTransformEndpoint() + "_all?from=1&size=0", 2, expectedErrors);
-        // timeout=-1, in any unit, means no timeout, so the dangling task check still runs
-        verifyGetResponse(getTransformEndpoint() + "_all?size=0&timeout=-1", 2, expectedErrors);
-        verifyGetResponse(getTransformEndpoint() + "_all?size=0&timeout=-1s", 2, expectedErrors);
-        // once the timeout has passed, the configs are returned without the dangling task check, and with a warning
-        {
+        // once the timeout has passed, the configs are returned without the dangling task check, and with a warning;
+        // a negative timeout has always counted as already passed
+        for (var timeout : List.of("1nanos", "-1", "-1s")) {
             var request = createRequestWithAuth(
                 "GET",
-                getTransformEndpoint() + "_all?size=0&timeout=1nanos",
+                getTransformEndpoint() + "_all?size=0&timeout=" + timeout,
                 BASIC_AUTH_VALUE_TRANSFORM_USER
             );
             request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));

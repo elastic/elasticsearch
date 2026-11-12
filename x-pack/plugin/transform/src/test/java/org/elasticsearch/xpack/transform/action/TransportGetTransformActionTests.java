@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.transform.action.TransportGetTransformAction.Tran
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -179,6 +180,17 @@ public class TransportGetTransformActionTests extends ESTestCase {
 
         var e = expectThrows(ElasticsearchTimeoutException.class, () -> collect(client, task(), () -> TimeValue.ZERO));
         assertThat(e.getMessage(), containsString("Timed out after [30s] while collecting transform ids"));
+        assertThat(client.searches, empty());
+    }
+
+    /**
+     * GET _transform has always treated a negative timeout as already elapsed, not as "no timeout".
+     */
+    public void testNegativeTimeoutFailsWithoutSearching() {
+        var client = new TransformIdSearchClient(threadPool, transformIds(10));
+        var remainingTime = RemainingTime.from(Instant::now, randomFrom(TimeValue.MINUS_ONE, TimeValue.timeValueSeconds(-1)));
+
+        expectThrows(ElasticsearchTimeoutException.class, () -> collect(client, task(), remainingTime));
         assertThat(client.searches, empty());
     }
 

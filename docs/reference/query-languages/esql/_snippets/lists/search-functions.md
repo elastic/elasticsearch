@@ -1,4 +1,4 @@
-* [`DECAY`](../../functions-operators/search-functions/decay.md) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
+* [`DECAY`](../../functions-operators/search-functions/decay.md) {applies_to}`stack: preview 9.3-9.6, ga 9.7+`
   :::{include} ../generated/x-pack-esql/functions/briefSummary/decay.md
   :::
 * [`KQL`](../../functions-operators/search-functions/kql.md) {applies_to}`stack: preview 9.0` {applies_to}`stack: ga 9.1`

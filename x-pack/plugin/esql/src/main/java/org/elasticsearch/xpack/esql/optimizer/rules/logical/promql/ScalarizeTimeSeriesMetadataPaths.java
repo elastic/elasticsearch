@@ -71,7 +71,8 @@ import java.util.TreeSet;
  * column references, using a compiler optimization called scalar replacement of aggregates (SROA).
  * <p>
  * Where a node before 9.7 takes part ({@link #usesLabelContainer}), the containers left whole stay the keyword
- * {@code _timeseries} views of the source, and a plan that needs more of a container than that fails.
+ * {@code _timeseries} views of the source. A view read after the collapse is the one the collapse carries, as in the keyword
+ * translation, and a plan that needs more of a container than that fails.
  */
 public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
@@ -905,15 +906,15 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
             Shape view = carried(shape.view());
             var left = new TreeSet<>(shape.excluded());
             left.removeAll(view.excluded());
-            return left.isEmpty()
+            // A keyword view cannot leave labels out after the collapse: a narrower reader reads the carried view, as the keyword
+            // translation did.
+            return left.isEmpty() || typed == false
                 ? view.rest()
-                : typedOnly(
-                    new TimeSeriesMetadataFilter(
-                        Source.EMPTY,
-                        view.rest(),
-                        left.stream().<Expression>map(l -> Literal.keyword(Source.EMPTY, l)).toList(),
-                        true
-                    )
+                : new TimeSeriesMetadataFilter(
+                    Source.EMPTY,
+                    view.rest(),
+                    left.stream().<Expression>map(l -> Literal.keyword(Source.EMPTY, l)).toList(),
+                    true
                 );
         }
 

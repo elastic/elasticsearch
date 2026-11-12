@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -39,8 +38,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
@@ -137,7 +137,7 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
         TimeSeriesAggregate collapse = collapse(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
         Expression without = new TimeSeriesMetadataFilter(SOURCE, labels.toAttribute(), List.of(Literal.keyword(SOURCE, "pod")), true);
         Alias rendered = new Alias(SOURCE, MetadataAttribute.TIMESERIES, new ToString(SOURCE, without, EsqlTestUtils.TEST_CFG));
-        LogicalPlan plan = PushDownPromqlLabels.pushDown(new Eval(SOURCE, collapse, List.of(rendered)), EsqlTestUtils.TEST_CFG, false);
+        LogicalPlan plan = ScalarizeTimeSeriesMetadataPaths.pushDown(new Eval(SOURCE, collapse, List.of(rendered)), EsqlTestUtils.TEST_CFG, false);
 
         assertThat(expressions(plan, TimeSeriesWithout.class), hasSize(1));
         assertThat(expressions(plan, ToTimeSeriesMetadata.class), empty());
@@ -145,8 +145,11 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
         assertThat(as(plan, Eval.class).fields().getFirst().dataType(), sameInstance(DataType.KEYWORD));
     }
 
-    /** A keyword label container is one view per series: a second view of the same series has no keyword form. */
-    public void testKeywordSecondViewFails() {
+    /**
+     * A typed view read after the collapse is narrowed from the carried one; a keyword view cannot be, so a narrower reader reads
+     * the carried view, as the keyword translation did.
+     */
+    public void testKeywordNarrowerViewReadsTheCarriedOne() {
         Alias labels = sourceLabels();
         TimeSeriesAggregate collapse = collapse(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
         Source withoutPod = new Source(1, 1, "without (pod)");
@@ -156,11 +159,12 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
         LogicalPlan plan = new Eval(SOURCE, collapse, List.of(narrow, whole));
 
         assertThat(
-            expressions(PushDownPromqlLabels.pushDown(plan, EsqlTestUtils.TEST_CFG, true), TimeSeriesMetadataFilter.class),
+            expressions(ScalarizeTimeSeriesMetadataPaths.pushDown(plan, EsqlTestUtils.TEST_CFG, true), TimeSeriesMetadataFilter.class),
             hasSize(1)
         );
-        var e = expectThrows(VerificationException.class, () -> PushDownPromqlLabels.pushDown(plan, EsqlTestUtils.TEST_CFG, false));
-        assertThat(e.getMessage(), containsString("leaving labels out of _timeseries requires a typed label container"));
+        Eval keyword = as(ScalarizeTimeSeriesMetadataPaths.pushDown(plan, EsqlTestUtils.TEST_CFG, false), Eval.class);
+        assertThat(expressions(keyword, TimeSeriesMetadataFilter.class), empty());
+        assertThat(keyword.fields().get(0).child(), equalTo(keyword.fields().get(1).child()));
     }
 
     private static Alias sourceLabels() {

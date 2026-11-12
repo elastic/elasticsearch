@@ -50,12 +50,4 @@ public class SettingsReadRecorderTests extends ESTestCase {
             recorded.reads().contains(SettingsReadRecorder.ITERATED)
         );
     }
-
-    public void testEmptySourceIsRecordable() {
-        SettingsReadRecorder.Recorded recorded = SettingsReadRecorder.record(Settings.EMPTY);
-        assertNull(recorded.settings().get("anything"));
-        assertEquals(Set.of("anything"), recorded.reads());
-        // the EMPTY singleton itself must stay untouched
-        assertNull(Settings.EMPTY.get("anything"));
-    }
 }

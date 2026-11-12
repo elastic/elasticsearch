@@ -109,22 +109,19 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     }
 
     /**
-     * Wraps {@code settings} as-is — no copy, no interning — so an instrumented map observes every
-     * read. Test support for {@code SettingsReadRecorder}; production construction goes through
-     * {@link Builder}, which normalizes and interns.
+     * A copy of {@code source} whose backing map is {@code wrapper} applied to the source's map, used
+     * as-is — no copy, no interning — so an instrumented map observes every read. Secure settings are
+     * carried over. Test support for {@code SettingsReadRecorder}; production construction goes
+     * through {@link Builder}, which normalizes and interns.
      */
-    static Settings wrapping(NavigableMap<String, Object> settings) {
-        return new Settings(settings);
+    static Settings wrapping(Settings source, UnaryOperator<NavigableMap<String, Object>> wrapper) {
+        return new Settings(source.secureSettings, wrapper.apply(source.settings));
     }
 
-    /** The raw backing map. Test support for {@code SettingsReadRecorder}. */
-    NavigableMap<String, Object> rawSettings() {
-        return settings;
-    }
-
-    private Settings(NavigableMap<String, Object> settings) {
+    // Parameters reversed so a NavigableMap argument can never resolve here instead of the copying constructor
+    private Settings(SecureSettings secureSettings, NavigableMap<String, Object> settings) {
         this.settings = settings;
-        this.secureSettings = null;
+        this.secureSettings = secureSettings;
     }
 
     private Settings(Map<String, Object> settings, SecureSettings secureSettings) {

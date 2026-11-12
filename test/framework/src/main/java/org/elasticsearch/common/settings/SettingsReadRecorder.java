@@ -41,7 +41,7 @@ public final class SettingsReadRecorder {
 
     public static Recorded record(Settings source) {
         SortedSet<String> reads = new TreeSet<>();
-        return new Recorded(Settings.wrapping(new RecordingMap(source.rawSettings(), reads)), reads);
+        return new Recorded(Settings.wrapping(source, map -> new RecordingMap(map, reads)), reads);
     }
 
     private static final class RecordingMap implements NavigableMap<String, Object> {

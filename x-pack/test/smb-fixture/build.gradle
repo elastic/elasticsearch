@@ -1,5 +1,5 @@
 apply plugin: 'elasticsearch.java'
-apply plugin: 'elasticsearch.cache-test-fixtures'
+apply plugin: 'elasticsearch.docker-image-cache'
 
 dependencies {
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"

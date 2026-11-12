@@ -26,8 +26,7 @@ import java.util.Objects;
  * on the configuration and not on the resource alone.
  * <p>
  * This is derived wherever it is needed and never held on a plan node. A field on a plan node would travel to data
- * nodes and need a transport version; resolution
- * finishes before a plan is serialized.
+ * nodes and need a transport version, and resolution finishes before a plan is serialized.
  *
  * @param path   the resource, as the relation's {@code tablePath} literal spells it
  * @param config includes the data source's credentials, which decide which objects are visible

@@ -33,7 +33,7 @@ import java.util.Set;
  *
  * <p>The result of {@link #specsRequiringEagerStats(LogicalPlan)} is used by
  * {@code ExternalSourceResolver} to gate the FIRST_FILE_WINS eager all-file stats aggregation: a
- * path absent from the set defers the N footer reads (keeping {@code STATS_FILE_COUNT}, marking
+ * spec absent from the set defers the N footer reads (keeping {@code STATS_FILE_COUNT}, marking
  * stats partial), so wide globs no longer block planning on thousands of object-store GETs for
  * queries that do not consume the global stats (e.g. {@code LIMIT}, {@code SELECT *}, grouped
  * {@code STATS ... BY}, {@code INLINESTATS}).

@@ -69,29 +69,6 @@ public record ExternalSourceResolution(Map<ExternalSourceSpec, ResolvedSource> r
         return resolved.get(spec);
     }
 
-    /**
-     * The resolution of the <b>only</b> spec over {@code path}, for the path-keyed {@code resolve} forms. No
-     * production caller; a plan resolves through {@link #resolvedSource(ExternalSourceSpec)}. Throws rather than
-     * guess when a path has two specs.
-     *
-     * @throws IllegalStateException if more than one spec over {@code path} resolved
-     */
-    // Package-private: no production caller, and the tests that use it are in this package.
-    ResolvedSource soleResolvedSource(String path) {
-        ResolvedSource found = null;
-        for (Map.Entry<ExternalSourceSpec, ResolvedSource> entry : resolved.entrySet()) {
-            if (entry.getKey().path().equals(path)) {
-                if (found != null) {
-                    throw new IllegalStateException(
-                        "path [" + path + "] was read more than one way; ask for a ResolvedSource by its ExternalSourceSpec"
-                    );
-                }
-                found = entry.getValue();
-            }
-        }
-        return found;
-    }
-
     public boolean isEmpty() {
         return resolved.isEmpty();
     }

@@ -59,13 +59,14 @@ public class EsqlParser {
     public static final int MAX_LENGTH = 1_000_000;
 
     /**
-     * Maximum number of binary operators between two consecutive separators of an ESQL query. A comma separates at any nesting level,
-     * a pipe or the semicolon that ends a {@code SET} or {@code LET} statement only outside parentheses, so a nested pipe, e.g. in a
-     * subquery, cannot be used to reset the count of the enclosing expression. A flat chain such as {@code 0+0+0+...} or a balanced tree such as {@code ((a+a)+(a+a))+...} stays under the
-     * parenthesis depth limit but makes ANTLR allocate a very large parse tree, so such queries are rejected from the token stream
-     * before parsing starts. The check is syntax-blind: unary {@code +}/{@code -} are conservatively counted too, and so is the
-     * {@code *} in {@code COUNT(*)}. Commas separate independent expressions (fields of an {@code EVAL}, arguments of a function),
-     * so wide but shallow queries such as an {@code EVAL} with thousands of fields are not affected.
+     * Maximum number of binary operators between two consecutive separators of an ESQL query. A comma separates at any nesting
+     * level, a pipe or the semicolon that ends a {@code SET} or {@code LET} statement only outside parentheses, so a nested pipe,
+     * e.g. in a subquery, cannot be used to reset the count of the enclosing expression. A flat chain such as {@code 0+0+0+...} or
+     * a balanced tree such as {@code ((a+a)+(a+a))+...} stays under the parenthesis depth limit but makes ANTLR allocate a very
+     * large parse tree, so such queries are rejected from the token stream before parsing starts. The check is syntax-blind: unary
+     * {@code +}/{@code -} are conservatively counted too, and so is the {@code *} in {@code COUNT(*)}. Commas separate independent
+     * expressions (fields of an {@code EVAL}, arguments of a function), so wide but shallow queries such as an {@code EVAL} with
+     * thousands of fields are not affected.
      */
     public static final int MAX_BINARY_OPERATORS = 1000;
 

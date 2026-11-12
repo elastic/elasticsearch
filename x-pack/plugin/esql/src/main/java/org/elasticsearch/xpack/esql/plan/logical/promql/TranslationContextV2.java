@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -33,9 +34,13 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWitho
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.ToTimeSeriesMetadata;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -47,16 +52,21 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2.IntermediateResult.Kind;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
@@ -90,7 +100,9 @@ public record TranslationContextV2(
      * intermediate results travel back up.
      */
     public IntermediateResult translate(LogicalPlan node) {
-        return TranslatorV2.translate(node, this);
+        switch (node) {
+            default -> throw new QlIllegalArgumentException("PromQL plan node [{}] does not translate in V2 yet", node.nodeName());
+        }
     }
 
     /** The labels of a vector without labels. */
@@ -522,4 +534,138 @@ public record TranslationContextV2(
         }
         return new PresentOverTime(absent.source(), time, Literal.TRUE, absent.window());
     }
+
+    /**
+     * The command's ES|QL plan: the query translated, projected to the command's declared output, each declared label read
+     * off the result's label container.
+     */
+    public LogicalPlan translateFinal() {
+        IntermediateResult result = translateIntermediate(cmd.promqlPlan(), cmd.stepId(), cmd.valueId());
+        boolean constant = result.kind().constant;
+        return finish(emitFinalProjection(result.plan(), result.labels(), constant), constant);
+    }
+
+    /** Keeps only steps within the query range; steps are anchored at {@code start} and offset-independent. */
+    private LogicalPlan emitByStepFilter(LogicalPlan plan) {
+        var source = cmd.source();
+        var step = cmd.stepAttribute();
+        var start = cmd.start();
+        var end = cmd.end();
+        var lo = new GreaterThanOrEqual(source, step, start.value() != null ? start : Literal.dateTime(source, EPOCH_MIN));
+        var hi = new LessThanOrEqual(source, step, end.value() != null ? end : Literal.dateTime(source, EPOCH_MAX));
+        return new Filter(source, plan, new And(source, lo, hi));
+    }
+
+    /** PromQL drops series with missing data: filter out rows whose value is null (null label columns are valid). */
+    public static LogicalPlan emitNullsFilter(Source source, LogicalPlan plan, Attribute value) {
+        return new Filter(source, plan, new IsNotNull(value.source(), value));
+    }
+
+    /** Every command drops missing samples and bounds its evaluation steps after exposing the public columns. */
+    private LogicalPlan finish(LogicalPlan plan, boolean localRelation) {
+        plan = emitNullsFilter(cmd.source(), plan, cmd.valueAttribute());
+        return localRelation ? plan : emitByStepFilter(plan);
+    }
+
+    /**
+     * Projects the command output. Value and step bind to the finished table's columns by name. Every label the command
+     * declares reads the result's label container {@code labels}, under its declared name, id and type, and the declared
+     * {@code _timeseries} is the container without them. A constant table carries no labels. Typed {@code _timeseries}
+     * stays internal: it binds under an id of its own and the command exposes its keyword form.
+     */
+    private LogicalPlan emitFinalProjection(LogicalPlan plan, @Nullable Expression labels, boolean constant) {
+        var lookupMap = new HashMap<String, Attribute>();
+        for (var attr : plan.output()) {
+            lookupMap.putIfAbsent(attr.name(), attr);
+        }
+        var projected = new ArrayList<NamedExpression>(cmd.output());
+        var evals = new ArrayList<Alias>();
+        List<Attribute> declared = cmd.promqlPlan().output();
+        // A column exposed only to order the result is read from the container but stays in _timeseries too
+        Set<NameId> orderingOnly = new HashSet<>();
+        cmd.promqlPlan().forEachDown(LogicalPlan.class, p -> {
+            if (p instanceof ResultOrderingFunction ordering) {
+                ordering.orderingOnlyColumns().forEach(column -> orderingOnly.add(column.id()));
+            }
+        });
+        List<String> named = PromqlLabels.labelNames(
+            declared.stream().filter(a -> PromqlLabels.isTagsLabel(a) == false && orderingOnly.contains(a.id()) == false).toList()
+        );
+        Source source = cmd.promqlPlan().source();
+        Alias rendered = null;
+        for (int i = 0; i < projected.size(); i++) {
+            var attr = projected.get(i).toAttribute();
+            // the value and step lead the declared output, then the result's labels
+            if (i >= 2 && constant == false) {
+                Attribute label = declared.get(i - 2);
+                if (PromqlLabels.isTagsLabel(label)) {
+                    Expression rest = labels == null
+                        ? TranslationContextV2.emptyLabels(source)
+                        : new TimeSeriesMetadataFilter(labels.source(), labels, PromqlLabels.labelLiterals(labels.source(), named), true);
+                    Alias labelContainer = new Alias(source, attr.name(), rest);
+                    evals.add(labelContainer);
+                    rendered = new Alias(
+                        source,
+                        attr.name(),
+                        new ToString(source, labelContainer.toAttribute(), configuration()),
+                        attr.id()
+                    );
+                    projected.set(i, labelContainer.toAttribute());
+                    continue;
+                }
+                Expression value = labels == null
+                    ? new Literal(source, null, attr.dataType())
+                    : asType(
+                        new TimeSeriesMetadataPath(
+                            labels.source(),
+                            labels,
+                            Literal.keyword(labels.source(), PromqlLabels.labelName(label))
+                        ),
+                        attr.dataType()
+                    );
+                Alias alias = new Alias(source, attr.name(), value, attr.id());
+                evals.add(alias);
+                projected.set(i, alias.toAttribute());
+                continue;
+            }
+            var lookupAttr = lookupMap.get(attr.name());
+            if (lookupAttr != null && lookupAttr.semanticEquals(attr) == false) {
+                var alias = new Alias(lookupAttr.source(), attr.name(), lookupAttr, attr.id());
+                if (lookupAttr.resolved()) {
+                    // Remap the finished table's column onto the command's id via Eval, then project the attribute.
+                    evals.add(alias);
+                    projected.set(i, alias.toAttribute());
+                } else {
+                    // Union branches often expose an unresolved value/step until Bind resolves aggregates under them.
+                    // Wrapping that in Eval makes Alias.toAttribute() an UnresolvedAttribute that shadows the real
+                    // column by name once the child resolves (Unknown column [value]/result]). Keep the Alias in
+                    // the Project so ResolveRefs rebinds it after the union output is refreshed.
+                    projected.set(i, alias);
+                }
+            }
+        }
+        if (evals.isEmpty() == false) {
+            plan = new Eval(cmd.source(), plan, evals);
+        }
+        plan = new Project(cmd.source(), plan, projected);
+        if (rendered == null) {
+            return plan;
+        }
+        plan = new Eval(cmd.source(), plan, List.of(rendered));
+        // in the declared order: the Eval appends the rendered column
+        var exposed = new ArrayList<NamedExpression>(projected.size());
+        for (NamedExpression projection : projected) {
+            exposed.add(projection.name().equals(rendered.name()) ? rendered.toAttribute() : projection.toAttribute());
+        }
+        return new Project(cmd.source(), plan, exposed);
+    }
+
+    /** A label's text as the declared label's type: a label read from the container is text, a dimension may not be. */
+    private Expression asType(Expression text, DataType type) {
+        if (type == DataType.KEYWORD || type == DataType.NULL) {
+            return text;
+        }
+        return EsqlDataTypeConverter.converterFunctionFactory(type).apply(text.source(), text, configuration());
+    }
+
 }

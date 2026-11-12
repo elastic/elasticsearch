@@ -47,7 +47,7 @@ public abstract class BlockArrowFormatter {
         // Add the exact ESQL type as field metadata
         var meta = new HashMap<>(extraMetadata);
         meta.put(ESQL_TYPE_METADATA, esqlType.outputType());
-        this.fieldType = new FieldType(true, minorType.getType(), null, Map.copyOf(meta));
+        this.fieldType = new FieldType(true, minorType.getType(), null, meta);
     }
 
     public Field arrowField(String name) {

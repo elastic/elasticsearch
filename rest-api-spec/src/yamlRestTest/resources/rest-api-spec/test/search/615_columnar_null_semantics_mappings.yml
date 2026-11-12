@@ -15,6 +15,7 @@ setup:
           settings:
             index.mode: columnar
             index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
           mappings:
             properties:
               kwd:
@@ -137,3 +138,21 @@ exists matches an empty string but not a lone null:
   - length: { hits.hits: 2 }
   - match: { hits.hits.0._id: empty_string }
   - match: { hits.hits.1._id: empty_string_and_null }
+
+---
+synthetic source keeps substituted, empty and malformed values and the nulls of a lone array:
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+
+  - length: { hits.hits: 9 }
+  - match: { hits.hits.0._source: { nv_kwd: NA, nv_lng: 7 } }
+  - match: { hits.hits.1._source: { nv_kwd: NA, nv_lng: 7 } }
+  - match: { hits.hits.2._source: { bad_lng: abc, bad_dt: not a date } }
+  - match: { hits.hits.4._source: { bad_lng: 1, bad_dt: "2026-01-01T00:00:00.000Z" } }
+  - match: { hits.hits.5._source: { kwd: "" } }
+  - match: { hits.hits.6._source: { kwd: [ "", null ] } }
+  - match: { hits.hits.7._source: { kwd: [ null ] } }

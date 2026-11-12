@@ -88,6 +88,7 @@ class DatafeedJob {
     private final long delayedDataCheckFreq;
     private final CrossClusterSearchStats crossClusterSearchStats;
     private final DatafeedFieldConflictTracker fieldConflictTracker = new DatafeedFieldConflictTracker();
+    private final DatafeedSearchTelemetry searchTelemetry;
 
     private volatile long lookbackStartTimeMs;
     private volatile long latestFinalBucketEndTimeMs;
@@ -123,7 +124,8 @@ class DatafeedJob {
         long latestRecordTimeMs,
         boolean haveSeenDataPreviously,
         long delayedDataCheckFreq,
-        CrossClusterSearchStats crossClusterSearchStats
+        CrossClusterSearchStats crossClusterSearchStats,
+        DatafeedSearchTelemetry searchTelemetry
     ) {
         this.datafeedId = datafeedId;
         this.projectRouting = projectRouting;
@@ -149,6 +151,7 @@ class DatafeedJob {
         this.haveEverSeenData = haveSeenDataPreviously;
         this.delayedDataCheckFreq = delayedDataCheckFreq;
         this.crossClusterSearchStats = Objects.requireNonNull(crossClusterSearchStats);
+        this.searchTelemetry = Objects.requireNonNull(searchTelemetry);
     }
 
     void isolate() {
@@ -502,6 +505,8 @@ class DatafeedJob {
                     DataCounts counts;
                     try (InputStream in = extractedData.get()) {
                         counts = postData(in, XContentType.JSON);
+                        // Counts from postData cover this batch only, so they are deltas.
+                        searchTelemetry.recordPostedBatch(counts);
                         LOGGER.trace(
                             () -> format(
                                 "[%s] Processed another %s records with latest timestamp [%s]",

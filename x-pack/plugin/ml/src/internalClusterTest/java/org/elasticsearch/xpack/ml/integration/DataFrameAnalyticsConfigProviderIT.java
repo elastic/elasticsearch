@@ -18,6 +18,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
+import org.elasticsearch.xpack.ml.notifications.MlNotificationTelemetry;
 import org.junit.Before;
 
 import java.time.Instant;
@@ -63,7 +65,8 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
                 client(),
                 getInstanceFromNode(ClusterService.class),
                 TestIndexNameExpressionResolver.newInstance(),
-                randomBoolean()
+                randomBoolean(),
+                new MlNotificationTelemetry(MeterRegistry.NOOP)
             ),
             getInstanceFromNode(ClusterService.class)
         );

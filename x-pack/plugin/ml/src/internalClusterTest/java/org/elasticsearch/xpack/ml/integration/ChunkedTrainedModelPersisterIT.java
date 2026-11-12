@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.License;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfoTests;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheMetadataService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
+import org.elasticsearch.xpack.ml.notifications.MlNotificationTelemetry;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -101,7 +103,8 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
                 client(),
                 getInstanceFromNode(ClusterService.class),
                 TestIndexNameExpressionResolver.newInstance(),
-                true
+                true,
+                new MlNotificationTelemetry(MeterRegistry.NOOP)
             ),
             (ex) -> {
                 throw new ElasticsearchException(ex);
@@ -178,7 +181,8 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
                 client(),
                 getInstanceFromNode(ClusterService.class),
                 TestIndexNameExpressionResolver.newInstance(),
-                false
+                false,
+                new MlNotificationTelemetry(MeterRegistry.NOOP)
             ),
             (ex) -> {
                 throw new ElasticsearchException(ex);

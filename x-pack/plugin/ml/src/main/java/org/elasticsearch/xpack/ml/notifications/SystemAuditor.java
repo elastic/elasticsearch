@@ -14,12 +14,18 @@ import org.elasticsearch.xpack.core.ml.notifications.SystemAuditMessage;
 
 public class SystemAuditor extends AbstractMlAuditor<SystemAuditMessage> {
 
-    public SystemAuditor(Client client, ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public SystemAuditor(
+        Client client,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        MlNotificationTelemetry telemetry
+    ) {
         super(
             client,
             (resourceId, message, level, timestamp, nodeName) -> new SystemAuditMessage(message, level, timestamp, nodeName),
             clusterService,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            telemetry
         );
     }
 

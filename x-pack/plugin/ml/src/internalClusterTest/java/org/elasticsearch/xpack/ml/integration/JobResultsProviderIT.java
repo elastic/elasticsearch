@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -74,6 +75,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.elasticsearch.xpack.ml.notifications.MlNotificationTelemetry;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
 
@@ -142,7 +144,13 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         // We can't change the signature of createComponents to e.g. pass differing values of includeNodeInfo to pass to the
         // AnomalyDetectionAuditor constructor. Instead we generate a random boolean value for that purpose.
         boolean includeNodeInfo = randomBoolean();
-        auditor = new AnomalyDetectionAuditor(client(), clusterService, TestIndexNameExpressionResolver.newInstance(), includeNodeInfo);
+        auditor = new AnomalyDetectionAuditor(
+            client(),
+            clusterService,
+            TestIndexNameExpressionResolver.newInstance(),
+            includeNodeInfo,
+            new MlNotificationTelemetry(MeterRegistry.NOOP)
+        );
         waitForMlTemplates();
     }
 

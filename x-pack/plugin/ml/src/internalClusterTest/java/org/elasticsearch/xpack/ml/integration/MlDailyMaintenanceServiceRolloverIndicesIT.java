@@ -24,6 +24,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
@@ -80,7 +81,8 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
             true,
             true,
             true,
-            true
+            true,
+            MeterRegistry.NOOP
         );
     }
 
@@ -680,7 +682,8 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
             true,
             true,
             true,
-            false // isIlmEnabled = false
+            false, // isIlmEnabled = false
+            MeterRegistry.NOOP
         );
         ilmDisabledService.setRolloverMaxSize(ByteSizeValue.ZERO);
 

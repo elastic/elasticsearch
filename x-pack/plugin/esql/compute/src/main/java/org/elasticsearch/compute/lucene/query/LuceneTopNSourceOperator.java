@@ -504,7 +504,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
             int shardId = shardContext.index();
             shardRowsEmitted[shardId] += size;
-            shard = blockFactory.newConstantIntBlockWith(shardId, size).asVector();
+            shard = blockFactory.newConstantIntVector(shardId, size);
             segments = currentSegmentBuilder.build();
             docs = currentDocsBuilder.build();
             docBlock = new DocVector(refCounteds, shard, segments, docs, DocVector.config()).asBlock();

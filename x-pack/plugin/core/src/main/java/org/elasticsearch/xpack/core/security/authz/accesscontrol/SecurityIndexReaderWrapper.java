@@ -15,6 +15,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
@@ -97,13 +98,22 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
             }
 
             var searchContext = searchExecutionContextProvider.apply(shardId);
-            Function<String, Boolean> isMapped = searchContext::isFieldMapped;
-
-            return permissions.getFieldPermissions().filter(wrappedReader, searchContext.getIndexSettings(), isMapped);
+            return permissions.getFieldPermissions()
+                .filter(wrappedReader, searchContext.getIndexSettings(), isMapped(searchContext.getMappingLookup()));
         } catch (IOException e) {
             logger.error("Unable to apply field level security");
             throw ExceptionsHelper.convertToElastic(e);
         }
+    }
+
+    /**
+     * Whether a Lucene field name is a field of the mapping itself, as opposed to a companion that a mapped field writes alongside its own
+     * values. Names under a field with dynamic keys (e.g. {@code f._keyed.counts} or {@code f.offsets} under a flattened field {@code f})
+     * are deliberately not mapped here, even though {@link MappingLookup#getFieldType} resolves them: they are always companions, and
+     * {@link FieldSubsetReader} must filter them under their parent's name.
+     */
+    static Function<String, Boolean> isMapped(MappingLookup mappingLookup) {
+        return name -> mappingLookup.getFullNameToFieldType().containsKey(name);
     }
 
     protected IndicesAccessControl getIndicesAccessControl() {

@@ -186,7 +186,7 @@ public class PromqlCoverageAnalyzer implements Closeable {
             .map(e -> truncateAfter(e, "expecting {"))
             .map(e -> truncateAfter(e, "no viable alternative at input"))
             .map(e -> truncateAfter(e, "Invalid call to dataType on an unresolved object"))
-            .map(e -> truncateAfter(e, "Invalid regular expression"))
+            .map(e -> truncateAfter(e, "Cannot parse regex"))
             .map(e -> truncateAfter(e, "mismatched input"))
             .map(e -> e.contains("optimized incorrectly due to missing references") ? "optimized incorrectly due to missing references" : e)
             // avoid lumping all missing function errors into one group

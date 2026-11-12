@@ -197,13 +197,13 @@ public class LabelMatcherTests extends ESTestCase {
     }
 
     /** The {@code RLIKE} filter must match exactly what the matcher's automaton matches. */
-    public void testRlikePatternAgreesWithAutomaton() {
+    public void testConvertRegExpToRE2AgreesWithAutomaton() {
         for (String regex : List.of("(a<1-3>|b)", "(a&b)", "(#)", "(@)", "(~a)", "(\"q\"x)", "[#-@]&.*", "a\\<1-3>|\\\\#")) {
             Automaton expected = new LabelMatcher("label", regex, Matcher.REG).automaton();
-            Automaton actual = LabelMatcher.rlikePattern(regex).createAutomaton(false);
+            Automaton actual = LabelMatcher.convertRegExpToRE2(regex).createAutomaton(false);
             assertTrue(regex, AutomatonTestUtil.sameLanguage(expected, actual));
         }
-        assertThat(LabelMatcher.rlikePattern("[#&]#&<@~\"\\#").pattern(), equalTo("[#&]\\#\\&\\<\\@\\~\\\"\\#"));
+        assertThat(LabelMatcher.convertRegExpToRE2("[#&]#&<@~\"\\#").pattern(), equalTo("[#&]\\#\\&\\<\\@\\~\\\"\\#"));
     }
 
     public void testInvalidRegex() {

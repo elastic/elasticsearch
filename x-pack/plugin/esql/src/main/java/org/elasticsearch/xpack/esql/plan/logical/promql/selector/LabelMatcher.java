@@ -38,9 +38,6 @@ public class LabelMatcher implements NodeStringRenderable {
 
     public static final String NAME = "__name__";
 
-    /** Characters that are literals in RE2 but operators in Lucene {@link RegExp}; see {@link #rlikePattern}. */
-    private static final String LUCENE_ONLY_OPERATORS = "\"#&<@~";
-
     public enum Matcher {
         EQ("=", false),
         NEQ("!=", false),
@@ -156,23 +153,25 @@ public class LabelMatcher implements NodeStringRenderable {
      * Lowers a PromQL regex to an {@link RLikePattern}, so that the matcher's automaton and the {@code RLIKE} filter
      * agree on what it matches. PromQL regexes use RE2 syntax, where {@code " # & < @ ~} are literals, but
      * {@link RLikePattern} parses Lucene {@link RegExp} syntax, where they are operators (quoted string, empty language,
-     * intersection, interval, any string, complement). They are escaped outside character classes; inside one Lucene
-     * reads them literally already and an escaped character cannot start a range.
+     * intersection, interval, any string, complement). They are escaped everywhere except inside a character class, the
+     * bracket expression {@code [...]} that matches one character from a set ({@code [a-z#]}): there Lucene reads them
+     * literally already, and an escaped character cannot start a range ({@code [#-@]}).
      */
-    public static RLikePattern rlikePattern(String regex) {
+    public static RLikePattern convertRegExpToRE2(String regex) {
         StringBuilder sb = new StringBuilder(regex.length());
-        boolean inClass = false;
+        // between an unescaped '[' and its closing ']'
+        boolean inCharClass = false;
         for (int i = 0, n = regex.length(); i < n; i++) {
             char c = regex.charAt(i);
             if (c == '\\' && i + 1 < n) {
                 sb.append(c).append(regex.charAt(++i));
-            } else if (inClass) {
-                inClass = c != ']';
+            } else if (inCharClass) {
+                inCharClass = c != ']';
                 sb.append(c);
             } else if (c == '[') {
-                inClass = true;
+                inCharClass = true;
                 sb.append(c);
-                // a ']' right after '[' or '[^' is a literal, not the end of the class
+                // a ']' right after '[' or '[^' is a literal, not the end of the character class
                 if (i + 1 < n && regex.charAt(i + 1) == '^') {
                     sb.append(regex.charAt(++i));
                 }
@@ -180,7 +179,7 @@ public class LabelMatcher implements NodeStringRenderable {
                     sb.append(regex.charAt(++i));
                 }
             } else {
-                if (LUCENE_ONLY_OPERATORS.indexOf(c) >= 0) {
+                if (c == '"' || c == '#' || c == '&' || c == '<' || c == '@' || c == '~') {
                     sb.append('\\');
                 }
                 sb.append(c);
@@ -191,7 +190,7 @@ public class LabelMatcher implements NodeStringRenderable {
 
     private static Automaton regexAutomaton(String regex) {
         try {
-            return rlikePattern(regex).createAutomaton(false);
+            return convertRegExpToRE2(regex).createAutomaton(false);
         } catch (IllegalArgumentException e) {
             throw new InvalidArgumentException(e, "Invalid regular expression [{}]: {}", regex, e.getMessage());
         }

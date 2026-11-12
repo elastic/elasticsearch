@@ -57,7 +57,10 @@ public class PromqlPlanMetadataManipulationFunctionV2Tests extends AbstractPromq
 
     /** {@code label_join} without source labels writes an empty value, which removes the destination like Prometheus. */
     public void testLabelJoinWithoutSourcesWritesAnEmptyValue() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h label_join(sum by (cluster) (network.bytes_in), \"dst\", \"-\")", false);
+        LogicalPlan plan = planPromqlV2(
+            "PROMQL index=k8s step=1h label_join(sum by (cluster) (network.bytes_in), \"dst\", \"-\")",
+            false
+        );
 
         assertThat(as(destination(plan), Literal.class).value(), nullValue());
     }

@@ -190,10 +190,10 @@ public class NumberTokenFidelityIT extends ESIntegTestCase {
             assumeTrue("batch indexing needs its feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
             // Known limitations of the batch path, skipped so that the rest of the matrix has to pass on it.
             // TODO 1: a binary-format float32 is stored as a double and rebuilt as one, so the stored _source of a CBOR or SMILE
-            //  document is widened. The batch needs to record the token width so that SourceRowToXContent writes a float32 again.
+            // document is widened. The batch needs to record the token width so that SourceRowToXContent writes a float32 again.
 
             // TODO 2: an integer larger than a long is stored as a STRING and rebuilt with quotes. The batch needs a big-integer
-            //  value type that the row parser and SourceRowToXContent present as a number token.
+            // value type that the row parser and SourceRowToXContent present as a number token.
             assumeFalse(
                 "batch indexing rebuilds a binary-format source from the value, and an integer larger than a long as a string",
                 check == Check.SOURCE

@@ -193,7 +193,9 @@ public class TaskManager implements ClusterStateApplier {
             ? Map.of(Tracer.AttributeKeys.TASK_ID, task.getId(), Tracer.AttributeKeys.PARENT_TASK_ID, parentTaskId.toString())
             : Map.of(Tracer.AttributeKeys.TASK_ID, task.getId());
 
-        final Task parentTask = parentTaskId.isSet() ? getTask(parentTaskId.getId()) : null;
+        final Task parentTask = parentTaskId.isSet() && Objects.equals(parentTaskId.getNodeId(), nodeId)
+            ? getTask(parentTaskId.getId())
+            : null;
         if (parentTask == null) {
             // the span is a child of the span that is current in the thread context, if there is one
             tracer.startTrace(task, task.getAction(), attributes);

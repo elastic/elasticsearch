@@ -184,7 +184,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
                 @MapParam.MapParamEntry(
                     name = TYPE,
                     type = { "keyword" },
-                    description = "Decay function to use: linear, exp or gauss. Defaults to linear."
+                    description = "Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`."
                 ) },
             optional = true
         ) Expression options

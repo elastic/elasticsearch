@@ -399,7 +399,13 @@ public class TransportDownsampleActionTests extends ESTestCase {
         );
         completedRequest.await(30, TimeUnit.SECONDS);
         assertThat(errorMessage.get(), notNullValue());
-        assertThat(errorMessage.get(), containsString("the downsample index already exists and was created for another source index"));
+        assertThat(
+            errorMessage.get(),
+            containsString(
+                "Choose a different target name, if this is not triggered by a lifecycle,"
+                    + " or delete the existing target index before retrying downsampling"
+            )
+        );
     }
 
     public void testDownsamplingWhenTargetIndexGetsDeleted() {

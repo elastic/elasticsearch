@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.downsample;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -70,7 +69,6 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -504,13 +502,12 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             : new Index(recordedSourceName, recordedSourceUuid);
         if (recordedSourceIndex != null && sourceIndex.equals(recordedSourceIndex) == false) {
             listener.onFailure(
-                new ElasticsearchStatusException(
-                    "cannot downsample [{}] into [{}], the downsample index already exists and was created for another source index "
-                        + "with uuid [{}]",
-                    RestStatus.CONFLICT,
-                    sourceIndex,
+                new ResourceAlreadyExistsException(
+                    "The target index [{}] belongs to a different source {}. Choose a different target name, if this is not triggered by"
+                        + " a lifecycle, or delete the existing target index before retrying downsampling {}.",
                     targetIndexName,
-                    recordedSourceUuid
+                    recordedSourceIndex,
+                    sourceIndex
                 )
             );
             return true;

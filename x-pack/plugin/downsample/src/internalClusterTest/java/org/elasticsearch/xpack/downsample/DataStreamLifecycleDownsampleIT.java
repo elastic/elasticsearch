@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
+import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -486,6 +487,95 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
             );
             unmarkNodesForShutdown();
         }
+    }
+
+    /**
+     * When the downsample index DLM wants to create exists because it was created for another source index, the downsample API rejects
+     * the request. DLM must record that error, and the failure must not prevent DLM from deleting the backing index once it exceeds the
+     * retention.
+     */
+    public void testDownsamplingFailsWhenTargetBelongsToAnotherSourceAndThenContinues() throws Exception {
+        String dataStreamName = "metrics-existing-target";
+        String differentSource = "different-source";
+        DateHistogramInterval firstInterval = new DateHistogramInterval("5m");
+        DateHistogramInterval secondInterval = new DateHistogramInterval("15m");
+
+        // The time bounds are in the past, so the first backing index is eligible as soon as it is rolled over
+        setupTSDBDataStreamAndIngestDocs(
+            dataStreamName,
+            "1986-01-08T23:40:53.384Z",
+            "2022-01-08T23:40:53.384Z",
+            null,
+            DOC_COUNT,
+            "1990-09-09T18:00:00"
+        );
+        putTSDBIndexTemplate(dataStreamName, null, null, null);
+        assertTrue(safeGet(client().execute(RolloverAction.INSTANCE, new RolloverRequest(dataStreamName, null))).isRolledOver());
+        ProjectMetadata project = clusterService().state().metadata().getProject();
+        Index backingIndex = project.dataStreams().get(dataStreamName).getIndices().getFirst();
+        String targetIndex = "downsample-" + firstInterval + "-" + backingIndex.getName();
+
+        // Downsample an unrelated index into the name DLM will use, so the target exists but belongs to another source
+        createReadOnlyTimeSeriesIndex(differentSource, 1, 0, 100);
+        assertAcked(
+            client().execute(
+                DownsampleAction.INSTANCE,
+                new DownsampleAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    differentSource,
+                    targetIndex,
+                    TimeValue.timeValueMinutes(2),
+                    new DownsampleConfig(firstInterval, randomSamplingMethod())
+                )
+            )
+        );
+
+        // Downsampling without retention, so we can observe the failure before the backing index gets deleted
+        DataStreamLifecycle.DownsamplingRound firstDownsamplingRound = new DataStreamLifecycle.DownsamplingRound(
+            TimeValue.ZERO,
+            firstInterval
+        );
+        DataStreamLifecycle.Builder lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .downsamplingRounds(List.of(firstDownsamplingRound));
+        putLifecycle(dataStreamName, lifecycle.build());
+
+        DataStreamLifecycleErrorStore errorStore = internalCluster().getCurrentMasterNodeInstance(DataStreamLifecycleService.class)
+            .getErrorStore();
+        assertBusy(() -> {
+            ErrorEntry error = errorStore.getError(project.id(), backingIndex);
+            assertThat(error, notNullValue());
+            assertThat(error.error(), containsString("resource_already_exists_exception"));
+        }, 30, TimeUnit.SECONDS);
+        assertTrue(indexExists(backingIndex.getName()));
+
+        // Maybe downsample further
+        if (true) {
+            String downsampledIndex = "downsample-" + secondInterval + "-" + backingIndex.getName();
+            putLifecycle(
+                dataStreamName,
+                lifecycle.downsamplingRounds(
+                    List.of(firstDownsamplingRound, new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(1), secondInterval))
+                ).build()
+            );
+            awaitClusterState(state -> state.metadata().getProject().hasIndex(downsampledIndex));
+        }
+        // Now the retention lapses, the backing index must be deleted regardless of the downsampling failure
+        putLifecycle(dataStreamName, lifecycle.dataRetention(TimeValue.timeValueSeconds(1)).build());
+        awaitClusterState(state -> state.metadata().getProject().dataStreams().get(dataStreamName).getIndices().size() == 1);
+    }
+
+    private void putLifecycle(String dataStreamName, DataStreamLifecycle lifecycle) {
+        assertAcked(
+            client().execute(
+                PutDataStreamLifecycleAction.INSTANCE,
+                new PutDataStreamLifecycleAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    new String[] { dataStreamName },
+                    lifecycle
+                )
+            )
+        );
     }
 
     private List<Index> getBackingIndices(String dataStreamName) {

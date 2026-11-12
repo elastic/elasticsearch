@@ -32,6 +32,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         this(phaseName, msg, null, shardFailures);
     }
 
+    @SuppressWarnings("this-escape")
     public SearchPhaseExecutionException(String phaseName, String msg, Throwable cause, List<ShardSearchFailure> shardFailures) {
         super(msg, deduplicateCause(cause, shardFailures));
         this.phaseName = phaseName;

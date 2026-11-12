@@ -27,9 +27,9 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 /** PromQL arithmetic and comparison operators translated over a label container. */
-public class PromqlPlanBinaryOperatorLabelTests extends AbstractPromqlPlanOptimizerTests {
+public class PromqlPlanVectorBinaryOperatorV2Tests extends AbstractPromqlPlanOptimizerTests {
 
-    public PromqlPlanBinaryOperatorLabelTests(VersionMode versionMode) {
+    public PromqlPlanVectorBinaryOperatorV2Tests(VersionMode versionMode) {
         super(versionMode);
     }
 
@@ -113,7 +113,7 @@ public class PromqlPlanBinaryOperatorLabelTests extends AbstractPromqlPlanOptimi
         var found = new ArrayList<List<String>>();
         plan.forEachExpressionDown(
             TimeSeriesMetadataFilter.class,
-            filter -> found.add(filter.labels().stream().map(PromqlPlanBinaryOperatorLabelTests::literal).toList())
+            filter -> found.add(filter.labels().stream().map(PromqlPlanVectorBinaryOperatorV2Tests::literal).toList())
         );
         return found;
     }

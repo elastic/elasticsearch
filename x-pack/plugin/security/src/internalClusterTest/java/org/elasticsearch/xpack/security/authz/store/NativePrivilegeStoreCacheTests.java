@@ -49,6 +49,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_PASSWORD_HASHED;
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_ROLE;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;
@@ -245,6 +246,35 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
                 .hasFailures()
         );
         assertEquals(3, new GetPrivilegesRequestBuilder(client).application("app-1*").get().privileges().length);
+    }
+
+    /**
+     * Creating the first matching application must invalidate an empty wildcard result for both query-based and in-memory expansion.
+     */
+    public void testNegativeWildcardCacheIsInvalidatedWhenMatchingApplicationIsCreated() {
+        final Client client = client();
+        final NativePrivilegeStore store = getInstanceFromNode(NativePrivilegeStore.class);
+        try {
+            for (boolean allowExpensiveQueries : List.of(true, false)) {
+                updateClusterSettings(Settings.builder().put(ALLOW_EXPENSIVE_QUERIES.getKey(), allowExpensiveQueries).build());
+                final String applicationName = "newapp-" + allowExpensiveQueries;
+                final String applicationPattern = applicationName + "*";
+
+                assertEquals(0, new GetPrivilegesRequestBuilder(client).application(applicationPattern).get().privileges().length);
+                assertEquals(Set.of(), store.getApplicationNamesCache().get(Set.of(applicationPattern)));
+
+                addApplicationPrivilege(applicationName, "read", "data:read/*");
+
+                final ApplicationPrivilegeDescriptor[] privileges = new GetPrivilegesRequestBuilder(client).application(applicationPattern)
+                    .get()
+                    .privileges();
+                assertEquals(1, privileges.length);
+                assertEquals(applicationName, privileges[0].getApplication());
+                assertEquals("read", privileges[0].getName());
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(ALLOW_EXPENSIVE_QUERIES.getKey()).build());
+        }
     }
 
     public void testHasPrivileges() {

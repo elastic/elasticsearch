@@ -1238,11 +1238,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     }
 
     /**
-     * A scoped invalidation must remove every application names cache entry whose queried names could match the changed
-     * application — verbatim or through a wildcard — while leaving unrelated entries in place. An entry whose resolved
-     * names contain the changed application always also matches through its queried names, since the loader only returns
-     * applications its queried names matched. The descriptors cache is keyed by application name and only loses the named
-     * applications.
+     * Scoped invalidation removes names cache entries that could match a changed application, including negative entries,
+     * while preserving unrelated entries in both caches.
      */
     public void testInvalidate() {
         // Stale: a wildcard in the queried names matches the changed application, which may just have been created
@@ -1270,11 +1267,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     }
 
     /**
-     * The loader can only resolve an application whose name its queried names matched, so an entry whose resolved names
-     * contain a changed application that its queried names do not match cannot legitimately exist. The invalidation asserts
-     * this invariant instead of invalidating such an entry, so that the loader's name expansion growing broader than the
-     * invalidation matching fails tests rather than being silently masked in the deletion direction (the creation
-     * direction, a new application missing from stale wildcard entries, could not be masked anyway).
+     * An entry resolving beyond its queried names violates the loader's contract and must trip the invalidation assertion.
      */
     public void testInvalidationRejectsEntryResolvedBeyondItsQueriedNames() {
         store.getApplicationNamesCache().put(singleton("other-*"), Set.of("other-1", "app-1"));
@@ -1286,14 +1279,11 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     }
 
     /**
-     * The invalidation's queried-name matching must be at least as broad as the loader's in-memory matching
-     * ({@link StringMatcher}, used when expensive queries are disallowed, which also subsumes the query-based expansion):
-     * any application the loader could have resolved for a queried name must be invalidated through that queried name,
-     * including {@code ?} wildcards and {@code /regex/} patterns, which only {@link StringMatcher} understands.
+     * Invalidation must cover the loader's {@link StringMatcher} rules, including {@code ?} wildcards and {@code /regex/} patterns.
      */
     public void testInvalidationMatchingIsAtLeastAsBroadAsLoaderMatching() {
         final String applicationName = randomAlphaOfLengthBetween(3, 10);
-        final String queriedName = randomFrom(
+        for (String queriedName : List.of(
             applicationName,
             applicationName.substring(0, randomIntBetween(0, applicationName.length() - 1)) + "*",
             "*" + applicationName.substring(randomIntBetween(1, applicationName.length())),
@@ -1301,18 +1291,17 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             applicationName.substring(0, 1) + "?" + applicationName.substring(2),
             applicationName.substring(0, 1) + "?*",
             "/" + applicationName + "/"
-        );
-        assertTrue(StringMatcher.of(queriedName).test(applicationName));
+        )) {
+            assertTrue(queriedName, StringMatcher.of(queriedName).test(applicationName));
 
-        store.getApplicationNamesCache().put(singleton(queriedName), Set.of(applicationName));
-        store.getDescriptorsAndApplicationNamesCache().invalidate(singletonList(applicationName));
-        assertEquals(0, store.getApplicationNamesCache().count());
+            store.getApplicationNamesCache().put(singleton(queriedName), Set.of(applicationName));
+            store.getDescriptorsAndApplicationNamesCache().invalidate(singletonList(applicationName));
+            assertEquals(queriedName, 0, store.getApplicationNamesCache().count());
+        }
     }
 
     /**
-     * A names cache entry whose queried name the matcher cannot parse — such as a malformed regex, which can be cached
-     * while expensive queries are allowed since the query-based expansion treats it as a literal term — cannot be proven
-     * unrelated to the changed applications, so it is invalidated rather than kept or failing the whole invalidation.
+     * Query-based expansion can cache a malformed regex as a literal term; invalidation must conservatively evict it.
      */
     public void testInvalidationTreatsUnparsablePatternAsStale() {
         // A pattern starting with '/' must end with '/' for StringMatcher; this one does not and fails to parse

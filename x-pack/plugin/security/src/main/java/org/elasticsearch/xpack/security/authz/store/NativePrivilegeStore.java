@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -260,10 +261,8 @@ public class NativePrivilegeStore {
     }
 
     /**
-     * The application name matching this expansion performs must stay no broader than {@link StringMatcher}, which
-     * {@link DescriptorsAndApplicationNamesCache#canReferenceAnyOf} uses to decide which names cache entries a privilege
-     * change invalidates. The in-memory predicate below is that same matcher; broadening the query-based expansion beyond
-     * it (e.g. case-insensitive names) requires broadening the invalidation matching as well.
+     * Application name expansion must stay within {@link StringMatcher}'s matching rules so that
+     * {@link DescriptorsAndApplicationNamesCache#canReferenceAnyOf} invalidates every affected names cache entry.
      */
     private Tuple<QueryBuilder, Predicate<String>> getApplicationNameQueryAndPredicate(Collection<String> applications) {
         if (applications.contains("*")) {
@@ -701,17 +700,14 @@ public class NativePrivilegeStore {
                 if (canReferenceAnyOf(queriedNames, uniqueNames)) {
                     staleKeys.add(queriedNames);
                 } else {
-                    // The loader only returns applications its queried names matched, so an unmatched entry cannot have
-                    // resolved to a changed application. If this trips, the loader's name expansion has become broader
-                    // than the matching in canReferenceAnyOf, which must be broadened with it.
+                    // The loader must only resolve applications matched by the queried names.
                     assert Collections.disjoint(concreteNames, uniqueNames)
-                        : "names cache entry "
-                            + queriedNames
-                            + " resolved to "
-                            + concreteNames
-                            + " although its queried names do not match "
-                            + uniqueNames
-                            + "; the loader's application name expansion is broader than canReferenceAnyOf";
+                        : format(
+                            "Application name expansion is broader than invalidation matching: queried [%s], resolved [%s], changed [%s]",
+                            queriedNames,
+                            concreteNames,
+                            uniqueNames
+                        );
                 }
             });
             staleKeys.forEach(applicationNamesCache::invalidate);
@@ -719,18 +715,8 @@ public class NativePrivilegeStore {
         }
 
         /**
-         * Whether a change to any of the given applications can make this names cache entry stale, judged from the queried
-         * names alone: an entry is stale if the queried names contain a changed application verbatim (a negative or subset
-         * entry whose application may just have gained its first privilege) or match one through a pattern. The pattern
-         * matching delegates to {@link StringMatcher}, the same matcher the loader uses to expand names in memory when
-         * expensive queries are disallowed (it supports {@code *}, {@code ?}, escapes and {@code /regex/} patterns, and
-         * subsumes the query-based expansion, which only supports trailing {@code *} prefixes), so the two cannot drift
-         * apart. A queried name the matcher cannot parse is treated as stale rather than proven unrelated: over-matching
-         * merely invalidates a fresh entry, while under-matching would leave a stale one behind.
-         * <p>
-         * The names an entry resolved to never need checking, because the loader only returns applications that its queried
-         * names matched, so a changed application in the resolved names is always also caught here; the assertion in
-         * {@link #invalidate} verifies that.
+         * Whether the queried names could match a changed application, including one missing from a cached empty result.
+         * Uses the loader's {@link StringMatcher} rules; invalid or overly complex patterns are conservatively treated as stale.
          */
         private static boolean canReferenceAnyOf(Set<String> queriedNames, Set<String> applicationNames) {
             for (String queriedName : queriedNames) {
@@ -741,10 +727,9 @@ public class NativePrivilegeStore {
                     final Predicate<String> matcher;
                     try {
                         matcher = StringMatcher.of(queriedName);
-                    } catch (Exception e) {
-                        // A key the matcher cannot parse (e.g. a malformed regex queried while expensive queries were
-                        // allowed, where it is matched as a literal term instead) cannot be proven unrelated.
-                        logger.debug(() -> "invalidating names cache entry for unparsable pattern [" + queriedName + "]", e);
+                    } catch (ElasticsearchSecurityException e) {
+                        // Invalid or overly complex patterns cannot be proven unrelated to the changed applications.
+                        logger.debug(() -> format("invalidating names cache entry for unparsable pattern [%s]", queriedName), e);
                         return true;
                     }
                     for (String applicationName : applicationNames) {

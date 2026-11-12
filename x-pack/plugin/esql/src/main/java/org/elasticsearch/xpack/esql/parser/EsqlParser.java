@@ -60,8 +60,8 @@ public class EsqlParser {
 
     /**
      * Maximum number of binary operators between two consecutive separators of an ESQL query. A comma separates at any nesting level,
-     * a pipe only outside parentheses, so a nested pipe, e.g. in a subquery, cannot be used to reset the count of the enclosing
-     * expression. A flat chain such as {@code 0+0+0+...} or a balanced tree such as {@code ((a+a)+(a+a))+...} stays under the
+     * a pipe or the semicolon that ends a {@code SET} or {@code LET} statement only outside parentheses, so a nested pipe, e.g. in a
+     * subquery, cannot be used to reset the count of the enclosing expression. A flat chain such as {@code 0+0+0+...} or a balanced tree such as {@code ((a+a)+(a+a))+...} stays under the
      * parenthesis depth limit but makes ANTLR allocate a very large parse tree, so such queries are rejected from the token stream
      * before parsing starts. The check is syntax-blind: unary {@code +}/{@code -} are conservatively counted too, and so is the
      * {@code *} in {@code COUNT(*)}. Commas separate independent expressions (fields of an {@code EVAL}, arguments of a function),
@@ -71,8 +71,8 @@ public class EsqlParser {
 
     /**
      * Maximum number of left parentheses, which are the function calls, subqueries and parenthesized expressions, of one top level item
-     * of an ESQL query. Unlike the binary operators, they are not reset inside parentheses, only by a comma or a pipe outside of any
-     * parentheses, e.g. between the fields of an {@code EVAL}. A balanced tree of nested function calls such as
+     * of an ESQL query. Unlike the binary operators, they are not reset inside parentheses, only by a comma, a pipe or a statement
+     * semicolon outside of any parentheses, e.g. between the fields of an {@code EVAL}. A balanced tree of nested function calls such as
      * {@code max(max(0,0),max(0,0))} contains no binary operators, so the {@link #MAX_BINARY_OPERATORS} limit does not see it, but its
      * prediction cost in ANTLR grows with the number of the nested calls, and a few thousand characters can take gigabytes of heap.
      */
@@ -330,7 +330,8 @@ public class EsqlParser {
                 );
             }
             // depth can be negative for an invalid query with an unmatched right parenthesis, which is reported by the parser
-            boolean topLevelSeparator = depth <= 0 && (type == EsqlBaseLexer.COMMA || type == EsqlBaseLexer.PIPE);
+            boolean topLevelSeparator = depth <= 0
+                && (type == EsqlBaseLexer.COMMA || type == EsqlBaseLexer.PIPE || type == EsqlBaseLexer.SEMICOLON);
             if (type == EsqlBaseLexer.COMMA || topLevelSeparator) {
                 binaryOperators = 0;
             }

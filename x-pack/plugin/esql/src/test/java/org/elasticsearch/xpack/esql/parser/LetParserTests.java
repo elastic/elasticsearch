@@ -32,6 +32,8 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
@@ -60,6 +62,17 @@ public class LetParserTests extends AbstractStatementParserTests {
         assertThat(b.name(), is("top3"));
         // The body is a Limit plan wrapping an UnresolvedRelation
         assertThat(b.plan(), instanceOf(Limit.class));
+    }
+
+    public void testLimitsAreResetBetweenBindings() {
+        assumeLet();
+        // Each binding is within the limits of the operators and of the left parentheses, only their sum is not
+        String conditions = " and a > 0".repeat(EsqlParser.MAX_BINARY_OPERATORS / 4);
+        String calls = IntStream.range(0, EsqlParser.MAX_LEFT_PARENTHESES / 2).mapToObj(i -> "abs(1)").collect(Collectors.joining(", "));
+        for (String body : List.of("FROM idx | WHERE a > 0" + conditions, "FROM idx | EVAL a = coalesce(" + calls + ")")) {
+            EsqlStatement stmt = statement("LET a = (" + body + "); LET b = (" + body + "); LET c = (" + body + "); ROW x = 1");
+            assertThat(stmt.letBindings().size(), is(3));
+        }
     }
 
     public void testMultipleBindings() {

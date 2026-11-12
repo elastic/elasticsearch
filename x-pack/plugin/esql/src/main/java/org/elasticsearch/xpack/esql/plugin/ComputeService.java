@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -25,16 +26,21 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.DriverExecutor;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
@@ -52,11 +58,14 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -209,6 +218,7 @@ public class ComputeService {
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
+    private final Client client;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
     private final ClusterService clusterService;
@@ -256,6 +266,7 @@ public class ComputeService {
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = transportActionServices.inferenceService();
+        this.client = transportActionServices.client();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.ipLocationService = transportActionServices.ipLocationService();
         this.clusterService = transportActionServices.clusterService();
@@ -879,7 +890,8 @@ public class ComputeService {
                         // No reservation reaches the synchronous path, which only tests take.
                         PlanningMemory.NONE,
                         0,
-                        minTransportVersion
+                        minTransportVersion,
+                        guarded.filteredLimit()
                     );
                 }
                 if (result.plan() instanceof ExternalSourceExec withSplits) {
@@ -981,6 +993,7 @@ public class ComputeService {
                 discoveryMemory(run),
                 taskConcurrency,
                 minTransportVersion(),
+                work.guarded().filteredLimit(),
                 ioExecutor,
                 ActionListener.wrap(result -> {
                     try {
@@ -1461,6 +1474,7 @@ public class ComputeService {
             }
             var computeContext = new ComputeContext(
                 newChildSession(sessionId),
+                queryId(rootTask),
                 profileDescription(profileQualifier, "single"),
                 LOCAL_CLUSTER,
                 flags,
@@ -1570,6 +1584,7 @@ public class ComputeService {
                         rootTask,
                         new ComputeContext(
                             sessionId,
+                            queryId(rootTask),
                             profileDescription(profileQualifier, "final"),
                             LOCAL_CLUSTER,
                             flags,
@@ -1633,7 +1648,11 @@ public class ComputeService {
                     }
                 }
                 // starts computes on remote clusters
-                final var remoteClusters = clusterComputeHandler.getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices);
+                final var remoteClusters = clusterComputeHandler.getRemoteClusters(
+                    clusterToConcreteIndices,
+                    clusterToOriginalIndices,
+                    execInfo
+                );
                 for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
                     String clusterAlias = cluster.clusterAlias();
                     // Check the initial cluster status set by planning phase before executing the data node plan on remote clusters,
@@ -1716,6 +1735,7 @@ public class ComputeService {
                 rootTask,
                 new ComputeContext(
                     sessionId,
+                    queryId(rootTask),
                     profileDescription(profileQualifier, "final"),
                     LOCAL_CLUSTER,
                     flags,
@@ -1994,7 +2014,9 @@ public class ComputeService {
     ) {
         QueryWarnings singleValueQueryWarnings = QueryWarnings.EMIT;
         Set<String> unmappedFieldNames = PlannerUtils.unmappedFieldNames(plan);
-        var shardContexts = context.searchContexts().map(csc -> csc.shardContext(singleValueQueryWarnings, unmappedFieldNames));
+        boolean flattenedKeys = context.configuration().flattenedKeys();
+        var shardContexts = context.searchContexts()
+            .map(csc -> csc.shardContext(singleValueQueryWarnings, unmappedFieldNames, flattenedKeys));
         LongSupplier directoryBytesRead = directoryBytesReadSupplier(searchService.getIndicesService());
         // Snapshot per-thread Lucene directory bytes counter so we can attribute planner-time I/O
         // (query rewriting, weight construction, SearchStats lookups, sort builders, etc.) that
@@ -2002,17 +2024,28 @@ public class ComputeService {
         long bytesBefore = directoryBytesRead.getAsLong();
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             context.foldCtx(),
+            context.configuration(),
             shardContexts,
             searchService.getIndicesService().getAnalysis(),
             plannerSettings,
             directoryBytesRead,
             singleValueQueryWarnings
         );
+        // the time its sources do not attribute to a shard goes to all the shards of the compute
+        TaskLoadAttribution.Target computeLoad = context.description().equals(DATA_DESCRIPTION) ? shardsLoad(shardContexts) : null;
+        Executor parallelWorkers = searchService.queryScheduler().executor(context.queryId(), computeExecutor, List.of());
 
         try {
             var workerThreadPool = transportService.getThreadPool();
             int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();
 
+            // The planner's client is used solely by the coordinator-local EQL source, which delegates one
+            // EqlSearchAction. Assign the compute task as that search's parent so cancelling the ES|QL query
+            // cancels the delegated EQL search instead of orphaning it (and hanging the driver that waits on it).
+            var eqlDelegateClient = new ParentTaskAssigningClient(
+                client,
+                task.taskInfo(transportService.getLocalNode().getId(), false).taskId()
+            );
             // One snapshot of the project for the dataset rebind below and for the planner. The external request handler
             // rebinds under its own snapshot before calling here; the planner does not consult datasets, so the two
             // snapshots cannot disagree on anything that is read.
@@ -2038,10 +2071,12 @@ public class ComputeService {
                 physicalOperationProviders,
                 operatorFactoryRegistry,
                 datasetConfigResolver.snapshotBuild(),
-                computeExecutor,
+                // the workers of parallel operators are tasks of the query, with no shard of their own
+                computeLoad == null ? parallelWorkers : TaskLoadAttribution.charging(parallelWorkers, computeLoad),
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
-                clusterService.state().getMinTransportVersion()
+                clusterService.state().getMinTransportVersion(),
+                eqlDelegateClient
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
@@ -2136,6 +2171,9 @@ public class ComputeService {
             if (drivers.isEmpty()) {
                 throw new IllegalStateException("no drivers created");
             }
+            for (Driver driver : drivers) {
+                driver.loadTarget(computeLoad);
+            }
             LOGGER.debug("using {} drivers", drivers.size());
             // Bridge per-driver stop hooks to the async task's execution info. Source operators register
             // non-destructive hooks on their {@link DriverContext} (today: {@code AsyncExternalSourceOperator}
@@ -2180,7 +2218,12 @@ public class ComputeService {
                 planningBytesRead,
                 approximationApplied
             );
-            driverRunner.executeDrivers(task, drivers, computeExecutor, ActionListener.releaseAfter(driverListener, () -> {
+            QueryDriverExecutor driverExecutor = new QueryDriverExecutor(
+                context.queryId(),
+                // only data drivers read the slices of the shards; the node reduce shares the search contexts
+                context.description().equals(DATA_DESCRIPTION) ? searchedShards(context.searchContexts()) : List.of()
+            );
+            driverRunner.executeDrivers(task, drivers, driverExecutor, ActionListener.releaseAfter(driverListener, () -> {
                 if (hookExecInfo != null) {
                     for (BooleanSupplier hook : registeredStopHooks) {
                         hookExecInfo.removeStopHook(hook);
@@ -2342,6 +2385,51 @@ public class ComputeService {
         return session + "/" + childSessionIdGenerator.incrementAndGet();
     }
 
+    /**
+     * The id of the query a coordinator task runs.
+     */
+    TaskId queryId(Task coordinatorTask) {
+        return new TaskId(transportService.getLocalNode().getId(), coordinatorTask.getId());
+    }
+
+    /**
+     * Runs the drivers of a query on the node's {@link ComputeExecutor}, through the query scheduler both when they start
+     * and when they resume.
+     */
+    private final class QueryDriverExecutor implements DriverExecutor {
+        private final QueryScheduler.QueryExecutor executor;
+        /** The scheduler passes a wrapped {@link AbstractRunnable} on as an {@link AbstractRunnable}, so the cast holds. */
+        private final Executor resumed = task -> computeExecutor.executeResumed((AbstractRunnable) task);
+
+        QueryDriverExecutor(TaskId queryId, List<QueryScheduler.SearchedShard> shards) {
+            this.executor = searchService.queryScheduler().executor(queryId, computeExecutor, shards);
+        }
+
+        @Override
+        public void execute(Runnable task) {
+            executor.execute(task);
+        }
+
+        @Override
+        public void executeResumed(AbstractRunnable task) {
+            executor.execute(task, resumed);
+        }
+    }
+
+    /**
+     * The shards the drivers search, skipping contexts already closed.
+     */
+    static List<QueryScheduler.SearchedShard> searchedShards(IndexedByShardId<ComputeSearchContext> searchContexts) {
+        List<QueryScheduler.SearchedShard> shards = new ArrayList<>();
+        for (ComputeSearchContext context : searchContexts.iterable()) {
+            IndexShard shard = context.indexShard();
+            if (shard != null) {
+                shards.add(new QueryScheduler.SearchedShard(shard, context.hasUnfinishedSlices()));
+            }
+        }
+        return shards;
+    }
+
     String profileDescription(String qualifier, String label) {
         return qualifier == null ? label : qualifier + "." + label;
     }
@@ -2386,6 +2474,15 @@ public class ComputeService {
         public String getDescription() {
             return "group [" + parentDescription.get() + "]";
         }
+    }
+
+    /**
+     * A target charging the shards of a compute equally, or {@code null} when it reads none.
+     */
+    private static TaskLoadAttribution.Target shardsLoad(IndexedByShardId<? extends ShardContext> shardContexts) {
+        List<ShardSearchStats> shards = new ArrayList<>();
+        shardContexts.iterable().forEach(shard -> shards.add(shard.stats()));
+        return ShardSearchStats.target(shards);
     }
 
     private static Map<String, OriginalIndices> getIndices(PhysicalPlan plan, Function<EsRelation, Map<String, List<String>>> getter) {

@@ -92,7 +92,13 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Knn.class)
         .ternary(Knn::new)
-        .capabilities("runtime_anywhere", "runtime_similarity_function", "single_dimension_query_vector")
+        .capabilities(
+            "runtime_anywhere",
+            "runtime_similarity_function",
+            "single_dimension_query_vector",
+            "k_option_without_limit", // an explicit k option satisfies the k requirement without a LIMIT after KNN.
+            "inline_dense_vector_conversion_fix"
+        )
         .name("knn");
 
     private final Integer implicitK;
@@ -152,6 +158,8 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
             - With `dot_product`, every vector must be unit length. Rows whose vectors aren't unit length are filtered out
               with a warning.
             - To get the k nearest vectors, sort and limit the results explicitly, for example `SORT _score DESC | LIMIT 10`.
+
+            To learn more, refer to [runtime search](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-knn).
 
             :::{tip}
             Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
@@ -552,7 +560,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
 
     @Override
     protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        assert implicitK() != null : "Knn function must have a k value set before translation";
+        assert hasK() : "Knn function must have a k value set before translation";
         var fieldAttribute = fieldAsFieldAttribute(field());
 
         Check.notNull(fieldAttribute, "Knn must have a field attribute as the first argument");
@@ -613,12 +621,23 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
 
     @Override
     public void postOptimizationVerification(Failures failures) {
-        // Check that a k has been set
-        if (implicitK() == null) {
+        // Check that a k has been set. Runtime searches are evaluated per row and don't use k.
+        if (false == isRuntimeSearch() && false == hasK()) {
             failures.add(
-                Failure.fail(this, "Knn function must be used with a LIMIT clause after it to set the number of nearest neighbors to find")
+                Failure.fail(
+                    this,
+                    "[KNN] function must specify a k option or be used with a LIMIT clause after it "
+                        + "to set the number of nearest neighbors to find"
+                )
             );
         }
+    }
+
+    /**
+     * Whether k is known, either from the explicit {@code k} option or from a LIMIT pushed down as {@link #implicitK()}.
+     */
+    private boolean hasK() {
+        return implicitK() != null || queryOptions().get(K_FIELD.getPreferredName()) != null;
     }
 
     @Override

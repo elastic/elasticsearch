@@ -134,6 +134,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     ) {
         ClusterService clusterService = createMockClusterService();
         return new TransportActionServices(
+            mock(Client.class),
             createMockTransportService(),
             mock(SearchService.class),
             null,
@@ -823,6 +824,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     ),
                     true,
                     IndexMode.STANDARD,
+                    0,
                     0,
                     0,
                     0

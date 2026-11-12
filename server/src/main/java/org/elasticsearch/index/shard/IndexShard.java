@@ -11,6 +11,7 @@ package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfos;
@@ -35,6 +36,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.replication.PendingReplicationActions;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -83,9 +85,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.analysis.TokenCountingAnalyzer;
-import org.elasticsearch.index.analysis.TokenCountingIndexAnalyzer;
-import org.elasticsearch.index.analysis.TokenCountingMetrics;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.bulk.stats.ShardBulkStats;
@@ -213,6 +212,7 @@ import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
+import static org.elasticsearch.indices.recovery.FailureStrategy.RETRY;
 import static org.elasticsearch.threadpool.ThreadPool.Names.WRITE;
 
 public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
@@ -283,6 +283,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final RetentionLeaseSyncer retentionLeaseSyncer;
 
+    private enum PrimaryRelocationState {
+        NONE,
+        RELOCATING
+    }
+
+    /// Whether this shard is the _source_ of a primary relocation that is currently executing on this node, see
+    /// [#isActivelyRelocatingPrimary()]. Always `NONE` on replicas.
+    /// Updated atomically with `latestPrimaryRelocationClusterStateVersion`.
+    private volatile PrimaryRelocationState primaryRelocationState = PrimaryRelocationState.NONE;
+
+    /// The cluster state version sent by the target of the latest relocation that started on this node.
+    ///
+    /// If a relocation fails or is cancelled and the master retries it (e.g. to a new target), the retry can start before
+    /// the previous attempt has finished unwinding. Each attempt's target shard is created in a newer cluster state, since a
+    /// new relocation target only appears once the previous one has been removed from the routing table, so this version
+    /// strictly increases across attempts. Both transitions check it, so a stale attempt cannot modify `primaryRelocationState`
+    /// once a newer attempt has started, even after that newer attempt has completed or failed.
+    private long latestPrimaryRelocationClusterStateVersion = ClusterState.UNKNOWN_VERSION;
+
     private volatile RecoveryState recoveryState;
     private volatile boolean recoveryCancellationRequested = false;
 
@@ -346,6 +365,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
         final DiscoveryNode localNode,
         @Nullable final DiscoveryNode sourceNode,
+        final int localRecoveryRetries,
         final IndexSettings indexSettings,
         final ShardPath path,
         final Store store,
@@ -380,7 +400,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         assert localNode.getId().equals(shardRouting.currentNodeId())
             : "localNode [" + localNode.getId() + "] must match shardRouting currentNodeId [" + shardRouting.currentNodeId() + "]";
-        this.recoveryState = Objects.requireNonNull(recoveryStateFactory.newRecoveryState(shardRouting, localNode, sourceNode, 0));
+        this.recoveryState = Objects.requireNonNull(
+            recoveryStateFactory.newRecoveryState(shardRouting, localNode, sourceNode, localRecoveryRetries)
+        );
         final Settings settings = indexSettings.getSettings();
         this.codecService = new CodecService(
             mapperService,
@@ -4030,14 +4052,68 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         ActionListener<Void> actionListener = ActionListener.wrap(
             ignored -> recoveryListener.onRecoveryDone(recoveryState, getTimestampRange(), getEventIngestedRange()),
             e -> {
-                // ABORT skips notifying the master, so we only use it only if this shard copy is CLOSED. Whatever closed it
-                // has either already been reflected in a cluster state from the master (e.g. the shard moved or the index
-                // was deleted), or will send its own shard-failed request.
-                final FailureStrategy result = state() == IndexShardState.CLOSED ? ABORT : FAIL_SEND;
-                recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), result);
+                // See IndicesClusterStateService#handleRecoveryFailure for how each strategy is handled.
+                final FailureStrategy failureStrategy;
+                if (state() == IndexShardState.CLOSED) {
+                    // ABORT skips notifying the master, so we only use it only if this shard copy is CLOSED. Whatever closed it
+                    // has either already been reflected in a cluster state from the master (e.g. the shard moved or the index
+                    // was deleted), or will send its own shard-failed request.
+                    failureStrategy = ABORT;
+                } else if (ExceptionsHelper.unwrap(e, RecoveryCancelledException.class) != null) {
+                    failureStrategy = FAIL_SEND;
+                } else {
+                    // Note! Doesn't guarantee local retry, see IndicesClusterStateService#handleRecoveryFailure
+                    failureStrategy = RETRY;
+                }
+                recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), failureStrategy);
             }
         );
         ActionListener.run(actionListener, action);
+    }
+
+    /// Marks a relocation of this primary as executing on this node (i.e. this primary is moving to a new node and has
+    /// started executing the work to relocate), until the returned [Releasable] is closed. The caller must close it once
+    /// that relocation completes, whether it succeeded or failed.
+    ///
+    /// No-op if a relocation with a higher cluster state version already started, see `latestPrimaryRelocationClusterStateVersion`.
+    ///
+    /// @param clusterStateVersion the cluster state version sent by the target of the relocation
+    public Releasable markActivelyRelocatingPrimary(long clusterStateVersion) {
+        assert shardRouting.primary() : "markActivelyRelocatingPrimary was called on a non-primary shard " + shardRouting;
+        synchronized (mutex) {
+            assert clusterStateVersion != latestPrimaryRelocationClusterStateVersion
+                : shardId + " two primary relocations started with cluster state version [" + clusterStateVersion + "]";
+            if (clusterStateVersion < latestPrimaryRelocationClusterStateVersion) {
+                // A newer relocation already started, so this one is stale and will not complete. Stale relocations are
+                // normally skipped before they start (see `StatelessPrimaryRelocationSourceService`), so this only happens
+                // if the routing changed between that check and this call.
+                return () -> {};
+            }
+            latestPrimaryRelocationClusterStateVersion = clusterStateVersion;
+            primaryRelocationState = PrimaryRelocationState.RELOCATING;
+        }
+        return Releasables.releaseOnce(() -> {
+            synchronized (mutex) {
+                // Only reset the state if no newer relocation started in the meantime.
+                if (clusterStateVersion == latestPrimaryRelocationClusterStateVersion) {
+                    primaryRelocationState = PrimaryRelocationState.NONE;
+                }
+            }
+        });
+    }
+
+    /// Returns whether this shard is the _source_ of a primary relocation that is actively executing on this node. See
+    /// [#isRelocatedPrimary()] for once the handoff to the target has completed. Always returns `false` on replicas.
+    ///
+    /// This differs from `routingEntry().relocating()`: the routing table marks a shard as relocating as soon as the master
+    /// decides to move it, but the data node may queue the relocation for some time before it actually starts doing any work.
+    /// This method only returns `true` while the latest relocation is actually executing.
+    ///
+    /// Currently only tracked by stateless primary relocations (see `StatelessPrimaryRelocationSourceService`), this always
+    /// returns `false` for stateful shards.
+    /// TODO: also mark stateful primary relocations in [org.elasticsearch.indices.recovery.PeerRecoverySourceService].
+    public boolean isActivelyRelocatingPrimary() {
+        return primaryRelocationState == PrimaryRelocationState.RELOCATING;
     }
 
     /**
@@ -4142,22 +4218,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public static Analyzer buildIndexAnalyzer(MapperService mapperService) {
-        return buildIndexAnalyzer(mapperService, TokenCountingMetrics.NOOP);
-    }
-
-    /**
-     * Builds the index analyzer, wrapping each field's analyzer with a {@link TokenCountingAnalyzer}
-     * that records the number of tokens produced per field value to the metrics histogram.
-     *
-     * @param mapperService          the mapper service to use for field analyzer resolution
-     * @param tokenCountingMetrics   metrics instance for recording token counts per field value
-     * @return the analyzer to use for indexing, or null if no mapper service is available
-     */
-    public static Analyzer buildIndexAnalyzer(MapperService mapperService, TokenCountingMetrics tokenCountingMetrics) {
         if (mapperService == null) {
             return null;
         }
-        return new TokenCountingIndexAnalyzer(mapperService::mappingLookup, tokenCountingMetrics);
+        return new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
+            @Override
+            protected Analyzer getWrappedAnalyzer(String fieldName) {
+                return mapperService.indexAnalyzer(
+                    fieldName,
+                    f -> { throw new IllegalArgumentException("Field [" + f + "] has no associated analyzer"); }
+                );
+            }
+        };
     }
 
     private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier) {
@@ -4178,12 +4250,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             .warmer(warmer)
             .store(store)
             .mergePolicy(indexSettings.getMergePolicy(isTimeBasedIndex))
-            .analyzer(
-                buildIndexAnalyzer(
-                    mapperService,
-                    mapperService != null ? mapperService.getMapperMetrics().tokenCountingMetrics() : TokenCountingMetrics.NOOP
-                )
-            )
+            .analyzer(buildIndexAnalyzer(mapperService))
             .similarity(similarityService.similarity(mapperService == null ? null : mapperService::fieldType))
             .codecProvider(codecService)
             .eventListener(shardEventListener)

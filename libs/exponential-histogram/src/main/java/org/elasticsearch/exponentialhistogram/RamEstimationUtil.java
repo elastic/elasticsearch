@@ -41,4 +41,8 @@ class RamEstimationUtil {
         return estimatedArraySize(length, Double.BYTES);
     }
 
+    static long estimateObjectArray(int length) {
+        return estimatedArraySize(length, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+    }
+
 }

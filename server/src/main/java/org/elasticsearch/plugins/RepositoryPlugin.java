@@ -16,7 +16,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.ShardGenerationListener;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -74,15 +73,6 @@ public interface RepositoryPlugin {
      * returns null if no check is provided
      */
     default BiConsumer<Snapshot, IndexVersion> addPreRestoreVersionCheck() {
-        return null;
-    }
-
-    /**
-     * Returns a listener that is told about every shard generation blob written by any blob store repository on this node, or
-     * {@code null} if the plugin has no interest. The listener is called for all repositories, so it must filter on the repository
-     * itself.
-     */
-    default ShardGenerationListener getShardGenerationListener() {
         return null;
     }
 

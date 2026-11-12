@@ -16,14 +16,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.plugins.internal.ShardGenerationListener;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.CachingSnapshotAndShardByStateMetricsService;
 import org.elasticsearch.snapshots.Snapshot;
@@ -45,8 +43,6 @@ import java.util.function.Function;
  */
 public final class RepositoriesModule {
 
-    private static final Logger logger = LogManager.getLogger(RepositoriesModule.class);
-
     private final RepositoriesService repositoriesService;
     private final SnapshotMetrics snapshotMetrics;
 
@@ -59,7 +55,8 @@ public final class RepositoriesModule {
         BigArrays bigArrays,
         NamedXContentRegistry namedXContentRegistry,
         RecoverySettings recoverySettings,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        ShardGenerationListener shardGenerationListener
     ) {
         this.snapshotMetrics = new SnapshotMetrics(
             telemetryProvider.getMeterRegistry(),
@@ -118,17 +115,9 @@ public final class RepositoriesModule {
             }
         }
 
-        List<ShardGenerationListener> shardGenerationListeners = new ArrayList<>();
-        for (RepositoryPlugin repoPlugin : repoPlugins) {
-            ShardGenerationListener listener = repoPlugin.getShardGenerationListener();
-            if (listener != null) {
-                shardGenerationListeners.add(listener);
-            }
-        }
-        if (shardGenerationListeners.isEmpty() == false) {
-            ShardGenerationListener combined = combine(shardGenerationListeners);
-            factories.replaceAll((type, factory) -> withShardGenerationListener(factory, combined));
-            internalFactories.replaceAll((type, factory) -> withShardGenerationListener(factory, combined));
+        if (shardGenerationListener != ShardGenerationListener.NOOP) {
+            factories.replaceAll((type, factory) -> withShardGenerationListener(factory, shardGenerationListener));
+            internalFactories.replaceAll((type, factory) -> withShardGenerationListener(factory, shardGenerationListener));
         }
 
         List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks = new ArrayList<>();
@@ -167,19 +156,6 @@ public final class RepositoriesModule {
             client,
             preRestoreChecks
         );
-    }
-
-    /** Calls every listener, even if an earlier one throws. */
-    static ShardGenerationListener combine(List<ShardGenerationListener> listeners) {
-        return (projectRepo, indexId, shardId, generation, shardSnapshots) -> {
-            for (ShardGenerationListener listener : listeners) {
-                try {
-                    listener.onShardGenerationWritten(projectRepo, indexId, shardId, generation, shardSnapshots);
-                } catch (Exception e) {
-                    logger.warn(() -> Strings.format("[%s][%s][%s] shard generation listener failed", projectRepo, indexId, shardId), e);
-                }
-            }
-        };
     }
 
     private static Repository.Factory withShardGenerationListener(Repository.Factory factory, ShardGenerationListener listener) {

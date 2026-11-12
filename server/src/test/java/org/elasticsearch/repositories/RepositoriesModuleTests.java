@@ -10,15 +10,14 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.plugins.internal.ShardGenerationListener;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -103,7 +102,8 @@ public class RepositoriesModuleTests extends ESTestCase {
             MockBigArrays.NON_RECYCLING_INSTANCE,
             contentRegistry,
             recoverySettings,
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            ShardGenerationListener.NOOP
         );
     }
 
@@ -142,7 +142,8 @@ public class RepositoriesModuleTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 contentRegistry,
                 recoverySettings,
-                TelemetryProvider.NOOP
+                TelemetryProvider.NOOP,
+                ShardGenerationListener.NOOP
             )
         );
 
@@ -168,7 +169,8 @@ public class RepositoriesModuleTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 contentRegistry,
                 recoverySettings,
-                TelemetryProvider.NOOP
+                TelemetryProvider.NOOP,
+                ShardGenerationListener.NOOP
             )
         );
 
@@ -202,30 +204,11 @@ public class RepositoriesModuleTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 contentRegistry,
                 recoverySettings,
-                TelemetryProvider.NOOP
+                TelemetryProvider.NOOP,
+                ShardGenerationListener.NOOP
             )
         );
 
         assertEquals("Internal repository type [type1] is already registered as a non-internal repository", ex.getMessage());
-    }
-
-    public void testCombinedShardGenerationListenerCallsEveryListenerEvenWhenOneThrows() {
-        final List<String> called = new ArrayList<>();
-        final ShardGenerationListener failing = (projectRepo, indexId, shardId, generation, shardSnapshots) -> {
-            called.add("failing");
-            throw new IllegalStateException("simulated listener failure");
-        };
-        final ShardGenerationListener recording = (projectRepo, indexId, shardId, generation, shardSnapshots) -> called.add("recording");
-
-        RepositoriesModule.combine(List.of(failing, recording))
-            .onShardGenerationWritten(
-                new ProjectRepo(ProjectId.DEFAULT, "repo"),
-                new IndexId("index", "indexId"),
-                0,
-                ShardGeneration.newGeneration(),
-                BlobStoreIndexShardSnapshots.EMPTY
-            );
-
-        assertEquals(List.of("failing", "recording"), called);
     }
 }

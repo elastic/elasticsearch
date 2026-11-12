@@ -52,7 +52,7 @@ import javax.inject.Inject;
  * literals (produced by release-manager), and consumers depend on that shape.
  *
  * <p>Rather than depend on the {@code aggregation.zip} archive and unpack it,
- * this task reuses {@code zipAggregation}'s copy-spec source directly (the
+ * this task reuses {@code nmcpZipAggregation}'s copy-spec source directly (the
  * already-extracted per-project publications). That avoids materializing the
  * DRA-side zip only to unzip it again in the publish step — nothing is zipped
  * on the DRA path at all.
@@ -85,7 +85,7 @@ public abstract class PrepareDraSnapshotMavenAggregation extends DefaultTask {
 
     /**
      * The already-extracted maven aggregation content, wired from
-     * {@code zipAggregation}'s copy-spec source so the DRA path never builds
+     * {@code nmcpZipAggregation}'s copy-spec source so the DRA path never builds
      * (or unpacks) the aggregation zip.
      */
     @InputFiles
@@ -111,6 +111,12 @@ public abstract class PrepareDraSnapshotMavenAggregation extends DefaultTask {
         getFileSystemOperations().sync(spec -> {
             spec.from(getSource());
             spec.into(outDir);
+            // nmcp 1.x keeps the maven-publish generated `maven-metadata.xml` (and its checksum
+            // sidecars) in the aggregation source and only strips them when building the Central
+            // Portal zip. The DRA path reuses the source directly, so exclude them here to mirror
+            // that behaviour: release builds must not ship maven-metadata at all, and snapshot
+            // builds generate their own `<localCopy>` metadata below.
+            spec.exclude("**/maven-metadata.xml", "**/maven-metadata.xml.*");
             if (snapshot) {
                 spec.rename(TIMESTAMP_REGEX, "-SNAPSHOT");
             }

@@ -1,0 +1,124 @@
+setup:
+  - requires:
+      cluster_features: [ "search.sort.unmapped_type_placeholder_merge" ]
+      reason: "exercises search_after handling introduced together with the unmapped_type placeholder merge"
+
+  - do:
+      indices.create:
+        index: index_keyword
+        body:
+          mappings:
+            properties:
+              field:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index" : { "_index": "index_keyword", "_id" : "a1" } }'
+          - '{ "field" : "-Infinity" }'
+          - '{ "index" : { "_index": "index_keyword", "_id" : "a2" } }'
+          - '{ "field" : "Infinity" }'
+          - '{ "index" : { "_index": "index_keyword", "_id" : "a3" } }'
+          - '{ "field" : "foo" }'
+          - '{ "index" : { "_index": "index_keyword", "_id" : "a4" } }'
+          - '{ "field" : "zzz" }'
+
+---
+"search_after on a keyword value 'Infinity' with missing last does not skip docs":
+  # plain keyword index, no other index and no unmapped_type involved
+  # byte order: "-Infinity" < "Infinity" < "foo" < "zzz"
+  - do:
+      search:
+        index: index_keyword
+        body:
+          size: 2
+          sort: [ { field: { order: asc } } ]
+  - match: { hits.hits.0._id: a1 }
+  - match: { hits.hits.1._id: a2 }
+  - match: { hits.hits.1.sort: [ "Infinity" ] }
+
+  - do:
+      search:
+        index: index_keyword
+        body:
+          size: 2
+          sort: [ { field: { order: asc } } ]
+          search_after: [ "Infinity" ]
+  - match: { hits.hits.0._id: a3 }
+  - match: { hits.hits.1._id: a4 }
+
+---
+"search_after on a keyword value '-Infinity' with missing first does not repeat docs":
+  - do:
+      search:
+        index: index_keyword
+        body:
+          size: 1
+          sort: [ { field: { order: asc, missing: _first } } ]
+  - match: { hits.hits.0._id: a1 }
+  - match: { hits.hits.0.sort: [ "-Infinity" ] }
+
+  - do:
+      search:
+        index: index_keyword
+        body:
+          size: 1
+          sort: [ { field: { order: asc, missing: _first } } ]
+          search_after: [ "-Infinity" ]
+  - match: { hits.hits.0._id: a2 }
+
+---
+"search_after on a keyword value 'Infinity' in descending order with missing last does not skip docs":
+  # byte order, descending: "zzz" > "foo" > "Infinity" > "-Infinity"
+  - do:
+      search:
+        index: index_keyword
+        body:
+          size: 3
+          sort: [ { field: { order: desc } } ]
+  - match: { hits.hits.2._id: a2 }
+  - match: { hits.hits.2.sort: [ "Infinity" ] }
+
+  - do:
+      search:
+        index: index_keyword
+        body:
+          size: 2
+          sort: [ { field: { order: desc } } ]
+          search_after: [ "Infinity" ]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: a1 }
+
+---
+"search_after on a keyword value '-Infinity' in descending order with missing first does not repeat docs":
+  - do:
+      search:
+        index: index_keyword
+        body:
+          size: 4
+          sort: [ { field: { order: desc, missing: _first } } ]
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.3._id: a1 }
+  - match: { hits.hits.3.sort: [ "-Infinity" ] }
+
+  # nothing is left after the last doc, the page must not start over
+  - do:
+      search:
+        index: index_keyword
+        body:
+          size: 4
+          sort: [ { field: { order: desc, missing: _first } } ]
+          search_after: [ "-Infinity" ]
+  - length: { hits.hits: 0 }
+
+  - do:
+      search:
+        index: index_keyword
+        body:
+          size: 4
+          sort: [ { field: { order: desc, missing: _first } } ]
+          search_after: [ "Infinity" ]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: a1 }

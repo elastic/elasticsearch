@@ -10,7 +10,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
@@ -34,10 +33,13 @@ public final class EsqlBucketEventCounter implements BucketEventCounter {
 
     // Without a LIMIT, ES|QL truncates at result_truncation_default_size (1000) rows and reports it only in a Warning header.
     // A custom check_window can span up to MAX_NUMBER_SPANABLE_BUCKETS buckets (one row each). A dropped bucket hides its delayed data.
-    private static final String BUCKET_EVENT_COUNT_SUFFIX = Strings.format("""
-
+    private static final String BUCKET_EVENT_COUNT_SUFFIX = " " + Strings.format("""
         | STATS %s = SUM(??countField) BY %s = TO_LONG(TO_DATETIME(??timeField)) / ?bucketSpan
         | LIMIT %d""", ML_COUNT_COLUMN, ML_BUCKET_COLUMN, MAX_NUMBER_SPANABLE_BUCKETS);
+
+    // STATS emits its aggregates first and its grouping keys after them.
+    private static final int COUNT_COLUMN_INDEX = 0;
+    private static final int BUCKET_COLUMN_INDEX = 1;
 
     private final String jobId;
     private final long bucketSpan;
@@ -93,7 +95,7 @@ public final class EsqlBucketEventCounter implements BucketEventCounter {
     }
 
     static String bucketEventCountQuery(String userQuery) {
-        return userQuery + BUCKET_EVENT_COUNT_SUFFIX;
+        return EsqlQueryClauseScanner.appendGeneratedPipeline(userQuery, BUCKET_EVENT_COUNT_SUFFIX);
     }
 
     @Override
@@ -111,48 +113,29 @@ public final class EsqlBucketEventCounter implements BucketEventCounter {
     }
 
     private Map<Long, Long> parseBucketCounts(EsqlResponse esqlResponse) {
-        ColumnIndexes columnIndexes = columnIndexes(esqlResponse.columns());
+        assert ML_COUNT_COLUMN.equals(esqlResponse.columns().get(COUNT_COLUMN_INDEX).name())
+            && ML_BUCKET_COLUMN.equals(esqlResponse.columns().get(BUCKET_COLUMN_INDEX).name())
+            : "unexpected delayed data check columns " + esqlResponse.columns();
         Map<Long, Long> bucketCounts = new HashMap<>();
         for (Iterable<Object> row : esqlResponse.rows()) {
-            accumulateRow(bucketCounts, row, columnIndexes);
+            accumulateRow(bucketCounts, row);
         }
         return bucketCounts;
     }
 
-    private void accumulateRow(Map<Long, Long> bucketCounts, Iterable<Object> row, ColumnIndexes columnIndexes) {
+    private void accumulateRow(Map<Long, Long> bucketCounts, Iterable<Object> row) {
         List<Object> values = new ArrayList<>();
         for (Object value : row) {
             values.add(value);
         }
-        Object bucketKey = values.get(columnIndexes.bucketColumnIndex());
-        Object count = values.get(columnIndexes.countColumnIndex());
+        Object bucketKey = values.get(BUCKET_COLUMN_INDEX);
+        Object count = values.get(COUNT_COLUMN_INDEX);
         // SUM is null when every count in the bucket is null. Extraction drops null values too.
         if (bucketKey == null || count == null) {
             return;
         }
         bucketCounts.merge(toLong(bucketKey) * bucketSpan, toLong(count), Long::sum);
     }
-
-    private ColumnIndexes columnIndexes(List<? extends ColumnInfo> columns) {
-        int countColumnIndex = -1;
-        int bucketColumnIndex = -1;
-        for (int i = 0; i < columns.size(); i++) {
-            String name = columns.get(i).name();
-            if (ML_COUNT_COLUMN.equals(name)) {
-                countColumnIndex = i;
-            } else if (ML_BUCKET_COLUMN.equals(name)) {
-                bucketColumnIndex = i;
-            }
-        }
-        if (countColumnIndex < 0 || bucketColumnIndex < 0) {
-            throw new IllegalStateException(
-                "[" + jobId + "] Delayed data check expected columns [" + ML_COUNT_COLUMN + "] and [" + ML_BUCKET_COLUMN + "]"
-            );
-        }
-        return new ColumnIndexes(countColumnIndex, bucketColumnIndex);
-    }
-
-    private record ColumnIndexes(int countColumnIndex, int bucketColumnIndex) {}
 
     private static long toLong(Object value) {
         if (value instanceof Number number) {

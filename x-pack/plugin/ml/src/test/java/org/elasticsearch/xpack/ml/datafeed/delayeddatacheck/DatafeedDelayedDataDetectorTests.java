@@ -10,14 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.SearchResponseUtils;
-import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -55,30 +48,6 @@ public class DatafeedDelayedDataDetectorTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    public void testDetectMissingDataWhenSearchResponseHasNoAggregations() {
-        // A search that has no shard results to reduce returns a response with null aggregations, even though aggregations were requested
-        SearchResponse searchResponse = SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
-        assertNull(searchResponse.getAggregations());
-
-        try {
-            assertThat(detectorWithSearchResponse(searchResponse).detectMissingData(LATEST_FINALIZED_BUCKET_MS), empty());
-        } finally {
-            searchResponse.decRef();
-        }
-    }
-
-    public void testDetectMissingDataWhenSearchResponseHasNoDateBuckets() {
-        SearchResponse searchResponse = SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
-            .aggregations(InternalAggregations.EMPTY)
-            .build();
-
-        try {
-            assertThat(detectorWithSearchResponse(searchResponse).detectMissingData(LATEST_FINALIZED_BUCKET_MS), empty());
-        } finally {
-            searchResponse.decRef();
-        }
-    }
-
     public void testBucketsWithUnchangedOrRemovedDocsShouldNotBeReported() {
         Bucket unchanged = newBucket(LATEST_FINALIZED_BUCKET_MS - 3 * BUCKET_SPAN_MS, 5L);
         Bucket withMissing = newBucket(LATEST_FINALIZED_BUCKET_MS - 2 * BUCKET_SPAN_MS, 3L);
@@ -95,7 +64,7 @@ public class DatafeedDelayedDataDetectorTests extends ESTestCase {
             BUCKET_SPAN_MS,
             WINDOW_MS,
             "job",
-            clientRespondingWith(List.of(unchanged, withMissing, dataRemoved), null),
+            clientRespondingWith(List.of(unchanged, withMissing, dataRemoved)),
             (start, end) -> currentCounts
         );
 
@@ -109,28 +78,13 @@ public class DatafeedDelayedDataDetectorTests extends ESTestCase {
             BUCKET_SPAN_MS,
             BUCKET_SPAN_MS / 2,
             "job",
-            clientRespondingWith(List.of(), null),
+            clientRespondingWith(List.of()),
             (start, end) -> {
                 throw new AssertionError("events must not be counted when the window is empty");
             }
         );
 
         assertThat(detector.detectMissingData(LATEST_FINALIZED_BUCKET_MS + 3 * BUCKET_SPAN_MS / 4), empty());
-    }
-
-    private DatafeedDelayedDataDetector detectorWithSearchResponse(SearchResponse searchResponse) {
-        Client client = clientRespondingWith(List.of(), searchResponse);
-        SearchBucketEventCounter counter = new SearchBucketEventCounter(
-            "job",
-            BUCKET_SPAN_MS,
-            "time",
-            QueryBuilders.matchAllQuery(),
-            new String[] { "index" },
-            IndicesOptions.lenientExpandOpen(),
-            Map.of(),
-            client
-        );
-        return new DatafeedDelayedDataDetector(BUCKET_SPAN_MS, WINDOW_MS, "job", client, counter);
     }
 
     private static Bucket newBucket(long epochMs, long eventCount) {
@@ -140,9 +94,9 @@ public class DatafeedDelayedDataDetectorTests extends ESTestCase {
     }
 
     /**
-     * A client that returns the given finalized buckets for the job and the given response for the search over the datafeed indices.
+     * A client that returns the given finalized buckets for the job.
      */
-    private Client clientRespondingWith(List<Bucket> finalizedBuckets, SearchResponse searchResponse) {
+    private Client clientRespondingWith(List<Bucket> finalizedBuckets) {
         return new NoOpClient(threadPool) {
             @Override
             @SuppressWarnings("unchecked")
@@ -157,8 +111,6 @@ public class DatafeedDelayedDataDetectorTests extends ESTestCase {
                             new QueryPage<>(finalizedBuckets, finalizedBuckets.size(), Bucket.RESULTS_FIELD)
                         )
                     );
-                } else if (action == TransportSearchAction.TYPE && searchResponse != null) {
-                    listener.onResponse((Response) searchResponse);
                 } else {
                     throw new AssertionError("unexpected action [" + action.name() + "]");
                 }

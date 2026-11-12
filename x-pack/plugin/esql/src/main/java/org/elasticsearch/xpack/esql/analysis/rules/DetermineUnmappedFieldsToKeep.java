@@ -163,10 +163,12 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * <p>
      * Two things restrict the pattern. KEEP/DROP (as {@link ResolvingProject}) contribute the
      * include/exclude patterns they were written with: each one adds a single OR group, while
-     * {@link UnmappedFieldsPattern#intersect} applies AND across chained commands. And every name that any
-     * node in the plan outputs is excluded: a mapped field, a name the query introduced (EVAL's aliases,
-     * RENAME's targets, ENRICH/LOOKUP JOIN fields) are all already columns of their own, so returning a
-     * source field of that name in {@code _unmapped_fields} as well would collide with them.
+     * {@link UnmappedFieldsPattern#intersect} applies AND across chained commands. And the names of the columns of a relation are
+     * excluded: a mapped field, or a field that the query names and that is loaded for it, is already a column of its own, so
+     * returning a source field of that name in {@code _unmapped_fields} as well would repeat it. A column that a command adds or
+     * shadows (an EVAL alias, a RENAME target, an ENRICH or LOOKUP JOIN field) is not excluded: it is a different value from the
+     * source field of that name, and the unmapped fields hold what the documents had, as the keys of a {@code flattened} field do
+     * after such a command.
      * <p>
      * For {@link Join}, only the left side is recursed into. {@link MergePlan} is treated as transparent (no include restriction beyond
      * excluding its output names); branch-local {@code KEEP}/{@code DROP} patterns are applied in {@link #annotate} by recomputing
@@ -191,7 +193,8 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         UnmappedFieldsPattern restricted = plan instanceof ResolvingProject project
             ? project.unmappedFieldsPattern().intersect(fromChild)
             : fromChild;
-        return restricted.withAdditionalExcludes(Expressions.names(plan.output()));
+        // A relation's own columns, mapped or demand-loaded, are not unmapped fields. What a command adds or shadows is not excluded.
+        return plan instanceof EsRelation relation ? restricted.withAdditionalExcludes(Expressions.names(relation.output())) : restricted;
     }
 
     /**

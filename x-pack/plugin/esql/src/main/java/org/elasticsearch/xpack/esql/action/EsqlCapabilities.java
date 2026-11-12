@@ -3761,6 +3761,15 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_UNMAPPED_FIELDS_LAST(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, only {@code KEEP}, {@code DROP} and the columns of the relation itself decide what
+         * {@code _unmapped_fields} holds. A column that a command adds or shadows (an {@code EVAL} or {@code RENAME} target, a
+         * {@code LOOKUP JOIN} or {@code ENRICH} field, a {@code GROK} output) used to take the source field of the same name out of it.
+         * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_UNMAPPED_FIELDS_LAST} is available. See
+         * <a href="https://github.com/elastic/esql-planning/issues/2536">esql-planning#2536</a>.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_COMMAND_OUTPUT_DOES_NOT_SHADOW(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for {@code GROK}, {@code DISSECT}, {@code MV_EXPAND} and {@code SAMPLE} under {@code unmapped_fields="LOAD_ALL"}.
          * {@code GROK} and {@code DISSECT} read an input field (mapped or unmapped) and add named columns, which shadow an unmapped
          * field of the same name. Expanding a mapped multivalued field with {@code MV_EXPAND} repeats the {@code _unmapped_fields}

@@ -78,14 +78,14 @@ teardown:
   - match: { values.1: [ 2, { b1: q } ] }
 
 ---
-'an EVAL column shadows the leaf of the same name':
+'an EVAL column does not take the leaf of the same name out of _unmapped_fields':
   - requires:
       capabilities:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_unmapped_fields_last ]
-      reason: "The column is last in the output only with this capability"
+          capabilities: [ optional_fields_load_all_unmapped_fields_last, optional_fields_load_all_command_output_does_not_shadow ]
+      reason: "The column is last, and a column a command adds does not hide a leaf, only with these capabilities"
   - do:
       esql.query:
         body:
@@ -94,8 +94,8 @@ teardown:
   - match: { columns.0.name: id }
   - match: { columns.1.name: a1 }
   - match: { columns.2.name: _unmapped_fields }
-  - match: { values.0: [ 1, 0, { a2: y, b1: z, n.j: 2, n.k: 1 } ] }
-  - match: { values.1: [ 2, 0, { b1: q } ] }
+  - match: { values.0: [ 1, 0, { a1: x, a2: y, b1: z, n.j: 2, n.k: 1 } ] }
+  - match: { values.1: [ 2, 0, { a1: p, b1: q } ] }
 
 ---
 'SORT and LIMIT keep the column with the surviving rows':

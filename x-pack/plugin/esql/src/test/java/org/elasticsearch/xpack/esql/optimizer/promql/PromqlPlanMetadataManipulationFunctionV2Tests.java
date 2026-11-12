@@ -26,9 +26,9 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 
 /** {@code label_replace} and {@code label_join} translated over a label container. */
-public class PromqlPlanLabelFunctionLabelTests extends AbstractPromqlPlanOptimizerTests {
+public class PromqlPlanMetadataManipulationFunctionV2Tests extends AbstractPromqlPlanOptimizerTests {
 
-    public PromqlPlanLabelFunctionLabelTests(VersionMode versionMode) {
+    public PromqlPlanMetadataManipulationFunctionV2Tests(VersionMode versionMode) {
         super(versionMode);
     }
 
@@ -60,10 +60,7 @@ public class PromqlPlanLabelFunctionLabelTests extends AbstractPromqlPlanOptimiz
 
     /** {@code label_join} without source labels writes an empty value, which removes the destination like Prometheus. */
     public void testLabelJoinWithoutSourcesWritesAnEmptyValue() {
-        LogicalPlan plan = planPromqlV2(
-            "PROMQL index=k8s step=1h label_join(sum by (cluster) (network.bytes_in), \"dst\", \"-\")",
-            false
-        );
+        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h label_join(sum by (cluster) (network.bytes_in), \"dst\", \"-\")", false);
 
         TimeSeriesMetadataSet set = expressions(plan, TimeSeriesMetadataSet.class).getFirst();
         assertThat(label(set.value()), equalTo(""));

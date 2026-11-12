@@ -11,10 +11,6 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.SelectorV2;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -60,6 +56,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2.IntermediateResult.Kind;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.SelectorV2;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -116,7 +116,7 @@ public record TranslationContextV2(
             case AcrossSeriesAggregate aggregate -> AcrossSeriesAggregateV2.translate(aggregate, this);
             case AcrossSeriesReduction reduction -> AcrossSeriesReductionV2.translate(reduction, this);
             case HistogramFunctionCall histogram -> HistogramFunctionCallV2.translate(histogram, this);
-            case MetadataManipulationFunction relabel -> LabelFunctionTranslation.translate(relabel, this);
+            case MetadataManipulationFunction relabel -> MetadataManipulationFunctionV2.translate(relabel, this);
             default -> throw new QlIllegalArgumentException("PromQL plan node [{}] does not translate in V2 yet", node.nodeName());
         };
     }
@@ -637,7 +637,8 @@ public record TranslationContextV2(
                             labels,
                             Literal.keyword(labels.source(), PromqlLabels.labelName(label))
                         ),
-                        attr.dataType());
+                        attr.dataType()
+                    );
                 Alias alias = new Alias(source, attr.name(), value, attr.id());
                 evals.add(alias);
                 projected.set(i, alias.toAttribute());

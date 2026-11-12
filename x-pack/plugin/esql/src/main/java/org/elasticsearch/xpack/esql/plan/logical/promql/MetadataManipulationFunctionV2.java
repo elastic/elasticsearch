@@ -29,9 +29,9 @@ import java.util.List;
  * Because ES|QL treats {@code null} and {@code ""} as distinct values while Prometheus treats an absent label and an empty
  * label value alike, an absent source label reads as {@code ""}, and an empty destination value removes the label.
  */
-final class LabelFunctionTranslation {
+final class MetadataManipulationFunctionV2 {
 
-    private LabelFunctionTranslation() {}
+    private MetadataManipulationFunctionV2() {}
 
     static IntermediateResult translate(MetadataManipulationFunction relabel, TranslationContextV2 context) {
         IntermediateResult child = context.translate(relabel.child());

@@ -293,11 +293,11 @@ teardown:
   - is_true: fls-tsdb.mappings.properties.host
   - is_false: fls-tsdb.mappings.properties.@timestamp
 
+  # NOTE: no refresh, because on serverless a refresh also refreshes the search shards, which the write privilege does not allow
   - do:
       headers: { Authorization: "Basic ZmxzX2V4Y2x1ZGVfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # fls_exclude_user
       index:
         index: fls-tsdb
-        refresh: true
         body: { "@timestamp": "2026-01-01T00:00:01Z", "host": "h2", "cpu": 0.7 }
   - match: { result: created }
 

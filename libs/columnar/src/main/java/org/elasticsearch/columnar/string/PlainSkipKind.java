@@ -81,5 +81,11 @@ interface PlainSkipKind {
 
         /** The first entry at or after {@code fromEntry} that {@code query} does not rule out, or {@link #entryCount()}. */
         int nextCandidate(int fromEntry, PlainSkipQuery query) throws IOException;
+
+        /**
+         * The first entry at or after {@code fromEntry}, which must be a candidate, that lies after every entry
+         * {@code query} can touch, or {@link #entryCount()}.
+         */
+        int candidatesEnd(int fromEntry, PlainSkipQuery query) throws IOException;
     }
 }

@@ -55,6 +55,29 @@ public final class PlainStringColumnReader extends StringColumnReader {
         this.numValues = column.values() == null ? 0 : column.values().numValues();
     }
 
+    /**
+     * The ranks the ends of a match can lie in, from the chunks the region does not rule out. The chunks it keeps are
+     * one run, the first holds the lower end or sits just before it, and the last holds the upper end.
+     */
+    @Override
+    protected SortedWindows sortedWindows(PlainSkipQuery query) throws IOException {
+        if (skipper == null) {
+            return super.sortedWindows(query);
+        }
+        final PlainSkipKind.Reader bounds = PlainSkipKind.forId(skipper.kind()).newReader(skipper, numValues, skipIndex);
+        final int first = bounds.nextCandidate(0, query);
+        if (first >= bounds.entryCount()) {
+            return SortedWindows.NONE;
+        }
+        final int last = bounds.candidatesEnd(first, query) - 1;
+        return new SortedWindows(
+            Math.toIntExact(bounds.firstSlot(first)),
+            Math.toIntExact(bounds.endSlot(first)),
+            Math.toIntExact(bounds.firstSlot(last)),
+            Math.toIntExact(bounds.endSlot(last))
+        );
+    }
+
     private ColumnIterator presenceWithin(PlainSkipQuery query) throws IOException {
         final ColumnIterator presence = iterator();
         if (skipper == null) {

@@ -72,6 +72,35 @@ public class SortedSeparatorsSkipTests extends ESTestCase {
         }
     }
 
+    public void testTheCandidatesEndAtTheFirstEntryAfterTheRunNotRuledOut() throws IOException {
+        for (int round = 0; round < 25; round++) {
+            final BytesRef[] pool = PlainSkipTestValues.randomPool(between(1, 25));
+            final BytesRef[][] docSlots = PlainSkipTestValues.orderedDocSlots(between(1, 600), pool, randomBoolean());
+            try (
+                Directory dir = newDirectory();
+                PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, PlainSkipFixture.randomValuesPerBlock())
+            ) {
+                final PlainSkipKind.Reader reader = fixture.reader();
+                for (int i = 0; i < 25; i++) {
+                    final PlainSkipQuery query = PlainBlockOracle.randomQuery(pool);
+                    final int first = reader.nextCandidate(0, query);
+                    if (first == fixture.entryCount()) {
+                        assertEquals(fixture.entryCount(), reader.candidatesEnd(first, query));
+                        continue;
+                    }
+                    int expected = first;
+                    while (expected < fixture.entryCount() && reader.excludes(expected, query) == false) {
+                        expected++;
+                    }
+                    assertEquals(expected, reader.candidatesEnd(first, query));
+                    for (int entry = expected; entry < fixture.entryCount(); entry++) {
+                        assertTrue("an entry after the candidates is ruled out", reader.excludes(entry, query));
+                    }
+                }
+            }
+        }
+    }
+
     public void testAnEntryWithoutAValueTakesTheNextSeparator() throws IOException {
         final BytesRef b = new BytesRef("b");
         final BytesRef d = new BytesRef("d");

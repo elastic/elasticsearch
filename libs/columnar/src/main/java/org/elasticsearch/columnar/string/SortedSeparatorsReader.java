@@ -148,6 +148,21 @@ final class SortedSeparatorsReader implements PlainSkipKind.Reader {
         return descending ? tooHigh(entry, query) : tooLow(entry, query);
     }
 
+    @Override
+    public int candidatesEnd(int fromEntry, PlainSkipQuery query) throws IOException {
+        int low = fromEntry;
+        int high = entryCount;
+        while (low < high) {
+            final int middle = (low + high) >>> 1;
+            if (aboveQuery(middle, query)) {
+                high = middle;
+            } else {
+                low = middle + 1;
+            }
+        }
+        return low;
+    }
+
     private boolean aboveQuery(int entry, PlainSkipQuery query) throws IOException {
         return descending ? tooLow(entry, query) : tooHigh(entry, query);
     }

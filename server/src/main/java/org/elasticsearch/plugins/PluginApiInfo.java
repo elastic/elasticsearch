@@ -22,7 +22,7 @@ import java.util.List;
  * Information about APIs extended by a custom plugin.
  *
  * @param legacyInterfaces Plugin API interfaces that the plugin implemented, introspected at runtime.
- * @param legacyMethods Method names overriden from the {@link Plugin} class and Plugin API interfaces
+ * @param legacyMethods Method names overridden from the {@link Plugin} class and Plugin API interfaces
  */
 public record PluginApiInfo(List<String> legacyInterfaces, List<String> legacyMethods) implements Writeable, ToXContentFragment {
 

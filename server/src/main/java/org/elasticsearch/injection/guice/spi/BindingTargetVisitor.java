@@ -51,7 +51,7 @@ public interface BindingTargetVisitor<T, V> {
     V visit(LinkedKeyBinding<? extends T> binding);
 
     /**
-     * Visit an untargetted binding. This target is found only on module bindings. It indicates
+     * Visit an untargeted binding. This target is found only on module bindings. It indicates
      * that the injector should use its implicit binding strategies to resolve injections.
      */
     V visit(UntargettedBinding<? extends T> binding);

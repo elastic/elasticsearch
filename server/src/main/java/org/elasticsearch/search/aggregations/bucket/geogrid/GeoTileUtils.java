@@ -52,7 +52,7 @@ public final class GeoTileUtils {
      * This value cannot be more than (64-5)/2 = 29, because 5 bits are used for zoom level itself (0-31)
      * If zoom is not stored inside hash, it would be possible to use up to 32.
      * Note that changing this value will make serialization binary-incompatible between versions.
-     * Another consideration is that index optimizes lat/lng storage, loosing some precision.
+     * Another consideration is that index optimizes lat/lng storage, losing some precision.
      * E.g. hash lng=140.74779717298918D lat=45.61884022447444D == "18/233561/93659", but shown as "18/233561/93658"
      */
     public static final int MAX_ZOOM = 29;

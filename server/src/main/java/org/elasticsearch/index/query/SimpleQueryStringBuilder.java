@@ -58,7 +58,7 @@ import java.util.Objects;
  * {@code query} - query text to be converted into other queries
  * <p>
  * Optional:
- * {@code analyzer} - anaylzer to be used for analyzing tokens to determine
+ * {@code analyzer} - analyzer to be used for analyzing tokens to determine
  * which kind of query they should be converted into, defaults to "standard"
  * {@code default_operator} - default operator for boolean queries, defaults
  * to OR

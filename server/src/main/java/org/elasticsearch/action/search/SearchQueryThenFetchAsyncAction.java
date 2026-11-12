@@ -96,7 +96,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
     private final SearchProgressListener progressListener;
 
-    // informations to track the best bottom top doc globally.
+    // information to track the best bottom top doc globally.
     private final int topDocsSize;
     private final int trackTotalHitsUpTo;
     private volatile BottomSortValuesCollector bottomSortCollector;

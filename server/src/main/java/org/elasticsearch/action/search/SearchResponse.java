@@ -886,7 +886,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
         /**
          * @param clusterAlias The cluster alias as specified in the cluster collection
-         * @return Cluster object associated with teh clusterAlias or null if not present
+         * @return Cluster object associated with the clusterAlias or null if not present
          */
         public Cluster getCluster(String clusterAlias) {
             return clusterInfo.get(clusterAlias);

@@ -10,7 +10,7 @@
 /**
  * <h2>Aggregations</h2>
  * <p>Builds analytic information over all hits in a search request.  Aggregations
- * are essentially a tool for sumarizing data, and that summary is often used
+ * are essentially a tool for summarizing data, and that summary is often used
  * to generate a visualization.</p>
  *
  * <h2>Types of aggregations</h2>
@@ -19,7 +19,7 @@
  *     <li>Bucket aggregations - which group documents (e.g. a histogram)</li>
  *     <li>Metric aggregations - which compute a summary value from several
  *     documents (e.g. a sum)</li>
- *     <li>Pipeline aggregations - which run as a seperate step and compute
+ *     <li>Pipeline aggregations - which run as a separate step and compute
  *     values across buckets</li>
  * </ul>
  * Additionally there is a support sub package, which contains the type checking

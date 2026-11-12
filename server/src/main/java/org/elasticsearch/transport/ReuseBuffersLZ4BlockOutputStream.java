@@ -33,7 +33,7 @@ import java.io.OutputStream;
  * net.jpountz.lz4.LZ4BlockOutputStream.
  *
  * It modifies the original lz4-java code to allow the reuse of local thread local byte arrays. This prevents
- * the need to allocate two new byte arrays everytime a new stream is created. For the Elasticsearch use case,
+ * the need to allocate two new byte arrays every time a new stream is created. For the Elasticsearch use case,
  * a single thread should fully compress the stream in one go to avoid memory corruption.
  *
  * Additionally, it does not checksum (or write a check) for the data compressed. We do not read the checksum

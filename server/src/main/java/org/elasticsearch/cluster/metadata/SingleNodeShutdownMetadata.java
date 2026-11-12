@@ -445,7 +445,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         }
 
         /**
-         * @param targetNodeName The name of the node which should be used to replcae this one. Only valid if the shutdown type is REPLACE.
+         * @param targetNodeName The name of the node which should be used to replace this one. Only valid if the shutdown type is REPLACE.
          * @return This builder.
          */
         public Builder setTargetNodeName(String targetNodeName) {

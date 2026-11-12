@@ -40,7 +40,7 @@ public class Version implements VersionId<Version>, ToXContentFragment {
      *
      * IMPORTANT: Unreleased vs. Released Versions
      *
-     * All listed versions MUST be released versions, except the last major, the last minor and the last revison. ONLY those are required
+     * All listed versions MUST be released versions, except the last major, the last minor and the last revision. ONLY those are required
      * as unreleased versions.
      *
      * Example: assume the last release is 7.3.0

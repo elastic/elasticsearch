@@ -67,7 +67,7 @@ public final class RetentionLeaseStats implements ToXContentFragment, Writeable 
     }
 
     /**
-     * Converts the retention lease stats to {@link org.elasticsearch.xcontent.XContent} using the specified builder and pararms.
+     * Converts the retention lease stats to {@link org.elasticsearch.xcontent.XContent} using the specified builder and params.
      *
      * @param builder the builder
      * @param params  the params

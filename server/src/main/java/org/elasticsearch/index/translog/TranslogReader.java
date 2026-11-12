@@ -67,7 +67,7 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
     }
 
     /**
-     * Closes current reader and creates new one with new checkoint and same file channel
+     * Closes current reader and creates new one with new checkpoint and same file channel
      */
     TranslogReader closeIntoTrimmedReader(long aboveSeqNo, ChannelFactory channelFactory) throws IOException {
         if (closed.compareAndSet(false, true)) {

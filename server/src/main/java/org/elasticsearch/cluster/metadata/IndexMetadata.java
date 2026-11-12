@@ -2154,7 +2154,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
 
         /**
-         * Builder to create IndexMetadata that has descreased shard count (used in scope of resharding functionality).
+         * Builder to create IndexMetadata that has decreased shard count (used in scope of resharding functionality).
          * The new shard count must be a factor of the original shard count as well as a factor
          * of routingNumShards.
          * @param targetShardCount   target shard count

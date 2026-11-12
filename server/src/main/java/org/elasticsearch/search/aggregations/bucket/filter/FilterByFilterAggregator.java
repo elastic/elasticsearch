@@ -246,7 +246,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
             segmentsWithDocCountField++;
         }
         if (subAggregators.length == 0) {
-            // TOOD we'd be better off if we could do sub.isNoop() or something.
+            // TODO we'd be better off if we could do sub.isNoop() or something.
             /*
              * Without sub.isNoop we always end up in the `collectXXX` modes even if
              * the sub-aggregators opt out of traditional collection.

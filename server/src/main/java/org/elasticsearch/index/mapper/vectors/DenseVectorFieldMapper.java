@@ -4401,7 +4401,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         if (threadPool != null) {
             // use the MERGE pool as a CPU-bound writing-time threadpool
             // that scales with the number of cores
-            // FLUSH only has 5 threads, and is targetted at IO operations
+            // FLUSH only has 5 threads, and is targeted at IO operations
             quantizerExecutorService = threadPool.executor(ThreadPool.Names.MERGE);
         }
 

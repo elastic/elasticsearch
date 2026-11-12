@@ -71,6 +71,7 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
@@ -476,13 +477,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         this.clusterService = clusterService;
         this.uploadTranslogTaskRunner = new PrioritizedThrottledTaskRunner<>(
             getClass().getSimpleName() + "#upload-translog-file-task-runner",
-            threadPool.info(StatelessPlugin.TRANSLOG_THREAD_POOL).getMax(),
-            threadPool.executor(StatelessPlugin.TRANSLOG_THREAD_POOL)
+            threadPool.info(StatelessThreadPools.TRANSLOG_THREAD_POOL).getMax(),
+            threadPool.executor(StatelessThreadPools.TRANSLOG_THREAD_POOL)
         );
         this.uploadTaskRunner = new PrioritizedThrottledTaskRunner<>(
             "upload_task_runner",
-            threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax(),
-            threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL),
+            threadPool.info(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).getMax(),
+            threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL),
             meterRegistry,
             threadPool::relativeTimeInNanos
         );
@@ -920,9 +921,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         asyncDeleteFile(() -> {
             translogBlobsToDelete.add(fileToDelete);
             if (translogDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(StatelessPlugin.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(this::getTranslogBlobContainer));
+                threadPool.executor(StatelessThreadPools.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(this::getTranslogBlobContainer));
             }
-        }, StatelessPlugin.TRANSLOG_THREAD_POOL);
+        }, StatelessThreadPools.TRANSLOG_THREAD_POOL);
     }
 
     public void asyncDeleteShardFile(StaleCompoundCommit staleCompoundCommit) {
@@ -930,9 +931,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         asyncDeleteFile(() -> {
             commitBlobsToDelete.add(staleCompoundCommit);
             if (shardFileDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
+                threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
             }
-        }, StatelessPlugin.SHARD_WRITE_THREAD_POOL);
+        }, StatelessThreadPools.SHARD_WRITE_THREAD_POOL);
     }
 
     private void asyncDeleteFile(Runnable deleteFileRunnable, String executor) {
@@ -1307,7 +1308,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                     ) {
                         for (var blobContainerWithTerm : blobContainersWithTerms) {
                             // use the prewarm thread pool to avoid exceeding the connection pool size with blob listings
-                            threadPool.executor(StatelessPlugin.PREWARM_THREAD_POOL)
+                            threadPool.executor(StatelessThreadPools.PREWARM_THREAD_POOL)
                                 .execute(
                                     ActionRunnable.run(
                                         listeners.acquire(),
@@ -1356,7 +1357,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             }
         }
 
-        final Executor executor = threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL);
+        final Executor executor = threadPool.executor(StatelessThreadPools.BLOB_COPY_THREAD_POOL);
         ConcurrentMultipartHelper.runConcurrentTasks(tasks.size(), executor, i -> {
             var t = tasks.get(i);
             task.ensureNotCancelled();
@@ -1390,7 +1391,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             blobName,
             blobName,
             virtualBcc.getTotalSizeInBytes(),
-            threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL)
+            threadPool.executor(StatelessThreadPools.BLOB_COPY_THREAD_POOL)
         );
     }
 
@@ -1864,8 +1865,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                             // Ensure that one large upload doesn't starve other uploads
                             new ThrottledTaskRunner(
                                 "bcc-concurrent-multipart-upload",
-                                Math.max(1, threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax() / 2),
-                                threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)
+                                Math.max(1, threadPool.info(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).getMax() / 2),
+                                threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL)
                             ).asExecutor()
                         );
                     } finally {
@@ -1936,7 +1937,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         public void onAfter() {
             translogDeleteSchedulePermit.release();
             if (isRunning() && translogBlobsToDelete.isEmpty() == false && translogDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(StatelessPlugin.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(blobContainer));
+                threadPool.executor(StatelessThreadPools.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(blobContainer));
             }
         }
 
@@ -2004,7 +2005,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             toDeleteInThisTask.values().forEach(commitBlobsToDelete::addAll);
             shardFileDeleteSchedulePermit.release();
             if (lifecycle.started() && commitBlobsToDelete.isEmpty() == false && shardFileDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
+                threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
             }
         }
 

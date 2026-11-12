@@ -596,3 +596,8 @@ tests:
   - :server:test
   method: testDocsOnly
   issue: https://github.com/elastic/elasticsearch/issues/165819
+- class: org.elasticsearch.xpack.slm.SLMSnapshotBlockingIntegTests
+  tasks:
+  - :x-pack:plugin:slm:internalClusterTest
+  method: testSnapshotFailureOnMasterStepDown
+  issue: https://github.com/elastic/elasticsearch/issues/165822

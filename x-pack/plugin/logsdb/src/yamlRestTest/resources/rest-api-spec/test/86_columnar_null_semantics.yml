@@ -1,0 +1,204 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar.bare_null_is_absence" ]
+      reason: "columnar index mode and bare null handling required"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: logsdb_columnar
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              kwd_indexed:
+                type: keyword
+                index: true
+              lng:
+                type: long
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{ "@timestamp": "2026-01-01T00:00:01.000Z", "kwd_indexed": "a", "lng": 1 }'
+          - '{ "index": { "_id": "null_in_array" } }'
+          - '{ "@timestamp": "2026-01-01T00:00:02.000Z", "kwd_indexed": [ null ], "lng": [ null ] }'
+          - '{ "index": { "_id": "mixed" } }'
+          - '{ "@timestamp": "2026-01-01T00:00:03.000Z", "kwd_indexed": [ "a", null, "b" ], "lng": [ 1, null, 2 ] }'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{ "@timestamp": "2026-01-01T00:00:04.000Z", "kwd_indexed": null, "lng": null }'
+          - '{ "index": { "_id": "leading_null" } }'
+          - '{ "@timestamp": "2026-01-01T00:00:05.000Z", "kwd_indexed": [ null, "a" ], "lng": [ null, 1 ] }'
+          - '{ "index": { "_id": "trailing_null" } }'
+          - '{ "@timestamp": "2026-01-01T00:00:06.000Z", "kwd_indexed": [ "a", null ], "lng": [ 1, null ] }'
+          - '{ "index": { "_id": "missing" } }'
+          - '{ "@timestamp": "2026-01-01T00:00:07.000Z", "other": "c" }'
+
+---
+exists matches only documents with a non-null value on an indexed keyword field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "string exists matches documents that hold only nulls (proposed contract)"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+
+---
+exists matches only documents with a non-null value on a long field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: lng } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+
+---
+exists hits and size 0 total agree on an indexed keyword field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "the exists total takes the term count and is lower than the hits when documents hold only nulls"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - set: { hits.total.value: total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: $total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          sort: [ { "@timestamp": asc } ]
+          from: $total
+          size: 1
+          _source: false
+
+  - length: { hits.hits: 0 }
+
+---
+exists matches only documents with a non-null value on an indexed keyword field after a deletion and a merge:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "string exists matches documents that hold only nulls (proposed contract)"
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "delete": { "_id": "missing" } }'
+          - '{ "delete": { "_id": "bare_null" } }'
+
+  - do:
+      indices.forcemerge:
+        index: test
+        max_num_segments: 1
+
+  - do:
+      indices.stats:
+        index: test
+        metric: docs,segments
+
+  - match: { _all.primaries.segments.count: 1 }
+  - match: { _all.primaries.docs.count: 5 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+
+---
+synthetic source keeps every null slot of an indexed keyword field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          _source: kwd_indexed
+
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0._source.kwd_indexed: a }
+  - match: { hits.hits.1._source.kwd_indexed: [ null ] }
+  - match: { hits.hits.2._source.kwd_indexed: [ a, null, b ] }
+  - match: { hits.hits.3._source: {} }
+  - match: { hits.hits.4._source.kwd_indexed: [ null, a ] }
+  - match: { hits.hits.5._source.kwd_indexed: [ a, null ] }
+  - match: { hits.hits.6._source: {} }
+
+---
+synthetic source keeps every null slot of a long field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          _source: lng
+
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0._source.lng: 1 }
+  - match: { hits.hits.1._source.lng: [ null ] }
+  - match: { hits.hits.2._source.lng: [ 1, null, 2 ] }
+  - match: { hits.hits.3._source: {} }
+  - match: { hits.hits.4._source.lng: [ null, 1 ] }
+  - match: { hits.hits.5._source.lng: [ 1, null ] }
+  - match: { hits.hits.6._source: {} }

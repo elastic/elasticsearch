@@ -162,6 +162,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             // avoid pulling from the merge source when closing
             return;
         }
+        logger.trace("merge with trigger [{}]", trigger);
         PendingMerge pendingMerge = null;
         try {
             // From this point on Lucene considers the OneMerge as "running",

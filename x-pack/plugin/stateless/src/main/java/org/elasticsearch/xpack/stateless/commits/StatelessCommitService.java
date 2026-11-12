@@ -2866,10 +2866,24 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     }
                     listeners.add(new Tuple<>(generation, contextPreservingListener));
                     generationListeners = listeners;
+                    logger.trace(
+                        "{} registered listener for uploaded generation [{}], latestFullyUploadedCcGeneration=[{}], "
+                            + "pending listeners=[{}]",
+                        shardId,
+                        generation,
+                        latestFullyUploadedCcGeneration,
+                        listeners.size()
+                    );
                 }
             }
 
             if (completeListenerClosed) {
+                logger.trace(
+                    "{} failing listener for generation [{}], commit state already closed (relocated=[{}])",
+                    shardId,
+                    generation,
+                    relocated
+                );
                 if (relocated) {
                     listener.onFailure(new UnavailableShardsException(shardId, "shard relocated"));
                 } else {
@@ -2973,6 +2987,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     generationListeners = remaining;
                 }
             }
+            logger.trace(
+                "{} firing [{}] uploaded-generation listeners for ccGeneration [{}], latestFullyUploadedCcGeneration=[{}]",
+                shardId,
+                listenersToFire.size(),
+                ccGeneration,
+                latestFullyUploadedCcGeneration
+            );
             // It is OK for generation listeners to be completed out of generation order.
             ActionListener.onResponse(listenersToFire, null);
         }

@@ -4552,8 +4552,11 @@ public class InternalEngine extends Engine {
     }
 
     protected long estimateMergeBytes(MergePolicy.OneMerge merge) {
+        logger.trace("acquiring searcher to estimate merge memory for merge [{}]", merge);
         try (Searcher searcher = acquireSearcher("merge_memory_estimation", SearcherScope.INTERNAL)) {
-            return MergeMemoryEstimator.estimateMergeMemory(merge, searcher.getIndexReader());
+            long estimate = MergeMemoryEstimator.estimateMergeMemory(merge, searcher.getIndexReader());
+            logger.trace("estimated merge memory for merge [{}] as [{}] bytes", merge, estimate);
+            return estimate;
         } catch (AlreadyClosedException e) {
             // Can't estimate if the searcher is closed
             return 0L;

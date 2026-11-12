@@ -11,7 +11,6 @@ package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,6 +24,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -68,6 +68,8 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
     );
 
     private static final TimeValue MIN_CLEANUP_INTERVAL = TimeValue.timeValueSeconds(1);
+
+    private static final int MAX_CONCURRENT_PROJECT_CLEANUPS = 3;
 
     /**
      * How long to wait between the end of one cleanup and the start of the next. The value must be either {@code -1}, which disables the
@@ -223,23 +225,22 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
             projects = projectsToCleanup;
         }
         logger.debug("running task results cleanup for [{}] project(s)", projects.size());
-        try (
-            var refs = new RefCountingListener(
-                // #cleanupTaskResultsForProject invokes its listener in a project context,
-                // but #scheduleNextCleanupForGeneration should not do that because nested ProjectResolver#executeOnProject are forbidden
-                ContextPreservingActionListener.wrapPreservingContext(
-                    ActionListener.running(() -> scheduleNextCleanupForGeneration(generation)),
-                    threadPool.getThreadContext()
-                )
-            )
-        ) {
-            for (ProjectId project : projects) {
-                cleanupTaskResultsForProject(project, refs.acquire());
-            }
-        }
+        ThrottledIterator.run(
+            projects.iterator(),
+            (releasable, project) -> cleanupTaskResultsForProject(project, ActionListener.releasing(releasable)),
+            MAX_CONCURRENT_PROJECT_CLEANUPS,
+            () -> scheduleNextCleanupForGeneration(generation),
+            threadPool.generic(),
+            // the remaining projects are skipped, but the iteration still completes so the next cleanup is scheduled as usual
+            e -> logger.warn("failed to continue task results cleanup with the next project; it will be retried on the next cleanup", e)
+        );
     }
 
-    private void cleanupTaskResultsForProject(ProjectId projectId, ActionListener<Void> listener) {
+    private void cleanupTaskResultsForProject(ProjectId projectId, ActionListener<Void> actionListener) {
+        final ActionListener<Void> contextPreservingActionListener = ContextPreservingActionListener.wrapPreservingContext(
+            actionListener,
+            threadPool.getThreadContext()
+        );
         try {
             // read once, so the logged value is the one the request was built from if the setting changes concurrently
             final TimeValue retention = retentionPeriod;
@@ -256,15 +257,15 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
                         response.getTook(),
                         response.getVersionConflicts()
                     );
-                    listener.onResponse(null);
+                    contextPreservingActionListener.onResponse(null);
                 }, e -> {
                     logger.warn(() -> "failed to delete expired task results from [" + TASK_INDEX + "] in project [" + projectId + "]", e);
-                    listener.onFailure(e);
+                    contextPreservingActionListener.onFailure(e);
                 }))
             );
         } catch (Exception e) {
             logger.warn(() -> "failed to start deleting expired task results from [" + TASK_INDEX + "] in project [" + projectId + "]", e);
-            listener.onFailure(e);
+            contextPreservingActionListener.onFailure(e);
         }
     }
 

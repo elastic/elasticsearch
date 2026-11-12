@@ -16,7 +16,9 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
@@ -36,14 +38,14 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
-public class InnerJoinMapperTests extends ESTestCase {
+public class HashJoinMapperTests extends ESTestCase {
 
-    public void testMapsInnerJoinToLeftHashJoinFilterOnLookupOrdinal() {
-        InnerJoin innerJoin = innerJoin(false);
-        PhysicalPlan physical = new Mapper().map(new Versioned<>(innerJoin, TransportVersion.current()));
+    public void testMapsHashJoinToLeftHashJoinFilterOnLookupOrdinal() {
+        HashJoin hashJoin = hashJoin(false);
+        PhysicalPlan physical = new Mapper().map(new Versioned<>(hashJoin, TransportVersion.current()));
 
         ProjectExec project = as(physical, ProjectExec.class);
-        assertThat(project.projections(), equalTo(innerJoin.output()));
+        assertThat(project.projections(), equalTo(hashJoin.output()));
 
         FilterExec filter = as(project.child(), FilterExec.class);
         IsNotNull isNotNull = as(filter.condition(), IsNotNull.class);
@@ -59,9 +61,9 @@ public class InnerJoinMapperTests extends ESTestCase {
         assertThat(build.outputSet().contains(ordinal), equalTo(false));
     }
 
-    public void testMapsUniqueInnerJoinGuardsOutputWithDistinctBy() {
-        InnerJoin innerJoin = innerJoin(true, new long[] { 10, 10 }, new long[] { 100, 200 });
-        PhysicalPlan physical = new Mapper().map(new Versioned<>(innerJoin, TransportVersion.current()));
+    public void testMapsUniqueHashJoinGuardsOutputWithDistinctBy() {
+        HashJoin hashJoin = hashJoin(true, JoinTypes.INNER, new long[] { 10, 10 }, new long[] { 100, 200 });
+        PhysicalPlan physical = new Mapper().map(new Versioned<>(hashJoin, TransportVersion.current()));
 
         ProjectExec project = as(physical, ProjectExec.class);
         DistinctByExec distinctBy = as(project.child(), DistinctByExec.class);
@@ -77,11 +79,21 @@ public class InnerJoinMapperTests extends ESTestCase {
         assertThat(join.addedFields(), hasItem(sameInstance(ordinal)));
     }
 
-    private static InnerJoin innerJoin(boolean unique) {
-        return innerJoin(unique, new long[] { 10, 20 }, new long[] { 100, 200 });
+    public void testLeftJoinSkipsMarkerFilter() {
+        HashJoin hashJoin = hashJoin(false, JoinTypes.LEFT, new long[] { 10, 20 }, new long[] { 100, 200 });
+        PhysicalPlan physical = new Mapper().map(new Versioned<>(hashJoin, TransportVersion.current()));
+
+        ProjectExec project = as(physical, ProjectExec.class);
+        // Left-outer: HashJoinExec directly under Project - no IsNotNull(marker) filter.
+        HashJoinExec join = as(project.child(), HashJoinExec.class);
+        assertThat(join.addedFields().stream().anyMatch(a -> a.name().startsWith(JOIN_MARKER_PREFIX)), equalTo(true));
     }
 
-    private static InnerJoin innerJoin(boolean unique, long[] buildKeys, long[] buildValues) {
+    private static HashJoin hashJoin(boolean unique) {
+        return hashJoin(unique, JoinTypes.INNER, new long[] { 10, 20 }, new long[] { 100, 200 });
+    }
+
+    private static HashJoin hashJoin(boolean unique, JoinType type, long[] buildKeys, long[] buildValues) {
         var blockFactory = TestBlockFactory.getNonBreakingInstance();
         ReferenceAttribute probeKey = new ReferenceAttribute(Source.EMPTY, "k", DataType.LONG);
         LocalRelation probe = new LocalRelation(
@@ -101,6 +113,6 @@ public class InnerJoinMapperTests extends ESTestCase {
                 )
             )
         );
-        return new InnerJoin(Source.EMPTY, probe, build, List.of(probeKey), List.of(buildKey), List.of(buildValue), unique);
+        return new HashJoin(Source.EMPTY, probe, build, List.of(probeKey), List.of(buildKey), List.of(buildValue), unique, type);
     }
 }

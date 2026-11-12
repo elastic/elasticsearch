@@ -622,9 +622,9 @@ public class EsqlCapabilities {
 
         /**
          * A field that field caps returns only as the parent path of a name the query uses is not one of the query's fields, unless
-         * it holds keys.
+         * it holds the names below it. Only {@link #FLATTENED_KEYS} asks for parent paths outside {@code unmapped_fields="load"}.
          */
-        PARENT_PATHS_ARE_NOT_FIELDS,
+        PARENT_PATHS_ARE_NOT_FIELDS(FLATTENED_KEYS.isEnabled()),
 
         /**
          * Support for requesting the "_ignored" metadata field.

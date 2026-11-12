@@ -976,11 +976,23 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
      */
     public void testSubFieldOfUnsupportedFieldNamedAlone() throws IOException {
         assumeOriginalTypesReported();
-        var parentPaths = EsqlCapabilities.Cap.PARENT_PATHS_ARE_NOT_FIELDS.name().toLowerCase(Locale.ROOT);
-        assumeTrue(
-            "a parent path is not a field of the query",
-            clusterHasCapability("POST", "/_query", List.of(), List.of(parentPaths)).orElse(false)
-        );
+        boolean keys = clusterHasCapability(EsqlCapabilities.Cap.FLATTENED_KEYS);
+        boolean parentPaths = clusterHasCapability(EsqlCapabilities.Cap.PARENT_PATHS_ARE_NOT_FIELDS);
+        List<String> modes = new ArrayList<>();
+        // Without keys only load asks for parent paths
+        if (keys == false || parentPaths) {
+            modes.add("");
+            if (clusterHasCapability(EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW)) {
+                modes.add("SET unmapped_fields=\"nullify\"; ");
+            }
+        }
+        if (parentPaths) {
+            modes.add("SET unmapped_fields=\"load\"; ");
+            if (clusterHasCapability(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2)) {
+                modes.add("SET unmapped_fields=\"load_all\"; ");
+            }
+        }
+        assumeFalse("a parent path is a field of the query in every mode", modes.isEmpty());
         createIndex("test", index -> {
             index.startObject("properties");
             index.startObject("f");
@@ -998,12 +1010,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         index("test", """
             {"f": "192.168.0.1/24"}""");
 
-        var capsName = EsqlCapabilities.Cap.FLATTENED_KEYS.name().toLowerCase(Locale.ROOT);
-        boolean keys = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
-        List<String> modes = new ArrayList<>(List.of("", "SET unmapped_fields=\"nullify\"; "));
-        if (keys) {
-            modes.add("SET unmapped_fields=\"load\"; ");
-        }
         for (String mode : modes) {
             assertResultMap(
                 runEsql(mode + "FROM test* | KEEP f.raw | LIMIT 2"),
@@ -1680,6 +1686,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             "This test makes sense for versions that have the fix for https://github.com/elastic/elasticsearch/issues/117054",
             requiredClusterCapability
         );
+    }
+
+    private boolean clusterHasCapability(EsqlCapabilities.Cap cap) throws IOException {
+        return clusterHasCapability("POST", "/_query", List.of(), List.of(cap.name().toLowerCase(Locale.ROOT))).orElse(false);
     }
 
     private void assumeOriginalTypesReported() throws IOException {

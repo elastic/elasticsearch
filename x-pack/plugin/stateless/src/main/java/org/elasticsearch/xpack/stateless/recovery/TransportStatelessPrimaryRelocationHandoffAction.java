@@ -31,6 +31,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService.RecoveryInfoFromSource;
@@ -56,6 +57,8 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
     private static final TransportVersion STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS = TransportVersion.fromName(
         "stateless_primary_handoff_latest_blobs"
     );
+
+    public static final TransportVersion HOLLOW_SHARD_RECOVERY_STATE = TransportVersion.fromName("hollow_shard_recovery_state");
 
     /// Legacy name from before the transport action split for backward compatibility.
     public static final String PRIMARY_CONTEXT_HANDOFF_ACTION_NAME = StatelessPrimaryRelocationAction.TYPE.name()
@@ -159,6 +162,8 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
         @Nullable
         private final Set<BlobFile> lastCommitBlobs;
         private final boolean lastCommitIsHollow;
+        @Nullable
+        private final HollowShardRecoveryState hollowRecoveryState;
 
         Request(
             long recoveryId,
@@ -170,7 +175,8 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
             Set<BlobFile> otherBlobFiles,
             boolean hasRecentIdLookup,
             Set<BlobFile> lastCommitBlobs,
-            boolean lastCommitIsHollow
+            boolean lastCommitIsHollow,
+            @Nullable HollowShardRecoveryState hollowRecoveryState
         ) {
             this.recoveryId = recoveryId;
             this.shardId = shardId;
@@ -182,6 +188,7 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
             this.hasRecentIdLookup = hasRecentIdLookup;
             this.lastCommitBlobs = lastCommitBlobs;
             this.lastCommitIsHollow = lastCommitIsHollow;
+            this.hollowRecoveryState = hollowRecoveryState;
         }
 
         Request(StreamInput in) throws IOException {
@@ -192,12 +199,15 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
             retentionLeases = new RetentionLeases(in);
             searchNodesPerCommit = in.readMap(PrimaryTermAndGeneration::new, in0 -> in0.readCollectionAsSet(StreamInput::readString));
             latestBccBlob = in.readOptionalWriteable(BlobFileWithLength::new);
-            otherBlobFiles = in.readCollectionAsSet(BlobFile::new);
+            otherBlobFiles = in.readCollectionAsSet(Blob.reader(BlobFile.class));
             hasRecentIdLookup = in.readBoolean();
             lastCommitBlobs = in.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS)
-                ? in.readCollectionAsImmutableSet(BlobFile::new)
+                ? in.readCollectionAsImmutableSet(Blob.reader(BlobFile.class))
                 : Set.of();
             lastCommitIsHollow = in.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS) && in.readBoolean();
+            hollowRecoveryState = in.getTransportVersion().supports(HOLLOW_SHARD_RECOVERY_STATE)
+                ? in.readOptionalWriteable(HollowShardRecoveryState::new)
+                : null;
         }
 
         @Override
@@ -218,6 +228,9 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
             if (out.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS)) {
                 out.writeCollection(lastCommitBlobs);
                 out.writeBoolean(lastCommitIsHollow);
+            }
+            if (out.getTransportVersion().supports(HOLLOW_SHARD_RECOVERY_STATE)) {
+                out.writeOptionalWriteable(hollowRecoveryState);
             }
         }
 
@@ -266,7 +279,7 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
                     otherBlobFiles
                 );
             }
-            return new RecoveryInfoFromSource(sourceBlobsInfo, lastCommitBlobs, lastCommitIsHollow, hasRecentIdLookup);
+            return new RecoveryInfoFromSource(sourceBlobsInfo, lastCommitBlobs, lastCommitIsHollow, hasRecentIdLookup, hollowRecoveryState);
         }
     }
 }

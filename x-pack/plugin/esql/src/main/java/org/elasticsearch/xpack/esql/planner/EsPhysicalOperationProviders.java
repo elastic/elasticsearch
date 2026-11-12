@@ -42,6 +42,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -77,6 +78,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
@@ -102,7 +104,9 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecution
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.io.IOException;
@@ -111,6 +115,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.LongAdder;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -126,6 +133,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
      * {@link RefCounted}.
      */
     public abstract static class ShardContext implements org.elasticsearch.compute.lucene.ShardContext, Releasable {
+        private final AtomicInteger unfinishedSlices = new AtomicInteger();
         private final AbstractRefCounted refCounted = new AbstractRefCounted() {
             @Override
             protected void closeInternal() {
@@ -151,6 +159,19 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public boolean hasReferences() {
             return refCounted.hasReferences();
+        }
+
+        @Override
+        public void addUnfinishedSlices(int delta) {
+            unfinishedSlices.addAndGet(delta);
+        }
+
+        /**
+         * Whether a slice of this shard is not read yet. The supplier does not keep this context reachable.
+         */
+        public BooleanSupplier hasUnfinishedSlices() {
+            AtomicInteger unfinished = unfinishedSlices;
+            return () -> unfinished.get() > 0;
         }
 
         /**
@@ -208,6 +229,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
     }
 
+    private final Configuration configuration;
+
     private final IndexedByShardId<? extends ShardContext> shardContexts;
 
     private final PlannerSettings plannerSettings;
@@ -218,6 +241,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     public EsPhysicalOperationProviders(
         FoldContext foldContext,
+        Configuration configuration,
         IndexedByShardId<? extends ShardContext> shardContexts,
         AnalysisRegistry analysisRegistry,
         PlannerSettings plannerSettings,
@@ -225,6 +249,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         QueryWarnings singleValueQueryWarnings
     ) {
         super(foldContext, analysisRegistry);
+        this.configuration = configuration;
         this.shardContexts = shardContexts;
         this.plannerSettings = plannerSettings;
         this.directoryBytesRead = directoryBytesRead;
@@ -334,6 +359,26 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
         UnionTypeEsField unionTypes = findUnionTypes(attr);
+        if ((unionTypes != null || DataType.isString(attr.dataType()) == false) && shardContext.readsKey(fieldName)) {
+            // A key is a keyword: a column of another type reads it through a cast, and where indices map the name with different
+            // types, through the cast the query settles them with
+            BlockLoader keys = shardContext.blockLoader(
+                fieldName,
+                false,
+                fieldExtractPreference,
+                null,
+                warnings,
+                plannerSettings.blockLoaderSizeOrdinals(),
+                plannerSettings.blockLoaderSizeScript()
+            );
+            ReferenceAttribute keyword = new ReferenceAttribute(attr.source(), fieldName, DataType.KEYWORD);
+            AbstractConvertFunction cast = unionTypes == null
+                ? EsqlDataTypeConverter.castFromKeyword(attr.dataType(), keyword, configuration)
+                : keywordConversion(unionTypes, keyword);
+            return cast == null
+                ? ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
+                : ValuesSourceReaderOperator.loadAndConvert(keys, new TypeConverter((EsqlScalarFunction) cast));
+        }
         if (unionTypes == null && attr.dataType() != DataType.KEYWORD && shardContext.readsFromSource(fieldName)) {
             // A field read from _source is read as a keyword: a column of another type reads it only through a conversion
             return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
@@ -457,6 +502,21 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     private static @Nullable UnionTypeEsField findUnionTypes(Attribute attr) {
         if (attr instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField unionTypeEsField) {
             return unionTypeEsField;
+        }
+        return null;
+    }
+
+    /**
+     * The cast that {@code unionTypes} applies to each mapped type, applied to {@code keyword}, or {@code null} if it takes no
+     * keyword.
+     */
+    private static @Nullable AbstractConvertFunction keywordConversion(UnionTypeEsField unionTypes, Expression keyword) {
+        for (Expression conversion : unionTypes.getConversionExpressions()) {
+            if (conversion instanceof AbstractConvertFunction convert && convert.supportedTypes().contains(DataType.KEYWORD)) {
+                List<Expression> children = new ArrayList<>(convert.children());
+                children.set(0, keyword);
+                return (AbstractConvertFunction) convert.replaceChildren(children);
+            }
         }
         return null;
     }
@@ -662,6 +722,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             EsMinCompetitiveQueries minCompetitiveQueries = new EsMinCompetitiveQueries(
                 pilot.supplier(),
                 pilot.sortFieldName(),
+                pilot.sortFieldType(),
                 executionContext
             );
             Query q = minCompetitiveQueries.buildMinCompetitiveQuery(page);
@@ -783,8 +844,19 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         /** The walk of {@code _source} that the fields one extraction reads from it share, or {@code null} for a walk each. */
         @Nullable
         private final UnmappedFields.Walk sourceWalk;
+        private final LongAdder rowsEmitted;
 
         public DefaultShardContext(int index, Releasable releasable, SearchExecutionContext ctx, AliasFilter aliasFilter) {
+            this(index, releasable, ctx, aliasFilter, new LongAdder());
+        }
+
+        public DefaultShardContext(
+            int index,
+            Releasable releasable,
+            SearchExecutionContext ctx,
+            AliasFilter aliasFilter,
+            LongAdder rowsEmitted
+        ) {
             this.index = index;
             this.releasable = releasable;
             this.ctx = ctx;
@@ -793,6 +865,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             this.shardIdentifier = this.ctx.getFullyQualifiedIndex().getName() + ":" + this.ctx.getShardId();
             this.shardSearchStats = ctx.stats();
             this.sourceWalk = null;
+            this.rowsEmitted = rowsEmitted;
         }
 
         private DefaultShardContext(DefaultShardContext context, UnmappedFields.Walk sourceWalk) {
@@ -803,6 +876,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             this.shardIdentifier = context.shardIdentifier;
             this.shardSearchStats = context.shardSearchStats;
             this.sourceWalk = sourceWalk;
+            this.rowsEmitted = context.rowsEmitted;
         }
 
         /** This context, reading the fields it reads from {@code _source} through {@code sourceWalk} when it reads them. */
@@ -820,6 +894,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return ctx instanceof EsqlSearchExecutionContext esql && esql.readsFromSource(name);
         }
 
+        /** Whether this shard reads the field {@code name} as the key of a {@code flattened} field, a {@code keyword}. */
+        boolean readsKey(String name) {
+            return ctx instanceof EsqlSearchExecutionContext esql && esql.readsKey(name);
+        }
+
         @Override
         public int index() {
             return index;
@@ -828,6 +907,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public IndexSearcher searcher() {
             return ctx.searcher();
+        }
+
+        @Override
+        public boolean canPartitionByTsidPrefix() {
+            return PartitionedDocValues.canPartitionByTsidPrefix(ctx.getIndexSettings().getIndexVersionCreated());
         }
 
         @Override
@@ -961,6 +1045,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public ShardSearchStats stats() {
             return shardSearchStats;
+        }
+
+        @Override
+        public void addRowsEmitted(long rows) {
+            rowsEmitted.add(rows);
         }
 
         @Override

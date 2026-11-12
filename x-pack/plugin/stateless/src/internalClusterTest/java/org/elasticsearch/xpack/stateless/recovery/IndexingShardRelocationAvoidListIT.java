@@ -58,9 +58,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
+import static org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService.PREWARM_WAIT_TIMEOUT_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationPrewarmAction.PREWARM_RELOCATION_ACTION_NAME;
 import static org.hamcrest.Matchers.empty;
@@ -273,6 +275,10 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
         var settings = Settings.builder()
             .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 2)
             .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
+            // reduce the consistency check to delete faster if a blob shows up for deletion
+            .put(DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(100))
+            // we hold the prewarm until after the relocation, so no reason for the source to wait
+            .put(PREWARM_WAIT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO)
             .build();
 
         startMasterOnlyNode(settings);
@@ -379,6 +385,7 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
         // Unblock pre-warming message that now includes a path to the deleted blob
         prewarmBlockLatch.countDown();
         safeAwait(prewarmMessageFailedLatch);
+        // assert that no warming started for the deleted blob
         assertEquals(0, bccAccesses.get());
 
         ensureGreen(indexName);

@@ -47,7 +47,6 @@ import static java.util.Collections.singletonList;
 public class EncryptionPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, ReloadablePlugin, HealthPlugin {
 
     private final List<EncryptedDataHandlerProvider> encryptedDataHandlerProviders = new ArrayList<>();
-    private final SetOnce<ProjectEncryptionKeyService> pekService = new SetOnce<>();
     private final SetOnce<KeyRotationCoordinator> coordinator = new SetOnce<>();
     private final SetOnce<ProjectEncryptionKeyHealthIndicatorService> healthIndicatorService = new SetOnce<>();
     private final SetOnce<SnapshotEncryptedDataFilter> snapshotEncryptedDataFilter = new SetOnce<>();
@@ -105,7 +104,6 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
             handlerRegistry
         );
 
-        this.pekService.set(pekService);
         this.coordinator.set(coordinator);
         this.healthIndicatorService.set(healthIndicator);
 
@@ -130,10 +128,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
     @Override
     public synchronized void reload(Settings settings) {
         Settings updated = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);
-        ProjectEncryptionKeyService localPekService = this.pekService.get();
-        if (localPekService != null && localPekService.hasInstalledKey()) {
-            ProjectEncryptionKeyPasswordSettings.validateReload(this.pekSettings, updated, pekEncryption.onDiskKeys().passwordId());
-        }
+        ProjectEncryptionKeyPasswordSettings.validateReload(this.pekSettings, updated, pekEncryption.onDiskPasswordId());
         this.pekSettings = updated;
         KeyRotationCoordinator localCoordinator = this.coordinator.get();
         if (localCoordinator != null) {

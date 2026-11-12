@@ -90,11 +90,6 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
         return ProjectEncryptionKeyPasswordSettings.canWrapForDisk(settingsSupplier.get());
     }
 
-    /** Returns whether a project encryption key is installed in cluster state, with or without key material. */
-    boolean hasInstalledKey() {
-        return currentMetadata() != null;
-    }
-
     /**
      * Returns the current {@link EncryptionServiceState} of this node based on the visible cluster-state metadata and secure settings.
      */

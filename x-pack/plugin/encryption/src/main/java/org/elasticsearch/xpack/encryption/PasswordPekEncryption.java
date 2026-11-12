@@ -109,6 +109,11 @@ final class PasswordPekEncryption implements ProjectEncryptionKeyMetadata.PekEnc
         return onDiskKeys;
     }
 
+    @Nullable
+    String onDiskPasswordId() {
+        return onDiskKeys.passwordId();
+    }
+
     /** Returns whether this node's last on-disk write of the project encryption key carried no key material. */
     boolean isKeyMissingOnDisk() {
         return keyMissingOnDisk;

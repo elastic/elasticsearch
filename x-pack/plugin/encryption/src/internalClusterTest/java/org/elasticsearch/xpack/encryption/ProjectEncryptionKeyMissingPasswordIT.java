@@ -239,7 +239,7 @@ public class ProjectEncryptionKeyMissingPasswordIT extends ESIntegTestCase {
         ensureStableCluster(4);
         assertBusy(() -> {
             for (String node : internalCluster().getNodeNames()) {
-                assertTrue(internalCluster().getInstance(ProjectEncryptionKeyService.class, node).hasInstalledKey());
+                assertThat(pekOn(node), notNullValue());
             }
         });
 

@@ -183,14 +183,6 @@ public class ProjectEncryptionKeyServiceTests extends ESTestCase {
             ProjectEncryptionKeyService.class,
             new MockLog.UnseenEventExpectation("no missing-key warning", ProjectEncryptionKeyService.class.getName(), Level.WARN, "*")
         );
-        assertTrue("a key is installed even if this node cannot use it", service.hasInstalledKey());
-    }
-
-    public void testHasInstalledKey() {
-        ProjectEncryptionKeyService service = createService(Settings.EMPTY);
-        assertFalse(service.hasInstalledKey());
-        visibleState.set(stateWithKey(plaintextPekMetadata(PASSWORD_ID)));
-        assertTrue(service.hasInstalledKey());
     }
 
     public void testStateDisabledWhenNoPekAndNoPassword() {

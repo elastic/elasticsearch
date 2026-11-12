@@ -87,21 +87,24 @@ final class ProjectEncryptionKeyPasswordSettings {
     }
 
     /**
-     * Rejects a reload that removes a password this node still needs: the active one, which it wraps the key with, or the one its
-     * on-disk copy of the key is wrapped with, which it needs to read the key back after a restart.
+     * Rejects a reload that removes a password a node holding the key on disk still needs: the active one, which it wraps the key with,
+     * or the one its on-disk copy is wrapped with, which it needs to read the key back after a restart.
      */
     static void validateReload(Settings current, Settings updated, @Nullable String onDiskPasswordId) {
+        if (onDiskPasswordId == null) {
+            return;
+        }
         if (canWrapForDisk(current) && canWrapForDisk(updated) == false) {
             String activePasswordId = getActivePasswordId(updated);
             String missing = activePasswordId == null ? ACTIVE_PASSWORD_ID_KEY : PASSWORD_PREFIX + activePasswordId;
             throw new IllegalArgumentException(
-                "cannot reload cluster state encryption settings: a project encryption key is installed and ["
+                "cannot reload cluster state encryption settings: this node holds the project encryption key on disk and ["
                     + missing
                     + "] is not configured in the reloaded secure settings, so this node could no longer persist the key to disk;"
                     + " keeping the previous settings until this node restarts. Add the setting to the keystore before restarting this node"
             );
         }
-        if (onDiskPasswordId != null && hasPassword(current, onDiskPasswordId) && hasPassword(updated, onDiskPasswordId) == false) {
+        if (hasPassword(current, onDiskPasswordId) && hasPassword(updated, onDiskPasswordId) == false) {
             String missing = PASSWORD_PREFIX + onDiskPasswordId;
             throw new IllegalArgumentException(
                 "cannot reload cluster state encryption settings: this node's on-disk copy of the project encryption key is wrapped with ["

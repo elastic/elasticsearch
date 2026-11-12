@@ -1345,6 +1345,78 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
     }
 
+    /**
+     * Stream formats publish {@code bytes_read} in 256 KiB chunks and flush the tail only on
+     * close. A file under one chunk used to report 0 because the producer untracked the object
+     * before that close.
+     */
+    public void testSliceQueueBytesReadCountsSubChunkCsv() throws Exception {
+        assertCsvBytesReadEqualsFileSize(true, between(32, 2048));
+    }
+
+    public void testSliceQueueBytesReadCountsTailPastPublishChunk() throws Exception {
+        assertCsvBytesReadEqualsFileSize(true, 256 * 1024 + between(1, 512));
+    }
+
+    public void testSingleFileBytesReadCountsSubChunkCsv() throws Exception {
+        assertCsvBytesReadEqualsFileSize(false, between(32, 2048));
+    }
+
+    private void assertCsvBytesReadEqualsFileSize(boolean sliceQueue, int namePad) throws Exception {
+        String csv = "id:long,name:keyword\n1," + "x".repeat(namePad) + "\n";
+        byte[] payload = csv.getBytes(StandardCharsets.UTF_8);
+        StoragePath path = StoragePath.of("s3://bucket/data.csv");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(Source.EMPTY, "id", new EsField("id", DataType.LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE)),
+            new FieldAttribute(
+                Source.EMPTY,
+                "name",
+                new EsField("name", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        var builder = AsyncExternalSourceOperatorFactory.builder(
+            new MeteredPayloadStorageProvider(path, payload),
+            new CsvFormatReader(TEST_BLOCK_FACTORY),
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).parsingParallelism(1);
+        if (sliceQueue) {
+            builder.sliceQueue(new ExternalSliceQueue(List.of(new FileSplit("test", path, 0, payload.length, "csv", Map.of(), Map.of()))));
+        }
+        SourceOperator operator = builder.build().get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        try {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (operator.isFinished() == false) {
+                if (System.nanoTime() > deadline) {
+                    fail("operator did not finish");
+                }
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages.add(page);
+                }
+            }
+            assertThat(
+                "stream remainder after the last 256 KiB chunk must be in bytes_read",
+                operator.status().bytesRead(),
+                Matchers.equalTo((long) payload.length)
+            );
+        } finally {
+            for (Page page : pages) {
+                page.releaseBlocks();
+            }
+            operator.close();
+        }
+    }
+
     public void testMultiFileReadUnresolvedGenericFileListFallsBackToSingleFile() throws Exception {
         AtomicInteger readCount = new AtomicInteger(0);
 

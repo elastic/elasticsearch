@@ -590,11 +590,6 @@ tests:
   tasks:
   - :x-pack:plugin:esql:qa:security:javaRestTest
   issue: https://github.com/elastic/elasticsearch/issues/165735
-- class: org.elasticsearch.xpack.spatial.SpatialDiskUsageIT
-  tasks:
-  - :x-pack:plugin:spatial:internalClusterTest
-  method: testCartesianShape
-  issue: https://github.com/elastic/elasticsearch/issues/165745
 - class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
   tasks:
   - :x-pack:plugin:esql:qa:server:single-node:javaRestTest

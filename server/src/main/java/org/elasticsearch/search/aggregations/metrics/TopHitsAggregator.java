@@ -56,7 +56,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.IntConsumer;
 
 class TopHitsAggregator extends MetricsAggregator {
 
@@ -84,7 +83,6 @@ class TopHitsAggregator extends MetricsAggregator {
     private final List<ProfileResult> fetchProfiles;
     // this must be mutable so it can be closed/replaced on each call to getLeafCollector
     private LongObjectPagedHashMap<LeafCollector> leafCollectors;
-    private final boolean isNested;
     private final SearchExecutionContext forkedSearchExecutionContext;
     private final InnerHitsContext forkedInnerHitsContext;
 
@@ -102,7 +100,6 @@ class TopHitsAggregator extends MetricsAggregator {
         this.bucketedTopHits = bucketedTopHits;
         this.topDocsCollectors = bucketedTopHits == null ? new LongObjectPagedHashMap<>(1, bigArrays) : null;
         this.fetchProfiles = context.profiling() ? new ArrayList<>() : null;
-        this.isNested = isNestedAggregationContext(parent);
         // Fork the search execution context, because the fetch phase does not support concurrent execution yet. One fork per
         // aggregator is enough: each slice gets its own aggregator and its buckets are fetched sequentially. Forking per bucket
         // instead pinned a SearchExecutionContext, and the stored fields its lookup provider had loaded, for every bucket until
@@ -112,7 +109,7 @@ class TopHitsAggregator extends MetricsAggregator {
         // Query-level inner_hits operate at parent document scope, while nested aggregation top_hits operate
         // at nested document scope within buckets. Inheriting inner_hits causes conflicting fetch contexts
         // and fails when extracting nested documents by offset.
-        if (isNested) {
+        if (isNestedAggregationContext(parent)) {
             this.forkedInnerHitsContext = new InnerHitsContext();
         } else {
             // InnerHitSubContext is not thread-safe, so we fork it as well to support concurrent execution
@@ -253,12 +250,18 @@ class TopHitsAggregator extends MetricsAggregator {
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
             docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
         }
-        FetchSearchResult fetchResult = runFetchPhase(docIdsToLoad, this::addRequestCircuitBreakerBytes);
-        if (fetchProfiles != null) {
-            fetchProfiles.add(fetchResult.profileResult());
+        SearchHits hits;
+        try (SubSearchContext fetchContext = newFetchContext()) {
+            fetchContext.fetchPhase().execute(fetchContext, docIdsToLoad, null, this::addRequestCircuitBreakerBytes);
+            FetchSearchResult fetchResult = fetchContext.fetchResult();
+            if (fetchProfiles != null) {
+                fetchProfiles.add(fetchResult.profileResult());
+            }
+            hits = fetchResult.hits();
+            // Takes a reference to the hits, so they outlive the fetch context.
+            subSearchContext.registerTopHitsForRelease(hits);
         }
-        subSearchContext.registerTopHitsForRelease(fetchResult.hits());
-        SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();
+        SearchHit[] internalHits = hits.getHits();
         for (int i = 0; i < internalHits.length; i++) {
             ScoreDoc scoreDoc = topDocs.scoreDocs[i];
             SearchHit searchHitFields = internalHits[i];
@@ -268,19 +271,15 @@ class TopHitsAggregator extends MetricsAggregator {
                 searchHitFields.sortValues(fieldDoc.fields, subSearchContext.sort().formats);
             }
         }
-        return new InternalTopHits(
-            name,
-            subSearchContext.from(),
-            subSearchContext.size(),
-            topDocsAndMaxScore,
-            fetchResult.hits(),
-            metadata()
-        );
+        return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocsAndMaxScore, hits, metadata());
     }
 
-    private FetchSearchResult runFetchPhase(int[] docIdsToLoad, IntConsumer memoryChecker) {
-        // Stays per bucket: it owns the FetchSearchResult the bucket's hits are published through.
-        SubSearchContext fetchSubSearchContext = new SubSearchContext(subSearchContext) {
+    /**
+     * A context for fetching the hits of one bucket, which owns the {@link FetchSearchResult} they are published through. The caller
+     * closes it once the hits are registered with the search.
+     */
+    private SubSearchContext newFetchContext() {
+        return new SubSearchContext(subSearchContext, false) {
             @Override
             public SearchExecutionContext getSearchExecutionContext() {
                 return forkedSearchExecutionContext;
@@ -291,9 +290,6 @@ class TopHitsAggregator extends MetricsAggregator {
                 return forkedInnerHitsContext;
             }
         };
-
-        fetchSubSearchContext.fetchPhase().execute(fetchSubSearchContext, docIdsToLoad, null, memoryChecker);
-        return fetchSubSearchContext.fetchResult();
     }
 
     /**

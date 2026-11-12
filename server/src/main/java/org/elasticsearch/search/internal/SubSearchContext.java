@@ -50,17 +50,31 @@ public class SubSearchContext extends FilteredSearchContext {
     private boolean version;
     private boolean seqNoAndPrimaryTerm;
 
-    @SuppressWarnings("this-escape")
     public SubSearchContext(SearchContext context) {
+        this(context, true);
+    }
+
+    @SuppressWarnings("this-escape")
+    private SubSearchContext(SearchContext context, boolean releaseWithSource) {
         super(context);
-        context.addReleasable(this);
+        if (releaseWithSource) {
+            context.addReleasable(this);
+        }
         this.fetchSearchResult = new FetchSearchResult();
         addReleasable(fetchSearchResult::decRef);
         this.querySearchResult = new QuerySearchResult();
     }
 
     public SubSearchContext(SubSearchContext subSearchContext) {
-        this((SearchContext) subSearchContext);
+        this(subSearchContext, true);
+    }
+
+    /**
+     * Copies {@code subSearchContext}. With {@code releaseWithSource}, the source releases the copy and keeps it referenced until then.
+     * A caller that makes many copies passes {@code false} and closes each one itself.
+     */
+    protected SubSearchContext(SubSearchContext subSearchContext, boolean releaseWithSource) {
+        this((SearchContext) subSearchContext, releaseWithSource);
         this.from = subSearchContext.from;
         this.size = subSearchContext.size;
         this.sort = subSearchContext.sort;

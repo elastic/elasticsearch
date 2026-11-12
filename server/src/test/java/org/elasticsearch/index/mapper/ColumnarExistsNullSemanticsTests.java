@@ -13,6 +13,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -66,6 +67,14 @@ public class ColumnarExistsNullSemanticsTests extends MapperServiceTestCase {
             "date",
             () -> Instant.ofEpochMilli(randomLongBetween(0, 4_102_444_800_000L)).toString()
         );
+    }
+
+    public void testIpExistsMatchesOnlyDocumentsWithANonNullValue() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithANonNullValue("ip", () -> NetworkAddress.format(randomIp(randomBoolean())));
+    }
+
+    public void testBooleanExistsMatchesOnlyDocumentsWithANonNullValue() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithANonNullValue("boolean", () -> randomBoolean());
     }
 
     private void assertExistsMatchesOnlyDocumentsWithANonNullValue(String type, Supplier<Object> valueSupplier) throws IOException {

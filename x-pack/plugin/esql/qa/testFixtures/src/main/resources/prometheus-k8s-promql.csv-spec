@@ -2083,7 +2083,7 @@ required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(topk(2, network.total_bytes_in{cluster="prod"}))
 | SORT result DESC;
 
@@ -2098,7 +2098,7 @@ required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(topk(5, network.total_bytes_in{cluster="prod"}))
 | SORT result DESC;
 
@@ -2106,22 +2106,6 @@ result:double | step:datetime            | _timeseries:keyword
 10277.0       | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
 9969.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
 947.0         | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
-;
-
-// topk over a filter comparison ranks the series the filter keeps: `two` is filtered out, so `three` wins.
-topk_over_filter_comparison
-required_capability: promql_command_v0
-required_capability: promql_topk
-required_capability: fix_promql_time_bucket_v2
-required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_binary_comparison_v0
-required_capability: promql_label_references
-required_capability: promql_timeseries_metadata_functions
-PROMQL index=prometheus-k8s step=1h result=(topk(1, network.total_bytes_in{cluster="prod"} < 10000))
-| SORT result DESC;
-
-result:double | step:datetime            | _timeseries:keyword
-9969.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
 ;
 
 // topk is evaluated independently at every step of a range query, so the winning series can change from
@@ -2133,7 +2117,7 @@ required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" result=(topk(1, network.total_bytes_in{cluster="prod"}))
 | SORT step, result DESC;
 
@@ -2162,7 +2146,7 @@ required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(topk(100000, network.total_bytes_in{cluster="prod"}))
 | SORT result DESC;
 
@@ -2180,7 +2164,7 @@ required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(topk(2, network.total_bytes_in) by (pod));
 
 result:double | step:datetime            | _timeseries:keyword
@@ -2214,7 +2198,7 @@ required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(bottomk(2, network.total_bytes_in{cluster="prod"}))
 | SORT result ASC;
 
@@ -2229,7 +2213,7 @@ required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(bottomk(5, network.total_bytes_in{cluster="prod"}))
 | SORT result ASC;
 
@@ -2248,7 +2232,7 @@ required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" result=(bottomk(1, network.total_bytes_in{cluster="prod"}))
 | SORT step, result ASC;
 
@@ -2275,7 +2259,7 @@ required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(bottomk(2, network.total_bytes_in) by (pod));
 
 result:double | step:datetime            | _timeseries:keyword

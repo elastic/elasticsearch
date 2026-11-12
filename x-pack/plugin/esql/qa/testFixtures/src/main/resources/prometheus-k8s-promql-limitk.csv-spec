@@ -11,7 +11,7 @@ required_capability: promql_command_v0
 required_capability: promql_limitk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(limitk(5, network.total_bytes_in{cluster="prod"}))
 | SORT result;
 
@@ -27,7 +27,7 @@ required_capability: promql_command_v0
 required_capability: promql_limitk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(limitk(3, network.total_bytes_in{cluster="prod"}))
 | SORT result;
 
@@ -57,7 +57,7 @@ required_capability: promql_command_v0
 required_capability: promql_limitk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(limitk(2, network.total_bytes_in{cluster="prod"}))
 | EVAL labels_match = CASE(
     result == 947.0, _timeseries == """{"__name__":"network.total_bytes_in","cluster":"prod","pod":"one","region":["eu","us"]}""",
@@ -79,7 +79,7 @@ required_capability: promql_limitk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" result=(limitk(5, network.total_bytes_in{cluster="prod"}))
 | SORT step, result;
 
@@ -97,7 +97,7 @@ required_capability: promql_command_v0
 required_capability: promql_limitk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(limitk(5, network.total_bytes_in) by (pod))
 | SORT result;
 

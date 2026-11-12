@@ -67,7 +67,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
     }
 
     private Tuple<ClusterState, Void> restore(ProjectEncryptionKeyMetadata ownCopy, ClusterState state) {
-        return executor.executeTask(new KeyRotationCoordinator.RestoreKeysTask(ownCopy, new AtomicBoolean(true)), state);
+        return executor.executeTask(new KeyRotationCoordinator.RestoreKeysTask(ownCopy), state);
     }
 
     /**

@@ -317,7 +317,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         assertEquals("no retry with the same settings", 1, unwraps.get());
         verify(taskQueue, never()).submitTask(anyString(), any(), any());
 
-        // the reload retries, and a second reload while that retry is in flight is retried as soon as it fails
+        // a reload retries, and a second reload during that attempt gets its own attempt
         unwrapFailure.set(new IllegalStateException("still the wrong password"));
         duringUnwrap.set(() -> {
             duringUnwrap.set(() -> {});

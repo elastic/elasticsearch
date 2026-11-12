@@ -140,9 +140,8 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
     private final AtomicBoolean installInFlight = new AtomicBoolean(false);
     private final AtomicBoolean beginRotationInFlight = new AtomicBoolean(false);
     private final AtomicBoolean passwordIdRotateInFlight = new AtomicBoolean(false);
-    private final AtomicBoolean restoreInFlight = new AtomicBoolean(false);
-    // a failed restore is retried only after a reload or after this node becomes master again
-    private final AtomicReference<Settings> failedRestoreSettings = new AtomicReference<>();
+    // one restore attempt per secure settings while master: retried only after a reload or after this node becomes master again
+    private final AtomicReference<Settings> restoreAttemptedWith = new AtomicReference<>();
     private final AtomicReference<String> installSkippedForPasswordId = new AtomicReference<>();
 
     static KeyRotationCoordinator create(
@@ -229,7 +228,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         }
         reEncrypting.set(false);
         installSkippedForPasswordId.set(null);
-        failedRestoreSettings.set(null);
+        restoreAttemptedWith.set(null);
         stopSchedule();
     }
 
@@ -260,6 +259,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             return;
         }
         if (metadata.isUnwrapFailed()) {
+            // key-less metadata can't be rewrapped under a new password id, so restore it first
             scheduleRestore(metadata);
             return;
         }
@@ -482,34 +482,26 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
 
     private void scheduleRestore(ProjectEncryptionKeyMetadata degraded) {
         Settings settings = settingsSupplier.get();
-        if (failedRestoreSettings.get() == settings) {
-            return;
-        }
-        if (restoreInFlight.compareAndSet(false, true) == false) {
+        if (restoreAttemptedWith.getAndSet(settings) == settings) {
             return;
         }
         try {
             // unwrapping derives a key from the password, which is too slow for the cluster applier thread
-            threadPool.generic().execute(() -> restoreFromDisk(degraded, settings));
+            threadPool.generic().execute(() -> restoreFromDisk(degraded));
         } catch (Exception e) {
-            restoreInFlight.set(false);
             logger.debug("could not fork project encryption key restore", e);
         }
     }
 
-    private void restoreFromDisk(ProjectEncryptionKeyMetadata degraded, Settings settings) {
-        boolean submitted = false;
+    private void restoreFromDisk(ProjectEncryptionKeyMetadata degraded) {
         try {
             ProjectEncryptionKeyMetadata onDisk = degraded.unwrapOnDiskKeys();
             if (onDisk == null) {
                 logger.debug("project encryption key: cluster state is degraded and this node's disk holds no copy of the active key");
-                failedRestoreSettings.set(settings);
             } else {
-                failedRestoreSettings.set(null);
-                submitted = submitTaskIfOpen("restore-project-encryption-keys", new RestoreKeysTask(onDisk, restoreInFlight));
+                submitTaskIfOpen("restore-project-encryption-keys", new RestoreKeysTask(onDisk));
             }
         } catch (Exception e) {
-            failedRestoreSettings.set(settings);
             logger.warn(
                 () -> Strings.format(
                     "the elected master cannot restore project encryption key [%s] from its own disk. Configure the encryption password"
@@ -519,14 +511,6 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
                 ),
                 e
             );
-        } finally {
-            if (submitted == false) {
-                restoreInFlight.set(false);
-                // a reload during this attempt skipped its own restore while this one was in flight
-                if (settingsSupplier.get() != settings) {
-                    reload();
-                }
-            }
         }
     }
 
@@ -658,16 +642,10 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         }
     }
 
-    record RestoreKeysTask(ProjectEncryptionKeyMetadata keys, AtomicBoolean inFlight) implements KeyRotationTask {
+    record RestoreKeysTask(ProjectEncryptionKeyMetadata keys) implements KeyRotationTask {
         @Override
         public String description() {
             return "project encryption key restore";
-        }
-
-        @Override
-        public void onFailure(@Nullable Exception e) {
-            inFlight.set(false);
-            KeyRotationTask.super.onFailure(e);
         }
 
         @Override
@@ -909,9 +887,6 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             }
             if (task instanceof BeginRotationTask begin) {
                 begin.inFlight().set(false);
-            }
-            if (task instanceof RestoreKeysTask restore) {
-                restore.inFlight().set(false);
             }
         }
 

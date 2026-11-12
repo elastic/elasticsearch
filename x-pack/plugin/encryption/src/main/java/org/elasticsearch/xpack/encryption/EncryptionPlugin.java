@@ -125,6 +125,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
         return all;
     }
 
+    // synchronized so concurrent reloads can't each validate against the same stale settings
     @Override
     public synchronized void reload(Settings settings) {
         Settings updated = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);

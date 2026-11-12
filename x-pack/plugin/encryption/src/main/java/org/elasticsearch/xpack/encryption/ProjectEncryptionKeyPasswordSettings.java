@@ -92,6 +92,7 @@ final class ProjectEncryptionKeyPasswordSettings {
      */
     static void validateReload(Settings current, Settings updated, @Nullable String onDiskPasswordId) {
         if (onDiskPasswordId == null) {
+            // nothing on disk that removing a password could make unreadable
             return;
         }
         if (canWrapForDisk(current) && canWrapForDisk(updated) == false) {

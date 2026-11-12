@@ -156,6 +156,7 @@ public abstract class FieldMapper extends Mapper {
             field
         );
     }
+
     @SuppressWarnings("rawtypes")
     static final Parameter<?>[] EMPTY_PARAMETERS = new Parameter[0];
 

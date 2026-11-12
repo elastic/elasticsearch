@@ -11,7 +11,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.lang.annotation.Annotation;
-import java.util.List;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -26,45 +27,24 @@ public class FunctionSignaturesTests extends ESTestCase {
             signature(new String[] { "integer", "keyword" }, "long")
         );
         assertThat(expanded, hasSize(1));
-        assertThat(
-            expanded.iterator().next(),
-            equalTo(new FunctionSignatures.ConcreteSignature(List.of(DataType.INTEGER, DataType.KEYWORD), DataType.LONG))
-        );
+        assertThat(expanded.iterator().next(), equalTo(concrete(DataType.LONG, DataType.INTEGER, DataType.KEYWORD)));
     }
 
     public void testExpandUnion() {
         Set<FunctionSignatures.ConcreteSignature> expanded = FunctionSignatures.expand(
             signature(new String[] { "integer|long" }, "double")
         );
-        assertThat(
-            expanded,
-            containsInAnyOrder(
-                new FunctionSignatures.ConcreteSignature(List.of(DataType.INTEGER), DataType.DOUBLE),
-                new FunctionSignatures.ConcreteSignature(List.of(DataType.LONG), DataType.DOUBLE)
-            )
-        );
+        assertThat(expanded, containsInAnyOrder(concrete(DataType.DOUBLE, DataType.INTEGER), concrete(DataType.DOUBLE, DataType.LONG)));
     }
 
     public void testExpandTypeGroup() {
         Set<FunctionSignatures.ConcreteSignature> expanded = FunctionSignatures.expand(signature(new String[] { "STRING" }, "keyword"));
-        assertThat(
-            expanded,
-            containsInAnyOrder(
-                new FunctionSignatures.ConcreteSignature(List.of(DataType.KEYWORD), DataType.KEYWORD),
-                new FunctionSignatures.ConcreteSignature(List.of(DataType.TEXT), DataType.KEYWORD)
-            )
-        );
+        assertThat(expanded, containsInAnyOrder(concrete(DataType.KEYWORD, DataType.KEYWORD), concrete(DataType.KEYWORD, DataType.TEXT)));
     }
 
     public void testReturnRefPreservesExactType() {
         Set<FunctionSignatures.ConcreteSignature> expanded = FunctionSignatures.expand(signature(new String[] { "STRING" }, "$0"));
-        assertThat(
-            expanded,
-            containsInAnyOrder(
-                new FunctionSignatures.ConcreteSignature(List.of(DataType.KEYWORD), DataType.KEYWORD),
-                new FunctionSignatures.ConcreteSignature(List.of(DataType.TEXT), DataType.TEXT)
-            )
-        );
+        assertThat(expanded, containsInAnyOrder(concrete(DataType.KEYWORD, DataType.KEYWORD), concrete(DataType.TEXT, DataType.TEXT)));
     }
 
     public void testReturnRefNoText() {
@@ -74,9 +54,9 @@ public class FunctionSignaturesTests extends ESTestCase {
         assertThat(
             expanded,
             containsInAnyOrder(
-                new FunctionSignatures.ConcreteSignature(List.of(DataType.LONG), DataType.LONG),
-                new FunctionSignatures.ConcreteSignature(List.of(DataType.KEYWORD), DataType.KEYWORD),
-                new FunctionSignatures.ConcreteSignature(List.of(DataType.TEXT), DataType.KEYWORD)
+                concrete(DataType.LONG, DataType.LONG),
+                concrete(DataType.KEYWORD, DataType.KEYWORD),
+                concrete(DataType.KEYWORD, DataType.TEXT)
             )
         );
     }
@@ -129,12 +109,74 @@ public class FunctionSignaturesTests extends ESTestCase {
         );
     }
 
+    public void testNamedParametersToken() {
+        Set<FunctionSignatures.ConcreteSignature> expanded = FunctionSignatures.expand(
+            signature(new String[] { "integer", FunctionSignatures.NAMED_PARAMETERS }, "double")
+        );
+        assertThat(expanded, hasSize(1));
+        FunctionSignatures.ConcreteSignature signature = expanded.iterator().next();
+        assertThat(signature.returnType(), equalTo(DataType.DOUBLE));
+        assertThat(signature.argTypes().get(0), equalTo(FunctionSignatures.SignatureArg.of(DataType.INTEGER)));
+        assertThat(signature.argTypes().get(1).namedParameters(), equalTo(true));
+        assertThat(signature.argTypes().get(1).typeName(), equalTo(FunctionSignatures.NAMED_PARAMETERS));
+    }
+
+    public void testNamedParametersMixedWithDataTypeRejected() {
+        expectThrows(
+            IllegalArgumentException.class,
+            containsString("mixes " + FunctionSignatures.NAMED_PARAMETERS),
+            () -> FunctionSignatures.expand(signature(new String[] { "integer|" + FunctionSignatures.NAMED_PARAMETERS }, "double"))
+        );
+    }
+
+    public void testNamedParametersReturnRejected() {
+        expectThrows(
+            IllegalArgumentException.class,
+            containsString("return type cannot be " + FunctionSignatures.NAMED_PARAMETERS),
+            () -> FunctionSignatures.expand(signature(new String[] { "integer" }, FunctionSignatures.NAMED_PARAMETERS))
+        );
+    }
+
+    public void testNamedParametersReturnReferenceRejected() {
+        expectThrows(
+            IllegalArgumentException.class,
+            containsString("cannot reference " + FunctionSignatures.NAMED_PARAMETERS),
+            () -> FunctionSignatures.expand(signature(new String[] { FunctionSignatures.NAMED_PARAMETERS }, "$0"))
+        );
+    }
+
+    public void testMapParamsUseNamedParametersToken() {
+        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
+        Set<Class<?>> seen = new HashSet<>();
+        for (FunctionDefinition def : registry.snapshotRegistry().listFunctions()) {
+            if (seen.add(def.clazz()) == false) {
+                continue;
+            }
+            FunctionInfo info = EsqlFunctionRegistry.functionInfo(def);
+            if (info == null || info.signatures().length == 0) {
+                continue;
+            }
+            AbstractFunctionTestCase.assertNamedParametersMatchMapParams(
+                def.name(),
+                EsqlFunctionRegistry.description(def).args(),
+                FunctionSignatures.declaredSignatures(def)
+            );
+        }
+    }
+
     public void testEmptyUnionPartRejected() {
         // String.split discards a trailing empty segment for "integer|"; use an interior empty part.
         expectThrows(
             IllegalArgumentException.class,
             containsString("empty type"),
             () -> FunctionSignatures.expand(signature(new String[] { "integer||long" }, "integer"))
+        );
+    }
+
+    private static FunctionSignatures.ConcreteSignature concrete(DataType returnType, DataType... argTypes) {
+        return new FunctionSignatures.ConcreteSignature(
+            Arrays.stream(argTypes).map(FunctionSignatures.SignatureArg::of).toList(),
+            returnType
         );
     }
 

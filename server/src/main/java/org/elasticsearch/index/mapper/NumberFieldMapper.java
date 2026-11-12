@@ -2360,6 +2360,7 @@ public class NumberFieldMapper extends FieldMapper {
         private final boolean isSyntheticSource;
         private final boolean readInArrayOrder;
         private final boolean indexTerms;
+        private final boolean staticallySingleValued;
 
         public NumberFieldType(
             String name,
@@ -2375,7 +2376,8 @@ public class NumberFieldMapper extends FieldMapper {
             IndexMode indexMode,
             boolean isSyntheticSource,
             boolean readInArrayOrder,
-            boolean indexTerms
+            boolean indexTerms,
+            boolean staticallySingleValued
         ) {
             super(name, indexType, isStored, meta);
             this.type = Objects.requireNonNull(type);
@@ -2388,6 +2390,12 @@ public class NumberFieldMapper extends FieldMapper {
             this.isSyntheticSource = isSyntheticSource;
             this.readInArrayOrder = readInArrayOrder;
             this.indexTerms = indexTerms;
+            this.staticallySingleValued = staticallySingleValued;
+        }
+
+        @Override
+        public boolean isStaticallySingleValued() {
+            return staticallySingleValued;
         }
 
         NumberFieldType(String name, Builder builder, boolean isSyntheticSource) {
@@ -2407,7 +2415,8 @@ public class NumberFieldMapper extends FieldMapper {
                 builder.offsetsFieldName != null
                     && builder.docValuesParameters.getValue().multiValue()
                     && builder.indexSettings.getMode().isStrictColumnar(),
-                builder.indexTerms.getValue()
+                builder.indexTerms.getValue(),
+                builder.script.get() == null && builder.docValuesParameters.getValue().multiValue() == false
             );
         }
 
@@ -2430,6 +2439,7 @@ public class NumberFieldMapper extends FieldMapper {
                 null,
                 false,
                 false,
+                false,
                 false
             );
         }
@@ -2447,6 +2457,7 @@ public class NumberFieldMapper extends FieldMapper {
                 false,
                 null,
                 null,
+                false,
                 false,
                 false,
                 false
@@ -2733,8 +2744,6 @@ public class NumberFieldMapper extends FieldMapper {
     private final FieldValues<Number> scriptValues;
     private final boolean dimension;
     private final boolean writeDimensionRouting;
-    private final ScriptCompiler scriptCompiler;
-    private final Script script;
     private final MetricType metricType;
     private boolean allowMultipleValues;
     private final boolean isSyntheticSource;
@@ -2770,8 +2779,6 @@ public class NumberFieldMapper extends FieldMapper {
         this.writeDimensionRouting = this.dimension
             && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
             && efs.extractDimensionsWhileMapping();
-        this.scriptCompiler = builder.scriptCompiler;
-        this.script = builder.script.getValue();
         this.metricType = builder.metric.getValue();
         this.allowMultipleValues = builder.allowMultipleValues;
         this.isSyntheticSource = isSyntheticSource;
@@ -2826,6 +2833,12 @@ public class NumberFieldMapper extends FieldMapper {
     @Override
     public boolean isNullable() {
         return docValuesParameters.nullability() || nullValue != null;
+    }
+
+    @Override
+    protected boolean readsEmptyStringAsNull() {
+        // value(XContentParser) reads an empty string as null when coercing, and rejects it as malformed otherwise.
+        return coerce();
     }
 
     @Override
@@ -3017,7 +3030,7 @@ public class NumberFieldMapper extends FieldMapper {
                 long sortableLongValue = type.toSortableLong(value);
                 context.getOffSetContext().recordOffset(offsetsFieldName, sortableLongValue, offsetsFallback);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName, offsetsFallback);
+                context.getOffSetContext().recordNull(context, offsetsFieldName, offsetsFallback);
             }
         }
 

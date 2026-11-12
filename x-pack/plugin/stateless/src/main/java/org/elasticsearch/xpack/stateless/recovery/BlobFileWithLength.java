@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.recovery;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 
 import java.io.IOException;
@@ -18,7 +19,7 @@ import java.io.IOException;
 record BlobFileWithLength(BlobFile blobFile, long length) implements Writeable {
 
     BlobFileWithLength(StreamInput in) throws IOException {
-        this(new BlobFile(in), in.readVLong());
+        this(Blob.readFrom(in, BlobFile.class), in.readVLong());
     }
 
     @Override

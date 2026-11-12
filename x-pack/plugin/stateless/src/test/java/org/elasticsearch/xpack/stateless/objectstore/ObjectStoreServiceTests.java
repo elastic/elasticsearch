@@ -82,6 +82,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationResponse;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
@@ -122,6 +123,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomNonZeroPositiveLong;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.OBJECT_STORE_FILE_DELETION_DELAY;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType.AZURE;
@@ -1196,11 +1198,11 @@ public class ObjectStoreServiceTests extends ESTestCase {
             final var objectStoreService = testHarness.objectStoreService;
 
             // Block shard file deletions
-            final int maxDeletionThreads = testHarness.threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax();
+            final int maxDeletionThreads = testHarness.threadPool.info(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).getMax();
             final var startBarrier = new CyclicBarrier(maxDeletionThreads + 1);
             final var deletionBarrier = new CyclicBarrier(maxDeletionThreads + 1);
             for (int i = 0; i < maxDeletionThreads; i++) {
-                testHarness.threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL).submit(() -> {
+                testHarness.threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).submit(() -> {
                     safeAwait(startBarrier);
                     safeAwait(deletionBarrier);
                 });
@@ -1243,7 +1245,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             objectStoreService.asyncDeleteShardFile(
                 new StaleCompoundCommit(
                     new ShardId(new Index(randomIdentifier(), randomUUID()), between(0, 3)),
-                    new PrimaryTermAndGeneration(primaryTerm, randomNonNegativeLong()),
+                    new PrimaryTermAndGeneration(primaryTerm, randomNonZeroPositiveLong()),
                     primaryTerm
                 )
             );
@@ -1251,7 +1253,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             objectStoreService.asyncDeleteShardFile(
                 new StaleCompoundCommit(
                     new ShardId(new Index(indexMetadata.getIndex().getName(), indexMetadata.getIndexUUID()), 0),
-                    new PrimaryTermAndGeneration(primaryTerm, randomNonNegativeLong()),
+                    new PrimaryTermAndGeneration(primaryTerm, randomNonZeroPositiveLong()),
                     primaryTerm
                 )
             );
@@ -1259,7 +1261,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             objectStoreService.asyncDeleteShardFile(
                 new StaleCompoundCommit(
                     testHarness.shardId,
-                    new PrimaryTermAndGeneration(primaryTerm, randomNonNegativeLong()),
+                    new PrimaryTermAndGeneration(primaryTerm, randomNonZeroPositiveLong()),
                     primaryTerm
                 )
             );
@@ -1472,8 +1474,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 // a single translog-upload slot
                 return Settings.builder()
                     .put(super.nodeSettings())
-                    .put(StatelessPlugin.TRANSLOG_THREAD_POOL_SETTING + ".core", 1)
-                    .put(StatelessPlugin.TRANSLOG_THREAD_POOL_SETTING + ".max", 1)
+                    .put(StatelessThreadPools.TRANSLOG_THREAD_POOL_SETTING + ".core", 1)
+                    .put(StatelessThreadPools.TRANSLOG_THREAD_POOL_SETTING + ".max", 1)
                     .build();
             }
 
@@ -1549,8 +1551,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 // a single translog-upload slot
                 return Settings.builder()
                     .put(super.nodeSettings())
-                    .put(StatelessPlugin.TRANSLOG_THREAD_POOL_SETTING + ".core", 1)
-                    .put(StatelessPlugin.TRANSLOG_THREAD_POOL_SETTING + ".max", 1)
+                    .put(StatelessThreadPools.TRANSLOG_THREAD_POOL_SETTING + ".core", 1)
+                    .put(StatelessThreadPools.TRANSLOG_THREAD_POOL_SETTING + ".max", 1)
                     .build();
             }
 
@@ -1792,10 +1794,10 @@ public class ObjectStoreServiceTests extends ESTestCase {
         if (randomBoolean()) {
             return Optional.empty();
         }
-        final int numCopyThreads = node.threadPool.info(StatelessPlugin.BLOB_COPY_THREAD_POOL).getMax();
+        final int numCopyThreads = node.threadPool.info(StatelessThreadPools.BLOB_COPY_THREAD_POOL).getMax();
         final var releaseThreadsLatch = new CountDownLatch(1);
         for (int i = 0; i < numCopyThreads; i++) {
-            node.threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL).execute(() -> { safeAwait(releaseThreadsLatch); });
+            node.threadPool.executor(StatelessThreadPools.BLOB_COPY_THREAD_POOL).execute(() -> { safeAwait(releaseThreadsLatch); });
         }
         return Optional.of(releaseThreadsLatch);
     }

@@ -18,8 +18,11 @@ import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringRenderable;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.EMPTY;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher.Matcher.NEQ;
@@ -37,6 +40,12 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMat
 public class LabelMatcher implements NodeStringRenderable {
 
     public static final String NAME = "__name__";
+
+    /** RE2 flag {@code i}: letters match in any case. */
+    private static final int CASE_INSENSITIVE = 1;
+    /** RE2 flag {@code s} cleared: {@code .} does not match a newline. Prometheus sets {@code s} by default. */
+    private static final int DOT_NO_NEWLINE = 2;
+    private static final int[] NO_CODE_POINTS = new int[0];
 
     public enum Matcher {
         EQ("=", false),
@@ -156,36 +165,191 @@ public class LabelMatcher implements NodeStringRenderable {
      * intersection, interval, any string, complement). They are escaped everywhere except inside a character class, the
      * bracket expression {@code [...]} that matches one character from a set ({@code [a-z#]}): there Lucene reads them
      * literally already, and an escaped character cannot start a range ({@code [#-@]}).
+     * <p>
+     * Lucene has no group modifiers either, so {@code (?:re)}, {@code (?P<name>re)} and {@code (?<name>re)} become plain
+     * groups and the RE2 flags of {@code (?flags)} and {@code (?flags:re)} are applied here: {@code i} spells every
+     * cased letter as the set of its cases ({@code (?i)ab} becomes {@code [aA][bB]}) and clearing {@code s} keeps
+     * {@code .} off newlines.
      */
     public static RLikePattern convertRegExpToRE2(String regex) {
         StringBuilder sb = new StringBuilder(regex.length());
-        // between an unescaped '[' and its closing ']'
-        boolean inCharClass = false;
-        for (int i = 0, n = regex.length(); i < n; i++) {
-            char c = regex.charAt(i);
-            if (c == '\\' && i + 1 < n) {
-                sb.append(c).append(regex.charAt(++i));
-            } else if (inCharClass) {
-                inCharClass = c != ']';
-                sb.append(c);
+        // the flags in force where each enclosing group opened, innermost first
+        Deque<Integer> enclosingFlags = new ArrayDeque<>();
+        int flags = 0;
+        int n = regex.length();
+        int i = 0;
+        while (i < n) {
+            int c = regex.codePointAt(i);
+            i += Character.charCount(c);
+            if (c == '\\' && i < n) {
+                int escaped = regex.codePointAt(i);
+                i += Character.charCount(escaped);
+                sb.append('\\').appendCodePoint(escaped);
             } else if (c == '[') {
-                inCharClass = true;
-                sb.append(c);
-                // a ']' right after '[' or '[^' is a literal, not the end of the character class
-                if (i + 1 < n && regex.charAt(i + 1) == '^') {
-                    sb.append(regex.charAt(++i));
+                i = appendCharClass(regex, i, (flags & CASE_INSENSITIVE) != 0, sb);
+            } else if (c == '(' && i < n && regex.charAt(i) == '?') {
+                i++;
+                if (i < n && (regex.charAt(i) == 'P' || regex.charAt(i) == '<')) {
+                    // named group
+                    int close = regex.indexOf('>', i);
+                    if (close < 0) {
+                        throw new IllegalArgumentException("invalid named capture at position " + i);
+                    }
+                    enclosingFlags.push(flags);
+                    sb.append('(');
+                    i = close + 1;
+                } else {
+                    int end = i;
+                    while (end < n && regex.charAt(end) != ':' && regex.charAt(end) != ')') {
+                        end++;
+                    }
+                    if (end == n || (end == i && regex.charAt(end) == ')')) {
+                        throw new IllegalArgumentException("missing flags or group at position " + i);
+                    }
+                    int groupFlags = groupFlags(regex.substring(i, end), flags);
+                    if (regex.charAt(end) == ':') {
+                        // (?flags:re) and (?:re) open a group with their own flags
+                        enclosingFlags.push(flags);
+                        sb.append('(');
+                    }
+                    // (?flags) without a group sets the flags for the rest of the enclosing group
+                    flags = groupFlags;
+                    i = end + 1;
                 }
-                if (i + 1 < n && regex.charAt(i + 1) == ']') {
-                    sb.append(regex.charAt(++i));
+            } else if (c == '(') {
+                enclosingFlags.push(flags);
+                sb.append('(');
+            } else if (c == ')') {
+                if (enclosingFlags.isEmpty() == false) {
+                    flags = enclosingFlags.pop();
                 }
+                sb.append(')');
+            } else if (c == '.' && (flags & DOT_NO_NEWLINE) != 0) {
+                sb.append("[^\n]");
             } else {
-                if (c == '"' || c == '#' || c == '&' || c == '<' || c == '@' || c == '~') {
-                    sb.append('\\');
-                }
-                sb.append(c);
+                appendLiteral(c, (flags & CASE_INSENSITIVE) != 0, sb);
             }
         }
         return new RLikePattern(sb.toString());
+    }
+
+    /** Applies the RE2 flags of a {@code (?flags)} or {@code (?flags:re)} group, such as {@code i} or {@code i-s}. */
+    private static int groupFlags(String spec, int flags) {
+        boolean clear = false;
+        for (int i = 0; i < spec.length(); i++) {
+            char f = spec.charAt(i);
+            switch (f) {
+                case '-' -> {
+                    if (clear || i == spec.length() - 1) {
+                        throw new IllegalArgumentException("invalid flags [" + spec + "]");
+                    }
+                    clear = true;
+                }
+                case 'i' -> flags = clear ? flags & ~CASE_INSENSITIVE : flags | CASE_INSENSITIVE;
+                // s lets '.' match a newline, as Prometheus does by default
+                case 's' -> flags = clear ? flags | DOT_NO_NEWLINE : flags & ~DOT_NO_NEWLINE;
+                // U only changes greediness, which cannot change what a full match accepts;
+                // m only changes '^' and '$', which this conversion leaves alone
+                case 'm', 'U' -> {
+                }
+                default -> throw new IllegalArgumentException("unknown flag [" + f + "] in [" + spec + "]");
+            }
+        }
+        return flags;
+    }
+
+    /** Appends a character outside a character class; under {@code i} a cased letter becomes the set of its cases. */
+    private static void appendLiteral(int c, boolean caseInsensitive, StringBuilder sb) {
+        int[] otherCases = caseInsensitive ? otherCases(c) : NO_CODE_POINTS;
+        if (otherCases.length > 0) {
+            sb.append('[').appendCodePoint(c);
+            for (int other : otherCases) {
+                sb.appendCodePoint(other);
+            }
+            sb.append(']');
+            return;
+        }
+        if (c == '"' || c == '#' || c == '&' || c == '<' || c == '@' || c == '~') {
+            sb.append('\\');
+        }
+        sb.appendCodePoint(c);
+    }
+
+    /**
+     * Appends a character class, the bracket expression {@code [...]} that matches one character from a set, starting
+     * after its {@code '['}. Returns the position after its closing {@code ']'}. Under {@code i} every cased letter in
+     * it, or in one of its ranges, adds its other cases to the set.
+     */
+    private static int appendCharClass(String regex, int i, boolean caseInsensitive, StringBuilder sb) {
+        int n = regex.length();
+        sb.append('[');
+        if (i < n && regex.charAt(i) == '^') {
+            sb.append('^');
+            i++;
+        }
+        StringBuilder otherCases = new StringBuilder();
+        // a ']' right after '[' or '[^' is a literal, not the end of the character class
+        boolean first = true;
+        while (i < n && (first || regex.charAt(i) != ']')) {
+            first = false;
+            int from = i;
+            int lo = regex.codePointAt(i);
+            i += Character.charCount(lo);
+            if (lo == '\\' && i < n) {
+                lo = regex.codePointAt(i);
+                i += Character.charCount(lo);
+                if (Character.isLetter(lo)) {
+                    // \d, \s, \w and their negations are sets of their own, not range ends
+                    sb.append(regex, from, i);
+                    continue;
+                }
+            } else if (lo == '-') {
+                // Lucene reads a '-' after any character as a range, even before the closing ']'
+                sb.append("\\-");
+                continue;
+            }
+            int hi = lo;
+            if (i + 1 < n && regex.charAt(i) == '-' && regex.charAt(i + 1) != ']') {
+                i++;
+                hi = regex.codePointAt(i);
+                i += Character.charCount(hi);
+                if (hi == '\\' && i < n) {
+                    hi = regex.codePointAt(i);
+                    i += Character.charCount(hi);
+                }
+            } else if (i < n && regex.charAt(i) == '-') {
+                // a '-' right before the closing ']' is a literal
+                sb.append(regex, from, i).append("\\-");
+                i++;
+                from = i;
+            }
+            sb.append(regex, from, i);
+            if (caseInsensitive) {
+                for (int c = lo; c <= hi; c++) {
+                    for (int other : otherCases(c)) {
+                        if (other < lo || other > hi) {
+                            otherCases.appendCodePoint(other);
+                        }
+                    }
+                }
+            }
+        }
+        sb.append(otherCases);
+        // an unterminated class is left for Lucene to reject
+        if (i < n) {
+            sb.append(']');
+            i++;
+        }
+        return i;
+    }
+
+    /** The code points other than {@code c} that RE2's {@code i} flag matches for it. */
+    private static int[] otherCases(int c) {
+        int upper = Character.toUpperCase(c);
+        return IntStream.of(Character.toLowerCase(c), upper, Character.toTitleCase(c), Character.toLowerCase(upper))
+            .filter(other -> other != c)
+            .distinct()
+            .toArray();
     }
 
     private static Automaton regexAutomaton(String regex) {

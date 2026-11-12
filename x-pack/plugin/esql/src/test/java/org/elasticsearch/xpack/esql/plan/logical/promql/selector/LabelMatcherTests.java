@@ -196,9 +196,90 @@ public class LabelMatcherTests extends ESTestCase {
         assertFalse(Operations.run(matcher.automaton(), "]&"));
     }
 
+    public void testRegexCaseSensitiveByDefault() {
+        LabelMatcher matcher = new LabelMatcher("label", "A.*", Matcher.REG);
+        assertTrue(Operations.run(matcher.automaton(), "Ab"));
+        assertFalse(Operations.run(matcher.automaton(), "ab"));
+    }
+
+    public void testRegexCaseInsensitiveFlag() {
+        LabelMatcher matcher = new LabelMatcher("label", "(?i)ab", Matcher.REG);
+        for (String value : List.of("ab", "aB", "Ab", "AB")) {
+            assertTrue(value, Operations.run(matcher.automaton(), value));
+        }
+        assertFalse(Operations.run(matcher.automaton(), "ac"));
+
+        // the flag applies from where it is set to the end of its group
+        matcher = new LabelMatcher("label", "a(?i)b", Matcher.REG);
+        assertTrue(Operations.run(matcher.automaton(), "aB"));
+        assertFalse(Operations.run(matcher.automaton(), "AB"));
+        matcher = new LabelMatcher("label", "(a(?i)b)c", Matcher.REG);
+        assertTrue(Operations.run(matcher.automaton(), "aBc"));
+        assertFalse(Operations.run(matcher.automaton(), "aBC"));
+        matcher = new LabelMatcher("label", "(?i:a)b", Matcher.REG);
+        assertTrue(Operations.run(matcher.automaton(), "Ab"));
+        assertFalse(Operations.run(matcher.automaton(), "AB"));
+        matcher = new LabelMatcher("label", "(?i)a(?-i)b", Matcher.REG);
+        assertTrue(Operations.run(matcher.automaton(), "Ab"));
+        assertFalse(Operations.run(matcher.automaton(), "AB"));
+
+        // alternatives and negation
+        matcher = new LabelMatcher("label", "(?i)a|b", Matcher.REG);
+        assertTrue(Operations.run(matcher.automaton(), "B"));
+        matcher = new LabelMatcher("label", "(?i)a", Matcher.NREG);
+        assertFalse(Operations.run(matcher.automaton(), "A"));
+        assertTrue(Operations.run(matcher.automaton(), "b"));
+    }
+
+    public void testRegexCaseInsensitiveCharacterClass() {
+        LabelMatcher matcher = new LabelMatcher("label", "(?i)[a-c]x", Matcher.REG);
+        assertTrue(Operations.run(matcher.automaton(), "BX"));
+        assertFalse(Operations.run(matcher.automaton(), "DX"));
+
+        matcher = new LabelMatcher("label", "(?i)[^a]", Matcher.REG);
+        assertFalse(Operations.run(matcher.automaton(), "A"));
+        assertTrue(Operations.run(matcher.automaton(), "b"));
+
+        matcher = new LabelMatcher("label", "(?i)[\\d-]", Matcher.REG);
+        assertTrue(Operations.run(matcher.automaton(), "7"));
+        assertTrue(Operations.run(matcher.automaton(), "-"));
+        assertFalse(Operations.run(matcher.automaton(), "x"));
+    }
+
+    public void testRegexGroups() {
+        LabelMatcher matcher = new LabelMatcher("label", "(?:a|b)c", Matcher.REG);
+        assertTrue(Operations.run(matcher.automaton(), "ac"));
+        assertTrue(Operations.run(matcher.automaton(), "bc"));
+        assertFalse(Operations.run(matcher.automaton(), "?:ac"));
+
+        for (String regex : List.of("(?P<name>a)b", "(?<name>a)b")) {
+            matcher = new LabelMatcher("label", regex, Matcher.REG);
+            assertThat(regex, AutomatonUtils.matchesExact(matcher.automaton()), equalTo("ab"));
+        }
+    }
+
+    public void testRegexDotMatchesNewline() {
+        // Prometheus sets the s flag, so '.' matches a newline unless the regex clears it
+        assertTrue(Operations.run(new LabelMatcher("label", "a.b", Matcher.REG).automaton(), "a\nb"));
+        LabelMatcher matcher = new LabelMatcher("label", "(?-s)a.b", Matcher.REG);
+        assertFalse(Operations.run(matcher.automaton(), "a\nb"));
+        assertTrue(Operations.run(matcher.automaton(), "axb"));
+    }
+
     /** The {@code RLIKE} filter must match exactly what the matcher's automaton matches. */
     public void testConvertRegExpToRE2AgreesWithAutomaton() {
-        for (String regex : List.of("(a<1-3>|b)", "(a&b)", "(#)", "(@)", "(~a)", "(\"q\"x)", "[#-@]&.*", "a\\<1-3>|\\\\#")) {
+        for (String regex : List.of(
+            "(a<1-3>|b)",
+            "(a&b)",
+            "(#)",
+            "(@)",
+            "(~a)",
+            "(\"q\"x)",
+            "[#-@]&.*",
+            "a\\<1-3>|\\\\#",
+            "(?i)a&b[x-z]",
+            "(?:a|b)(?-s)."
+        )) {
             Automaton expected = new LabelMatcher("label", regex, Matcher.REG).automaton();
             Automaton actual = LabelMatcher.convertRegExpToRE2(regex).createAutomaton(false);
             assertTrue(regex, AutomatonTestUtil.sameLanguage(expected, actual));
@@ -207,7 +288,7 @@ public class LabelMatcherTests extends ESTestCase {
     }
 
     public void testInvalidRegex() {
-        for (String regex : List.of("(", "[a", "\\")) {
+        for (String regex : List.of("(", "[a", "\\", "(?x)a", "(?)a", "(?i-)a", "(?i", "(?P<name")) {
             LabelMatcher matcher = new LabelMatcher("label", regex, Matcher.REG);
             InvalidArgumentException e = expectThrows(InvalidArgumentException.class, matcher::automaton);
             assertThat(e.getMessage(), startsWith("Invalid regular expression [" + regex + "]"));

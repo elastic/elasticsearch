@@ -24,8 +24,9 @@ import java.util.Objects;
  * Loads the fetched columns of the rows that survived a {@code LIMIT} or {@code TopN} from the documents they came from,
  * instead of loading them on the data nodes for every row the cut later drops.
  * <p>
- * The child is the cut, narrowed to the {@code _doc} of each row and the columns that cross the exchange as values. The
- * output is the child's output followed by the fetched columns. The fetched columns keep the attribute ids the relation
+ * The child is the cut, narrowed to the {@code _doc} of each row and the columns that cross the exchange as values,
+ * sometimes under a filter that reads only those columns. The output is the child's output followed by the fetched
+ * columns. The fetched columns keep the attribute ids the relation
  * gave them, and the narrowing projection removed them below this node, so the plan above it doesn't change.
  * <p>
  * {@code PlanFetch} adds this node in the last batch of the logical optimizer, so no other logical rule meets it. The

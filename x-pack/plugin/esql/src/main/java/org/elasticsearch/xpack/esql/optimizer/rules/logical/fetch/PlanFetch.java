@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch.FetchPhasePolicy.Outcome;
@@ -77,6 +79,10 @@ import java.util.TreeMap;
  * and {@code ts} across it. The data nodes plan their side as they plan any other. Node-level late materialization cuts
  * the rows of a node's shards once more, and loads the eager columns the cut doesn't read for the survivors only.
  * <p>
+ * A filter right after the cut runs before the fetch when its conditions read only columns that cross the exchange,
+ * like {@code WHERE ts > "2026-01-01"} right after the {@code LIMIT} above. The fetch then loads {@code a} and {@code b}
+ * only for the rows that pass, see {@link FilterAroundTheFetch}.
+ * <p>
  * {@link #demand} decides which columns cross the exchange as values. {@link #shape} lists the plans the rule accepts.
  * Both are about correctness only. {@link #paysOff} then decides whether an accepted plan is likely faster with the
  * fetch phase. Every other plan keeps loading its columns eagerly, unchanged, and the rule logs why at debug level.
@@ -132,9 +138,55 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
     /**
      * A plan the rule can rewrite.
      *
-     * @param cut the cut the data nodes and the coordinator both apply
+     * @param cut                  the cut the data nodes and the coordinator both apply
+     * @param filterAroundTheFetch the filter right after the cut, when some of its conditions run before the fetch
      */
-    private record Candidate(UnaryPlan cut, EsRelation relation, Demand demand) implements Shape {}
+    private record Candidate(UnaryPlan cut, EsRelation relation, Demand demand, @Nullable FilterAroundTheFetch filterAroundTheFetch)
+        implements
+            Shape {}
+
+    /**
+     * A filter right after the cut, split around the fetch. The conditions that read only columns crossing the exchange
+     * run before the fetch, so it loads the deferred columns only for the rows that pass. The others read a fetched column
+     * and run after it. The optimizer pushes filters down as far as they go and combines the filters that follow each
+     * other, so the conditions that can move end up in that filter.
+     *
+     * @param conditionsBeforeTheFetch never empty
+     * @param conditionsAfterTheFetch  empty when every condition runs before the fetch
+     */
+    record FilterAroundTheFetch(Filter filter, List<Expression> conditionsBeforeTheFetch, List<Expression> conditionsAfterTheFetch) {
+        /**
+         * The split of {@code filter}, or {@code null} when every condition reads a fetched column, and the whole filter
+         * stays after the fetch.
+         *
+         * @param crossing the columns that cross the exchange as values
+         */
+        @Nullable
+        static FilterAroundTheFetch split(Filter filter, AttributeSet crossing) {
+            List<Expression> beforeTheFetch = new ArrayList<>();
+            List<Expression> afterTheFetch = new ArrayList<>();
+            for (Expression condition : Predicates.splitAnd(filter.condition())) {
+                (crossing.containsAll(condition.references()) ? beforeTheFetch : afterTheFetch).add(condition);
+            }
+            return beforeTheFetch.isEmpty() ? null : new FilterAroundTheFetch(filter, beforeTheFetch, afterTheFetch);
+        }
+
+        /** The rows the fetch reads: the narrowed cut, without the rows the conditions before the fetch drop. */
+        LogicalPlan beforeTheFetch(LogicalPlan narrowedCut) {
+            if (conditionsAfterTheFetch.isEmpty()) {
+                return filter.replaceChild(narrowedCut);
+            }
+            return new Filter(filter.source(), narrowedCut, Predicates.combineAnd(conditionsBeforeTheFetch));
+        }
+
+        /** What takes the place of the filter in the plan: the fetch, and the conditions that read a fetched column. */
+        LogicalPlan afterTheFetch(Fetch fetch) {
+            if (conditionsAfterTheFetch.isEmpty()) {
+                return fetch;
+            }
+            return new Filter(filter.source(), fetch, Predicates.combineAnd(conditionsAfterTheFetch));
+        }
+    }
 
     /**
      * The plans the fetch phase supports. From the root down, the plan is one chain of commands over one relation:
@@ -201,7 +253,10 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
         if (demand.deferred().isEmpty()) {
             return new Declined(Outcome.INELIGIBLE_NO_DEFERRABLE_FIELDS, "the cut reads every column, or the others cannot be fetched");
         }
-        return new Candidate(cut, relation, demand);
+        FilterAroundTheFetch filterAroundTheFetch = cutIndex > 0 && chain.get(cutIndex - 1) instanceof Filter filter
+            ? FilterAroundTheFetch.split(filter, AttributeSet.of(demand.eager()))
+            : null;
+        return new Candidate(cut, relation, demand, filterAroundTheFetch);
     }
 
     /**
@@ -392,17 +447,20 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
             cut.replaceChild(beforeTheCut),
             CollectionUtils.prependToCopy(doc, candidate.demand().eager())
         );
+        FilterAroundTheFetch filter = candidate.filterAroundTheFetch();
         Fetch fetch = new Fetch(
             cut.source(),
-            narrowed,
+            filter == null ? narrowed : filter.beforeTheFetch(narrowed),
             doc,
             candidate.demand().deferred(),
             candidate.relation().indexPattern(),
             originalIndices(candidate.relation())
         );
+        LogicalPlan replaced = filter == null ? cut : filter.filter();
+        LogicalPlan replacement = filter == null ? fetch : filter.afterTheFetch(fetch);
 
         // the query returns what it returned before, never _doc
-        LogicalPlan rewritten = plan.transformDown(LogicalPlan.class, node -> node == cut ? fetch : node);
+        LogicalPlan rewritten = plan.transformDown(LogicalPlan.class, node -> node == replaced ? replacement : node);
         if (sameIds(rewritten.output(), plan.output()) == false) {
             rewritten = new Project(plan.source(), rewritten, plan.output());
         }

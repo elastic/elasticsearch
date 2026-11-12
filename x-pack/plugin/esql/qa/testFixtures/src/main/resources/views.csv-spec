@@ -3772,6 +3772,7 @@ c
 ;
 
 flattenedKeyInViewAndIndex
+skip_flattened_rewrite: keyword_also_a_flattened_key
 required_capability: flattened_keys
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions

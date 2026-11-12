@@ -261,7 +261,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         assertBusy(() -> assertTrue(wasHandlerCalled.get()));
     }
 
-    public void testBuildGivenAggregatingEsqlDatafeedAndRestartShouldAdvanceLatestRecordTimePastGroupingInterval() throws Exception {
+    public void testBuildGivenAggregatingEsqlDatafeedAndRestartShouldPassThroughLatestRecordTime() throws Exception {
         assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
@@ -279,7 +279,8 @@ public class DatafeedJobBuilderTests extends ESTestCase {
 
         AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
         ActionListener<DatafeedJob> datafeedJobHandler = ActionTestUtils.assertNoFailureListener(datafeedJob -> {
-            assertThat(datafeedJob.lastEndTimeMs(), equalTo(10 * hour - 1));
+            assertThat(datafeedJob.lastEndTimeMs(), equalTo(recordStamp));
+            assertThat(datafeedJob.esqlSourceEndMs(), nullValue());
             wasHandlerCalled.set(true);
         });
 

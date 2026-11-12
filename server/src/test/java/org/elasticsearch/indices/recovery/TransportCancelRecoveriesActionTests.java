@@ -433,9 +433,9 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             shardId,
             true,
             new RecoverySource.ReshardSplitRecoverySource(shardId),
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test"),
+            new UnassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, "test"),
             ShardRouting.Role.DEFAULT,
-            RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+            RecoveryPriority.UNASSIGNED_RESHARD_SPLIT_TARGET
         ).initialize(randomIdentifier(), allocationId, 0L);
 
         when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);

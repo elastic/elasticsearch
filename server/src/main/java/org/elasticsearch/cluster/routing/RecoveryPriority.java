@@ -177,8 +177,9 @@ public enum RecoveryPriority implements Writeable {
 
     /// Returns whether a recovery with this priority is critical, i.e. one for a shard copy that the client expects
     /// to be available but currently isn't. Relocations (whose source stays active until they complete), recoveries
-    /// of unassigned shards added for performance reasons, and snapshot restores (whose index is expected to be
-    /// unavailable until they complete, which may take a long time) are non-critical. Note that non-critical recoveries
+    /// of unassigned shards added for performance reasons, reshard split target primaries (whose source keeps serving
+    /// the whole index until the handoff), and snapshot restores (whose index is expected to be unavailable until they
+    /// complete, which may take a long time) are non-critical. Note that non-critical recoveries
     /// are subject to additional throttling (see [org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings]).
     ///
     /// All the critical priorities must rank above all the non-critical ones, which

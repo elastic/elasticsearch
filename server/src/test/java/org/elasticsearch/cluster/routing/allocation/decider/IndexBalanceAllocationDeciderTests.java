@@ -693,7 +693,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
                     new RecoverySource.ReshardSplitRecoverySource(new ShardId(index, split.sourceShard(shard))),
                     new UnassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, null),
                     ShardRouting.Role.DEFAULT,
-                    RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
+                    RecoveryPriority.UNASSIGNED_RESHARD_SPLIT_TARGET
                 )
             );
         }

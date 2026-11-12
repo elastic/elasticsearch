@@ -9,5 +9,5 @@
 :   (double) Multiplier value returned at the scale distance from the origin.
 
 `type`
-:   (keyword) Decay function to use: linear, exp or gauss. Defaults to linear.
+:   (keyword) Decay function to use: `linear`, `exp`, or `gauss`. Defaults to `linear`.
 

@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -435,6 +436,53 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(get.get("found"), equalTo(true));
         assertThat(XContentMapValues.extractValue("_source.@timestamp", get), notNullValue());
         assertThat(esqlValues(user, "FROM " + TS_STANDALONE + " METADATA _id | KEEP _id | LIMIT 10").get(0).get(0), equalTo(id));
+    }
+
+    public void testTimestampRuleOnStandardIndex() throws IOException {
+        createTypeIndex(TYPE_STANDARD, "");
+        assertTimestampNotMandatory(TYPE_STANDARD);
+    }
+
+    public void testTimestampRuleOnTimeSeriesIndex() throws IOException {
+        final String index = "fls-type-time-series";
+        createTypeIndex(index, TYPE_TIME_SERIES + TYPE_TIME_SERIES_BOUNDS);
+        assertTimestampMandatory(index, index);
+    }
+
+    public void testTimestampRuleOnLogsdbIndex() throws IOException {
+        final String index = "fls-type-logsdb";
+        createTypeIndex(index, ", \"index.mode\": \"logsdb\"");
+        assertTimestampMandatory(index, index);
+    }
+
+    public void testTimestampRuleOnLogsdbColumnarIndex() throws IOException {
+        final String index = "fls-type-logsdb-columnar";
+        createTypeIndex(index, ", \"index.mode\": \"logsdb_columnar\"");
+        assertTimestampMandatory(index, index);
+    }
+
+    public void testTimestampRuleOnStandardDataStream() throws IOException {
+        final String dataStream = "fls-type-ds-standard";
+        createTypeDataStream(dataStream, "");
+        assertTimestampMandatory(dataStream, DataStream.BACKING_INDEX_PREFIX + dataStream);
+    }
+
+    public void testTimestampRuleOnTimeSeriesDataStream() throws IOException {
+        final String dataStream = "fls-type-ds-time-series";
+        createTypeDataStream(dataStream, TYPE_TIME_SERIES);
+        assertTimestampMandatory(dataStream, DataStream.BACKING_INDEX_PREFIX + dataStream);
+    }
+
+    public void testTimestampRuleOnLogsdbDataStream() throws IOException {
+        final String dataStream = "fls-type-ds-logsdb";
+        createTypeDataStream(dataStream, ", \"index.mode\": \"logsdb\"");
+        assertTimestampMandatory(dataStream, DataStream.BACKING_INDEX_PREFIX + dataStream);
+    }
+
+    public void testTimestampRuleOnLogsdbColumnarDataStream() throws IOException {
+        final String dataStream = "fls-type-ds-logsdb-columnar";
+        createTypeDataStream(dataStream, ", \"index.mode\": \"logsdb_columnar\"");
+        assertTimestampMandatory(dataStream, DataStream.BACKING_INDEX_PREFIX + dataStream);
     }
 
     public void testFieldLevelSecurityExcludingTimestampFailsWholeRequest() throws IOException {
@@ -860,6 +908,89 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
     private static String timestampRole(String fieldSecurity) {
         return Strings.format("""
             {"indices": [{"names": ["fls-ts-*"], "privileges": ["read", "view_index_metadata"], "field_security": %s}]}""", fieldSecurity);
+    }
+
+    private static final String TYPE_STANDARD = "fls-type-standard";
+    private static final String TYPE_MAPPINGS = """
+        {"properties": {
+          "@timestamp": {"type": "date"},
+          "host": {"properties": {"name": {"type": "keyword", "time_series_dimension": true}}},
+          "cpu": {"type": "double"}
+        }}""";
+    private static final String TYPE_TIME_SERIES = ", \"index.mode\": \"time_series\", \"index.routing_path\": [\"host.name\"]";
+    private static final String TYPE_TIME_SERIES_BOUNDS =
+        ", \"index.time_series.start_time\": \"2020-01-01T00:00:00Z\", \"index.time_series.end_time\": \"2100-01-01T00:00:00Z\"";
+
+    private static final String TYPE_OMIT = """
+        {"grant": ["host.name", "cpu"]}""";
+    private static final String TYPE_EXCLUDE = """
+        {"grant": ["*"], "except": ["@timestamp"]}""";
+    private static final String TYPE_GRANT = """
+        {"grant": ["@timestamp", "host.name"]}""";
+
+    private void createTypeIndex(String index, String settings) throws IOException {
+        final Request create = new Request("PUT", "/" + index);
+        create.setJsonEntity(Strings.format("""
+            {"settings": {"number_of_shards": 1, "number_of_replicas": 0%s}, "mappings": %s}""", settings, TYPE_MAPPINGS));
+        assertOK(adminClient().performRequest(create));
+        indexTypeDocument(index);
+    }
+
+    private void createTypeDataStream(String dataStream, String settings) throws IOException {
+        final Request template = new Request("PUT", "/_index_template/" + dataStream);
+        template.setJsonEntity(Strings.format("""
+            {"index_patterns": ["%s"], "data_stream": {}, "priority": 500, "template": {
+              "settings": {"number_of_shards": 1, "number_of_replicas": 0%s}, "mappings": %s}}""", dataStream, settings, TYPE_MAPPINGS));
+        assertOK(adminClient().performRequest(template));
+        indexTypeDocument(dataStream);
+    }
+
+    private void indexTypeDocument(String target) throws IOException {
+        final Request index = new Request("POST", "/" + target + "/_doc");
+        index.addParameter("refresh", "true");
+        index.setJsonEntity(Strings.format("""
+            {"@timestamp": %d, "host": {"name": "a"}, "cpu": 1.0}""", System.currentTimeMillis()));
+        assertThat(target, adminClient().performRequest(index).getStatusLine().getStatusCode(), equalTo(201));
+    }
+
+    private void assertTimestampMandatory(String target, String excludedIndex) throws IOException {
+        assertThat(typeSourceFields("omit", TYPE_OMIT, target), equalTo(Set.of("@timestamp", "host.name", "cpu")));
+        final Request search = new Request("GET", "/" + target + "/_search");
+        search.setJsonEntity(MATCH_ALL);
+        assertTimestampExclusionRejected(typeUser("exclude", TYPE_EXCLUDE), search, excludedIndex);
+        assertThat(typeSourceFields("grant", TYPE_GRANT, target), equalTo(Set.of("@timestamp", "host.name")));
+    }
+
+    private void assertTimestampNotMandatory(String target) throws IOException {
+        assertThat(typeSourceFields("omit", TYPE_OMIT, target), equalTo(Set.of("host.name", "cpu")));
+        assertThat(typeSourceFields("exclude", TYPE_EXCLUDE, target), equalTo(Set.of("host.name", "cpu")));
+        assertThat(typeSourceFields("grant", TYPE_GRANT, target), equalTo(Set.of("@timestamp", "host.name")));
+    }
+
+    // NOTE: synthetic source of a columnar index returns flat keys such as "host.name", other modes return nested objects
+    @SuppressWarnings("unchecked")
+    private Set<String> typeSourceFields(String name, String fieldSecurity, String target) throws IOException {
+        final Map<String, Object> source = (Map<String, Object>) hits(search(typeUser(name, fieldSecurity), target, MATCH_ALL)).get(0)
+            .get("_source");
+        final Set<String> fields = new HashSet<>();
+        addSourceFields("", source, fields);
+        return fields;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void addSourceFields(String prefix, Map<String, Object> source, Set<String> fields) {
+        for (Map.Entry<String, Object> entry : source.entrySet()) {
+            if (entry.getValue() instanceof Map<?, ?> object) {
+                addSourceFields(prefix + entry.getKey() + ".", (Map<String, Object>) object, fields);
+            } else {
+                fields.add(prefix + entry.getKey());
+            }
+        }
+    }
+
+    private String typeUser(String name, String fieldSecurity) throws IOException {
+        return createUserWithRole("type_" + name + "_user", "type_" + name + "_role", Strings.format("""
+            {"indices": [{"names": ["fls-type-*"], "privileges": ["read"], "field_security": %s}]}""", fieldSecurity));
     }
 
     private void createTimestampIndices() throws IOException {

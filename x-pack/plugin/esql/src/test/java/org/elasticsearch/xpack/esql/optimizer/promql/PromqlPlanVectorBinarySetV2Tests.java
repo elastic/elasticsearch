@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -32,7 +34,8 @@ public class PromqlPlanVectorBinarySetV2Tests extends AbstractPromqlPlanOptimize
         UnionAll union = plan.collect(UnionAll.class).getFirst();
         assertThat(union.children(), hasSize(2));
         TopNBy first = plan.collect(TopNBy.class).getFirst();
-        assertThat(first.child(), equalTo(union));
+        // the label pushdown projects the union's label columns apart
+        assertThat(as(first.child(), Project.class).child(), equalTo(union));
         assertThat(names(plan.output()), hasItem("_timeseries"));
     }
 

@@ -132,6 +132,11 @@ public final class Messages {
     public static final String DATAFEED_ESQL_UPDATE_UPGRADE_IN_PROGRESS =
         "Cannot update datafeed [{0}] while a cluster upgrade is in progress ({1}); "
             + "wait for the cluster to finish upgrading and try again.";
+    public static final String DATAFEED_ESQL_INCOMPLETE_CHUNK =
+        "Within [{0}, {1}) at least one ES|QL datafeed chunk reached its row limit. "
+            + "Rows beyond the limit were not retrieved and will not be extracted again. "
+            + "Use a smaller grouping interval in esql_query. "
+            + "Aggregate the data or add a filter to reduce the number of rows per chunk.";
     public static final String DATAFEED_ESQL_CHUNKING_MUST_NOT_BE_DISABLED =
         "ES|QL datafeeds require chunking to remain enabled; grouping-interval alignment and truncation detection "
             + "depend on it; do not set chunking_config.mode to off";

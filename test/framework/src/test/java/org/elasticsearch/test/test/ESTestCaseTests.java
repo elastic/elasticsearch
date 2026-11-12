@@ -13,6 +13,7 @@ import junit.framework.AssertionFailedError;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.test.ESTestCase;
@@ -35,7 +36,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import javax.crypto.KeyGenerator;
@@ -51,6 +54,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeThat;
 
@@ -79,6 +83,41 @@ public class ESTestCaseTests extends ESTestCase {
             assertNull(assertFailed.getCause());
             assertEquals("Expected exception IllegalArgumentException but no exception was thrown", assertFailed.getMessage());
         }
+    }
+
+    public void testOnOtherThreadRunsTaskToCompletionOnAnotherThread() {
+        final Thread caller = Thread.currentThread();
+        final AtomicReference<Thread> taskThread = new AtomicReference<>();
+        final AtomicBoolean done = new AtomicBoolean();
+
+        onOtherThread(() -> {
+            taskThread.set(Thread.currentThread());
+            // still running after a moment, so that returning before the task is done would be noticed
+            Thread.sleep(randomIntBetween(0, 20));
+            done.set(true);
+        });
+
+        assertThat(taskThread.get(), notNullValue());
+        assertThat(taskThread.get(), not(sameInstance(caller)));
+        assertTrue("the task should be done by the time onOtherThread returns", done.get());
+    }
+
+    public void testOnOtherThreadRethrowsCheckedFailureOnCallingThread() {
+        final AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> onOtherThread(() -> { throw new IOException("checked failure"); })
+        );
+        assertThat(ExceptionsHelper.unwrap(e, IOException.class), notNullValue());
+        assertThat(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), equalTo("checked failure"));
+    }
+
+    public void testOnOtherThreadRethrowsFailedAssertionOnCallingThread() {
+        final AssertionError e = expectThrows(AssertionError.class, () -> onOtherThread(() -> fail("failed on the other thread")));
+        Throwable cause = e;
+        while (cause != null && "failed on the other thread".equals(cause.getMessage()) == false) {
+            cause = cause.getCause();
+        }
+        assertThat("the failed assertion should be reported", cause, notNullValue());
     }
 
     public void testShuffleMap() throws IOException {

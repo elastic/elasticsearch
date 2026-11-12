@@ -33,7 +33,10 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
 
     public SnapshotRestoreAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         this.indexingReservedDisk = IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING.get(settings);
-        clusterSettings.initializeAndWatch(SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED, value -> this.enabled = value);
+        clusterSettings.initializeAndWatch(
+            SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED,
+            value -> this.enabled = value
+        );
     }
 
     @Override

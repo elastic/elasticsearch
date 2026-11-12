@@ -363,7 +363,10 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
                 .put(SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED.getKey(), true)
                 .put(SnapshotRestoreStorageMonitor.REROUTE_INTERVAL_SETTING.getKey(), rerouteInterval)
                 .build(),
-            Set.of(SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED, SnapshotRestoreStorageMonitor.REROUTE_INTERVAL_SETTING)
+            Set.of(
+                SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED,
+                SnapshotRestoreStorageMonitor.REROUTE_INTERVAL_SETTING
+            )
         );
     }
 }

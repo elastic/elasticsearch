@@ -568,3 +568,8 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testRelocationSourceWaitsForEarlyPrewarmBeforeHandoff
   issue: https://github.com/elastic/elasticsearch/issues/165656
+- class: org.elasticsearch.action.bulk.ShardBatchMapperParseTests
+  tasks:
+  - :server:test
+  method: testRequiredMultiFieldIsPresentWhenItsParentIs
+  issue: https://github.com/elastic/elasticsearch/issues/165673

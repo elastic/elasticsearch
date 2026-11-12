@@ -67,10 +67,6 @@ public class RankVectorsFieldMapper extends FieldMapper {
      */
     public static final int MAX_VECTORS = 8192;
 
-    private static RankVectorsFieldMapper toType(FieldMapper in) {
-        return (RankVectorsFieldMapper) in;
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<DenseVectorFieldMapper.ElementType> elementType = new Parameter<>(
@@ -86,7 +82,6 @@ public class RankVectorsFieldMapper extends FieldMapper {
                 }
                 return elementType;
             },
-            m -> toType(m).fieldType().element.elementType(),
             XContentBuilder::field,
             Objects::toString
         );
@@ -99,7 +94,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
             }
 
             return XContentMapValues.nodeIntegerValue(o);
-        }, m -> toType(m).fieldType().dims, XContentBuilder::field, Objects::toString).setSerializerCheck((id, ic, v) -> v != null)
+        }, XContentBuilder::field, Objects::toString).setSerializerCheck((id, ic, v) -> v != null)
             .setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current))
             .addValidator(dims -> {
                 if (dims == null) {
@@ -136,6 +131,19 @@ public class RankVectorsFieldMapper extends FieldMapper {
             return this;
         }
 
+        /**
+         * Sets dimensions inferred from a Document.  Throws an exception if dimensions have been
+         * previously set to a different value.
+         */
+        public void dimensionsFromDocument(int dimensions) {
+            if (dims.isSet() && Objects.equals(dims.getValue(), dimensions) == false) {
+                throw new IllegalArgumentException(
+                    "Field [" + leafName() + "] of type [" + CONTENT_TYPE + "] cannot be indexed with vectors of different dimensions"
+                );
+            }
+            dimensions(dimensions);
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { elementType, dims, meta };
@@ -166,7 +174,6 @@ public class RankVectorsFieldMapper extends FieldMapper {
                     meta.getValue()
                 ),
                 builderParams(this, context),
-                indexCreatedVersion,
                 licenseState,
                 isExcludeSourceVectorsFinal
             );
@@ -269,7 +276,6 @@ public class RankVectorsFieldMapper extends FieldMapper {
         }
     }
 
-    private final IndexVersion indexCreatedVersion;
     private final XPackLicenseState licenseState;
     private final boolean isExcludeSourceVectors;
 
@@ -277,12 +283,10 @@ public class RankVectorsFieldMapper extends FieldMapper {
         String simpleName,
         MappedFieldType fieldType,
         BuilderParams params,
-        IndexVersion indexCreatedVersion,
         XPackLicenseState licenseState,
         boolean isExcludeSourceVectors
     ) {
         super(simpleName, fieldType, params);
-        this.indexCreatedVersion = indexCreatedVersion;
         this.licenseState = licenseState;
         this.isExcludeSourceVectors = isExcludeSourceVectors;
     }
@@ -344,9 +348,8 @@ public class RankVectorsFieldMapper extends FieldMapper {
                         + "] requires at least one vector; use null to indicate a missing value"
                 );
             }
-            var builder = (Builder) getMergeBuilder();
-            builder.dimensions(currentDims);
-            context.addDynamicMapper(builder, fullPath());
+            final int dims = currentDims;
+            context.updateMapping(fullPath(), builder -> ((Builder) builder).dimensionsFromDocument(dims));
             return ParseResult.INDEXED;
         }
         int dims = fieldType().dims;
@@ -444,11 +447,6 @@ public class RankVectorsFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, licenseState, isExcludeSourceVectors).init(this);
     }
 
     @Override

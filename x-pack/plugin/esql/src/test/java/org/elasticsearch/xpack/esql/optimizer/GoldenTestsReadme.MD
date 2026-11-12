@@ -152,6 +152,9 @@ range, at a random released version inside it. The two names mute independently:
   reformats. Nothing else moves. A `since` through a version constant is matched by name
   (`Sum.ESQL_SUM_LONG_OVERFLOW_FIX` names `esql_sum_long_overflow_fix`); one the task cannot
   match fails with a message asking for a hand edit.
+- Directory names no test method: the test was renamed or removed and its old
+  `golden_tests/<Class>/<oldName>` directory stayed behind. Delete it, or run the `goldenGc` command
+  above, which deletes it.
 - Error that a declaration no longer resolves: the transport version name was retired, meaning the
   code path it gated is gone. Remove the declaration; for a label, also delete its
   `before_<label>` directory (its files described planning that no longer exists).

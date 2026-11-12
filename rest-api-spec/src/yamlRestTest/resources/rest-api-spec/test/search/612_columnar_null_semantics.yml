@@ -836,6 +836,55 @@ exists matches only documents with a non-null value on string fields after a mer
   - match: { hits.hits.4._id: both_ends_null }
 
 ---
+exists and the missing aggregation count each document once on an indexed keyword field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "string exists matches documents that hold only nulls (proposed contract), while the missing aggregation counts them as missing"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { ids: { values: [ null_in_array, trailing_null ] } }
+          post_filter: { exists: { field: kwd_indexed } }
+          aggs:
+            without: { missing: { field: kwd_indexed } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: trailing_null }
+  - match: { aggregations.without.doc_count: 1 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            bool:
+              filter:
+                - ids: { values: [ null_in_array, trailing_null ] }
+                - exists: { field: kwd_indexed }
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query:
+            bool:
+              filter:
+                - ids: { values: [ null_in_array, trailing_null ] }
+                - exists: { field: kwd_indexed }
+
+  - match: { count: 1 }
+
+---
 sort puts documents with only nulls among the documents with no keyword value:
   - do:
       search:

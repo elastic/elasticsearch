@@ -1858,10 +1858,10 @@ public class EsqlSession {
 
         TimeSpanMarker datasetResolutionProfile = executionInfo.queryProfile().datasetResolution();
         datasetResolutionProfile.start();
-        // Rewrite FROM <dataset> targets into UnresolvedExternalRelation so analysis treats them like the inline
-        // EXTERNAL command. The resolver first read-authorizes the names through the security filter — they are
-        // stripped from the plan here and would otherwise never reach authorization. Completes synchronously when
-        // no FROM pattern can match a registered dataset.
+        // Rewrite FROM <dataset> targets into UnresolvedExternalRelation, which external resolution binds during
+        // analysis. The resolver first read-authorizes the names through the security filter — they are stripped
+        // from the plan here and would otherwise never reach authorization. Completes synchronously when no FROM
+        // pattern can match a registered dataset.
         datasetResolver.replaceDatasets(
             parsed,
             projectMetadata,

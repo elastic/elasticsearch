@@ -20,6 +20,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -3152,9 +3153,8 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         // Two data sources can hold different files under one object name -- two endpoints, one object key -- and
         // a query may now read both, because a read is keyed by its resource AND its configuration. A contribution
         // is addressed by its path string alone, so the two arrive as one list agreeing on both fingerprints and
-        // differing on mtime. The fold cannot tell that from one file measured twice, so it refuses rather than
-        // calling an ordinary query an invariant violation: an assertion here escapes the reconcile as an
-        // Error, which the query's listener does not catch, so the query never completes.
+        // differing on mtime. The merge cannot tell that from one file measured twice, so it refuses rather than
+        // calling an ordinary query an invariant violation.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
@@ -3211,6 +3211,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService:DEBUG",
+        reason = "the refusal is a debug line, and this asserts it names the gate that refused"
+    )
     public void testReconcileWholeFileContributionsWithMismatchedRowCountIsASafeMiss() throws Exception {
         // The row-count half of the same input: two files under one object name that differ in length rather than
         // in timestamp. Refused for the same reason and in the same way, so neither disagreement can reach a merge
@@ -3229,7 +3233,20 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             Map<String, Object> first = wholeFileWithShape(mtime, "fp1", "config-own", 100L);
             Map<String, Object> second = wholeFileWithShape(mtime, "fp1", "config-own", 101L);
 
-            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second)));
+            // The refusal names its gate: without it, a genuinely non-deterministic read of one file -- the same
+            // store scanned twice, disagreeing -- is indistinguishable from the legitimate two-datasets case.
+            try (MockLog mockLog = MockLog.capture(ExternalSourceCacheService.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "the refused gate",
+                        ExternalSourceCacheService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "*whole-file contributions for [" + path + "] disagree on [" + SourceStatisticsSerializer.STATS_ROW_COUNT + "]*"
+                    )
+                );
+                service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second)));
+                mockLog.assertAllExpectationsMatched();
+            }
 
             SchemaCacheEntry entry = warm(service, key);
             assertFalse(

@@ -81,6 +81,24 @@ public class LocalRelation extends LeafPlan {
         return supplier;
     }
 
+    /**
+     * This relation made safe to read more than once -- installed under several parents, or standing in a plan the
+     * engine executes repeatedly. The page a relation carries is released by whichever consumer reads it first, so a
+     * second read of the same instance finds it gone; {@link CopyingLocalSupplier} hands out a fresh copy per read.
+     * Returns {@code this} when the supplier already copies, so a relation read once pays nothing.
+     * <p>
+     * An empty supplier is returned unchanged as well. It holds no block to release and builds a fresh page per
+     * call, so it already reads repeatedly -- and wrapping it would cost more than nothing: {@link
+     * #hasEmptySupplier()} answers by identity, so a copy of an empty relation reads as non-empty and the rules
+     * that prune a plan around one stop firing.
+     */
+    public LocalRelation readableRepeatedly() {
+        if (supplier instanceof CopyingLocalSupplier || hasEmptySupplier()) {
+            return this;
+        }
+        return new LocalRelation(source(), output, new CopyingLocalSupplier(supplier.get()));
+    }
+
     public boolean hasEmptySupplier() {
         return supplier == EmptyLocalSupplier.EMPTY;
     }

@@ -53,6 +53,14 @@ UNQUOTED_SOURCE
 FROM_UNQUOTED_SOURCE : UNQUOTED_SOURCE -> type(UNQUOTED_SOURCE);
 FROM_QUOTED_SOURCE : QUOTED_STRING -> type(QUOTED_STRING);
 
+// The '(' is part of the token: nothing else separates a function name from an index pattern, and a lexer rule
+// cannot look at the token it emitted last. Pushes EXPRESSION_MODE twice, as Expression.g4's own LP does, so the
+// matching ')' -- RP in EXPRESSION_MODE, which pops twice -- leaves the lexer back in FROM_MODE and the rest of
+// the source list goes on lexing as source patterns. The predicate sits after the matched text per #160805.
+DEV_TABLE_FUNCTION_NAME
+    : LETTER UNQUOTED_ID_BODY* '(' {this.isDevVersion()}? -> pushMode(EXPRESSION_MODE), pushMode(EXPRESSION_MODE)
+    ;
+
 FROM_LINE_COMMENT
     : LINE_COMMENT -> channel(HIDDEN)
     ;

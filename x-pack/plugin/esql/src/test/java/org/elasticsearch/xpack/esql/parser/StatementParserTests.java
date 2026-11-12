@@ -5652,7 +5652,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
 
         expectError("from test)", "line -1:-1: Invalid query [from test)]");
-        expectError("from te()st", "line 1:8: mismatched input '(' expecting {<EOF>, '|', '::', ',', 'metadata'");
+        // On a dev build a name followed by '(' opens a table function call, so the error falls on what follows
+        // the call; on a release build the predicate stops the token and this is what it has always been.
+        if (Build.current().isSnapshot()) {
+            expectError("from te()st", "line 1:10: extraneous input 'st' expecting <EOF>");
+        } else {
+            expectError("from te()st", "line 1:8: mismatched input '(' expecting {<EOF>, '|', '::', ',', 'metadata'");
+        }
         expectError("from test | enrich foo)", "line -1:-1: Invalid query [from test | enrich foo)]");
         expectError("from test | lookup join foo) on bar", "line 1:28: token recognition error at: ')'");
         if (EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()) {

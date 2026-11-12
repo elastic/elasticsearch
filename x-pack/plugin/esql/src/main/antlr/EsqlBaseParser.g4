@@ -126,6 +126,32 @@ indexPatternAndMetadataFields
 indexPatternOrSubquery
     : indexPattern
     | subquery
+    | tableFunction
+    ;
+
+// A table function in a source list: FROM foo, bar*, SOMEFUNC(a_name, {"key": "value"}).
+// The name is not resolved here and the parser never consults the registry, so any name followed by '('
+// parses. An unknown one is refused during analysis, at the position it was written.
+//
+// Narrower than functionExpression's arguments, and with no slot of its own for a trailing map: a map is one
+// alternative of tableFunctionArgument, so it may be written in any position; see that rule for why.
+tableFunction
+    : {this.isDevVersion()}? name=DEV_TABLE_FUNCTION_NAME (tableFunctionArgument (COMMA tableFunctionArgument)*)? RP
+    ;
+
+// Narrower than functionExpression's booleanExpression, and only here: a source list is read before anything
+// is in scope for an expression to refer to, so there is nothing one could mean. The tokens are the same ones
+// -- DEV_TABLE_FUNCTION_NAME's mode hands straight to EXPRESSION_MODE -- so widening this to admit a numeric
+// literal is a change to this rule alone.
+//
+// No parameter either, deliberately. A value parameter cannot name anything -- unresolvedAttributeNameInParam
+// refuses a Literal -- and an UNBOUND identifier parameter (??p) is worse than refused: ExpressionBuilder
+// returns an UnresolvedAttribute whose name is the string "null" and records no error, so the call would
+// quietly name a data source "null". Admitting parameters here means fixing that path first.
+tableFunctionArgument
+    : identifier
+    | string
+    | mapExpression
     ;
 
 subquery

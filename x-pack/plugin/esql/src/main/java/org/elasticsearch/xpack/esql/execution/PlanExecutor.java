@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
@@ -54,6 +55,8 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionResolver;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
@@ -90,6 +93,7 @@ public class PlanExecutor {
     private final IntSupplier maxGlobExpansion;
     @Nullable
     private final IntSupplier maxListedObjects;
+    private final TableFunctionResolver tableFunctionResolver;
 
     public PlanExecutor(
         IndexResolver indexResolver,
@@ -120,7 +124,8 @@ public class PlanExecutor {
             analysisRegistry,
             null,
             null,
-            null
+            null,
+            new TableFunctionResolver(new TableFunctionRegistry(List.of()), EsExecutors.DIRECT_EXECUTOR_SERVICE)
         );
     }
 
@@ -139,7 +144,8 @@ public class PlanExecutor {
         AnalysisRegistry analysisRegistry,
         @Nullable IntSupplier maxDiscoveredFiles,
         @Nullable IntSupplier maxGlobExpansion,
-        @Nullable IntSupplier maxListedObjects
+        @Nullable IntSupplier maxListedObjects,
+        TableFunctionResolver tableFunctionResolver
     ) {
         this.indexResolver = indexResolver;
         this.parser = parser;
@@ -158,6 +164,7 @@ public class PlanExecutor {
         this.maxDiscoveredFiles = maxDiscoveredFiles;
         this.maxGlobExpansion = maxGlobExpansion;
         this.maxListedObjects = maxListedObjects;
+        this.tableFunctionResolver = tableFunctionResolver;
     }
 
     /**
@@ -289,6 +296,7 @@ public class PlanExecutor {
             enrichPolicyResolver,
             viewResolver,
             datasetResolver,
+            tableFunctionResolver,
             externalSourceResolver,
             parser,
             preAnalyzer,

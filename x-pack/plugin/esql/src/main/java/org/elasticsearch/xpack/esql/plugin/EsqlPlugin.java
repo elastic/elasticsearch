@@ -165,6 +165,9 @@ import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunction;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionResolver;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
 import org.elasticsearch.xpack.esql.view.MlAnomaliesView;
@@ -546,6 +549,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+        // Already-constructed functions, so one that needs a collaborator is handed it here rather than the
+        // registry acquiring one on every function's behalf.
+        TableFunctionResolver tableFunctionResolver = new TableFunctionResolver(
+            new TableFunctionRegistry(tableFunctions()),
+            services.threadPool().executor(ThreadPool.Names.SEARCH)
+        );
         EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
         capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
 
@@ -672,7 +681,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.indicesService().getAnalysis(),
                 maxDiscoveredFiles::get,
                 maxGlobExpansion::get,
-                maxListedObjects::get
+                maxListedObjects::get,
+                tableFunctionResolver
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),
@@ -971,6 +981,24 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     protected void loadMetricsCollectors(ExtensionLoader loader) {
         metricsCollectors.addAll(loader.loadExtensions(QueryMetricsListener.class));
+    }
+
+    /**
+     * The table functions this node registers. None by default.
+     * <p>
+     * A seam rather than a constant so that a function can be registered without the facility naming one, and so
+     * that a test can register a set of its own: {@code TableFunctionFacilityIT} overrides this to drive the
+     * facility through real queries with a function that exists only in that test. An override <b>replaces</b>
+     * this set rather than adding to it, which is why the method is not named for extras. The precedent for a
+     * protected hook on this plugin is {@link #loadMetricsCollectors} and {@code getLicenseState}, both overridden
+     * by test subclasses.
+     * <p>
+     * A function needing collaborators is constructed with them here, which is why the registry takes
+     * already-constructed functions rather than names: a function that has to ask the cluster something is handed
+     * what it needs at registration, and the facility itself never acquires anything.
+     */
+    protected List<TableFunction> tableFunctions() {
+        return List.of();
     }
 
     @Override

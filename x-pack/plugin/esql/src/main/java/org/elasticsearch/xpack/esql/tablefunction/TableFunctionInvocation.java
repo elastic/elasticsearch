@@ -1,0 +1,71 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.esql.tablefunction;
+
+import org.elasticsearch.xpack.esql.core.tree.Source;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
+/**
+ * One table-function call exactly as written in a source list. Its name is not yet known to denote anything:
+ * the parser never consults {@link TableFunctionRegistry}, so resolution happens later.
+ * <p>
+ * Named an invocation rather than a call because {@code *FunctionCall} already means a plan node in this
+ * tree — {@code PromqlFunctionCall} and {@code HistogramFunctionCall} both extend {@code UnaryPlan} — and
+ * this is not one and never will be.
+ * <p>
+ * One flat argument list, in which a trailing map is the last argument rather than a slot beside the arguments.
+ * Why it is shaped that way is on {@link TableFunctionArgument}.
+ * <p>
+ * A carrier, with no validation of its own: what shape of call a function accepts is
+ * {@link TableFunction#signature()}'s question and what else is true of it is {@link TableFunction#validate}'s, and
+ * each raises its own diagnostic against the {@link #source()} of whatever was wrong.
+ *
+ * @param source the whole call, {@code NAME(...)} included, for a diagnostic about the call itself
+ * @param name the function name as the user wrote it, for diagnostics; {@link TableFunctionRegistry} resolves
+ *             case-insensitively, so this is not a key
+ * @param arguments the arguments, in the order written; empty when none were
+ */
+public record TableFunctionInvocation(Source source, String name, List<TableFunctionArgument> arguments) {
+
+    public TableFunctionInvocation {
+        Objects.requireNonNull(source, "source");
+        Objects.requireNonNull(name, "name");
+        arguments = List.copyOf(arguments);
+    }
+
+    /** The {@code i}th argument as a name. Safe once {@link TableFunction#signature()} has checked the call. */
+    public String name(int i) {
+        return ((TableFunctionArgument.Name) arguments.get(i)).value();
+    }
+
+    /**
+     * The {@code i}th argument as named values, or {@code null} when the call had no argument there.
+     * <p>
+     * Deliberately unlike {@link #name(int)}, which throws for a position nobody wrote. A name argument is required
+     * by every signature that reads one, so its absence is a signature bug; a named-values argument is the one a
+     * signature may declare optional ({@code TableFunctionSignature.optional}), so absence there is an answer about
+     * the call rather than a fault. Both still throw a {@link ClassCastException} for a position holding the other
+     * kind, which the signature has already refused.
+     */
+    public Map<String, Object> namedValues(int i) {
+        return i < arguments.size() ? ((TableFunctionArgument.NamedValues) arguments.get(i)).values() : null;
+    }
+
+    /**
+     * The name and how many arguments there were, never what was in them. A record's generated {@code toString}
+     * renders every component, and an argument may be a definition carrying credentials, so the generated one
+     * would put them wherever anyone writes {@code logger.debug("{}", call)}. The leaf that holds an invocation
+     * redacts for the same reason; redacting here means a caller does not have to know to.
+     */
+    @Override
+    public String toString() {
+        return "TableFunctionInvocation[name=" + name + ", arguments=" + arguments.size() + "]";
+    }
+}

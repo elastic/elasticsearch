@@ -4766,6 +4766,17 @@ public class EsqlCapabilities {
         TIME_SERIES_SINGLE_PASS,
 
         /**
+         * Table functions in a {@code FROM} source list — {@code FROM foo, bar*, SOMEFUNC(a_name, {...})}. This
+         * is the facility, and nothing here says which functions exist. Snapshot-only, and it is the lexer that
+         * decides: {@code DEV_TABLE_FUNCTION_NAME} in {@code lexer/From.g4} carries {@code isDevVersion()}, so a
+         * release build never emits the token and no source list can reach the {@code tableFunction} parser rule
+         * at all. That rule carries the predicate as well, which is what four of the other {@code DEV_} tokens'
+         * rules do, but it is the second of the two and never the one that refuses. This capability mirrors them
+         * so a test only runs where the syntax parses.
+         */
+        FROM_TABLE_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * {@code COUNT}, {@code PRESENT}, {@code ABSENT} and their {@code *_OVER_TIME} variants accept counter fields, since they only
          * look at whether values exist. In {@code PROMQL}, {@code count_over_time}, {@code present_over_time} and
          * {@code absent_over_time} read a counter as is.

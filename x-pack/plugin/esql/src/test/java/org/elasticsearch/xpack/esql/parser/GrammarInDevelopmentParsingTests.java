@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class GrammarInDevelopmentParsingTests extends ESTestCase {
@@ -34,10 +35,42 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
         expectThrows(ParsingException.class, () -> parser().parseQuery("row a = 1 | eval b = invoke(a, x -> x)"));
     }
 
+    /**
+     * A release build must not merely refuse a call, it must refuse it the way it refused one before table
+     * functions existed — as a stray {@code (} after an index pattern. The exact message is what pins the lexer
+     * predicate and the {@code DEV_} stripping; the parser predicate is defence in depth no test can reach, since
+     * {@code UNQUOTED_SOURCE_PART} excludes {@code (} and the rule is never entered in a release build.
+     */
+    public void testDevelopmentTableFunction() throws Exception {
+        parse("from dataset(a, {\"resource\": \"x\"})", "(", "line 1:13");
+        parse("from te()st", "(", "line 1:8");
+    }
+
+    /**
+     * The token is only reachable behind that predicate, but the expected-token set a syntax error prints is
+     * computed from the ATN, which ignores predicates — so the token's name would reach a production user's
+     * error message if it were not DEV_-prefixed for the error listener to strip.
+     */
+    public void testTableFunctionTokenIsNotNamedInProductionErrors() throws Exception {
+        ParsingException pe = expectThrows(ParsingException.class, () -> parser().parseQuery("from ::::data"));
+        assertThat(pe.getMessage(), containsString("expecting {QUOTED_STRING, '(', UNQUOTED_SOURCE}"));
+        assertThat(pe.getMessage(), not(containsString("DEV_")));
+    }
+
     void parse(String query, String errorMessage) {
         ParsingException pe = expectThrows(ParsingException.class, () -> parser().parseQuery(query));
         assertThat(pe.getMessage(), containsString("mismatched input '" + errorMessage + "'"));
         // check the parser eliminated the DEV_ tokens from the message
+        assertThat(pe.getMessage(), not(containsString("DEV_")));
+    }
+
+    /** As above, and at the position a release build reports — which is what a gained-syntax build would move. */
+    void parse(String query, String errorMessage, String position) {
+        ParsingException pe = expectThrows(ParsingException.class, () -> parser().parseQuery(query));
+        assertThat(
+            pe.getMessage(),
+            equalTo(position + ": mismatched input '" + errorMessage + "' expecting {<EOF>, '|', '::', ',', 'metadata'}")
+        );
         assertThat(pe.getMessage(), not(containsString("DEV_")));
     }
 

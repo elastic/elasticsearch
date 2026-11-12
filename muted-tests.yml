@@ -196,6 +196,11 @@ tests:
   - :x-pack:plugin:esql:test
   method: test {null.FoldNullArgumentsInManyFunctions}
   issue: https://github.com/elastic/elasticsearch/issues/165678
+- class: org.elasticsearch.xpack.esql.CsvTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: test {null.FoldCastCaseWithoutMatchArgument}
+  issue: https://github.com/elastic/elasticsearch/issues/165680
 
 # Examples:
 #

@@ -74,7 +74,7 @@ public class SegmentBuffersTests extends ESTestCase {
                 int read = 0;
                 while (read < sliceLength) {
                     int n = channel.read(dst, sliceOffset + read);
-                    assertTrue("unexpected EOF", n >= 0);
+                    assertThat("unexpected EOF", n, greaterThanOrEqualTo(0))
                     read += n;
                 }
             });

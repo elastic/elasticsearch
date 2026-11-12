@@ -9,28 +9,28 @@ products:
   - id: elasticsearch
 ---
 
-# Get started with PromQL in {{es}} [promql-tutorial]
+# Get started with {{promql}} in {{es}} [promql-tutorial]
 
-Learn how to ingest sample Prometheus metrics into {{es}} and query them with [PromQL](/reference/query-languages/promql.md). This tutorial walks you through ingesting a sample counter metric, running PromQL queries with the [Prometheus-compatible HTTP API](promql-http-api.md), post-processing PromQL results with {{esql}}, and connecting Prometheus with remote write.
+Learn how to ingest sample {{prom}} metrics into {{es}} and query them with [{{promql}}](/reference/query-languages/promql.md). This tutorial walks you through ingesting a sample counter metric, running {{promql}} queries with the [{{prom}}-compatible HTTP API](promql-http-api.md), post-processing {{promql}} results with {{esql}}, and connecting {{prom}} with remote write.
 
 This tutorial assumes you have basic knowledge of:
 
-- Prometheus metrics, samples, and labels
+- {{prom}} metrics, samples, and labels
 - REST APIs and JSON
-- Basic PromQL selectors and functions
+- Basic {{promql}} selectors and functions
 
 By the end of this tutorial, you can:
 
-- Ingest Prometheus-style samples into a [time series index](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md)
-- Run instant PromQL queries with label matchers, aggregations, and `rate()`
-- Run PromQL as an {{esql}} source command and post-process the results with {{esql}}
-- Configure Prometheus remote write to ingest metrics continuously
+- Ingest {{prom}}-style samples into a [time series index](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md)
+- Run instant {{promql}} queries with label matchers, aggregations, and `rate()`
+- Run {{promql}} as an {{esql}} source command and post-process the results with {{esql}}
+- Configure {{prom}} remote write to ingest metrics continuously
 
 ## Before you begin
 
-To get started with PromQL in {{es}}, you need the following:
+To get started with {{promql}} in {{es}}, you need the following:
 
-- An {{es}} deployment with PromQL support
+- An {{es}} deployment with {{promql}} support
 - Permissions to create an index and write and read documents in it
 - Access to [Console](docs-content://explore-analyze/query-filter/tools/console.md) in {{kib}}, or a terminal with `curl`
 
@@ -43,16 +43,16 @@ export API_KEY="your-api-key"
 ```
 ::::
 
-This tutorial uses fixed sample timestamps on 2026-10-22 so that every query returns the same result whenever you run it. To accept those timestamps, it stores the samples in a dedicated time series index with explicit time bounds instead of the default Prometheus data stream. The index mapping is a reduced version of the built-in `metrics-prometheus@mappings` component template that remote write uses: it only maps `_total` metrics as counters and omits the gauge and other counter mappings, so don't reuse it for production data. Metrics that you ingest with [Prometheus remote write](#promql-tutorial-remote-write) use current timestamps and don't need this setup.
+This tutorial uses fixed sample timestamps on 2026-10-22 so that every query returns the same result whenever you run it. To accept those timestamps, it stores the samples in a dedicated time series index with explicit time bounds instead of the default {{prom}} data stream. The index mapping is a reduced version of the built-in `metrics-prometheus@mappings` component template that remote write uses: it only maps `_total` metrics as counters and omits the gauge and other counter mappings, so don't reuse it for production data. Metrics that you ingest with [{{prom}} remote write](#promql-tutorial-remote-write) use current timestamps and don't need this setup.
 
-You can also get help from your coding agent to write PromQL queries:
+You can also get help from your coding agent to write {{promql}} queries:
 
 :::{agent-skill}
 :url: https://github.com/elastic/agent-skills@elasticsearch-esql
 Agent skill that assists with ES|QL query generation including the PROMQL command.
 :::
 
-## Step 0: Add sample Prometheus metrics
+## Step 0: Add sample {{prom}} metrics
 
 This tutorial uses an example counter metric, `requests_total`, that tracks HTTP requests for two instances, `us-east-1` and `us-west-1`. Each instance has three samples, one minute apart. The `us-east-1` counter increases by 7 requests per minute, and the `us-west-1` counter increases by 3 requests per minute.
 
@@ -163,11 +163,11 @@ EOF
 ```
 ::::
 
-In practice, you ingest Prometheus metrics continuously with remote write or another collection pipeline instead of the bulk API. Refer to [Step 3: Connect Prometheus with remote write](#promql-tutorial-remote-write).
+In practice, you ingest {{prom}} metrics continuously with remote write or another collection pipeline instead of the bulk API. Refer to [Step 3: Connect {{prom}} with remote write](#promql-tutorial-remote-write).
 
-## Step 1: Run basic PromQL queries with the HTTP API
+## Step 1: Run basic {{promql}} queries with the HTTP API
 
-{{es}} exposes a [Prometheus-compatible HTTP API](promql-http-api.md) for running PromQL against stored metrics. The queries in this step use the [instant query](promql-http-api.md#promql-http-api-query-instant) endpoint, scoped to the `promql-tutorial` index with the `/_prometheus/{index}/api/v1/query` path form. Each query sets `time=1792670839`, which is 2026-10-22T12:07:19Z, thirty seconds after the last sample. If you omit `time`, the query runs at the current time.
+{{es}} exposes a [{{prom}}-compatible HTTP API](promql-http-api.md) for running {{promql}} against stored metrics. The queries in this step use the [instant query](promql-http-api.md#promql-http-api-query-instant) endpoint, scoped to the `promql-tutorial` index with the `/_prometheus/{index}/api/v1/query` path form. Each query sets `time=1792670839`, which is 2026-10-22T12:07:19Z, thirty seconds after the last sample. If you omit `time`, the query runs at the current time.
 
 ### Run an instant query
 
@@ -352,9 +352,9 @@ curl -G "${ELASTICSEARCH_URL}/_prometheus/promql-tutorial/api/v1/query" \
 ```
 ::::
 
-## Step 2: Process PromQL results with {{esql}} [promql-tutorial-esql]
+## Step 2: Process {{promql}} results with {{esql}} [promql-tutorial-esql]
 
-You can also run PromQL as an {{esql}} source command. Unlike the HTTP API, which returns Prometheus-compatible JSON, the [`PROMQL` command](/reference/query-languages/esql/commands/promql.md) returns tabular results that you can process with standard {{esql}} commands.
+You can also run {{promql}} as an {{esql}} source command. Unlike the HTTP API, which returns {{prom}}-compatible JSON, the [`PROMQL` command](/reference/query-languages/esql/commands/promql.md) returns tabular results that you can process with standard {{esql}} commands.
 
 The following query calculates the combined request rate every minute for a twelve-minute range that ends thirty seconds after the last sample. The `start` and `end` options set the range, `step` sets the resolution, and `http_rate` names the result column:
 
@@ -437,9 +437,9 @@ curl -X POST "${ELASTICSEARCH_URL}/_query" \
 In {{kib}}, you can omit `start` and `end` so that the query follows the date picker, and omit range selectors such as `[5m]` so that the window adapts to the time range and step. Refer to [`PROMQL` command](/reference/query-languages/esql/commands/promql.md) for the full syntax and best practices.
 ::::
 
-## Step 3: Connect Prometheus with remote write [promql-tutorial-remote-write]
+## Step 3: Connect {{prom}} with remote write [promql-tutorial-remote-write]
 
-To ingest metrics continuously, configure Prometheus to send samples directly to {{es}} with remote write. Add the following configuration to your `prometheus.yml` file, replacing `<es-endpoint>` and `<api-key>` with your endpoint and credentials. The API key requires write access to the target data stream.
+To ingest metrics continuously, configure {{prom}} to send samples directly to {{es}} with remote write. Add the following configuration to your `prometheus.yml` file, replacing `<es-endpoint>` and `<api-key>` with your endpoint and credentials. The API key requires write access to the target data stream.
 
 ```yaml
 remote_write:
@@ -459,7 +459,7 @@ remote_write:
       credentials: "<api-key>"
 ```
 
-This configuration writes to `metrics-tutorial.prometheus-default`. The query shapes from the previous steps work against remote-write metrics with your own metric names in place of `requests_total`, and without an index segment in the URL, because the HTTP API queries `metrics-*` by default. For example, use `/_prometheus/api/v1/query` instead of `/_prometheus/promql-tutorial/api/v1/query`, and omit `time` to query at the current time. For more information, refer to [Ingest data with Prometheus remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md).
+This configuration writes to `metrics-tutorial.prometheus-default`. The query shapes from the previous steps work against remote-write metrics with your own metric names in place of `requests_total`, and without an index segment in the URL, because the HTTP API queries `metrics-*` by default. For example, use `/_prometheus/api/v1/query` instead of `/_prometheus/promql-tutorial/api/v1/query`, and omit `time` to query at the current time. For more information, refer to [Ingest data with {{prom}} remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md).
 
 ## Clean up resources (optional) [promql-tutorial-clean-up]
 
@@ -488,21 +488,21 @@ curl -X DELETE "${ELASTICSEARCH_URL}/promql-tutorial" \
 
 In this tutorial, you learned how to:
 
-- Ingest Prometheus-style samples into a time series index
-- Run instant PromQL queries, label matcher filters, aggregations, and rate calculations with the Prometheus-compatible HTTP API
-- Run PromQL with the {{esql}} `PROMQL` command and post-process the results with `WHERE` and `STATS`
-- Configure Prometheus remote write for continuous ingestion
+- Ingest {{prom}}-style samples into a time series index
+- Run instant {{promql}} queries, label matcher filters, aggregations, and rate calculations with the {{prom}}-compatible HTTP API
+- Run {{promql}} with the {{esql}} `PROMQL` command and post-process the results with `WHERE` and `STATS`
+- Configure {{prom}} remote write for continuous ingestion
 
 ## Next steps
 
-- Connect Grafana and run PromQL from dashboards. Refer to [Prometheus data source in Grafana](promql-grafana.md).
-- Explore the supported PromQL [functions](functions.md) and [operators](operators.md), including differences from Prometheus.
-- Review the behavioral differences from Prometheus before you port production queries. Refer to [Limitations](promql-limitations.md).
+- Connect Grafana and run {{promql}} from dashboards. Refer to [{{prom}} data source in Grafana](promql-grafana.md).
+- Explore the supported {{promql}} [functions](functions.md) and [operators](operators.md), including differences from {{prom}}.
+- Review the behavioral differences from {{prom}} before you port production queries. Refer to [{{prom}} compatibility](prometheus-compatibility.md).
 
 ## Related pages
 
-- [PromQL reference](/reference/query-languages/promql.md)
-- [PromQL HTTP API](promql-http-api.md)
+- [{{promql}} reference](/reference/query-languages/promql.md)
+- [{{promql}} HTTP API](promql-http-api.md)
 - [{{esql}} `PROMQL` command](/reference/query-languages/esql/commands/promql.md)
-- [Ingest data with Prometheus remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md)
+- [Ingest data with {{prom}} remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md)
 - [Time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md)

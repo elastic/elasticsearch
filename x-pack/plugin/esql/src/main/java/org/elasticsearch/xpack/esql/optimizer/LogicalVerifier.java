@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificatio
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -56,7 +58,32 @@ public final class LogicalVerifier extends PostOptimizationPhasePlanVerifier<Log
             failures
         );
         checkKnnRuntimeSearchSupported(optimizedPlan, failures, minimumVersion);
+        checkRuntimeMatchOptionsSupported(optimizedPlan, failures, minimumVersion);
         return failures;
+    }
+
+    /**
+     * Options for {@link Match} are only serialized to nodes on or after {@link FullTextFunction#ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS}.
+     * Indexed-field searches don't need them to be serialized, because the coordinator-built query builder includes them.
+     * A runtime search has no query builder, so without this check, an older node would silently run the query with the
+     * default options, potentially returning incorrect results. Fail fast with a 4xx instead.
+     */
+    private static void checkRuntimeMatchOptionsSupported(LogicalPlan plan, Failures failures, TransportVersion minimumVersion) {
+        if (minimumVersion.supports(FullTextFunction.ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)) {
+            return;
+        }
+        plan.forEachExpressionDown(Match.class, match -> {
+            if (match.options() != null && match.isRuntimeSearch()) {
+                failures.add(
+                    fail(
+                        match,
+                        "[{}] options on a non-index-mapped field or expression are not supported on every participating node; "
+                            + "rolling upgrade in progress, or a remote cluster is on an older version",
+                        match.functionName()
+                    )
+                );
+            }
+        });
     }
 
     /**

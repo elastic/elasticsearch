@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -167,7 +168,7 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         if (completionTimeMillis != null) {
             builder.timestampFieldsFromUnixEpochMillis("completion_time_in_millis", "completion_time", completionTimeMillis);
         }
-        RestActions.buildBroadcastShardsHeader(builder, params, totalShards, successfulShards, skippedShards, failedShards, null);
+        RestActions.buildBroadcastShardsHeader(builder, params, totalShards, successfulShards, skippedShards, failedShards, List.of());
         if (clusters != null) {
             builder = clusters.toXContent(builder, params);
         }

@@ -81,6 +81,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -361,21 +362,6 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    /**
-     * A request body whose query produces pages of at most {@code pageSize} rows. A stream writes one line per engine page, so
-     * a small page size makes a scan produce many lines. Callers must check {@link #canUseQueryPragmas()}.
-     */
-    private static String streamBody(String query, int pageSize) {
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.startObject().field("query", query);
-            builder.startObject("pragma").field("page_size", pageSize).endObject();
-            builder.field("accept_pragma_risks", true);
-            return Strings.toString(builder.endObject());
-        } catch (IOException e) {
-            throw new AssertionError("failed to build stream request body", e);
-        }
-    }
-
     private static String describe(StreamOutcome outcome) {
         return Strings.format(
             "httpStatus=%s, lines=%d, terminal=%s, error=%s, transportFailure=%s",
@@ -423,7 +409,6 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testExchangeFaultAfterFirstPageYieldsErrorAsLastLine() throws Exception {
-        assumeTrue("requires query pragmas for page_size", canUseQueryPragmas());
         AtomicLong faultHits = new AtomicLong();
         AtomicBoolean firstFetchPassed = new AtomicBoolean();
         AtomicBoolean failing = new AtomicBoolean();
@@ -446,7 +431,7 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
                     channel.sendResponse(new RuntimeException("injected failure after the first page"));
                 });
         }
-        StreamOutcome outcome = streamPausingAt(1, streamBody("FROM " + STREAM_INDEX + " | LIMIT 1000", 5), true, () -> {
+        StreamOutcome outcome = streamPausingAt(1, streamBody("FROM " + STREAM_INDEX + " | LIMIT 1000"), true, () -> {
             List<TransportChannel> toFail;
             synchronized (held) {
                 failing.set(true);
@@ -461,7 +446,7 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
         assertServerFullyCleanedUp();
         assertStreamInvariants(outcome, false, 1000);
         assertThat(outcome.httpStatus(), equalTo(200));
-        assertThat("line 1 must be a values line", outcome.lines().get(1), hasKey("values"));
+        assertThat("line 1 must be a row", outcome.lines().get(1), instanceOf(List.class));
         assertThat("the exchange fault must be hit after the first page", faultHits.get(), greaterThan(0L));
         assertThat("an exchange fault after the first page must end with an error line", outcome.terminal(), equalTo(Terminal.ERROR));
         assertNotEquals("error type must not be remote_transport_exception", "remote_transport_exception", outcome.errorType());
@@ -622,10 +607,9 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNodeRestartMidStream() throws Exception {
-        assumeTrue("requires query pragmas for page_size", canUseQueryPragmas());
         StreamOutcome outcome = streamPausingAt(
             1,
-            streamBody("FROM " + STREAM_INDEX + " | LIMIT 1000", 2),
+            streamBody("FROM " + STREAM_INDEX + " | LIMIT 1000"),
             true,
             () -> internalCluster().restartRandomDataNode()
         );
@@ -634,9 +618,8 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testClientAbortsMidStream() throws Exception {
-        assumeTrue("requires query pragmas for page_size", canUseQueryPragmas());
         int abortAfterLines = between(2, 6);
-        StreamOutcome outcome = stream(streamBody("FROM " + STREAM_INDEX + " | LIMIT 1000", 2), (lineIndex, line, control) -> {
+        StreamOutcome outcome = stream(streamBody("FROM " + STREAM_INDEX + " | LIMIT 1000"), (lineIndex, line, control) -> {
             if (lineIndex == abortAfterLines - 1) {
                 control.abort();
             }
@@ -649,14 +632,13 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testSlowConsumerUnderNetworkDelay() throws Exception {
-        assumeTrue("requires query pragmas for page_size", canUseQueryPragmas());
         ServiceDisruptionScheme delay = installDisruption(
             NetworkDisruption.NetworkDelay.random(random(), TimeValue.timeValueMillis(2000), TimeValue.timeValueMillis(5000))
         );
 
         StreamOutcome outcome = streamPausingAt(
             1,
-            streamBody("FROM " + STREAM_INDEX + " | EVAL pad = REPEAT(\"x\", 2048) | LIMIT 1000", 2),
+            streamBody("FROM " + STREAM_INDEX + " | EVAL pad = REPEAT(\"x\", 2048) | LIMIT 1000"),
             true,
             delay::startDisrupting
         );
@@ -667,19 +649,11 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testRandomDisruptionDuringStream() throws Exception {
-        assumeTrue("requires query pragmas for page_size", canUseQueryPragmas());
         boolean allowPartial = randomBoolean();
-        int pageSize = between(1, 8);
         int limit = randomBoolean() ? between(100, 1000) : streamDocCount + between(1, 100);
         int faultAtLine = randomFrom(0, 1, 2, between(3, 10));
-        logger.info(
-            "--> testRandomDisruptionDuringStream allowPartial={} pageSize={} limit={} faultAtLine={}",
-            allowPartial,
-            pageSize,
-            limit,
-            faultAtLine
-        );
-        String body = streamBody("FROM " + STREAM_INDEX + " | LIMIT " + limit, pageSize);
+        logger.info("--> testRandomDisruptionDuringStream allowPartial={} limit={} faultAtLine={}", allowPartial, limit, faultAtLine);
+        String body = streamBody("FROM " + STREAM_INDEX + " | LIMIT " + limit);
         String partialParam = "allow_partial_results=" + allowPartial;
 
         ServiceDisruptionScheme scheme = addRandomDisruptionScheme();

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165347
+summary: Reject metadata flags with Arrow format
+type: enhancement
